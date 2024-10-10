@@ -33,15 +33,15 @@ CONF_ELEVATION = "elevation"
 
 DEPENDENCIES = ["i2c"]
 
-sen0501_ns = cg.esphome_ns.namespace("sen0501")
-Sen0501Component = sen0501_ns.class_(
-    "Sen0501Component", cg.PollingComponent, i2c.I2CDevice
+sen0501_ns = cg.esphome_ns.namespace("sen0501_i2c")
+Sen0501_i2cComponent = sen0501_ns.class_(
+    "Sen0501_i2cComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(Sen0501Component),
+            cv.GenerateID(): cv.declare_id(Sen0501_i2cComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,

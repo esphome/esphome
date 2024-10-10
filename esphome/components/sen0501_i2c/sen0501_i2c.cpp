@@ -1,11 +1,11 @@
-#include "sen0501.h"
+#include "sen0501_i2c.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace sen0501 {
+namespace sen0501_i2c {
 
-static const char *const TAG = "sen0501";
+static const char *const TAG = "sen0501_i2c";
 
 // Device Address
 static const uint8_t SEN050X_DEFAULT_DEVICE_ADDRESS = 0x22;
@@ -29,7 +29,7 @@ static const uint16_t REG_ATMOSPHERIC_PRESSURE = 0x0018;
 
 // PUBLIC
 
-void Sen0501Component::setup() {
+void Sen0501_i2cComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen0501...");
   uint8_t product_id_first_byte;
   if (!this->read_byte(REG_PID, &product_id_first_byte)) {
@@ -55,7 +55,7 @@ void Sen0501Component::setup() {
   }
 }
 
-void Sen0501Component::update() {
+void Sen0501_i2cComponent::update() {
   this->read_temperature_();
   this->read_humidity_();
   this->read_uv_intensity_();
@@ -63,7 +63,7 @@ void Sen0501Component::update() {
   this->read_atmospheric_pressure_();
 }
 
-void Sen0501Component::dump_config() {
+void Sen0501_i2cComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DFRobot Environmental Sensor - sen0501:");
   LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
@@ -89,11 +89,11 @@ void Sen0501Component::dump_config() {
   LOG_SENSOR("  ", "Elevation", this->elevation_);
 }
 
-float Sen0501Component::get_setup_priority() const { return setup_priority::DATA; }
+float Sen0501_i2cComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 // PROTECTED
 
-void Sen0501Component::read_temperature_() {
+void Sen0501_i2cComponent::read_temperature_() {
   if (this->temperature_ == nullptr)
     return;
   uint8_t buffer[2];
@@ -104,7 +104,7 @@ void Sen0501Component::read_temperature_() {
   this->temperature_->publish_state(temp);
 }
 
-void Sen0501Component::read_humidity_() {
+void Sen0501_i2cComponent::read_humidity_() {
   if (this->humidity_ == nullptr)
     return;
   uint8_t buffer[2];
@@ -115,7 +115,7 @@ void Sen0501Component::read_humidity_() {
   this->humidity_->publish_state(humidity);
 }
 
-void Sen0501Component::read_uv_intensity_() {
+void Sen0501_i2cComponent::read_uv_intensity_() {
   if (this->uv_intensity_ == nullptr)
     return;
   uint8_t buffer[2];
@@ -141,7 +141,7 @@ void Sen0501Component::read_uv_intensity_() {
   this->uv_intensity_->publish_state(ultra_violet);
 }
 
-void Sen0501Component::read_luminous_intensity_() {
+void Sen0501_i2cComponent::read_luminous_intensity_() {
   if (this->luminous_intensity_ == nullptr)
     return;
   uint8_t buffer[2];
@@ -152,7 +152,7 @@ void Sen0501Component::read_luminous_intensity_() {
   this->luminous_intensity_->publish_state(luminous);
 }
 
-void Sen0501Component::read_atmospheric_pressure_() {
+void Sen0501_i2cComponent::read_atmospheric_pressure_() {
   if (this->atmospheric_pressure_ == nullptr && this->elevation_ == nullptr)
     return;
   uint8_t buffer[2];
@@ -166,5 +166,5 @@ void Sen0501Component::read_atmospheric_pressure_() {
   }
 }
 
-}  // namespace sen0501
+}  // namespace sen0501_i2c
 }  // namespace esphome

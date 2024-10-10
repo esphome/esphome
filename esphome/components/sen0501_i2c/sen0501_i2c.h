@@ -8,9 +8,9 @@
 // https://github.com/DFRobot/DFRobot_EnvironmentalSensor
 
 namespace esphome {
-namespace sen0501 {
+namespace sen0501_i2c {
 
-class Sen0501Component : public PollingComponent, public i2c::I2CDevice {
+class Sen0501_i2cComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
@@ -48,5 +48,5 @@ class Sen0501Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace sen0501
+}  // namespace sen0501_i2c
 }  // namespace esphome
