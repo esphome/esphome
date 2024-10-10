@@ -42,6 +42,7 @@ static const uint8_t MADCTL_MV = 0x20;   ///< Bit 5 Reverse Mode
 static const uint8_t MADCTL_RGB = 0x00;  ///< Bit 3 Red-Green-Blue pixel order
 static const uint8_t MADCTL_BGR = 0x08;  ///< Bit 3 Blue-Green-Red pixel order
 
+static const uint8_t DELAY_FLAG = 0xFF;
 // store a 16 bit value in a buffer, big endian.
 static inline void put16_be(uint8_t *buf, uint16_t value) {
   buf[0] = value >> 8;
@@ -100,9 +101,12 @@ class QspiDbi : public display::DisplayBuffer,
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   bool can_proceed() override { return this->setup_complete_; }
-  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->extra_init_sequence_ = sequence; }
+  void add_init_sequence(const std::vector<uint8_t> &sequence) {
+    this->extra_init_sequence_.insert(this->extra_init_sequence_.end(), sequence.begin(), sequence.end());
+  }
 
  protected:
+  void write_sequence_(const uint8_t *addr);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
@@ -138,8 +142,8 @@ class QspiDbi : public display::DisplayBuffer,
 
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *enable_pin_{nullptr};
-  uint16_t x_low_{0};
-  uint16_t y_low_{0};
+  uint16_t x_low_{1};
+  uint16_t y_low_{1};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   bool setup_complete_{};

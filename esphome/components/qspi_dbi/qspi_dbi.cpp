@@ -121,6 +121,8 @@ void QspiDbi::write_init_sequence_() {
     this->write_command_(PIXFMT, 0x55);
     this->write_command_(BRIGHTNESS, 0);
   }
+  if (!this->extra_init_sequence_.empty())
+    this->write_sequence_(this->extra_init_sequence_.data());
   this->write_command_(DISPLAY_ON);
   this->reset_params_(true);
   this->setup_complete_ = true;
@@ -128,6 +130,7 @@ void QspiDbi::write_init_sequence_() {
 }
 
 void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
+  ESP_LOGD(TAG, "Set addr %d/%d, %d/%d", x1, y1, x2, y2);
   uint8_t buf[4];
   x1 += this->offset_x_;
   x2 += this->offset_x_;
@@ -159,13 +162,40 @@ void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
     this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, ptr, w * h * 2, 4);
   } else {
-    this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, nullptr, 0, 4);
     auto stride = x_offset + w + x_pad;
+    ESP_LOGD(TAG, "x_pad=%d, x_offset/y_offset=%d/%d, w/h=%d/%d, stride=%d", x_pad, x_offset, y_offset, w, h, stride);
+    uint16_t cmd = 0x2C00;
     for (int y = 0; y != h; y++) {
-      this->write_cmd_addr_data(0, 0, 0, 0, ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2, 4);
+      ESP_LOGD(TAG, "byte offset=%d", ((y + y_offset) * stride + x_offset) * 2);
+      delay(2);
+      this->write_cmd_addr_data(8, 0x32, 24, cmd, ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2, 4);
+      cmd = 0x3C00;
     }
   }
   this->disable();
+}
+
+void QspiDbi::write_sequence_(const uint8_t *addr) {
+  if (addr == nullptr)
+    return;
+  uint8_t cmd, x, num_args;
+  while ((cmd = *addr++) != 0) {
+    x = *addr++;
+    if (x == DELAY_FLAG) {
+      cmd &= 0x7F;
+      ESP_LOGV(TAG, "Delay %dms", cmd);
+      delay(cmd);
+    } else {
+      num_args = x & 0x7F;
+      ESP_LOGV(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, *addr);
+      this->write_command_(cmd, addr, num_args);
+      addr += num_args;
+      if (x & 0x80) {
+        ESP_LOGV(TAG, "Delay 150ms");
+        delay(150);  // NOLINT
+      }
+    }
+  }
 }
 
 void QspiDbi::dump_config() {
