@@ -6,9 +6,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
-
 #ifdef USE_ESP32
 
+#include <map>
 using esphome::esp_log_printf_;
 
 #include "esp_netif.h"
@@ -36,6 +36,13 @@ enum class ModemComponentState {
   TURNING_OFF_POWER,
 };
 
+struct ModemComponentStateTiming {
+  int time_limit;
+  int poll_period;
+  ModemComponentStateTiming() : time_limit(0), poll_period(0) {}
+  ModemComponentStateTiming(int time_limit, int poll_period) : time_limit(time_limit), poll_period(poll_period) {}
+};
+
 class ModemComponent : public Component {
  public:
   ModemComponent();
@@ -51,8 +58,8 @@ class ModemComponent : public Component {
   void set_type(ModemType type);
   void set_reset_pin(InternalGPIOPin *reset_pin);
   void set_apn(const std::string &apn);
-  void set_tx_pin(int tx_pin);
-  void set_rx_pin(int rx_pin);
+  void set_tx_pin(uint8_t tx_pin);
+  void set_rx_pin(uint8_t rx_pin);
   void set_uart_event_task_stack_size(int uart_event_task_stack_size);
   void set_uart_event_task_priority(int uart_event_task_priority);
   void set_uart_event_queue_size(int uart_event_queue_size);
@@ -65,11 +72,23 @@ class ModemComponent : public Component {
   bool powerdown();
 
  protected:
-  static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+  std::map<ModemComponentState, ModemComponentStateTiming> modemComponentStateTimingMap = {
+      {ModemComponentState::STOPPED, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(1000, 10000)},
+      {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(1000, 5000)},
+      {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(1000, 4000)},
+      {ModemComponentState::CONNECTING, ModemComponentStateTiming(1000, 4000)},
+      {ModemComponentState::CONNECTED, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(1000, 6000)},
+      {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(0, 0)},
+  };
+
+  static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int event_id, void *event_data);
   void modem_netif_init();
   void dte_init();
   void dce_init();
 
+  bool check_modem_component_state_timings();
   void turn_on_modem();
   void turn_off_modem();
   void turn_on_pwrkey();
@@ -86,8 +105,8 @@ class ModemComponent : public Component {
   InternalGPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *power_pin_{nullptr};
   InternalGPIOPin *pwrkey_pin_{nullptr};
-  int tx_pin_{-1};
-  int rx_pin_{-1};
+  uint8_t tx_pin_{0};
+  uint8_t rx_pin_{0};
   std::string apn_{""};
   std::string use_address_;
   int uart_event_task_stack_size_{0};
@@ -96,11 +115,14 @@ class ModemComponent : public Component {
   int uart_tx_buffer_size_{0};
   int uart_rx_buffer_size_{0};
 
+  int pull_time_{0};
+  int change_state_{0};
+
   bool started_{false};
   bool connected_{false};
 
   ModemComponentState state_{ModemComponentState::STOPPED};
-  uint32_t connect_begin_;
+  int connect_begin_;
   esp_netif_t *modem_netif_{nullptr};
   // esp_eth_phy_t *phy_{nullptr};
 };

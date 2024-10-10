@@ -4,7 +4,6 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
-
 #ifdef USE_ESP32
 
 #include "esp_modem_c_api_types.h"
@@ -16,14 +15,16 @@
 #include <lwip/dns.h>
 #include "esp_event.h"
 
-uint32_t time_info_print = 0;
-uint32_t time_hard_reset_modem = 0;
-uint32_t time_check_rssi = 0;
-uint32_t time_check_pwrkey = 0;
-uint32_t time_check_reset = 0;
-uint32_t time_turn_on_reset = 0;
-uint32_t time_turn_on_modem = 0;
-uint32_t time_turn_off_modem = 0;
+int time_info_print = 0;
+int time_hard_reset_modem = 0;
+int time_check_rssi = 0;
+int time_check_pwrkey = 0;
+int time_check_reset = 0;
+int time_turn_on_reset = 0;
+int time_turn_on_modem = 0;
+int time_turn_off_modem = 0;
+int last_pull_time = 0;
+int time_change_state = 0;
 
 #define TIME_TO_NEXT_HARD_RESET 30000
 #define TIME_TO_START_MODEM 9000
@@ -98,19 +99,22 @@ void ModemComponent::setup() {
 }
 
 void ModemComponent::loop() {
-  const uint32_t now = millis();
+  const int now = millis();
+  if (!ModemComponent::check_modem_component_state_timings()) {
+    return;
+  }
   switch (this->state_) {
     case ModemComponentState::STOPPED:
       this->turn_on_modem();
       break;
-    case ModemComponentState::TURNING_ON_POWER: //time_check_pwrkey
+    case ModemComponentState::TURNING_ON_POWER:  // time_check_pwrkey
       this->turn_on_pwrkey();
       this->dce_init();
       break;
     case ModemComponentState::TURNING_ON_PWRKEY:
-      if (time_check_pwrkey + SYNCHRONIZATION_CHECK_PERIOD < now){
+      if (time_check_pwrkey + SYNCHRONIZATION_CHECK_PERIOD < now) {
         time_check_pwrkey = now;
-        if (this->dce->sync() == esp_modem::command_result::OK){
+        if (this->dce->sync() == esp_modem::command_result::OK) {
           ESP_LOGD(TAG, "sync OK TURNING_ON_PWRKEY");
           this->turn_off_pwrkey();
           this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
@@ -120,7 +124,7 @@ void ModemComponent::loop() {
       }
       break;
     case ModemComponentState::REGISTRATION_IN_NETWORK:
-      if (time_check_rssi + TIME_CHECK_REGISTRATION_IN_NETWORK < now){
+      if (time_check_rssi + TIME_CHECK_REGISTRATION_IN_NETWORK < now) {
         time_check_rssi = now;
         if (get_rssi()) {
           ESP_LOGD(TAG, "Starting modem connection");
@@ -139,7 +143,6 @@ void ModemComponent::loop() {
       if (time_info_print < now) {
         // ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage() / 1000);
         if (esp_netif_is_netif_up(this->modem_netif_)) {
-          
           ESP_LOGD(TAG, "esp_netif_is_netif_UP");
         } else {
           ESP_LOGD(TAG, "esp_netif_is_netif_DOWN");
@@ -148,12 +151,12 @@ void ModemComponent::loop() {
       }
       break;
     case ModemComponentState::TURNING_ON_RESET:
-      if (time_turn_on_reset + DELAY_HOLD_RESET_PIN > now){
+      if (time_turn_on_reset + DELAY_HOLD_RESET_PIN > now) {
         break;
       }
-      if (time_check_reset + SYNCHRONIZATION_CHECK_PERIOD < now){
+      if (time_check_reset + SYNCHRONIZATION_CHECK_PERIOD < now) {
         time_check_reset = now;
-        if (this->dce->sync() == esp_modem::command_result::OK){
+        if (this->dce->sync() == esp_modem::command_result::OK) {
           ESP_LOGD(TAG, "sync OK TURNING_ON_RESET");
           this->turn_off_reset();
           this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
@@ -163,21 +166,21 @@ void ModemComponent::loop() {
       }
       break;
     case ModemComponentState::TURNING_OFF_POWER:
-    if (time_turn_off_modem + TURN_OFF_MODEM_TIME < now) {
-      this->turn_on_modem();
-    }
+      if (time_turn_off_modem + TURN_OFF_MODEM_TIME < now) {
+        this->turn_on_modem();
+      }
       break;
   }
 }
 
-void ModemComponent::modem_netif_init(){
+void ModemComponent::modem_netif_init() {
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->modem_netif_ = esp_netif_new(&netif_ppp_config);
   assert(this->modem_netif_);
   ESP_LOGD(TAG, "netif create succes");
 }
 
-void ModemComponent::dte_init(){
+void ModemComponent::dte_init() {
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
   /* setup UART specific configuration based on kconfig options */
   dte_config.uart_config.tx_io_num = this->tx_pin_;
@@ -191,13 +194,25 @@ void ModemComponent::dte_init(){
   this->dte = esp_modem::create_uart_dte(&dte_config);
 }
 
-void ModemComponent::dce_init(){
+void ModemComponent::dce_init() {
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
   this->dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
 }
 
+bool ModemComponent::check_modem_component_state_timings() {
+  const int now = millis();
+  ModemComponentStateTiming timing = this->modemComponentStateTimingMap[this->state_];
+  if (last_pull_time + timing.poll_period > now) {
+    last_pull_time = now;
+    return true;
+  } else if (time_change_state + timing.time_limit < now) {
+    return true;
+  }
+  return false;
+}
+
 void ModemComponent::turn_on_modem() {
-  if (power_pin_){
+  if (power_pin_) {
     this->power_pin_->digital_write(true);
     time_turn_on_modem = millis();
     ESP_LOGD(TAG, "Modem turn on");
@@ -218,7 +233,7 @@ void ModemComponent::turn_off_modem() {
 }
 
 void ModemComponent::turn_on_pwrkey() {
-  if (pwrkey_pin_){
+  if (pwrkey_pin_) {
     this->pwrkey_pin_->digital_write(false);
     ESP_LOGD(TAG, "pwrkey turn on");
     this->state_ = ModemComponentState::TURNING_ON_PWRKEY;
@@ -226,7 +241,7 @@ void ModemComponent::turn_on_pwrkey() {
     ESP_LOGD(TAG, "Can't turn on pwrkey pin because it is not configured, go to reset modem");
     this->turn_on_reset();
   }
-    //vTaskDelay(pdMS_TO_TICKS(500));  // NOLINT
+  // vTaskDelay(pdMS_TO_TICKS(500));  // NOLINT
 }
 
 void ModemComponent::turn_off_pwrkey() {
@@ -241,7 +256,7 @@ void ModemComponent::turn_on_reset() {
 }
 
 void ModemComponent::turn_off_reset() {
-  this->reset_pin_->digital_write(true);  
+  this->reset_pin_->digital_write(true);
   ESP_LOGD(TAG, "turn off reset");
 }
 
@@ -303,7 +318,7 @@ network::IPAddress ModemComponent::get_ip_address() {
   return network::IPAddress(&ip.ip);
 }
 
-void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int event_id, void *event_data) {
   ESP_LOGD(TAG, "IP event! %" PRIu32, event_id);
   if (event_id == IP_EVENT_PPP_GOT_IP) {
     global_modem_component->connected_ = true;
@@ -364,8 +379,8 @@ void ModemComponent::set_pwrkey_pin(InternalGPIOPin *pwrkey_pin) { this->pwrkey_
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
 void ModemComponent::set_reset_pin(InternalGPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
 void ModemComponent::set_apn(const std::string &apn) { this->apn_ = apn; }
-void ModemComponent::set_tx_pin(int tx_pin) { this->tx_pin_ = tx_pin; }
-void ModemComponent::set_rx_pin(int rx_pin) { this->rx_pin_ = rx_pin; }
+void ModemComponent::set_tx_pin(uint8_t tx_pin) { this->tx_pin_ = tx_pin; }
+void ModemComponent::set_rx_pin(uint8_t rx_pin) { this->rx_pin_ = rx_pin; }
 void ModemComponent::set_uart_event_task_stack_size(int uart_event_task_stack_size) {
   this->uart_event_task_stack_size_ = uart_event_task_stack_size;
 }
