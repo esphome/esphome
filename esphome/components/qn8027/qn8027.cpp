@@ -100,7 +100,6 @@ bool QN8027Component::read_reg_(uint8_t addr) {
       mask = 0x1f;  // the lower 5 bits are valid, upper 3 bits are reserved
       break;
     case REG_CID2_ADDR:
-      break;
     case REG_STATUS_ADDR:
       break;
     default:
@@ -410,7 +409,6 @@ XtalSource QN8027Component::get_xtal_source() { return (XtalSource) this->state_
 
 void QN8027Component::set_xtal_current(float value) {
   this->state_.XISEL = value >= XISEL_MAX ? 0b00111111 : (uint16_t) (value / 6.25f);
-  ESP_LOGD(TAG, "set_xtal_current(%f) => %d", value, this->state_.XISEL);
   if (this->state_.XINJ != (uint8_t) XtalSource::USE_CRYSTAL_ON_XTAL12) {
     ESP_LOGW(TAG, "xtal source should be %d", (int) XtalSource::USE_CRYSTAL_ON_XTAL12);
   }
