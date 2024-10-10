@@ -77,8 +77,8 @@ class MR60FDA2Component : public Component,
 
  protected:
   uint8_t current_frame_locate_;
-  uint8_t current_frame_buf[FRAME_BUF_MAX_SIZE];
-  uint8_t current_data_buf[DATA_BUF_MAX_SIZE];
+  uint8_t current_frame_buf_[FRAME_BUF_MAX_SIZE];
+  uint8_t current_data_buf_[DATA_BUF_MAX_SIZE];
   uint16_t current_frame_id_;
   size_t current_frame_len_;
   size_t current_data_frame_len_;
@@ -88,14 +88,14 @@ class MR60FDA2Component : public Component,
   uint32_t current_sensitivity_;
   uint8_t select_index_;
 
-  bool validateChecksum(const uint8_t *data, size_t len, uint8_t expected_checksum);
-  uint8_t calculateChecksum(const uint8_t *data, size_t len);
-  void splitFrame(uint8_t buffer);
-  void processFrame();
+  bool validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum);
+  uint8_t calculate_checksum_(const uint8_t *data, size_t len);
+  void split_frame_(uint8_t buffer);
+  void process_frame_();
   void send_query_(uint8_t *query, size_t string_length);
-  void float_to_bytes(float value, unsigned char *bytes);
-  void int_to_bytes(uint32_t value, unsigned char *bytes);
-  uint8_t find_nearest_index(float value, const float *arr, int size);
+  void float_to_bytes_(float value, unsigned char *bytes);
+  void int_to_bytes_(uint32_t value, unsigned char *bytes);
+  uint8_t find_nearest_index_(float value, const float *arr, int size);
 
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
