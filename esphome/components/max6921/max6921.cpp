@@ -37,7 +37,7 @@ void MAX6921Component::dump_config() {
   this->display_->dump_config();
 }
 
-/**
+/*
  * @brief Clocks data into MAX6921 via SPI (MSB first).
  *        Data must contain 3 bytes with following format:
  *          bit  | 23 | 22 | 21 | 20 | 19 | 18 | ... | 1 | 0
@@ -49,13 +49,13 @@ void HOT MAX6921Component::write_data(uint8_t *ptr, size_t length) {
   static bool first_call_logged = false;
 
   assert(length == 3);
-  this->disable_load_();            // set LOAD to low
   memcpy(data, ptr, sizeof(data));  // make copy of data, because transfer buffer will be overwritten with SPI answer
   if (!first_call_logged)
     ESP_LOGVV(TAG, "SPI(%u): 0x%02x%02x%02x", length, data[0], data[1], data[2]);
   first_call_logged = true;
+  this->disable_load_();  // set LOAD to low to disable update of output latch during data transfer
   this->transfer_array(data, sizeof(data));
-  this->enable_load_();  // set LOAD to high to update output latch
+  this->enable_load_();  // set LOAD to high to update the output latch (transparent to the shift register)
 }
 
 void MAX6921Component::update() {
