@@ -642,9 +642,7 @@ void QN8027Component::publish_input_impedance() {
   this->publish(this->input_impedance_select_, (size_t) this->get_input_impedance());
 }
 
-void QN8027Component::publish_input_gain() {
-  this->publish(this->input_gain_number_, (float) this->get_input_gain());
-}
+void QN8027Component::publish_input_gain() { this->publish(this->input_gain_number_, (float) this->get_input_gain()); }
 
 void QN8027Component::publish_digital_gain() {
   this->publish(this->digital_gain_number_, (float) this->get_digital_gain());
