@@ -303,7 +303,7 @@ void EbyteLoraComponent::get_current_config_() {
     this->set_mode_(CONFIGURATION);
     return;
   }
-  if (this->can_send_message_()) {
+  if (this->can_send_message_("get_current_config_")) {
     uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
     this->write_array(data, sizeof(data));
     ESP_LOGD(TAG, "Config info requested");
@@ -312,7 +312,7 @@ void EbyteLoraComponent::get_current_config_() {
   }
 }
 ModeType EbyteLoraComponent::get_mode_() {
-  if (!this->can_send_message_())
+  if (!this->can_send_message_("get_mode_"))
     return MODE_INIT;
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
@@ -347,7 +347,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   }
   // when the system starts, aux will stay low until you set the first mode
   // so make sure mode init isn't set AND we can't sent because aux is low
-  if (!this->can_send_message_()) {
+  if (!this->can_send_message_("set_mode")) {
     if (this->config_mode_ == MODE_INIT) {
       ESP_LOGD(TAG, "Very first time setting the mode, going to ignore device busy state");
     } else {
@@ -382,14 +382,14 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   }
   this->config_mode_ = mode;
 }
-bool EbyteLoraComponent::can_send_message_() {
+bool EbyteLoraComponent::can_send_message_(char *info) {
   // High means no more information is needed
   if (this->pin_aux_->digital_read()) {
     this->flush();
-    ESP_LOGD(TAG, "Aux pin is High! Can send again!");
+    ESP_LOGD(TAG, "Aux pin is High! Can send again! for: %s", info);
     return true;
   } else {
-    ESP_LOGD(TAG, "Can't sent it right now");
+    ESP_LOGD(TAG, "Can't sent it right now for %s", info);
     return false;
   }
 }
@@ -539,7 +539,7 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
   }
 };
 void EbyteLoraComponent::send_data_(bool all) {
-  if (!this->can_send_message_())
+  if (!this->can_send_message_("send_data_"))
     return;
   std::vector<uint8_t> data;
   data.push_back(network_id_);
@@ -579,7 +579,7 @@ void EbyteLoraComponent::send_data_(bool all) {
   this->write_array(data);
 }
 void EbyteLoraComponent::send_repeater_info_() {
-  if (!this->can_send_message_())
+  if (!this->can_send_message_("send_repeater_info_"))
     return;
   uint8_t data[3];
   data[0] = REPEATER_INFO;  // response
@@ -589,7 +589,7 @@ void EbyteLoraComponent::send_repeater_info_() {
   this->write_array(data, sizeof(data));
 }
 void EbyteLoraComponent::request_repeater_info_() {
-  if (!this->can_send_message_())
+  if (!this->can_send_message_("request_repeater_info_"))
     return;
   uint8_t data[2];
   data[0] = REQUEST_REPEATER_INFO;  // Request
@@ -599,7 +599,7 @@ void EbyteLoraComponent::request_repeater_info_() {
 }
 void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
   ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
-  if (!this->can_send_message_())
+  if (!this->can_send_message_("repeat_message_"))
     return;
   this->write_array(data.data(), data.size());
 }
