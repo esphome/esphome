@@ -1,10 +1,10 @@
 i2c:
   - id: i2c_sen0501
-    scl: 16
-    sda: 17
+    scl: 5
+    sda: 4
 
 sensor:
-  - platform: sen0501
+  - platform: sen0501_i2c
     address: 0x22
     temperature:
       name: "Temperature"
