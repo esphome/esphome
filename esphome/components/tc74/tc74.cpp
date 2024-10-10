@@ -24,9 +24,7 @@ void TC74Component::setup() {
   this->data_ready_ = config_reg & TC74_DATA_READY_MASK;
 }
 
-void TC74Component::update() {
-  this->set_timeout("temperature", 2, [this]() { this->read_temperature_(); });
-}
+void TC74Component::update() { this->read_temperature_(); }
 
 void TC74Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TC74:");
