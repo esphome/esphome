@@ -93,7 +93,6 @@ void ModemComponent::setup() {
   this->dte_init();
 
   /* Configure the DCE */
-  this->dce_init();
 
   this->started_ = true;
 }
@@ -103,26 +102,10 @@ void ModemComponent::loop() {
   switch (this->state_) {
     case ModemComponentState::STOPPED:
       this->turn_on_modem();
-
-
-      // if (time_check_rssi + TIME_TO_START_MODEM < now) {
-      //   time_check_rssi = now;
-      //   // this->dce->set_command_mode();
-      //   if (get_rssi()) {
-      //     ESP_LOGD(TAG, "Starting modem connection");
-      //     ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
-      //     this->state_ = ModemComponentState::CONNECTING;
-      //     this->dce->set_data();
-      //     // this->start_connect_();
-      //   }
-      //   if (time_hard_reset_modem + TIME_TO_NEXT_HARD_RESET < now) {
-      //     time_hard_reset_modem = now;
-      //     turn_on_reset();
-      //   }
-      // }
       break;
     case ModemComponentState::TURNING_ON_POWER: //time_check_pwrkey
       this->turn_on_pwrkey();
+      this->dce_init();
       break;
     case ModemComponentState::TURNING_ON_PWRKEY:
       if (time_check_pwrkey + SYNCHRONIZATION_CHECK_PERIOD < now){
