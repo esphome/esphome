@@ -15,10 +15,45 @@ void RadonEyeRD200::handle_status_response_(const uint8_t *response, uint16_t le
 
   radoneye_value_response_t *data = (radoneye_value_response_t *) response;
 
-  ESP_LOGD(TAG, "  Measurements (Bq/m³) now: %u", data->latest_bq_m3);
-  ESP_LOGD(TAG, "  Measurements Day (Bq/m³) avg: %u", data->day_avg_bq_m3);
-  ESP_LOGD(TAG, "  Measurements Month (Bq/m³) avg: %u", data->month_avg_bq_m3);
-  ESP_LESP_LOGDOGW(TAG, "  Measurements Peak (Bq/m³): %u", data->peak_bq_m3);
+  ESP_LOGD(TAG, "  Model: %.6s", data->model);
+  ESP_LOGD(TAG, "  Version: %.6s", data->version);
+  if (data->unit == 0) {
+    ESP_LOGD(TAG, "  Unit: pCi/ℓ");
+    ESP_LOGD(TAG, "  Measurements (pCi/ℓ) now: %u", data->latest_bq_m3);
+    ESP_LOGD(TAG, "  Measurements Day (pCi/ℓ) avg: %u", data->day_avg_bq_m3);
+    ESP_LOGD(TAG, "  Measurements Month (pCi/ℓ) avg: %u", data->month_avg_bq_m3);
+    ESP_LOGD(TAG, "  Measurements Peak (pCi/ℓ): %u", data->peak_bq_m3);
+  } else {
+    ESP_LOGD(TAG, "  Unit: Bq/m³");
+    ESP_LOGD(TAG, "  Measurements (Bq/m³) now: %u", data->latest_bq_m3);
+    ESP_LOGD(TAG, "  Measurements Day (Bq/m³) avg: %u", data->day_avg_bq_m3);
+    ESP_LOGD(TAG, "  Measurements Month (Bq/m³) avg: %u", data->month_avg_bq_m3);
+    ESP_LOGD(TAG, "  Measurements Peak (Bq/m³): %u", data->peak_bq_m3);
+  }
+  if (data->alarm != 0) {
+    ESP_LOGD(TAG, "  AlarmStatus on!");
+  } else {
+    ESP_LOGD(TAG, "  AlarmStatus off");
+  }
+  ESP_LOGD(TAG, "  Alarm Value: %u", data->alarm_value);
+
+  if (data->alarm_interval == 1) {
+    ESP_LOGD(TAG, "  Alarm Interval: 10min");
+  } else if (data->alarm_interval == 6) {
+    ESP_LOGD(TAG, "  Alarm Interval: 6H");
+  } else if (data->alarm_interval == 24) {
+    ESP_LOGD(TAG, "  Alarm Interval: 24H");
+  }
+
+  if (this->radon_version_ == 3) {
+    ESP_LOGD(TAG, "  Barcode %.6s%.3s%.4s", (char *) data->serial_part2, (char *) data->serial_part1,
+             (char *) data->serial_part3);
+  } else {
+    ESP_LOGD(TAG, "  Barcode %.3s%.6s%.4s", (char *) data->serial_part1, (char *) data->serial_part2,
+             (char *) data->serial_part3);
+  }
+
+  ESP_LOGV(TAG, "  HexData: %s", format_hex_pretty(response, length).c_str());
 
   float flatest_bq_m3 = (float) data->latest_bq_m3;
   float fday_avg_bq_m3 = (float) data->day_avg_bq_m3;
@@ -52,6 +87,18 @@ void RadonEyeRD200::handle_status_response_(const uint8_t *response, uint16_t le
     delay(25);
   } else {
     ESP_LOGI(TAG, " Sensor radon_peak not exists!");
+  }
+  if (alarm_sensor_ != nullptr) {
+    ESP_LOGD(TAG, " Sensor alarm send!");
+    if (data->alarm != 0) {
+      alarm_sensor_->publish_state(true);
+    } else {
+      alarm_sensor_->publish_state(false);
+    }
+
+    delay(25);
+  } else {
+    ESP_LOGI(TAG, " Sensor alarm not exists!");
   }
 
   return;
@@ -282,8 +329,8 @@ void RadonEyeRD200::update() {
     }
   } else {
     if (this->radon_version_ == 2 || this->radon_version_ == 3) {
-        ESP_LOGV(TAG, "Update Version 2 or 3");        
-        write_status_query_message_();
+      ESP_LOGV(TAG, "Update Version 2 or 3");
+      write_status_query_message_();
     }
   }
 }
@@ -313,6 +360,17 @@ void RadonEyeRD200::write_status_query_message_() {
 void RadonEyeRD200::write_history_query_message_() {
   ESP_LOGD(TAG, "writing 0x41 to command service");
   int request = 0x41;
+  auto status = esp_ble_gattc_write_char_descr(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                               this->command_handle_, sizeof(request), (uint8_t *) &request,
+                                               ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status) {
+    ESP_LOGW(TAG, "Error sending command request for sensor, status=%d", status);
+  }
+}
+
+void RadonEyeRD200::write_beep_query_message_() {
+  ESP_LOGD(TAG, "writing 0xA1 to command service");
+  int request = 0xA1;
   auto status = esp_ble_gattc_write_char_descr(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
                                                this->command_handle_, sizeof(request), (uint8_t *) &request,
                                                ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);

@@ -8,8 +8,10 @@
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace radon_eye_rd200 {
@@ -33,13 +35,16 @@ typedef struct {
   /* 15 */ uint8_t __unk1[1];
   /* 16 */ char model[6];
   /* 22 */ char version[6];
-  /* 28 */ uint8_t __unk2[5];
+  /* 28 */ uint8_t unit;
+  /* 29 */ uint8_t alarm;
+  /* 30 */ uint16_t alarm_value;
+  /* 32 */ uint8_t alarm_interval;
   /* 33 */ uint16_t latest_bq_m3;
   /* 35 */ uint16_t day_avg_bq_m3;
   /* 37 */ uint16_t month_avg_bq_m3;
   /* 39 */ uint8_t __unk3[12];
   /* 51 */ uint16_t peak_bq_m3;
-  /* 53 */ uint8_t __unk4[16]; // Length 15 or 16? Maybe because of version 3
+  /* 53 */ uint8_t __unk4[16];
 } __attribute__((packed)) radoneye_value_response_t;
 
 typedef struct {
@@ -51,7 +56,6 @@ typedef struct {
 } __attribute__((packed)) radoneye_history_response_t;
 /* Thanks to sormy https://github.com/esphome/issues/issues/3371#issuecomment-1851004514 */
 
-
 class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode {
  public:
   RadonEyeRD200();
@@ -62,7 +66,8 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
 
- void set_version(int version) { radon_version_ = version; }
+  void set_version(int version) { radon_version_ = version; }
+  void set_alarm(binary_sensor::BinarySensor *alarm) { alarm_sensor_ = alarm; }
   void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
   void set_radon_day_avg(sensor::Sensor *radon_day_avg) { radon_day_avg_ = radon_day_avg; }
   void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
@@ -79,9 +84,11 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
   void write_query_message_();
   void write_status_query_message_();
   void write_history_query_message_();
+  void write_beep_query_message_();
   void request_read_values_();
 
   int radon_version_{1};
+  binary_sensor::BinarySensor *alarm_sensor_{nullptr};
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_day_avg_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};
