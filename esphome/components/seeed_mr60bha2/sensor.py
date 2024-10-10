@@ -10,7 +10,7 @@ from . import CONF_MR60BHA2_ID, MR60BHA2Component
 AUTO_LOAD = ["seeed_mr60bha2"]
 
 CONF_BREATH_RATE = "breath_rate"
-CONF_HEART_RATE= "heart_rate"
+CONF_HEART_RATE = "heart_rate"
 CONF_DISTANCE = "distance"
 
 CONFIG_SCHEMA = cv.Schema(
