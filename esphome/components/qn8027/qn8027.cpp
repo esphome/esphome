@@ -6,6 +6,9 @@
 namespace esphome {
 namespace qn8027 {
 
+// TODO: std::clamp isn't here yet
+#define clamp(v, lo, hi) std::max(std::min(v, hi), lo)
+
 static const char *const TAG = "qn8027";
 
 QN8027Component::QN8027Component() {
@@ -197,21 +200,20 @@ void QN8027Component::setup() {
   // reset
   this->state_.SWRST = 1;
   this->write_reg_(REG_SYSTEM_ADDR);
-  // TODO: add delay?
-  delay_microseconds_safe(10000);
+  delay_microseconds_safe(10000);  // TODO: add delay?
   // calibrate (TODO: single step with reset?)
   this->state_.RECAL = 1;
   this->write_reg_(REG_SYSTEM_ADDR);
-  // TODO: add delay?
-  delay_microseconds_safe(10000);
-  // update the rest of the system register (may not be needed again)
+  delay_microseconds_safe(10000);  // TODO: add delay?
+  // write PA_TRGT first, it needs an IDLE cycle, IDLE is the default after RESET
+  this->write_reg_(REG_PAC_ADDR);
+  // update the rest of the system register, TXREQ == 1 will use PA_TRGT hopefully
   this->write_reg_(REG_SYSTEM_ADDR);
   // frequency lower bits and the rest of the settings
   this->write_reg_(REG_CH1_ADDR);
   this->write_reg_(REG_GPLT_ADDR);
   this->write_reg_(REG_XTL_ADDR);
   this->write_reg_(REG_VGA_ADDR);
-  this->write_reg_(REG_PAC_ADDR);
   this->write_reg_(REG_FDEV_ADDR);
   this->write_reg_(REG_RDS_ADDR);
 
@@ -284,12 +286,11 @@ void QN8027Component::loop() {
 
 void QN8027Component::set_frequency(float value) {
   if (!(CH_FREQ_MIN <= value && value <= CH_FREQ_MAX)) {
-    ESP_LOGE(TAG, "frequency invalid %.2f (%.2f - %.2f)", value, CH_FREQ_MIN, CH_FREQ_MAX);
+    ESP_LOGE(TAG, "set_frequency(%.2f) invalid, must be between %.2f and %.2f", value, CH_FREQ_MIN, CH_FREQ_MAX);
     return;
   }
 
-  // avoid float to int conversion inaccuracies with round(x * 20)
-  int f = std::max(std::min((int) round(value * 20) - 76 * 20, CH_FREQ_RAW_MAX), CH_FREQ_RAW_MIN);
+  int f = clamp((int) ((value - 76) * 20 + 0.5f), CH_FREQ_RAW_MIN, CH_FREQ_RAW_MAX);
   this->state_.CH_UPPER = (uint8_t) (f >> 8);
   this->state_.CH_LOWER = (uint8_t) (f & 0xff);
   this->write_reg_(REG_SYSTEM_ADDR);
@@ -305,11 +306,12 @@ float QN8027Component::get_frequency() {
 
 void QN8027Component::set_frequency_deviation(float value) {
   if (!(TX_FDEV_MIN <= value && value <= TX_FDEV_MAX)) {
-    ESP_LOGE(TAG, "frequency deviation invalid %.2f (%.2f - %.2f)", value, TX_FDEV_MIN, TX_FDEV_MAX);
+    ESP_LOGE(TAG, "set_frequency_deviation(%.2f) invalid, must be between %.2f and %.2f", value, TX_FDEV_MIN,
+             TX_FDEV_MAX);
     return;
   }
 
-  this->state_.TX_FDEV = (uint8_t) std::max(std::min((int) (value / 0.58f), TX_FDEV_RAW_MAX), TX_FDEV_RAW_MIN);
+  this->state_.TX_FDEV = (uint8_t) clamp((int) (value / 0.58f + 0.5f), TX_FDEV_RAW_MIN, TX_FDEV_RAW_MAX);
   this->write_reg_(REG_FDEV_ADDR);
 
   this->publish_frequency_deviation_();
@@ -481,14 +483,38 @@ uint8_t QN8027Component::get_digital_gain() { return this->state_.GDB; }
 
 void QN8027Component::set_power_target(float value) {
   if (!(PA_TRGT_MIN <= value && value <= PA_TRGT_MAX)) {
-    ESP_LOGE(TAG, "power target invalid %.2f, must be between %.2f and %.2f", value, PA_TRGT_MIN, PA_TRGT_MAX);
+    ESP_LOGE(TAG, "set_power_target(%.2f) invalid, must be between %.2f and %.2f", value, PA_TRGT_MIN, PA_TRGT_MAX);
     return;
   }
 
-  this->state_.PA_TRGT = (uint8_t) ((std::max(std::min(value, PA_TRGT_MAX), PA_TRGT_MIN) - 71) / 0.62f);
+  this->state_.PA_TRGT = (uint8_t) clamp((int) ((value - 71) / 0.62f + 0.5f), PA_TRGT_RAW_MIN, PA_TRGT_RAW_MAX);
   this->write_reg_(REG_PAC_ADDR);
 
   this->publish_power_target_();
+
+  // From the datasheet:
+  //
+  // PA output power setting will not efficient immediately, it need to enter IDLE mode and re-enter TX mode,
+  // or when the frequency changed the PA output power setting will take effect
+
+  if (this->state_.FSM == FSM_STATUS_TRANSMIT) {
+    uint8_t TXREQ = this->state_.TXREQ;
+    this->state_.TXREQ = 0;
+    this->write_reg_(REG_SYSTEM_ADDR);
+    int tries = 10;
+    while (this->read_reg_(REG_STATUS_ADDR)) {
+      if (this->state_.FSM == FSM_STATUS_IDLE || tries-- <= 0)
+        break;
+      delay_microseconds_safe(1);
+    }
+    if (tries <= 0) {
+      ESP_LOGE(TAG, "set_power_target(%.2f) could not reach IDLE status in time", value);
+    }
+    if (TXREQ) {
+      this->state_.TXREQ = TXREQ;
+      this->write_reg_(REG_SYSTEM_ADDR);
+    }
+  }
 }
 
 float QN8027Component::get_power_target() { return 0.62f * this->state_.PA_TRGT + 71; }
@@ -503,7 +529,13 @@ void QN8027Component::set_rds_enable(bool value) {
 bool QN8027Component::get_rds_enable() { return this->state_.RDSEN == 1; }
 
 void QN8027Component::set_rds_frequency_deviation(float value) {
-  this->state_.RDSFDEV = (uint8_t) std::max(std::min((int) (value / 0.35f), 127), 0);
+  if (!(RDSFDEV_MIN <= value && value <= RDSFDEV_MAX)) {
+    ESP_LOGE(TAG, "set_rds_frequency_deviation(%.2f) invalid, must be between %.2f and %.2f", value, RDSFDEV_MIN,
+             RDSFDEV_MAX);
+    return;
+  }
+
+  this->state_.RDSFDEV = (uint8_t) clamp((int) (value / 0.35f + 0.5f), RDSFDEV_RAW_MIN, RDSFDEV_RAW_MAX);
   this->write_reg_(REG_RDS_ADDR);
 
   this->publish_rds_frequency_deviation_();
@@ -644,13 +676,9 @@ void QN8027Component::publish_rds_frequency_deviation_() {
   this->publish_(this->rds_frequency_deviation_number_, this->get_rds_frequency_deviation());
 }
 
-void QN8027Component::publish_rds_station_() {
-  this->publish_(this->rds_station_text_, this->rds_station_);
-}
+void QN8027Component::publish_rds_station_() { this->publish_(this->rds_station_text_, this->rds_station_); }
 
-void QN8027Component::publish_rds_text_() {
-  this->publish_(this->rds_text_text_, this->rds_text_);
-}
+void QN8027Component::publish_rds_text_() { this->publish_(this->rds_text_text_, this->rds_text_); }
 
 void QN8027Component::publish_(number::Number *n, float state) {
   if (n != nullptr) {
@@ -678,7 +706,7 @@ void QN8027Component::publish_(select::Select *s, size_t index) {
   }
 }
 
-void QN8027Component::publish_(text::Text *t, const std::string& state) {
+void QN8027Component::publish_(text::Text *t, const std::string &state) {
   if (t != nullptr) {
     if (!t->has_state() || t->state != state) {
       t->publish_state(state);

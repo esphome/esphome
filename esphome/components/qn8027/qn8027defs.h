@@ -34,6 +34,13 @@ static const uint8_t GVGA_MAX = 5;
 
 static const float PA_TRGT_MIN = 83.4f;
 static const float PA_TRGT_MAX = 117.5f;
+static const int PA_TRGT_RAW_MIN = 20;
+static const int PA_TRGT_RAW_MAX = 75;
+
+static const float RDSFDEV_MIN = 0;
+static const float RDSFDEV_MAX = 44.45f;
+static const int RDSFDEV_RAW_MIN = 0;
+static const int RDSFDEV_RAW_MAX = 127;
 
 static const uint8_t RDS_STATION_MAX_SIZE = 8;
 static const uint8_t RDS_TEXT_MAX_SIZE = 64;
