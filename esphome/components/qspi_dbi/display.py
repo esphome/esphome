@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
+from esphome.core import TimePeriod
 
 DEPENDENCIES = ["spi"]
 
@@ -40,6 +41,7 @@ COLOR_ORDERS = {
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 CONF_INIT_SEQUENCE = "init_sequence"
+DELAY_FLAG = 0xFF
 
 
 def validate_dimension(value):
@@ -61,11 +63,18 @@ def cmd(c, *args):
 
 def map_sequence(value):
     """
-    An initialisation sequence is a literal array of data bytes.
-    The format is a repeated sequence of [CMD, <data>]
+    The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
+    from the length of the sequence and should not be explicit.
+    A delay can be inserted by specifying "- delay N" where N is in ms
     """
-    if len(value) == 0:
-        raise cv.Invalid("Empty sequence")
+    if isinstance(value, str) and value.lower().startswith("delay "):
+        value = value.lower()[6:]
+        delay = cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
+        )(value)
+        return [delay, DELAY_FLAG]
+    value = cv.Length(min=1, max=254)(value)
     return cmd(*value)
 
 
