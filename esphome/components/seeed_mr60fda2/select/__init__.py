@@ -3,6 +3,7 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
+    CONF_SENSITIVITY,
 )
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns
 
@@ -12,7 +13,6 @@ SensitivitySelect = mr60fda2_ns.class_("SensitivitySelect", select.Select)
 
 CONF_INSTALL_HEIGHT = "install_height"
 CONF_HEIGHT_THRESHOLD = "height_threshold"
-CONF_SENSITIVITY = "sensitivity"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR60FDA2_ID): cv.use_id(MR60FDA2Component),

@@ -17,7 +17,7 @@ MR60BHA2Component = mr60fda2_ns.class_(
     "MR60BHA2Component", cg.Component, uart.UARTDevice
 )
 
-CONF_MR60BHA2_ID = "mr60fda2_id"
+CONF_MR60BHA2_ID = "mr60bha2_id"
 
 CONFIG_SCHEMA = (
     cv.Schema(
