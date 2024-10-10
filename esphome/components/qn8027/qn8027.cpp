@@ -2,6 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstdio>
+#include <cmath>
 
 namespace esphome {
 namespace qn8027 {
@@ -47,20 +48,15 @@ void QN8027Component::write_reg_(uint8_t addr) {
         mask = 0b11000000;  // 0x40;
       break;
     case REG_CH1_ADDR:
-      break;
     case REG_GPLT_ADDR:
-      break;
     case REG_XTL_ADDR:
-      break;
     case REG_VGA_ADDR:
       break;
     case REG_RDSD_ADDR:
       count = 8;
       break;
     case REG_PAC_ADDR:
-      break;
     case REG_FDEV_ADDR:
-      break;
     case REG_RDS_ADDR:
       break;
     default:
@@ -292,7 +288,7 @@ void QN8027Component::set_frequency(float value) {
     return;
   }
 
-  int f = clamp((int) ((value - 76) * 20 + 0.5f), CH_FREQ_RAW_MIN, CH_FREQ_RAW_MAX);
+  int f = clamp((int) std::lround((value - 76) * 20), CH_FREQ_RAW_MIN, CH_FREQ_RAW_MAX);
   this->state_.CH_UPPER = (uint8_t) (f >> 8);
   this->state_.CH_LOWER = (uint8_t) (f & 0xff);
   this->write_reg_(REG_SYSTEM_ADDR);
@@ -312,7 +308,7 @@ void QN8027Component::set_frequency_deviation(float value) {
     return;
   }
 
-  this->state_.TX_FDEV = (uint8_t) clamp((int) (value / 0.58f + 0.5f), TX_FDEV_RAW_MIN, TX_FDEV_RAW_MAX);
+  this->state_.TX_FDEV = (uint8_t) clamp((int) std::lround(value / 0.58f), TX_FDEV_RAW_MIN, TX_FDEV_RAW_MAX);
   this->write_reg_(REG_FDEV_ADDR);
 
   this->publish_frequency_deviation();
@@ -488,7 +484,7 @@ void QN8027Component::set_power_target(float value) {
     return;
   }
 
-  this->state_.PA_TRGT = (uint8_t) clamp((int) ((value - 71) / 0.62f + 0.5f), PA_TRGT_RAW_MIN, PA_TRGT_RAW_MAX);
+  this->state_.PA_TRGT = (uint8_t) clamp((int) std::lround((value - 71) / 0.62f), PA_TRGT_RAW_MIN, PA_TRGT_RAW_MAX);
   this->write_reg_(REG_PAC_ADDR);
 
   this->publish_power_target();
@@ -535,7 +531,7 @@ void QN8027Component::set_rds_frequency_deviation(float value) {
     return;
   }
 
-  this->state_.RDSFDEV = (uint8_t) clamp((int) (value / 0.35f + 0.5f), RDSFDEV_RAW_MIN, RDSFDEV_RAW_MAX);
+  this->state_.RDSFDEV = (uint8_t) clamp((int) std::lround(value / 0.35f), RDSFDEV_RAW_MIN, RDSFDEV_RAW_MAX);
   this->write_reg_(REG_RDS_ADDR);
 
   this->publish_rds_frequency_deviation();
