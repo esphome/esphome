@@ -4,6 +4,7 @@ touchscreen:
     interrupt_pin:
       number: 21
     reset_pin: GPIO16
+    skip_probe: false
     transform:
       mirror_x: false
       mirror_y: false
@@ -11,14 +12,14 @@ touchscreen:
 
 i2c:
   sda: 3
-  scl: 2
+  scl: 4
 
 display:
   - id: my_display
     platform: ili9xxx
     dimensions: 480x320
     model: ST7796
-    cs_pin: 15
+    cs_pin: 18
     dc_pin: 20
     reset_pin: 22
     transform:
