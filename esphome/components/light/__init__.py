@@ -3,13 +3,18 @@ import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BLUE,
+    CONF_BRIGHTNESS,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
+    CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_CORRECT,
     CONF_COLOR_MODE,
+    CONF_COLOR_TEMPERATURE,
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_EFFECTS,
     CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
+    CONF_GREEN,
     CONF_ID,
     CONF_INITIAL_STATE,
     CONF_MQTT_ID,
@@ -17,11 +22,13 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_POWER_SUPPLY,
+    CONF_RED,
     CONF_RESTORE_MODE,
     CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
+    CONF_WHITE,
 )
 from esphome.core import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -159,13 +166,13 @@ async def setup_light_core_(light_var, output_var, config):
                 initial_state_config.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
             ),
             ("state", initial_state_config.get(CONF_STATE, False)),
-            ("brightness", initial_state_config.get("brightness", 1.0)),
-            ("color_brightness", initial_state_config.get("color_brightness", 1.0)),
-            ("red", initial_state_config.get("red", 1.0)),
-            ("green", initial_state_config.get("green", 1.0)),
-            ("blue", initial_state_config.get("blue", 1.0)),
-            ("white", initial_state_config.get("white", 1.0)),
-            ("color_temp", initial_state_config.get("color_temperature", 1.0)),
+            ("brightness", initial_state_config.get(CONF_BRIGHTNESS, 1.0)),
+            ("color_brightness", initial_state_config.get(CONF_COLOR_BRIGHTNESS, 1.0)),
+            ("red", initial_state_config.get(CONF_RED, 1.0)),
+            ("green", initial_state_config.get(CONF_GREEN, 1.0)),
+            ("blue", initial_state_config.get(CONF_BLUE, 1.0)),
+            ("white", initial_state_config.get(CONF_WHITE, 1.0)),
+            ("color_temp", initial_state_config.get(CONF_COLOR_TEMPERATURE, 1.0)),
             (
                 "cold_white",
                 initial_state_config.get(CONF_COLD_WHITE_COLOR_TEMPERATURE, 1.0),
