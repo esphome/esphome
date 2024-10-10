@@ -45,6 +45,7 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
+  void set_skip_probe(bool skip_probe) { this->skip_probe_ = skip_probe; }
 
  protected:
   void continue_setup_();
@@ -53,6 +54,7 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{};
   uint8_t chip_id_{};
+  bool skip_probe_{};  // if set, do not expect to be able to probe the controller on the i2c bus.
   std::vector<CST816ButtonListener *> button_listeners_;
   bool button_touched_{};
 };
