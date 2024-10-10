@@ -35,7 +35,7 @@ DEPENDENCIES = ["i2c"]
 
 sen0501_ns = cg.esphome_ns.namespace("sen0501_i2c")
 Sen0501I2CComponent = sen0501_ns.class_(
-    "Sen0501_i2cComponent", cg.PollingComponent, i2c.I2CDevice
+    "Sen0501I2CComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (
