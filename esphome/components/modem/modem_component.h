@@ -27,12 +27,13 @@ enum ModemType {
 
 enum class ModemComponentState {
   STOPPED,
-  TURNING_ON,
+  TURNING_ON_POWER,
+  TURNING_ON_PWRKEY,
   REGISTRATION_IN_NETWORK,
   CONNECTING,
   CONNECTED,
-  RESETTING,
-  TURNING_OFF,
+  TURNING_ON_RESET,
+  TURNING_OFF_POWER,
 };
 
 class ModemComponent : public Component {
@@ -65,13 +66,17 @@ class ModemComponent : public Component {
 
  protected:
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+  void modem_netif_init();
+  void dte_init();
+  void dce_init();
 
   void turn_on_modem();
   void turn_off_modem();
   void turn_on_pwrkey();
   void turn_off_pwrkey();
   void start_connect_();
-  void reset_modem();
+  void turn_on_reset();
+  void turn_off_reset();
   int get_rssi();
   int get_modem_voltage();
 
