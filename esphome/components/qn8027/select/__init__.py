@@ -61,6 +61,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 async def to_code(config):
     qn8027_component = await cg.get_variable(config[CONF_QN8027_ID])
     if t1m_sel_config := config.get(CONF_T1M_SEL):
@@ -68,19 +69,26 @@ async def to_code(config):
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_t1m_sel_select(s))
     if pre_emphasis_config := config.get(CONF_PRE_EMPHASIS):
-        s = await select.new_select(pre_emphasis_config, options=list(PRE_EMPHASIS.keys()))
+        s = await select.new_select(
+            pre_emphasis_config, options=list(PRE_EMPHASIS.keys())
+        )
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_pre_emphasis_select(s))
     if xtal_source_config := config.get(CONF_XTAL_SOURCE):
-        s = await select.new_select(xtal_source_config, options=list(XTAL_SOURCE.keys()))
+        s = await select.new_select(
+            xtal_source_config, options=list(XTAL_SOURCE.keys())
+        )
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_xtal_source_select(s))
     if xtal_frequency_config := config.get(CONF_XTAL_FREQUENCY):
-        s = await select.new_select(xtal_frequency_config, options=list(XTAL_FREQUENCY.keys()))
+        s = await select.new_select(
+            xtal_frequency_config, options=list(XTAL_FREQUENCY.keys())
+        )
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_xtal_frequency_select(s))
     if input_impedance_config := config.get(CONF_INPUT_IMPEDANCE):
-        s = await select.new_select(input_impedance_config, options=list(INPUT_IMPEDANCE.keys()))
+        s = await select.new_select(
+            input_impedance_config, options=list(INPUT_IMPEDANCE.keys())
+        )
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_input_impedance_select(s))
-        

@@ -63,6 +63,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 async def to_code(config):
     qn8027_component = await cg.get_variable(config[CONF_QN8027_ID])
     if mute_config := config.get(CONF_MUTE):
@@ -85,4 +86,3 @@ async def to_code(config):
         s = await switch.new_switch(rds_enable_config)
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_rds_enable_switch(s))
-

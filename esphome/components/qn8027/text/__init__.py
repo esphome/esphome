@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_MQTT_ID,
-    CONF_ENTITY_CATEGORY,
     CONF_WEB_SERVER,
     ENTITY_CATEGORY_CONFIG,
 )
@@ -43,6 +42,7 @@ _TEXT_SCHEMA = (
 
 _UNDEF = object()
 
+
 def text_schema(
     class_: MockObjClass = _UNDEF,
     *,
@@ -67,6 +67,7 @@ def text_schema(
 
 
 TEXT_SCHEMA = text_schema()  # for compatibility
+
 
 async def setup_text_core_(
     var,
@@ -135,13 +136,18 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 async def to_code(config):
     qn8027_component = await cg.get_variable(config[CONF_QN8027_ID])
     if rds_station_config := config.get(CONF_RDS_STATION):
-        t = await new_text(rds_station_config, min_length=0, max_length=qn8027_ns.RDS_STATION_MAX_SIZE)
+        t = await new_text(
+            rds_station_config, min_length=0, max_length=qn8027_ns.RDS_STATION_MAX_SIZE
+        )
         await cg.register_parented(t, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_rds_station_text(t))
     if rds_text_config := config.get(CONF_RDS_TEXT):
-        t = await new_text(rds_text_config, min_length=0, max_length=qn8027_ns.RDS_TEXT_MAX_SIZE)
+        t = await new_text(
+            rds_text_config, min_length=0, max_length=qn8027_ns.RDS_TEXT_MAX_SIZE
+        )
         await cg.register_parented(t, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_rds_text_text(t))

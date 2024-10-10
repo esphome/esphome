@@ -1,16 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome import automation
-from esphome.automation import maybe_simple_id
 from esphome.components import i2c, sensor, text_sensor
 from esphome.const import (
     CONF_ID,
     CONF_FREQUENCY,
-    UNIT_VOLT,
     UNIT_EMPTY,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     ICON_CHIP,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -36,10 +32,11 @@ ICON_RESISTOR = "mdi:resistor"
 ICON_FORMAT_TEXT = "mdi:format-text"
 
 qn8027_ns = cg.esphome_ns.namespace("qn8027")
-QN8027Component = qn8027_ns.class_("QN8027Component", cg.PollingComponent, i2c.I2CDevice)
+QN8027Component = qn8027_ns.class_(
+    "QN8027Component", cg.PollingComponent, i2c.I2CDevice
+)
 
 CONF_QN8027_ID = "qn8027_id"
-#CONF_FREQUENCY = "frequency"
 CONF_FREQUENCY_DEVIATION = "frequency_deviation"
 CONF_MUTE = "mute"
 CONF_MONO = "mono"
@@ -109,28 +106,42 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(QN8027Component),
             cv.Optional(CONF_FREQUENCY, default=87.50): cv.float_range(76, 108),
-            cv.Optional(CONF_FREQUENCY_DEVIATION, default=74.82): cv.float_range(0, 147.9),
+            cv.Optional(CONF_FREQUENCY_DEVIATION, default=74.82): cv.float_range(
+                0, 147.9
+            ),
             cv.Optional(CONF_MUTE, default=False): cv.boolean,
             cv.Optional(CONF_MONO, default=False): cv.boolean,
             cv.Optional(CONF_TX_ENABLE, default=True): cv.boolean,
-            cv.Optional(CONF_TX_PILOT, default=9): cv.All(cv.uint8_t, cv.Range(min=7, max=10)),
+            cv.Optional(CONF_TX_PILOT, default=9): cv.All(
+                cv.uint8_t, cv.Range(min=7, max=10)
+            ),
             cv.Optional(CONF_T1M_SEL, default="60s"): cv.enum(T1M_SEL),
             cv.Optional(CONF_PRIV_EN, default=False): cv.boolean,
             cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS),
-            cv.Optional(CONF_XTAL_SOURCE, default="CRYSTAL"): cv.enum(XTAL_SOURCE, upper=True, space="_"),
+            cv.Optional(CONF_XTAL_SOURCE, default="CRYSTAL"): cv.enum(
+                XTAL_SOURCE, upper=True, space="_"
+            ),
             cv.Optional(CONF_XTAL_CURRENT, default=100): cv.float_range(0, 400),
             cv.Optional(CONF_XTAL_FREQUENCY, default="24MHz"): cv.enum(XTAL_FREQUENCY),
-            cv.Optional(CONF_INPUT_IMPEDANCE, default="20kOhm"): cv.enum(INPUT_IMPEDANCE),
-            cv.Optional(CONF_INPUT_GAIN, default=3): cv.All(cv.uint8_t, cv.Range(min=0, max=5)),
-            cv.Optional(CONF_DIGITAL_GAIN, default=0): cv.All(cv.uint8_t, cv.Range(min=0, max=2)),
+            cv.Optional(CONF_INPUT_IMPEDANCE, default="20kOhm"): cv.enum(
+                INPUT_IMPEDANCE
+            ),
+            cv.Optional(CONF_INPUT_GAIN, default=3): cv.All(
+                cv.uint8_t, cv.Range(min=0, max=5)
+            ),
+            cv.Optional(CONF_DIGITAL_GAIN, default=0): cv.All(
+                cv.uint8_t, cv.Range(min=0, max=2)
+            ),
             cv.Optional(CONF_POWER_TARGET, default=117.5): cv.float_range(83.4, 117.5),
             cv.Optional(CONF_RDS_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_RDS_FREQUENCY_DEVIATION, default=2.1): cv.float_range(0, 44.45),
+            cv.Optional(CONF_RDS_FREQUENCY_DEVIATION, default=2.1): cv.float_range(
+                0, 44.45
+            ),
             cv.Optional(CONF_RDS_STATION): cv.string,
             cv.Optional(CONF_RDS_TEXT): cv.string,
             cv.Optional(CONF_AUD_PK): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLI_VOLT,
-                #accuracy_decimals=3,
+                # accuracy_decimals=3,
                 device_class=DEVICE_CLASS_VOLTAGE,
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -154,6 +165,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x2C))
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -209,4 +221,3 @@ async def to_code(config):
     if conf_reg30 := config.get(CONF_REG30):
         s = await sensor.new_sensor(conf_reg30)
         cg.add(var.set_reg30_sensor(s))
-

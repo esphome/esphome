@@ -416,7 +416,7 @@ void QN8027Component::set_xtal_current(float value) {
   this->state_.XISEL = value >= XISEL_MAX ? 0b00111111 : (uint16_t) (value / 6.25f);
   ESP_LOGD(TAG, "set_xtal_current(%f) => %d", value, this->state_.XISEL);
   if (this->state_.XINJ != (uint8_t) XtalSource::USE_CRYSTAL_ON_XTAL12) {
-    ESP_LOGW(TAG, "xtal source should be %d", (int)XtalSource::USE_CRYSTAL_ON_XTAL12);
+    ESP_LOGW(TAG, "xtal source should be %d", (int) XtalSource::USE_CRYSTAL_ON_XTAL12);
   }
 
   this->write_reg_(REG_XTL_ADDR);
