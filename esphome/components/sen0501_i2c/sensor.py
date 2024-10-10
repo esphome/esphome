@@ -1,32 +1,32 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    ICON_BRIGHTNESS_5,
-    ICON_ELEVATION,
-    ICON_GAUGE,
-    ICON_THERMOMETER,
-    ICON_UV_RADIATION,
-    ICON_WATER_PERCENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
-    UNIT_IRRADIANCE,
-    UNIT_LUX,
-    UNIT_METER,
-    UNIT_PERCENT,
+    CONF_HUMIDITY,
+    CONF_ID,
+    CONF_ILLUMINANCE,
+    CONF_PRESSURE,
+    CONF_TEMPERATURE,
+    CONF_UV_IRRADIANCE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_IRRADIANCE,
     DEVICE_CLASS_TEMPERATURE,
-    CONF_HUMIDITY,
-    CONF_ID,
-    CONF_ILLUMINANCE,
-    CONF_TEMPERATURE,
-    CONF_PRESSURE,
-    CONF_UV_IRRADIANCE,
+    ICON_BRIGHTNESS_5,
+    ICON_ELEVATION,
+    ICON_GAUGE,
+    ICON_THERMOMETER,
+    ICON_UV_RADIATION,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_HECTOPASCAL,
+    UNIT_IRRADIANCE,
+    UNIT_LUX,
+    UNIT_METER,
+    UNIT_PERCENT,
 )
 
 CONF_ELEVATION = "elevation"
@@ -34,14 +34,14 @@ CONF_ELEVATION = "elevation"
 DEPENDENCIES = ["i2c"]
 
 sen0501_ns = cg.esphome_ns.namespace("sen0501_i2c")
-Sen0501_i2cComponent = sen0501_ns.class_(
+Sen0501I2CComponent = sen0501_ns.class_(
     "Sen0501_i2cComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(Sen0501_i2cComponent),
+            cv.GenerateID(): cv.declare_id(Sen0501I2CComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
@@ -92,7 +92,6 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
