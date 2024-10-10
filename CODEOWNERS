@@ -351,7 +351,7 @@ esphome/components/seeed_mr24hpc1/* @limengdu
 esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
-esphome/components/sen0501/* @thetestspecimen
+esphome/components/sen0501_i2c/* @thetestspecimen
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
 esphome/components/sensirion_common/* @martgras
