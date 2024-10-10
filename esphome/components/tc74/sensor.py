@@ -1,12 +1,3 @@
-"""
-The TC74 is an i2c temperature sensor available in a breadboard-friendly 5-pin
-TO-220 package and a SOT-23 SMD package. It has a temperature tolerance of ±2°C
-from 25°C-85°C.
-
-https://www.adafruit.com/product/4375
-
-"""
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
