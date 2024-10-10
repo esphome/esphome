@@ -293,9 +293,7 @@ void EbyteLoraComponent::setup() {
 #endif
   this->pin_aux_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->pin_aux_->setup();
-  this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT);
   this->pin_m0_->setup();
-  this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT);
   this->pin_m1_->setup();
   ESP_LOGD(TAG, "Setup success");
 }
