@@ -323,6 +323,7 @@ esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
 esphome/components/qmp6988/* @andrewpc
+esphome/components/qn8027/* @gabest11
 esphome/components/qr_code/* @wjtje
 esphome/components/qspi_amoled/* @clydebarrow
 esphome/components/qwiic_pir/* @kahrendt
