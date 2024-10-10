@@ -81,7 +81,7 @@ void DeepSleepComponent::deep_sleep_() {
 
   if (this->touch_wakeup_.has_value() && *(this->touch_wakeup_)) {
     esp_sleep_enable_touchpad_wakeup();
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_AUTO);
   }
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6)
