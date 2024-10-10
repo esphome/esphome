@@ -7,7 +7,7 @@ namespace bmp3xx_spi {
 
 class BMP3XXSPIComponent : public bmp3xx_base::BMP3XXComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
   void setup() override;
   bool read_byte(uint8_t a_register, uint8_t *data) override;
   bool write_byte(uint8_t a_register, uint8_t data) override;
