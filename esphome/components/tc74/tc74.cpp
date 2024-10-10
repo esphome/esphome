@@ -27,14 +27,12 @@ void TC74Component::setup() {
 void TC74Component::update() { this->read_temperature_(); }
 
 void TC74Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "TC74:");
+  LOG_SENSOR("", "TC74", this);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with TC74 failed!");
   }
   LOG_UPDATE_INTERVAL(this);
-
-  LOG_SENSOR("  ", "Temperature", this);
 }
 
 void TC74Component::read_temperature_() {
