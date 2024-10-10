@@ -62,6 +62,7 @@ CONF_RDS_TEXT = "rds_text"
 CONF_AUD_PK = "aud_pk"
 CONF_FSM = "fsm"
 CONF_CHIP_ID = "chip_id"
+CONF_REG30 = "reg30"
 
 SetFrequencyAction = qn8027_ns.class_(
     "SetFrequencyAction", automation.Action, cg.Parented.template(QN8027Component)
@@ -142,6 +143,12 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 icon=ICON_CHIP,
             ),
+            cv.Optional(CONF_REG30): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                icon=ICON_CHIP,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -199,4 +206,7 @@ async def to_code(config):
     if conf_chip_id := config.get(CONF_CHIP_ID):
         s = await text_sensor.new_text_sensor(conf_chip_id)
         cg.add(var.set_chip_id_text_sensor(s))
+    if conf_reg30 := config.get(CONF_REG30):
+        s = await sensor.new_sensor(conf_reg30)
+        cg.add(var.set_reg30_sensor(s))
 

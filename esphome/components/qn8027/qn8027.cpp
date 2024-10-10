@@ -14,6 +14,7 @@ static const char *const TAG = "qn8027";
 QN8027Component::QN8027Component() {
   this->reset_ = false;
   memset(&this->state_, 0, sizeof(this->state_));
+  this->reg30_ = 0;
   this->rds_station_pos_ = 0;
   this->rds_text_pos_ = 0;
   this->rds_upd_ = 0xff;        // set defaults according to the datasheet
@@ -77,7 +78,7 @@ void QN8027Component::write_reg_(uint8_t addr) {
     ESP_LOGV(TAG, "write_reg_(0x%02X/%d) = %s", addr, count, s.c_str());
     for (size_t i = 0; i < count; i++) {
       uint8_t value = this->regs_[addr + i] & mask;
-      //      ESP_LOGV(TAG, "write_reg_(0x%02X) = 0x%02X", addr + i, value);
+      // ESP_LOGV(TAG, "write_reg_(0x%02X) = 0x%02X", addr + i, value);
       this->write_byte(addr + i, value);
     }
   } else {
@@ -220,6 +221,7 @@ void QN8027Component::setup() {
   this->publish_aud_pk_();
   this->publish_fsm_();
   this->publish_chip_id_();
+  this->publish_reg30_();
   this->publish_frequency_();
   this->publish_frequency_deviation_();
   this->publish_mute_();
@@ -241,13 +243,6 @@ void QN8027Component::setup() {
   this->publish_rds_station_();
   this->publish_rds_text_();
 
-  if (this->get_update_interval() != SCHEDULER_DONT_RUN) {
-    this->set_interval(this->get_update_interval(), [this]() {
-      this->state_.TXPD_CLR ^= 1;
-      this->write_reg_(REG_PAC_ADDR);
-    });
-  }
-
   this->set_interval(1000, [this]() { this->rds_update_(); });
 }
 
@@ -263,15 +258,22 @@ void QN8027Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  RDS text: %s", this->rds_text_.c_str());
   // TODO: ...and everything else...
   LOG_UPDATE_INTERVAL(this);
-  LOG_NUMBER("  ", "Frequency", this->frequency_number_);
 }
 
 void QN8027Component::update() {
   if (this->read_reg_(REG_STATUS_ADDR)) {
     this->publish_aud_pk_();
     this->publish_fsm_();
+    // reset aud_pk
+    this->state_.TXPD_CLR ^= 1;
+    this->write_reg_(REG_PAC_ADDR);
   } else {
     ESP_LOGE(TAG, "update cannot read the status register");
+  }
+
+  if (auto b = this->read_byte(REG_REG30)) {
+    this->reg30_ = *b;
+    this->publish_reg30_();
   }
 }
 
@@ -286,7 +288,7 @@ void QN8027Component::loop() {
 
 void QN8027Component::set_frequency(float value) {
   if (!(CH_FREQ_MIN <= value && value <= CH_FREQ_MAX)) {
-    ESP_LOGE(TAG, "set_frequency(%.2f) invalid, must be between %.2f and %.2f", value, CH_FREQ_MIN, CH_FREQ_MAX);
+    ESP_LOGE(TAG, "set_frequency(%.2f) invalid (%.2f - %.2f)", value, CH_FREQ_MIN, CH_FREQ_MAX);
     return;
   }
 
@@ -306,8 +308,7 @@ float QN8027Component::get_frequency() {
 
 void QN8027Component::set_frequency_deviation(float value) {
   if (!(TX_FDEV_MIN <= value && value <= TX_FDEV_MAX)) {
-    ESP_LOGE(TAG, "set_frequency_deviation(%.2f) invalid, must be between %.2f and %.2f", value, TX_FDEV_MIN,
-             TX_FDEV_MAX);
+    ESP_LOGE(TAG, "set_frequency_deviation(%.2f) invalid (%.2f - %.2f)", value, TX_FDEV_MIN, TX_FDEV_MAX);
     return;
   }
 
@@ -483,7 +484,7 @@ uint8_t QN8027Component::get_digital_gain() { return this->state_.GDB; }
 
 void QN8027Component::set_power_target(float value) {
   if (!(PA_TRGT_MIN <= value && value <= PA_TRGT_MAX)) {
-    ESP_LOGE(TAG, "set_power_target(%.2f) invalid, must be between %.2f and %.2f", value, PA_TRGT_MIN, PA_TRGT_MAX);
+    ESP_LOGE(TAG, "set_power_target(%.2f) invalid (%.2f and %.2f)", value, PA_TRGT_MIN, PA_TRGT_MAX);
     return;
   }
 
@@ -530,8 +531,7 @@ bool QN8027Component::get_rds_enable() { return this->state_.RDSEN == 1; }
 
 void QN8027Component::set_rds_frequency_deviation(float value) {
   if (!(RDSFDEV_MIN <= value && value <= RDSFDEV_MAX)) {
-    ESP_LOGE(TAG, "set_rds_frequency_deviation(%.2f) invalid, must be between %.2f and %.2f", value, RDSFDEV_MIN,
-             RDSFDEV_MAX);
+    ESP_LOGE(TAG, "set_rds_frequency_deviation(%.2f) invalid (%.2f and %.2f)", value, RDSFDEV_MIN, RDSFDEV_MAX);
     return;
   }
 
@@ -567,60 +567,44 @@ void QN8027Component::set_rds_text(const std::string &value) {
 
 // publish
 
-void QN8027Component::publish_aud_pk_() {
-  if (this->aud_pk_sensor_ != nullptr) {
-    float value = 45.0f * this->state_.aud_pk;
-    if (!this->aud_pk_sensor_->has_state() || this->aud_pk_sensor_->state != value) {
-      this->aud_pk_sensor_->publish_state(value);
-    }
-  }
-}
+void QN8027Component::publish_aud_pk_() { this->publish_(this->aud_pk_sensor_, 45.0f * this->state_.aud_pk); }
 
 void QN8027Component::publish_fsm_() {
-  if (this->fsm_text_sensor_ != nullptr) {
-    const char *value = NULL;
-    switch (this->state_.FSM) {
-      case 0:
-        value = "RESET";
-        break;
-      case 1:
-        value = "CALI";
-        break;
-      case 2:
-        value = "IDLE";
-        break;
-      case 3:
-        value = "TX_RSTB";
-        break;
-      case 4:
-        value = "PA_CALIB";
-        break;
-      case 5:
-        value = "TRANSMIT";
-        break;
-      case 6:
-        value = "PA_OFF";
-        break;
-      case 7:
-        value = "RESERVED";
-        break;
-      default:
-        return;
-    }
-    if (!this->fsm_text_sensor_->has_state() || this->fsm_text_sensor_->state != value) {
-      this->fsm_text_sensor_->publish_state(value);
-    }
+  const char *value = NULL;
+  switch (this->state_.FSM) {
+    case 0:
+      value = "RESET";
+      break;
+    case 1:
+      value = "CALI";
+      break;
+    case 2:
+      value = "IDLE";
+      break;
+    case 3:
+      value = "TX_RSTB";
+      break;
+    case 4:
+      value = "PA_CALIB";
+      break;
+    case 5:
+      value = "TRANSMIT";
+      break;
+    case 6:
+      value = "PA_OFF";
+      break;
+    case 7:
+      value = "RESERVED";
+      break;
+    default:
+      return;
   }
+  this->publish_(this->fsm_text_sensor_, value);
 }
 
-void QN8027Component::publish_chip_id_() {
-  if (this->chip_id_text_sensor_ != nullptr) {
-    std::string value = chip_id_;
-    if (!this->chip_id_text_sensor_->has_state() || this->chip_id_text_sensor_->state != value) {
-      this->chip_id_text_sensor_->publish_state(value);
-    }
-  }
-}
+void QN8027Component::publish_chip_id_() { this->publish_(this->chip_id_text_sensor_, this->chip_id_); }
+
+void QN8027Component::publish_reg30_() { this->publish_(this->reg30_sensor_, (float) this->reg30_); }
 
 void QN8027Component::publish_frequency_() { this->publish_(this->frequency_number_, this->get_frequency()); }
 
@@ -679,6 +663,22 @@ void QN8027Component::publish_rds_frequency_deviation_() {
 void QN8027Component::publish_rds_station_() { this->publish_(this->rds_station_text_, this->rds_station_); }
 
 void QN8027Component::publish_rds_text_() { this->publish_(this->rds_text_text_, this->rds_text_); }
+
+void QN8027Component::publish_(text_sensor::TextSensor *s, const std::string &state) {
+  if (s != nullptr) {
+    if (!s->has_state() || s->state != state) {
+      s->publish_state(state);
+    }
+  }
+}
+
+void QN8027Component::publish_(sensor::Sensor *s, float state) {
+  if (s != nullptr) {
+    if (!s->has_state() || s->state != state) {
+      s->publish_state(state);
+    }
+  }
+}
 
 void QN8027Component::publish_(number::Number *n, float state) {
   if (n != nullptr) {

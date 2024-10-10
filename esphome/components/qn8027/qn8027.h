@@ -31,6 +31,7 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
     struct qn8027_state_t state_;
     uint8_t regs_[sizeof(struct qn8027_state_t)];
   };
+  uint8_t reg30_;  // undocumented diagnostic register
 
   void write_reg_(uint8_t addr);
   bool read_reg_(uint8_t addr);
@@ -46,6 +47,7 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(aud_pk)
   SUB_TEXT_SENSOR(fsm)
   SUB_TEXT_SENSOR(chip_id)
+  SUB_SENSOR(reg30)
   SUB_NUMBER(frequency)
   SUB_NUMBER(frequency_deviation)
   SUB_NUMBER(tx_pilot)
@@ -70,6 +72,7 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   void publish_aud_pk_();
   void publish_fsm_();
   void publish_chip_id_();
+  void publish_reg30_();
   void publish_frequency_();
   void publish_frequency_deviation_();
   void publish_mute_();
@@ -90,6 +93,8 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   void publish_rds_frequency_deviation_();
   void publish_rds_station_();
   void publish_rds_text_();
+  void publish_(sensor::Sensor *s, float state);
+  void publish_(text_sensor::TextSensor *s, const std::string &state);
   void publish_(number::Number *n, float state);
   void publish_(switch_::Switch *s, bool state);
   void publish_(select::Select *s, size_t index);

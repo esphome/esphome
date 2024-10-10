@@ -15,6 +15,7 @@ static const uint8_t REG_RDSD_ADDR = 0x08;  // 0x08 - 0x0F
 static const uint8_t REG_PAC_ADDR = 0x10;
 static const uint8_t REG_FDEV_ADDR = 0x11;
 static const uint8_t REG_RDS_ADDR = 0x12;
+static const uint8_t REG_REG30 = 30;
 
 static const float CH_FREQ_MIN = 76;
 static const float CH_FREQ_MAX = 108;

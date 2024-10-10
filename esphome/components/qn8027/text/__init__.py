@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from .. import (
@@ -27,6 +27,10 @@ from .. import (
 RDSStationText = qn8027_ns.class_("RDSStationText", text.Text)
 RDSTextText = qn8027_ns.class_("RDSTextText", text.Text)
 
+# The text component isn't implemented the same way as switch, select, number.
+# It is not possible to create our own text platform as it is now, so I adopted
+# the necessary code from those.
+
 _TEXT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -38,7 +42,6 @@ _TEXT_SCHEMA = (
 )
 
 _UNDEF = object()
-
 
 def text_schema(
     class_: MockObjClass = _UNDEF,
@@ -65,9 +68,8 @@ def text_schema(
 
 TEXT_SCHEMA = text_schema()  # for compatibility
 
-
 async def setup_text_core_(
-    var, 
+    var,
     config,
     *,
     min_length: Optional[int],
@@ -115,7 +117,6 @@ async def new_text(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
     )
     return var
-
 
 
 CONFIG_SCHEMA = cv.Schema(
