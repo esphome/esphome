@@ -97,7 +97,7 @@ enum class InputImpedance {
   LAST,
 };
 
-struct qn8027_state_t {
+struct QN8027State {
   union {
     uint8_t REG_SYSTEM;
     struct {

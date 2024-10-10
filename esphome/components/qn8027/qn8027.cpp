@@ -1,7 +1,7 @@
 #include "qn8027.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include <stdio.h>
+#include "esphome/core/log.h"
+#include <cstdio>
 
 namespace esphome {
 namespace qn8027 {
@@ -218,30 +218,30 @@ void QN8027Component::setup() {
   this->write_reg_(REG_FDEV_ADDR);
   this->write_reg_(REG_RDS_ADDR);
 
-  this->publish_aud_pk_();
-  this->publish_fsm_();
-  this->publish_chip_id_();
-  this->publish_reg30_();
-  this->publish_frequency_();
-  this->publish_frequency_deviation_();
-  this->publish_mute_();
-  this->publish_mono_();
-  this->publish_tx_enable_();
-  this->publish_tx_pilot_();
-  this->publish_t1m_sel_();
-  this->publish_priv_en_();
-  this->publish_pre_emphasis_();
-  this->publish_xtal_source_();
-  this->publish_xtal_current_();
-  this->publish_xtal_frequency_();
-  this->publish_input_impedance_();
-  this->publish_input_gain_();
-  this->publish_digital_gain_();
-  this->publish_power_target_();
-  this->publish_rds_enable_();
-  this->publish_rds_frequency_deviation_();
-  this->publish_rds_station_();
-  this->publish_rds_text_();
+  this->publish_aud_pk();
+  this->publish_fsm();
+  this->publish_chip_id();
+  this->publish_reg30();
+  this->publish_frequency();
+  this->publish_frequency_deviation();
+  this->publish_mute();
+  this->publish_mono();
+  this->publish_tx_enable();
+  this->publish_tx_pilot();
+  this->publish_t1m_sel();
+  this->publish_priv_en();
+  this->publish_pre_emphasis();
+  this->publish_xtal_source();
+  this->publish_xtal_current();
+  this->publish_xtal_frequency();
+  this->publish_input_impedance();
+  this->publish_input_gain();
+  this->publish_digital_gain();
+  this->publish_power_target();
+  this->publish_rds_enable();
+  this->publish_rds_frequency_deviation();
+  this->publish_rds_station();
+  this->publish_rds_text();
 
   this->set_interval(1000, [this]() { this->rds_update_(); });
 }
@@ -262,8 +262,8 @@ void QN8027Component::dump_config() {
 
 void QN8027Component::update() {
   if (this->read_reg_(REG_STATUS_ADDR)) {
-    this->publish_aud_pk_();
-    this->publish_fsm_();
+    this->publish_aud_pk();
+    this->publish_fsm();
     // reset aud_pk
     this->state_.TXPD_CLR ^= 1;
     this->write_reg_(REG_PAC_ADDR);
@@ -273,14 +273,14 @@ void QN8027Component::update() {
 
   if (auto b = this->read_byte(REG_REG30)) {
     this->reg30_ = *b;
-    this->publish_reg30_();
+    this->publish_reg30();
   }
 }
 
 void QN8027Component::loop() {
   // TODO: check how often this runs, maybe do this in set_interval(1000, ... above
   if (this->read_reg_(REG_STATUS_ADDR)) {
-    this->publish_fsm_();
+    this->publish_fsm();
   }
 }
 
@@ -298,7 +298,7 @@ void QN8027Component::set_frequency(float value) {
   this->write_reg_(REG_SYSTEM_ADDR);
   this->write_reg_(REG_CH1_ADDR);
 
-  this->publish_frequency_();
+  this->publish_frequency();
 }
 
 float QN8027Component::get_frequency() {
@@ -315,7 +315,7 @@ void QN8027Component::set_frequency_deviation(float value) {
   this->state_.TX_FDEV = (uint8_t) clamp((int) (value / 0.58f + 0.5f), TX_FDEV_RAW_MIN, TX_FDEV_RAW_MAX);
   this->write_reg_(REG_FDEV_ADDR);
 
-  this->publish_frequency_deviation_();
+  this->publish_frequency_deviation();
 }
 
 float QN8027Component::get_frequency_deviation() { return 0.58f * this->state_.TX_FDEV; }
@@ -324,7 +324,7 @@ void QN8027Component::set_mute(bool value) {
   this->state_.MUTE = value ? 1 : 0;
   this->write_reg_(REG_SYSTEM_ADDR);
 
-  this->publish_mute_();
+  this->publish_mute();
 }
 
 bool QN8027Component::get_mute() { return this->state_.MUTE == 1; }
@@ -333,7 +333,7 @@ void QN8027Component::set_mono(bool value) {
   this->state_.MONO = value ? 1 : 0;
   this->write_reg_(REG_SYSTEM_ADDR);
 
-  this->publish_mono_();
+  this->publish_mono();
 }
 
 bool QN8027Component::get_mono() { return this->state_.MONO == 1; }
@@ -342,7 +342,7 @@ void QN8027Component::set_tx_enable(bool value) {
   this->state_.TXREQ = value ? 1 : 0;
   this->write_reg_(REG_SYSTEM_ADDR);
 
-  this->publish_tx_enable_();
+  this->publish_tx_enable();
 }
 
 bool QN8027Component::get_tx_enable() { return this->state_.TXREQ == 1; }
@@ -356,7 +356,7 @@ void QN8027Component::set_tx_pilot(uint8_t value) {
   this->state_.GAIN_TXPLT = value;
   this->write_reg_(REG_GPLT_ADDR);
 
-  this->publish_tx_pilot_();
+  this->publish_tx_pilot();
 }
 
 uint8_t QN8027Component::get_tx_pilot() { return (uint8_t) this->state_.GAIN_TXPLT; }
@@ -370,7 +370,7 @@ void QN8027Component::set_t1m_sel(T1mSel value) {
   this->state_.t1m_sel = (uint8_t) value;
   this->write_reg_(REG_GPLT_ADDR);
 
-  this->publish_t1m_sel_();
+  this->publish_t1m_sel();
 }
 
 T1mSel QN8027Component::get_t1m_sel() { return (T1mSel) this->state_.t1m_sel; }
@@ -379,7 +379,7 @@ void QN8027Component::set_priv_en(bool value) {
   this->state_.priv_en = value ? 1 : 0;
   this->write_reg_(REG_GPLT_ADDR);
 
-  this->publish_priv_en_();
+  this->publish_priv_en();
 }
 
 bool QN8027Component::get_priv_en() { return this->state_.priv_en == 1; }
@@ -393,7 +393,7 @@ void QN8027Component::set_pre_emphasis(PreEmphasis value) {
   this->state_.TC = (uint8_t) value;
   this->write_reg_(REG_GPLT_ADDR);
 
-  this->publish_pre_emphasis_();
+  this->publish_pre_emphasis();
 }
 
 PreEmphasis QN8027Component::get_pre_emphasis() { return (PreEmphasis) this->state_.TC; }
@@ -407,7 +407,7 @@ void QN8027Component::set_xtal_source(XtalSource value) {
   this->state_.XINJ = (uint8_t) value;
   this->write_reg_(REG_XTL_ADDR);
 
-  this->publish_xtal_source_();
+  this->publish_xtal_source();
 }
 
 XtalSource QN8027Component::get_xtal_source() { return (XtalSource) this->state_.XINJ; }
@@ -421,7 +421,7 @@ void QN8027Component::set_xtal_current(float value) {
 
   this->write_reg_(REG_XTL_ADDR);
 
-  this->publish_xtal_current_();
+  this->publish_xtal_current();
 }
 
 float QN8027Component::get_xtal_current() { return 6.25f * this->state_.XISEL; }
@@ -435,7 +435,7 @@ void QN8027Component::set_xtal_frequency(XtalFrequency value) {
   this->state_.XSEL = (uint8_t) value;
   this->write_reg_(REG_VGA_ADDR);
 
-  this->publish_xtal_frequency_();
+  this->publish_xtal_frequency();
 }
 
 XtalFrequency QN8027Component::get_xtal_frequency() { return (XtalFrequency) this->state_.XSEL; }
@@ -449,7 +449,7 @@ void QN8027Component::set_input_impedance(InputImpedance value) {
   this->state_.RIN = (uint8_t) value;
   this->write_reg_(REG_VGA_ADDR);
 
-  this->publish_input_impedance_();
+  this->publish_input_impedance();
 }
 
 InputImpedance QN8027Component::get_input_impedance() { return (InputImpedance) this->state_.RIN; }
@@ -463,7 +463,7 @@ void QN8027Component::set_input_gain(uint8_t value) {
   this->state_.GVGA = value;
   this->write_reg_(REG_VGA_ADDR);
 
-  this->publish_input_gain_();
+  this->publish_input_gain();
 }
 
 uint8_t QN8027Component::get_input_gain() { return this->state_.GVGA; }
@@ -477,7 +477,7 @@ void QN8027Component::set_digital_gain(uint8_t value) {
   this->state_.GDB = value;
   this->write_reg_(REG_VGA_ADDR);
 
-  this->publish_digital_gain_();
+  this->publish_digital_gain();
 }
 
 uint8_t QN8027Component::get_digital_gain() { return this->state_.GDB; }
@@ -491,7 +491,7 @@ void QN8027Component::set_power_target(float value) {
   this->state_.PA_TRGT = (uint8_t) clamp((int) ((value - 71) / 0.62f + 0.5f), PA_TRGT_RAW_MIN, PA_TRGT_RAW_MAX);
   this->write_reg_(REG_PAC_ADDR);
 
-  this->publish_power_target_();
+  this->publish_power_target();
 
   // From the datasheet:
   //
@@ -524,7 +524,7 @@ void QN8027Component::set_rds_enable(bool value) {
   this->state_.RDSEN = value ? 1 : 0;
   this->write_reg_(REG_RDS_ADDR);
 
-  this->publish_rds_enable_();
+  this->publish_rds_enable();
 }
 
 bool QN8027Component::get_rds_enable() { return this->state_.RDSEN == 1; }
@@ -538,7 +538,7 @@ void QN8027Component::set_rds_frequency_deviation(float value) {
   this->state_.RDSFDEV = (uint8_t) clamp((int) (value / 0.35f + 0.5f), RDSFDEV_RAW_MIN, RDSFDEV_RAW_MAX);
   this->write_reg_(REG_RDS_ADDR);
 
-  this->publish_rds_frequency_deviation_();
+  this->publish_rds_frequency_deviation();
 }
 
 float QN8027Component::get_rds_frequency_deviation() { return 0.35f * this->state_.RDSFDEV; }
@@ -551,7 +551,7 @@ void QN8027Component::set_rds_station(const std::string &value) {
     this->rds_station_.resize(RDS_STATION_MAX_SIZE);
   }
 
-  this->publish_rds_station_();
+  this->publish_rds_station();
 }
 
 void QN8027Component::set_rds_text(const std::string &value) {
@@ -562,14 +562,14 @@ void QN8027Component::set_rds_text(const std::string &value) {
     this->rds_text_.resize(RDS_TEXT_MAX_SIZE);
   }
 
-  this->publish_rds_text_();
+  this->publish_rds_text();
 }
 
 // publish
 
-void QN8027Component::publish_aud_pk_() { this->publish_(this->aud_pk_sensor_, 45.0f * this->state_.aud_pk); }
+void QN8027Component::publish_aud_pk() { this->publish(this->aud_pk_sensor_, 45.0f * this->state_.aud_pk); }
 
-void QN8027Component::publish_fsm_() {
+void QN8027Component::publish_fsm() {
   const char *value = NULL;
   switch (this->state_.FSM) {
     case 0:
@@ -599,72 +599,72 @@ void QN8027Component::publish_fsm_() {
     default:
       return;
   }
-  this->publish_(this->fsm_text_sensor_, value);
+  this->publish(this->fsm_text_sensor_, value);
 }
 
-void QN8027Component::publish_chip_id_() { this->publish_(this->chip_id_text_sensor_, this->chip_id_); }
+void QN8027Component::publish_chip_id() { this->publish(this->chip_id_text_sensor_, this->chip_id_); }
 
-void QN8027Component::publish_reg30_() { this->publish_(this->reg30_sensor_, (float) this->reg30_); }
+void QN8027Component::publish_reg30() { this->publish(this->reg30_sensor_, (float) this->reg30_); }
 
-void QN8027Component::publish_frequency_() { this->publish_(this->frequency_number_, this->get_frequency()); }
+void QN8027Component::publish_frequency() { this->publish(this->frequency_number_, this->get_frequency()); }
 
-void QN8027Component::publish_frequency_deviation_() {
-  this->publish_(this->frequency_deviation_number_, this->get_frequency_deviation());
+void QN8027Component::publish_frequency_deviation() {
+  this->publish(this->frequency_deviation_number_, this->get_frequency_deviation());
 }
 
-void QN8027Component::publish_mute_() { this->publish_(this->mute_switch_, this->get_mute()); }
+void QN8027Component::publish_mute() { this->publish(this->mute_switch_, this->get_mute()); }
 
-void QN8027Component::publish_mono_() { this->publish_(this->mono_switch_, this->get_mono()); }
+void QN8027Component::publish_mono() { this->publish(this->mono_switch_, this->get_mono()); }
 
-void QN8027Component::publish_tx_enable_() { this->publish_(this->tx_enable_switch_, this->get_tx_enable()); }
+void QN8027Component::publish_tx_enable() { this->publish(this->tx_enable_switch_, this->get_tx_enable()); }
 
-void QN8027Component::publish_tx_pilot_() { this->publish_(this->tx_pilot_number_, this->get_tx_pilot()); }
+void QN8027Component::publish_tx_pilot() { this->publish(this->tx_pilot_number_, this->get_tx_pilot()); }
 
-void QN8027Component::publish_t1m_sel_() { this->publish_(this->t1m_sel_select_, (size_t) this->get_t1m_sel()); }
+void QN8027Component::publish_t1m_sel() { this->publish(this->t1m_sel_select_, (size_t) this->get_t1m_sel()); }
 
-void QN8027Component::publish_priv_en_() { this->publish_(this->priv_en_switch_, this->get_priv_en()); }
+void QN8027Component::publish_priv_en() { this->publish(this->priv_en_switch_, this->get_priv_en()); }
 
-void QN8027Component::publish_pre_emphasis_() {
-  this->publish_(this->pre_emphasis_select_, (size_t) this->get_pre_emphasis());
+void QN8027Component::publish_pre_emphasis() {
+  this->publish(this->pre_emphasis_select_, (size_t) this->get_pre_emphasis());
 }
 
-void QN8027Component::publish_xtal_source_() {
-  this->publish_(this->xtal_source_select_, (size_t) this->get_xtal_source());
+void QN8027Component::publish_xtal_source() {
+  this->publish(this->xtal_source_select_, (size_t) this->get_xtal_source());
 }
 
-void QN8027Component::publish_xtal_current_() { this->publish_(this->xtal_current_number_, this->get_xtal_current()); }
+void QN8027Component::publish_xtal_current() { this->publish(this->xtal_current_number_, this->get_xtal_current()); }
 
-void QN8027Component::publish_xtal_frequency_() {
-  this->publish_(this->xtal_frequency_select_, (size_t) this->get_xtal_frequency());
+void QN8027Component::publish_xtal_frequency() {
+  this->publish(this->xtal_frequency_select_, (size_t) this->get_xtal_frequency());
 }
 
-void QN8027Component::publish_input_impedance_() {
-  this->publish_(this->input_impedance_select_, (size_t) this->get_input_impedance());
+void QN8027Component::publish_input_impedance() {
+  this->publish(this->input_impedance_select_, (size_t) this->get_input_impedance());
 }
 
-void QN8027Component::publish_input_gain_() {
-  this->publish_(this->input_gain_number_, (float) this->get_input_gain());
+void QN8027Component::publish_input_gain() {
+  this->publish(this->input_gain_number_, (float) this->get_input_gain());
 }
 
-void QN8027Component::publish_digital_gain_() {
-  this->publish_(this->digital_gain_number_, (float) this->get_digital_gain());
+void QN8027Component::publish_digital_gain() {
+  this->publish(this->digital_gain_number_, (float) this->get_digital_gain());
 }
 
-void QN8027Component::publish_power_target_() {
-  this->publish_(this->power_target_number_, (float) this->get_power_target());
+void QN8027Component::publish_power_target() {
+  this->publish(this->power_target_number_, (float) this->get_power_target());
 }
 
-void QN8027Component::publish_rds_enable_() { this->publish_(this->rds_enable_switch_, this->get_rds_enable()); }
+void QN8027Component::publish_rds_enable() { this->publish(this->rds_enable_switch_, this->get_rds_enable()); }
 
-void QN8027Component::publish_rds_frequency_deviation_() {
-  this->publish_(this->rds_frequency_deviation_number_, this->get_rds_frequency_deviation());
+void QN8027Component::publish_rds_frequency_deviation() {
+  this->publish(this->rds_frequency_deviation_number_, this->get_rds_frequency_deviation());
 }
 
-void QN8027Component::publish_rds_station_() { this->publish_(this->rds_station_text_, this->rds_station_); }
+void QN8027Component::publish_rds_station() { this->publish(this->rds_station_text_, this->rds_station_); }
 
-void QN8027Component::publish_rds_text_() { this->publish_(this->rds_text_text_, this->rds_text_); }
+void QN8027Component::publish_rds_text() { this->publish(this->rds_text_text_, this->rds_text_); }
 
-void QN8027Component::publish_(text_sensor::TextSensor *s, const std::string &state) {
+void QN8027Component::publish(text_sensor::TextSensor *s, const std::string &state) {
   if (s != nullptr) {
     if (!s->has_state() || s->state != state) {
       s->publish_state(state);
@@ -672,7 +672,7 @@ void QN8027Component::publish_(text_sensor::TextSensor *s, const std::string &st
   }
 }
 
-void QN8027Component::publish_(sensor::Sensor *s, float state) {
+void QN8027Component::publish(sensor::Sensor *s, float state) {
   if (s != nullptr) {
     if (!s->has_state() || s->state != state) {
       s->publish_state(state);
@@ -680,7 +680,7 @@ void QN8027Component::publish_(sensor::Sensor *s, float state) {
   }
 }
 
-void QN8027Component::publish_(number::Number *n, float state) {
+void QN8027Component::publish(number::Number *n, float state) {
   if (n != nullptr) {
     if (!n->has_state() || n->state != state) {
       n->publish_state(state);
@@ -688,7 +688,7 @@ void QN8027Component::publish_(number::Number *n, float state) {
   }
 }
 
-void QN8027Component::publish_(switch_::Switch *s, bool state) {
+void QN8027Component::publish(switch_::Switch *s, bool state) {
   if (s != nullptr) {
     if (s->state != state) {  // ?
       s->publish_state(state);
@@ -696,7 +696,7 @@ void QN8027Component::publish_(switch_::Switch *s, bool state) {
   }
 }
 
-void QN8027Component::publish_(select::Select *s, size_t index) {
+void QN8027Component::publish(select::Select *s, size_t index) {
   if (s != nullptr) {
     if (auto state = s->at(index)) {
       if (!s->has_state() || s->state != *state) {
@@ -706,7 +706,7 @@ void QN8027Component::publish_(select::Select *s, size_t index) {
   }
 }
 
-void QN8027Component::publish_(text::Text *t, const std::string &state) {
+void QN8027Component::publish(text::Text *t, const std::string &state) {
   if (t != nullptr) {
     if (!t->has_state() || t->state != state) {
       t->publish_state(state);

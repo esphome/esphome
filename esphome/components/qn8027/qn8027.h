@@ -28,8 +28,8 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   std::string chip_id_;
   bool reset_;
   union {
-    struct qn8027_state_t state_;
-    uint8_t regs_[sizeof(struct qn8027_state_t)];
+    struct QN8027State state_;
+    uint8_t regs_[sizeof(struct QN8027State)];
   };
   uint8_t reg30_;  // undocumented diagnostic register
 
@@ -69,36 +69,36 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   SUB_TEXT(rds_station)
   SUB_TEXT(rds_text)
 
-  void publish_aud_pk_();
-  void publish_fsm_();
-  void publish_chip_id_();
-  void publish_reg30_();
-  void publish_frequency_();
-  void publish_frequency_deviation_();
-  void publish_mute_();
-  void publish_mono_();
-  void publish_tx_enable_();
-  void publish_tx_pilot_();
-  void publish_t1m_sel_();
-  void publish_priv_en_();
-  void publish_pre_emphasis_();
-  void publish_xtal_source_();
-  void publish_xtal_current_();
-  void publish_xtal_frequency_();
-  void publish_input_impedance_();
-  void publish_input_gain_();
-  void publish_digital_gain_();
-  void publish_power_target_();
-  void publish_rds_enable_();
-  void publish_rds_frequency_deviation_();
-  void publish_rds_station_();
-  void publish_rds_text_();
-  void publish_(sensor::Sensor *s, float state);
-  void publish_(text_sensor::TextSensor *s, const std::string &state);
-  void publish_(number::Number *n, float state);
-  void publish_(switch_::Switch *s, bool state);
-  void publish_(select::Select *s, size_t index);
-  void publish_(text::Text *t, const std::string &state);
+  void publish_aud_pk();
+  void publish_fsm();
+  void publish_chip_id();
+  void publish_reg30();
+  void publish_frequency();
+  void publish_frequency_deviation();
+  void publish_mute();
+  void publish_mono();
+  void publish_tx_enable();
+  void publish_tx_pilot();
+  void publish_t1m_sel();
+  void publish_priv_en();
+  void publish_pre_emphasis();
+  void publish_xtal_source();
+  void publish_xtal_current();
+  void publish_xtal_frequency();
+  void publish_input_impedance();
+  void publish_input_gain();
+  void publish_digital_gain();
+  void publish_power_target();
+  void publish_rds_enable();
+  void publish_rds_frequency_deviation();
+  void publish_rds_station();
+  void publish_rds_text();
+  void publish(sensor::Sensor *s, float state);
+  void publish(text_sensor::TextSensor *s, const std::string &state);
+  void publish(number::Number *n, float state);
+  void publish(switch_::Switch *s, bool state);
+  void publish(select::Select *s, size_t index);
+  void publish(text::Text *t, const std::string &state);
 
  public:
   QN8027Component();
