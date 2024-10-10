@@ -106,7 +106,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void send_data_(bool all);
   void request_repeater_info_();
   void send_repeater_info_();
-  bool can_send_message_(char *info);
+  bool can_send_message_(const char *info);
 
  protected:
   bool updated_{};

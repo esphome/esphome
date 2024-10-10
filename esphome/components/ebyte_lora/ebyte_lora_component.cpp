@@ -382,7 +382,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   }
   this->config_mode_ = mode;
 }
-bool EbyteLoraComponent::can_send_message_(char *info) {
+bool EbyteLoraComponent::can_send_message_(const char *info) {
   // High means no more information is needed
   if (this->pin_aux_->digital_read()) {
     this->flush();
