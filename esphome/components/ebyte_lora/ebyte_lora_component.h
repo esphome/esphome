@@ -122,7 +122,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   // if set it will function as a repeater only
   bool repeater_enabled_ = false;
   // used to tell one lora device apart from another
-  int network_id_ = 0;
+  uint8_t network_id_ = 0;
   int rssi_ = 0;
   RegisterConfig current_config_{};
   RegisterConfig expected_config_{};

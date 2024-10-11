@@ -448,7 +448,7 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
 #ifdef USE_BINARY_SENSOR
   auto &binary_sensors = this->remote_binary_sensors_[network_id_];
 #endif
-  ESP_LOGD(TAG, "GOT new data to process");
+
   uint8_t first_byte = data[0];
   bool unknown_key = true;
   // rssi is always the last one, except for when it is a program conf
