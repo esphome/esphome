@@ -53,7 +53,7 @@ enum WorPeriod : uint8_t {
 // reverse order on the data sheet
 
 struct RegisterConfig {
-  uint8_t config_set;
+  bool config_set;
   uint8_t addh;
   uint8_t addl;
   uint8_t air_data_rate;

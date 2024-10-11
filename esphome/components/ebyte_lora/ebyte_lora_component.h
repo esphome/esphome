@@ -117,14 +117,14 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void process_(std::vector<uint8_t> data);
   void repeat_message_(std::vector<uint8_t> data);
   // set if there is some sensor info available or it is in repeater mode
-  bool should_send_{};
+  bool should_send_ = false;
   // if set it will function as a repeater only
   bool repeater_enabled_ = false;
   // used to tell one lora device apart from another
   int network_id_ = 0;
   int rssi_ = 0;
-  RegisterConfig current_config_;
-  RegisterConfig expected_config_;
+  RegisterConfig current_config_{};
+  RegisterConfig expected_config_{};
 #ifdef USE_SENSOR
   std::vector<Sensor> sensors_{};
   std::map<int, std::map<std::string, sensor::Sensor *>> remote_sensors_{};

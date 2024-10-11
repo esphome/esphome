@@ -394,7 +394,7 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
 }
 void EbyteLoraComponent::update() {
   ESP_LOGD(TAG, "Update loop");
-  if (this->current_config_.config_set == 0) {
+  if (!this->current_config_.config_set) {
     ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
     this->get_current_config_();
     return;
@@ -409,7 +409,7 @@ void EbyteLoraComponent::update() {
     }
   }
   // only make it normal when config is set
-  if (this->current_config_.config_set != 0 && this->config_mode_ != NORMAL) {
+  if (this->current_config_.config_set && this->config_mode_ != NORMAL) {
     this->config_mode_ = this->get_mode_();
 
     if (this->config_mode_ != NORMAL) {
