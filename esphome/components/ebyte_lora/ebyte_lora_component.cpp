@@ -297,11 +297,16 @@ void EbyteLoraComponent::setup() {
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::request_current_config_() {
+  if (this->can_send_message_("requesting current config")) {
+    delay(20);
+    return;
+  }
   if (this->get_mode_() != CONFIGURATION) {
     ESP_LOGD(TAG, "Mode not set right, setting it to wat we got");
     this->set_mode_(this->get_mode_());
     return;
   }
+
   uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
   this->write_array(data, sizeof(data));
   ESP_LOGD(TAG, "Config info requested");
