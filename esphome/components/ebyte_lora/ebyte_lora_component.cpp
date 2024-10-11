@@ -301,7 +301,6 @@ void EbyteLoraComponent::get_current_config_() {
   if (this->get_mode_() != CONFIGURATION) {
     ESP_LOGD(TAG, "Mode not set right requesting that and returning %u", this->get_mode_());
     this->set_mode_(CONFIGURATION);
-    return;
   }
   if (this->can_send_message_("get_current_config_")) {
     uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
@@ -408,7 +407,8 @@ void EbyteLoraComponent::update() {
       }
     }
   }
-  if (this->config_mode_ != NORMAL) {
+  // only make it normal when config is set
+  if (this->current_config_.config_set != 0 && this->config_mode_ != NORMAL) {
     this->config_mode_ = this->get_mode_();
 
     if (this->config_mode_ != NORMAL) {
@@ -504,7 +504,6 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
       if (data.size() - i < sensor_name_length) {
         return ESP_LOGV(TAG, "Name length of %u not available", sensor_name_length);
       }
-
       // get the memory cleared and set
       memset(sensor_name, 0, sizeof sensor_name);
       for (size_t s = 0; s < sensor_name_length; s++) {
