@@ -496,6 +496,7 @@ void Display::printf(int x, int y, int width, int height, BaseFont *font, float 
 
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  va_end(arg);
   if (ret == 0)
     return;
 
@@ -555,8 +556,6 @@ void Display::printf(int x, int y, int width, int height, BaseFont *font, float 
   if (!line.empty()) {
     this->printf(x, line_y, font, align, "%s", line.c_str());
   }
-
-  va_end(arg);
 }
 
 void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
