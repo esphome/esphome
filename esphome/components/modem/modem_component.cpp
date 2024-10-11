@@ -112,14 +112,16 @@ void ModemComponent::loop() {
       this->dce_init();
       break;
     case ModemComponentState::TURNING_ON_PWRKEY:
+      this->turn_off_pwrkey();
+      break;
+    case ModemComponentState::SYNC:
       if (this->dce->sync() == esp_modem::command_result::OK) {
-        ESP_LOGD(TAG, "sync OK TURNING_ON_PWRKEY");
-        this->turn_off_pwrkey();
+        ESP_LOGD(TAG, "sync OK");
         this->set_state(ModemComponentState::REGISTRATION_IN_NETWORK);
       } else {
-        ESP_LOGD(TAG, "Wait sync TURNING_ON_PWRKEY");
+        ESP_LOGD(TAG, "Wait sync");
       }
-      
+
       break;
     case ModemComponentState::REGISTRATION_IN_NETWORK:
       if (get_rssi()) {
@@ -131,7 +133,7 @@ void ModemComponent::loop() {
       } else {
         ESP_LOGD(TAG, "Wait RSSI");
       }
-    
+
       break;
     case ModemComponentState::CONNECTING:
       ESP_LOGD(TAG, "Wait WAN");
@@ -148,14 +150,7 @@ void ModemComponent::loop() {
       }
       break;
     case ModemComponentState::TURNING_ON_RESET:
-      if (this->dce->sync() == esp_modem::command_result::OK) {
-        ESP_LOGD(TAG, "sync OK TURNING_ON_RESET");
-        this->turn_off_reset();
-        this->set_state(ModemComponentState::REGISTRATION_IN_NETWORK);
-      } else {
-        ESP_LOGD(TAG, "Wait sync TURNING_ON_RESET");
-      }
-      break;
+      this->turn_off_reset();
     case ModemComponentState::TURNING_OFF_POWER:
       if (time_turn_off_modem + TURN_OFF_MODEM_TIME < now) {
         this->turn_on_modem();
@@ -193,22 +188,23 @@ void ModemComponent::dce_init() {
 bool ModemComponent::check_modem_component_state_timings() {
   const int now = millis();
   ModemComponentStateTiming timing = this->modemComponentStateTimingMap[this->state_];
-  if (timing.time_limit && ((time_change_state + timing.time_limit) < now)){
+  if (timing.time_limit && ((time_change_state + timing.time_limit) < now)) {
     this->turn_on_reset();
   }
-  if (!timing.poll_period){
+  if (!timing.poll_period) {
     return true;
   }
   if ((last_pull_time + timing.poll_period) < now) {
-    //ESP_LOGD(TAG, "it's time for pull");//%d %d", timing.poll_period, timing.time_limit);
+    // ESP_LOGD(TAG, "it's time for pull");//%d %d", timing.poll_period, timing.time_limit);
     last_pull_time = now;
     return true;
   }
   return false;
 }
 
-void ModemComponent::set_state(ModemComponentState state){
-  ESP_LOGCONFIG(TAG, "Mode component change state from %s to %s", this->state_to_string(this->state_), this->state_to_string(state));
+void ModemComponent::set_state(ModemComponentState state) {
+  ESP_LOGCONFIG(TAG, "Mode component change state from %s to %s", this->state_to_string(this->state_),
+                this->state_to_string(state));
   this->state_ = state;
   time_change_state = millis();
 }
@@ -221,6 +217,8 @@ const char *ModemComponent::state_to_string(ModemComponentState state) {
       return "TURNING_ON_POWER";
     case ModemComponentState::TURNING_ON_PWRKEY:
       return "TURNING_ON_PWRKEY";
+    case ModemComponentState::SYNC:
+      return "SYNC";
     case ModemComponentState::REGISTRATION_IN_NETWORK:
       return "REGISTRATION_IN_NETWORK";
     case ModemComponentState::CONNECTING:
@@ -269,6 +267,7 @@ void ModemComponent::turn_on_pwrkey() {
 void ModemComponent::turn_off_pwrkey() {
   ESP_LOGD(TAG, "pwrkey turn off");
   this->pwrkey_pin_->digital_write(true);
+  this->set_state(ModemComponentState::SYNC);
 }
 
 void ModemComponent::turn_on_reset() {
@@ -280,6 +279,7 @@ void ModemComponent::turn_on_reset() {
 void ModemComponent::turn_off_reset() {
   this->reset_pin_->digital_write(true);
   ESP_LOGD(TAG, "turn off reset");
+  this->set_state(ModemComponentState::SYNC);
 }
 
 void ModemComponent::dump_config() {
@@ -395,9 +395,7 @@ void ModemComponent::start_connect_() {
   //  this->status_set_warning();
 }
 
-bool ModemComponent::is_connected() { 
-  return this->state_ == ModemComponentState::CONNECTED; 
-}
+bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
 void ModemComponent::set_power_pin(InternalGPIOPin *power_pin) { this->power_pin_ = power_pin; }
 void ModemComponent::set_pwrkey_pin(InternalGPIOPin *pwrkey_pin) { this->pwrkey_pin_ = pwrkey_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
