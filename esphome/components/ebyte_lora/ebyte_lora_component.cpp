@@ -302,32 +302,30 @@ void EbyteLoraComponent::request_current_config_() {
   if (this->get_mode_() != CONFIGURATION) {
     ESP_LOGD(TAG, "Mode not set right requesting that and returning %u", this->get_mode_());
     this->set_mode_(CONFIGURATION);
+    return;
   }
-  if (this->can_send_message_("get_current_config_")) {
-    uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
-    this->write_array(data, sizeof(data));
-    ESP_LOGD(TAG, "Config info requested");
-  } else {
-    ESP_LOGD(TAG, "Config info can't be requested right now, since device is busy");
-  }
+  // if (this->can_send_message_("get_current_config_")) {
+  uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
+  this->write_array(data, sizeof(data));
+  ESP_LOGD(TAG, "Config info requested");
 }
 ModeType EbyteLoraComponent::get_mode_() {
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
-    // ESP_LOGD(TAG, "MODE NORMAL!");
+    ESP_LOGD(TAG, "Current MODE NORMAL!");
     return NORMAL;
   }
   if (pin1 && !pin2) {
-    // ESP_LOGD(TAG, "MODE WOR!");
+    ESP_LOGD(TAG, "Current MODE WOR!");
     return WOR_SEND;
   }
   if (!pin1 && pin2) {
-    // ESP_LOGD(TAG, "MODE WOR!");
+    ESP_LOGD(TAG, "Current MODE WOR!");
     return WOR_RECEIVER;
   }
   if (pin1 && pin2) {
-    // ESP_LOGD(TAG, "MODE Conf!");
+    ESP_LOGD(TAG, "Current MODE Conf!");
     return CONFIGURATION;
   }
   return MODE_INIT;
@@ -343,7 +341,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     this->current_mode_ = mode;
     return;
   }
-  if (!this->can_send_message_("set_mode_") && mode != CONFIGURATION) {
+  if (!this->can_send_message_("set_mode_")) {
     return;
   }
   // recommended to wait for 2ms after high
@@ -388,11 +386,6 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
   }
 }
 void EbyteLoraComponent::update() {
-  if (this->busy_till_ == 0) {
-    // give it a few seconds before doing this
-    busy_till_ = millis() + 1500;
-    return;
-  }
   if (millis() < this->busy_till_)
     return;
   if (!this->current_config_.config_set) {
