@@ -335,17 +335,6 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
     return;
   }
-  // no need to do anything if the mode is correct
-  if (this->get_mode_() == mode) {
-    ESP_LOGD(TAG, "Mode is already correct");
-    this->current_mode_ = mode;
-    return;
-  }
-  if (!this->can_send_message_("set_mode_")) {
-    return;
-  }
-  // recommended to wait for 2ms after high
-  delay(2);
   switch (mode) {
     case NORMAL:
       this->pin_m0_->digital_write(false);
