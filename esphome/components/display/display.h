@@ -430,6 +430,21 @@ class Display : public PollingComponent {
    */
   void printf(int x, int y, BaseFont *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
+  /** Evaluate the printf-format `format` and print the result in a word-wrapping text box, with the anchor point at
+   * [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param width The x width of the  of the box to to fill before word-wrapping.
+   * @param height The y height of the  of the box to to fill before truncating with a '...'.
+   * @param font The font to draw the text with.
+   * @param line_height A multiplier for the line height. Set to 1.0 for standard line spacing.
+   * @param format The format to use.
+   * @param ... The arguments to use for the text formatting.
+   */
+  void printf(int x, int y, int width, int height, BaseFont *font, float line_height, const char *format, ...)
+      __attribute__((format(printf, 8, 9)));
+
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
