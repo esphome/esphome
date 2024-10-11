@@ -99,6 +99,7 @@ class ModemComponent : public Component {
   int get_rssi();
   int get_modem_voltage();
   const char *get_state();
+  void set_state(ModemComponentState state);
 
   std::shared_ptr<esp_modem::DTE> dte{nullptr};
   std::unique_ptr<esp_modem::DCE> dce{nullptr};
