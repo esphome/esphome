@@ -300,11 +300,10 @@ void EbyteLoraComponent::setup() {
 }
 void EbyteLoraComponent::request_current_config_() {
   if (this->get_mode_() != CONFIGURATION) {
-    ESP_LOGD(TAG, "Mode not set right requesting that and returning %u", this->get_mode_());
-    this->set_mode_(CONFIGURATION);
+    ESP_LOGD(TAG, "Mode not set right, setting it to wat we got");
+    this->set_mode_(this->get_mode_());
     return;
   }
-  // if (this->can_send_message_("get_current_config_")) {
   uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
   this->write_array(data, sizeof(data));
   ESP_LOGD(TAG, "Config info requested");
@@ -378,6 +377,8 @@ void EbyteLoraComponent::update() {
   if (millis() < this->busy_till_)
     return;
   if (!this->current_config_.config_set) {
+    this->set_mode_(CONFIGURATION);
+    delay(5);
     ESP_LOGD(TAG, "Config not set yet! Requesting");
     this->request_current_config_();
     return;
