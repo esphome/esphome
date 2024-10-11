@@ -8,7 +8,6 @@
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -67,7 +66,7 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
                            esp_ble_gattc_cb_param_t *param) override;
 
   void set_version(int version) { radon_version_ = version; }
-  void set_alarm(binary_sensor::BinarySensor *alarm) { alarm_sensor_ = alarm; }
+  void set_alarm(sensor::Sensor *alarm) { alarm_sensor_ = alarm; }
   void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
   void set_radon_day_avg(sensor::Sensor *radon_day_avg) { radon_day_avg_ = radon_day_avg; }
   void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
@@ -88,7 +87,7 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
   void request_read_values_();
 
   int radon_version_{1};
-  binary_sensor::BinarySensor *alarm_sensor_{nullptr};
+  sensor::Sensor *alarm_sensor_{nullptr};
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_day_avg_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};

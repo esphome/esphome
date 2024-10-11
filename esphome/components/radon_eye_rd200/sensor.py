@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, ble_client, sensor
+from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALARM,
@@ -13,9 +13,10 @@ from esphome.const import (
     ICON_RADIOACTIVE,
     STATE_CLASS_MEASUREMENT,
     UNIT_BECQUEREL_PER_CUBIC_METER,
+    UNIT_EMPTY,
 )
 
-DEPENDENCIES = ["ble_client", "binary_sensor"]
+DEPENDENCIES = ["ble_client"]
 
 radon_eye_rd200_ns = cg.esphome_ns.namespace("radon_eye_rd200")
 RadonEyeRD200 = radon_eye_rd200_ns.class_(
@@ -27,8 +28,11 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(RadonEyeRD200),
             cv.Optional(CONF_VERSION, default=1): cv.int_range(1, 3),
-            cv.Optional(CONF_ALARM, default=0): binary_sensor.binary_sensor_schema(
+            cv.Optional(CONF_ALARM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_ALARM_LIGHT,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_RADON): sensor.sensor_schema(
                 unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
@@ -70,7 +74,7 @@ async def to_code(config):
     cg.add(var.set_version(config[CONF_VERSION]))
 
     if CONF_ALARM in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_ALARM])
+        sens = await sensor.new_sensor(config[CONF_ALARM])
         cg.add(var.set_alarm(sens))
     if CONF_RADON in config:
         sens = await sensor.new_sensor(config[CONF_RADON])

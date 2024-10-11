@@ -91,11 +91,10 @@ void RadonEyeRD200::handle_status_response_(const uint8_t *response, uint16_t le
   if (alarm_sensor_ != nullptr) {
     ESP_LOGD(TAG, " Sensor alarm send!");
     if (data->alarm != 0) {
-      alarm_sensor_->publish_state(true);
+      alarm_sensor_->publish_state(1);
     } else {
-      alarm_sensor_->publish_state(false);
+      alarm_sensor_->publish_state(0);
     }
-
     delay(25);
   } else {
     ESP_LOGI(TAG, " Sensor alarm not exists!");

@@ -19,5 +19,5 @@ sensor:
     radon_peak:
       name: RD200 Radon Peak
     alarm:
-      name: Alarm
+      name: RD200 Radon Alarm
     update_interval: 10min
