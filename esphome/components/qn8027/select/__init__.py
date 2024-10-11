@@ -67,11 +67,16 @@ async def new_select(config, id, setter, options):
         s = await select.new_select(c, options=list(options.keys()))
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(setter(s))
-        
+
+
 async def to_code(config):
     c = await cg.get_variable(config[CONF_QN8027_ID])
     await new_select(config, CONF_T1M_SEL, c.set_t1m_sel_select, T1M_SEL)
     await new_select(config, CONF_PRE_EMPHASIS, c.set_pre_emphasis_select, PRE_EMPHASIS)
     await new_select(config, CONF_XTAL_SOURCE, c.set_xtal_source_select, XTAL_SOURCE)
-    await new_select(config, CONF_XTAL_FREQUENCY, c.set_xtal_frequency_select, XTAL_FREQUENCY)
-    await new_select(config, CONF_INPUT_IMPEDANCE, c.set_input_impedance_select, INPUT_IMPEDANCE)
+    await new_select(
+    	config, CONF_XTAL_FREQUENCY, c.set_xtal_frequency_select, XTAL_FREQUENCY
+    )
+    await new_select(
+    	config, CONF_INPUT_IMPEDANCE, c.set_input_impedance_select, INPUT_IMPEDANCE
+    )

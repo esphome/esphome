@@ -70,10 +70,11 @@ async def new_switch(config, id, setter):
         await cg.register_parented(s, config[CONF_QN8027_ID])
         cg.add(setter(s))
 
+
 async def to_code(config):
     c = await cg.get_variable(config[CONF_QN8027_ID])
-    await new_switch(config, CONF_MUTE, c.set_mute_switch);
-    await new_switch(config, CONF_MONO, c.set_mono_switch);
-    await new_switch(config, CONF_TX_ENABLE, c.set_tx_enable_switch);
-    await new_switch(config, CONF_PRIV_EN, c.set_priv_en_switch);
-    await new_switch(config, CONF_RDS_ENABLE, c.set_rds_enable_switch);
+    await new_switch(config, CONF_MUTE, c.set_mute_switch)
+    await new_switch(config, CONF_MONO, c.set_mono_switch)
+    await new_switch(config, CONF_TX_ENABLE, c.set_tx_enable_switch)
+    await new_switch(config, CONF_PRIV_EN, c.set_priv_en_switch)
+    await new_switch(config, CONF_RDS_ENABLE, c.set_rds_enable_switch)

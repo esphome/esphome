@@ -136,13 +136,19 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 async def new_text_simple(config, id, setter, min_length, max_length, *args):
     if c := config.get(id):
         t = await new_text(c, *args, min_length=min_length, max_length=max_length)
         await cg.register_parented(t, config[CONF_QN8027_ID])
         cg.add(setter(t))
 
+
 async def to_code(config):
     c = await cg.get_variable(config[CONF_QN8027_ID])
-    await new_text_simple(config, CONF_RDS_STATION, c.set_rds_station_text, 0, qn8027_ns.RDS_STATION_MAX_SIZE)
-    await new_text_simple(config, CONF_RDS_TEXT, c.set_rds_text_text, 0, qn8027_ns.RDS_TEXT_MAX_SIZE)
+    await new_text_simple(
+    	config, CONF_RDS_STATION, c.set_rds_station_text, 0, qn8027_ns.RDS_STATION_MAX
+    )
+    await new_text_simple(
+    	config, CONF_RDS_TEXT, c.set_rds_text_text, 0, qn8027_ns.RDS_TEXT_MAX
+    )

@@ -540,9 +540,9 @@ float QN8027Component::get_rds_frequency_deviation() { return 0.35f * this->stat
 void QN8027Component::set_rds_station(const std::string &value) {
   this->rds_station_ = value;
   this->rds_station_pos_ = 0;
-  if (this->rds_station_.size() > RDS_STATION_MAX_SIZE) {
-    ESP_LOGW(TAG, "rds station too long '%s' (max %d characters)", value.c_str(), RDS_STATION_MAX_SIZE);
-    this->rds_station_.resize(RDS_STATION_MAX_SIZE);
+  if (this->rds_station_.size() > RDS_STATION_MAX) {
+    ESP_LOGW(TAG, "rds station too long '%s' (max %d characters)", value.c_str(), RDS_STATION_MAX);
+    this->rds_station_.resize(RDS_STATION_MAX);
   }
 
   this->publish_rds_station();
@@ -551,9 +551,9 @@ void QN8027Component::set_rds_station(const std::string &value) {
 void QN8027Component::set_rds_text(const std::string &value) {
   this->rds_text_ = value;
   this->rds_text_pos_ = 0;
-  if (this->rds_text_.size() > RDS_TEXT_MAX_SIZE) {
-    ESP_LOGW(TAG, "rds text to long '%s' (max %d characters)", value.c_str(), RDS_TEXT_MAX_SIZE);
-    this->rds_text_.resize(RDS_TEXT_MAX_SIZE);
+  if (this->rds_text_.size() > RDS_TEXT_MAX) {
+    ESP_LOGW(TAG, "rds text to long '%s' (max %d characters)", value.c_str(), RDS_TEXT_MAX);
+    this->rds_text_.resize(RDS_TEXT_MAX);
   }
 
   this->publish_rds_text();
