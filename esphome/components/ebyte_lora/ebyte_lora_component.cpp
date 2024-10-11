@@ -310,8 +310,6 @@ void EbyteLoraComponent::request_current_config_() {
   }
 }
 ModeType EbyteLoraComponent::get_mode_() {
-  if (!this->can_send_message_("get_mode_"))
-    return MODE_INIT;
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
@@ -342,16 +340,6 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     ESP_LOGD(TAG, "Mode is already correct");
     this->current_mode_ = mode;
     return;
-  }
-  // when the system starts, aux will stay low until you set the first mode
-  // so make sure mode init isn't set AND we can't sent because aux is low
-  if (!this->can_send_message_("set_mode")) {
-    if (this->current_mode_ == MODE_INIT) {
-      ESP_LOGD(TAG, "Very first time setting the mode, going to ignore device busy state");
-    } else {
-      ESP_LOGD(TAG, "Device busy lets wait, current mode is %u", this->current_mode_);
-      return;
-    }
   }
   switch (mode) {
     case NORMAL:
