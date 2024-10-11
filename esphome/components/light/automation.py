@@ -1,41 +1,42 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.const import (
-    CONF_ID,
-    CONF_COLOR_MODE,
-    CONF_TRANSITION_LENGTH,
-    CONF_STATE,
-    CONF_FLASH_LENGTH,
-    CONF_EFFECT,
-    CONF_BRIGHTNESS,
-    CONF_COLOR_BRIGHTNESS,
-    CONF_RED,
-    CONF_GREEN,
     CONF_BLUE,
-    CONF_WHITE,
-    CONF_COLOR_TEMPERATURE,
+    CONF_BRIGHTNESS,
+    CONF_BRIGHTNESS_LIMITS,
     CONF_COLD_WHITE,
-    CONF_WARM_WHITE,
+    CONF_COLOR_BRIGHTNESS,
+    CONF_COLOR_MODE,
+    CONF_COLOR_TEMPERATURE,
+    CONF_EFFECT,
+    CONF_FLASH_LENGTH,
+    CONF_GREEN,
+    CONF_ID,
+    CONF_LIMIT_MODE,
+    CONF_MAX_BRIGHTNESS,
+    CONF_MIN_BRIGHTNESS,
     CONF_RANGE_FROM,
     CONF_RANGE_TO,
-    CONF_BRIGHTNESS_LIMITS,
-    CONF_LIMIT_MODE,
-    CONF_MIN_BRIGHTNESS,
-    CONF_MAX_BRIGHTNESS,
+    CONF_RED,
+    CONF_STATE,
+    CONF_TRANSITION_LENGTH,
+    CONF_WARM_WHITE,
+    CONF_WHITE,
 )
+
 from .types import (
-    ColorMode,
     COLOR_MODES,
     LIMIT_MODES,
-    DimRelativeAction,
-    ToggleAction,
-    LightState,
-    LightControlAction,
     AddressableLightState,
     AddressableSet,
-    LightIsOnCondition,
+    ColorMode,
+    DimRelativeAction,
+    LightControlAction,
     LightIsOffCondition,
+    LightIsOnCondition,
+    LightState,
+    ToggleAction,
 )
 
 
@@ -62,18 +63,10 @@ async def light_toggle_to_code(config, action_id, template_arg, args):
     return var
 
 
-LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema(
+LIGHT_STATE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.use_id(LightState),
         cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
         cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
-        cv.Exclusive(CONF_TRANSITION_LENGTH, "transformer"): cv.templatable(
-            cv.positive_time_period_milliseconds
-        ),
-        cv.Exclusive(CONF_FLASH_LENGTH, "transformer"): cv.templatable(
-            cv.positive_time_period_milliseconds
-        ),
-        cv.Exclusive(CONF_EFFECT, "transformer"): cv.templatable(cv.string),
         cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_RED): cv.templatable(cv.percentage),
@@ -85,6 +78,20 @@ LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_WARM_WHITE): cv.templatable(cv.percentage),
     }
 )
+
+LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
+    {
+        cv.Required(CONF_ID): cv.use_id(LightState),
+        cv.Exclusive(CONF_TRANSITION_LENGTH, "transformer"): cv.templatable(
+            cv.positive_time_period_milliseconds
+        ),
+        cv.Exclusive(CONF_FLASH_LENGTH, "transformer"): cv.templatable(
+            cv.positive_time_period_milliseconds
+        ),
+        cv.Exclusive(CONF_EFFECT, "transformer"): cv.templatable(cv.string),
+    }
+)
+
 LIGHT_TURN_OFF_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(LightState),
