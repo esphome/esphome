@@ -99,7 +99,9 @@ async def to_code(config):
         cg.add_library("WiFi", None)
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
-        # add_idf_sdkconfig_option("CONFIG_TASK_WDT_TIMEOUT_S", 10)
+        add_idf_sdkconfig_option("CONFIG_TASK_WDT_TIMEOUT_S", 60)
+        add_idf_sdkconfig_option("CONFIG_LOG_MAXIMUM_EQUALS_DEFAULT", False)
+        add_idf_sdkconfig_option("CONFIG_LOG_MAXIMUM_LEVEL_VERBOSE", True)
         add_idf_component(
             name="esp_modem",
             repo="https://github.com/espressif/esp-protocols.git",

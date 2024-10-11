@@ -148,18 +148,12 @@ void ModemComponent::loop() {
       }
       break;
     case ModemComponentState::TURNING_ON_RESET:
-      if (time_turn_on_reset + DELAY_HOLD_RESET_PIN > now) {
-        break;
-      }
-      if (time_check_reset + SYNCHRONIZATION_CHECK_PERIOD < now) {
-        time_check_reset = now;
-        if (this->dce->sync() == esp_modem::command_result::OK) {
-          ESP_LOGD(TAG, "sync OK TURNING_ON_RESET");
-          this->turn_off_reset();
-          this->set_state(ModemComponentState::REGISTRATION_IN_NETWORK);
-        } else {
-          ESP_LOGD(TAG, "Wait sync TURNING_ON_RESET");
-        }
+      if (this->dce->sync() == esp_modem::command_result::OK) {
+        ESP_LOGD(TAG, "sync OK TURNING_ON_RESET");
+        this->turn_off_reset();
+        this->set_state(ModemComponentState::REGISTRATION_IN_NETWORK);
+      } else {
+        ESP_LOGD(TAG, "Wait sync TURNING_ON_RESET");
       }
       break;
     case ModemComponentState::TURNING_OFF_POWER:
@@ -199,6 +193,9 @@ void ModemComponent::dce_init() {
 bool ModemComponent::check_modem_component_state_timings() {
   const int now = millis();
   ModemComponentStateTiming timing = this->modemComponentStateTimingMap[this->state_];
+  if (timing.time_limit && ((time_change_state + timing.time_limit) < now)){
+    this->turn_on_reset();
+  }
   if (!timing.poll_period){
     return true;
   }
@@ -207,18 +204,35 @@ bool ModemComponent::check_modem_component_state_timings() {
     last_pull_time = now;
     return true;
   }
-  if (!timing.time_limit){
-      if ((time_change_state + timing.time_limit) < now) {
-      // TODO: REBOOT return true;
-      return false;
-    }
-  }
   return false;
 }
 
 void ModemComponent::set_state(ModemComponentState state){
+  ESP_LOGCONFIG(TAG, "Mode component change state from %s to %s", this->state_to_string(this->state_), this->state_to_string(state));
   this->state_ = state;
   time_change_state = millis();
+}
+
+const char *ModemComponent::state_to_string(ModemComponentState state) {
+  switch (state) {
+    case ModemComponentState::STOPPED:
+      return "STOPPED";
+    case ModemComponentState::TURNING_ON_POWER:
+      return "TURNING_ON_POWER";
+    case ModemComponentState::TURNING_ON_PWRKEY:
+      return "TURNING_ON_PWRKEY";
+    case ModemComponentState::REGISTRATION_IN_NETWORK:
+      return "REGISTRATION_IN_NETWORK";
+    case ModemComponentState::CONNECTING:
+      return "CONNECTING";
+    case ModemComponentState::CONNECTED:
+      return "CONNECTED";
+    case ModemComponentState::TURNING_ON_RESET:
+      return "TURNING_ON_RESET";
+    case ModemComponentState::TURNING_OFF_POWER:
+      return "TURNING_OFF_POWER";
+  }
+  return "UNKNOWN";
 }
 
 void ModemComponent::turn_on_modem() {
@@ -260,7 +274,7 @@ void ModemComponent::turn_off_pwrkey() {
 void ModemComponent::turn_on_reset() {
   this->reset_pin_->digital_write(false);
   ESP_LOGD(TAG, "turn on reset");
-  this->set_state(ModemComponentState::TURNING_ON_PWRKEY);
+  this->set_state(ModemComponentState::TURNING_ON_RESET);
 }
 
 void ModemComponent::turn_off_reset() {
@@ -350,7 +364,7 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
     ESP_LOGD(TAG, "GOT ip event!!!");
   } else if (event_id == IP_EVENT_PPP_LOST_IP) {
     ESP_LOGD(TAG, "Modem Disconnect from PPP Server");
-    global_modem_component->turn_off_modem();
+    global_modem_component->turn_on_reset();
   }
 }
 

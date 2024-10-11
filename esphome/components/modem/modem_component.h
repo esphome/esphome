@@ -75,11 +75,11 @@ class ModemComponent : public Component {
   std::map<ModemComponentState, ModemComponentStateTiming> modemComponentStateTimingMap = {
       {ModemComponentState::STOPPED, ModemComponentStateTiming(0, 0)},
       {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(1000, 20000)},
-      {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(1000, 20000)},
-      {ModemComponentState::CONNECTING, ModemComponentStateTiming(1000, 0)},
+      {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(2000, 15000)},
+      {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(2000, 15000)},
+      {ModemComponentState::CONNECTING, ModemComponentStateTiming(2000, 15000)},
       {ModemComponentState::CONNECTED, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(2000, 0)},
+      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(110, 0)},
       {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(2000, 0)},
   };
 
@@ -100,6 +100,7 @@ class ModemComponent : public Component {
   int get_modem_voltage();
   const char *get_state();
   void set_state(ModemComponentState state);
+  const char *state_to_string(ModemComponentState state);
 
   std::shared_ptr<esp_modem::DTE> dte{nullptr};
   std::unique_ptr<esp_modem::DCE> dce{nullptr};
