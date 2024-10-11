@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
     CONF_BRIGHTNESS,
+    CONF_COLD_WHITE,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_CORRECT,
@@ -26,6 +27,7 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_STATE,
     CONF_TRIGGER_ID,
+    CONF_WARM_WHITE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
     CONF_WHITE,
@@ -175,11 +177,11 @@ async def setup_light_core_(light_var, output_var, config):
             ("color_temp", initial_state_config.get(CONF_COLOR_TEMPERATURE, 1.0)),
             (
                 "cold_white",
-                initial_state_config.get(CONF_COLD_WHITE_COLOR_TEMPERATURE, 1.0),
+                initial_state_config.get(CONF_COLD_WHITE, 1.0),
             ),
             (
                 "warm_white",
-                initial_state_config.get(CONF_WARM_WHITE_COLOR_TEMPERATURE, 1.0),
+                initial_state_config.get(CONF_WARM_WHITE, 1.0),
             ),
         )
         cg.add(light_var.set_initial_state(initial_state))
