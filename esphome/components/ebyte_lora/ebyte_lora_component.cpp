@@ -413,6 +413,7 @@ void EbyteLoraComponent::update() {
       this->set_mode_(NORMAL);
     }
   }
+  ESP_LOGD(TAG, "Full update done, config correct %s, mode %u ", YESNO(this->is_config_right()), this->get_mode_());
   this->updated_ = true;
   auto now = millis() / 1000;
   if (this->last_key_time_ + this->repeater_request_recyle_time_ < now) {
