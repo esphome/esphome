@@ -393,6 +393,7 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
   }
 }
 void EbyteLoraComponent::update() {
+  ESP_LOGD(TAG, "Update loop");
   if (this->current_config_.config_set == 0) {
     ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
     this->get_current_config_();
