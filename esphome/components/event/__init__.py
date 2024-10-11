@@ -101,6 +101,7 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
 
+
 async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
