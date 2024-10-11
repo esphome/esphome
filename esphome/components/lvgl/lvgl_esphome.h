@@ -151,6 +151,7 @@ class LvglComponent : public PollingComponent {
   // if set to true, the bounds of the update area will always start at 0,0
   bool draw_from_origin{false};
   void set_draw_from_origin(bool origin) { this->draw_from_origin = origin; }
+  display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
 
  protected:
   void write_random_();

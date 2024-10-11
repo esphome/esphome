@@ -72,26 +72,34 @@ std::string lv_event_code_name_for(uint8_t event_code) {
 
 // functions to rotate a buffer
 
+/**
+ * @brief Rotate a buffer by 90 degrees clockwise.
+ *
+ * @param src Input buffer.
+ * @param dst Output buffer.
+ * @param w Width of the src buffer.
+ * @param h Height of the src buffer.
+ */
 static void rotate_90(const lv_color_t *src, lv_color_t *dst, lv_coord_t w, lv_coord_t h) {
-  for (lv_coord_t y = 0; y != h; y++) {
-    for (lv_coord_t x = 0; x != w; x++) {
-      dst[y * w + x] = src[(h - 1 - x) * w + y];
+  for (lv_coord_t y = h; y-- != 0;) {
+    for (lv_coord_t x = 0; x != w; ++x) {
+      dst[x * h + y] = *src++;
     }
   }
 }
 
 static void rotate_180(const lv_color_t *src, lv_color_t *dst, lv_coord_t w, lv_coord_t h) {
-  for (lv_coord_t y = 0; y != h; y++) {
-    for (lv_coord_t x = 0; x != w; x++) {
-      dst[y * w + x] = src[(h - 1 - y) * w + (w - 1 - x)];
+  for (lv_coord_t x = w; x-- != 0;) {
+    for (lv_coord_t y = h; y-- != 0;) {
+      dst[x * h + y] = *src++;
     }
   }
 }
 
 static void rotate_270(const lv_color_t *src, lv_color_t *dst, lv_coord_t w, lv_coord_t h) {
-  for (lv_coord_t y = 0; y != h; y++) {
-    for (lv_coord_t x = 0; x != w; x++) {
-      dst[y * w + x] = src[x * w + (w - 1 - y)];
+  for (lv_coord_t y = 0; y != h; ++y) {
+    for (lv_coord_t x = w; x-- != 0;) {
+      dst[x * h + y] = *src++;
     }
   }
 }
@@ -102,34 +110,21 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   // * Coordinates must be a multiple of draw_rounding
   // * set the origin to 0,0 if requested
   auto comp = static_cast<LvglComponent *>(disp_drv->user_data);
+  ESP_LOGVV(TAG, "rounder_cb: %d %d %d %d size=%d, rotation=%d, draw_from_origin=%d", area->x1, area->y1, area->x2,
+            area->y2, disp_drv->draw_buf->size, comp->rotation, comp->draw_from_origin);
   size_t draw_rounding_ = comp->draw_rounding;
   // round down the start coordinates
   area->x1 = area->x1 / draw_rounding_ * draw_rounding_;
   area->y1 = area->y1 / draw_rounding_ * draw_rounding_;
   // round up the end coordinates
-  area->x2 = area->x1 + lv_area_get_width(area) / draw_rounding_ * draw_rounding_ - 1;
-  area->y2 = area->y1 + lv_area_get_height(area) / draw_rounding_ * draw_rounding_ - 1;
+  area->x2 = (area->x2 + draw_rounding_) / draw_rounding_ * draw_rounding_ - 1;
+  area->y2 = (area->y2 + draw_rounding_) / draw_rounding_ * draw_rounding_ - 1;
   if (comp->draw_from_origin) {
     // extend the real origin to zero
-    switch (disp_drv->rotated) {
-      default:
-        area->x1 = 0;
-        area->y1 = 0;
-        break;
-      case LV_DISP_ROT_90:
-        area->x1 = 0;
-        area->y2 = disp_drv->ver_res - 1;
-        break;
-      case LV_DISP_ROT_180:
-        area->x2 = disp_drv->hor_res - 1;
-        area->y2 = disp_drv->ver_res - 1;
-        break;
-      case LV_DISP_ROT_270:
-        area->x2 = disp_drv->hor_res - 1;
-        area->y1 = 0;
-        break;
-    }
+    area->x1 = 0;
+    area->y1 = 0;
   }
+  ESP_LOGVV(TAG, "rounder_cb done: %d %d %d %d", area->x1, area->y1, area->x2, area->y2);
 }
 
 lv_event_code_t lv_api_event;     // NOLINT
@@ -185,25 +180,38 @@ void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
   this->show_page(this->current_page_, anim, time);
 }
 void LvglComponent::draw_buffer_(const lv_area_t *area, const lv_color_t *ptr) {
-  switch (lv_disp_get_rotation(this->disp_)) {
-    case LV_DISP_ROT_90:
-      rotate_90(ptr, this->rotate_buf_, lv_area_get_width(area), lv_area_get_height(area));
+  auto width = lv_area_get_width(area);
+  auto height = lv_area_get_height(area);
+  auto x1 = area->x1;
+  auto y1 = area->y1;
+  switch (this->rotation) {
+    case display::DISPLAY_ROTATION_90_DEGREES:
+      rotate_90(ptr, this->rotate_buf_, width, height);
+      x1 = y1;
+      y1 = area->x1;
+      width = height;
+      height = lv_area_get_width(area);
       ptr = this->rotate_buf_;
       break;
-    case LV_DISP_ROT_180:
-      rotate_180(ptr, this->rotate_buf_, lv_area_get_width(area), lv_area_get_height(area));
+    case display::DISPLAY_ROTATION_180_DEGREES:
+      rotate_180(ptr, this->rotate_buf_, width, height);
       ptr = this->rotate_buf_;
       break;
-    case LV_DISP_ROT_270:
-      rotate_270(ptr, this->rotate_buf_, lv_area_get_width(area), lv_area_get_height(area));
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      rotate_270(ptr, this->rotate_buf_, width, height);
+      x1 = y1;
+      y1 = area->x1;
+      width = height;
+      height = lv_area_get_width(area);
       ptr = this->rotate_buf_;
       break;
     default:
       break;
   }
   for (auto *display : this->displays_) {
-    display->draw_pixels_at(area->x1, area->y1, lv_area_get_width(area), lv_area_get_height(area),
-                            (const uint8_t *) ptr, display::COLOR_ORDER_RGB, LV_BITNESS, LV_COLOR_16_SWAP);
+    ESP_LOGV(TAG, "draw buffer x1=%d, y1=%d, width=%d, height=%d", x1, y1, width, height);
+    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, display::COLOR_ORDER_RGB, LV_BITNESS,
+                            LV_COLOR_16_SWAP);
   }
 }
 
@@ -211,8 +219,8 @@ void LvglComponent::flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, co
   if (!this->paused_) {
     auto now = millis();
     this->draw_buffer_(area, color_p);
-    ESP_LOGI(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
-             lv_area_get_height(area), (int) (millis() - now));
+    ESP_LOGVV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
+              lv_area_get_height(area), (int) (millis() - now));
   }
   lv_disp_flush_ready(disp_drv);
 }
@@ -367,15 +375,8 @@ void LvglComponent::setup() {
     this->status_set_error("Memory allocation failure");
     return;
   }
-  lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
-  lv_disp_drv_init(&this->disp_drv_);
-  this->disp_drv_.draw_buf = &this->draw_buf_;
-  this->disp_drv_.user_data = this;
-  this->disp_drv_.full_refresh = this->full_refresh_;
-  this->disp_drv_.flush_cb = static_flush_cb;
-  this->disp_drv_.rounder_cb = rounder_cb;
-  auto rotation = display->get_rotation();
-  if (rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+  this->rotation = display->get_rotation();
+  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));
     if (this->rotate_buf_ == nullptr) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
@@ -385,23 +386,28 @@ void LvglComponent::setup() {
       this->status_set_error("Memory allocation failure");
       return;
     }
-  }
-  switch (rotation) {
-    case display::DISPLAY_ROTATION_0_DEGREES:
-      break;
-    case display::DISPLAY_ROTATION_90_DEGREES:
-      this->disp_drv_.rotated = LV_DISP_ROT_90;
-      break;
-    case display::DISPLAY_ROTATION_180_DEGREES:
-      this->disp_drv_.rotated = LV_DISP_ROT_180;
-      break;
-    case display::DISPLAY_ROTATION_270_DEGREES:
-      this->disp_drv_.rotated = LV_DISP_ROT_270;
-      break;
+    if (this->draw_from_origin)
+      this->full_refresh_ = true;
   }
   display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
-  this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
-  this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
+  lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
+  lv_disp_drv_init(&this->disp_drv_);
+  this->disp_drv_.draw_buf = &this->draw_buf_;
+  this->disp_drv_.user_data = this;
+  this->disp_drv_.full_refresh = this->full_refresh_;
+  this->disp_drv_.flush_cb = static_flush_cb;
+  this->disp_drv_.rounder_cb = rounder_cb;
+  switch (this->rotation) {
+    default:
+      this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
+      this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
+      break;
+    case display::DISPLAY_ROTATION_90_DEGREES:
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      this->disp_drv_.ver_res = (lv_coord_t) display->get_width();
+      this->disp_drv_.hor_res = (lv_coord_t) display->get_height();
+      break;
+  }
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
   for (const auto &v : this->init_lambdas_)
     v(this);
