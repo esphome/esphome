@@ -434,8 +434,6 @@ void EbyteLoraComponent::loop() {
     }
     this->process_(data);
   }
-  if (!this->can_send_message_("Loop to see if send or repeater request"))
-    return;
   if (this->request_repeater_info_update_needed_) {
     this->request_repeater_info_();
     return;
