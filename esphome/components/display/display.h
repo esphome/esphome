@@ -340,6 +340,21 @@ class Display : public PollingComponent {
   void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text,
              Color background = COLOR_OFF);
 
+  /** Print `text` with the anchor point at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param width The width of the bounding box to print text into.
+   * @param height The height of the bounding box to print text into.
+   * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
+   * @param align The alignment of the text.
+   * @param text The text to draw.
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
+   */
+  void print(int x, int y, int width, int height, BaseFont *font, Color color, TextAlign align, const char *text,
+             Color background = COLOR_OFF, float line_height = 1.0, bool wrap = true);
+
   /** Print `text` with the top left at [x,y] with `font`.
    *
    * @param x The x coordinate of the upper left corner.
@@ -438,12 +453,14 @@ class Display : public PollingComponent {
    * @param width The x width of the  of the box to to fill before word-wrapping.
    * @param height The y height of the  of the box to to fill before truncating with a '...'.
    * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
+   * @param background The background color to use for antialiasing.
    * @param line_height A multiplier for the line height. Set to 1.0 for standard line spacing.
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, int width, int height, BaseFont *font, float line_height, const char *format, ...)
-      __attribute__((format(printf, 8, 9)));
+  void printf(int x, int y, int width, int height, BaseFont *font, Color color, Color background, float line_height,
+              const char *format, ...) __attribute__((format(printf, 10, 11)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
