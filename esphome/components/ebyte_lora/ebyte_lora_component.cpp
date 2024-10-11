@@ -392,7 +392,6 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
   }
 }
 void EbyteLoraComponent::update() {
-  ESP_LOGD(TAG, "Update loop");
   if (!this->current_config_.config_set) {
     ESP_LOGD(TAG, "Config not set yet! Requesting");
     this->request_current_config_();
@@ -413,8 +412,6 @@ void EbyteLoraComponent::update() {
       this->set_mode_(NORMAL);
     }
   }
-  ESP_LOGD(TAG, "Full update done, config correct %s, mode %u ", YESNO(this->is_config_right()), this->get_mode_());
-
   auto now = millis() / 1000;
   if (this->last_key_time_ + this->recyle_time_ < now) {
     ESP_LOGD(TAG, "Requesting all systems to send new info ");
@@ -453,21 +450,26 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
 #endif
   ESP_LOGD(TAG, "GOT new data to process");
   uint8_t first_byte = data[0];
+  bool unknown_key = true;
   // rssi is always the last one, except for when it is a program conf
   if (first_byte == REQUEST_REPEATER_INFO) {
     ESP_LOGD(TAG, "Got request for repeater info from network id %u", data[1]);
     this->send_repeater_info_();
+    unknown_key = false;
   }
   if (first_byte == REPEATER_INFO) {
     ESP_LOGD(TAG, "Got some repeater info from network %u setting rssi next", data[2]);
+    unknown_key = false;
   }
   if (first_byte == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
     this->setup_conf_(data);
     this->set_mode_(NORMAL);
+    unknown_key = false;
   }
   // Do all the stuff if they are sensors
   if (first_byte == BINARY_SENSOR_KEY || first_byte == SENSOR_KEY) {
+    unknown_key = false;
     for (size_t i = 0; i < data.size() - 1; i++) {
       uint8_t key = data[i];
       uint32_t u32 = 0;
@@ -523,8 +525,8 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
         binary_sensors[sensor_name]->publish_state(u32 != 0);
 #endif
     }
-
-  } else {
+  }
+  if (unknown_key) {
     return ESP_LOGW(TAG, "Unknown key byte %X", first_byte);
   }
 
@@ -535,6 +537,8 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
     this->rssi_sensor_->publish_state(rssi);
 #endif
     ESP_LOGD(TAG, "RSSI: %f", rssi);
+  } else {
+    ESP_LOGD(TAG, "No RSSI can be given since program mode");
   }
 };
 void EbyteLoraComponent::send_data_(bool all) {
