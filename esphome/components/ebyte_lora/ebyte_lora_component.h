@@ -87,6 +87,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_enable_lbt(EnableByte enable) { expected_config_.enable_lbt = enable; }
   void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_enable_rssi(EnableByte enable) { expected_config_.enable_rssi = enable; }
+  void set_recycle_time(uint32_t recycle_time) { this->recyle_time_ = recycle_time; }
   // if enabled, will repeat any message it received as long as it isn't its own network id
   void set_repeater(bool enable) { repeater_enabled_ = enable; }
   // software network id, this will make sure that only items from that network id are being found
@@ -108,9 +109,10 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   bool can_send_message_(const char *info);
 
  protected:
-  bool updated_{};
-  bool resend_repeater_request_{};
-  uint32_t repeater_request_recyle_time_{};
+  bool need_send_info{};
+  bool request_repeater_info_update_needed_{};
+  // for now do it every 600s
+  uint32_t recyle_time_ = 600;
   uint32_t last_key_time_{};
   void setup_conf_(std::vector<uint8_t> conf);
   void process_(std::vector<uint8_t> data);

@@ -270,7 +270,7 @@ void EbyteLoraComponent::setup() {
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
     sensor.sensor->add_on_state_callback([this, &sensor](float x) {
-      this->updated_ = true;
+      this->need_send_info = true;
       sensor.updated = true;
     });
   }
@@ -278,7 +278,7 @@ void EbyteLoraComponent::setup() {
 #ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
     sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
-      this->updated_ = true;
+      this->need_send_info = true;
       sensor.updated = true;
     });
   }
@@ -414,10 +414,12 @@ void EbyteLoraComponent::update() {
     }
   }
   ESP_LOGD(TAG, "Full update done, config correct %s, mode %u ", YESNO(this->is_config_right()), this->get_mode_());
-  this->updated_ = true;
+
   auto now = millis() / 1000;
-  if (this->last_key_time_ + this->repeater_request_recyle_time_ < now) {
-    this->resend_repeater_request_ = true;
+  if (this->last_key_time_ + this->recyle_time_ < now) {
+    ESP_LOGD(TAG, "Requesting all systems to send new info ");
+    this->request_repeater_info_update_needed_ = true;
+    this->need_send_info = true;
     this->last_key_time_ = now;
   }
 }
@@ -436,9 +438,9 @@ void EbyteLoraComponent::loop() {
     this->process_(data);
   }
 
-  if (this->resend_repeater_request_)
+  if (this->request_repeater_info_update_needed_)
     this->request_repeater_info_();
-  if (this->updated_) {
+  if (this->need_send_info) {
     this->send_data_(true);
   }
 }
@@ -538,6 +540,8 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
 void EbyteLoraComponent::send_data_(bool all) {
   if (!this->can_send_message_("send_data_"))
     return;
+  // straight away we are all good for the next cycle
+  this->need_send_info = false;
   std::vector<uint8_t> data;
   data.push_back(network_id_);
 #ifdef USE_SENSOR
@@ -588,6 +592,7 @@ void EbyteLoraComponent::send_repeater_info_() {
 void EbyteLoraComponent::request_repeater_info_() {
   if (!this->can_send_message_("request_repeater_info_"))
     return;
+  this->request_repeater_info_update_needed_ = false;
   uint8_t data[2];
   data[0] = REQUEST_REPEATER_INFO;  // Request
   data[1] = this->network_id_;      // for unique id

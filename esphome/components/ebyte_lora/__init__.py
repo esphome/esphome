@@ -114,6 +114,7 @@ CONF_SUB_PACKET = "sub_packet"
 CONF_SENT_SWITCH_STATE = "sent_switch_state"
 CONF_REPEATER = "repeater"
 CONF_NETWORK_ID = "network_id"
+CONF_RECYCLE_TIME = "recycle_time"
 
 
 def sensor_validation(cls: MockObjClass):
@@ -149,6 +150,9 @@ CONFIG_SCHEMA = cv.All(
             # to be able to repeater hop
             cv.Required(CONF_NETWORK_ID): cv.int_range(min=0, max=255),
             cv.Optional(CONF_REPEATER, default=False): cv.boolean,
+            cv.Optional(
+                CONF_RECYCLE_TIME, default="600s"
+            ): cv.positive_time_period_seconds,
             cv.Optional(CONF_SENSORS): cv.ensure_list(sensor_validation(Sensor)),
             cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
                 sensor_validation(BinarySensor)
@@ -232,6 +236,7 @@ async def to_code(config):
     cg.add(var.set_enable_lbt(config[CONF_ENABLE_LBT]))
     cg.add(var.set_transmission_mode(config[CONF_TRANSMISSION_MODE]))
     cg.add(var.set_enable_rssi(config[CONF_ENABLE_RSSI]))
+    cg.add(var.set_recycle_time(config[CONF_RECYCLE_TIME].total_seconds))
     for sens_conf in config.get(CONF_SENSORS, ()):
         sens_id = sens_conf[CONF_ID]
         sensor_device = await cg.get_variable(sens_id)
