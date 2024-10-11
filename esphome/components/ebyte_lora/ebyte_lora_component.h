@@ -93,16 +93,15 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_network_id(int id) { network_id_ = id; }
 
  private:
-  ModeType config_mode_ = MODE_INIT;
+  ModeType current_mode_ = MODE_INIT;
 
   // set WOR mode
   void set_mode_(ModeType mode);
   ModeType get_mode_();
-  bool config_checked_ = false;
   // check if you can sent a message
-  bool check_config_();
+  bool is_config_right();
   void set_config_();
-  void get_current_config_();
+  void request_current_config_();
   void send_data_(bool all);
   void request_repeater_info_();
   void send_repeater_info_();

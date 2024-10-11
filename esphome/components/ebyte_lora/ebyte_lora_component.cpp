@@ -9,17 +9,16 @@ static const uint8_t REPEATER_KEY = 0x99;
 static const uint8_t PROGRAM_CONF = 0xC1;
 static const uint8_t BINARY_SENSOR_KEY = 0x66;
 static const uint8_t SENSOR_KEY = 0x77;
-bool EbyteLoraComponent::check_config_() {
-  bool success = true;
+bool EbyteLoraComponent::is_config_right() {
   if (this->current_config_.addh != this->expected_config_.addh) {
     ESP_LOGD(TAG, "addh is not set right, it should be:");
     ESP_LOGD(TAG, "%u", this->expected_config_.addl);
-    success = false;
+    return false;
   }
   if (this->current_config_.addl != this->expected_config_.addl) {
     ESP_LOGD(TAG, "addl is not set right, it should be:");
     ESP_LOGD(TAG, "%u", this->expected_config_.addl);
-    success = false;
+    return false;
   }
   if (this->current_config_.air_data_rate != this->expected_config_.air_data_rate) {
     ESP_LOGD(TAG, "air_data_rate is not set right, it should be:");
@@ -43,7 +42,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "air_data_rate: 62.5kb");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.parity != this->expected_config_.parity) {
     ESP_LOGD(TAG, "parity is not set right, it should be:");
@@ -58,7 +57,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "uart_parity: 8E1");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.uart_baud != this->expected_config_.uart_baud) {
     ESP_LOGD(TAG, "uart_baud is not set right, it should be:");
@@ -88,7 +87,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "uart_baud: 115200");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.transmission_power != this->expected_config_.transmission_power) {
     ESP_LOGD(TAG, "transmission_power is not set right, it should be:");
@@ -106,7 +105,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "transmission_power: Lowest");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.rssi_noise != this->expected_config_.rssi_noise) {
     ESP_LOGD(TAG, "rssi_noise is not set right, it should be:");
@@ -118,7 +117,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "rssi_noise: DISABLED");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.sub_packet != this->expected_config_.sub_packet) {
     ESP_LOGD(TAG, "sub_packet is not set right, it should be:");
@@ -136,12 +135,12 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "sub_packet: 32 bytes");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.channel != this->expected_config_.channel) {
     ESP_LOGD(TAG, "channel is not set right is %u, should be %u", this->current_config_.channel,
              this->expected_config_.channel);
-    success = false;
+    return false;
   }
   if (this->current_config_.wor_period != this->expected_config_.wor_period) {
     ESP_LOGD(TAG, "wor_period is not set right, it should be:");
@@ -171,7 +170,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "wor_period: 4000");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.enable_lbt != this->expected_config_.enable_lbt) {
     ESP_LOGD(TAG, "enable_lbt is not set right, it should be:");
@@ -183,7 +182,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "enable_lbt: DISABLED");
         break;
     }
-    success = false;
+    return false;
   }
   if (this->current_config_.transmission_mode != this->expected_config_.transmission_mode) {
     ESP_LOGD(TAG, "transmission_mode is not set right, it should be:");
@@ -195,7 +194,7 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "transmission_type: FIXED");
         break;
     }
-    success = false;
+    return false;
   }
 
   if (this->current_config_.enable_rssi != this->expected_config_.enable_rssi) {
@@ -208,13 +207,11 @@ bool EbyteLoraComponent::check_config_() {
         ESP_LOGD(TAG, "enable_rssi: DISABLED");
         break;
     }
-    success = false;
+    return false;
   }
-  return success;
+  return true;
 }
 void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> conf) {
-  ESP_LOGD(TAG, "Config set");
-  this->current_config_.config_set = 1;
   // 3 is addh
   this->current_config_.addh = conf[3];
   // 4 is addl
@@ -237,6 +234,8 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> conf) {
   this->current_config_.enable_lbt = (conf[8] >> 4) & 0b1;
   this->current_config_.transmission_mode = (conf[8] >> 6) & 0b1;
   this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
+  ESP_LOGD(TAG, "Config set");
+  this->current_config_.config_set = true;
 }
 void EbyteLoraComponent::set_config_() {
   uint8_t data[11];
@@ -297,7 +296,7 @@ void EbyteLoraComponent::setup() {
   this->pin_m1_->setup();
   ESP_LOGD(TAG, "Setup success");
 }
-void EbyteLoraComponent::get_current_config_() {
+void EbyteLoraComponent::request_current_config_() {
   if (this->get_mode_() != CONFIGURATION) {
     ESP_LOGD(TAG, "Mode not set right requesting that and returning %u", this->get_mode_());
     this->set_mode_(CONFIGURATION);
@@ -340,17 +339,17 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   }
   // no need to do anything if the mode is correct
   if (this->get_mode_() == mode) {
-    this->config_mode_ = mode;
     ESP_LOGD(TAG, "Mode is already correct");
+    this->current_mode_ = mode;
     return;
   }
   // when the system starts, aux will stay low until you set the first mode
   // so make sure mode init isn't set AND we can't sent because aux is low
   if (!this->can_send_message_("set_mode")) {
-    if (this->config_mode_ == MODE_INIT) {
+    if (this->current_mode_ == MODE_INIT) {
       ESP_LOGD(TAG, "Very first time setting the mode, going to ignore device busy state");
     } else {
-      ESP_LOGD(TAG, "Device busy lets wait, current mode is %u", this->config_mode_);
+      ESP_LOGD(TAG, "Device busy lets wait, current mode is %u", this->current_mode_);
       return;
     }
   }
@@ -379,7 +378,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
       ESP_LOGD(TAG, "Don't call this!");
       break;
   }
-  this->config_mode_ = mode;
+  this->current_mode_ = mode;
 }
 bool EbyteLoraComponent::can_send_message_(const char *info) {
   // High means no more information is needed
@@ -395,24 +394,21 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
 void EbyteLoraComponent::update() {
   ESP_LOGD(TAG, "Update loop");
   if (!this->current_config_.config_set) {
-    ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
-    this->get_current_config_();
+    ESP_LOGD(TAG, "Config not set yet! Requesting");
+    this->request_current_config_();
     return;
-  } else {
-    // if it already set just continue quickly!
-    if (!this->config_checked_) {
-      this->config_checked_ = this->check_config_();
-      if (!this->config_checked_) {
-        ESP_LOGD(TAG, "Config is not right, changing it now");
-        this->set_config_();
-      }
-    }
+  }
+  if (!this->is_config_right()) {
+    ESP_LOGD(TAG, "Config is not right, changing it now");
+    this->set_config_();
+    return;
   }
   // only make it normal when config is set
-  if (this->current_config_.config_set && this->config_mode_ != NORMAL) {
-    this->config_mode_ = this->get_mode_();
+  if (this->current_mode_ != NORMAL) {
+    ESP_LOGD(TAG, "Current mode is not normal");
+    this->current_mode_ = this->get_mode_();
 
-    if (this->config_mode_ != NORMAL) {
+    if (this->current_mode_ != NORMAL) {
       ESP_LOGD(TAG, "Mode is not set right");
       this->set_mode_(NORMAL);
     }
