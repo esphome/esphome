@@ -293,7 +293,9 @@ void EbyteLoraComponent::setup() {
   this->pin_aux_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->pin_aux_->setup();
   this->pin_m0_->setup();
+  this->pin_m0_->digital_write(true);
   this->pin_m1_->setup();
+  this->pin_m0_->digital_write(true);
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::request_current_config_() {
@@ -341,6 +343,9 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     this->current_mode_ = mode;
     return;
   }
+  if (!this->can_send_message_("set_mode_")) {
+    return;
+  }
   switch (mode) {
     case NORMAL:
       this->pin_m0_->digital_write(false);
@@ -381,6 +386,11 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
   }
 }
 void EbyteLoraComponent::update() {
+  if (this->busy_till_ = 0) {
+    // give it a few seconds before doing this
+    busy_till_ = millis() + 1500;
+    return;
+  }
   if (millis() < this->busy_till_)
     return;
   if (!this->current_config_.config_set) {
