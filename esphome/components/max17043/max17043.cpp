@@ -55,7 +55,7 @@ void MAX17043Component::setup() {
   }
 
   config_reg = i2c::i2ctohs(config_reg) & MAX17043_CONFIG_SAFE_MASK;
-  ESP_LOGD(TAG, "MAX17043 CONFIG register reads 0x%X", config_reg);
+  ESP_LOGV(TAG, "MAX17043 CONFIG register reads 0x%X", config_reg);
 
   if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
     ESP_LOGE(TAG, "Device does not appear to be a MAX17043");
