@@ -26,7 +26,7 @@ namespace kt0803 {
 #endif
 
 class KT0803Component : public PollingComponent, public i2c::I2CDevice {
-  ChipId chip_id_; // no way to detect it
+  ChipId chip_id_;  // no way to detect it
   bool reset_;
   union {
     struct KT0803State state_;
@@ -44,7 +44,7 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   void publish_pw_ok();
   void publish_slncid();
   void publish_frequency();
-  
+
   void publish(sensor::Sensor *s, float state);
   void publish(binary_sensor::BinarySensor *s, bool state);
   void publish(text_sensor::TextSensor *s, const std::string &state);

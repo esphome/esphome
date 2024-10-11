@@ -214,38 +214,38 @@ struct KT0803State {
   union {
     uint8_t REG_00;
     struct {
-      uint8_t CHSEL1 : 8; // 0 K L
+      uint8_t CHSEL1 : 8;  // 0 K L
     };
   };
   union {
     uint8_t REG_01;
     struct {
-      uint8_t CHSEL2 : 3; // 0 K L
-      uint8_t PGA : 3; // 0 K L
-      uint8_t RFGAIN0 : 2; // 0 K L
+      uint8_t CHSEL2 : 3;   // 0 K L
+      uint8_t PGA : 3;      // 0 K L
+      uint8_t RFGAIN0 : 2;  // 0 K L
     };
   };
   union {
     uint8_t REG_02;
     struct {
-      uint8_t PHTCNST : 1; // 0 K L
+      uint8_t PHTCNST : 1;  // 0 K L
       uint8_t _02_1 : 1;
-      uint8_t PLTADJ : 1; // 0 K L
-      uint8_t MUTE : 1; // 0 K L
+      uint8_t PLTADJ : 1;  // 0 K L
+      uint8_t MUTE : 1;    // 0 K L
       uint8_t _02_2 : 2;
-      uint8_t RFGAIN2 : 1; // 0 K L
-      uint8_t CHSEL0 : 1; // K L (no LSB on 0, step size is only 100KHz)
+      uint8_t RFGAIN2 : 1;  // 0 K L
+      uint8_t CHSEL0 : 1;   // K L (no LSB on 0, step size is only 100KHz)
     };
   };
   uint8_t REG_03;
   union {
     uint8_t REG_04;
     struct {
-      uint8_t BASS : 2; // K L
-      uint8_t FDEV_K : 2; // K
-      uint8_t PGA_LSB : 2; // K L
-      uint8_t MONO : 1; // K L
-      uint8_t ALC_EN : 1; // L
+      uint8_t BASS : 2;     // K L
+      uint8_t FDEV_K : 2;   // K
+      uint8_t PGA_LSB : 2;  // K L
+      uint8_t MONO : 1;     // K L
+      uint8_t ALC_EN : 1;   // L
     };
   };
   uint8_t REG_05;
@@ -258,25 +258,25 @@ struct KT0803State {
     uint8_t REG_0B;
     struct {
       uint8_t _0B_1 : 2;
-      uint8_t AUTO_PADN : 1; // L
+      uint8_t AUTO_PADN : 1;  // L
       uint8_t _0B_2 : 2;
-      uint8_t PDPA : 1; // K L
+      uint8_t PDPA : 1;  // K L
       uint8_t _0B_3 : 1;
-      uint8_t Standby : 1; // L
+      uint8_t Standby : 1;  // L
     };
   };
   union {
     uint8_t REG_0C;
     struct {
-      uint8_t ALC_ATTACK_TIME : 4; // L
-      uint8_t ALC_DECAY_TIME : 4; // L
+      uint8_t ALC_ATTACK_TIME : 4;  // L
+      uint8_t ALC_DECAY_TIME : 4;   // L
     };
   };
   union {
     uint8_t REG_0E;
     struct {
       uint8_t _0E_1 : 1;
-      uint8_t PA_BIAS : 1; // K L
+      uint8_t PA_BIAS : 1;  // K L
       uint8_t _0E_2 : 6;
     };
   };
@@ -284,18 +284,18 @@ struct KT0803State {
     uint8_t REG_0F;
     struct {
       uint8_t _0F_1 : 2;
-      uint8_t SLNCID : 1; // K L (ro)
+      uint8_t SLNCID : 1;  // K L (ro)
       uint8_t _0F_2 : 1;
-      uint8_t PW_OK : 1; // K L (ro)
+      uint8_t PW_OK : 1;  // K L (ro)
       uint8_t _0F_3 : 3;
     };
   };
   union {
     uint8_t REG_10;
     struct {
-      uint8_t PGAMOD : 1; // K L
+      uint8_t PGAMOD : 1;  // K L
       uint8_t _10_1 : 2;
-      uint8_t LMTLVL : 2; // K
+      uint8_t LMTLVL : 2;  // K
       uint8_t _10_2 : 4;
     };
   };
@@ -303,41 +303,41 @@ struct KT0803State {
   union {
     uint8_t REG_12;
     struct {
-      uint8_t SW_MOD : 1; // K L
-      uint8_t SLNCTHH : 3; // K L
-      uint8_t SLNCTHL : 3; // K L
-      uint8_t SLNCDIS : 1; // K L
+      uint8_t SW_MOD : 1;   // K L
+      uint8_t SLNCTHH : 3;  // K L
+      uint8_t SLNCTHL : 3;  // K L
+      uint8_t SLNCDIS : 1;  // K L
     };
   };
   union {
     uint8_t REG_13;
     struct {
       uint8_t _13_1 : 2;
-      uint8_t PA_CTRL : 1; // 0 K L
+      uint8_t PA_CTRL : 1;  // 0 K L
       uint8_t _13_2 : 4;
-      uint8_t RFGAIN1 : 1; // 0 K L
+      uint8_t RFGAIN1 : 1;  // 0 K L
     };
   };
   union {
     uint8_t REG_14;
     struct {
-      uint8_t SLNCTIME_MSB : 1; // L
+      uint8_t SLNCTIME_MSB : 1;  // L
       uint8_t _14_1 : 1;
-      uint8_t SLNCCNTHIGH : 3; // K L
-      uint8_t SLNCTIME : 3; // K L
+      uint8_t SLNCCNTHIGH : 3;  // K L
+      uint8_t SLNCTIME : 3;     // K L
     };
   };
   union {
     uint8_t REG_15;
     struct {
       uint8_t _15_1 : 5;
-      uint8_t ALCCMPGAIN : 3; // L
+      uint8_t ALCCMPGAIN : 3;  // L
     };
   };
   union {
     uint8_t REG_16;
     struct {
-      uint8_t SLNCCNTLOW : 3; // K L
+      uint8_t SLNCCNTLOW : 3;  // K L
       uint8_t _16_1 : 5;
     };
   };
@@ -345,10 +345,10 @@ struct KT0803State {
     uint8_t REG_17;
     struct {
       uint8_t _17_1 : 3;
-      uint8_t XTAL_SEL : 1; // L
+      uint8_t XTAL_SEL : 1;  // L
       uint8_t _17_2 : 1;
-      uint8_t AU_ENHANCE : 1; // L
-      uint8_t FDEV_L : 1; // L
+      uint8_t AU_ENHANCE : 1;  // L
+      uint8_t FDEV_L : 1;      // L
       uint8_t _17_3 : 1;
     };
   };
@@ -362,10 +362,10 @@ struct KT0803State {
     uint8_t REG_1E;
     struct {
       uint8_t _1E_1 : 1;
-      uint8_t REF_CLK : 3; // L
+      uint8_t REF_CLK : 3;  // L
       uint8_t _1E_2 : 1;
-      uint8_t XTALD : 1; // L
-      uint8_t DCLK : 1; // L
+      uint8_t XTALD : 1;  // L
+      uint8_t DCLK : 1;   // L
       uint8_t _1E_3 : 1;
     };
   };
@@ -380,15 +380,15 @@ struct KT0803State {
     uint8_t REG_26;
     struct {
       uint8_t _26_1 : 1;
-      uint8_t ALCHIGHTH : 3; // L
+      uint8_t ALCHIGHTH : 3;  // L
       uint8_t _26_2 : 1;
-      uint8_t ALCHOLD : 3; // L
+      uint8_t ALCHOLD : 3;  // L
     };
   };
   union {
     uint8_t REG_27;
     struct {
-      uint8_t ALCLOWTH : 4; // L
+      uint8_t ALCLOWTH : 4;  // L
       uint8_t _27_1 : 4;
     };
   };

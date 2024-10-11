@@ -76,7 +76,7 @@ void KT0803Component::write_reg_(uint8_t addr) {
 
   if (addr == 0x13 && this->state_.PA_CTRL == 1) {
     ESP_LOGW(TAG, "write_reg_(0x%02X) PA_CTRL = 1 can destroy the device", addr);
-    return; // TODO: remove this when everything tested and works
+    return;  // TODO: remove this when everything tested and works
   }
 
   if (this->reset_) {
@@ -117,7 +117,7 @@ void KT0803Component::setup() {
     }
   }
   */
-  
+
   this->reset_ = true;
 
   for (size_t addr = 0; addr < sizeof(this->state_); addr++) {
@@ -148,28 +148,23 @@ void KT0803Component::update() {
     this->publish_pw_ok();
     this->publish_slncid();
   }
-/*
-  for (size_t addr = 0; addr < 0x2F; addr++) {
-    uint8_t c;
-    if (i2c::ERROR_OK == this->read_register(addr, &c, 1, false)) {
-      ESP_LOGV(TAG, "update register[%02X]: %02X", addr, c);
+  /*
+    for (size_t addr = 0; addr < 0x2F; addr++) {
+      uint8_t c;
+      if (i2c::ERROR_OK == this->read_register(addr, &c, 1, false)) {
+        ESP_LOGV(TAG, "update register[%02X]: %02X", addr, c);
+      }
     }
-  }
-*/
+  */
 }
 
-void KT0803Component::loop() {
-}
+void KT0803Component::loop() {}
 
 // config
 
-void KT0803Component::set_chip_id(ChipId value) {
-  this->chip_id_ = value;
-}
+void KT0803Component::set_chip_id(ChipId value) { this->chip_id_ = value; }
 
-ChipId KT0803Component::get_chip_id() {
-  return this->chip_id_;
-}
+ChipId KT0803Component::get_chip_id() { return this->chip_id_; }
 
 std::string KT0803Component::get_chip_string() const {
   switch (this->chip_id_) {
@@ -198,7 +193,9 @@ void KT0803Component::set_frequency(float value) {
   this->state_.CHSEL0 = (uint8_t) ((ch >> 0) & 0x01);
   this->write_reg_(0x00);
   this->write_reg_(0x01);
-  this->write_reg_(0x02);
+  if (this->chip_id_ != ChipId::KT0803) {
+    this->write_reg_(0x02);
+  }
 
   this->publish_frequency();
 }
@@ -230,7 +227,7 @@ void KT0803Component::publish(text_sensor::TextSensor *s, const std::string &sta
 }
 
 void KT0803Component::publish(binary_sensor::BinarySensor *s, bool state) {
- if (s != nullptr) {
+  if (s != nullptr) {
     if (!s->has_state() || s->state != state) {
       s->publish_state(state);
     }
