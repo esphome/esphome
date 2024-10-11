@@ -244,7 +244,7 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
-  this->check_uart_settings(4800);
+  this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
 }  // namespace cse7766

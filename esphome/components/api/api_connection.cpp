@@ -1,4 +1,5 @@
 #include "api_connection.h"
+#ifdef USE_API
 #include <cerrno>
 #include <cinttypes>
 #include <utility>
@@ -1923,3 +1924,4 @@ void APIConnection::on_fatal_error() {
 
 }  // namespace api
 }  // namespace esphome
+#endif

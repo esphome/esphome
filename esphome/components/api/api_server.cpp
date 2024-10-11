@@ -1,4 +1,5 @@
 #include "api_server.h"
+#ifdef USE_API
 #include <cerrno>
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
@@ -403,3 +404,4 @@ void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
 
 }  // namespace api
 }  // namespace esphome
+#endif

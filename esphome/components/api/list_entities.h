@@ -1,9 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
-#include "esphome/core/defines.h"
-
 namespace esphome {
 namespace api {
 
@@ -88,3 +88,4 @@ class ListEntitiesIterator : public ComponentIterator {
 
 }  // namespace api
 }  // namespace esphome
+#endif

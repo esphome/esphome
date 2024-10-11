@@ -1,0 +1,125 @@
+esphome:
+  on_boot:
+    then:
+      - light.toggle: test_binary_light
+      - light.turn_off: test_rgb_light
+      - light.turn_on:
+          id: test_rgb_light
+          brightness: 100%
+          red: 100%
+          green: 100%
+          blue: 1.0
+      - light.control:
+          id: test_monochromatic_light
+          state: on
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: 5%
+          brightness_limits:
+            max_brightness: 90%
+
+light:
+  - platform: binary
+    id: test_binary_light
+    name: Binary Light
+    output: test_binary
+    effects:
+      - strobe:
+    on_state:
+      - logger.log: Binary light state changed
+  - platform: monochromatic
+    id: test_monochromatic_light
+    name: Monochromatic Light
+    output: test_ledc_1
+    gamma_correct: 2.8
+    default_transition_length: 2s
+    effects:
+      - strobe:
+      - flicker:
+      - flicker:
+          name: My Flicker
+          alpha: 98%
+          intensity: 1.5%
+      - lambda:
+          name: My Custom Effect
+          update_interval: 1s
+          lambda: |-
+            static int state = 0;
+            state += 1;
+            if (state == 4)
+              state = 0;
+      - pulse:
+          transition_length: 10s
+          update_interval: 20s
+          min_brightness: 10%
+          max_brightness: 90%
+      - pulse:
+          name: pulse2
+          transition_length:
+            on_length: 10s
+            off_length: 5s
+          update_interval: 15s
+          min_brightness: 10%
+          max_brightness: 90%
+  - platform: rgb
+    id: test_rgb_light
+    name: RGB Light
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+  - platform: rgbw
+    id: test_rgbw_light
+    name: RGBW Light
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    white: test_ledc_4
+    color_interlock: true
+  - platform: rgbww
+    id: test_rgbww_light
+    name: RGBWW Light
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    cold_white: test_ledc_4
+    warm_white: test_ledc_5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true
+  - platform: rgbct
+    id: test_rgbct_light
+    name: RGBCT Light
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    color_temperature: test_ledc_4
+    white_brightness: test_ledc_5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true
+  - platform: cwww
+    id: test_cwww_light
+    name: CWWW Light
+    cold_white: test_ledc_1
+    warm_white: test_ledc_2
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    constant_brightness: true
+  - platform: color_temperature
+    id: test_color_temperature_light
+    name: CT Light
+    color_temperature: test_ledc_1
+    brightness: test_ledc_2
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+  - platform: rgb
+    id: test_rgb_light_initial_state
+    name: RGB Light
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    initial_state:
+      color_mode: rgb
+      red: 100%
+      green: 50%
+      blue: 50%

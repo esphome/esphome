@@ -1,4 +1,5 @@
 #include "list_entities.h"
+#ifdef USE_API
 #include "api_connection.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -158,3 +159,4 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *update) {
 
 }  // namespace api
 }  // namespace esphome
+#endif
