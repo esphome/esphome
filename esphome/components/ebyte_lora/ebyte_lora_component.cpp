@@ -422,20 +422,19 @@ void EbyteLoraComponent::update() {
   }
 }
 void EbyteLoraComponent::loop() {
-  std::vector<uint8_t> data;
-  if (!this->available())
-    return;
-  ESP_LOGD(TAG, "Reading serial");
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    data.push_back(c);
+  if (this->available()) {
+    std::vector<uint8_t> data;
+    ESP_LOGD(TAG, "Reading serial");
+    while (this->available()) {
+      uint8_t c;
+      this->read_byte(&c);
+      data.push_back(c);
+    }
+    if (this->repeater_enabled_) {
+      this->repeat_message_(data);
+    }
+    this->process_(data);
   }
-
-  if (this->repeater_enabled_) {
-    this->repeat_message_(data);
-  }
-  this->process_(data);
 
   if (this->resend_repeater_request_)
     this->request_repeater_info_();
