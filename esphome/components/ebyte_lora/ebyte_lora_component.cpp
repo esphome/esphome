@@ -542,6 +542,10 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
   }
 };
 void EbyteLoraComponent::send_data_(bool all) {
+  if (this->get_mode_() != NORMAL) {
+    ESP_LOGD(TAG, "request_repeater_info_ needs normal mode to operate");
+    this->set_mode_(NORMAL);
+  }
   if (!this->can_send_message_("send_data_"))
     return;
   // straight away we are all good for the next cycle
@@ -594,6 +598,10 @@ void EbyteLoraComponent::send_repeater_info_() {
   this->write_array(data, sizeof(data));
 }
 void EbyteLoraComponent::request_repeater_info_() {
+  if (this->get_mode_() != NORMAL) {
+    ESP_LOGD(TAG, "request_repeater_info_ needs normal mode to operate");
+    this->set_mode_(NORMAL);
+  }
   if (!this->can_send_message_("request_repeater_info_"))
     return;
   this->request_repeater_info_update_needed_ = false;
@@ -604,6 +612,10 @@ void EbyteLoraComponent::request_repeater_info_() {
   this->write_array(data, sizeof(data));
 }
 void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
+  if (this->get_mode_() != NORMAL) {
+    ESP_LOGD(TAG, "request_repeater_info_ needs normal mode to operate");
+    this->set_mode_(NORMAL);
+  }
   ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
   if (!this->can_send_message_("repeat_message_"))
     return;
