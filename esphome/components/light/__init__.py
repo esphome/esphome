@@ -161,28 +161,18 @@ async def setup_light_core_(light_var, output_var, config):
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
-        initial_state = cg.StructInitializer(
-            LightStateRTCState,
-            (
-                "color_mode",
-                initial_state_config.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
-            ),
-            ("state", initial_state_config.get(CONF_STATE, False)),
-            ("brightness", initial_state_config.get(CONF_BRIGHTNESS, 1.0)),
-            ("color_brightness", initial_state_config.get(CONF_COLOR_BRIGHTNESS, 1.0)),
-            ("red", initial_state_config.get(CONF_RED, 1.0)),
-            ("green", initial_state_config.get(CONF_GREEN, 1.0)),
-            ("blue", initial_state_config.get(CONF_BLUE, 1.0)),
-            ("white", initial_state_config.get(CONF_WHITE, 1.0)),
-            ("color_temp", initial_state_config.get(CONF_COLOR_TEMPERATURE, 1.0)),
-            (
-                "cold_white",
-                initial_state_config.get(CONF_COLD_WHITE, 1.0),
-            ),
-            (
-                "warm_white",
-                initial_state_config.get(CONF_WARM_WHITE, 1.0),
-            ),
+        initial_state = LightStateRTCState(
+            initial_state_config.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
+            initial_state_config.get(CONF_STATE, False),
+            initial_state_config.get(CONF_BRIGHTNESS, 1.0),
+            initial_state_config.get(CONF_COLOR_BRIGHTNESS, 1.0),
+            initial_state_config.get(CONF_RED, 1.0),
+            initial_state_config.get(CONF_GREEN, 1.0),
+            initial_state_config.get(CONF_BLUE, 1.0),
+            initial_state_config.get(CONF_WHITE, 1.0),
+            initial_state_config.get(CONF_COLOR_TEMPERATURE, 1.0),
+            initial_state_config.get(CONF_COLD_WHITE, 1.0),
+            initial_state_config.get(CONF_WARM_WHITE, 1.0),
         )
         cg.add(light_var.set_initial_state(initial_state))
 
