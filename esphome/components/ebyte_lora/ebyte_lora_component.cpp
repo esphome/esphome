@@ -346,6 +346,8 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   if (!this->can_send_message_("set_mode_")) {
     return;
   }
+  // recommended to wait for 2ms after high
+  delay(2);
   switch (mode) {
     case NORMAL:
       this->pin_m0_->digital_write(false);
@@ -386,7 +388,7 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
   }
 }
 void EbyteLoraComponent::update() {
-  if (this->busy_till_ = 0) {
+  if (this->busy_till_ == 0) {
     // give it a few seconds before doing this
     busy_till_ = millis() + 1500;
     return;
