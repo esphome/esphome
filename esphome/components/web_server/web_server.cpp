@@ -1443,7 +1443,7 @@ void WebServer::on_event(event::Event *obj, const std::string &event_type) {
 }
 
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
-  return json::build_json([obj, event_type, start_config](JsonObject root) {
+  return json::build_json([this, obj, event_type, start_config](JsonObject root) {
     set_json_id(root, obj, "event-" + obj->get_object_id(), start_config);
     if (!event_type.empty()) {
       root["event_type"] = event_type;
