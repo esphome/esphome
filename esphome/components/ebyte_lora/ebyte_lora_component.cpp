@@ -495,6 +495,8 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
         u32 += data[i] << 24;
       }
 
+      // max length of sensors name
+      char sensor_name[256]{};
       // key length for the sensor data
       i++;
       uint8_t sensor_name_length = 0;
@@ -502,8 +504,7 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
       if (data.size() - i < sensor_name_length) {
         return ESP_LOGV(TAG, "Name length of %u not available", sensor_name_length);
       }
-      // max length of sensors name
-      char sensor_name[sensor_name_length]{};
+
       // get the memory cleared and set
       memset(sensor_name, 0, sizeof sensor_name);
       for (size_t s = 0; s < sensor_name_length; s++) {
