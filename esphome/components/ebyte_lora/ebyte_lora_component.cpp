@@ -388,11 +388,13 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
     return true;
   } else {
     ESP_LOGD(TAG, "Can't sent it right now for %s", info);
-    delay(20);
+    this->busy_till_ = millis() + 100;
     return false;
   }
 }
 void EbyteLoraComponent::update() {
+  if (millis() < this->busy_till_)
+    return;
   if (!this->current_config_.config_set) {
     ESP_LOGD(TAG, "Config not set yet! Requesting");
     this->request_current_config_();
@@ -422,6 +424,8 @@ void EbyteLoraComponent::update() {
   }
 }
 void EbyteLoraComponent::loop() {
+  if (millis() < this->busy_till_)
+    return;
   if (this->available()) {
     std::vector<uint8_t> data;
     ESP_LOGD(TAG, "Reading serial");
@@ -435,9 +439,9 @@ void EbyteLoraComponent::loop() {
     }
     this->process_(data);
   }
+
   if (this->request_repeater_info_update_needed_) {
     this->request_repeater_info_();
-    return;
   }
   if (this->need_send_info) {
     this->send_data_(true);

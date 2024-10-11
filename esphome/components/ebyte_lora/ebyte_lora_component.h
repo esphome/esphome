@@ -114,6 +114,8 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   // for now do it every 600s
   uint32_t recyle_time_ = 600;
   uint32_t last_key_time_{};
+  // auto delay doing anything
+  uint32_t busy_till_ = 0;
   void setup_conf_(std::vector<uint8_t> conf);
   void process_(std::vector<uint8_t> data);
   void repeat_message_(std::vector<uint8_t> data);
