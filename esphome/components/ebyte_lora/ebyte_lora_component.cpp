@@ -388,6 +388,7 @@ bool EbyteLoraComponent::can_send_message_(const char *info) {
     return true;
   } else {
     ESP_LOGD(TAG, "Can't sent it right now for %s", info);
+    delay(20);
     return false;
   }
 }
