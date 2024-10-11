@@ -1,13 +1,5 @@
-i2c:
-  - id: i2c_max17043
-    sda: 8
-    scl: 10
+substitutions:
+  sda_pin: GPIO8
+  scl_pin: GPIO10
 
-sensor:
-  - platform: max17043
-    i2c_id: i2c_max17043
-    battery_voltage:
-      name: "Battery Voltage"
-    battery_level:
-      name: Battery
-    update_interval: 10s
+<<: !include common.yaml
