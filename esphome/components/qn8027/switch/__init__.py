@@ -64,25 +64,16 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+async def new_switch(config, id, setter):
+    if c := config.get(id):
+        s = await switch.new_switch(c)
+        await cg.register_parented(s, config[CONF_QN8027_ID])
+        cg.add(setter(s))
+
 async def to_code(config):
-    qn8027_component = await cg.get_variable(config[CONF_QN8027_ID])
-    if mute_config := config.get(CONF_MUTE):
-        s = await switch.new_switch(mute_config)
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_mute_switch(s))
-    if mono_config := config.get(CONF_MONO):
-        s = await switch.new_switch(mono_config)
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_mono_switch(s))
-    if tx_enable_config := config.get(CONF_TX_ENABLE):
-        s = await switch.new_switch(tx_enable_config)
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_tx_enable_switch(s))
-    if priv_en_config := config.get(CONF_PRIV_EN):
-        s = await switch.new_switch(priv_en_config)
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_priv_en_switch(s))
-    if rds_enable_config := config.get(CONF_RDS_ENABLE):
-        s = await switch.new_switch(rds_enable_config)
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_rds_enable_switch(s))
+    c = await cg.get_variable(config[CONF_QN8027_ID])
+    await new_switch(config, CONF_MUTE, c.set_mute_switch);
+    await new_switch(config, CONF_MONO, c.set_mono_switch);
+    await new_switch(config, CONF_TX_ENABLE, c.set_tx_enable_switch);
+    await new_switch(config, CONF_PRIV_EN, c.set_priv_en_switch);
+    await new_switch(config, CONF_RDS_ENABLE, c.set_rds_enable_switch);

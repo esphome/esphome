@@ -60,7 +60,7 @@ void QN8027Component::write_reg_(uint8_t addr) {
     case REG_RDS_ADDR:
       break;
     default:
-      ESP_LOGE(TAG, "write_reg_(0x%02X) trying to write invalid register", addr);
+      ESP_LOGE(TAG, "write_reg_(0x%02X) invalid register address", addr);
       return;
   }
 

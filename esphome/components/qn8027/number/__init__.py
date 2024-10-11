@@ -94,49 +94,19 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+async def new_number(config, id, setter, min_value, max_value, step, *args):
+    if c := config.get(id):
+        n = await number.new_number(c, *args, min_value=min_value, max_value=max_value, step=step)
+        await cg.register_parented(n, config[CONF_QN8027_ID])
+        cg.add(setter(n))
+        
 async def to_code(config):
-    qn8027_component = await cg.get_variable(config[CONF_QN8027_ID])
-    if frequency_config := config.get(CONF_FREQUENCY):
-        n = await number.new_number(
-            frequency_config, min_value=76, max_value=108, step=0.05
-        )
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_frequency_number(n))
-    if frequency_deviation_config := config.get(CONF_FREQUENCY_DEVIATION):
-        n = await number.new_number(
-            frequency_deviation_config, min_value=0, max_value=147.9, step=0.58
-        )
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_frequency_deviation_number(n))
-    if tx_pilot_config := config.get(CONF_TX_PILOT):
-        n = await number.new_number(tx_pilot_config, min_value=7, max_value=15, step=1)
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_tx_pilot_number(n))
-    if xtal_current_config := config.get(CONF_XTAL_CURRENT):
-        n = await number.new_number(
-            xtal_current_config, min_value=0, max_value=393.75, step=6.25
-        )
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_xtal_current_number(n))
-    if input_gain_config := config.get(CONF_INPUT_GAIN):
-        n = await number.new_number(input_gain_config, min_value=0, max_value=5, step=1)
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_input_gain_number(n))
-    if digital_gain_config := config.get(CONF_DIGITAL_GAIN):
-        n = await number.new_number(
-            digital_gain_config, min_value=0, max_value=2, step=1
-        )
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_digital_gain_number(n))
-    if power_target_config := config.get(CONF_POWER_TARGET):
-        n = await number.new_number(
-            power_target_config, min_value=83.4, max_value=117.5, step=0.62
-        )
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_power_target_number(n))
-    if rds_frequency_deviation_config := config.get(CONF_RDS_FREQUENCY_DEVIATION):
-        n = await number.new_number(
-            rds_frequency_deviation_config, min_value=0, max_value=44.45, step=0.35
-        )
-        await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_rds_frequency_deviation_number(n))
+    c = await cg.get_variable(config[CONF_QN8027_ID])
+    await new_number(config, CONF_FREQUENCY, c.set_frequency_number, 76, 108, 0.05)
+    await new_number(config, CONF_FREQUENCY_DEVIATION, c.set_frequency_deviation_number, 0, 147.9, 0.58)
+    await new_number(config, CONF_TX_PILOT, c.set_tx_pilot_number, 7, 15, 1)
+    await new_number(config, CONF_XTAL_CURRENT, c.set_xtal_current_number, 0, 393.75, 6.25)
+    await new_number(config, CONF_INPUT_GAIN, c.set_input_gain_number, 0, 5, 1)
+    await new_number(config, CONF_DIGITAL_GAIN, c.set_digital_gain_number, 0, 2, 1)
+    await new_number(config, CONF_POWER_TARGET, c.set_power_target_number, 83.4, 117.5, 0.62)
+    await new_number(config, CONF_RDS_FREQUENCY_DEVIATION, c.set_rds_frequency_deviation_number, 0, 44.45, 0.35)

@@ -136,18 +136,13 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+async def new_text_simple(config, id, setter, min_length, max_length, *args):
+    if c := config.get(id):
+        t = await new_text(c, *args, min_length=min_length, max_length=max_length)
+        await cg.register_parented(t, config[CONF_QN8027_ID])
+        cg.add(setter(t))
 
 async def to_code(config):
-    qn8027_component = await cg.get_variable(config[CONF_QN8027_ID])
-    if rds_station_config := config.get(CONF_RDS_STATION):
-        t = await new_text(
-            rds_station_config, min_length=0, max_length=qn8027_ns.RDS_STATION_MAX_SIZE
-        )
-        await cg.register_parented(t, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_rds_station_text(t))
-    if rds_text_config := config.get(CONF_RDS_TEXT):
-        t = await new_text(
-            rds_text_config, min_length=0, max_length=qn8027_ns.RDS_TEXT_MAX_SIZE
-        )
-        await cg.register_parented(t, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_rds_text_text(t))
+    c = await cg.get_variable(config[CONF_QN8027_ID])
+    await new_text_simple(config, CONF_RDS_STATION, c.set_rds_station_text, 0, qn8027_ns.RDS_STATION_MAX_SIZE)
+    await new_text_simple(config, CONF_RDS_TEXT, c.set_rds_text_text, 0, qn8027_ns.RDS_TEXT_MAX_SIZE)

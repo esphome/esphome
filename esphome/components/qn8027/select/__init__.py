@@ -62,33 +62,16 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+async def new_select(config, id, setter, options):
+    if c := config.get(id):
+        s = await select.new_select(c, options=list(options.keys()))
+        await cg.register_parented(s, config[CONF_QN8027_ID])
+        cg.add(setter(s))
+        
 async def to_code(config):
-    qn8027_component = await cg.get_variable(config[CONF_QN8027_ID])
-    if t1m_sel_config := config.get(CONF_T1M_SEL):
-        s = await select.new_select(t1m_sel_config, options=list(T1M_SEL.keys()))
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_t1m_sel_select(s))
-    if pre_emphasis_config := config.get(CONF_PRE_EMPHASIS):
-        s = await select.new_select(
-            pre_emphasis_config, options=list(PRE_EMPHASIS.keys())
-        )
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_pre_emphasis_select(s))
-    if xtal_source_config := config.get(CONF_XTAL_SOURCE):
-        s = await select.new_select(
-            xtal_source_config, options=list(XTAL_SOURCE.keys())
-        )
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_xtal_source_select(s))
-    if xtal_frequency_config := config.get(CONF_XTAL_FREQUENCY):
-        s = await select.new_select(
-            xtal_frequency_config, options=list(XTAL_FREQUENCY.keys())
-        )
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_xtal_frequency_select(s))
-    if input_impedance_config := config.get(CONF_INPUT_IMPEDANCE):
-        s = await select.new_select(
-            input_impedance_config, options=list(INPUT_IMPEDANCE.keys())
-        )
-        await cg.register_parented(s, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_input_impedance_select(s))
+    c = await cg.get_variable(config[CONF_QN8027_ID])
+    await new_select(config, CONF_T1M_SEL, c.set_t1m_sel_select, T1M_SEL)
+    await new_select(config, CONF_PRE_EMPHASIS, c.set_pre_emphasis_select, PRE_EMPHASIS)
+    await new_select(config, CONF_XTAL_SOURCE, c.set_xtal_source_select, XTAL_SOURCE)
+    await new_select(config, CONF_XTAL_FREQUENCY, c.set_xtal_frequency_select, XTAL_FREQUENCY)
+    await new_select(config, CONF_INPUT_IMPEDANCE, c.set_input_impedance_select, INPUT_IMPEDANCE)
