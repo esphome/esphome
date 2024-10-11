@@ -290,10 +290,16 @@ void EbyteLoraComponent::setup() {
 #ifdef USE_BINARY_SENSOR
   this->should_send_ |= !this->binary_sensors_.empty();
 #endif
-  this->pin_aux_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  this->pin_aux_->pin_mode(gpio::FLAG_INPUT);
   this->pin_aux_->setup();
   this->pin_m0_->setup();
+  this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT);
+  this->pin_m0_->digital_write(HIGH);
   this->pin_m1_->setup();
+  this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT);
+  this->pin_m1_->digital_write(HIGH);
+  delay(20);
+  set_mode_(NORMAL);
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::request_current_config_() {
@@ -302,8 +308,8 @@ void EbyteLoraComponent::request_current_config_() {
     return;
   }
   if (this->get_mode_() != CONFIGURATION) {
-    ESP_LOGD(TAG, "Mode not set right, setting it to wat we got");
-    this->set_mode_(this->get_mode_());
+    ESP_LOGD(TAG, "Mode not set right");
+    delay(20);
     return;
   }
 
@@ -337,31 +343,33 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
     return;
   }
+  delay(5);
   switch (mode) {
     case NORMAL:
-      this->pin_m0_->digital_write(false);
-      this->pin_m1_->digital_write(false);
+      this->pin_m0_->digital_write(LOW);
+      this->pin_m1_->digital_write(LOW);
       ESP_LOGD(TAG, "MODE NORMAL!");
       break;
     case WOR_SEND:
-      this->pin_m0_->digital_write(true);
-      this->pin_m1_->digital_write(false);
+      this->pin_m0_->digital_write(HIGH);
+      this->pin_m1_->digital_write(LOW);
       ESP_LOGD(TAG, "MODE WOR SEND!");
       break;
     case WOR_RECEIVER:
-      this->pin_m0_->digital_write(false);
-      this->pin_m1_->digital_write(true);
+      this->pin_m0_->digital_write(LOW);
+      this->pin_m1_->digital_write(HIGH);
       ESP_LOGD(TAG, "MODE RECEIVING!");
       break;
     case CONFIGURATION:
-      this->pin_m0_->digital_write(true);
-      this->pin_m1_->digital_write(true);
+      this->pin_m0_->digital_write(HIGH);
+      this->pin_m1_->digital_write(HIGH);
       ESP_LOGD(TAG, "MODE SLEEP and CONFIG!");
       break;
     case MODE_INIT:
       ESP_LOGD(TAG, "Don't call this!");
       break;
   }
+  delay(5);
   this->current_mode_ = mode;
 }
 bool EbyteLoraComponent::can_send_message_(const char *info) {
@@ -381,7 +389,6 @@ void EbyteLoraComponent::update() {
     return;
   if (!this->current_config_.config_set) {
     this->set_mode_(CONFIGURATION);
-    delay(5);
     ESP_LOGD(TAG, "Config not set yet! Requesting");
     this->request_current_config_();
     return;
