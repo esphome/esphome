@@ -293,9 +293,7 @@ void EbyteLoraComponent::setup() {
   this->pin_aux_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->pin_aux_->setup();
   this->pin_m0_->setup();
-  this->pin_m0_->digital_write(false);
   this->pin_m1_->setup();
-  this->pin_m0_->digital_write(false);
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::request_current_config_() {
