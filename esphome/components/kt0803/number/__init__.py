@@ -28,11 +28,12 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+async def new_number(config, id, setter, min_value, max_value, step):
+    if c := config.get(id):
+        n = await number.new_number(c, min_value=min_value, max_value=max_value, step=step)
+        await cg.register_parented(n, config[CONF_KT0803_ID])
+        cg.add(setter(n))
+
 async def to_code(config):
     kt0803_component = await cg.get_variable(config[CONF_KT0803_ID])
-    if frequency_config := config.get(CONF_FREQUENCY):
-        n = await number.new_number(
-            frequency_config, min_value=70, max_value=108, step=0.05
-        )
-        await cg.register_parented(n, config[CONF_KT0803_ID])
-        cg.add(kt0803_component.set_frequency_number(n))
+    await new_number(config, CONF_FREQUENCY, kt0803_component.set_frequency_number, 70, 108, 0.05)
