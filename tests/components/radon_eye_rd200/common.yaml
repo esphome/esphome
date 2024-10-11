@@ -4,8 +4,6 @@ ble_client:
   - mac_address: 01:02:03:04:05:06
     id: radon_eye_blec
 
-binary_sensor:
-
 sensor:
   - platform: radon_eye_rd200
     version: 1
