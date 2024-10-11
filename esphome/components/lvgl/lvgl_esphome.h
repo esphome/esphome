@@ -144,11 +144,18 @@ class LvglComponent : public PollingComponent {
       lv_group_focus_obj(mark);
     }
   }
+  // rounding factor to align bounds of update area when drawing
+  size_t draw_rounding{2};
+  void set_draw_rounding(size_t rounding) { this->draw_rounding = rounding; }
+
+  // if set to true, the bounds of the update area will always start at 0,0
+  bool draw_from_origin{false};
+  void set_draw_from_origin(bool origin) { this->draw_from_origin = origin; }
 
  protected:
   void write_random_();
-  void draw_buffer_(const lv_area_t *area, const uint8_t *ptr);
-  void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
+  void draw_buffer_(const lv_area_t *area, const lv_color_t *ptr);
+  void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, const lv_color_t *color_p);
   std::vector<display::Display *> displays_{};
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};
@@ -165,6 +172,7 @@ class LvglComponent : public PollingComponent {
   CallbackManager<void(uint32_t)> idle_callbacks_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
+  lv_color_t *rotate_buf_{};
 };
 
 class IdleTrigger : public Trigger<> {
