@@ -608,10 +608,27 @@ void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
   ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id_);
   if (this->repeater_enabled_) {
-    ESP_LOGCONFIG(TAG, "  Repeater mode");
+    ESP_LOGCONFIG(TAG, "  Mode: Repeater mode");
   } else {
-    ESP_LOGCONFIG(TAG, "  Normal mode");
+    ESP_LOGCONFIG(TAG, "  Mode: Normal mode");
   }
+#ifdef USE_SENSOR
+  for (auto sensor : this->sensors_)
+    ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
+#endif
+#ifdef USE_BINARY_SENSOR
+  for (auto sensor : this->binary_sensors_)
+    ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
+#endif
+  ESP_LOGCONFIG(TAG, "  Remote network: %u", this->network_id_);
+#ifdef USE_SENSOR
+  for (const auto &sensor : this->remote_sensors_[this->network_id_])
+    ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor.first.c_str());
+#endif
+#ifdef USE_BINARY_SENSOR
+  for (const auto &sensor : this->remote_binary_sensors_[this->network_id_])
+    ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", sensor.first.c_str());
+#endif
 };
 }  // namespace ebyte_lora
 }  // namespace esphome
