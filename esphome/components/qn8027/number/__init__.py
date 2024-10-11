@@ -97,7 +97,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def new_number(config, id, setter, min_value, max_value, step, *args):
     if c := config.get(id):
         n = await number.new_number(
-        	c, *args, min_value=min_value, max_value=max_value, step=step
+            c, *args, min_value=min_value, max_value=max_value, step=step
         )
         await cg.register_parented(n, config[CONF_QN8027_ID])
         cg.add(setter(n))
@@ -107,25 +107,25 @@ async def to_code(config):
     c = await cg.get_variable(config[CONF_QN8027_ID])
     await new_number(config, CONF_FREQUENCY, c.set_frequency_number, 76, 108, 0.05)
     await new_number(
-    	config,
-    	CONF_FREQUENCY_DEVIATION,
-    	c.set_frequency_deviation_number,
-    	0,
-    	147.9,
-    	0.58,
+        config,
+        CONF_FREQUENCY_DEVIATION,
+        c.set_frequency_deviation_number,
+        0,
+        147.9,
+        0.58,
    	)
     await new_number(config, CONF_TX_PILOT, c.set_tx_pilot_number, 7, 15, 1)
     await new_number(config, CONF_XTAL_CURRENT, c.set_xtal_current_number, 0, 393.75, 6.25)
     await new_number(config, CONF_INPUT_GAIN, c.set_input_gain_number, 0, 5, 1)
     await new_number(config, CONF_DIGITAL_GAIN, c.set_digital_gain_number, 0, 2, 1)
     await new_number(
-    	config, CONF_POWER_TARGET, c.set_power_target_number, 83.4, 117.5, 0.62
+        config, CONF_POWER_TARGET, c.set_power_target_number, 83.4, 117.5, 0.62
     )
     await new_number(
-    	config,
-    	CONF_RDS_FREQUENCY_DEVIATION,
-    	c.set_rds_frequency_deviation_number,
-    	0,
-    	44.45,
-    	0.35,
+        config,
+        CONF_RDS_FREQUENCY_DEVIATION,
+        c.set_rds_frequency_deviation_number,
+        0,
+        44.45,
+        0.35,
     )

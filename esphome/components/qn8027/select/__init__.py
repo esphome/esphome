@@ -75,8 +75,8 @@ async def to_code(config):
     await new_select(config, CONF_PRE_EMPHASIS, c.set_pre_emphasis_select, PRE_EMPHASIS)
     await new_select(config, CONF_XTAL_SOURCE, c.set_xtal_source_select, XTAL_SOURCE)
     await new_select(
-    	config, CONF_XTAL_FREQUENCY, c.set_xtal_frequency_select, XTAL_FREQUENCY
+        config, CONF_XTAL_FREQUENCY, c.set_xtal_frequency_select, XTAL_FREQUENCY
     )
     await new_select(
-    	config, CONF_INPUT_IMPEDANCE, c.set_input_impedance_select, INPUT_IMPEDANCE
+        config, CONF_INPUT_IMPEDANCE, c.set_input_impedance_select, INPUT_IMPEDANCE
     )
