@@ -113,9 +113,11 @@ async def to_code(config):
         0,
         147.9,
         0.58,
-   	)
+    )
     await new_number(config, CONF_TX_PILOT, c.set_tx_pilot_number, 7, 15, 1)
-    await new_number(config, CONF_XTAL_CURRENT, c.set_xtal_current_number, 0, 393.75, 6.25)
+    await new_number(
+        config, CONF_XTAL_CURRENT, c.set_xtal_current_number, 0, 393.75, 6.25
+    )
     await new_number(config, CONF_INPUT_GAIN, c.set_input_gain_number, 0, 5, 1)
     await new_number(config, CONF_DIGITAL_GAIN, c.set_digital_gain_number, 0, 2, 1)
     await new_number(
