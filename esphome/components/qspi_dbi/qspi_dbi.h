@@ -59,7 +59,7 @@ class QspiDbi : public display::DisplayBuffer,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
  public:
-  void set_model(Model model) { this->model_ = model; }
+  void set_model(const char *model) { this->model_ = model; }
   void update() override;
   void setup() override;
   display::ColorOrder get_color_mode() { return this->color_mode_; }
@@ -101,12 +101,10 @@ class QspiDbi : public display::DisplayBuffer,
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   bool can_proceed() override { return this->setup_complete_; }
-  void add_init_sequence(const std::vector<uint8_t> &sequence) {
-    this->extra_init_sequence_.insert(this->extra_init_sequence_.end(), sequence.begin(), sequence.end());
-  }
+  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequences_.push_back(sequence); }
 
  protected:
-  void write_sequence_(const uint8_t *addr);
+  void write_sequence_(const std::vector<uint8_t> &vec);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
@@ -128,11 +126,7 @@ class QspiDbi : public display::DisplayBuffer,
    * @param bytes
    * @param len
    */
-  void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
-    this->enable();
-    this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
-    this->disable();
-  }
+  void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len);
 
   void write_command_(uint8_t cmd, uint8_t data) { this->write_command_(cmd, &data, 1); }
   void write_command_(uint8_t cmd) { this->write_command_(cmd, &cmd, 0); }
@@ -158,8 +152,8 @@ class QspiDbi : public display::DisplayBuffer,
   bool mirror_x_{};
   bool mirror_y_{};
   uint8_t brightness_{0xD0};
-  Model model_{RM690B0};
-  std::vector<uint8_t> extra_init_sequence_;
+  const char *model_{"Unknown"};
+  std::vector<std::vector<uint8_t>> init_sequences_{};
 
   esp_lcd_panel_handle_t handle_{};
 };

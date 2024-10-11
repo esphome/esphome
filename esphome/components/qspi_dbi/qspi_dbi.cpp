@@ -6,7 +6,7 @@ namespace esphome {
 namespace qspi_dbi {
 
 void QspiDbi::setup() {
-  esph_log_config(TAG, "Setting up QSPI_DBI");
+  ESP_LOGCONFIG(TAG, "Setting up QSPI_DBI");
   this->spi_setup();
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();
@@ -29,6 +29,8 @@ void QspiDbi::update() {
     return;
   }
   this->do_update_();
+  if (this->buffer_ == nullptr || this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_)
+    return;
   // Start addresses and widths/heights must be divisible by 2 (CASET/RASET restriction in datasheet)
   if (this->x_low_ % 2 == 1) {
     this->x_low_--;
@@ -62,12 +64,11 @@ void QspiDbi::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (this->is_failed())
     return;
   uint32_t pos = (y * this->width_) + x;
-  uint16_t new_color;
   bool updated = false;
   pos = pos * 2;
-  new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-  if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
-    this->buffer_[pos] = (uint8_t) (new_color >> 8);
+  uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+  if (this->buffer_[pos] != static_cast<uint8_t>(new_color >> 8)) {
+    this->buffer_[pos] = static_cast<uint8_t>(new_color >> 8);
     updated = true;
   }
   pos = pos + 1;
@@ -102,31 +103,18 @@ void QspiDbi::reset_params_(bool ready) {
     mad |= MADCTL_MX;
   if (this->mirror_y_)
     mad |= MADCTL_MY;
-  this->write_command_(MADCTL_CMD, &mad, 1);
-  this->write_command_(BRIGHTNESS, &this->brightness_, 1);
+  this->write_command_(MADCTL_CMD, mad);
+  this->write_command_(BRIGHTNESS, this->brightness_);
+  this->write_command_(DISPLAY_ON);
 }
 
 void QspiDbi::write_init_sequence_() {
-  if (this->model_ == RM690B0) {
-    this->write_command_(PAGESEL, 0x20);
-    this->write_command_(MIPI, 0x0A);
-    this->write_command_(WRAM, 0x80);
-    this->write_command_(SWIRE1, 0x51);
-    this->write_command_(SWIRE2, 0x2E);
-    this->write_command_(PAGESEL, 0x00);
-    this->write_command_(0xC2, 0x00);
-    delay(10);
-    this->write_command_(TEON, 0x00);
-  } else if (this->model_ == RM67162) {
-    this->write_command_(PIXFMT, 0x55);
-    this->write_command_(BRIGHTNESS, 0);
+  for (auto seq : this->init_sequences_) {
+    this->write_sequence_(seq);
   }
-  if (!this->extra_init_sequence_.empty())
-    this->write_sequence_(this->extra_init_sequence_.data());
-  this->write_command_(DISPLAY_ON);
   this->reset_params_(true);
   this->setup_complete_ = true;
-  esph_log_config(TAG, "QSPI_DBI setup complete");
+  ESP_LOGCONFIG(TAG, "QSPI_DBI setup complete");
 }
 
 void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
@@ -136,12 +124,12 @@ void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y
   x2 += this->offset_x_;
   y1 += this->offset_y_;
   y2 += this->offset_y_;
-  put16_be(buf, x1);
-  put16_be(buf + 2, x2);
-  this->write_command_(CASET, buf, sizeof buf);
   put16_be(buf, y1);
   put16_be(buf + 2, y2);
   this->write_command_(RASET, buf, sizeof buf);
+  put16_be(buf, x1);
+  put16_be(buf + 2, x2);
+  this->write_command_(CASET, buf, sizeof buf);
 }
 
 void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -174,32 +162,41 @@ void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   }
   this->disable();
 }
+void QspiDbi::write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
+  ESP_LOGV(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty(bytes, len).c_str());
+  this->enable();
+  this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
+  this->disable();
+}
 
-void QspiDbi::write_sequence_(const uint8_t *addr) {
-  if (addr == nullptr)
-    return;
-  uint8_t cmd, x, num_args;
-  while ((cmd = *addr++) != 0) {
-    x = *addr++;
+void QspiDbi::write_sequence_(const std::vector<uint8_t> &vec) {
+  size_t index = 0;
+  while (index != vec.size()) {
+    if (vec.size() - index < 2) {
+      ESP_LOGE(TAG, "Malformed init sequence");
+      return;
+    }
+    uint8_t cmd = vec[index++];
+    uint8_t x = vec[index++];
     if (x == DELAY_FLAG) {
-      cmd &= 0x7F;
       ESP_LOGV(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
-      num_args = x & 0x7F;
-      ESP_LOGV(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, *addr);
-      this->write_command_(cmd, addr, num_args);
-      addr += num_args;
-      if (x & 0x80) {
-        ESP_LOGV(TAG, "Delay 150ms");
-        delay(150);  // NOLINT
+      uint8_t num_args = x & 0x7F;
+      if (vec.size() - index < num_args) {
+        ESP_LOGE(TAG, "Malformed init sequence");
+        return;
       }
+      auto ptr = vec.data() + index;
+      this->write_command_(cmd, ptr, num_args);
+      index += num_args;
     }
   }
 }
 
 void QspiDbi::dump_config() {
   ESP_LOGCONFIG("", "QSPI_DBI Display");
+  ESP_LOGCONFIG("", "Model: %s", this->model_);
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
   ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
   LOG_PIN("  CS Pin: ", this->cs_);

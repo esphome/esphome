@@ -23,6 +23,8 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 
+from .models import DriverChip
+
 DEPENDENCIES = ["spi"]
 
 qspi_dbi_ns = cg.esphome_ns.namespace("qspi_dbi")
@@ -51,16 +53,6 @@ def validate_dimension(value):
     return value
 
 
-def cmd(c, *args):
-    """
-    Create a command sequence
-    :param c: The command (8 bit)
-    :param args: zero or more arguments (8 bit values)
-    :return: a list with the command, the argument count and the arguments
-    """
-    return [c, len(args)] + list(args)
-
-
 def map_sequence(value):
     """
     The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
@@ -75,15 +67,15 @@ def map_sequence(value):
         )(value)
         return [delay, DELAY_FLAG]
     value = cv.Length(min=1, max=254)(value)
-    return cmd(*value)
+    params = value[1:]
+    return [value[0], len(params)] + list(params)
 
 
 def _validate(config):
-    model = config[CONF_MODEL]
-    if model == "CUSTOM":
+    chip = DriverChip.chips[config[CONF_MODEL]]
+    if not chip.initsequence:
         if CONF_INIT_SEQUENCE not in config:
-            raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
-
+            raise cv.Invalid(f"{chip.name} model requires init_sequence")
     return config
 
 
@@ -92,7 +84,9 @@ CONFIG_SCHEMA = cv.All(
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(QSPI_DBI),
-                cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True),
+                cv.Required(CONF_MODEL): cv.one_of(
+                    *DriverChip.chips.keys(), upper=True
+                ),
                 cv.Optional(CONF_INIT_SEQUENCE): cv.ensure_list(map_sequence),
                 cv.Required(CONF_DIMENSIONS): cv.Any(
                     cv.dimensions,
@@ -144,6 +138,9 @@ async def to_code(config):
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 
+    chip = DriverChip.chips[config[CONF_MODEL]]
+    if chip.initsequence:
+        cg.add(var.add_init_sequence(chip.initsequence))
     if init_sequences := config.get(CONF_INIT_SEQUENCE):
         sequence = []
         for seq in init_sequences:
