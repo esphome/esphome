@@ -343,7 +343,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     this->current_mode_ = mode;
     return;
   }
-  if (!this->can_send_message_("set_mode_")) {
+  if (!this->can_send_message_("set_mode_") && mode != CONFIGURATION) {
     return;
   }
   // recommended to wait for 2ms after high
