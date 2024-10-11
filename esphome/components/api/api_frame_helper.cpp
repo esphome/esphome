@@ -1,5 +1,5 @@
 #include "api_frame_helper.h"
-
+#ifdef USE_API
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -1028,3 +1028,4 @@ APIError APIPlaintextFrameHelper::shutdown(int how) {
 
 }  // namespace api
 }  // namespace esphome
+#endif
