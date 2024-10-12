@@ -74,7 +74,6 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   // cater for display driver chips with special requirements for bounds of partial
   // draw areas. Extend the draw area to satisfy:
   // * Coordinates must be a multiple of draw_rounding
-  // * set the origin to 0,0 if requested
   auto comp = static_cast<LvglComponent *>(disp_drv->user_data);
   size_t draw_rounding_ = comp->draw_rounding;
   // round down the start coordinates
