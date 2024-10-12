@@ -47,8 +47,8 @@ class MR60BHA2Component : public Component,
 
  protected:
   uint8_t current_frame_locate_;
-  uint8_t current_frame_buf[FRAME_BUF_MAX_SIZE];
-  uint8_t current_data_buf[DATA_BUF_MAX_SIZE];
+  uint8_t current_frame_buf_[FRAME_BUF_MAX_SIZE];
+  uint8_t current_data_buf_[DATA_BUF_MAX_SIZE];
   uint16_t current_frame_id_;
   size_t current_frame_len_;
   size_t current_data_frame_len_;
@@ -57,10 +57,10 @@ class MR60BHA2Component : public Component,
   uint32_t current_heart_rate_int_;
   uint32_t current_distance_int_;
 
-  bool validateChecksum(const uint8_t *data, size_t len, uint8_t expected_checksum);
-  uint8_t calculateChecksum(const uint8_t *data, size_t len);
-  void splitFrame(uint8_t buffer);
-  void processFrame();
+  bool validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum);
+  uint8_t calculate_checksum_(const uint8_t *data, size_t len);
+  void split_frame_(uint8_t buffer);
+  void process_frame_();
 
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
