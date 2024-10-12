@@ -20,7 +20,7 @@ QN8027Component::QN8027Component() {
   this->rds_text_pos_ = 0;
   this->rds_upd_ = 0xff;        // set defaults according to the datasheet
   this->state_.CH_UPPER = 1;    // 76 + [256] * 0.05MHz (88.8MHz)
-  this->state_.GAIN_TXPLT = 9;  // [9%] * 75KHz
+  this->state_.GAIN_TXPLT = 9;  // [9%] * 75kHz
   this->state_.t1m_sel = 2;     // 60s
   this->state_.TC = 1;          // pre-emphasis time 75us
   this->state_.XISEL = 16;      // crystal oscillator current 6.25uA * [16] (100uA)
@@ -28,8 +28,8 @@ QN8027Component::QN8027Component() {
   this->state_.GVGA = 3;        // input buffer gain
   this->state_.XSEL = 1;        // crystal 24MHz
   this->state_.PA_TRGT = 127;   // pa output power target 0.62 * [127] + 71dBuV (149.74dBuV)
-  this->state_.TX_FDEV = 129;   // tx frequency deviation 0.58KHz * [129] (74.82KHz)
-  this->state_.RDSFDEV = 6;     // rds frequency deviation = 0.35KHz * [6] (2.1KHz)
+  this->state_.TX_FDEV = 129;   // tx frequency deviation 0.58kHz * [129] (74.82kHz)
+  this->state_.RDSFDEV = 6;     // rds frequency deviation = 0.35kHz * [6] (2.1kHz)
   // our defaults
   this->state_.TXREQ = 1;     // start with tx enabled
   this->state_.PA_TRGT = 75;  // max valid value

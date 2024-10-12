@@ -111,7 +111,7 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
 
   void set_frequency(float value);  // MHz
   float get_frequency();
-  void set_frequency_deviation(float value);  // KHz
+  void set_frequency_deviation(float value);  // kHz
   float get_frequency_deviation();
   void set_mute(bool value);
   bool get_mute();

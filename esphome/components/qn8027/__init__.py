@@ -18,7 +18,7 @@ AUTO_LOAD = ["sensor", "text_sensor", "number", "switch", "select", "text"]
 MULTI_CONF = True
 
 UNIT_MEGA_HERTZ = "MHz"
-UNIT_KILO_HERTZ = "KHz"
+UNIT_KILO_HERTZ = "kHz"
 UNIT_MILLI_VOLT = "mV"
 UNIT_MICRO_AMPERE = "mA"
 UNIT_DECIBEL_MICRO_VOLT = "dBµV"
