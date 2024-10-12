@@ -89,7 +89,7 @@ lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LVGL:");
-  ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation * 90);
+  ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation);
   ESP_LOGCONFIG(TAG, "  Draw rounding: %d", this->draw_rounding);
 }
 void LvglComponent::set_paused(bool paused, bool show_snow) {
