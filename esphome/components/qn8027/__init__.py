@@ -167,57 +167,47 @@ CONFIG_SCHEMA = (
 )
 
 
+async def set_var(config, id, setter):
+    if c := config.get(id):
+        cg.add(setter(c))
+
+
+async def set_sensor(config, id, setter):
+    if c := config.get(id):
+        s = await sensor.new_sensor(c)
+        cg.add(setter(s))
+
+
+async def set_text_sensor(config, id, setter):
+    if c := config.get(id):
+        s = await text_sensor.new_text_sensor(c)
+        cg.add(setter(s))
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    if conf_frequency := config.get(CONF_FREQUENCY):
-        cg.add(var.set_frequency(conf_frequency))
-    if conf_frequency_deviation := config.get(CONF_FREQUENCY_DEVIATION):
-        cg.add(var.set_frequency_deviation(conf_frequency_deviation))
-    if conf_mute := config.get(CONF_MUTE):
-        cg.add(var.set_mute(conf_mute))
-    if conf_mono := config.get(CONF_MONO):
-        cg.add(var.set_mono(conf_mono))
-    if conf_tx_enable := config.get(CONF_TX_ENABLE):
-        cg.add(var.set_tx_enable(conf_tx_enable))
-    if conf_t1m_sel := config.get(CONF_T1M_SEL):
-        cg.add(var.set_t1m_sel(conf_t1m_sel))
-    if conf_pre_emphasis := config.get(CONF_PRE_EMPHASIS):
-        cg.add(var.set_pre_emphasis(conf_pre_emphasis))
-    if conf_priv_en := config.get(CONF_PRIV_EN):
-        cg.add(var.set_priv_en(conf_priv_en))
-    if conf_xtal_source := config.get(CONF_XTAL_SOURCE):
-        cg.add(var.set_xtal_source(conf_xtal_source))
-    if conf_xtal_current := config.get(CONF_XTAL_CURRENT):
-        cg.add(var.set_xtal_current(conf_xtal_current))
-    if conf_xtal_frequency := config.get(CONF_XTAL_FREQUENCY):
-        cg.add(var.set_xtal_frequency(conf_xtal_frequency))
-    if conf_input_impedance := config.get(CONF_INPUT_IMPEDANCE):
-        cg.add(var.set_input_impedance(conf_input_impedance))
-    if conf_input_gain := config.get(CONF_INPUT_GAIN):
-        cg.add(var.set_input_gain(conf_input_gain))
-    if conf_digital_gain := config.get(CONF_DIGITAL_GAIN):
-        cg.add(var.set_digital_gain(conf_digital_gain))
-    if conf_power_target := config.get(CONF_POWER_TARGET):
-        cg.add(var.set_power_target(conf_power_target))
-    if conf_rds_enable := config.get(CONF_RDS_ENABLE):
-        cg.add(var.set_rds_enable(conf_rds_enable))
-    if conf_rds_station := config.get(CONF_RDS_STATION):
-        cg.add(var.set_rds_station(conf_rds_station))
-    if conf_rds_text := config.get(CONF_RDS_TEXT):
-        cg.add(var.set_rds_text(conf_rds_text))
-    if conf_rds_frequency_deviation := config.get(CONF_RDS_FREQUENCY_DEVIATION):
-        cg.add(var.set_rds_frequency_deviation(conf_rds_frequency_deviation))
-    if conf_aud_pk := config.get(CONF_AUD_PK):
-        s = await sensor.new_sensor(conf_aud_pk)
-        cg.add(var.set_aud_pk_sensor(s))
-    if conf_fsm := config.get(CONF_FSM):
-        s = await text_sensor.new_text_sensor(conf_fsm)
-        cg.add(var.set_fsm_text_sensor(s))
-    if conf_chip_id := config.get(CONF_CHIP_ID):
-        s = await text_sensor.new_text_sensor(conf_chip_id)
-        cg.add(var.set_chip_id_text_sensor(s))
-    if conf_reg30 := config.get(CONF_REG30):
-        s = await sensor.new_sensor(conf_reg30)
-        cg.add(var.set_reg30_sensor(s))
+    await set_var(config, CONF_FREQUENCY, var.set_frequency)
+    await set_var(config, CONF_FREQUENCY_DEVIATION, var.set_frequency_deviation)
+    await set_var(config, CONF_MUTE, var.set_mute)
+    await set_var(config, CONF_MONO, var.set_mono)
+    await set_var(config, CONF_TX_ENABLE, var.set_tx_enable)
+    await set_var(config, CONF_T1M_SEL, var.set_t1m_sel)
+    await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
+    await set_var(config, CONF_PRIV_EN, var.set_priv_en)
+    await set_var(config, CONF_XTAL_SOURCE, var.set_xtal_source)
+    await set_var(config, CONF_XTAL_CURRENT, var.set_xtal_current)
+    await set_var(config, CONF_XTAL_FREQUENCY, var.set_xtal_frequency)
+    await set_var(config, CONF_INPUT_IMPEDANCE, var.set_input_impedance)
+    await set_var(config, CONF_INPUT_GAIN, var.set_input_gain)
+    await set_var(config, CONF_DIGITAL_GAIN, var.set_digital_gain)
+    await set_var(config, CONF_POWER_TARGET, var.set_power_target)
+    await set_var(config, CONF_RDS_ENABLE, var.set_rds_enable)
+    await set_var(config, CONF_RDS_STATION, var.set_rds_station)
+    await set_var(config, CONF_RDS_TEXT, var.set_rds_text)
+    await set_var(config, CONF_RDS_FREQUENCY_DEVIATION, var.set_rds_frequency_deviation)
+    await set_sensor(config, CONF_AUD_PK, var.set_aud_pk_sensor)
+    await set_text_sensor(config, CONF_FSM, var.set_fsm_text_sensor)
+    await set_text_sensor(config, CONF_CHIP_ID, var.set_chip_id_text_sensor)
+    await set_sensor(config, CONF_REG30, var.set_reg30_sensor)

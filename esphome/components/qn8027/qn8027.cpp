@@ -344,7 +344,7 @@ bool QN8027Component::get_tx_enable() { return this->state_.TXREQ == 1; }
 
 void QN8027Component::set_tx_pilot(uint8_t value) {
   if (!(GAIN_TXPLT_MIN <= value && value <= GAIN_TXPLT_MAX)) {
-    ESP_LOGE(TAG, "tx_pilot invalid %d, must be 7-15", value);
+    ESP_LOGE(TAG, "tx_pilot(%d) invalid (7 - 15)", value);
     return;
   }
 
@@ -358,7 +358,7 @@ uint8_t QN8027Component::get_tx_pilot() { return (uint8_t) this->state_.GAIN_TXP
 
 void QN8027Component::set_t1m_sel(T1mSel value) {
   if (value >= T1mSel::LAST) {
-    ESP_LOGE(TAG, "t1m_sel invalid %d, must be 58/59/60 or 0 (never)", (int) value);
+    ESP_LOGE(TAG, "set_t1m_sel(%d) invalid (58, 59, 60 or 0 = never)", (int) value);
     return;
   }
 
@@ -381,7 +381,7 @@ bool QN8027Component::get_priv_en() { return this->state_.priv_en == 1; }
 
 void QN8027Component::set_pre_emphasis(PreEmphasis value) {
   if (value >= PreEmphasis::LAST) {
-    ESP_LOGE(TAG, "pre-emphasis invalid %d, must be 50/75", (int) value);
+    ESP_LOGE(TAG, "set_pre_emphasis(%d) invalid (50 or 75)", (int) value);
     return;
   }
 
@@ -395,7 +395,7 @@ PreEmphasis QN8027Component::get_pre_emphasis() { return (PreEmphasis) this->sta
 
 void QN8027Component::set_xtal_source(XtalSource value) {
   if (value >= XtalSource::LAST) {
-    ESP_LOGE(TAG, "xtal source invalid %d", (int) value);
+    ESP_LOGE(TAG, "set_xtal_source(%d) invalid", (int) value);
     return;
   }
 
@@ -410,7 +410,7 @@ XtalSource QN8027Component::get_xtal_source() { return (XtalSource) this->state_
 void QN8027Component::set_xtal_current(float value) {
   this->state_.XISEL = value >= XISEL_MAX ? 0b00111111 : (uint16_t) (value / 6.25f);
   if (this->state_.XINJ != (uint8_t) XtalSource::USE_CRYSTAL_ON_XTAL12) {
-    ESP_LOGW(TAG, "xtal source should be %d", (int) XtalSource::USE_CRYSTAL_ON_XTAL12);
+    ESP_LOGW(TAG, "set_xtal_current(%d) invalid", (int) XtalSource::USE_CRYSTAL_ON_XTAL12);
   }
 
   this->write_reg_(REG_XTL_ADDR);
@@ -422,7 +422,7 @@ float QN8027Component::get_xtal_current() { return 6.25f * this->state_.XISEL; }
 
 void QN8027Component::set_xtal_frequency(XtalFrequency value) {
   if (value >= XtalFrequency::LAST) {
-    ESP_LOGE(TAG, "crystal frequency invalid %d, must be 12/24", (int) value);
+    ESP_LOGE(TAG, "set_xtal_frequency(%d) invalid (12 or 24)", (int) value);
     return;
   }
 
@@ -436,7 +436,7 @@ XtalFrequency QN8027Component::get_xtal_frequency() { return (XtalFrequency) thi
 
 void QN8027Component::set_input_impedance(InputImpedance value) {
   if (value >= InputImpedance::LAST) {
-    ESP_LOGE(TAG, "input impedance invalid %d, must be 5/10/20/40", (int) value);
+    ESP_LOGE(TAG, "set_input_impedance(%d) invalid (5, 10, 20, 40)", (int) value);
     return;
   }
 
@@ -450,7 +450,7 @@ InputImpedance QN8027Component::get_input_impedance() { return (InputImpedance) 
 
 void QN8027Component::set_input_gain(uint8_t value) {
   if (value > GVGA_MAX) {
-    ESP_LOGE(TAG, "input gain invalid %d, max %ddB", value, GVGA_MAX);
+    ESP_LOGE(TAG, "set_input_gain(%d) invalid (max %ddB)", value, GVGA_MAX);
     return;
   }
 
@@ -464,7 +464,7 @@ uint8_t QN8027Component::get_input_gain() { return this->state_.GVGA; }
 
 void QN8027Component::set_digital_gain(uint8_t value) {
   if (value > GDB_MAX) {
-    ESP_LOGE(TAG, "digital gain invalid %d, max %ddB", value, GDB_MAX);
+    ESP_LOGE(TAG, "set_digital_gain(%d) invalid (max %ddB)", value, GDB_MAX);
     return;
   }
 
