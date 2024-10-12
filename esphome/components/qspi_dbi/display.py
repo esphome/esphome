@@ -43,6 +43,7 @@ COLOR_ORDERS = {
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 CONF_INIT_SEQUENCE = "init_sequence"
+CONF_DRAW_FROM_ORIGIN = "draw_from_origin"
 DELAY_FLAG = 0xFF
 
 
@@ -119,6 +120,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_BRIGHTNESS, default=0xD0): cv.int_range(
                     0, 0xFF, min_included=True, max_included=True
                 ),
+                cv.Optional(CONF_DRAW_FROM_ORIGIN, default=False): cv.boolean,
             }
         ).extend(
             spi.spi_device_schema(
@@ -151,6 +153,7 @@ async def to_code(config):
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
     cg.add(var.set_model(config[CONF_MODEL]))
+    cg.add(var.set_draw_from_origin(config[CONF_DRAW_FROM_ORIGIN]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = await cg.gpio_pin_expression(enable_pin)
         cg.add(var.set_enable_pin(enable))

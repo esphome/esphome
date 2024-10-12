@@ -22,6 +22,8 @@ void QspiDbi::setup() {
   }
   this->set_timeout(120, [this] { this->write_command_(SLEEP_OUT); });
   this->set_timeout(240, [this] { this->write_init_sequence_(); });
+  if (this->draw_from_origin_)
+    check_buffer_();
 }
 
 void QspiDbi::update() {
@@ -44,10 +46,15 @@ void QspiDbi::update() {
   if (this->y_high_ % 2 == 0) {
     this->y_high_++;
   }
+  if (this->draw_from_origin_) {
+    this->x_low_ = 0;
+    this->y_low_ = 0;
+    this->x_high_ = this->width_ - 1;
+  }
   int w = this->x_high_ - this->x_low_ + 1;
   int h = this->y_high_ - this->y_low_ + 1;
-  this->draw_pixels_at(this->x_low_, this->y_low_, w, h, this->buffer_, this->color_mode_, display::COLOR_BITNESS_565,
-                       true, this->x_low_, this->y_low_, this->get_width_internal() - w - this->x_low_);
+  this->write_to_display_(this->x_low_, this->y_low_, w, h, this->buffer_, this->x_low_, this->y_low_,
+                          this->width_ - w - this->x_low_);
   // invalidate watermarks
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
@@ -59,10 +66,9 @@ void QspiDbi::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
-  if (this->buffer_ == nullptr)
-    this->init_internal_(this->width_ * this->height_ * 2);
   if (this->is_failed())
     return;
+  check_buffer_();
   uint32_t pos = (y * this->width_) + x;
   bool updated = false;
   pos = pos * 2;
@@ -105,6 +111,7 @@ void QspiDbi::reset_params_(bool ready) {
     mad |= MADCTL_MY;
   this->write_command_(MADCTL_CMD, mad);
   this->write_command_(BRIGHTNESS, this->brightness_);
+  this->write_command_(NORON);
   this->write_command_(DISPLAY_ON);
 }
 
@@ -118,7 +125,7 @@ void QspiDbi::write_init_sequence_() {
 }
 
 void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
-  ESP_LOGD(TAG, "Set addr %d/%d, %d/%d", x1, y1, x2, y2);
+  ESP_LOGVV(TAG, "Set addr %d/%d, %d/%d", x1, y1, x2, y2);
   uint8_t buf[4];
   x1 += this->offset_x_;
   x2 += this->offset_x_;
@@ -140,9 +147,26 @@ void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     return;
   if (bitness != display::COLOR_BITNESS_565 || order != this->color_mode_ ||
       big_endian != (this->bit_order_ == spi::BIT_ORDER_MSB_FIRST)) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
+    return Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+  } else if (this->draw_from_origin_) {
+    auto stride = x_offset + w + x_pad;
+    for (int y = 0; y != h; y++) {
+      memcpy(this->buffer_ + ((y + y_start) * this->width_ + x_start) * 2,
+             ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2);
+    }
+    ptr = this->buffer_;
+    w = this->width_;
+    h += y_start;
+    x_start = 0;
+    y_start = 0;
+    x_offset = 0;
+    y_offset = 0;
   }
+  this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+}
+
+void QspiDbi::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                                int x_pad) {
   this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
   this->enable();
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
@@ -151,11 +175,8 @@ void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, ptr, w * h * 2, 4);
   } else {
     auto stride = x_offset + w + x_pad;
-    ESP_LOGD(TAG, "x_pad=%d, x_offset/y_offset=%d/%d, w/h=%d/%d, stride=%d", x_pad, x_offset, y_offset, w, h, stride);
     uint16_t cmd = 0x2C00;
     for (int y = 0; y != h; y++) {
-      ESP_LOGD(TAG, "byte offset=%d", ((y + y_offset) * stride + x_offset) * 2);
-      delay(2);
       this->write_cmd_addr_data(8, 0x32, 24, cmd, ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2, 4);
       cmd = 0x3C00;
     }

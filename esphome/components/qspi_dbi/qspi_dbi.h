@@ -19,6 +19,7 @@ namespace qspi_dbi {
 constexpr static const char *const TAG = "display.qspi_dbi";
 static const uint8_t SW_RESET_CMD = 0x01;
 static const uint8_t SLEEP_OUT = 0x11;
+static const uint8_t NORON = 0x13;
 static const uint8_t INVERT_OFF = 0x20;
 static const uint8_t INVERT_ON = 0x21;
 static const uint8_t ALL_ON = 0x23;
@@ -95,6 +96,8 @@ class QspiDbi : public display::DisplayBuffer,
     this->offset_x_ = offset_x;
     this->offset_y_ = offset_y;
   }
+
+  void set_draw_from_origin(bool draw_from_origin) { this->draw_from_origin_ = draw_from_origin; }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void dump_config() override;
 
@@ -104,10 +107,16 @@ class QspiDbi : public display::DisplayBuffer,
   void add_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequences_.push_back(sequence); }
 
  protected:
+  void check_buffer_() {
+    if (this->buffer_ == nullptr)
+      this->init_internal_(this->width_ * this->height_ * 2);
+  }
   void write_sequence_(const std::vector<uint8_t> &vec);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
   /**
    * the RM67162 in quad SPI mode seems to work like this (not in the datasheet, this is deduced from the
    * sample code.)
@@ -151,6 +160,7 @@ class QspiDbi : public display::DisplayBuffer,
   bool swap_xy_{};
   bool mirror_x_{};
   bool mirror_y_{};
+  bool draw_from_origin_{false};
   uint8_t brightness_{0xD0};
   const char *model_{"Unknown"};
   std::vector<std::vector<uint8_t>> init_sequences_{};
