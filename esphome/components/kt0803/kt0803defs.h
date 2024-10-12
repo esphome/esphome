@@ -5,12 +5,17 @@ namespace kt0803 {
 
 static float CHSEL_MIN = 70.0f;
 static float CHSEL_MAX = 108.0f;
+static float CHSEL_STEP = 0.05;
 
 static float PGA_MIN = -15;
 static float PGA_MAX = 12;
+static float PGA_STEP = 1;
 
 static float RFGAIN_MIN = 95.5f;
 static float RFGAIN_MAX = 108.0f;
+
+static float ALC_GAIN_MIN = -15;
+static float ALC_GAIN_MAX = 6;
 
 enum class ChipId {
   KT0803,
@@ -25,7 +30,7 @@ enum class PreEmphasis {
   LAST,
 };
 
-enum class PilotToneAmplitudeAdjustment {
+enum class PilotToneAmplitude {
   PLTADJ_LOW,
   PLTADJ_HIGH,
   LAST,
@@ -39,7 +44,7 @@ enum class BassBoostControl {
   LAST,
 };
 
-enum class AlcTimeSelection {
+enum class AlcTime {
   ALC_TIME_25US,
   ALC_TIME_50US,
   ALC_TIME_75US,
@@ -59,20 +64,14 @@ enum class AlcTimeSelection {
   LAST,
 };
 
-enum class SilenceDetectionLowThreshold {
-  SLNCTHL_025MV,
-  SLNCTHL_050MV,
-  SLNCTHL_1MV,
-  SLNCTHL_2MV,
-  SLNCTHL_4MV,
-  SLNCTHL_8MV,
-  SLNCTHL_16MV,
-  SLNCTHL_32MV,
+enum class SwitchMode {
+  SW_MOD_MUTE,
+  SW_MOD_PA_OFF,
   LAST,
 };
 
-enum class SilenceDetectionHighThreshold {
-  SLNCTHH_050MV,
+enum class SilenceHigh {
+  SLNCTHH_0M5V,
   SLNCTHH_1MV,
   SLNCTHH_2MV,
   SLNCTHH_4MV,
@@ -83,19 +82,19 @@ enum class SilenceDetectionHighThreshold {
   LAST,
 };
 
-enum class SilenceDetectionHighLevelCounterThreshold {
-  SLNCCNTHIGH_15,
-  SLNCCNTHIGH_31,
-  SLNCCNTHIGH_63,
-  SLNCCNTHIGH_127,
-  SLNCCNTHIGH_255,
-  SLNCCNTHIGH_511,
-  SLNCCNTHIGH_1023,
-  SLNCCNTHIGH_2047,
+enum class SilenceLow {
+  SLNCTHL_0M25V,
+  SLNCTHL_0M5V,
+  SLNCTHL_1MV,
+  SLNCTHL_2MV,
+  SLNCTHL_4MV,
+  SLNCTHL_8MV,
+  SLNCTHL_16MV,
+  SLNCTHL_32MV,
   LAST,
 };
 
-enum class SilenceDetectionLowAndHighLevelDurationTime {
+enum class SilenceLowAndHighLevelDurationTime {
   SLNCTIME_50MS,
   SLNCTIME_100MS,
   SLNCTIME_200MS,
@@ -115,7 +114,19 @@ enum class SilenceDetectionLowAndHighLevelDurationTime {
   LAST,
 };
 
-enum class AlcCompressedGainSetting {
+enum class SilenceHighLevelCounter {
+  SLNCCNTHIGH_15,
+  SLNCCNTHIGH_31,
+  SLNCCNTHIGH_63,
+  SLNCCNTHIGH_127,
+  SLNCCNTHIGH_255,
+  SLNCCNTHIGH_511,
+  SLNCCNTHIGH_1023,
+  SLNCCNTHIGH_2047,
+  LAST,
+};
+
+enum class AlcCompressedGain {
   ALCCMPGAIN_N6DB,
   ALCCMPGAIN_N9DB,
   ALCCMPGAIN_N12DB,
@@ -127,7 +138,7 @@ enum class AlcCompressedGainSetting {
   LAST,
 };
 
-enum class SilenceLowCounter {
+enum class SilenceLowLevelCounter {
   SLNCCNTLOW_1,
   SLNCCNTLOW_2,
   SLNCCNTLOW_4,
@@ -139,7 +150,13 @@ enum class SilenceLowCounter {
   LAST,
 };
 
-enum class FrequencyDeviationAdjustment {
+enum class XtalSel {
+  XTAL_SEL_32K768HZ,
+  XTAL_SEL_7M6HZ,
+  LAST,
+};
+
+enum class FrequencyDeviation {
   FDEV_75KHZ,
   FDEV_112K5HZ,
   FDEV_150KHZ,
@@ -147,13 +164,7 @@ enum class FrequencyDeviationAdjustment {
   LAST,
 };
 
-enum class XtalSelection {
-  XTAL_SEL_32K768HZ,
-  XTAL_SEL_7M6HZ,
-  LAST,
-};
-
-enum class ReferenceClockSelection {
+enum class ReferenceClock {
   REF_CLK_32K768HZ,
   REF_CLK_6M5HZ,
   REF_CLK_7M6HZ,
@@ -166,19 +177,7 @@ enum class ReferenceClockSelection {
   LAST,
 };
 
-enum class AlcHighThresholdSelection {
-  ALCHIGHTH_50MS,
-  ALCHIGHTH_100MS,
-  ALCHIGHTH_150MS,
-  ALCHIGHTH_200MS,
-  ALCHIGHTH_1S,
-  ALCHIGHTH_5S,
-  ALCHIGHTH_10S,
-  ALCHIGHTH_15S,
-  LAST,
-};
-
-enum class AlcHoldTimeSelection {
+enum class AlcHigh {
   ALCHOLD_06,
   ALCHOLD_05,
   ALCHOLD_04,
@@ -190,7 +189,19 @@ enum class AlcHoldTimeSelection {
   LAST,
 };
 
-enum class AlcLowThreshold {
+enum class AlcHoldTime {
+  ALCHIGHTH_50MS,
+  ALCHIGHTH_100MS,
+  ALCHIGHTH_150MS,
+  ALCHIGHTH_200MS,
+  ALCHIGHTH_1S,
+  ALCHIGHTH_5S,
+  ALCHIGHTH_10S,
+  ALCHIGHTH_15S,
+  LAST,
+};
+
+enum class AlcLow {
   ALCLOWTH_025,
   ALCLOWTH_020,
   ALCLOWTH_015,
@@ -203,6 +214,14 @@ enum class AlcLowThreshold {
   ALCLOWTH_0001,
   ALCLOWTH_00005,
   ALCLOWTH_00001,
+  LAST,
+};
+
+enum class AudioLimiterLevel {
+  LMTLVL_06875,
+  LMTLVL_07500,
+  LMTLVL_08750,
+  LMTLVL_09625,
   LAST,
 };
 
@@ -234,7 +253,7 @@ struct KT0803State {
       uint8_t MUTE : 1;    // 0 K L
       uint8_t _02_2 : 2;
       uint8_t RFGAIN2 : 1;  // 0 K L
-      uint8_t CHSEL0 : 1;   // K L (no LSB on 0, step size is only 100KHz)
+      uint8_t CHSEL0 : 1;   // K L (no LSB on 0, step size is only 100kHz)
     };
   };
   uint8_t REG_03;
@@ -272,6 +291,7 @@ struct KT0803State {
       uint8_t ALC_DECAY_TIME : 4;   // L
     };
   };
+  uint8_t REG_0D;
   union {
     uint8_t REG_0E;
     struct {
@@ -296,7 +316,7 @@ struct KT0803State {
       uint8_t PGAMOD : 1;  // K L
       uint8_t _10_1 : 2;
       uint8_t LMTLVL : 2;  // K
-      uint8_t _10_2 : 4;
+      uint8_t _10_2 : 3;
     };
   };
   uint8_t REG_11;
@@ -321,10 +341,10 @@ struct KT0803State {
   union {
     uint8_t REG_14;
     struct {
-      uint8_t SLNCTIME_MSB : 1;  // L
+      uint8_t SLNCTIME1 : 1;  // L
       uint8_t _14_1 : 1;
       uint8_t SLNCCNTHIGH : 3;  // K L
-      uint8_t SLNCTIME : 3;     // K L
+      uint8_t SLNCTIME0 : 3;     // K L
     };
   };
   union {
@@ -349,7 +369,7 @@ struct KT0803State {
       uint8_t _17_2 : 1;
       uint8_t AU_ENHANCE : 1;  // L
       uint8_t FDEV_L : 1;      // L
-      uint8_t _17_3 : 1;
+      uint8_t _17_3 : 1;       // is this part of FDEV? FDEV_K is two bits
     };
   };
   uint8_t REG_18;
