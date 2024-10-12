@@ -346,7 +346,7 @@ void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, 
 void Display::print(int x, int y, int width, int height, BaseFont *font, Color color, TextAlign align, const char *text,
                     Color background, float line_height, bool wrap) {
   int x_start, y_start;
-  if (wrap == false) {
+  if (!wrap) {
     this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
     font->print(x_start, y_start, this, color, text, background);
   } else {
