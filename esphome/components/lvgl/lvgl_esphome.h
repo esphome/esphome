@@ -149,14 +149,12 @@ class LvglComponent : public PollingComponent {
   void set_draw_rounding(size_t rounding) { this->draw_rounding = rounding; }
 
   // if set to true, the bounds of the update area will always start at 0,0
-  bool draw_from_origin{false};
-  void set_draw_from_origin(bool origin) { this->draw_from_origin = origin; }
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
 
  protected:
   void write_random_();
-  void draw_buffer_(const lv_area_t *area, const lv_color_t *ptr);
-  void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, const lv_color_t *color_p);
+  void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
+  void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
   std::vector<display::Display *> displays_{};
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};

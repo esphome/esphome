@@ -234,7 +234,6 @@ async def to_code(config):
     cg.add(lv_component.set_buffer_frac(int(frac)))
     cg.add(lv_component.set_full_refresh(config[df.CONF_FULL_REFRESH]))
     cg.add(lv_component.set_draw_rounding(config[df.CONF_DRAW_ROUNDING]))
-    cg.add(lv_component.set_draw_from_origin(config[df.CONF_DRAW_FROM_ORIGIN]))
 
     for font in helpers.esphome_fonts_used:
         await cg.get_variable(font)
@@ -317,7 +316,6 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(df.CONF_DRAW_ROUNDING, default=2): cv.positive_int,
-            cv.Optional(df.CONF_DRAW_FROM_ORIGIN, default=False): cv.boolean,
             cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
             cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                 *df.LOG_LEVELS, upper=True
