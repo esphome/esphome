@@ -1,0 +1,16 @@
+sensor:
+  - platform: adc
+    pin: GPIO36
+    id: adc_sensor
+
+  - platform: gp2y1010au0f
+    sensor: adc_sensor
+    name: Dust Sensor
+    adc_voltage_offset: 0.2
+    adc_voltage_multiplier: 3.3
+    output: dust_sensor_led
+
+output:
+  - platform: gpio
+    id: dust_sensor_led
+    pin: GPIO32
