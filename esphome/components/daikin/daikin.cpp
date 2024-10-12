@@ -16,6 +16,8 @@ void DaikinClimate::transmit_state() {
   uint16_t fan_speed = this->fan_speed_();
   remote_state[24] = fan_speed >> 8;
   remote_state[25] = fan_speed & 0xff;
+  remote_state[29] = this->powerful_quiet_preset_();
+  remote_state[32] = this->eco_preset_();
 
   // Calculate checksum
   for (int i = 16; i < 34; i++) {
@@ -96,7 +98,7 @@ uint16_t DaikinClimate::fan_speed_() {
   uint16_t fan_speed;
   switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
-      fan_speed = DAIKIN_FAN_1 << 8;
+      fan_speed = DAIKIN_FAN_SILENT << 8;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
       fan_speed = DAIKIN_FAN_3 << 8;
@@ -105,6 +107,8 @@ uint16_t DaikinClimate::fan_speed_() {
       fan_speed = DAIKIN_FAN_5 << 8;
       break;
     case climate::CLIMATE_FAN_AUTO:
+      fan_speed = DAIKIN_FAN_AUTO << 8;
+      break;
     default:
       fan_speed = DAIKIN_FAN_AUTO << 8;
   }
@@ -135,9 +139,35 @@ uint8_t DaikinClimate::temperature_() {
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
-      uint8_t temperature = (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX));
-      return temperature << 1;
+      uint8_t temperature = (clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX)) * 2;
+      return temperature;
   }
+}
+
+uint8_t DaikinClimate::powerful_quiet_preset_() {
+  uint8_t powerful_quiet_preset = DAIKIN_PRESET_OFF;
+  if (this->preset.has_value()) {
+    if (this->preset == climate::CLIMATE_PRESET_BOOST) {
+      powerful_quiet_preset = DAIKIN_PRESET_POWERFUL_ON;
+    } else if (this->preset == climate::CLIMATE_PRESET_SLEEP) {
+      powerful_quiet_preset = DAIKIN_PRESET_QUIET_ON;
+    }
+  }
+  return powerful_quiet_preset;
+}
+
+uint8_t DaikinClimate::eco_preset_() {
+  uint8_t eco_preset = DAIKIN_PRESET_OFF;
+  if (this->preset.has_value()) {
+    if (this->preset == climate::CLIMATE_PRESET_ECO) {
+      eco_preset = DAIKIN_PRESET_ECONO_ON;
+    } else if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
+      eco_preset = DAIKIN_PRESET_COMFORT_ON;
+    } else if (this->preset == climate::CLIMATE_PRESET_ACTIVITY) {
+      eco_preset = DAIKIN_PRESET_SENSOR_ON;
+    }
+  }
+  return eco_preset;
 }
 
 bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
@@ -171,7 +201,7 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   }
   uint8_t temperature = frame[6];
   if (!(temperature & 0xC0)) {
-    this->target_temperature = temperature >> 1;
+    this->target_temperature = (float) temperature / 2.0f;
   }
   uint8_t fan_mode = frame[8];
   uint8_t swing_mode = frame[9];
@@ -201,6 +231,31 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
   }
+
+  this->preset = climate::CLIMATE_PRESET_NONE;
+  uint8_t powerful_quiet_preset = frame[13];
+  uint8_t eco_preset = frame[16];
+
+  switch (powerful_quiet_preset) {
+    case DAIKIN_PRESET_POWERFUL_ON:
+      this->preset = climate::CLIMATE_PRESET_BOOST;
+      break;
+    case DAIKIN_PRESET_QUIET_ON:
+      this->preset = climate::CLIMATE_PRESET_SLEEP;
+      break;
+  }
+  switch (eco_preset) {
+    case DAIKIN_PRESET_COMFORT_ON:
+      this->preset = climate::CLIMATE_PRESET_COMFORT;
+      break;
+    case DAIKIN_PRESET_ECONO_ON:
+      this->preset = climate::CLIMATE_PRESET_ECO;
+      break;
+    case DAIKIN_PRESET_SENSOR_ON:
+      this->preset = climate::CLIMATE_PRESET_ACTIVITY;
+      break;
+  }
+
   this->publish_state();
   return true;
 }
