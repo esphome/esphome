@@ -321,7 +321,10 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
 #endif  // USE_LVGL_KEYBOARD
 
 void LvglComponent::write_random_() {
-  for (auto i = 0; i != 4; i++) {
+  int iterations = 6 - lv_disp_get_inactive_time(this->disp_) / 60000;
+  if (iterations <= 0)
+    iterations = 1;
+  while (iterations-- != 0) {
     auto col = random_uint32() % this->disp_drv_.hor_res;
     col = col / this->draw_rounding * this->draw_rounding;
     auto row = random_uint32() % this->disp_drv_.ver_res;
