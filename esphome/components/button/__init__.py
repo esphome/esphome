@@ -104,7 +104,7 @@ async def setup_button_core_(var, config):
 async def register_button(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_button(var))
+    cg.register_entity(Button, var)
     await setup_button_core_(var, config)
 
 
@@ -131,3 +131,4 @@ async def button_press_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     cg.add_global(button_ns.using)
     cg.add_define("USE_BUTTON")
+    cg.define_entity(Button)

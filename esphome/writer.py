@@ -224,8 +224,16 @@ VERSION_H_FORMAT = """\
 #define ESPHOME_VERSION "{}"
 #define ESPHOME_VERSION_CODE VERSION_CODE({}, {}, {})
 """
+ENTITIES_H_FORMAT = """\
+#pragma once
+namespace esphome {{
+{}
+using entities_t = std::tuple<{}>;
+}}
+"""
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
+ENTITIES_H_TARGET = "esphome/core/entities.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -259,7 +267,9 @@ def copy_src_tree():
     include_s = "\n".join(include_l)
 
     source_files_copy = source_files_map.copy()
-    ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
+    ignore_targets = [
+        Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET, ENTITIES_H_TARGET)
+    ]
     for t in ignore_targets:
         source_files_copy.pop(t)
 
@@ -298,6 +308,9 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
+    write_file_if_changed(
+        CORE.relative_src_path("esphome", "core", "entities.h"), generate_entities_h()
+    )
 
     if CORE.is_esp32:
         from esphome.components.esp32 import copy_files
@@ -332,6 +345,20 @@ def generate_version_h():
         raise EsphomeError(f"Could not parse version {__version__}.")
     return VERSION_H_FORMAT.format(
         __version__, match.group(1), match.group(2), match.group(3)
+    )
+
+
+def generate_entities_h():
+    forward_declaration_l = []
+    entities_l = []
+    for type in CORE.entities:
+        namespace = type.split("::")[0]
+        class_ = type.split("::")[1]
+        forward_declaration_l += [f"""namespace {namespace} {{class {class_}; }}"""]
+        entities_l += [f"""{type} *"""]
+
+    return ENTITIES_H_FORMAT.format(
+        "\n".join(forward_declaration_l), ", ".join(entities_l)
     )
 
 

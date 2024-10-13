@@ -12,7 +12,7 @@ def test_button_is_setup(generate_main):
 
     # Then
     assert "new wake_on_lan::WakeOnLanButton();" in main_cpp
-    assert "App.register_button" in main_cpp
+    assert "App.register_entity<button::Button>" in main_cpp
     assert "App.register_component" in main_cpp
 
 

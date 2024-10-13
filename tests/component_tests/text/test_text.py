@@ -12,7 +12,7 @@ def test_text_is_setup(generate_main):
 
     # Then
     assert "new template_::TemplateText();" in main_cpp
-    assert "App.register_text" in main_cpp
+    assert "App.register_entity<text::Text>" in main_cpp
 
 
 def test_text_sets_mandatory_fields(generate_main):
