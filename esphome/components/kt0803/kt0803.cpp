@@ -7,7 +7,7 @@
 namespace esphome {
 namespace kt0803 {
 
-#define countof(s) sizeof(s) / sizeof(s[0])
+#define countof(s) (sizeof(s) / sizeof((s)[0]))
 
 // TODO: std::clamp isn't here yet
 #define clamp(v, lo, hi) std::max(std::min(v, hi), lo)
@@ -317,7 +317,7 @@ float KT0803Component::get_pga() {
   return (float) pga;
 }
 
-static const uint16_t RfGainMap[] = {
+static const uint16_t RF_GAIN_MAP[] = {
     955, 965, 975, 982, 989, 1000, 1015, 1028, 1051, 1056, 1062, 1065, 1070, 1074, 1077, 1080,
 };
 
@@ -329,8 +329,8 @@ void KT0803Component::set_rfgain(float value) {
 
   long v = std::lround(value * 10);
 
-  for (size_t i = 0; i < countof(RfGainMap); i++) {
-    if (v <= RfGainMap[i]) {
+  for (size_t i = 0; i < countof(RF_GAIN_MAP); i++) {
+    if (v <= RF_GAIN_MAP[i]) {
       this->state_.RFGAIN0 = (i >> 0) & 3;
       this->state_.RFGAIN1 = (i >> 2) & 1;
       this->state_.RFGAIN2 = (i >> 3) & 1;
@@ -350,7 +350,7 @@ void KT0803Component::set_rfgain(float value) {
 
 float KT0803Component::get_rfgain() {
   uint8_t i = (this->state_.RFGAIN2 << 3) | (this->state_.RFGAIN1 << 2) | this->state_.RFGAIN0;
-  return (float) RfGainMap[i] / 10;
+  return (float) RF_GAIN_MAP[i] / 10;
 }
 
 void KT0803Component::set_mute(bool value) {
@@ -634,7 +634,7 @@ SilenceLowLevelCounter KT0803Component::get_silence_low_counter() {
   return (SilenceLowLevelCounter) this->state_.SLNCCNTLOW;
 }
 
-static const int8_t AlcGainMap[] = {-6, -9, -12, -15, 6, 3, 0, -3};
+static const int8_t ALC_GAIN_MAP[] = {-6, -9, -12, -15, 6, 3, 0, -3};
 
 void KT0803Component::set_alc_gain(float value) {
   if (!(ALC_GAIN_MIN <= value && value <= ALC_GAIN_MAX)) {
@@ -669,7 +669,7 @@ void KT0803Component::set_alc_gain(float value) {
   this->publish_alc_gain();
 }
 
-float KT0803Component::get_alc_gain() { return (float) AlcGainMap[this->state_.ALCCMPGAIN]; }
+float KT0803Component::get_alc_gain() { return (float) ALC_GAIN_MAP[this->state_.ALCCMPGAIN]; }
 
 void KT0803Component::set_xtal_sel(XtalSel value) {
   if (value >= XtalSel::LAST) {
