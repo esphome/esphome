@@ -120,7 +120,7 @@ ALC_TIME = {
     "250ms": AlcTime.ALC_TIME_250MS,
     "300ms": AlcTime.ALC_TIME_300MS,
     "350ms": AlcTime.ALC_TIME_350MS,
-    "40ms": AlcTime.ALC_TIME_40MS,
+    "400ms": AlcTime.ALC_TIME_400MS,
 }
 
 SwitchMode = kt0803_ns.enum("SwitchMode", True)
@@ -295,7 +295,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MUTE, default=False): cv.boolean,
             cv.Optional(CONF_MONO, default=False): cv.boolean,
             cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS),
-            cv.Optional(CONF_PILOT_TONE_AMPLITUDE, default="LOW"): cv.enum(PILOT_TONE_AMPLITUDE),
+            cv.Optional(CONF_PILOT_TONE_AMPLITUDE, default="Low"): cv.enum(PILOT_TONE_AMPLITUDE),
             cv.Optional(CONF_BASS_BOOST_CONTROL, default="Disabled"): cv.enum(BASS_BOOST_CONTROL),
             cv.Optional(CONF_ALC_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_AUTO_PA_DOWN, default=True): cv.boolean,

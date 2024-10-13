@@ -60,7 +60,7 @@ enum class AlcTime {
   ALC_TIME_250MS,
   ALC_TIME_300MS,
   ALC_TIME_350MS,
-  ALC_TIME_40MS,
+  ALC_TIME_400MS,
   LAST,
 };
 
