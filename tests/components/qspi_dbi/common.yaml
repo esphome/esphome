@@ -21,8 +21,9 @@ display:
     enable_pin: 9
 
   - platform: qspi_dbi
-    model: RM67162
+    model: CUSTOM
     id: main_lcd
+    draw_from_origin: true
     dimensions:
       height: 240
       width: 536
@@ -34,3 +35,10 @@ display:
     cs_pin: 6
     reset_pin: 17
     enable_pin: 38
+    init_sequence:
+      - [0x3A, 0x66]
+      - [0x11]
+      - delay 120ms
+      - [0x29]
+      - delay 20ms
+
