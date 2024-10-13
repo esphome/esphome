@@ -238,26 +238,26 @@ REFERENCE_CLOCK = {
 
 AlcHigh = kt0803_ns.enum("AlcHigh", True)
 ALC_HIGH = {
-    "0.6": AlcHigh.ALCHOLD_06,
-    "0.5": AlcHigh.ALCHOLD_05,
-    "0.4": AlcHigh.ALCHOLD_04,
-    "0.3": AlcHigh.ALCHOLD_03,
-    "0.2": AlcHigh.ALCHOLD_02,
-    "0.1": AlcHigh.ALCHOLD_01,
-    "0.05": AlcHigh.ALCHOLD_005,
-    "0.01": AlcHigh.ALCHOLD_001,
+    "0.6": AlcHigh.ALCHIGHTH_06,
+    "0.5": AlcHigh.ALCHIGHTH_05,
+    "0.4": AlcHigh.ALCHIGHTH_04,
+    "0.3": AlcHigh.ALCHIGHTH_03,
+    "0.2": AlcHigh.ALCHIGHTH_02,
+    "0.1": AlcHigh.ALCHIGHTH_01,
+    "0.05": AlcHigh.ALCHIGHTH_005,
+    "0.01": AlcHigh.ALCHIGHTH_001,
 }
 
 AlcHoldTime = kt0803_ns.enum("AlcHoldTime", True)
 ALC_HOLD_TIME = {
-    "50ms": AlcHoldTime.ALCHIGHTH_50MS,
-    "100ms": AlcHoldTime.ALCHIGHTH_100MS,
-    "150ms": AlcHoldTime.ALCHIGHTH_150MS,
-    "200ms": AlcHoldTime.ALCHIGHTH_200MS,
-    "1s": AlcHoldTime.ALCHIGHTH_1S,
-    "5s": AlcHoldTime.ALCHIGHTH_5S,
-    "10s": AlcHoldTime.ALCHIGHTH_10S,
-    "15s": AlcHoldTime.ALCHIGHTH_15S,
+    "50ms": AlcHoldTime.ALCHOLD_50MS,
+    "100ms": AlcHoldTime.ALCHOLD_100MS,
+    "150ms": AlcHoldTime.ALCHOLD_150MS,
+    "200ms": AlcHoldTime.ALCHOLD_200MS,
+    "1s": AlcHoldTime.ALCHOLD_1S,
+    "5s": AlcHoldTime.ALCHOLD_5S,
+    "10s": AlcHoldTime.ALCHOLD_10S,
+    "15s": AlcHoldTime.ALCHOLD_15S,
 }
 
 AlcLow = kt0803_ns.enum("AlcLow", True)
