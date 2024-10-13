@@ -288,20 +288,18 @@ void KT0803Component::set_pga(float value) {
   -15 10001 => 01111 15
   */
 
-  long pga = lround(value);
+  int pga = (int) std::lround(value);
   if (pga > 0) {
     pga += 19;
   } else if (pga < 0) {
     pga = -pga;
   }
-  this->state_.PGA = pga >> 2;
-  this->state_.PGA_LSB = pga & 3;
+  this->state_.PGA = (uint8_t) (pga >> 2);
+  this->state_.PGA_LSB = (uint8_t) (pga & 3);
   this->write_reg_(0x01);
   if (this->chip_id_ != ChipId::KT0803) {
     this->write_reg_(0x04);
   }
-
-  ESP_LOGV(TAG, "PGA %02X", (int) pga);
 
   this->publish_pga();
 }
@@ -327,7 +325,7 @@ void KT0803Component::set_rfgain(float value) {
     return;
   }
 
-  long v = std::lround(value * 10);
+  uint16_t v = (uint16_t) std::lround(value * 10);
 
   for (size_t i = 0; i < countof(RF_GAIN_MAP); i++) {
     if (v <= RF_GAIN_MAP[i]) {
@@ -642,7 +640,7 @@ void KT0803Component::set_alc_gain(float value) {
     return;
   }
 
-  long v = lround(value);
+  int v = (int) std::lround(value);
 
   if (v <= -15) {
     this->state_.ALCCMPGAIN = 3;
