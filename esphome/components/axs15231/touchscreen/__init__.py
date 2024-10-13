@@ -13,7 +13,7 @@ AXS15231Touchscreen = axs15231_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    touchscreen.touchscreen_schema("250ms")
+    touchscreen.touchscreen_schema("50ms")
     .extend(
         {
             cv.GenerateID(): cv.declare_id(AXS15231Touchscreen),
