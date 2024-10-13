@@ -74,14 +74,14 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   // cater for display driver chips with special requirements for bounds of partial
   // draw areas. Extend the draw area to satisfy:
   // * Coordinates must be a multiple of draw_rounding
-  auto comp = static_cast<LvglComponent *>(disp_drv->user_data);
-  size_t draw_rounding_ = comp->draw_rounding;
+  auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
+  auto draw_rounding = comp->draw_rounding;
   // round down the start coordinates
-  area->x1 = area->x1 / draw_rounding_ * draw_rounding_;
-  area->y1 = area->y1 / draw_rounding_ * draw_rounding_;
+  area->x1 = area->x1 / draw_rounding * draw_rounding;
+  area->y1 = area->y1 / draw_rounding * draw_rounding;
   // round up the end coordinates
-  area->x2 = (area->x2 + draw_rounding_) / draw_rounding_ * draw_rounding_ - 1;
-  area->y2 = (area->y2 + draw_rounding_) / draw_rounding_ * draw_rounding_ - 1;
+  area->x2 = (area->x2 + draw_rounding) / draw_rounding * draw_rounding - 1;
+  area->y2 = (area->y2 + draw_rounding) / draw_rounding * draw_rounding - 1;
 }
 
 lv_event_code_t lv_api_event;     // NOLINT
