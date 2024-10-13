@@ -1,0 +1,122 @@
+i2c:
+  sda: 10
+  scl: 9
+  scan: True
+
+kt0803:
+  id: kt0803_transmitter
+  chip_id: KT0803L
+  frequency: 87.5
+  pga: -15
+  rfgain: 108
+  mute: False
+  mono: False
+  pre_emphasis: 75us
+  pilot_tone_amplitude: Low
+  bass_boost_control: Disabled
+  alc_enable: False
+  auto_pa_down: True
+  pa_down: False
+  standby_enable: False
+  alc_attack_time: 25us
+  alc_decay_time: 25us
+  pa_bias: False
+  audio_limiter_level: '0.875'
+  switch_mode: Mute
+  silence_detection: True
+  silence_high: '32mV'
+  silence_low: '8mV'
+  silence_duration: '100ms'
+  silence_high_counter: '15'
+  silence_low_counter: '1'
+  alc_gain: -3
+  xtal_sel: '32.768kHz'
+  au_enhance: False
+  frequency_deviation: 75kHz
+  ref_clk: '32.768kHz'
+  xtal_enable: True
+  ref_clk_enable: False
+  alc_high: '0.6'
+  alc_hold_time: 5s
+  alc_low: '0.25'
+  pw_ok:
+    name: Power OK
+  slncid:
+    name: Silence Detected
+  update_interval: 3s
+
+number:
+  - platform: kt0803
+    frequency:
+      id: kt0803_frequency
+      name: Frequency
+    pga:
+      name: PGA Gain Control
+    rfgain:
+      name: RF Gain
+    alc_gain:
+      name: ALC Gain
+
+switch:
+  - platform: kt0803
+    mute:
+      name: Mute
+    mono:
+      name: Mono
+    alc_enable:
+      name: ALC Enable
+    auto_pa_down:
+      name: Automatic PA Power Down
+    pa_down:
+      name: PA Power Down
+    standby_enable:
+      name: Standby Enable
+    pa_bias:
+      name: PA Bias
+    silence_detection:
+      name: Silence Detection
+    au_enhance:
+      name: Audio Frequency Response Enhancement
+    xtal_enable:
+      name: Crystal Oscillator Enable 
+    ref_clk_enable:
+      name: Refence Clock Enable
+
+select:
+  - platform: kt0803
+    pre_emphasis:
+      name: Pre-emphasis
+    pilot_tone_amplitude:
+      name: Pilot Tone Amplitude
+    bass_boost_control:
+      name: Bass Boost Control
+    alc_attack_time:
+      name: ALC Attack Time
+    alc_decay_time:
+      name: ALC Decay Time
+    audio_limiter_level:
+      name: Audio Limiter Level
+    switch_mode:
+      name: Switching Channel Mode Selection
+    silence_high:
+      name: Silence High
+    silence_low:
+      name: Silence Low
+    silence_duration:
+      name: Silence Duration
+    silence_high_counter:
+      name: Silence High Counter
+    silence_low_counter:
+      name: Silence Low Counter
+    xtal_sel:
+      name: Xtal Selection
+    frequency_deviation:
+      name: Frequency Deviation
+    ref_clk:
+      name: Refence Clock
+    alc_high:
+      name: ALC High Threshold
+    alc_hold_time:
+      name: ALC Hold Time
+    alc_low:
+      name: ALC Low Threshold

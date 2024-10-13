@@ -162,6 +162,12 @@ void KT0803Component::setup() {
   this->publish_xtal_sel();
   this->publish_au_enhance();
   this->publish_frequency_deviation();
+  this->publish_ref_clk();
+  this->publish_xtal_enable();
+  this->publish_ref_clk_enable();
+  this->publish_alc_high();
+  this->publish_alc_hold_time();
+  this->publish_alc_low();
 }
 
 void KT0803Component::dump_config() {
@@ -294,6 +300,8 @@ void KT0803Component::set_pga(float value) {
   if (this->chip_id_ != ChipId::KT0803) {
     this->write_reg_(0x04);
   }
+
+  ESP_LOGV(TAG, "PGA %02X", (int) pga);
 
   this->publish_pga();
 }
@@ -667,7 +675,7 @@ void KT0803Component::set_xtal_sel(XtalSel value) {
   if (value >= XtalSel::LAST) {
     ESP_LOGE(TAG, "set_xtal_sel(%d) invalid", value);
     return;
-  }  
+  }
   this->state_.XTAL_SEL = (uint8_t) value;
   if (this->chip_id_ == ChipId::KT0803L) {
     this->write_reg_(0x17);
@@ -715,6 +723,92 @@ FrequencyDeviation KT0803Component::get_frequency_deviation() {
 
   return FrequencyDeviation::FDEV_75KHZ;
 }
+
+void KT0803Component::set_ref_clk(ReferenceClock value) {
+  if (value >= ReferenceClock::LAST) {
+    ESP_LOGE(TAG, "set_ref_clk(%d) invalid", (int) value);
+    return;
+  }
+
+  this->state_.REF_CLK = (uint8_t) value;
+  if (this->chip_id_ == ChipId::KT0803L) {
+    this->write_reg_(0x1E);
+  }
+
+  this->publish_ref_clk();
+}
+
+ReferenceClock KT0803Component::get_ref_clk() { return (ReferenceClock) this->state_.REF_CLK; }
+
+void KT0803Component::set_xtal_enable(bool value) {
+  this->state_.XTALD = value ? 0 : 1;
+  if (this->chip_id_ == ChipId::KT0803L) {
+    this->write_reg_(0x1E);
+  }
+
+  this->publish_xtal_enable();
+}
+
+bool KT0803Component::get_xtal_enable() { return this->state_.XTALD == 0; }
+
+void KT0803Component::set_ref_clk_enable(bool value) {
+  this->state_.DCLK = value ? 1 : 0;
+  if (this->chip_id_ == ChipId::KT0803L) {
+    this->write_reg_(0x1E);
+  }
+
+  this->publish_ref_clk_enable();
+}
+
+bool KT0803Component::get_ref_clk_enable() { return this->state_.DCLK == 1; }
+
+void KT0803Component::set_alc_high(AlcHigh value) {
+  if (value >= AlcHigh::LAST) {
+    ESP_LOGE(TAG, "set_alc_high(%d) invalid", (int) value);
+    return;
+  }
+
+  this->state_.ALCHIGHTH = (uint8_t) value;
+  if (this->chip_id_ == ChipId::KT0803L) {
+    this->write_reg_(0x26);
+  }
+
+  this->publish_alc_high();
+}
+
+AlcHigh KT0803Component::get_alc_high() { return (AlcHigh) this->state_.ALCHIGHTH; }
+
+void KT0803Component::set_alc_hold_time(AlcHoldTime value) {
+  if (value >= AlcHoldTime::LAST) {
+    ESP_LOGE(TAG, "set_alc_hold(%d) invalid", (int) value);
+    return;
+  }
+
+  this->state_.ALCHOLD = (uint8_t) value;
+  if (this->chip_id_ == ChipId::KT0803L) {
+    this->write_reg_(0x26);
+  }
+
+  this->publish_alc_hold_time();
+}
+
+AlcHoldTime KT0803Component::get_alc_hold_time() { return (AlcHoldTime) this->state_.ALCHOLD; }
+
+void KT0803Component::set_alc_low(AlcLow value) {
+  if (value >= AlcLow::LAST) {
+    ESP_LOGE(TAG, "set_alc_low(%d) invalid", (int) value);
+    return;
+  }
+
+  this->state_.ALCLOWTH = (uint8_t) value;
+  if (this->chip_id_ == ChipId::KT0803L) {
+    this->write_reg_(0x26);
+  }
+
+  this->publish_alc_low();
+}
+
+AlcLow KT0803Component::get_alc_low() { return (AlcLow) this->state_.ALCLOWTH; }
 
 // publish
 
@@ -805,6 +899,24 @@ void KT0803Component::publish_au_enhance() { this->publish(this->au_enhance_swit
 void KT0803Component::publish_frequency_deviation() {
   this->publish(this->frequency_deviation_select_, (size_t) this->get_frequency_deviation());
 }
+
+void KT0803Component::publish_ref_clk() { this->publish(this->ref_clk_select_, (size_t) this->get_ref_clk()); }
+
+void KT0803Component::publish_xtal_enable() {
+  this->publish(this->xtal_enable_switch_, (size_t) this->get_xtal_enable());
+}
+
+void KT0803Component::publish_ref_clk_enable() {
+  this->publish(this->ref_clk_enable_switch_, (size_t) this->get_ref_clk_enable());
+}
+
+void KT0803Component::publish_alc_high() { this->publish(this->alc_high_select_, (size_t) this->get_alc_high()); }
+
+void KT0803Component::publish_alc_hold_time() {
+  this->publish(this->alc_hold_time_select_, (size_t) this->get_alc_hold_time());
+}
+
+void KT0803Component::publish_alc_low() { this->publish(this->alc_low_select_, (size_t) this->get_alc_low()); }
 
 void KT0803Component::publish(text_sensor::TextSensor *s, const std::string &state) {
   if (s != nullptr) {

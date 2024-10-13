@@ -24,6 +24,10 @@ from .. import (
     CONF_SILENCE_LOW_COUNTER,
     CONF_XTAL_SEL,
     CONF_FREQUENCY_DEVIATION,
+    CONF_REF_CLK,
+    CONF_ALC_HIGH,
+    CONF_ALC_HOLD_TIME,
+    CONF_ALC_LOW,
     ICON_SLEEP,
     ICON_SINE_WAVE,
     ICON_SPEAKER,
@@ -41,6 +45,10 @@ from .. import (
     SILENCE_LOW_LEVEL_COUNTER,
     XTAL_SEL,
     FREQUENCY_DEVIATION,
+    REFERENCE_CLOCK,
+    ALC_HIGH,
+    ALC_HOLD_TIME,
+    ALC_LOW,    
 )
 
 PreEmphasisSelect = kt0803_ns.class_("PreEmphasisSelect", select.Select)
@@ -57,6 +65,10 @@ SilenceHighCounterSelect = kt0803_ns.class_("SilenceHighCounterSelect", select.S
 SilenceLowCounterSelect = kt0803_ns.class_("SilenceLowCounterSelect", select.Select)
 XtalSelSelect = kt0803_ns.class_("XtalSelSelect", select.Select)
 FrequencyDeviationSelect = kt0803_ns.class_("FrequencyDeviationSelect", select.Select)
+RefClkSelect = kt0803_ns.class_("RefClkSelect", select.Select)
+AlcHighSelect = kt0803_ns.class_("AlcHighSelect", select.Select)
+AlcHoldTimeSelect = kt0803_ns.class_("AlcHoldTimeSelect", select.Select)
+AlcLowSelect = kt0803_ns.class_("AlcLowSelect", select.Select)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -79,12 +91,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ALC_ATTACK_TIME): select.select_schema(
             AlcAttackTimeSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon=ICON_SPEAKER,
+            icon=ICON_SINE_WAVE,
         ),
         cv.Optional(CONF_ALC_DECAY_TIME): select.select_schema(
             AlcDecayTimeSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon=ICON_SPEAKER,
+            icon=ICON_SINE_WAVE,
         ),
         cv.Optional(CONF_AUDIO_LIMITER_LEVEL): select.select_schema(
             AudioLimiterLevelSelect,
@@ -131,6 +143,26 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_SINE_WAVE,
         ),
+        cv.Optional(CONF_REF_CLK): select.select_schema(
+            RefClkSelect,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_SINE_WAVE,
+        ),
+        cv.Optional(CONF_ALC_HIGH): select.select_schema(
+            AlcHighSelect,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_SINE_WAVE,
+        ),
+        cv.Optional(CONF_ALC_HOLD_TIME): select.select_schema(
+            AlcHoldTimeSelect,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_SINE_WAVE,
+        ),
+        cv.Optional(CONF_ALC_LOW): select.select_schema(
+            AlcLowSelect,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_SINE_WAVE,
+        ),
     }
 )
 
@@ -158,3 +190,7 @@ async def to_code(config):
     await new_select(config, CONF_SILENCE_LOW_COUNTER, c.set_silence_low_counter_select, SILENCE_LOW_LEVEL_COUNTER)
     await new_select(config, CONF_XTAL_SEL, c.set_xtal_sel_select, XTAL_SEL)
     await new_select(config, CONF_FREQUENCY_DEVIATION, c.set_frequency_deviation_select, FREQUENCY_DEVIATION)
+    await new_select(config, CONF_REF_CLK, c.set_ref_clk_select, REFERENCE_CLOCK)
+    await new_select(config, CONF_ALC_HIGH, c.set_alc_high_select, ALC_HIGH)
+    await new_select(config, CONF_ALC_HOLD_TIME, c.set_alc_hold_time_select, ALC_HOLD_TIME)
+    await new_select(config, CONF_ALC_LOW, c.set_alc_low_select, ALC_LOW)
