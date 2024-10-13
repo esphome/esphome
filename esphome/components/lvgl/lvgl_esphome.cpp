@@ -214,7 +214,7 @@ IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeo
   });
 }
 
-PauseTrigger::PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused) : paused_(paused) {
+PauseTrigger::PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused) : paused_(std::move(paused)) {
   parent->add_on_pause_callback([this](bool pausing) {
     if (this->paused_.value() == pausing)
       this->trigger();
