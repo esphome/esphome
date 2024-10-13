@@ -64,6 +64,12 @@ CONF_ALC_GAIN = "alc_gain"
 CONF_XTAL_SEL = "xtal_sel"
 CONF_AU_ENHANCE = "au_enhance"
 CONF_FREQUENCY_DEVIATION = "frequency_deviation"
+CONF_REF_CLK = "ref_clk"
+CONF_XTAL_ENABLE = "xtal_enable"
+CONF_REF_CLK_ENABLE = "ref_clk_enable"
+CONF_ALC_HIGH = "alc_high"
+CONF_ALC_HOLD_TIME = "alc_hold_time"
+CONF_ALC_LOW = "alc_low"
 
 SetFrequencyAction = kt0803_ns.class_(
     "SetFrequencyAction", automation.Action, cg.Parented.template(KT0803Component)
@@ -231,27 +237,27 @@ REFERENCE_CLOCK = {
 }
 
 AlcHigh = kt0803_ns.enum("AlcHigh", True)
-ALC_HIGH_THRESHOLD_SELECTION = {
-    "50ms": AlcHigh.ALCHIGHTH_50MS,
-    "100ms": AlcHigh.ALCHIGHTH_100MS,
-    "150ms": AlcHigh.ALCHIGHTH_150MS,
-    "200ms": AlcHigh.ALCHIGHTH_200MS,
-    "1s": AlcHigh.ALCHIGHTH_1S,
-    "5s": AlcHigh.ALCHIGHTH_5S,
-    "10s": AlcHigh.ALCHIGHTH_10S,
-    "15s": AlcHigh.ALCHIGHTH_15S,
+ALC_HIGH = {
+    "0.6": AlcHigh.ALCHOLD_06,
+    "0.5": AlcHigh.ALCHOLD_05,
+    "0.4": AlcHigh.ALCHOLD_04,
+    "0.3": AlcHigh.ALCHOLD_03,
+    "0.2": AlcHigh.ALCHOLD_02,
+    "0.1": AlcHigh.ALCHOLD_01,
+    "0.05": AlcHigh.ALCHOLD_005,
+    "0.01": AlcHigh.ALCHOLD_001,
 }
 
 AlcHoldTime = kt0803_ns.enum("AlcHoldTime", True)
 ALC_HOLD_TIME = {
-    "0.6": AlcHoldTime.ALCHOLD_06,
-    "0.5": AlcHoldTime.ALCHOLD_05,
-    "0.4": AlcHoldTime.ALCHOLD_04,
-    "0.3": AlcHoldTime.ALCHOLD_03,
-    "0.2": AlcHoldTime.ALCHOLD_02,
-    "0.1": AlcHoldTime.ALCHOLD_01,
-    "0.05": AlcHoldTime.ALCHOLD_005,
-    "0.01": AlcHoldTime.ALCHOLD_001,
+    "50ms": AlcHoldTime.ALCHIGHTH_50MS,
+    "100ms": AlcHoldTime.ALCHIGHTH_100MS,
+    "150ms": AlcHoldTime.ALCHIGHTH_150MS,
+    "200ms": AlcHoldTime.ALCHIGHTH_200MS,
+    "1s": AlcHoldTime.ALCHIGHTH_1S,
+    "5s": AlcHoldTime.ALCHIGHTH_5S,
+    "10s": AlcHoldTime.ALCHIGHTH_10S,
+    "15s": AlcHoldTime.ALCHIGHTH_15S,
 }
 
 AlcLow = kt0803_ns.enum("AlcLow", True)
@@ -310,6 +316,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_XTAL_SEL, default="32.768kHz"): cv.enum(XTAL_SEL),
             cv.Optional(CONF_AU_ENHANCE, default=False): cv.boolean,
             cv.Optional(CONF_FREQUENCY_DEVIATION, default="75kHz"): cv.enum(FREQUENCY_DEVIATION),
+            cv.Optional(CONF_REF_CLK, default="32.768kHz"): cv.enum(REFERENCE_CLOCK),
+            cv.Optional(CONF_XTAL_ENABLE, default=True): cv.boolean,
+            cv.Optional(CONF_REF_CLK_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_ALC_HIGH, default="0.6"): cv.enum(ALC_HIGH),
+            cv.Optional(CONF_ALC_HOLD_TIME, default="5s"): cv.enum(ALC_HOLD_TIME),
+            cv.Optional(CONF_ALC_LOW, default="0.25"): cv.enum(ALC_LOW),
             cv.Optional(CONF_PW_OK): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_POWER,
                 icon=ICON_RADIO_TOWER,
@@ -368,5 +380,11 @@ async def to_code(config):
     await set_var(config, CONF_XTAL_SEL, var.set_xtal_sel)
     await set_var(config, CONF_AU_ENHANCE, var.set_au_enhance)
     await set_var(config, CONF_FREQUENCY_DEVIATION, var.set_frequency_deviation)
+    await set_var(config, CONF_REF_CLK, var.set_ref_clk)
+    await set_var(config, CONF_XTAL_ENABLE, var.set_xtal_enable)
+    await set_var(config, CONF_REF_CLK_ENABLE, var.set_ref_clk_enable)
+    await set_var(config, CONF_ALC_HIGH, var.set_alc_high)
+    await set_var(config, CONF_ALC_HOLD_TIME, var.set_alc_hold_time)
+    await set_var(config, CONF_ALC_LOW, var.set_alc_low)
     await set_binary_sensor(config, CONF_PW_OK, var.set_pw_ok_binary_sensor)
     await set_binary_sensor(config, CONF_SLNCID, var.set_slncid_binary_sensor)

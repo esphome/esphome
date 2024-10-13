@@ -66,6 +66,12 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SELECT(xtal_sel)
   SUB_SWITCH(au_enhance)
   SUB_SELECT(frequency_deviation)
+  SUB_SELECT(ref_clk)
+  SUB_SWITCH(xtal_enable)
+  SUB_SWITCH(ref_clk_enable)
+  SUB_SELECT(alc_high)
+  SUB_SELECT(alc_hold_time)
+  SUB_SELECT(alc_low)
 
   void publish_pw_ok();
   void publish_slncid();
@@ -96,6 +102,12 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   void publish_xtal_sel();
   void publish_au_enhance();
   void publish_frequency_deviation();
+  void publish_ref_clk();
+  void publish_xtal_enable();
+  void publish_ref_clk_enable();
+  void publish_alc_high();
+  void publish_alc_hold_time();
+  void publish_alc_low();
 
   void publish(sensor::Sensor *s, float state);
   void publish(binary_sensor::BinarySensor *s, bool state);
@@ -118,7 +130,7 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   ChipId get_chip_id();
   std::string get_chip_string() const;
 
-  void set_frequency(float value);  // MHz
+  void set_frequency(float value);
   float get_frequency();
   void set_pga(float value);
   float get_pga();
@@ -172,6 +184,18 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   bool get_au_enhance();
   void set_frequency_deviation(FrequencyDeviation value);
   FrequencyDeviation get_frequency_deviation();
+  void set_ref_clk(ReferenceClock value);
+  ReferenceClock get_ref_clk();
+  void set_xtal_enable(bool value);
+  bool get_xtal_enable();
+  void set_ref_clk_enable(bool value);
+  bool get_ref_clk_enable();
+  void set_alc_high(AlcHigh value);
+  AlcHigh get_alc_high();
+  void set_alc_hold_time(AlcHoldTime value);
+  AlcHoldTime get_alc_hold_time();
+  void set_alc_low(AlcLow value);
+  AlcLow get_alc_low();
 };
 
 }  // namespace kt0803

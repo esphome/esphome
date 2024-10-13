@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_SWITCH,
     ENTITY_CATEGORY_CONFIG,
-    ICON_SECURITY,
+    ICON_PULSE,
 )
 from .. import (
     CONF_KT0803_ID,
@@ -19,12 +19,12 @@ from .. import (
     CONF_PA_BIAS,
     CONF_SILENCE_DETECTION,
     CONF_AU_ENHANCE,
+    CONF_XTAL_ENABLE,
+    CONF_REF_CLK_ENABLE,
     ICON_VOLUME_MUTE,
     ICON_EAR_HEARING,
     ICON_SINE_WAVE,
     ICON_SLEEP,
-    ICON_RADIO_TOWER,
-    ICON_FORMAT_TEXT,
 )
 
 MuteSwitch = kt0803_ns.class_("MuteSwitch", switch.Switch)
@@ -36,6 +36,9 @@ StandbyEnableSwitch = kt0803_ns.class_("StandbyEnableSwitch", switch.Switch)
 PaBiasSwitch = kt0803_ns.class_("PaBiasSwitch", switch.Switch)
 SilenceDetectionSwitch = kt0803_ns.class_("SilenceDetectionSwitch", switch.Switch)
 AuEnhanceSwitch = kt0803_ns.class_("AuEnhanceSwitch", switch.Switch)
+AuEnhanceSwitch = kt0803_ns.class_("AuEnhanceSwitch", switch.Switch)
+XtalEnableSwitch = kt0803_ns.class_("XtalEnableSwitch", switch.Switch)
+RefClkEnableSwitch = kt0803_ns.class_("RefClkEnableSwitch", switch.Switch)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -94,6 +97,18 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_SINE_WAVE,
         ),
+        cv.Optional(CONF_XTAL_ENABLE): switch.switch_schema(
+            XtalEnableSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_PULSE,
+        ),
+        cv.Optional(CONF_REF_CLK_ENABLE): switch.switch_schema(
+            RefClkEnableSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_PULSE,
+        ),
     }
 )
 
@@ -116,3 +131,5 @@ async def to_code(config):
     await new_switch(config, CONF_PA_BIAS, c.set_pa_bias_switch)
     await new_switch(config, CONF_SILENCE_DETECTION, c.set_silence_detection_switch)
     await new_switch(config, CONF_AU_ENHANCE, c.set_au_enhance_switch)
+    await new_switch(config, CONF_XTAL_ENABLE, c.set_xtal_enable_switch)
+    await new_switch(config, CONF_REF_CLK_ENABLE, c.set_ref_clk_enable_switch)
