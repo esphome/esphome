@@ -35,8 +35,6 @@ QSPI_DBI = qspi_dbi_ns.class_(
 ColorOrder = display.display_ns.enum("ColorMode")
 Model = qspi_dbi_ns.enum("Model")
 
-MODELS = {"RM690B0": Model.RM690B0, "RM67162": Model.RM67162, "CUSTOM": Model.CUSTOM}
-
 COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
     "BGR": ColorOrder.COLOR_ORDER_BGR,
