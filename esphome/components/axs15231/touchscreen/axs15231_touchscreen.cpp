@@ -1,10 +1,10 @@
-#include "ax15231_touchscreen.h"
+#include "axs15231_touchscreen.h"
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace ax15231 {
+namespace axs15231 {
 
 static const char *const TAG = "ax15231.touchscreen";
 
@@ -16,8 +16,8 @@ constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 
     return; \
   }
 
-void AX15231Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AX15231 Touchscreen...");
+void AXS15231Touchscreen::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up AXS15231 Touchscreen...");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
@@ -32,10 +32,10 @@ void AX15231Touchscreen::setup() {
   }
   this->x_raw_max_ = this->display_->get_native_width();
   this->y_raw_max_ = this->display_->get_native_height();
-  ESP_LOGCONFIG(TAG, "AX15231 Touchscreen setup complete");
+  ESP_LOGCONFIG(TAG, "AXS15231 Touchscreen setup complete");
 }
 
-void AX15231Touchscreen::update_touches() {
+void AXS15231Touchscreen::update_touches() {
   i2c::ErrorCode err;
   uint8_t data[8]{};
 
@@ -50,8 +50,8 @@ void AX15231Touchscreen::update_touches() {
   this->add_raw_touch_position_(0, x, y);
 }
 
-void AX15231Touchscreen::dump_config() {
-  ESP_LOGCONFIG(TAG, "AX15231 Touchscreen:");
+void AXS15231Touchscreen::dump_config() {
+  ESP_LOGCONFIG(TAG, "AXS15231 Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
@@ -59,5 +59,5 @@ void AX15231Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "  Height: %d", this->y_raw_max_);
 }
 
-}  // namespace ax15231
+}  // namespace axs15231
 }  // namespace esphome

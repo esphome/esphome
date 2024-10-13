@@ -6,9 +6,9 @@
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace ax15231 {
+namespace axs15231 {
 
-class AX15231Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class AXS15231Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -23,5 +23,5 @@ class AX15231Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevic
   GPIOPin *reset_pin_{};
 };
 
-}  // namespace ax15231
+}  // namespace axs15231
 }  // namespace esphome

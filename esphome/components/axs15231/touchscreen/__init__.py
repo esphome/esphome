@@ -4,17 +4,17 @@ from esphome.components import i2c, touchscreen
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
 
-from .. import ax15231_ns
+from .. import axs15231_ns
 
-AX15231Touchscreen = ax15231_ns.class_(
-    "AX15231Touchscreen",
+AXS15231Touchscreen = axs15231_ns.class_(
+    "AXS15231Touchscreen",
     touchscreen.Touchscreen,
     i2c.I2CDevice,
 )
 
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
     {
-        cv.GenerateID(): cv.declare_id(AX15231Touchscreen),
+        cv.GenerateID(): cv.declare_id(AXS15231Touchscreen),
         cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     }

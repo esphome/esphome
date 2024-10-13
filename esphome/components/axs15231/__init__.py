@@ -3,4 +3,4 @@ import esphome.codegen as cg
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["i2c"]
 
-ax15231_ns = cg.esphome_ns.namespace("ax15231")
+axs15231_ns = cg.esphome_ns.namespace("axs15231")
