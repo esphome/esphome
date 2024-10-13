@@ -99,7 +99,9 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
     lv_disp_trig_activity(this->disp_);  // resets the inactivity time
     lv_obj_invalidate(lv_scr_act());
   }
+  this->pause_callbacks_.call(paused);
 }
+
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
   lv_obj_add_event_cb(obj, callback, event, this);
 }
@@ -209,6 +211,13 @@ IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeo
     } else if (this->is_idle_ && idle_time < this->timeout_.value()) {
       this->is_idle_ = false;
     }
+  });
+}
+
+PauseTrigger::PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused) : paused_(paused) {
+  parent->add_on_pause_callback([this](bool pausing) {
+    if (this->paused_.value() == pausing)
+      this->trigger();
   });
 }
 
@@ -343,7 +352,7 @@ void LvglComponent::setup() {
   auto *display = this->displays_[0];
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
-  auto *buf = lv_custom_mem_alloc(buf_bytes);
+  auto *buf = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   if (buf == nullptr) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     ESP_LOGE(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
@@ -352,9 +361,16 @@ void LvglComponent::setup() {
     this->status_set_error("Memory allocation failure");
     return;
   }
+  lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
+  lv_disp_drv_init(&this->disp_drv_);
+  this->disp_drv_.draw_buf = &this->draw_buf_;
+  this->disp_drv_.user_data = this;
+  this->disp_drv_.full_refresh = this->full_refresh_;
+  this->disp_drv_.flush_cb = static_flush_cb;
+  this->disp_drv_.rounder_cb = rounder_cb;
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
-    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));
+    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
       ESP_LOGE(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
@@ -365,13 +381,6 @@ void LvglComponent::setup() {
     }
   }
   display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
-  lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
-  lv_disp_drv_init(&this->disp_drv_);
-  this->disp_drv_.draw_buf = &this->draw_buf_;
-  this->disp_drv_.user_data = this;
-  this->disp_drv_.full_refresh = this->full_refresh_;
-  this->disp_drv_.flush_cb = static_flush_cb;
-  this->disp_drv_.rounder_cb = rounder_cb;
   switch (this->rotation) {
     default:
       this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
