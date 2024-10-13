@@ -1,0 +1,12 @@
+i2c:
+sensor:
+  - platform: ams5915
+    model: "AMS5915_1000_D_B"
+    update_interval: 1s
+    temperature:
+      name: "Temperature"
+      accuracy_decimals: 0
+    pressure:
+      name: "Pressure"
+      id: "ams5915_pressure"
+      accuracy_decimals: 0
