@@ -673,7 +673,7 @@ float KT0803Component::get_alc_gain() { return (float) AlcGainMap[this->state_.A
 
 void KT0803Component::set_xtal_sel(XtalSel value) {
   if (value >= XtalSel::LAST) {
-    ESP_LOGE(TAG, "set_xtal_sel(%d) invalid", value);
+    ESP_LOGE(TAG, "set_xtal_sel(%d) invalid", (int) value);
     return;
   }
   this->state_.XTAL_SEL = (uint8_t) value;

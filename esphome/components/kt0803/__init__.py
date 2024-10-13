@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import i2c, sensor, text_sensor, binary_sensor
+from esphome.components import i2c, binary_sensor
 from esphome.const import (
     CONF_ID,
     CONF_FREQUENCY,
@@ -11,7 +11,15 @@ from esphome.const import (
 
 CODEOWNERS = ["@gabest11"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensor", "text_sensor", "binary_sensor", "number", "switch", "select", "text"]
+AUTO_LOAD = [
+    "sensor",
+    "text_sensor",
+    "binary_sensor",
+    "number",
+    "switch",
+    "select",
+    "text",
+]
 MULTI_CONF = True
 
 UNIT_MEGA_HERTZ = "MHz"
@@ -153,7 +161,9 @@ SILENCE_LOW = {
     "32mV": SilenceLow.SLNCTHL_32MV,
 }
 
-SilenceLowAndHighLevelDurationTime = kt0803_ns.enum("SilenceLowAndHighLevelDurationTime", True)
+SilenceLowAndHighLevelDurationTime = kt0803_ns.enum(
+    "SilenceLowAndHighLevelDurationTime", True
+)
 SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME = {
     "50ms": SilenceLowAndHighLevelDurationTime.SLNCTIME_50MS,
     "100ms": SilenceLowAndHighLevelDurationTime.SLNCTIME_100MS,
@@ -295,8 +305,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MUTE, default=False): cv.boolean,
             cv.Optional(CONF_MONO, default=False): cv.boolean,
             cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS),
-            cv.Optional(CONF_PILOT_TONE_AMPLITUDE, default="Low"): cv.enum(PILOT_TONE_AMPLITUDE),
-            cv.Optional(CONF_BASS_BOOST_CONTROL, default="Disabled"): cv.enum(BASS_BOOST_CONTROL),
+            cv.Optional(CONF_PILOT_TONE_AMPLITUDE, default="Low"): cv.enum(
+                PILOT_TONE_AMPLITUDE
+            ),
+            cv.Optional(CONF_BASS_BOOST_CONTROL, default="Disabled"): cv.enum(
+                BASS_BOOST_CONTROL
+            ),
             cv.Optional(CONF_ALC_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_AUTO_PA_DOWN, default=True): cv.boolean,
             cv.Optional(CONF_PA_DOWN, default=False): cv.boolean,
@@ -304,18 +318,28 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ALC_ATTACK_TIME, default="25us"): cv.enum(ALC_TIME),
             cv.Optional(CONF_ALC_DECAY_TIME, default="25us"): cv.enum(ALC_TIME),
             cv.Optional(CONF_PA_BIAS, default=True): cv.boolean,
-            cv.Optional(CONF_AUDIO_LIMITER_LEVEL, default="0.875"): cv.enum(AUDIO_LIMITER_LEVEL),
+            cv.Optional(CONF_AUDIO_LIMITER_LEVEL, default="0.875"): cv.enum(
+                AUDIO_LIMITER_LEVEL
+            ),
             cv.Optional(CONF_SWITCH_MODE, default="Mute"): cv.enum(SWITCH_MODE),
             cv.Optional(CONF_SILENCE_HIGH, default="32mV"): cv.enum(SILENCE_HIGH),
             cv.Optional(CONF_SILENCE_LOW, default="8mV"): cv.enum(SILENCE_LOW),
             cv.Optional(CONF_SILENCE_DETECTION, default=False): cv.boolean,
-            cv.Optional(CONF_SILENCE_DURATION, default="100ms"): cv.enum(SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME),
-            cv.Optional(CONF_SILENCE_HIGH_COUNTER, default='15'): cv.enum(SILENCE_HIGH_LEVEL_COUNTER),
-            cv.Optional(CONF_SILENCE_LOW_COUNTER, default='1'): cv.enum(SILENCE_LOW_LEVEL_COUNTER),
+            cv.Optional(CONF_SILENCE_DURATION, default="100ms"): cv.enum(
+                SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME
+            ),
+            cv.Optional(CONF_SILENCE_HIGH_COUNTER, default='15'): cv.enum(
+                SILENCE_HIGH_LEVEL_COUNTER
+            ),
+            cv.Optional(CONF_SILENCE_LOW_COUNTER, default='1'): cv.enum(
+                SILENCE_LOW_LEVEL_COUNTER
+            ),
             cv.Optional(CONF_ALC_GAIN, default=-3): cv.float_range(-15, 6),
             cv.Optional(CONF_XTAL_SEL, default="32.768kHz"): cv.enum(XTAL_SEL),
             cv.Optional(CONF_AU_ENHANCE, default=False): cv.boolean,
-            cv.Optional(CONF_FREQUENCY_DEVIATION, default="75kHz"): cv.enum(FREQUENCY_DEVIATION),
+            cv.Optional(CONF_FREQUENCY_DEVIATION, default="75kHz"): cv.enum(
+                FREQUENCY_DEVIATION
+            ),
             cv.Optional(CONF_REF_CLK, default="32.768kHz"): cv.enum(REFERENCE_CLOCK),
             cv.Optional(CONF_XTAL_ENABLE, default=True): cv.boolean,
             cv.Optional(CONF_REF_CLK_ENABLE, default=False): cv.boolean,
@@ -360,7 +384,7 @@ async def to_code(config):
     await set_var(config, CONF_MONO, var.set_mono)
     await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
     await set_var(config, CONF_PILOT_TONE_AMPLITUDE, var.set_pilot_tone_amplitude)
-    await set_var(config, CONF_BASS_BOOST_CONTROL, var.set_bass_boost_control)    
+    await set_var(config, CONF_BASS_BOOST_CONTROL, var.set_bass_boost_control)
     await set_var(config, CONF_ALC_ENABLE, var.set_alc_enable)
     await set_var(config, CONF_AUTO_PA_DOWN, var.set_auto_pa_down)
     await set_var(config, CONF_PA_DOWN, var.set_pa_down)

@@ -57,13 +57,44 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def new_number(config, id, setter, min_value, max_value, step):
     if c := config.get(id):
-        n = await number.new_number(c, min_value=min_value, max_value=max_value, step=step)
+        n = await number.new_number(
+            c, min_value=min_value, max_value=max_value, step=step
+        )
         await cg.register_parented(n, config[CONF_KT0803_ID])
         cg.add(setter(n))
 
+
 async def to_code(config):
     kt0803_component = await cg.get_variable(config[CONF_KT0803_ID])
-    await new_number(config, CONF_FREQUENCY, kt0803_component.set_frequency_number, kt0803_ns.CHSEL_MIN, kt0803_ns.CHSEL_MAX, kt0803_ns.CHSEL_STEP)
-    await new_number(config, CONF_PGA, kt0803_component.set_pga_number, kt0803_ns.PGA_MIN, kt0803_ns.PGA_MAX, kt0803_ns.PGA_STEP)
-    await new_number(config, CONF_RFGAIN, kt0803_component.set_rfgain_number, kt0803_ns.RFGAIN_MIN, kt0803_ns.RFGAIN_MAX, 0.1)
-    await new_number(config, CONF_ALC_GAIN, kt0803_component.set_alc_gain_number, kt0803_ns.ALC_GAIN_MIN, kt0803_ns.ALC_GAIN_MAX, 3)
+    await new_number(
+        config,
+        CONF_FREQUENCY,
+        kt0803_component.set_frequency_number,
+        kt0803_ns.CHSEL_MIN,
+        kt0803_ns.CHSEL_MAX,
+        kt0803_ns.CHSEL_STEP,
+    )
+    await new_number(
+        config,
+        CONF_PGA,
+        kt0803_component.set_pga_number,
+        kt0803_ns.PGA_MIN,
+        kt0803_ns.PGA_MAX,
+        kt0803_ns.PGA_STEP,
+    )
+    await new_number(
+        config,
+        CONF_RFGAIN,
+        kt0803_component.set_rfgain_number,
+        kt0803_ns.RFGAIN_MIN,
+        kt0803_ns.RFGAIN_MAX,
+        0.1,
+    )
+    await new_number(
+        config,
+        CONF_ALC_GAIN,
+        kt0803_component.set_alc_gain_number,
+        kt0803_ns.ALC_GAIN_MIN,
+        kt0803_ns.ALC_GAIN_MAX,
+        3,
+    )

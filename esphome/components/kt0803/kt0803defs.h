@@ -344,7 +344,7 @@ struct KT0803State {
       uint8_t SLNCTIME1 : 1;  // L
       uint8_t _14_1 : 1;
       uint8_t SLNCCNTHIGH : 3;  // K L
-      uint8_t SLNCTIME0 : 3;     // K L
+      uint8_t SLNCTIME0 : 3;    // K L
     };
   };
   union {

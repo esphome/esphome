@@ -78,7 +78,7 @@ switch:
     au_enhance:
       name: Audio Frequency Response Enhancement
     xtal_enable:
-      name: Crystal Oscillator Enable 
+      name: Crystal Oscillator Enable
     ref_clk_enable:
       name: Refence Clock Enable
 

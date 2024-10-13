@@ -9,7 +9,6 @@ from .. import (
     CONF_KT0803_ID,
     KT0803Component,
     kt0803_ns,
-    CONF_CHIP_ID,
     CONF_PRE_EMPHASIS,
     CONF_PILOT_TONE_AMPLITUDE,
     CONF_BASS_BOOST_CONTROL,
@@ -31,7 +30,6 @@ from .. import (
     ICON_SLEEP,
     ICON_SINE_WAVE,
     ICON_SPEAKER,
-    ICON_EAR_HEARING,
     PRE_EMPHASIS,
     PILOT_TONE_AMPLITUDE,
     BASS_BOOST_CONTROL,
@@ -48,7 +46,7 @@ from .. import (
     REFERENCE_CLOCK,
     ALC_HIGH,
     ALC_HOLD_TIME,
-    ALC_LOW,    
+    ALC_LOW,
 )
 
 PreEmphasisSelect = kt0803_ns.class_("PreEmphasisSelect", select.Select)
@@ -106,7 +104,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SWITCH_MODE): select.select_schema(
             SwitchModeSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            #icon=ICON_,
+            # icon=ICON_,
         ),
         cv.Optional(CONF_SILENCE_HIGH): select.select_schema(
             SilenceHighSelect,
@@ -177,20 +175,59 @@ async def new_select(config, id, setter, options):
 async def to_code(config):
     c = await cg.get_variable(config[CONF_KT0803_ID])
     await new_select(config, CONF_PRE_EMPHASIS, c.set_pre_emphasis_select, PRE_EMPHASIS)
-    await new_select(config, CONF_PILOT_TONE_AMPLITUDE, c.set_pilot_tone_amplitude_select, PILOT_TONE_AMPLITUDE)
-    await new_select(config, CONF_BASS_BOOST_CONTROL, c.set_bass_boost_control_select, BASS_BOOST_CONTROL)
-    await new_select(config, CONF_ALC_ATTACK_TIME, c.set_alc_attack_time_select, ALC_TIME)
+    await new_select(
+        config,
+        CONF_PILOT_TONE_AMPLITUDE,
+        c.set_pilot_tone_amplitude_select,
+        PILOT_TONE_AMPLITUDE,
+    )
+    await new_select(
+        config,
+        CONF_BASS_BOOST_CONTROL,
+        c.set_bass_boost_control_select,
+        BASS_BOOST_CONTROL,
+    )
+    await new_select(
+        config, CONF_ALC_ATTACK_TIME, c.set_alc_attack_time_select, ALC_TIME
+    )
     await new_select(config, CONF_ALC_DECAY_TIME, c.set_alc_decay_time_select, ALC_TIME)
-    await new_select(config, CONF_AUDIO_LIMITER_LEVEL, c.set_audio_limiter_level_select, AUDIO_LIMITER_LEVEL)
+    await new_select(
+        config,
+        CONF_AUDIO_LIMITER_LEVEL,
+        c.set_audio_limiter_level_select,
+        AUDIO_LIMITER_LEVEL,
+    )
     await new_select(config, CONF_SWITCH_MODE, c.set_switch_mode_select, SWITCH_MODE)
     await new_select(config, CONF_SILENCE_HIGH, c.set_silence_high_select, SILENCE_HIGH)
     await new_select(config, CONF_SILENCE_LOW, c.set_silence_low_select, SILENCE_LOW)
-    await new_select(config, CONF_SILENCE_DURATION, c.set_silence_duration_select, SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME)
-    await new_select(config, CONF_SILENCE_HIGH_COUNTER, c.set_silence_high_counter_select, SILENCE_HIGH_LEVEL_COUNTER)
-    await new_select(config, CONF_SILENCE_LOW_COUNTER, c.set_silence_low_counter_select, SILENCE_LOW_LEVEL_COUNTER)
+    await new_select(
+        config,
+        CONF_SILENCE_DURATION,
+        c.set_silence_duration_select,
+        SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME,
+    )
+    await new_select(
+        config,
+        CONF_SILENCE_HIGH_COUNTER,
+        c.set_silence_high_counter_select,
+        SILENCE_HIGH_LEVEL_COUNTER,
+    )
+    await new_select(
+        config,
+        CONF_SILENCE_LOW_COUNTER,
+        c.set_silence_low_counter_select,
+        SILENCE_LOW_LEVEL_COUNTER,
+    )
     await new_select(config, CONF_XTAL_SEL, c.set_xtal_sel_select, XTAL_SEL)
-    await new_select(config, CONF_FREQUENCY_DEVIATION, c.set_frequency_deviation_select, FREQUENCY_DEVIATION)
+    await new_select(
+        config,
+        CONF_FREQUENCY_DEVIATION,
+        c.set_frequency_deviation_select,
+        FREQUENCY_DEVIATION,
+    )
     await new_select(config, CONF_REF_CLK, c.set_ref_clk_select, REFERENCE_CLOCK)
     await new_select(config, CONF_ALC_HIGH, c.set_alc_high_select, ALC_HIGH)
-    await new_select(config, CONF_ALC_HOLD_TIME, c.set_alc_hold_time_select, ALC_HOLD_TIME)
+    await new_select(
+        config, CONF_ALC_HOLD_TIME, c.set_alc_hold_time_select, ALC_HOLD_TIME
+    )
     await new_select(config, CONF_ALC_LOW, c.set_alc_low_select, ALC_LOW)
