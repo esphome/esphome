@@ -116,7 +116,7 @@ void QspiDbi::reset_params_(bool ready) {
 }
 
 void QspiDbi::write_init_sequence_() {
-  for (auto seq : this->init_sequences_) {
+  for (const auto &seq : this->init_sequences_) {
     this->write_sequence_(seq);
   }
   this->reset_params_(true);
@@ -208,7 +208,7 @@ void QspiDbi::write_sequence_(const std::vector<uint8_t> &vec) {
         ESP_LOGE(TAG, "Malformed init sequence");
         return;
       }
-      auto ptr = vec.data() + index;
+      const auto *ptr = vec.data() + index;
       this->write_command_(cmd, ptr, num_args);
       index += num_args;
     }
