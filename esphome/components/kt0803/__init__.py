@@ -328,10 +328,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SILENCE_DURATION, default="100ms"): cv.enum(
                 SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME
             ),
-            cv.Optional(CONF_SILENCE_HIGH_COUNTER, default='15'): cv.enum(
+            cv.Optional(CONF_SILENCE_HIGH_COUNTER, default="15"): cv.enum(
                 SILENCE_HIGH_LEVEL_COUNTER
             ),
-            cv.Optional(CONF_SILENCE_LOW_COUNTER, default='1'): cv.enum(
+            cv.Optional(CONF_SILENCE_LOW_COUNTER, default="1"): cv.enum(
                 SILENCE_LOW_LEVEL_COUNTER
             ),
             cv.Optional(CONF_ALC_GAIN, default=-3): cv.float_range(-15, 6),
