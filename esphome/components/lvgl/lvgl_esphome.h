@@ -175,7 +175,6 @@ class LvglComponent : public PollingComponent {
   std::vector<LvPageType *> pages_{};
   size_t current_page_{0};
   bool show_snow_{};
-  lv_coord_t snow_line_{};
   bool page_wrap_{true};
   bool resume_on_input_{};
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};

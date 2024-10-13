@@ -89,12 +89,11 @@ lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LVGL:");
   ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation);
-  ESP_LOGCONFIG(TAG, "  Draw rounding: %d", this->draw_rounding);
+  ESP_LOGCONFIG(TAG, "  Draw rounding: %d", (int) this->draw_rounding);
 }
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
   this->show_snow_ = show_snow;
-  this->snow_line_ = 0;
   if (!paused && lv_scr_act() != nullptr) {
     lv_disp_trig_activity(this->disp_);  // resets the inactivity time
     lv_obj_invalidate(lv_scr_act());
@@ -322,23 +321,28 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
 #endif  // USE_LVGL_KEYBOARD
 
 void LvglComponent::write_random_() {
-  // length of 2 lines in 32 bit units
-  // we write 2 lines for the benefit of displays that won't write one line at a time.
-  size_t line_len = this->disp_drv_.hor_res * LV_COLOR_DEPTH / 8 / 4 * 2;
-  for (size_t i = 0; i != line_len; i++) {
-    ((uint32_t *) (this->draw_buf_.buf1))[i] = random_uint32();
+  for (auto i = 0; i != 4; i++) {
+    auto col = random_uint32() % this->disp_drv_.hor_res;
+    col = col / this->draw_rounding * this->draw_rounding;
+    auto row = random_uint32() % this->disp_drv_.ver_res;
+    row = row / this->draw_rounding * this->draw_rounding;
+    auto size = random_uint32() % (this->draw_rounding * 16) - 1;
+    lv_area_t area;
+    area.x1 = col;
+    area.y1 = row;
+    area.x2 = col + size;
+    area.y2 = row + size;
+    if (area.x2 >= this->disp_drv_.hor_res)
+      area.x2 = this->disp_drv_.hor_res - 1;
+    if (area.y2 >= this->disp_drv_.ver_res)
+      area.y2 = this->disp_drv_.ver_res - 1;
+
+    size_t line_len = lv_area_get_width(&area) * lv_area_get_height(&area) / 2;
+    for (size_t i = 0; i != line_len; i++) {
+      ((uint32_t *) (this->draw_buf_.buf1))[i] = random_uint32();
+    }
+    this->draw_buffer_(&area, (lv_color_t *) this->draw_buf_.buf1);
   }
-  lv_area_t area;
-  area.x1 = 0;
-  area.x2 = this->disp_drv_.hor_res - 1;
-  if (this->snow_line_ == this->disp_drv_.ver_res / 2) {
-    area.y1 = static_cast<lv_coord_t>(random_uint32() % (this->disp_drv_.ver_res / 2) * 2);
-  } else {
-    area.y1 = this->snow_line_++ * 2;
-  }
-  // write 2 lines
-  area.y2 = area.y1 + 1;
-  this->draw_buffer_(&area, (lv_color_t *) this->draw_buf_.buf1);
 }
 
 void LvglComponent::setup() {
