@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
     CONF_MIRROR_X,
@@ -42,7 +43,6 @@ COLOR_ORDERS = {
 }
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
-CONF_INIT_SEQUENCE = "init_sequence"
 CONF_DRAW_FROM_ORIGIN = "draw_from_origin"
 DELAY_FLAG = 0xFF
 
