@@ -3,19 +3,19 @@
 namespace esphome {
 namespace kt0803 {
 
-static float CHSEL_MIN = 70.0f;
-static float CHSEL_MAX = 108.0f;
-static float CHSEL_STEP = 0.05;
+static const float CHSEL_MIN = 70.0f;
+static const float CHSEL_MAX = 108.0f;
+static const float CHSEL_STEP = 0.05;
 
-static float PGA_MIN = -15;
-static float PGA_MAX = 12;
-static float PGA_STEP = 1;
+static const float PGA_MIN = -15;
+static const float PGA_MAX = 12;
+static const float PGA_STEP = 1;
 
-static float RFGAIN_MIN = 95.5f;
-static float RFGAIN_MAX = 108.0f;
+static const float RFGAIN_MIN = 95.5f;
+static const float RFGAIN_MAX = 108.0f;
 
-static float ALC_GAIN_MIN = -15;
-static float ALC_GAIN_MAX = 6;
+static const float ALC_GAIN_MIN = -15;
+static const float ALC_GAIN_MAX = 6;
 
 enum class ChipId {
   KT0803,
