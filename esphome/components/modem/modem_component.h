@@ -29,11 +29,13 @@ enum class ModemComponentState {
   STOPPED,
   TURNING_ON_POWER,
   TURNING_ON_PWRKEY,
+  TURNING_OFF_PWRKEY,
   SYNC,
   REGISTRATION_IN_NETWORK,
   CONNECTING,
   CONNECTED,
   TURNING_ON_RESET,
+  TURNING_OFF_RESET,
   TURNING_OFF_POWER,
 };
 
@@ -76,12 +78,14 @@ class ModemComponent : public Component {
   std::map<ModemComponentState, ModemComponentStateTiming> modemComponentStateTimingMap = {
       {ModemComponentState::STOPPED, ModemComponentStateTiming(0, 0)},
       {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(2000, 15000)},
+      {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_OFF_PWRKEY, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::SYNC, ModemComponentStateTiming(2000, 15000)},
       {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(2000, 15000)},
       {ModemComponentState::CONNECTING, ModemComponentStateTiming(2000, 15000)},
       {ModemComponentState::CONNECTED, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(110, 0)},
+      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_OFF_RESET, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(2000, 0)},
   };
 
@@ -95,9 +99,7 @@ class ModemComponent : public Component {
   void turn_off_modem();
   void turn_on_pwrkey();
   void turn_off_pwrkey();
-  void start_connect_();
   void turn_on_reset();
-  void turn_off_reset();
   int get_rssi();
   int get_modem_voltage();
   const char *get_state();
@@ -124,7 +126,6 @@ class ModemComponent : public Component {
   int change_state_{0};
 
   bool started_{false};
-  bool connected_{false};
 
   ModemComponentState state_{ModemComponentState::STOPPED};
   int connect_begin_;
