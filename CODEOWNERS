@@ -162,6 +162,7 @@ esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/graphical_display_menu/* @MrMDavidson
 esphome/components/gree/* @orestismers
+esphome/components/grove_gas_mc_v2/* @YorkshireIoT
 esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/gt911/* @clydebarrow @jesserockz
@@ -282,6 +283,7 @@ esphome/components/mopeka_std_check/* @Fabian-Schmidt
 esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/ms8607/* @e28eta
+esphome/components/nau7802/* @cujomalainey
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @edwardtfn @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
@@ -290,6 +292,7 @@ esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
+esphome/components/npi19/* @bakerkj
 esphome/components/nrf52/* @tomaszduda23
 esphome/components/number/* @esphome/core
 esphome/components/one_wire/* @ssieb
@@ -406,6 +409,7 @@ esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
+esphome/components/tem3200/* @bakerkj
 esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter
 esphome/components/template/event/* @nohat
