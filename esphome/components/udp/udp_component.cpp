@@ -3,6 +3,7 @@
 #include "esphome/components/network/util.h"
 #include "udp_component.h"
 
+#ifdef USE_NETWORK
 namespace esphome {
 namespace udp {
 
@@ -614,3 +615,4 @@ void UDPComponent::send_ping_pong_request_() {
 }
 }  // namespace udp
 }  // namespace esphome
+#endif
