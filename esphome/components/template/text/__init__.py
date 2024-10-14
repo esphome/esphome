@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import text
+from esphome.components import text, text_sensor
 from esphome.const import (
     CONF_INITIAL_VALUE,
     CONF_LAMBDA,
@@ -11,8 +11,11 @@ from esphome.const import (
     CONF_MIN_LENGTH,
     CONF_PATTERN,
     CONF_SET_ACTION,
+    CONF_DYNAMIC_LAMBDA,
 )
 from .. import template_ns
+
+AUTO_LOAD = ["text_sensor"]
 
 TemplateText = template_ns.class_("TemplateText", text.Text, cg.PollingComponent)
 
@@ -49,13 +52,14 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(TemplateText),
             cv.Optional(CONF_MIN_LENGTH, default=0): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=1024),
             cv.Optional(CONF_PATTERN): cv.string,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
+            cv.Optional(CONF_DYNAMIC_LAMBDA): text_sensor.text_sensor_schema(),
         }
     ).extend(cv.polling_component_schema("60s")),
     validate,
@@ -85,6 +89,11 @@ async def to_code(config):
             args = cg.TemplateArguments(config[CONF_MAX_LENGTH])
             saver = TextSaverTemplate.template(args).new()
             cg.add(var.set_value_saver(saver))
+        if CONF_DYNAMIC_LAMBDA in config:
+            cg.add(var.set_dynamic(True))
+            sens = await text_sensor.new_text_sensor(config[CONF_DYNAMIC_LAMBDA])
+            cg.add(var.set_lambda_result(sens))
+            cg.add_library("jingoro2112/wrench", "6.0.3")
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
