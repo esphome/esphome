@@ -34,7 +34,7 @@ fi
 
 start_esphome() {
   if [ -n "$requested_target_platform" ] && [ "$requested_target_platform" != "$target_platform_with_version" ]; then
-    echo "Skiping $target_platform_with_version"
+    echo "Skipping $target_platform_with_version"
     return
   fi
   # create dynamic yaml file in `build` folder.
