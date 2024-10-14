@@ -36,7 +36,8 @@ std::string DebugComponent::get_reset_reason_() {
       break;
 #if defined(USE_ESP32_VARIANT_ESP32)
     case SW_RESET:
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || \
+    defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C6)
     case RTC_SW_SYS_RESET:
 #endif
       reset_reason = "Software Reset Digital Core";
@@ -72,14 +73,16 @@ std::string DebugComponent::get_reset_reason_() {
     case TGWDT_CPU_RESET:
       reset_reason = "Timer Group Reset CPU";
       break;
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || \
+    defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C6)
     case TG0WDT_CPU_RESET:
       reset_reason = "Timer Group 0 Reset CPU";
       break;
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32)
     case SW_CPU_RESET:
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || \
+    defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C6)
     case RTC_SW_CPU_RESET:
 #endif
       reset_reason = "Software Reset CPU";
@@ -98,27 +101,32 @@ std::string DebugComponent::get_reset_reason_() {
     case RTCWDT_RTC_RESET:
       reset_reason = "RTC Watch Dog Reset Digital Core And RTC Module";
       break;
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6)
     case TG1WDT_CPU_RESET:
       reset_reason = "Timer Group 1 Reset CPU";
       break;
     case SUPER_WDT_RESET:
       reset_reason = "Super Watchdog Reset Digital Core And RTC Module";
       break;
-    case GLITCH_RTC_RESET:
-      reset_reason = "Glitch Reset Digital Core And RTC Module";
-      break;
     case EFUSE_RESET:
       reset_reason = "eFuse Reset Digital Core";
       break;
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+    case GLITCH_RTC_RESET:
+      reset_reason = "Glitch Reset Digital Core And RTC Module";
+      break;
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C6)
     case USB_UART_CHIP_RESET:
       reset_reason = "USB UART Reset Digital Core";
       break;
     case USB_JTAG_CHIP_RESET:
       reset_reason = "USB JTAG Reset Digital Core";
       break;
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
     case POWER_GLITCH_RESET:
       reset_reason = "Power Glitch Reset Digital Core And RTC Module";
       break;

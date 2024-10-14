@@ -750,6 +750,7 @@ def time_period_str_unit(value):
         "ns": "nanoseconds",
         "nanoseconds": "nanoseconds",
         "us": "microseconds",
+        "µs": "microseconds",
         "microseconds": "microseconds",
         "ms": "milliseconds",
         "milliseconds": "milliseconds",

@@ -1,4 +1,5 @@
 #include "api_connection.h"
+#ifdef USE_API
 #include <cerrno>
 #include <cinttypes>
 #include <utility>
@@ -1242,6 +1243,9 @@ VoiceAssistantConfigurationResponse APIConnection::voice_assistant_get_configura
       }
       resp.available_wake_words.push_back(std::move(resp_wake_word));
     }
+    for (auto &wake_word_id : config.active_wake_words) {
+      resp.active_wake_words.push_back(wake_word_id);
+    }
     resp.max_active_wake_words = config.max_active_wake_words;
   }
   return resp;
@@ -1565,3 +1569,4 @@ void APIConnection::on_fatal_error() {
 
 }  // namespace api
 }  // namespace esphome
+#endif

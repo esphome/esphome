@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_ON_LOCK,
     CONF_ON_UNLOCK,
     CONF_TRIGGER_ID,
-    CONF_WEB_SERVER_ID,
+    CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -66,9 +66,8 @@ async def setup_lock_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_lock(var, config):
