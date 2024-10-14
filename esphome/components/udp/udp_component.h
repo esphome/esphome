@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #ifdef USE_NETWORK
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
