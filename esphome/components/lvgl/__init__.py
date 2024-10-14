@@ -53,7 +53,7 @@ from .types import (
     lv_style_t,
     lvgl_ns,
 )
-from .widgets import Widget, add_widgets, lv_scr_act, set_obj_properties
+from .widgets import Widget, add_widgets, lv_scr_act, set_obj_properties, styles_used
 from .widgets.animimg import animimg_spec
 from .widgets.arc import arc_spec
 from .widgets.button import button_spec
@@ -280,6 +280,8 @@ async def to_code(config):
 
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
+    if "transform_angle" in styles_used:
+        add_define("LV_COLOR_SCREEN_TRANSP", "1")
     for use in helpers.lv_uses:
         add_define(f"LV_USE_{use.upper()}")
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
