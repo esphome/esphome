@@ -23,7 +23,7 @@ void AXS15231Touchscreen::setup() {
     this->reset_pin_->digital_write(false);
     delay(5);
     this->reset_pin_->digital_write(true);
-    delay(10);  // NOLINT
+    delay(10);
   }
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
@@ -43,6 +43,7 @@ void AXS15231Touchscreen::update_touches() {
   ERROR_CHECK(err);
   err = this->read(data, sizeof(data));
   ERROR_CHECK(err);
+  this->clear_warning();
   if (data[0] != 0)  // no touches
     return;
   uint16_t x = encode_uint16(data[2] & 0xF, data[3]);
