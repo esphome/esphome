@@ -26,17 +26,16 @@ enum ModemType {
 };
 
 enum class ModemComponentState {
-  STOPPED,
   TURNING_ON_POWER,
+  TURNING_OFF_POWER,
   TURNING_ON_PWRKEY,
   TURNING_OFF_PWRKEY,
+  TURNING_ON_RESET,
+  TURNING_OFF_RESET,
   SYNC,
   REGISTRATION_IN_NETWORK,
   CONNECTING,
   CONNECTED,
-  TURNING_ON_RESET,
-  TURNING_OFF_RESET,
-  TURNING_OFF_POWER,
 };
 
 struct ModemComponentStateTiming {
@@ -76,17 +75,16 @@ class ModemComponent : public Component {
 
  protected:
   std::map<ModemComponentState, ModemComponentStateTiming> modemComponentStateTimingMap = {
-      {ModemComponentState::STOPPED, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(2000, 0)},
+      {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(0, 0)},
       {ModemComponentState::TURNING_OFF_PWRKEY, ModemComponentStateTiming(2000, 0)},
+      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_OFF_RESET, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::SYNC, ModemComponentStateTiming(2000, 15000)},
       {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(2000, 15000)},
       {ModemComponentState::CONNECTING, ModemComponentStateTiming(2000, 15000)},
       {ModemComponentState::CONNECTED, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_OFF_RESET, ModemComponentStateTiming(2000, 0)},
-      {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(2000, 0)},
   };
 
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int event_id, void *event_data);
@@ -95,11 +93,6 @@ class ModemComponent : public Component {
   void dce_init();
 
   bool check_modem_component_state_timings();
-  void turn_on_modem();
-  void turn_off_modem();
-  void turn_on_pwrkey();
-  void turn_off_pwrkey();
-  void turn_on_reset();
   int get_rssi();
   int get_modem_voltage();
   const char *get_state();
@@ -122,12 +115,12 @@ class ModemComponent : public Component {
   int uart_tx_buffer_size_{0};
   int uart_rx_buffer_size_{0};
 
-  int pull_time_{0};
-  int change_state_{0};
+  uint pull_time_{0};
+  uint change_state_{0};
 
   bool started_{false};
 
-  ModemComponentState state_{ModemComponentState::STOPPED};
+  ModemComponentState state_{ModemComponentState::TURNING_ON_POWER};
   int connect_begin_;
   esp_netif_t *modem_netif_{nullptr};
   // esp_eth_phy_t *phy_{nullptr};
