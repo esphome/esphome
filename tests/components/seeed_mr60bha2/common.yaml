@@ -10,10 +10,6 @@ seeed_mr60bha2:
   id: my_seeed_mr60bha2
 
 sensor:
-  - platform: bh1750
-    name: "Seeed MR60BHA2 Illuminance"
-    address: 0x23
-    update_interval: 1s
   - platform: seeed_mr60bha2
     breath_rate:
       name: "Real-time respiratory rate"
