@@ -17,6 +17,8 @@ static const size_t DMA_BUFFERS_COUNT = 4;
 static const size_t FRAMES_IN_ALL_DMA_BUFFERS = DMA_BUFFER_SIZE * DMA_BUFFERS_COUNT;
 static const size_t RING_BUFFER_SAMPLES = 8192;
 static const size_t TASK_DELAY_MS = 10;
+static const size_t TASK_STACK_SIZE = 4096;
+static const ssize_t TASK_PRIORITY = 23;
 
 static const char *const TAG = "i2s_audio.speaker";
 
@@ -145,7 +147,8 @@ void I2SAudioSpeaker::start() {
     return;
 
   if (this->speaker_task_handle_ == nullptr) {
-    xTaskCreate(I2SAudioSpeaker::speaker_task, "speaker_task", 8192, (void *) this, 23, &this->speaker_task_handle_);
+    xTaskCreate(I2SAudioSpeaker::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
+                &this->speaker_task_handle_);
   }
 
   if (this->speaker_task_handle_ != nullptr) {
@@ -178,7 +181,7 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t tick
   // Wait for the ring buffer to be available
   uint32_t event_bits =
       xEventGroupWaitBits(this->event_group_, SpeakerEventGroupBits::MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE, pdFALSE,
-                          pdFALSE, pdMS_TO_TICKS(10));
+                          pdFALSE, pdMS_TO_TICKS(TASK_DELAY_MS));
 
   if (event_bits & SpeakerEventGroupBits::MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE) {
     // Ring buffer is available to write
