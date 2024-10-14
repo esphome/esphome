@@ -40,13 +40,15 @@ static const char *const TAG = "logger";
 static void init_usb_serial_jtag_() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
-  // Minicom, screen, idf_monitor send CR when ENTER key is pressed
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
+  // Minicom, screen, idf_monitor send CR when ENTER key is pressed
   esp_vfs_dev_usb_serial_jtag_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
   // Move the caret to the beginning of the next line on '\n'
   esp_vfs_dev_usb_serial_jtag_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
 #else
+  // Minicom, screen, idf_monitor send CR when ENTER key is pressed
   usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+  // Move the caret to the beginning of the next line on '\n'
   usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
 #endif
 
