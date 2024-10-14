@@ -6,9 +6,16 @@ ble_client:
 
 sensor:
   - platform: radon_eye_rd200
+    version: 1
     ble_client_id: radon_eye_blec
     radon:
       name: RD200 Radon
+    radon_day_avg:
+      name: RD200 Radon Day average
     radon_long_term:
       name: RD200 Radon Long Term
+    radon_peak:
+      name: RD200 Radon Peak
+    alarm:
+      name: RD200 Radon Alarm
     update_interval: 10min
