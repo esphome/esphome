@@ -62,6 +62,9 @@ static const esp_bt_controller_config_t BT_CONTROLLER_CONFIG = {
     .cpu_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
     .ignore_wl_for_direct_adv = 0,
     .enable_pcl = DEFAULT_BT_LE_POWER_CONTROL_ENABLED,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 1)
+    .csa2_select = DEFAULT_BT_LE_50_FEATURE_SUPPORT,  
+#endif
     .config_magic = CONFIG_MAGIC,
 };
 
