@@ -49,11 +49,9 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ModemComponent),
         cv.Required(CONF_TYPE): cv.enum(MODEM_TYPES, upper=True),
-        # There are modules without pwrkey pin and without power pin,
-        # only a reset pin.
         cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_schema,
         cv.Optional(CONF_PWRKEY_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_schema,
         cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_APN, default="internet"): cv.string,
@@ -75,15 +73,24 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_type(config[CONF_TYPE]))
-    if reset_pin := config.get(CONF_RESET_PIN, None):
-        pin = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(pin))
-    if power_pin := config.get(CONF_POWER_PIN, None):
-        pin = await cg.gpio_pin_expression(power_pin)
-        cg.add(var.set_power_pin(pin))
-    if pwrkey_pin := config.get(CONF_PWRKEY_PIN, None):
-        pin = await cg.gpio_pin_expression(pwrkey_pin)
-        cg.add(var.set_pwrkey_pin(pin))
+    if (
+        config.get(CONF_RESET_PIN, None)
+        or config.get(CONF_POWER_PIN, None)
+        or config.get(CONF_PWRKEY_PIN, None)
+    ):
+        if reset_pin := config.get(CONF_RESET_PIN, None):
+            pin = await cg.gpio_pin_expression(reset_pin)
+            cg.add(var.set_reset_pin(pin))
+        if power_pin := config.get(CONF_POWER_PIN, None):
+            pin = await cg.gpio_pin_expression(power_pin)
+            cg.add(var.set_power_pin(pin))
+        if pwrkey_pin := config.get(CONF_PWRKEY_PIN, None):
+            pin = await cg.gpio_pin_expression(pwrkey_pin)
+            cg.add(var.set_pwrkey_pin(pin))
+    else:
+        raise NotImplementedError(
+            "Modem component requires at least a reset pin or a power pin or a pwrkey pin"
+        )
 
     cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
     cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
