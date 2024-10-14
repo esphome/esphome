@@ -2,6 +2,7 @@
 
 #include "statsd.h"
 
+#ifdef USE_NETWORK
 namespace esphome {
 namespace statsd {
 
@@ -154,3 +155,4 @@ void StatsdComponent::send_(std::string *out) {
 
 }  // namespace statsd
 }  // namespace esphome
+#endif

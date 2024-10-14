@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include "esphome/core/component.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/network/ip_address.h"
@@ -84,3 +85,4 @@ class StatsdComponent : public PollingComponent {
 
 }  // namespace statsd
 }  // namespace esphome
+#endif
