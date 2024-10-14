@@ -72,7 +72,7 @@ BASE_SCHEMA = (
     .extend(
         {
             cv.Optional(
-                CONF_TIMEOUT, default="100ms"
+                CONF_TIMEOUT, default="500ms"
             ): cv.positive_time_period_milliseconds,
         }
     )
