@@ -75,7 +75,7 @@ static void q15_multiplication(const int16_t *input, int16_t *output, size_t len
 // Has 100 values representing silence and a reduction [49, 48.5, ... 0.5, 0] dB.
 // dB to PCM scaling factor formula: floating_point_scale_factor = 2^(-db/6.014)
 // float to Q15 fixed point formula: q15_scale_factor = floating_point_scale_factor * 2^(15)
-static const std::vector<int16_t> q15_volume_scaling_factors = {
+static const std::vector<int16_t> Q15_VOLUME_SCALING_FACTORS = {
     0,     116,   122,   130,   137,   146,   154,   163,   173,   183,   194,   206,   218,   231,   244,
     259,   274,   291,   308,   326,   345,   366,   388,   411,   435,   461,   488,   517,   548,   580,
     615,   651,   690,   731,   774,   820,   868,   920,   974,   1032,  1094,  1158,  1227,  1300,  1377,
@@ -162,8 +162,8 @@ void I2SAudioSpeaker::finish() { this->stop_(true); }
 
 void I2SAudioSpeaker::set_volume(float volume) {
   this->volume_ = volume;
-  ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, q15_volume_scaling_factors.size() - 1);
-  this->q15_volume_factor_ = q15_volume_scaling_factors[decibel_index];
+  ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
+  this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
 }
 
 size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
@@ -195,7 +195,7 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t tick
 }
 
 bool I2SAudioSpeaker::has_buffered_data() const {
-  if (this->audio_ring_buffer_.get() != nullptr) {
+  if (this->audio_ring_buffer_ != nullptr) {
     return this->audio_ring_buffer_->available() > 0;
   }
   return false;
@@ -440,7 +440,7 @@ void I2SAudioSpeaker::delete_task_(size_t buffer_size) {
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::STATE_STOPPED);
 
   this->task_created_ = false;
-  vTaskDelete(NULL);
+  vTaskDelete(nullptr);
 }
 
 }  // namespace i2s_audio
