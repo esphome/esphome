@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_MD5
 
 #ifdef USE_ESP_IDF
 #include "esp_rom_md5.h"
@@ -66,3 +67,4 @@ class MD5Digest {
 
 }  // namespace md5
 }  // namespace esphome
+#endif

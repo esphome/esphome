@@ -34,4 +34,12 @@ time:
           - online_image.set_url:
               id: online_rgba_image
               url: http://www.example.org/example.png
+          - online_image.set_url:
+              id: online_rgba_image
+              url: !lambda |-
+                return "http://www.example.org/example.png";
+          - online_image.set_url:
+              id: online_rgba_image
+              url: !lambda |-
+                return str_sprintf("http://homeassistant.local:8123");
 

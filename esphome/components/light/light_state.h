@@ -28,6 +28,35 @@ enum LightRestoreMode {
   LIGHT_RESTORE_AND_ON,
 };
 
+struct LightStateRTCState {
+  LightStateRTCState(ColorMode color_mode, bool state, float brightness, float color_brightness, float red, float green,
+                     float blue, float white, float color_temp, float cold_white, float warm_white)
+      : color_mode(color_mode),
+        state(state),
+        brightness(brightness),
+        color_brightness(color_brightness),
+        red(red),
+        green(green),
+        blue(blue),
+        white(white),
+        color_temp(color_temp),
+        cold_white(cold_white),
+        warm_white(warm_white) {}
+  LightStateRTCState() = default;
+  ColorMode color_mode{ColorMode::UNKNOWN};
+  bool state{false};
+  float brightness{1.0f};
+  float color_brightness{1.0f};
+  float red{1.0f};
+  float green{1.0f};
+  float blue{1.0f};
+  float white{1.0f};
+  float color_temp{1.0f};
+  float cold_white{1.0f};
+  float warm_white{1.0f};
+  uint32_t effect{0};
+};
+
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
  */
@@ -115,6 +144,9 @@ class LightState : public EntityBase, public Component {
 
   /// Set the restore mode of this light
   void set_restore_mode(LightRestoreMode restore_mode);
+
+  /// Set the initial state of this light
+  void set_initial_state(const LightStateRTCState &initial_state);
 
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects();
@@ -212,6 +244,8 @@ class LightState : public EntityBase, public Component {
   float gamma_correct_{};
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
+  /// Initial state of the light.
+  optional<LightStateRTCState> initial_state_{};
   /// List of effects for this light.
   std::vector<LightEffect *> effects_;
 

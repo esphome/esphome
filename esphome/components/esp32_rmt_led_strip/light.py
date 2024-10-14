@@ -55,7 +55,7 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
-
+CONF_USE_PSRAM = "use_psram"
 CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
@@ -77,6 +77,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
+            cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
                 "custom",
@@ -145,6 +146,7 @@ async def to_code(config):
     cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
     cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
     cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
+    cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
 
     cg.add(
         var.set_rmt_channel(
