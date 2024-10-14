@@ -44,10 +44,6 @@ void InternalTemperatureSensor::update() {
 #error \
     "ESP32-S3 internal temperature sensor requires ESP IDF V4.4.3 or higher. See https://github.com/esphome/issues/issues/4271"
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32C6) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 1, 0))
-#error \
-    "ESP32-C6 requires ESP IDF V5.1.0 or higher. See https://github.com/espressif/esp-idf?tab=readme-ov-file#esp-idf-release-and-soc-compatibility"
-#endif
   esp_err_t result = temp_sensor_read_celsius(&temperature);
   temp_sensor_stop();
   success = (result == ESP_OK);
