@@ -376,7 +376,7 @@ void Display::print(int x, int y, int width, int height, BaseFont *font, Color c
       this->get_text_bounds(line_x, line_y, w.c_str(), font, align, &word_x1, &word_y1, &word_width, &word_height);
 
       if (line_x + word_width >= x_max) {
-        // If the next line would overspill the height box, get ready to stop.
+        // If the next line would overspill the height box, get ready to stop
         if (line_y + 2 * static_cast<int>(word_height * line_height) > y_max) {
           last = true;
           size_t length = line.length();
