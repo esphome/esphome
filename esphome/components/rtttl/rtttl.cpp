@@ -364,6 +364,7 @@ void Rtttl::finish_() {
   ESP_LOGD(TAG, "Playback finished");
 }
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 static const LogString *state_to_string(State state) {
   switch (state) {
     case STATE_STOPPED:
@@ -380,6 +381,7 @@ static const LogString *state_to_string(State state) {
       return LOG_STR("UNKNOWN");
   }
 };
+#endif
 
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
