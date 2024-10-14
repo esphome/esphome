@@ -39,7 +39,7 @@ static const uint8_t SH1107_COMMAND_SET_START_LINE = 0xDC;
 static const uint8_t SH1107_COMMAND_CHARGE_PUMP = 0xAD;
 
 void SSD1306::setup() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
 
   // SH1107 resources
   //

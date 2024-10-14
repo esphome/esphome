@@ -43,7 +43,7 @@ static const uint8_t SSD1331_PRECHARGELEVEL = 0xBB;  // Set pre-charge voltage
 static const uint8_t SSD1331_VCOMH = 0xBE;           // Set Vcomh voltge
 
 void SSD1331::setup() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
 
   this->command(SSD1331_DISPLAYOFF);  // 0xAE
   this->command(SSD1331_SETREMAP);    // 0xA0

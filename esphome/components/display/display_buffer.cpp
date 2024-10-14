@@ -10,7 +10,7 @@ namespace display {
 
 static const char *const TAG = "display";
 
-void DisplayBuffer::init_internal_(uint32_t buffer_length) {
+void DisplayBuffer::init_internal(uint32_t buffer_length) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->buffer_ = allocator.allocate(buffer_length);
   if (this->buffer_ == nullptr) {

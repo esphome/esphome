@@ -45,7 +45,7 @@ static const uint8_t SSD1325_DRAWRECT = 0x24;
 static const uint8_t SSD1325_COPY = 0x25;
 
 void SSD1325::setup() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
 
   this->command(SSD1325_DISPLAYOFF);    // display off
   this->command(SSD1325_SETCLOCK);      // set osc division

@@ -8,7 +8,7 @@ namespace st7567_base {
 static const char *const TAG = "st7567";
 
 void ST7567::setup() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
   this->display_init_();
 }
 

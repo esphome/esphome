@@ -48,7 +48,7 @@ static const uint8_t SSD1351_STOPSCROLL = 0x9E;
 static const uint8_t SSD1351_STARTSCROLL = 0x9F;
 
 void SSD1351::setup() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
 
   this->command(SSD1351_COMMANDLOCK);
   this->data(0x12);

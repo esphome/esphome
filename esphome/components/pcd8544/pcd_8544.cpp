@@ -28,7 +28,7 @@ void PCD8544::init_reset_() {
 }
 
 void PCD8544::initialize() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
 
   this->command(this->PCD8544_FUNCTIONSET | this->PCD8544_EXTENDEDINSTRUCTION);
   // LCD bias select (4 is optimal?)

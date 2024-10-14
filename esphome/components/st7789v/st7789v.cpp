@@ -116,7 +116,7 @@ void ST7789V::setup() {
 
   backlight_(true);
 
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
   memset(this->buffer_, 0x00, this->get_buffer_length_());
 }
 
