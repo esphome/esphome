@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#ifdef USE_NETWORK
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -156,3 +157,4 @@ class UDPComponent : public PollingComponent {
 
 }  // namespace udp
 }  // namespace esphome
+#endif
