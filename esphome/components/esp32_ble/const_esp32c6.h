@@ -41,8 +41,8 @@ static const esp_bt_controller_config_t BT_CONTROLLER_CONFIG = {
     .enable_qa_test = RUN_QA_TEST,
     .enable_bqb_test = RUN_BQB_TEST,
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 1)
-// The following fields have been removed since ESP IDF version 5.3.1, see commit:
-// https://github.com/espressif/esp-idf/commit/e761c1de8f9c0777829d597b4d5a33bb070a30a8
+    // The following fields have been removed since ESP IDF version 5.3.1, see commit:
+    // https://github.com/espressif/esp-idf/commit/e761c1de8f9c0777829d597b4d5a33bb070a30a8
     .enable_uart_hci = HCI_UART_EN,
     .ble_hci_uart_port = DEFAULT_BT_LE_HCI_UART_PORT,
     .ble_hci_uart_baud = DEFAULT_BT_LE_HCI_UART_BAUD,
@@ -63,7 +63,7 @@ static const esp_bt_controller_config_t BT_CONTROLLER_CONFIG = {
     .ignore_wl_for_direct_adv = 0,
     .enable_pcl = DEFAULT_BT_LE_POWER_CONTROL_ENABLED,
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 1)
-    .csa2_select = DEFAULT_BT_LE_50_FEATURE_SUPPORT,  
+    .csa2_select = DEFAULT_BT_LE_50_FEATURE_SUPPORT,
 #endif
     .config_magic = CONFIG_MAGIC,
 };
