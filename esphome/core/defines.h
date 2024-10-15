@@ -167,4 +167,3 @@
 // #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT
-//#define USE_ESP32_CAMERA
