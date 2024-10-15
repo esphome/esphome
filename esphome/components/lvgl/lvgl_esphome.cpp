@@ -227,11 +227,19 @@ void LvSelectable::set_selected(std::string text, lv_anim_enable_t anim) {
   }
 }
 
-#ifdef USE_LVGL_DROPDOWN
-void LvDropdownType::set_options(std::vector<std::string> options) {
-  lv_dropdown_set_options(this->obj, join_string(options).c_str());
+void LvSelectable::set_options(std::vector<std::string> options, size_t index) {
+  if (index >= options.size())
+    index = options.size() - 1;
   this->options_ = std::move(options);
   lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
+  this->set_selected(index, LV_ANIM_OFF);
+}
+
+#ifdef USE_LVGL_DROPDOWN
+void LvDropdownType::set_options(std::vector<std::string> options) {
+  auto index = this->get_selected();
+  lv_dropdown_set_options(this->obj, join_string(options).c_str());
+  LvSelectable::set_options(options, index);
 }
 size_t LvDropdownType::get_selected() { return lv_dropdown_get_selected(this->obj); }
 void LvDropdownType::set_selected(size_t index, lv_anim_enable_t anim) { lv_dropdown_set_selected(this->obj, index); }
@@ -239,10 +247,11 @@ void LvDropdownType::set_selected(size_t index, lv_anim_enable_t anim) { lv_drop
 
 #ifdef USE_LVGL_ROLLER
 void LvRollerType::set_options(std::vector<std::string> options, lv_roller_mode_t mode) {
+  auto index = this->get_selected();
   lv_roller_set_options(this->obj, join_string(options).c_str(), mode);
-  this->options_ = std::move(options);
-  lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
+  LvSelectable::set_options(options, index);
 }
+
 size_t LvRollerType::get_selected() { return lv_roller_get_selected(this->obj); }
 void LvRollerType::set_selected(size_t index, lv_anim_enable_t anim) { lv_roller_set_selected(this->obj, index, anim); }
 #endif

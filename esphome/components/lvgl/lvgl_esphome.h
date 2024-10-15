@@ -20,9 +20,6 @@
 #include <lvgl.h>
 #include <vector>
 #include <map>
-#ifdef USE_LVGL_IMAGE
-#include "esphome/components/image/image.h"
-#endif  // USE_LVGL_IMAGE
 
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
@@ -265,6 +262,7 @@ class LvSelectable : public LvCompound {
   virtual void set_selected(size_t index, lv_anim_enable_t anim = LV_ANIM_OFF) = 0;
   std::string get_selected_text();
   std::vector<std::string> get_options() { return this->options_; }
+  void set_options(std::vector<std::string> options, size_t index);
 
  protected:
   std::vector<std::string> options_;
@@ -275,7 +273,8 @@ class LvDropdownType : public LvSelectable {
  public:
   void set_options(std::vector<std::string> options);
   size_t get_selected() override;
-  void set_selected(size_t index, lv_anim_enable_t anim) override;
+  void set_selected(size_t index, lv_anim_enable_t anim = LV_ANIM_OFF) override;
+  void set_selected(std::string text) { LvSelectable::set_selected(text, LV_ANIM_OFF); };
 };
 #endif  // USE_LVGL_DROPDOWN
 
@@ -285,6 +284,7 @@ class LvRollerType : public LvSelectable {
   void set_options(std::vector<std::string> options, lv_roller_mode_t mode);
   size_t get_selected() override;
   void set_selected(size_t index, lv_anim_enable_t anim) override;
+  void set_selected(std::string text, lv_anim_enable_t anim) override { LvSelectable::set_selected(text, anim); };
 };
 #endif
 #endif  // defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)

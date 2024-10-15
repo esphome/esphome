@@ -11,23 +11,6 @@
 namespace esphome {
 namespace lvgl {
 
-static std::vector<std::string> split_string(const std::string &str) {
-  std::vector<std::string> strings;
-  auto delimiter = std::string("\n");
-
-  std::string::size_type pos;
-  std::string::size_type prev = 0;
-  while ((pos = str.find(delimiter, prev)) != std::string::npos) {
-    strings.push_back(str.substr(prev, pos - prev));
-    prev = pos + delimiter.size();
-  }
-
-  // To get the last substring (or only, if delimiter is not found)
-  strings.push_back(str.substr(prev));
-
-  return strings;
-}
-
 class LVGLSelect : public select::Select {
  public:
   void set_widget(LvSelectable *widget, lv_anim_enable_t anim = LV_ANIM_OFF) {

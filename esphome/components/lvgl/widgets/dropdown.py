@@ -8,6 +8,7 @@ from ..defines import (
     CONF_SCROLLBAR,
     CONF_SELECTED,
     CONF_SELECTED_INDEX,
+    CONF_SELECTED_TEXT,
     CONF_SYMBOL,
     DIRECTIONS,
     literal,
@@ -30,14 +31,25 @@ dropdown_list_spec = WidgetType(
     CONF_DROPDOWN_LIST, lv_dropdown_list_t, (CONF_MAIN, CONF_SELECTED, CONF_SCROLLBAR)
 )
 
-
-DROPDOWN_SCHEMA = cv.Schema(
+DROPDOWN_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_SYMBOL): lv_text,
-        cv.Optional(CONF_SELECTED_INDEX): cv.templatable(cv.int_),
+        cv.Exclusive(CONF_SELECTED_INDEX, CONF_SELECTED_TEXT): lv_int,
+        cv.Exclusive(CONF_SELECTED_TEXT, CONF_SELECTED_TEXT): lv_text,
         cv.Optional(CONF_DIR, default="BOTTOM"): DIRECTIONS.one_of,
         cv.Optional(CONF_DROPDOWN_LIST): part_schema(dropdown_list_spec),
+    }
+)
+
+DROPDOWN_SCHEMA = DROPDOWN_BASE_SCHEMA.extend(
+    {
         cv.Required(CONF_OPTIONS): cv.ensure_list(option_string),
+    }
+)
+
+DROPDOWN_UPDATE_SCHEMA = DROPDOWN_BASE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_OPTIONS): cv.ensure_list(option_string),
     }
 )
 
@@ -49,6 +61,7 @@ class DropdownType(WidgetType):
             lv_dropdown_t,
             (CONF_MAIN, CONF_INDICATOR),
             DROPDOWN_SCHEMA,
+            modify_schema=DROPDOWN_UPDATE_SCHEMA,
         )
 
     async def to_code(self, w: Widget, config):
@@ -59,7 +72,10 @@ class DropdownType(WidgetType):
             lv.dropdown_set_symbol(w.var.obj, await lv_text.process(symbol))
         if (selected := config.get(CONF_SELECTED_INDEX)) is not None:
             value = await lv_int.process(selected)
-            lv.dropdown_set_selected(w.obj, value)
+            lv_add(w.var.set_selected(value))
+        if (selected := config.get(CONF_SELECTED_TEXT)) is not None:
+            value = await lv_text.process(selected)
+            lv_add(w.var.set_selected(value))
         if dirn := config.get(CONF_DIR):
             lv.dropdown_set_dir(w.obj, literal(dirn))
         if dlist := config.get(CONF_DROPDOWN_LIST):

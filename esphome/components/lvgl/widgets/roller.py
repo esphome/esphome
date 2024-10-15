@@ -6,13 +6,14 @@ from ..defines import (
     CONF_MAIN,
     CONF_SELECTED,
     CONF_SELECTED_INDEX,
+    CONF_SELECTED_TEXT,
     CONF_VISIBLE_ROW_COUNT,
     ROLLER_MODES,
     literal,
 )
 from ..helpers import lvgl_components_required
-from ..lv_validation import animated, lv_int, option_string
-from ..lvcode import lv, lv_add
+from ..lv_validation import animated, lv_int, lv_text, option_string
+from ..lvcode import lv_add
 from ..types import LvSelect
 from . import WidgetType
 from .label import CONF_LABEL
@@ -22,7 +23,8 @@ lv_roller_t = LvSelect("LvRollerType")
 
 ROLLER_BASE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_SELECTED_INDEX): cv.templatable(cv.int_),
+        cv.Exclusive(CONF_SELECTED_INDEX, CONF_SELECTED_TEXT): lv_int,
+        cv.Exclusive(CONF_SELECTED_TEXT, CONF_SELECTED_TEXT): lv_text,
         cv.Optional(CONF_VISIBLE_ROW_COUNT): lv_int,
         cv.Optional(CONF_MODE, default="NORMAL"): ROLLER_MODES.one_of,
     }
@@ -60,7 +62,10 @@ class RollerType(WidgetType):
         animopt = literal(config.get(CONF_ANIMATED) or "LV_ANIM_OFF")
         if (selected := config.get(CONF_SELECTED_INDEX)) is not None:
             value = await lv_int.process(selected)
-            lv.roller_set_selected(w.var.obj, value, animopt)
+            lv_add(w.var.set_selected(value, animopt))
+        if (selected := config.get(CONF_SELECTED_TEXT)) is not None:
+            value = await lv_text.process(selected)
+            lv_add(w.var.set_selected(value, animopt))
         await w.set_property(
             CONF_VISIBLE_ROW_COUNT,
             await lv_int.process(config.get(CONF_VISIBLE_ROW_COUNT)),

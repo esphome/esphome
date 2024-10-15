@@ -32,6 +32,8 @@ async def to_code(config):
     await wait_for_widgets()
     async with LvContext(paren) as ctx:
         ctx.add(
-            selector.set_widget(widget.var),
-            literal("LV_ANIM_ON" if config[CONF_ANIMATED] else "LV_ANIM_OFF"),
+            selector.set_widget(
+                widget.var,
+                literal("LV_ANIM_ON" if config[CONF_ANIMATED] else "LV_ANIM_OFF"),
+            )
         )
