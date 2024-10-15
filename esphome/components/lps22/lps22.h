@@ -12,7 +12,6 @@ class LPS22Component : public sensor::Sensor, public PollingComponent, public i2
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 
-  LPS22Component() : PollingComponent(15000) {}
 
   void setup() override;
   void update() override;
