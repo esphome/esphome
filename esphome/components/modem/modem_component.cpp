@@ -47,7 +47,9 @@ void ModemComponent::setup() {
   if (this->pwrkey_pin_) {
     this->pwrkey_pin_->setup();
   }
-  this->reset_pin_->setup();
+  if (this->reset_pin_) {
+    this->reset_pin_->setup();
+  }
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
     // Delay here to allow power to stabilise before Modem is initialized.
     delay(300);  // NOLINT
@@ -85,7 +87,7 @@ void ModemComponent::loop() {
         }
       } else {
         ESP_LOGD(TAG, "Can't turn on modem power pin because it is not configured, go to turn on pwrkey");
-        this->set_state(ModemComponentState::TURNING_ON_PWRKEY);
+        this->set_state(ModemComponentState::TURNING_ON_RESET);
       }
       this->dce_init();
       break;
@@ -105,9 +107,10 @@ void ModemComponent::loop() {
         this->set_state(ModemComponentState::TURNING_OFF_PWRKEY);
       } else {
         ESP_LOGD(TAG, "Can't turn on pwrkey pin because it is not configured, go to reset power modem");
-        this->set_state(ModemComponentState::TURNING_ON_RESET);
+        this->set_state(ModemComponentState::TURNING_ON_POWER);
         break;
       }
+      this->dce_init();
       break;
 
     // The state releases the power key
@@ -125,8 +128,10 @@ void ModemComponent::loop() {
         this->set_state(ModemComponentState::TURNING_OFF_RESET);
       } else {
         ESP_LOGD(TAG, "Can't turn on reset pin because it is not configured, go to turn on pwkey");
-        this->set_state(ModemComponentState::TURNING_ON_PWRKEY);
+        this->set_state(ModemComponentState::TURNING_OFF_POWER);
+        break;
       }
+      this->dce_init();
       break;
 
     // The state of the end of the reset of the modem
@@ -211,7 +216,8 @@ bool ModemComponent::check_modem_component_state_timings() {
   ModemComponentStateTiming timing = this->modemComponentStateTimingMap[this->state_];
   if (timing.time_limit && ((this->change_state_ + timing.time_limit) < now)) {
     ESP_LOGE(TAG, "State time limit %s", this->state_to_string(this->state_));
-    this->turn_on_reset();
+    this->set_state(ModemComponentState::TURNING_ON_RESET);
+    return true;
   }
   if (!timing.poll_period) {
     return true;
@@ -261,8 +267,9 @@ void ModemComponent::dump_config() {
   this->dump_connect_params();
   ESP_LOGCONFIG(TAG, "Modem:");
   ESP_LOGCONFIG(TAG, "  Type: %d", this->type_);
-  ESP_LOGCONFIG(TAG, "  Reset Pin: %u", this->reset_pin_->get_pin());
   ESP_LOGCONFIG(TAG, "  Power pin : %s", (this->power_pin_) ? this->power_pin_->dump_summary().c_str() : "Not defined");
+  ESP_LOGCONFIG(TAG, "  Reset pin : %s", (this->reset_pin_) ? this->reset_pin_->dump_summary().c_str() : "Not defined");
+  ESP_LOGCONFIG(TAG, "  Pwrkey pin : %s", (this->pwrkey_pin_) ? this->pwrkey_pin_->dump_summary().c_str() : "Not defined");
   ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
   ESP_LOGCONFIG(TAG, "  TX Pin: %d", this->tx_pin_);
   ESP_LOGCONFIG(TAG, "  RX Pin: %d", this->rx_pin_);
@@ -338,7 +345,7 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
     ESP_LOGD(TAG, "GOT ip event!!!");
   } else if (event_id == IP_EVENT_PPP_LOST_IP) {
     ESP_LOGD(TAG, "Modem Disconnect from PPP Server");
-    global_modem_component->turn_on_reset();
+    global_modem_component->set_state(ModemComponentState::TURNING_ON_RESET);
   }
 }
 
