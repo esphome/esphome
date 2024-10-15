@@ -21,7 +21,6 @@ class LPS22Component : public sensor::Sensor, public PollingComponent, public i2
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
- private:
   RetryResult try_read_();
 };
 
