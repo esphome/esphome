@@ -55,11 +55,13 @@ RetryResult LPS22Component::try_read_() {
     return RetryResult::RETRY;
   }
 
-  uint8_t t_buf[2]{0};
-  this->read_register(TEMP_L, t_buf, 2);
-  float temp =
-      TEMPERATURE_SCALE * static_cast<float>(static_cast<int16_t>(t_buf[1]) << 8 | static_cast<int16_t>(t_buf[0]));
-  this->temperature_sensor_->publish_state(temp);
+  if(this->temperature_sensor_ != nullptr) {
+    uint8_t t_buf[2]{0};
+    this->read_register(TEMP_L, t_buf, 2);
+    float temp =
+        TEMPERATURE_SCALE * static_cast<float>(encode_uint16(t_buf[1], t_buf[0]));
+    this->temperature_sensor_->publish_state(temp);
+  }
   if (this->pressure_sensor_ != nullptr) {
     uint8_t p_buf[3]{0};
     this->read_register(PRES_OUT_XL, p_buf, 3);
