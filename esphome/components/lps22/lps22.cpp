@@ -18,8 +18,8 @@ static constexpr uint8_t PRES_OUT_XL = 0x28;
 static constexpr uint8_t REF_P_XL = 0x28;
 static constexpr uint8_t READ_ATTEMPTS = 10;
 static constexpr uint8_t READ_INTERVAL = 5;
-static constexpr float PRESSURE_SCALE = 1. / 4096.;
-static constexpr float TEMPERATURE_SCALE = 0.01;
+static constexpr float PRESSURE_SCALE = 1.0f / 4096.0f;
+static constexpr float TEMPERATURE_SCALE = 0.01f;
 
 void LPS22Component::setup() {}
 
