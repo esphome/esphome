@@ -16,6 +16,7 @@ from .. import (
     register_i2s_audio_component,
 )
 
+AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2s_audio"]
 
