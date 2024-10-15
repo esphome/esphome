@@ -331,9 +331,13 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         _LOGGER.info(" -> %s", ip)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # 10 second connection timeout
     sock.settimeout(10.0)
     try:
         sock.connect((ip, remote_port))
+        # Once connected, increase transfer timeout to 120 seconds to accomidate for
+        # slow connection speed, larger files, and erase/write time.
+        sock.settimeout(120.0)
     except OSError as err:
         sock.close()
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
