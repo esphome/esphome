@@ -57,6 +57,8 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
+
+    # TODO: Add suport for sleepy end devices
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_FTD", True)  # Full Thread Device
 
 
@@ -87,9 +89,5 @@ async def to_code(config):
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
     cg.add(var.set_mdns(mdns_component))
     await cg.register_component(var, config)
-    cg.add_global(cg.RawStatement('#include "esp_openthread.h"'))
-    cg.add_global(cg.RawStatement('#include "esp_openthread_lock.h"'))
-    cg.add_global(cg.RawStatement('#include "esp_task_wdt.h"'))
-    cg.add_global(cg.RawStatement("#include <openthread/thread.h>"))
 
     set_sdkconfig_options(config)

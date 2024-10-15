@@ -1,8 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_OPENTHREAD
 #include "openthread.h"
-
-#ifndef USE_ESP_IDF
-#error "OpenThread is not supported on this platform"
-#endif
 
 #include <freertos/portmacro.h>
 
@@ -204,3 +202,5 @@ void OpenThreadComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->m
 
 }  // namespace openthread
 }  // namespace esphome
+
+#endif

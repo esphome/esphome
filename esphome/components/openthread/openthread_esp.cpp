@@ -1,4 +1,5 @@
-// #ifdef USE_ESP_IDF
+#include "esphome/core/defines.h"
+#if defined(USE_OPENTHREAD) && defined(USE_ESP_IDF)
 #include "openthread.h"
 #include <openthread/logging.h>
 
@@ -168,4 +169,4 @@ OpenThreadLockGuard::~OpenThreadLockGuard() { esp_openthread_lock_release(); }
 
 }  // namespace openthread
 }  // namespace esphome
-// #endif
+#endif

@@ -1,4 +1,6 @@
 #pragma once
+#include "esphome/core/defines.h"
+#ifdef USE_OPENTHREAD
 
 #include "esphome/core/component.h"
 #include "esphome/components/mdns/mdns_component.h"
@@ -61,3 +63,4 @@ class OpenThreadLockGuard {
 
 }  // namespace openthread
 }  // namespace esphome
+#endif
