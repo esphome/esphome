@@ -215,6 +215,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
 
+#ifdef USE_BINARY_SENSOR
   void set_left_button(binary_sensor::BinarySensor *left_button) {
     left_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_LEFT, state); });
   }
@@ -225,6 +226,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
   void set_enter_button(binary_sensor::BinarySensor *enter_button) {
     enter_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_ENTER, state); });
   }
+#endif
 
 #ifdef USE_LVGL_ROTARY_ENCODER
   void set_sensor(rotary_encoder::RotaryEncoderSensor *sensor) {
@@ -254,6 +256,38 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int key_{};
 };
 #endif  //  USE_LVGL_KEY_LISTENER
+
+#if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
+class LvSelectable : public LvCompound {
+ public:
+  virtual size_t get_selected() = 0;
+  virtual void set_selected(std::string text, lv_anim_enable_t anim = LV_ANIM_OFF);
+  virtual void set_selected(size_t index, lv_anim_enable_t anim = LV_ANIM_OFF) = 0;
+  std::string get_selected_text();
+  std::vector<std::string> get_options() { return this->options_; }
+
+ protected:
+  std::vector<std::string> options_;
+};
+
+#ifdef USE_LVGL_DROPDOWN
+class LvDropdownType : public LvSelectable {
+ public:
+  void set_options(std::vector<std::string> options);
+  size_t get_selected() override;
+  void set_selected(size_t index, lv_anim_enable_t anim) override;
+};
+#endif  // USE_LVGL_DROPDOWN
+
+#ifdef USE_LVGL_ROLLER
+class LvRollerType : public LvSelectable {
+ public:
+  void set_options(std::vector<std::string> options, lv_roller_mode_t mode);
+  size_t get_selected() override;
+  void set_selected(size_t index, lv_anim_enable_t anim) override;
+};
+#endif
+#endif  // defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 
 #ifdef USE_LVGL_BUTTONMATRIX
 class LvButtonMatrixType : public key_provider::KeyProvider, public LvCompound {

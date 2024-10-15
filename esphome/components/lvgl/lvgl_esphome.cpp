@@ -5,6 +5,8 @@
 #include "lvgl_hal.h"
 #include "lvgl_esphome.h"
 
+#include <numeric>
+
 namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
@@ -202,6 +204,50 @@ LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_
   };
 }
 #endif  // USE_LVGL_KEY_LISTENER
+
+#if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
+std::string LvSelectable::get_selected_text() {
+  auto selected = this->get_selected();
+  if (selected >= this->options_.size())
+    return "";
+  return this->options_[selected];
+}
+
+static std::string join_string(std::vector<std::string> options) {
+  return std::accumulate(
+      options.begin(), options.end(), std::string(),
+      [](const std::string &a, const std::string &b) -> std::string { return a + (a.length() > 0 ? "\n" : "") + b; });
+}
+
+void LvSelectable::set_selected(std::string text, lv_anim_enable_t anim) {
+  auto index = std::find(this->options_.begin(), this->options_.end(), text);
+  if (index != this->options_.end()) {
+    this->set_selected(index - this->options_.begin(), anim);
+    lv_event_send(this->obj, lv_api_event, nullptr);
+  }
+}
+
+#ifdef USE_LVGL_DROPDOWN
+void LvDropdownType::set_options(std::vector<std::string> options) {
+  lv_dropdown_set_options(this->obj, join_string(options).c_str());
+  this->options_ = std::move(options);
+  lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
+}
+size_t LvDropdownType::get_selected() { return lv_dropdown_get_selected(this->obj); }
+void LvDropdownType::set_selected(size_t index, lv_anim_enable_t anim) { lv_dropdown_set_selected(this->obj, index); }
+#endif
+
+#ifdef USE_LVGL_ROLLER
+void LvRollerType::set_options(std::vector<std::string> options, lv_roller_mode_t mode) {
+  lv_roller_set_options(this->obj, join_string(options).c_str(), mode);
+  this->options_ = std::move(options);
+  lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
+}
+size_t LvRollerType::get_selected() { return lv_roller_get_selected(this->obj); }
+void LvRollerType::set_selected(size_t index, lv_anim_enable_t anim) { lv_roller_set_selected(this->obj, index, anim); }
+#endif
+
+#endif  // USE_LVGL_DROPDOWN || LV_USE_ROLLER
 
 #ifdef USE_LVGL_BUTTONMATRIX
 void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
