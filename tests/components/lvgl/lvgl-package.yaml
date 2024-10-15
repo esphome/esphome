@@ -667,7 +667,8 @@ lvgl:
                       src: cat_image
                       on_click:
                         then:
-                          - lvg.dropdown.update:
+                          - lvgl.dropdown.update:
+                              id: lv_dropdown
                               options:
                                 ["First", "Second", "Third", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th"]
                               selected_index: 3

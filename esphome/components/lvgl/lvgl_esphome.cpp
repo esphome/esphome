@@ -236,7 +236,7 @@ void LvSelectable::set_options(std::vector<std::string> options, size_t index) {
 }
 
 #ifdef USE_LVGL_DROPDOWN
-void LvDropdownType::set_options(std::vector<std::string> options) {
+void LvDropdownType::set_options(const std::vector<std::string> &options) {
   auto index = this->get_selected();
   lv_dropdown_set_options(this->obj, join_string(options).c_str());
   LvSelectable::set_options(options, index);
@@ -246,7 +246,7 @@ void LvDropdownType::set_selected(size_t index, lv_anim_enable_t anim) { lv_drop
 #endif
 
 #ifdef USE_LVGL_ROLLER
-void LvRollerType::set_options(std::vector<std::string> options, lv_roller_mode_t mode) {
+void LvRollerType::set_options(const std::vector<std::string> &options, lv_roller_mode_t mode) {
   auto index = this->get_selected();
   lv_roller_set_options(this->obj, join_string(options).c_str(), mode);
   LvSelectable::set_options(options, index);
