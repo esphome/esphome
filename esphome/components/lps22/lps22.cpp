@@ -23,7 +23,13 @@ static constexpr float TEMPERATURE_SCALE = 0.01;
 
 void LPS22Component::setup() {}
 
-void LPS22Component::dump_config() { LOG_I2C_DEVICE(this); }
+void LPS22Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "LPS22:");
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 void LPS22Component::update() {
   uint8_t value = 0x00;
