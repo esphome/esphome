@@ -126,7 +126,6 @@ def _process_base_package(config: dict) -> dict:
             files.append({CONF_NAME: file, CONF_VARS: {}})
         else:
             files.append(file)
-    print(files)
 
     def get_packages(files) -> dict:
         packages = {}
