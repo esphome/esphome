@@ -21,7 +21,14 @@ static constexpr uint8_t READ_INTERVAL = 5;
 static constexpr float PRESSURE_SCALE = 1.0f / 4096.0f;
 static constexpr float TEMPERATURE_SCALE = 0.01f;
 
-void LPS22Component::setup() {}
+void LPS22Component::setup() {
+  uint8_t value = 0x00;
+  this->read_register(WHO_AM_I, &value, 1);
+  if (value != LPS22HB_ID && value != LPS22HH_ID) {
+    ESP_LOGW(TAG, "device IDs as %02x, which isn't a known LPS22HB or LPS22HH ID", value);
+    this->mark_failed();
+  }
+}
 
 void LPS22Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LPS22:");
@@ -33,16 +40,9 @@ void LPS22Component::dump_config() {
 
 void LPS22Component::update() {
   uint8_t value = 0x00;
-  this->read_register(WHO_AM_I, &value, 1);
-  if (value != LPS22HB_ID && value != LPS22HH_ID) {
-    ESP_LOGW(TAG, "device IDs as %02x, which isn't a known LPS22HB or LPS22HH ID", value);
-    return;
-  }
-
   this->read_register(CTRL_REG2, &value, 1);
   value |= CTRL_REG2_ONE_SHOT_MASK;
   this->write_register(CTRL_REG2, &value, 1);
-
   this->set_retry(READ_INTERVAL, READ_ATTEMPTS, [this](uint8_t _) { return this->try_read_(); });
 }
 
@@ -55,11 +55,10 @@ RetryResult LPS22Component::try_read_() {
     return RetryResult::RETRY;
   }
 
-  if(this->temperature_sensor_ != nullptr) {
+  if (this->temperature_sensor_ != nullptr) {
     uint8_t t_buf[2]{0};
     this->read_register(TEMP_L, t_buf, 2);
-    float temp =
-        TEMPERATURE_SCALE * static_cast<float>(encode_uint16(t_buf[1], t_buf[0]));
+    float temp = TEMPERATURE_SCALE * static_cast<float>(encode_uint16(t_buf[1], t_buf[0]));
     this->temperature_sensor_->publish_state(temp);
   }
   if (this->pressure_sensor_ != nullptr) {
