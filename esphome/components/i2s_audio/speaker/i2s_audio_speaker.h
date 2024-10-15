@@ -66,14 +66,21 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   /// @param params I2SAudioSpeaker component
   static void speaker_task(void *params);
 
+  /// @brief Sends a stop command to the speaker task via event_group_.
+  /// @param wait_on_empty If false, sends the COMMAND_STOP signal. If true, sends the COMMAND_STOP_GRACEFULLY signal.
+  void stop_(bool wait_on_empty);
+
   /// @brief Sets the corresponding ERR_ESP event group bits.
   /// @param err esp_err_t error code.
   /// @return True if an ERR_ESP bit is set and false if err == ESP_OK
   bool send_esp_err_to_event_group_(esp_err_t err);
 
-  /// @brief Sends a stop command to the speaker task via event_group_.
-  /// @param wait_on_empty If false, sends the COMMAND_STOP signal. If true, sends the COMMAND_STOP_GRACEFULLY signal.
-  void stop_(bool wait_on_empty);
+  /// @brief Allocates the data buffer and ring buffer
+  /// @param data_buffer_size Number of bytes to allocate for the data buffer.
+  /// @param ring_buffer_size Number of bytes to allocate for the ring buffer.
+  /// @return ESP_ERR_NO_MEM if either buffer fails to allocate
+  ///         ESP_OK if successful
+  esp_err_t allocate_buffers_(size_t data_buffer_size, size_t ring_buffer_size);
 
   /// @brief Starts the ESP32 I2S driver.
   /// Attempts to lock the I2S port, starts the I2S driver, and sets the data out pin. If it fails, it will unlock
