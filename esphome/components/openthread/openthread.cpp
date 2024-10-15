@@ -27,7 +27,7 @@ OpenThreadComponent *global_openthread_component = nullptr;
 OpenThreadComponent::OpenThreadComponent() { global_openthread_component = this; }
 
 OpenThreadComponent::~OpenThreadComponent() {
-  auto lock = OpenThreadLockGuard::TryAcquire(100);
+  auto lock = OpenThreadLockGuard::try_acquire(100);
   if (!lock) {
     ESP_LOGW(TAG, "Failed to acquire OpenThread lock in destructor, leaking memory");
     return;
@@ -40,7 +40,7 @@ OpenThreadComponent::~OpenThreadComponent() {
 }
 
 bool OpenThreadComponent::is_connected() {
-  auto lock = OpenThreadLockGuard::TryAcquire(100);
+  auto lock = OpenThreadLockGuard::try_acquire(100);
   if (!lock) {
     ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
     return false;
@@ -59,11 +59,11 @@ bool OpenThreadComponent::is_connected() {
 
 // Gets the off-mesh routable address
 std::optional<otIp6Address> OpenThreadComponent::get_omr_address() {
-  auto lock = OpenThreadLockGuard::Acquire();
-  return this->get_omr_address(lock);
+  auto lock = OpenThreadLockGuard::acquire();
+  return this->get_omr_address_(lock);
 }
 
-std::optional<otIp6Address> OpenThreadComponent::get_omr_address(std::optional<OpenThreadLockGuard> &lock) {
+std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(std::optional<OpenThreadLockGuard> &lock) {
   otNetworkDataIterator iterator = OT_NETWORK_DATA_ITERATOR_INIT;
   otInstance *instance = nullptr;
 
@@ -73,7 +73,7 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address(std::optional<O
   while (otNetDataGetNextOnMeshPrefix(instance, &iterator, &aConfig) != OT_ERROR_NONE) {
     lock.reset();
     vTaskDelay(100);
-    lock = OpenThreadLockGuard::TryAcquire(portMAX_DELAY);
+    lock = OpenThreadLockGuard::try_acquire(portMAX_DELAY);
     if (!lock) {
       ESP_LOGW("OT SRP", "Could not re-acquire lock");
       return {};
@@ -98,20 +98,20 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address(std::optional<O
   return {};
 }
 
-void OpenThreadComponent::srp_setup() {
+void OpenThreadComponent::srp_setup_() {
   otError error;
-  auto lock = OpenThreadLockGuard::Acquire();
+  auto lock = OpenThreadLockGuard::acquire();
   otInstance *instance = lock->get_instance();
 
   // set the host name
   uint16_t size;
   char *existing_host_name = otSrpClientBuffersGetHostNameString(instance, &size);
-  uint16_t len = host_name.size();
+  uint16_t len = this->host_name_.size();
   if (len > size) {
     ESP_LOGW("OT SRP", "Hostname is too long, choose a shorter project name");
     return;
   }
-  memcpy(existing_host_name, host_name.c_str(), len + 1);
+  memcpy(existing_host_name, this->host_name_.c_str(), len + 1);
 
   error = otSrpClientSetHostName(instance, existing_host_name);
   if (error != 0) {
@@ -122,7 +122,7 @@ void OpenThreadComponent::srp_setup() {
   uint8_t arrayLength;
   otIp6Address *hostAddressArray = otSrpClientBuffersGetHostAddressesArray(instance, &arrayLength);
 
-  const std::optional<otIp6Address> localIp = this->get_omr_address(lock);
+  const std::optional<otIp6Address> localIp = this->get_omr_address_(lock);
   if (!localIp) {
     ESP_LOGW("OT SRP", "Could not get local IP address");
     return;
@@ -156,17 +156,17 @@ void OpenThreadComponent::srp_setup() {
 
     // Set instance name (using host_name)
     string = otSrpClientBuffersGetServiceEntryInstanceNameString(entry, &size);
-    if (this->host_name.size() > size) {
-      ESP_LOGW("OT SRP", "Instance name too long: %s", this->host_name.c_str());
+    if (this->host_name_.size() > size) {
+      ESP_LOGW("OT SRP", "Instance name too long: %s", this->host_name_.c_str());
       continue;
     }
-    memcpy(string, this->host_name.c_str(), this->host_name.size() + 1);
+    memcpy(string, this->host_name_.c_str(), this->host_name_.size() + 1);
 
     // Set port
     entry->mService.mPort = service.port;
 
     otDnsTxtEntry *mTxtEntries =
-        reinterpret_cast<otDnsTxtEntry *>(this->pool_alloc(sizeof(otDnsTxtEntry) * service.txt_records.size()));
+        reinterpret_cast<otDnsTxtEntry *>(this->pool_alloc_(sizeof(otDnsTxtEntry) * service.txt_records.size()));
     // Set TXT records
     entry->mService.mNumTxtEntries = service.txt_records.size();
     for (size_t i = 0; i < service.txt_records.size(); i++) {
@@ -188,15 +188,15 @@ void OpenThreadComponent::srp_setup() {
   otSrpClientEnableAutoStartMode(instance, nullptr, nullptr);
 }
 
-void *OpenThreadComponent::pool_alloc(size_t size) {
+void *OpenThreadComponent::pool_alloc_(size_t size) {
   uint8_t *ptr = new uint8_t[size];
   if (ptr) {
-    this->_memory_pool.emplace_back(std::unique_ptr<uint8_t[]>(ptr));
+    this->memory_pool_.emplace_back(std::unique_ptr<uint8_t[]>(ptr));
   }
   return ptr;
 }
 
-void OpenThreadComponent::set_host_name(std::string host_name) { this->host_name = host_name; }
+void OpenThreadComponent::set_host_name(std::string host_name) { this->host_name_ = host_name; }
 
 void OpenThreadComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 
