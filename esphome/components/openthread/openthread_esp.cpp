@@ -45,14 +45,14 @@ void OpenThreadComponent::setup() {
   xTaskCreate(
       [](void *arg) {
         static_cast<OpenThreadComponent *>(arg)->ot_main();
-        vTaskDelete(NULL);
+        vTaskDelete(nullptr);
       },
       "ot_main", 10240, this, 5, nullptr);
 
   xTaskCreate(
       [](void *arg) {
-        static_cast<OpenThreadComponent *>(arg)->srp_setup();
-        vTaskDelete(NULL);
+        static_cast<OpenThreadComponent *>(arg)->srp_setup_();
+        vTaskDelete(nullptr);
       },
       "ot_srp_setup", 10240, this, 5, nullptr);
 
@@ -62,7 +62,7 @@ void OpenThreadComponent::setup() {
 static esp_netif_t *init_openthread_netif(const esp_openthread_platform_config_t *config) {
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_OPENTHREAD();
   esp_netif_t *netif = esp_netif_new(&cfg);
-  assert(netif != NULL);
+  assert(netif != nullptr);
   ESP_ERROR_CHECK(esp_netif_attach(netif, esp_openthread_netif_glue_init(config)));
 
   return netif;
@@ -149,14 +149,14 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   return addresses;
 }
 
-std::optional<OpenThreadLockGuard> OpenThreadLockGuard::TryAcquire(int delay) {
+std::optional<OpenThreadLockGuard> OpenThreadLockGuard::try_acquire(int delay) {
   if (esp_openthread_lock_acquire(delay)) {
     return OpenThreadLockGuard();
   }
   return {};
 }
 
-std::optional<OpenThreadLockGuard> OpenThreadLockGuard::Acquire() {
+std::optional<OpenThreadLockGuard> OpenThreadLockGuard::acquire() {
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }

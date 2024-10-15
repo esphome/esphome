@@ -31,25 +31,25 @@ class OpenThreadComponent : public Component {
   void ot_main();
 
  protected:
-  void srp_setup();
-  std::optional<otIp6Address> get_omr_address(std::optional<OpenThreadLockGuard> &lock);
-  std::string host_name;
-  void *pool_alloc(size_t size);
+  void srp_setup_();
+  std::optional<otIp6Address> get_omr_address_(std::optional<OpenThreadLockGuard> &lock);
+  std::string host_name_;
+  void *pool_alloc_(size_t size);
 
  private:
   // void platform_init();
 
   esphome::mdns::MDNSComponent *mdns_{nullptr};
   std::vector<esphome::mdns::MDNSService> mdns_services_;
-  std::vector<std::unique_ptr<uint8_t[]>> _memory_pool;
+  std::vector<std::unique_ptr<uint8_t[]>> memory_pool_;
 };
 
 extern OpenThreadComponent *global_openthread_component;
 
 class OpenThreadLockGuard {
  public:
-  static std::optional<OpenThreadLockGuard> TryAcquire(int delay);
-  static std::optional<OpenThreadLockGuard> Acquire();
+  static std::optional<OpenThreadLockGuard> try_acquire(int delay);
+  static std::optional<OpenThreadLockGuard> acquire();
   ~OpenThreadLockGuard();
 
   // Returns the global openthread instance guarded by this lock
