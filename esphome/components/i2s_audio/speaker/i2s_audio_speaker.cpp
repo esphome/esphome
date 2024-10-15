@@ -397,7 +397,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_() {
 #endif
   };
 #if SOC_I2S_SUPPORTS_DAC
-  if (this_speaker->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
+  if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
     config.mode = (i2s_mode_t) (config.mode | I2S_MODE_DAC_BUILT_IN);
   }
 #endif
@@ -410,7 +410,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_() {
   }
 
 #if SOC_I2S_SUPPORTS_DAC
-  if (this_speaker->internal_dac_mode_ == I2S_DAC_CHANNEL_DISABLE) {
+  if (this->internal_dac_mode_ == I2S_DAC_CHANNEL_DISABLE) {
 #endif
     i2s_pin_config_t pin_config = this->parent_->get_pin_config();
     pin_config.data_out_num = this->dout_pin_;
