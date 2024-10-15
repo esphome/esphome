@@ -6,7 +6,7 @@
 
 #include <freertos/FreeRTOS.h>
 
-#include "esphome/core/audio.h"
+#include "esphome/components/audio/audio.h"
 
 namespace esphome {
 namespace speaker {
@@ -56,11 +56,13 @@ class Speaker {
   virtual void set_volume(float volume) { this->volume_ = volume; };
   virtual float get_volume() { return this->volume_; }
 
-  void set_audio_stream_info(const AudioStreamInfo &audio_stream_info) { this->audio_stream_info_ = audio_stream_info; }
+  void set_audio_stream_info(const audio::AudioStreamInfo &audio_stream_info) {
+    this->audio_stream_info_ = audio_stream_info;
+  }
 
  protected:
   State state_{STATE_STOPPED};
-  AudioStreamInfo audio_stream_info_;
+  audio::AudioStreamInfo audio_stream_info_;
   float volume_{1.0f};
 };
 

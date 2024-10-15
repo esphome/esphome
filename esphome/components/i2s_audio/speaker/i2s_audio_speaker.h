@@ -9,9 +9,9 @@
 #include <freertos/event_groups.h>
 #include <freertos/FreeRTOS.h>
 
+#include "esphome/components/audio/audio.h"
 #include "esphome/components/speaker/speaker.h"
 
-#include "esphome/core/audio.h"
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
@@ -93,7 +93,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   ///           the audio settings are incompatible with the configuration.
   ///         ESP_ERR_NO_MEM if the driver fails to reconfigure due to a memory allocation error.
   ///         ESP_OK if successful.
-  esp_err_t reconfigure_i2s_stream_info_(AudioStreamInfo &audio_stream_info);
+  esp_err_t reconfigure_i2s_stream_info_(audio::AudioStreamInfo &audio_stream_info);
 
   /// @brief Deletes the speaker's task.
   /// Deallocates the data_buffer_ and audio_ring_buffer_, if necessary, and deletes the task. Should only be called by

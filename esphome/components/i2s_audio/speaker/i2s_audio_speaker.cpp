@@ -4,7 +4,8 @@
 
 #include <driver/i2s.h>
 
-#include "esphome/core/audio.h"
+#include "esphome/components/audio/audio.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -221,7 +222,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
   xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::STATE_STARTING);
 
-  AudioStreamInfo audio_stream_info = this_speaker->audio_stream_info_;
+  audio::AudioStreamInfo audio_stream_info = this_speaker->audio_stream_info_;
   const ssize_t bytes_per_sample = audio_stream_info.get_bytes_per_sample();
   const uint8_t number_of_channels = audio_stream_info.channels;
 
@@ -398,7 +399,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_() {
   return err;
 }
 
-esp_err_t I2SAudioSpeaker::reconfigure_i2s_stream_info_(AudioStreamInfo &audio_stream_info) {
+esp_err_t I2SAudioSpeaker::reconfigure_i2s_stream_info_(audio::AudioStreamInfo &audio_stream_info) {
   if (this->i2s_mode_ & I2S_MODE_MASTER) {
     // ESP controls for the the I2S bus, so adjust the sample rate and bits per sample to match the incoming audio
     this->sample_rate_ = audio_stream_info.sample_rate;
