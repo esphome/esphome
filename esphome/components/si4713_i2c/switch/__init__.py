@@ -18,9 +18,14 @@ from .. import (
     ICON_FORMAT_TEXT,
 )
 
+CONF_GPIO1="gpio1"
+CONF_GPIO2="gpio2"
+CONF_GPIO3="gpio3"
+
 MuteSwitch = si4713_ns.class_("MuteSwitch", switch.Switch)
 MonoSwitch = si4713_ns.class_("MonoSwitch", switch.Switch)
 RDSEnableSwitch = si4713_ns.class_("RDSEnableSwitch", switch.Switch)
+GPIOSwitch = si4713_ns.class_("GPIOSwitch", switch.Switch)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -43,6 +48,24 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_FORMAT_TEXT,
         ),
+        cv.Optional(CONF_GPIO1): switch.switch_schema(
+            GPIOSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            # icon=,
+        ),
+        cv.Optional(CONF_GPIO2): switch.switch_schema(
+            GPIOSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            # icon=,
+        ),
+        cv.Optional(CONF_GPIO3): switch.switch_schema(
+            GPIOSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            # icon=,
+        ),
     }
 )
 
@@ -52,6 +75,7 @@ async def new_switch(config, id, setter):
         s = await switch.new_switch(c)
         await cg.register_parented(s, config[CONF_SI4713_ID])
         cg.add(setter(s))
+        return s
 
 
 async def to_code(config):
@@ -59,3 +83,9 @@ async def to_code(config):
     await new_switch(config, CONF_MUTE, c.set_mute_switch)
     await new_switch(config, CONF_MONO, c.set_mono_switch)
     await new_switch(config, CONF_RDS_ENABLE, c.set_rds_enable_switch)
+    s = await new_switch(config, CONF_GPIO1, c.set_gpio1_switch)
+    s.set_pin(1)
+    s = await new_switch(config, CONF_GPIO2, c.set_gpio2_switch)
+    s.set_pin(2)
+    s = await new_switch(config, CONF_GPIO3, c.set_gpio3_switch)
+    s.set_pin(3)

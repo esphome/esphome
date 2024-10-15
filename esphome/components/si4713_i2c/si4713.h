@@ -29,6 +29,7 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   std::string chip_id_;
   InternalGPIOPin *reset_pin_;
   bool reset_;
+  bool gpio_[3];
   /*
     union {
       struct Si4713State state_;
@@ -63,13 +64,6 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
     return false;
   }
 
-  bool power_up();
-  bool power_down();
-  bool detect_chip_id();
-  bool tune_power(uint8_t power = 0, uint8_t antcap = 0);
-  bool tune_freq(uint16_t freq);
-  bool tune_ready();
-
   std::string rds_station_;
   std::string rds_text_;
   uint8_t rds_station_pos_;
@@ -87,7 +81,9 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SWITCH(rds_enable)
   SUB_TEXT(rds_station)
   SUB_TEXT(rds_text)
-  // TODO: GPIO switches
+  SUB_SWITCH(gpio1)
+  SUB_SWITCH(gpio2)
+  SUB_SWITCH(gpio3)
 
   void publish_();
   void publish_chip_id();
@@ -97,6 +93,7 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   void publish_rds_enable();
   void publish_rds_station();
   void publish_rds_text();
+  void publish_gpio(uint8_t pin);
   void publish(sensor::Sensor *s, float state);
   void publish(text_sensor::TextSensor *s, const std::string &state);
   void publish(number::Number *n, float state);
@@ -113,6 +110,14 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void loop() override;
 
+  bool reset();
+  bool power_up();
+  bool power_down();
+  bool detect_chip_id();
+  bool tune_freq(uint16_t freq);
+  bool tune_power(uint8_t power = 0, uint8_t antcap = 0);
+  bool tune_wait();
+
   void set_reset_pin(InternalGPIOPin *pin);
   void set_frequency(float value);
   float get_frequency();
@@ -124,6 +129,8 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   bool get_rds_enable();
   void set_rds_station(const std::string &value);
   void set_rds_text(const std::string &value);
+  void set_gpio(uint8_t pin, bool value);
+  bool get_gpio(uint8_t pin);
 };
 
 }  // namespace si4713

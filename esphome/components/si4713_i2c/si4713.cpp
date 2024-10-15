@@ -15,6 +15,7 @@ static const char *const TAG = "si4713";
 Si4713Component::Si4713Component() {
   this->reset_pin_ = nullptr;
   this->reset_ = false;
+  memset(this->gpio_, 0, sizeof(gpio_));
   // memset(&this->state_, 0, sizeof(this->state_));
   this->rds_station_pos_ = 0;
   this->rds_text_pos_ = 0;
@@ -22,45 +23,7 @@ Si4713Component::Si4713Component() {
   // our defaults
   //  this->state_. = ;     // start with tx enabled
 }
-/*
-void Si4713Component::write_reg_(uint8_t addr) {
-  switch (addr) {
-    case 0x00: // REG_..
-      break;
-    default:
-      ESP_LOGE(TAG, "write_reg_(0x%02X) invalid register address", addr);
-      return;
-  }
 
-  if (this->reset_) {
-    uint8_t value = this->regs_[addr];
-    ESP_LOGV(TAG, "write_reg_(0x%02X) = 0x%02X", addr, value);
-    this->write_byte(addr, value);
-  } else {
-    if (this->get_component_state() & COMPONENT_STATE_LOOP) {
-      ESP_LOGE(TAG, "write_reg_(0x%02X) device was not reset", addr);
-    }
-  }
-}
-
-bool Si4713Component::read_reg_(uint8_t addr) {
-  switch (addr) {
-    case 0x00: // REG_..
-      break;
-    default:
-      ESP_LOGE(TAG, "read_reg_(0x%02X) trying to read invalid register", addr);
-      return false;
-  }
-
-  if (auto b = this->read_byte(addr)) {
-    this->regs_[addr] = *b;
-    return true;
-  }
-
-  ESP_LOGE(TAG, "read_reg_(0x%02X) cannot read register", addr);
-  return false;
-}
-*/
 bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size_t res_size) {
   const uint8_t *buff = (const uint8_t *) cmd;
 
@@ -74,7 +37,7 @@ bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size
   i2c::ErrorCode err = this->write(buff, cmd_size);
   if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "send_cmd(0x%02X, %d) write error", buff[0], cmd_size);
-    this->mark_failed();
+    // this->mark_failed();
     return false;
   }
 
@@ -83,7 +46,7 @@ bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size
     err = this->read(&status, 1);  // TODO: read res_size into res here?
     if (err != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "send_cmd(0x%02X, %d) read status error", buff[0], cmd_size);
-      this->mark_failed();
+      // this->mark_failed();
       return false;
     }
   }
@@ -93,75 +56,11 @@ bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size
     err = this->read((uint8_t *) res, res_size);
     if (err != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "send_cmd(0x%02X, %d) read response error", buff[0], cmd_size);
-      this->mark_failed();
+      // this->mark_failed();
       return false;
     }
   }
 
-  return true;
-}
-
-bool Si4713Component::power_up() {
-  // Note: In FMTX component 1.0 and 2.0, a reset is required when the system controller writes a command other than
-  // POWER_UP when in powerdown mode
-  this->reset_pin_->digital_write(true);
-  delay_microseconds_safe(10);
-  this->reset_pin_->digital_write(false);
-  delay_microseconds_safe(10);
-  this->reset_pin_->digital_write(true);
-
-  CmdPowerUp cmd;
-  cmd.FUNC = 2;
-  cmd.XOSCEN = 1;     // TODO: external oscillator
-  cmd.OPMODE = 0x50;  // TODO: digital
-  cmd.GPO2OEN = 0;    // TODO: GPIO2 enable
-  return this->send_cmd(cmd);
-}
-
-bool Si4713Component::power_down() { return this->send_cmd(CmdPowerDown()); }
-
-bool Si4713Component::detect_chip_id() {
-  ResGetRev res;
-  if (!this->send_cmd(CmdGetRev(), res)) {
-    return false;
-  }
-
-  char buff[32] = {0};
-  snprintf(buff, sizeof(buff), "Si47%02d Rev %d", res.PN, res.CHIPREV);
-  this->chip_id_ = buff;
-
-  // TODO: support all transmitters 10/11/12/13/20/21
-
-  if (res.PN != 10 && res.PN != 11 && res.PN != 12 && res.PN != 13) {
-    ESP_LOGE(TAG, "Si47%02d is not supported", res.PN);
-    this->mark_failed();
-    return false;
-  }
-
-  return true;
-}
-
-bool Si4713Component::tune_power(uint8_t power, uint8_t antcap) {
-  if (!this->send_cmd(CmdTxTunePower(power, antcap))) {
-    return false;
-  }
-  return this->tune_ready();
-}
-
-bool Si4713Component::tune_freq(uint16_t freq) {
-  if (!this->send_cmd(CmdTxTuneFreq(freq))) {
-    return false;
-  }
-  return this->tune_ready();
-}
-
-bool Si4713Component::tune_ready() {
-  ResGetIntStatus res;
-  while (res.CTS != 1 || res.STCINT != 1) {
-    if (!this->send_cmd(CmdGetIntStatus(), res)) {
-      return false;
-    }
-  }
   return true;
 }
 
@@ -170,43 +69,126 @@ void Si4713Component::rds_update_() {}
 // overrides
 
 void Si4713Component::setup() {
-  if (this->reset_pin_ == nullptr) {
-    ESP_LOGE(TAG, "setup cannot reset device, reset pin is not set");
+  // CHIP STATE: POWER DOWN
+
+  if (!this->power_up()) {
     this->mark_failed();
     return;
   }
 
-  // reset
-
-  this->reset_ = true;
-  this->reset_pin_->setup();
-
-  if (!this->power_up()) {
-    return;
-  }
-
   if (!this->detect_chip_id()) {
+    this->mark_failed();
     return;
   }
 
+  // CHIP STATE: POWER UP
+
+  uint16_t pilot = 1;
+  uint16_t stereo = 1;
+  uint16_t rds = 0;
+  uint16_t fmpe = 1;
+  uint16_t acen = 0;
+  uint16_t limiter = 1;
+  uint16_t digital = 0;
+
+  // Use GPO?
+
+  // Set RCLK settings
   this->set_prop(PropRefClkFreq(32768));
-  this->set_prop(PropTxPreEmphasis());
-  /*
-    // configuration! see page 254
-    setProperty(SI4713_PROP_REFCLK_FREQ, 32768); // crystal is 32.768
-    setProperty(SI4713_PROP_TX_PREEMPHASIS, 0);  // 74uS pre-emph (USA std)
-    setProperty(SI4713_PROP_TX_ACOMP_GAIN, 10);  // max gain?
-    // setProperty(SI4713_PROP_TX_ACOMP_ENABLE, 0x02); // turn on limiter, but no
-    // dynamic ranging
-    setProperty(SI4713_PROP_TX_ACOMP_ENABLE, 0x0); // turn on limiter and AGC
-  */
+  this->set_prop(PropRefClkPreScale(1, 0));  // div1, RCLK source
 
-  // TODO: set properties
+  // Mono/Stereo?
+  this->set_prop(PropTxPilotFrequency(19000));
+  this->set_prop(PropTxPilotDeviation(675));
+  this->set_prop(PropTxComponentEnable(pilot, stereo, rds));
 
-  this->tune_power(115);
+  // Set Audio Deviation
+  this->set_prop(PropTxAudioDeviation(6825));
+
+  // Transmit RDS?
+  // this->set_prop(PropTxRdsDeviation(200));
+  // if(rds) PropTxRds*
+  // if(rds) CmdTxRdsPs
+  // if(rds) CmdTxRdsBuff
+
+  // Preemphasis?
+  this->set_prop(PropTxPreEmphasis(fmpe));
+  this->set_prop(PropTxAcompEnable(acen, limiter));
+
+  // Compressor?
+  if (acen) {
+    // minimal compression
+    this->set_prop(PropTxAcompThreshold(-40));  // -40dBFS
+    this->set_prop(PropTxAcompAttackTime(0));   // 5ms
+    this->set_prop(PropTxAcompReleaseTime(0));  // 100ms
+    this->set_prop(PropTxAcompGain(15));        // 15dB
+    // aggressive compression
+    // this->set_prop(PropTxAcompThreshold(-15)); // -15dBFS
+    // this->set_prop(PropTxAcompAttackTime(9)); // 0.5ms
+    // this->set_prop(PropTxAcompReleaseTime(4)); // 1000ms
+    // this->set_prop(PropTxAcompGain(5)); // 5dB
+  }
+
+  // Limiter?
+  if (limiter) {
+    this->set_prop(PropTxLimiterReleaseTime(102));  // 5.01 ms
+  }
+
   this->tune_freq(8750);
+  this->tune_power(115);
 
-  //
+  // CHIP STATE: TRANSMITTING
+
+  if (digital) {
+    // Digital Audio Input?
+    this->set_prop(PropDigitalInputFormat(0, 0, 1, 0));  // 16-bit, stereo, I2S mode, rising edge
+    this->set_prop(PropDigitalInputSampleRate(44100));
+  } else {
+    // Analog Audio Input?
+    this->set_prop(PropTxLineInputLevel(636, 3));  // 636 mvPK, 60 kOhm
+  }
+
+  // Mute?
+  this->set_prop(PropTxLineInputMute(0, 0));  // left no mute, right no mute
+  // Optional: Mute or Unmute Audio based on ASQ status
+
+  // Enable GPIO1, GPIO2
+  // TOOD:
+  // output:
+  // - platform: si4713
+  //   pin: 1/2
+  //   ...
+  this->send_cmd(CmdGpioCtl(1, 1));
+  /*
+    this->set_interval(3000, [this]() {
+      static uint8_t gpio1 = 0, gpio2 = 0;
+      this->send_cmd(CmdGpioSet(gpio1++ & 1, gpio2++ & 1));
+    });
+  */
+  this->set_interval(3000, [this]() {
+    ResTxTuneStatus res;
+    if (this->send_cmd(CmdTxTuneStatus(), res)) {
+      ESP_LOGD(TAG, "ResTxTuneStatus FREQ %d RFdBuV %d ANTCAP %d NL %d", (res.READFREQH << 8) | res.READFREQL,
+               res.READRFdBuV, res.READANTCAP, res.RNL);
+    }
+  });
+
+  // Monitor Audio Signal Quality (ASQ)?
+  // TODO: PropTxAsqInterruptSource
+  // TODO: PropTxAsqLevelLow
+  // TODO: PropTxAsqDurationLow
+  // TODO: PropTxAsqLevelHigh
+  // TODO: PropTxAsqDurationHigh
+
+  this->set_interval(3000, [this]() {
+    ResTxAsqStatus res;
+    if (this->send_cmd(CmdTxAsqStatus(), res)) {
+      ESP_LOGD(TAG, "ResTxAsqStatus OVERMOD %d IALH %d IALL %d INLEVEL %d", res.OVERMOD, res.IALH, res.IALL,
+               res.INLEVEL);
+    }
+  });
+
+  // TODO
 
   this->publish_frequency();
   this->publish_mute();
@@ -214,6 +196,9 @@ void Si4713Component::setup() {
   this->publish_rds_enable();
   this->publish_rds_station();
   this->publish_rds_text();
+  this->publish_gpio(0);
+  this->publish_gpio(1);
+  this->publish_gpio(2);
 
   this->set_interval(1000, [this]() { this->rds_update_(); });
 }
@@ -243,6 +228,94 @@ void Si4713Component::update() {
 }
 
 void Si4713Component::loop() {}
+
+//
+
+bool Si4713Component::reset() {
+  if (this->reset_pin_ == nullptr) {
+    ESP_LOGE(TAG, "cannot reset device, reset pin is not set");
+    return false;
+  }
+
+  if (!this->reset_) {
+    this->reset_pin_->setup();
+  }
+
+  this->reset_pin_->digital_write(true);
+  delay_microseconds_safe(10);
+  this->reset_pin_->digital_write(false);
+  delay_microseconds_safe(10);
+  this->reset_pin_->digital_write(true);
+
+  this->reset_ = true;
+
+  return true;
+}
+
+bool Si4713Component::power_up() {
+  // Note: In FMTX component 1.0 and 2.0, a reset is required when the system
+  // controller writes a command other than POWER_UP when in powerdown mode
+  this->reset();
+
+  CmdPowerUp cmd;
+  cmd.FUNC = 2;
+  cmd.XOSCEN = 1;     // TODO: external oscillator
+  cmd.OPMODE = 0x50;  // TODO: digital
+  cmd.GPO2OEN = 0;    // TODO: GPIO2 enable
+  return this->send_cmd(cmd);
+}
+
+bool Si4713Component::power_down() { return this->send_cmd(CmdPowerDown()); }
+
+bool Si4713Component::detect_chip_id() {
+  ResGetRev res;
+  if (!this->send_cmd(CmdGetRev(), res)) {
+    return false;
+  }
+
+  char buff[32] = {0};
+  snprintf(buff, sizeof(buff), "Si47%02d Rev %d", res.PN, res.CHIPREV);
+  this->chip_id_ = buff;
+
+  // TODO: support all transmitters 10/11/12/13/20/21
+
+  if (res.PN != 10 && res.PN != 11 && res.PN != 12 && res.PN != 13) {
+    ESP_LOGE(TAG, "Si47%02d is not supported", res.PN);
+    return false;
+  }
+
+  return true;
+}
+
+bool Si4713Component::tune_freq(uint16_t freq) {
+  if (!this->send_cmd(CmdTxTuneFreq(freq))) {
+    return false;
+  }
+  return this->tune_wait();
+}
+
+bool Si4713Component::tune_power(uint8_t power, uint8_t antcap) {
+  if (!this->send_cmd(CmdTxTunePower(power, antcap))) {
+    return false;
+  }
+  return this->tune_wait();
+}
+
+bool Si4713Component::tune_wait() {
+  ResGetIntStatus res;
+  while (res.CTS != 1 || res.STCINT != 1) {
+    if (!this->send_cmd(CmdGetIntStatus(), res)) {
+      return false;
+    }
+  }
+
+  ResTxTuneStatus res2;  // TODO: maybe store this as the last tune result and report it through sensors
+  if (!this->send_cmd(CmdTxTuneStatus(), res2)) {
+    return false;
+  }
+
+  return true;
+}
 
 // config
 
@@ -326,6 +399,26 @@ void Si4713Component::set_rds_text(const std::string &value) {
   this->publish_rds_text();
 }
 
+void Si4713Component::set_gpio(uint8_t pin, bool value) {
+  if (pin > 2) {
+    ESP_LOGE(TAG, "set_gpio(%d, %d) invalid pin number, 0 to 2", pin, value ? 1 : 0);
+    return;
+  }
+  ESP_LOGD(TAG, "set_gpio(%d, %d)", pin, value ? 1 : 0);
+  this->gpio_[pin] = value ? 1 : 0;
+  this->send_cmd(CmdGpioCtl(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
+
+  this->publish_gpio(pin);
+}
+
+bool Si4713Component::get_gpio(uint8_t pin) {
+  if (pin > 2) {
+    ESP_LOGE(TAG, "get_gpio(%d) invalid pin number, 0 to 2", pin);
+    return false;
+  }
+  return this->gpio_[pin];
+}
+
 // publish
 
 void Si4713Component::publish_() {
@@ -345,6 +438,22 @@ void Si4713Component::publish_rds_enable() { this->publish(this->rds_enable_swit
 void Si4713Component::publish_rds_station() { this->publish(this->rds_station_text_, this->rds_station_); }
 
 void Si4713Component::publish_rds_text() { this->publish(this->rds_text_text_, this->rds_text_); }
+
+void Si4713Component::publish_gpio(uint8_t pin) {
+  switch (pin) {
+    case 0:
+      this->publish(this->gpio1_switch_, this->gpio_[pin]);
+      break;
+    case 1:
+      this->publish(this->gpio2_switch_, this->gpio_[pin]);
+      break;
+    case 2:
+      this->publish(this->gpio3_switch_, this->gpio_[pin]);
+      break;
+    default:
+      return;
+  }
+}
 
 void Si4713Component::publish(text_sensor::TextSensor *s, const std::string &state) {
   if (s != nullptr) {

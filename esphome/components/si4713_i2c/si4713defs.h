@@ -164,26 +164,23 @@ struct ResBase {
 
 struct CmdPowerUp : CmdBase {
   union {
-    uint8_t ARG1;
+    uint8_t ARG[2];
     struct {
+      // ARG1
       uint8_t FUNC : 4;     // Function (2 transmit, 15 query library)
       uint8_t XOSCEN : 1;   // Crystal Oscillator Enable
       uint8_t PATCH : 1;    // Patch Enable
       uint8_t GPO2OEN : 1;  // GPO2 Output Enable
       uint8_t CTSIEN : 1;   // CTS Interrupt Enable
-    };
-  };
-  union {
-    uint8_t ARG2;
-    struct {
-      uint8_t OPMODE : 8;  // Application Setting (0x50 analog, 0x0F digital)
+      // ARG2
+      uint8_t OPMODE;  // Application Setting (0x50 analog, 0x0F digital)
     };
   };
 
   CmdPowerUp() {
     this->CMD = CmdType::POWER_UP;
-    this->ARG1 = 0;
-    this->ARG1 = 0;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
   }
 };
 
@@ -191,35 +188,22 @@ struct ResPowerUpTX : ResBase {};
 
 struct ResPowerUpQueryLibrary : ResBase {
   union {
-    uint8_t RESP1;
+    uint8_t RESP[7];
     struct {
-      uint8_t PN : 8;  // Final 2 digits of part number
-    };
-  };
-  union {
-    uint8_t RESP2;
-    struct {
-      uint8_t FWMAJOR : 8;  // Firmware Major Revision
-    };
-  };
-  union {
-    uint8_t RESP3;
-    struct {
-      uint8_t FWMINOR : 8;  // Firmware Minor Revision
-    };
-  };
-  uint8_t RESP4;  // Reserved
-  uint8_t RESP5;  // Reserved
-  union {
-    uint8_t RESP6;
-    struct {
-      uint8_t CHIPREV : 8;  // Chip Revision
-    };
-  };
-  union {
-    uint8_t RESP7;
-    struct {
-      uint8_t LIBRARYID : 8;  // Library Revision
+      // RESP1
+      uint8_t PN;  // Final 2 digits of part number
+      // RESP2
+      uint8_t FWMAJOR;  // Firmware Major Revision
+      // RESP3
+      uint8_t FWMINOR;  // Firmware Minor Revision
+      // RESP4
+      uint8_t : 8;
+      // RESP5
+      uint8_t : 8;
+      // RESP6
+      uint8_t CHIPREV;  // Chip Revision
+      // RESP7
+      uint8_t LIBRARYID;  // Library Revision
     };
   };
 };
@@ -230,51 +214,24 @@ struct CmdGetRev : CmdBase {
 
 struct ResGetRev : ResBase {
   union {
-    uint8_t RESP1;
+    uint8_t RESP[8];
     struct {
-      uint8_t PN : 8;  // Final 2 digits of part number
-    };
-  };
-  union {
-    uint8_t RESP2;
-    struct {
-      uint8_t FWMAJOR : 8;  // Firmware Major Revision
-    };
-  };
-  union {
-    uint8_t RESP3;
-    struct {
-      uint8_t FWMINOR : 8;  // Firmware Minor Revision
-    };
-  };
-  union {
-    uint8_t RESP4;
-    struct {
-      uint8_t PATCHH : 8;  // Patch ID High Byte
-    };
-  };
-  union {
-    uint8_t RESP5;
-    struct {
-      uint8_t PATCHL : 8;  // Patch ID Low Byte
-    };
-  };
-  union {
-    uint8_t RESP6;
-    struct {
-      uint8_t CMPMAJOR : 8;  // Component Major Revision
-    };
-  };
-  union {
-    uint8_t RESP7;
-    struct {
-      uint8_t CMPMINOR : 8;  // Component Minor Revision
-    };
-  };
-  union {
-    uint8_t RESP8;
-    struct {
-      uint8_t CHIPREV : 8;  // Chip Revision
+      // RESP1
+      uint8_t PN;  // Final 2 digits of part number
+      // RESP2
+      uint8_t FWMAJOR;  // Firmware Major Revision
+      // RESP3
+      uint8_t FWMINOR;  // Firmware Minor Revision
+      // RESP4
+      uint8_t PATCHH;  // Patch ID High Byte
+      // RESP5
+      uint8_t PATCHL;  // Patch ID Low Byte
+      // RESP6
+      uint8_t CMPMAJOR;  // Component Major Revision
+      // RESP7
+      uint8_t CMPMINOR;  // Component Minor Revision
+      // RESP8
+      uint8_t CHIPREV;  // Chip Revision
     };
   };
 };
@@ -286,99 +243,85 @@ struct CmdPowerDown : CmdBase {
 struct ResPowerDown : ResBase {};
 
 struct CmdSetProperty : CmdBase {
-  uint8_t ARG1;  // zero
   union {
-    uint8_t ARG2;
+    uint8_t ARG[5];
     struct {
-      uint8_t PROPH : 8;
-    };
-  };
-  union {
-    uint8_t ARG3;
-    struct {
-      uint8_t PROPL : 8;
-    };
-  };
-  union {
-    uint8_t ARG4;
-    struct {
-      uint8_t PROPDH : 8;
-    };
-  };
-  union {
-    uint8_t ARG5;
-    struct {
-      uint8_t PROPDL : 8;
+      // ARG1
+      uint8_t : 8;  // zero
+      // ARG2
+      uint8_t PROPH;
+      // ARG3
+      uint8_t PROPL;
+      // ARG4
+      uint8_t PROPDH;
+      // ARG5
+      uint8_t PROPDL;
     };
   };
 
   CmdSetProperty() {
     this->CMD = CmdType::SET_PROPERTY;
-    this->ARG1 = 0;
-    this->ARG2 = 0;
-    this->ARG3 = 0;
-    this->ARG4 = 0;
-    this->ARG5 = 0;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
+    this->ARG[2] = 0;
+    this->ARG[3] = 0;
+    this->ARG[4] = 0;
   }
 
   CmdSetProperty(PropType prop, uint16_t value) {
     this->CMD = CmdType::SET_PROPERTY;
-    this->ARG1 = 0;
-    this->ARG2 = ((uint16_t) prop) >> 8;
-    this->ARG3 = ((uint16_t) prop) & 0xff;
-    this->ARG4 = value >> 8;
-    this->ARG5 = value & 0xff;
+    this->ARG[0] = 0;
+    this->ARG[1] = ((uint16_t) prop) >> 8;
+    this->ARG[2] = ((uint16_t) prop) & 0xff;
+    this->ARG[3] = value >> 8;
+    this->ARG[4] = value & 0xff;
   }
 };
 
 struct ResSetProperty : ResBase {};
 
 struct CmdGetProperty : CmdBase {
-  uint8_t ARG1;  // zero
   union {
-    uint8_t ARG2;
+    uint8_t ARG[3];
     struct {
-      uint8_t PROPH : 8;
-    };
-  };
-  union {
-    uint8_t ARG3;
-    struct {
-      uint8_t PROPL : 8;
+      // ARG1
+      uint8_t : 8;  // zero
+      // ARG2
+      uint8_t PROPH;
+      // ARG3
+      uint8_t PROPL;
     };
   };
 
   CmdGetProperty() {
     this->CMD = CmdType::GET_PROPERTY;
-    this->ARG1 = 0;
-    this->ARG2 = 0;
-    this->ARG3 = 0;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
+    this->ARG[2] = 0;
   }
 
   CmdGetProperty(PropType prop) {
     this->CMD = CmdType::GET_PROPERTY;
-    this->ARG1 = 0;
-    this->ARG2 = (uint16_t) prop >> 8;
-    this->ARG3 = (uint16_t) prop & 0xff;
+    this->ARG[0] = 0;
+    this->ARG[1] = (uint16_t) prop >> 8;
+    this->ARG[2] = (uint16_t) prop & 0xff;
   }
 };
 
 struct ResGetProperty : ResBase {
-  uint8_t RESP1;  // zero
   union {
-    uint8_t RESP2;
+    uint8_t RESP[3];
     struct {
-      uint8_t PROPDH : 8;  // Property Get High Byte
-    };
-  };
-  union {
-    uint8_t RESP3;
-    struct {
-      uint8_t PROPDL : 8;  // Property Get Low Byte
+      // RESP1
+      uint8_t : 8;  // zero
+      // RESP2
+      uint8_t PROPDH;  // Property Get High Byte
+      // RESP3
+      uint8_t PROPDL;  // Property Get Low Byte
     };
   };
 
-  operator uint16_t() const { return ((uint16_t) PROPDH << 8) | PROPDL; }
+  operator uint16_t() const { return ((uint16_t) this->PROPDH << 8) | this->PROPDL; }
 };
 
 struct CmdGetIntStatus : CmdBase {
@@ -388,280 +331,226 @@ struct CmdGetIntStatus : CmdBase {
 struct ResGetIntStatus : ResBase {};
 
 struct CmdTxTuneFreq : CmdBase {
-  uint8_t ARG1;  // zero
   union {
-    uint8_t ARG2;
+    uint8_t ARG[3];
     struct {
-      uint8_t FREQH : 8;  // Tune Frequency High Byte
-    };
-  };
-  union {
-    uint8_t ARG3;
-    struct {
-      uint8_t FREQL : 8;  // Tune Frequency Low Byte
+      // ARG1
+      uint8_t : 8;  // zero
+      // ARG2
+      uint8_t FREQH;  // Tune Frequency High Byte
+      // ARG3
+      uint8_t FREQL;  // Tune Frequency Low Byte
     };
   };
 
   CmdTxTuneFreq(uint16_t freq = 0) {  // 7600 to 10800, 10 kHz resolution, multiples of 50 kHz
     this->CMD = CmdType::TX_TUNE_FREQ;
-    this->ARG1 = 0;
-    this->ARG2 = (uint16_t) freq >> 8;
-    this->ARG3 = (uint16_t) freq & 0xff;
+    this->ARG[0] = 0;
+    this->ARG[1] = (uint16_t) freq >> 8;
+    this->ARG[2] = (uint16_t) freq & 0xff;
   }
 };
 
 struct ResTxTuneFreq : ResBase {};
 
 struct CmdTxTunePower : CmdBase {
-  uint8_t ARG1;  // zero
-  uint8_t ARG2;  // zero
   union {
-    uint8_t ARG3;
+    uint8_t ARG[4];
     struct {
-      uint8_t RFdBuV : 8;  // Tune Power Byte, 88 to 115 dBuV
-    };
-  };
-  union {
-    uint8_t ARG4;
-    struct {
-      uint8_t ANTCAP : 8;  // Antenna Tuning Capacitor, 0.25 pF x 0 to 191
+      // ARG1
+      uint8_t : 8;  // zero
+      // ARG2
+      uint8_t : 8;  // zero
+      // ARG3
+      uint8_t RFdBuV;  // Tune Power Byte, 88 to 115 dBuV
+      // ARG4
+      uint8_t ANTCAP;  // Antenna Tuning Capacitor, 0.25 pF x 0 to 191
     };
   };
 
   CmdTxTunePower(uint8_t power = 0, uint8_t antcap = 0) {
     this->CMD = CmdType::TX_TUNE_POWER;
-    this->ARG1 = 0;
-    this->ARG2 = 0;
-    this->ARG3 = power;
-    this->ARG4 = antcap;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
+    this->ARG[2] = power;
+    this->ARG[3] = antcap;
   }
 };
 
 struct ResTxTunePower : ResBase {};
 
 struct CmdTxTuneMeasure : CmdBase {
-  uint8_t ARG1;  // zero
   union {
-    uint8_t ARG2;
+    uint8_t ARG[4];
     struct {
-      uint8_t FREQH : 8;  // Tune Frequency High Byte
-    };
-  };
-  union {
-    uint8_t ARG3;
-    struct {
-      uint8_t FREQL : 8;  // Tune Frequency Low Byte
-    };
-  };
-  union {
-    uint8_t ARG4;
-    struct {
-      uint8_t ANTCAP : 8;  // Antenna Tuning Capacitor, 0.25 pF x 0 to 191
+      // ARG1
+      uint8_t : 8;  // zero
+      // ARG2
+      uint8_t FREQH;  // Tune Frequency High Byte
+      // ARG3
+      uint8_t FREQL;  // Tune Frequency Low Byte
+      // ARG4
+      uint8_t ANTCAP;  // Antenna Tuning Capacitor, 0.25 pF x 0 to 191
     };
   };
 
   CmdTxTuneMeasure(uint8_t freq = 0, uint8_t antcap = 0) {
     this->CMD = CmdType::TX_TUNE_MEASURE;
-    this->ARG1 = 0;
-    this->ARG2 = (uint16_t) freq >> 8;
-    this->ARG3 = (uint16_t) freq & 0xff;
-    this->ARG4 = antcap;
+    this->ARG[0] = 0;
+    this->ARG[1] = (uint16_t) freq >> 8;
+    this->ARG[2] = (uint16_t) freq & 0xff;
+    this->ARG[3] = antcap;
   }
 };
 
 struct ResTxTuneMeasure : ResBase {};
 
 struct CmdTxTuneStatus : CmdBase {
-  uint8_t ARG1;  // zero
   union {
-    uint8_t ARG2;
+    uint8_t ARG[2];
     struct {
-      uint8_t INTACK : 1;  // Clears the seek/tune complete interrupt status indicator
-      uint8_t RESERVED : 7;
+      // ARG1
+      uint8_t : 8;  // zero
+      // ARG2
+      uint8_t INTACK : 1;  // Seek/Tune Interrupt Clear.
+      uint8_t : 7;
     };
   };
 
-  CmdTxTuneStatus() {
+  CmdTxTuneStatus(uint8_t intack = 1) {
     this->CMD = CmdType::TX_TUNE_STATUS;
-    this->ARG1 = 0;
-    this->ARG2 = 0;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
+    this->INTACK = intack;
   }
 };
 
 struct ResTxTuneStatus : ResBase {
-  uint8_t RESP1;
   union {
-    uint8_t RESP2;
+    uint8_t RESP[7];
     struct {
-      uint8_t READFREQH : 8;  // Read Frequency High Byte
-    };
-  };
-  union {
-    uint8_t RESP3;
-    struct {
-      uint8_t READFREQL : 8;  // Read Frequency Low Byte
-    };
-  };
-  uint8_t RESP4;
-  union {
-    uint8_t RESP5;
-    struct {
-      uint8_t RFdBuV : 8;  // Read Power
-    };
-  };
-  union {
-    uint8_t RESP6;
-    struct {
-      uint8_t ANTCAP : 8;  // Read Antenna Tuning Capacitor
-    };
-  };
-  union {
-    uint8_t RESP7;
-    struct {
-      uint8_t RNL : 8;  // Read Received Noise Level (Si4712/13 Only)
+      // RESP1
+      uint8_t : 8;
+      // RESP2
+      uint8_t READFREQH;  // Read Frequency High Byte
+      // RESP3
+      uint8_t READFREQL;  // Read Frequency Low Byte
+      // RESP4
+      uint8_t : 8;
+      // RESP5
+      uint8_t READRFdBuV;  // Read Power
+      // RESP6
+      uint8_t READANTCAP;  // Read Antenna Tuning Capacitor
+      // RESP7
+      uint8_t RNL;  // Read Received Noise Level (Si4712/13 Only)
     };
   };
 };
 
 struct CmdTxAsqStatus : CmdBase {
-  uint8_t ARG1;  // zero
   union {
-    uint8_t ARG2;
+    uint8_t ARG[2];
     struct {
-      uint8_t INTACK : 1;  // Clears the seek/tune complete interrupt status indicator
-      uint8_t RESERVED : 7;
+      // ARG1
+      uint8_t : 8;  // zero
+      // ARG2
+      uint8_t INTACK : 1;  // Interrupt Acknowledge.  Clears ASQINT, OVERMOD, IALDH, and IALDL
+      uint8_t : 7;
     };
   };
 
-  CmdTxAsqStatus() {
+  CmdTxAsqStatus(uint8_t intack = 1) {
     this->CMD = CmdType::TX_ASQ_STATUS;
-    this->ARG1 = 0;
-    this->ARG2 = 0;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
+    this->INTACK = intack;
   }
 };
 
 struct ResTxAsqStatus : ResBase {
   union {
-    uint8_t RESP1;
+    uint8_t RESP[4];
     struct {
+      // RESP1
       uint8_t OVERMOD : 1;  // Overmodulation Detection
       uint8_t IALH : 1;     // Input Audio Level Threshold Detect High
       uint8_t IALL : 1;     // Input Audio Level Threshold Detect Low
-      uint8_t RESERVED : 5;
-    };
-  };
-  uint8_t RESP2;
-  uint8_t RESP3;
-  union {
-    uint8_t RESP4;
-    struct {
-      int8_t INLEVEL : 8;  // Input Audio Level
+      uint8_t : 5;
+      // RESP2
+      uint8_t : 8;
+      // RESP3
+      uint8_t : 8;
+      // RESP4
+      int8_t INLEVEL;  // Input Audio Level
     };
   };
 };
 
 struct CmdTxRdsBuff : CmdBase {
   union {
-    uint8_t ARG1;
+    uint8_t ARG[7];
     struct {
+      // ARG1
       uint8_t INTACK : 1;  // Clear RDS Group buffer interrupt
       uint8_t MTBUFF : 1;  // Empty RDS Group Buffer
       uint8_t LDBUFF : 1;  // Load RDS Group Buffer
-      uint8_t RESERVED : 4;
+      uint8_t : 4;
       uint8_t FIFO : 1;  // Operate on FIFO
-    };
-  };
-  union {
-    uint8_t ARG2;
-    struct {
+      // ARG2
       uint8_t RDSBH;  // RDS Block B High Byte
-    };
-  };
-  union {
-    uint8_t ARG3;
-    struct {
+      // ARG3
       uint8_t RDSBL;  // RDS Block B Low Byte
-    };
-  };
-  union {
-    uint8_t ARG4;
-    struct {
+      // ARG4
       uint8_t RDSCH;  // RDS Block C High Byte
-    };
-  };
-  union {
-    uint8_t ARG5;
-    struct {
+      // ARG5
       uint8_t RDSCL;  // RDS Block C Low Byte
-    };
-  };
-  union {
-    uint8_t ARG6;
-    struct {
+      // ARG6
       uint8_t RDSDH;  // RDS Block D High Byte
-    };
-  };
-  union {
-    uint8_t ARG7;
-    struct {
+      // ARG7
       uint8_t RDSDL;  // RDS Block D Low Byte
     };
   };
 
   CmdTxRdsBuff() {
     this->CMD = CmdType::TX_RDS_BUFF;
-    this->ARG1 = 0;
-    this->ARG2 = 0;
-    this->ARG3 = 0;
-    this->ARG4 = 0;
-    this->ARG5 = 0;
-    this->ARG6 = 0;
-    this->ARG7 = 0;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
+    this->ARG[2] = 0;
+    this->ARG[3] = 0;
+    this->ARG[4] = 0;
+    this->ARG[5] = 0;
+    this->ARG[6] = 0;
   }
 };
 
 struct ResTxRdsBuff : ResBase {
   union {
-    uint8_t RESP1;
+    uint8_t RESP[5];
     struct {
+      // RESP1
       uint8_t FIFOMT : 1;     //  Interrupt source: RDS Group FIFO Buffer is empty
       uint8_t CBUFWRAP : 1;   //  Interrupt source: RDS Group Circular Buffer has wrapped
       uint8_t FIFOXMIT : 1;   //  Interrupt source: RDS Group has been transmitted from the circular buffer
       uint8_t CBUFXMIT : 1;   // Interrupt source: RDS Group has been transmitted from the FIFO buffer
       uint8_t RDSPSXMIT : 1;  //  Interrupt source: RDS PS Group has been transmitted
-      uint8_t RESERVED : 3;
-    };
-  };
-  union {
-    uint8_t RESP2;
-    struct {
-      uint8_t CBAVAIL : 8;  // Returns the number of available Circular Buffer blocks
-    };
-  };
-  union {
-    uint8_t RESP3;
-    struct {
-      uint8_t CBUSED : 8;  //  Returns the number of used Circular Buffer blocks
-    };
-  };
-  union {
-    uint8_t RESP4;
-    struct {
-      uint8_t FIFOAVAIL : 8;  // Returns the number of available FIFO blocks
-    };
-  };
-  union {
-    uint8_t RESP5;
-    struct {
-      uint8_t FIFOUSED : 8;  //  Returns the number of used FIFO blocks
+      uint8_t : 3;
+      // RESP2
+      uint8_t CBAVAIL;  // Returns the number of available Circular Buffer blocks
+      // RESP3
+      uint8_t CBUSED;  //  Returns the number of used Circular Buffer blocks
+      // RESP4
+      uint8_t FIFOAVAIL;  // Returns the number of available FIFO blocks
+      // RESP5
+      uint8_t FIFOUSED;  //  Returns the number of used FIFO blocks
     };
   };
 };
 
 struct CmdTxRdsPs : CmdBase {
   union {
-    uint8_t ARG1;
+    uint8_t ARG[5];
     struct {
+      // ARG1
       // Selects which PS data to load (0-23)
       // 0 = First 4 characters of PS0
       // 1 = Last 4 characters of PS0
@@ -671,41 +560,25 @@ struct CmdTxRdsPs : CmdBase {
       // 22 = First 4 characters of PS11
       // 23 = Last 4 characters of PS11
       uint8_t PSID : 4;
-      uint8_t RESERVED : 4;
-    };
-  };
-  union {
-    uint8_t ARG2;
-    struct {
+      uint8_t : 4;
+      // ARG2
       uint8_t PSCHAR0;  // RDS PSID CHAR0
-    };
-  };
-  union {
-    uint8_t ARG3;
-    struct {
+      // ARG3
       uint8_t PSCHAR1;  // RDS PSID CHAR1
-    };
-  };
-  union {
-    uint8_t ARG4;
-    struct {
+      // ARG4
       uint8_t PSCHAR2;  // RDS PSID CHAR2
-    };
-  };
-  union {
-    uint8_t ARG5;
-    struct {
+      // ARG5
       uint8_t PSCHAR3;  // RDS PSID CHAR3
     };
   };
 
   CmdTxRdsPs() {
     this->CMD = CmdType::TX_RDS_PS;
-    this->ARG1 = 0;
-    this->ARG2 = 0;
-    this->ARG3 = 0;
-    this->ARG4 = 0;
-    this->ARG5 = 0;
+    this->ARG[0] = 0;
+    this->ARG[1] = 0;
+    this->ARG[2] = 0;
+    this->ARG[3] = 0;
+    this->ARG[4] = 0;
   }
 };
 
@@ -713,18 +586,22 @@ struct ResTxRdsPs : ResBase {};
 
 struct CmdGpioCtl : CmdBase {
   union {
-    uint8_t ARG1;
+    uint8_t ARG[1];
     struct {
-      uint8_t RESERVED1 : 1;
+      // ARG1
+      uint8_t : 1;
       uint8_t GPO1OEN : 1;  // GPO1 Output Enable
-      uint8_t GPO2OEN : 1;  // GPO2 Output Enable
-      uint8_t GPO3OEN : 1;  // GPO3 Output Enable
+      uint8_t GPO2OEN : 1;  // GPO2 Output Enable ()
+      uint8_t GPO3OEN : 1;  // GPO3 Output Enable (XTAL or digital audio clock is connected to this)
     };
   };
 
-  CmdGpioCtl() {
+  CmdGpioCtl(uint8_t gpo1oen = 0, uint8_t gpo2oen = 0, uint8_t gpo3oen = 0) {
     this->CMD = CmdType::GPIO_CTL;
-    this->ARG1 = 0;
+    this->ARG[0] = 0;
+    this->GPO1OEN = gpo1oen;
+    this->GPO2OEN = gpo2oen;
+    this->GPO3OEN = gpo3oen;
   }
 };
 
@@ -732,19 +609,23 @@ struct ResGpioCtl : ResBase {};
 
 struct CmdGpioSet : CmdBase {
   union {
-    uint8_t ARG1;
+    uint8_t ARG[1];
     struct {
-      uint8_t RESERVED1 : 1;
+      // ARG1
+      uint8_t : 1;
       uint8_t GPO1OEN : 1;  // GPO1 Output Level
       uint8_t GPO2OEN : 1;  // GPO2 Output Level
       uint8_t GPO3OEN : 1;  // GPO3 Output Level
-      uint8_t RESERVED2 : 4;
+      uint8_t : 4;
     };
   };
 
-  CmdGpioSet() {
+  CmdGpioSet(uint8_t gpo1oen = 0, uint8_t gpo2oen = 0, uint8_t gpo3oen = 0) {
     this->CMD = CmdType::GPIO_SET;
-    this->ARG1 = 0;
+    this->ARG[0] = 0;
+    this->GPO1OEN = gpo1oen;
+    this->GPO2OEN = gpo2oen;
+    this->GPO3OEN = gpo3oen;
   }
 };
 
@@ -762,16 +643,16 @@ struct PropGpoIen : PropBase {
   union {
     uint16_t PROPD;
     struct {
-      uint16_t STCIEN : 1;     // Seek/Tune Complete Interrupt Enable
-      uint16_t ASQIEN : 1;     // Audio Signal Quality Interrupt Enable
-      uint16_t RDSIEN : 1;     // RDS Interrupt Enable (Si4711/13/21 Only)
-      uint16_t RESERVED1 : 3;  //
-      uint16_t ERRIEN : 1;     // ERR Interrupt Enable
-      uint16_t CTSIEN : 1;     // CTS Interrupt Enable
-      uint16_t STCREP : 1;     // STC Interrupt Repeat
-      uint16_t ASQREP : 1;     // ASQ Interrupt Repeat
-      uint16_t RDSREP : 1;     // RDS Interrupt Repeat. (Si4711/13/21 Only)
-      uint16_t RESERVED2 : 5;
+      uint16_t STCIEN : 1;  // Seek/Tune Complete Interrupt Enable
+      uint16_t ASQIEN : 1;  // Audio Signal Quality Interrupt Enable
+      uint16_t RDSIEN : 1;  // RDS Interrupt Enable (Si4711/13/21 Only)
+      uint16_t : 3;         //
+      uint16_t ERRIEN : 1;  // ERR Interrupt Enable
+      uint16_t CTSIEN : 1;  // CTS Interrupt Enable
+      uint16_t STCREP : 1;  // STC Interrupt Repeat
+      uint16_t ASQREP : 1;  // ASQ Interrupt Repeat
+      uint16_t RDSREP : 1;  // RDS Interrupt Repeat. (Si4711/13/21 Only)
+      uint16_t : 5;
     };
   };
 
@@ -792,9 +673,13 @@ struct PropDigitalInputFormat : PropBase {
     };
   };
 
-  PropDigitalInputFormat() {
+  PropDigitalInputFormat(uint16_t isize = 0, uint16_t imono = 0, uint16_t imode = 0, uint16_t ifall = 0) {
     this->PROP = PropType::DIGITAL_INPUT_FORMAT;
     this->PROPD = 0x0000;
+    this->ISIZE = isize;
+    this->IMONO = imono;
+    this->IMODE = imode;
+    this->IFALL = ifall;
   }
 };
 
@@ -833,15 +718,17 @@ struct PropRefClkPreScale : PropBase {
   union {
     uint16_t PROPD;
     struct {
-      uint16_t RCLKP : 12;   // Prescaler for Reference Clock (31130 and 34406 Hz, 0 Disabled)
+      uint16_t RCLKP : 12;   // Integer number to divide RCLK down to REFCLK frequency
       uint16_t RCLKSEL : 1;  // RCLK/DCLK pin is clock source
-      uint16_t RESERVED : 3;
+      uint16_t : 3;
     };
   };
 
-  PropRefClkPreScale() {
+  PropRefClkPreScale(uint16_t rclkp = 1, uint16_t rclksel = 0) {
     this->PROP = PropType::REFCLK_PRESCALE;
     this->PROPD = 0x0001;
+    this->RCLKP = rclkp;
+    this->RCLKSEL = rclksel;
   }
 };
 
@@ -852,11 +739,11 @@ struct PropTxComponentEnable : PropBase {
       uint16_t PILOT : 1;  // Pilot Tone
       uint16_t LMR : 1;    // Left Minus Right
       uint16_t RDS : 1;    // RDS Enable
-      uint16_t RESERVED : 13;
+      uint16_t : 13;
     };
   };
 
-  PropTxComponentEnable() {
+  PropTxComponentEnable(uint16_t pilot = 1, uint16_t lmr = 1, uint16_t rds = 0) {
     this->PROP = PropType::TX_COMPONENT_ENABLE;
     this->PROPD = 0x0003;
   }
@@ -911,16 +798,18 @@ struct PropTxLineInputLevel : PropBase {
   union {
     uint16_t PROPD;
     struct {
-      uint16_t LILEVEL : 10;  // Line Level (mV)
-      uint16_t RESERVED1 : 2;
-      uint16_t LIATTEN : 2;  // Line Attenuation (for 190, 301, 416, 636 mV)
-      uint16_t RESERVED2 : 2;
+      uint16_t LILEVEL : 10;  // Line Level. Max amplitude on LIN/RIN in mVPK (default 636 mV)
+      uint16_t : 2;
+      uint16_t LIATTEN : 2;  // Line Attenuation (190, 301, 416, 636 mV / 396, 100, 74, 60 kOhm)
+      uint16_t : 2;
     };
   };
 
-  PropTxLineInputLevel() {
+  PropTxLineInputLevel(uint16_t lilevel = 636, uint16_t liatten = 3) {
     this->PROP = PropType::TX_LINE_INPUT_LEVEL;
     this->PROPD = 0x327C;
+    this->LILEVEL = lilevel;
+    this->LIATTEN = liatten;
   }
 };
 
@@ -930,13 +819,15 @@ struct PropTxLineInputMute : PropBase {
     struct {
       uint16_t RIMUTE : 1;  // Mutes R Line Input
       uint16_t LIMUTE : 1;  // Mutes L Line Input
-      uint16_t RESERVED : 14;
+      uint16_t : 14;
     };
   };
 
-  PropTxLineInputMute() {
+  PropTxLineInputMute(uint16_t limute = 0, uint16_t rimute = 0) {
     this->PROP = PropType::TX_LINE_INPUT_MUTE;
     this->PROPD = 0x0000;
+    this->LIMUTE = limute;
+    this->RIMUTE = rimute;
   }
 };
 
@@ -945,13 +836,14 @@ struct PropTxPreEmphasis : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t FMPE : 2;  // FM Pre-Emphasis (75us, 50us, Disabled, Reserved)
-      uint16_t RESERVED : 14;
+      uint16_t : 14;
     };
   };
 
-  PropTxPreEmphasis() {
+  PropTxPreEmphasis(uint16_t fmpe = 0) {
     this->PROP = PropType::TX_PREEMPHASIS;
     this->PROPD = 0x0000;
+    this->FMPE = fmpe;
   }
 };
 
@@ -963,9 +855,10 @@ struct PropTxPilotFrequency : PropBase {
     };
   };
 
-  PropTxPilotFrequency() {
+  PropTxPilotFrequency(uint16_t freq = 19000) {
     this->PROP = PropType::TX_PILOT_FREQUENCY;
     this->PROPD = 0x4A38;
+    this->FREQ = freq;
   }
 };
 
@@ -975,13 +868,15 @@ struct PropTxAcompEnable : PropBase {
     struct {
       uint16_t ACEN : 1;     // Transmit Audio Dynamic Range Control Enable
       uint16_t LIMITEN : 1;  // Audio Limiter
-      uint16_t RESERVED : 14;
+      uint16_t : 14;
     };
   };
 
-  PropTxAcompEnable() {
+  PropTxAcompEnable(uint16_t acen = 0, uint16_t limiten = 1) {
     this->PROP = PropType::TX_ACOMP_ENABLE;
     this->PROPD = 0x0002;
+    this->ACEN = acen;
+    this->LIMITEN = limiten;
   }
 };
 
@@ -993,9 +888,10 @@ struct PropTxAcompThreshold : PropBase {
     };
   };
 
-  PropTxAcompThreshold() {
+  PropTxAcompThreshold(int16_t threshold = -40) {
     this->PROP = PropType::TX_ACOMP_THRESHOLD;
     this->PROPD = 0xFFD8;
+    this->THRESHOLD = -40;
   }
 };
 
@@ -1003,14 +899,15 @@ struct PropTxAcompAttackTime : PropBase {
   union {
     uint16_t PROPD;
     struct {
-      uint16_t ATTACK : 4;  // Transmit Audio Dynamic Range Control Attack Time (0.5 (=0) to 5ms (=9))
-      uint16_t RESERVED : 12;
+      uint16_t ATTACK : 4;  // Transmit Audio Dynamic Range Control Attack Time (0.5 to 5ms)
+      uint16_t : 12;
     };
   };
 
-  PropTxAcompAttackTime() {
+  PropTxAcompAttackTime(uint16_t attack = 0) {
     this->PROP = PropType::TX_ACOMP_ATTACK_TIME;
     this->PROPD = 0x0000;
+    this->ATTACK = attack;
   }
 };
 
@@ -1019,13 +916,14 @@ struct PropTxAcompReleaseTime : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t RELEASE : 3;  // Transmit Audio Dynamic Range Control Release Time (100, 200, 350, 525, 1000 ms)
-      uint16_t RESERVED : 13;
+      uint16_t : 13;
     };
   };
 
-  PropTxAcompReleaseTime() {
+  PropTxAcompReleaseTime(uint16_t release = 4) {
     this->PROP = PropType::TX_ACOMP_RELEASE_TIME;
     this->PROPD = 0x0004;
+    this->RELEASE = release;
   }
 };
 
@@ -1034,13 +932,14 @@ struct PropTxAcompGain : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t GAIN : 6;  // Transmit Audio Dynamic Range Control Gain (0 to 20 dB)
-      uint16_t RESERVED : 10;
+      uint16_t : 10;
     };
   };
 
-  PropTxAcompGain() {
+  PropTxAcompGain(uint16_t gain = 15) {
     this->PROP = PropType::TX_ACOMP_GAIN;
     this->PROPD = 0x000F;
+    this->GAIN = gain;
   }
 };
 struct PropTxLimiterReleaseTime : PropBase {
@@ -1051,9 +950,10 @@ struct PropTxLimiterReleaseTime : PropBase {
     };
   };
 
-  PropTxLimiterReleaseTime() {
+  PropTxLimiterReleaseTime(uint16_t lmitertc = 102) {
     this->PROP = PropType::TX_LIMITER_RELEASE_TIME;
     this->PROPD = 0x0066;
+    this->LMITERTC = lmitertc;
   }
 };
 
@@ -1064,7 +964,7 @@ struct PropTxAsqInterruptSource : PropBase {
       uint16_t IALLIEN : 1;     // Input Audio Level Detection Low Threshold Enable
       uint16_t IALHIEN : 1;     // Input Audio Level Detection High Threshold Enable
       uint16_t OVERMODIEN : 1;  // Overmodulation Detection Enable
-      uint16_t RESERVED : 13;
+      uint16_t : 13;
     };
   };
 
@@ -1079,7 +979,7 @@ struct PropTxAsqLevelLow : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t IALLTH : 8;  // Input Audio Level Low Threshold (-70 to 0 dB)
-      uint16_t RESERVED : 8;
+      uint16_t : 8;
     };
   };
 
@@ -1103,16 +1003,16 @@ struct PropTxAsqDurationLow : PropBase {
   }
 };
 
-struct PropTxAsqDurationHigh : PropBase {
+struct PropTxAsqLevelHigh : PropBase {
   union {
     uint16_t PROPD;
     struct {
       uint16_t IALHTH : 8;  // Input Audio Level High Threshold (-70 to 0 dB)
-      uint16_t RESERVED : 8;
+      uint16_t : 8;
     };
   };
 
-  PropTxAsqDurationHigh() {
+  PropTxAsqLevelHigh() {
     this->PROP = PropType::TX_ASQ_LEVEL_HIGH;
     this->PROPD = 0x0000;
   }
@@ -1141,7 +1041,7 @@ struct PropTxRdsInterruptSource : PropBase {
       uint16_t RDSFIFOXMIT : 1;  // Interrupt when a RDS Group has been transmitted from the FIFO Buffer
       uint16_t RDSCBUFXMIT : 1;  // Interrupt when a RDS Group has been transmitted from the Circular Buffer
       uint16_t RDSPSXMIT : 1;    // Interrupt when a RDS PS Group has been transmitted
-      uint16_t RESERVED : 11;
+      uint16_t : 11;
     };
   };
 
@@ -1170,7 +1070,7 @@ struct PropTxRdsPsMix : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t RDSPSMIX : 3;  // Transmit RDS Mix
-      uint16_t RESERVED : 13;
+      uint16_t : 13;
     };
   };
 
@@ -1184,7 +1084,7 @@ struct PropTxRdsPsMisc : PropBase {
   union {
     uint16_t PROPD;
     struct {
-      uint16_t RESERVED : 3;
+      uint16_t : 3;
       uint16_t RDSMS : 1;   // Music/Speech Switch Code
       uint16_t RDSTA : 1;   // Traffic Announcement Code
       uint16_t RDSPTY : 1;  // Program Type Code
@@ -1208,7 +1108,7 @@ struct PropTxRdsRepeatCount : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t RDSPSRC : 8;  // Transmit RDS PS Repeat Count
-      uint16_t RESERVED : 8;
+      uint16_t : 8;
     };
   };
 
@@ -1223,7 +1123,7 @@ struct PropTxRdsMessageCount : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t RDSPSMC : 4;  // Transmit RDS PS Message Count.
-      uint16_t RESERVED : 12;
+      uint16_t : 12;
     };
   };
 
@@ -1252,7 +1152,7 @@ struct PropTxRdsFifoSize : PropBase {
     uint16_t PROPD;
     struct {
       uint16_t RDSFIFOSZ : 8;  // Transmit RDS FIFO Size (0 = FIFO disabled)
-      uint16_t RESERVED : 8;
+      uint16_t : 8;
     };
   };
 
