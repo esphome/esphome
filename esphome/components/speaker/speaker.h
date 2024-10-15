@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <vector>
 
+#ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
+#endif
 
 #include "esphome/components/audio/audio.h"
 
@@ -20,6 +22,7 @@ enum State : uint8_t {
 
 class Speaker {
  public:
+#ifdef USE_ESP32
   /// @brief Plays the provided audio data.
   /// If the speaker component doesn't implement this method, it falls back to the play method without this parameter.
   /// @param data Audio data in the format specified by ``set_audio_stream_info`` method.
@@ -29,6 +32,7 @@ class Speaker {
   virtual size_t play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
     return this->play(data, length);
   };
+#endif
 
   /// @brief Plays the provided audio data.
   /// If the audio stream is not the default defined in "esphome/core/audio.h" and the speaker component implements it,
