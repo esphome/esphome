@@ -60,11 +60,12 @@ RetryResult LPS22Component::try_read_() {
   float temp =
       TEMPERATURE_SCALE * static_cast<float>(static_cast<int16_t>(t_buf[1]) << 8 | static_cast<int16_t>(t_buf[0]));
   this->temperature_sensor_->publish_state(temp);
-  uint8_t p_buf[3]{0};
-  this->read_register(PRES_OUT_XL, p_buf, 3);
-  uint32_t p_lsb =
-      static_cast<uint32_t>(p_buf[2]) << 16 | static_cast<uint32_t>(p_buf[1]) << 8 | static_cast<uint32_t>(p_buf[0]);
-  this->pressure_sensor_->publish_state(PRESSURE_SCALE * static_cast<float>(p_lsb));
+  if (this->pressure_sensor_ != nullptr) {
+    uint8_t p_buf[3]{0};
+    this->read_register(PRES_OUT_XL, p_buf, 3);
+    uint32_t p_lsb = encode_uint24(p_buf[2], p_buf[1], p_buf[0]);
+    this->pressure_sensor_->publish_state(PRESSURE_SCALE * static_cast<float>(p_lsb));
+  }
   return RetryResult::DONE;
 }
 
