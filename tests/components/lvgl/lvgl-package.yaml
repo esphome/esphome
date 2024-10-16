@@ -264,7 +264,6 @@ lvgl:
                     args: ["x"]
                 - lvgl.widget.show: b_matrix
                 - lvgl.widget.redraw:
-                - lvgl.widget.redraw: button_button
 
             on_long_press:
               lvgl.matrix.button.update:
