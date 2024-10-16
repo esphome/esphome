@@ -1690,11 +1690,26 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
   this->event_source_list_.deferrable_send_state(obj, "state", event_state_json_generator);
 }
+
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (event::Event *obj : App.get_events()) {
     if (obj->get_object_id() != match.id)
       continue;
 
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->event_json(obj, "", detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+  }
+  request->send(404);
+}
+    
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_STATE);
 }
@@ -1721,24 +1736,6 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
       }
     }
   });
-}
-void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (event::Event *obj : App.get_events()) {
-    if (obj->get_object_id() != match.id)
-      continue;
-
-    if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->event_json(obj, "", detail);
-      request->send(200, "application/json", data.c_str());
-      return;
-    }
-  }
-  request->send(404);
 }
 #endif
 
