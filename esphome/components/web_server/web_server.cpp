@@ -105,7 +105,7 @@ void DeferredUpdateEventSource::loop() {
     this->entities_iterator_.advance();
 }
 
-void DeferredUpdateEventSource::deferrable_send_state(void *source, char *event_type,
+void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *event_type,
                                                       message_generator_t *message_generator) {
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
@@ -133,8 +133,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, char *event_
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, char *event, uint32_t id,
-                                                 uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, char *event, uint32_t id, uint32_t reconnect) {
   this->send(message, event, id, reconnect);
 }
 
@@ -144,7 +143,7 @@ void DeferredUpdateEventSourceList::loop() {
   }
 }
 
-void DeferredUpdateEventSourceList::deferrable_send_state(void *source, char *event_type,
+void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const char *event_type,
                                                           message_generator_t *message_generator) {
   for (DeferredUpdateEventSource *dues : *this) {
     dues->deferrable_send_state(source, event_type, message_generator);
@@ -178,8 +177,8 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 }
 
 void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source,
-                                                      const std::function<std::string()> &generate_config_json,
-                                                      const bool include_internal) {
+                                                       const std::function<std::string()> &generate_config_json,
+                                                       const bool include_internal) {
   // Configure reconnect timeout and send config
   // this should always go through since the AsyncEventSourceClient event queue is empty on connect
   std::string message = generate_config_json();
@@ -1711,7 +1710,8 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
 }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->last_event_type), DETAIL_STATE);
+  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->last_event_type), 
+                                DETAIL_STATE);
 }
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->last_event_type), DETAIL_ALL);
