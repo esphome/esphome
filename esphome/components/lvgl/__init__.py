@@ -186,7 +186,7 @@ def final_validation(config):
 
 async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
-    CORE.add_define("USE_LVGL")
+    cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
@@ -221,7 +221,7 @@ async def to_code(config):
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config[df.CONF_TRANSPARENCY_KEY]),
     )
-    CORE.add_build_flag("-Isrc")
+    cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
     frac = config[CONF_BUFFER_SIZE]
@@ -298,15 +298,15 @@ async def to_code(config):
             await build_automation(resume_trigger, [], conf)
 
     for comp in helpers.lvgl_components_required:
-        CORE.add_define(f"USE_LVGL_{comp.upper()}")
+        cg.add_define(f"USE_LVGL_{comp.upper()}")
     if "transform_angle" in styles_used:
         add_define("LV_COLOR_SCREEN_TRANSP", "1")
     for use in helpers.lv_uses:
         add_define(f"LV_USE_{use.upper()}")
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
-    CORE.add_build_flag("-DLV_CONF_H=1")
-    CORE.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
+    cg.add_build_flag("-DLV_CONF_H=1")
+    cg.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
 
 
 def display_schema(config):
