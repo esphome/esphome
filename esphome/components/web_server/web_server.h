@@ -108,26 +108,26 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, char *event = nullptr, const uint32_t id = 0,
-                        const uint32_t reconnect = 0);
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
+                        uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  protected:
   void on_client_connect_(DeferredUpdateEventSource *source, const std::function<std::string()> &generate_config_json,
-                          const bool include_internal);
+                          bool include_internal);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, char *event = nullptr, const uint32_t id = 0,
-                        const uint32_t reconnect = 0);
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
+                        uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
-                      const std::function<std::string()> &generate_config_json, const bool include_internal);
+                      const std::function<std::string()> &generate_config_json, bool include_internal);
 };
 
 /** This class allows users to create a web server with their ESP nodes.
