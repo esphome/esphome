@@ -301,10 +301,11 @@ def copy_src_tree():
 
     platform = "esphome.components." + CORE.target_platform
     try:
-        copy_files = __import__(platform, fromlist=['copy_files']).copy_files
+        copy_files = __import__(platform, fromlist=["copy_files"]).copy_files
         copy_files()
     except AttributeError:
         _LOGGER.info(f"Module '{platform}' does not have a 'copy_files' function")
+
 
 def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]
