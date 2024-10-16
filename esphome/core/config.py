@@ -5,7 +5,6 @@ import re
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ARDUINO_VERSION,
@@ -358,9 +357,6 @@ async def to_code(config):
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
-
-    if CORE.using_zephyr:
-        zephyr_add_prj_conf("BT_DEVICE_NAME", config[CONF_NAME])
 
     CORE.add_job(_add_automations, config)
 
