@@ -178,7 +178,7 @@ LoggerMessageTrigger = logger_ns.class_(
     automation.Trigger.template(cg.int_, cg.const_char_ptr, cg.const_char_ptr),
 )
 
-PLATFORM_NRF52 = 'nrf52'
+PLATFORM_NRF52 = "nrf52"
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
