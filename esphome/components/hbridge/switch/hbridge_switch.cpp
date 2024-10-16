@@ -38,7 +38,7 @@ void HBridgeSwitch::dump_config() {
 
 void HBridgeSwitch::write_state(bool state) {
   this->desired_state_ = state;
-  if (!timer_running_)
+  if (!this->timer_running_)
     this->timer_fn_();
 }
 
