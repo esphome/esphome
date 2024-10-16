@@ -94,8 +94,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_network_id(int id) { network_id_ = id; }
 
  private:
-  ModeType current_mode_ = MODE_INIT;
-
   // set WOR mode
   void set_mode_(ModeType mode);
   ModeType get_mode_();

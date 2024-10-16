@@ -308,12 +308,10 @@ void EbyteLoraComponent::setup() {
 }
 void EbyteLoraComponent::request_current_config_() {
   if (this->can_send_message_("requesting current config")) {
-    delay(20);
     return;
   }
   if (this->get_mode_() != CONFIGURATION) {
     ESP_LOGD(TAG, "Mode not set right");
-    delay(20);
     return;
   }
   // program conf command, start at 0 with a size of 8
@@ -347,7 +345,6 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
     return;
   }
-  delay(40);
   switch (mode) {
     case NORMAL:
       this->pin_m0_->digital_write(false);
@@ -373,8 +370,6 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
       ESP_LOGD(TAG, "Don't call this!");
       break;
   }
-  delay(5);
-  this->current_mode_ = mode;
 }
 bool EbyteLoraComponent::can_send_message_(const char *info) {
   // High means no more information is needed
