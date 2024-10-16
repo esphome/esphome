@@ -133,7 +133,8 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, 
+                                                 uint32_t reconnect) {
   this->send(message, event, id, reconnect);
 }
 
@@ -184,6 +185,16 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
   std::string message = generate_config_json();
   source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
+  for (auto &group : this->sorting_groups_) {
+    message = json::build_json([group](JsonObject root) {
+      root["name"] = group.second.name;
+      root["sorting_weight"] = group.second.weight;
+    });
+    
+    // up to 31 groups should be able to be queued initially without defer
+    source->try_send_nodefer(message.c_str(), "sorting_group");
+  }
+
   source->entities_iterator_.begin(include_internal);
 
   // just dump them all up-front and take advantage of the deferred queue
@@ -225,21 +236,6 @@ void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
   this->setup_controller(this->include_internal_);
   this->base_->init();
-
-  this->event_source_list_.onConnect([this](AsyncEventSourceClient *client) {
-    // Configure reconnect timeout and send config
-    client->send(this->get_config_json().c_str(), "ping", millis(), 30000);
-
-    for (auto &group : this->sorting_groups_) {
-      client->send(json::build_json([group](JsonObject root) {
-                     root["name"] = group.second.name;
-                     root["sorting_weight"] = group.second.weight;
-                   }).c_str(),
-                   "sorting_group");
-    }
-
-    this->entities_iterator_.begin(this->include_internal_);
-  });
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
