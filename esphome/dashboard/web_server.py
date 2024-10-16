@@ -555,26 +555,15 @@ class DownloadListRequestHandler(BaseHandler):
 
         downloads = []
         platform: str = storage_json.target_platform.lower()
-        if platform == const.PLATFORM_RP2040:
-            from esphome.components.rp2040 import get_download_types as rp2040_types
 
-            downloads = rp2040_types(storage_json)
-        elif platform == const.PLATFORM_ESP8266:
-            from esphome.components.esp8266 import get_download_types as esp8266_types
+        if platform.upper() in ESP32_VARIANTS:
+            platform = 'esp32'
 
-            downloads = esp8266_types(storage_json)
-        elif platform.upper() in ESP32_VARIANTS:
-            from esphome.components.esp32 import get_download_types as esp32_types
-
-            downloads = esp32_types(storage_json)
-        elif platform in (const.PLATFORM_RTL87XX, const.PLATFORM_BK72XX):
-            from esphome.components.libretiny import (
-                get_download_types as libretiny_types,
-            )
-
-            downloads = libretiny_types(storage_json)
-        else:
+        try:
+            get_download_types = __import__("esphome.components." + platform, fromlist=["get_download_types"]).get_download_types
+        except AttributeError:
             raise ValueError(f"Unknown platform {platform}")
+        downloads = get_download_types(storage_json)
 
         self.set_status(200)
         self.set_header("content-type", "application/json")
@@ -602,6 +591,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
         storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
+            print("404")
             self.send_error(404)
             return
 
@@ -620,8 +610,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
         path = os.path.dirname(storage_json.firmware_bin_path)
         path = os.path.join(path, file_name)
 
+        print("-------------------------", path)
+
         if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
+            print(args)
             rc, stdout, _ = await async_run_system_command(args)
 
             if rc != 0:
