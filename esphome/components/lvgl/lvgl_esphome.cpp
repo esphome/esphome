@@ -9,12 +9,6 @@ namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
 
-#if LV_USE_LOG
-static void log_cb(const char *buf) {
-  esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
-}
-#endif  // LV_USE_LOG
-
 static const char *const EVENT_NAMES[] = {
     "NONE",
     "PRESSED",
@@ -280,11 +274,8 @@ void LvglComponent::write_random_() {
   this->draw_buffer_(&area, (const uint8_t *) this->draw_buf_.buf1);
 }
 
-void LvglComponent::setup() {
-  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
-#if LV_USE_LOG
-  lv_log_register_print_cb(log_cb);
-#endif
+void LvglComponent::set_displays(std::vector<display::Display *> displays) {
+  this->displays_ = std::move(displays);
   lv_init();
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
   lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
@@ -326,14 +317,26 @@ void LvglComponent::setup() {
   display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
   this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
-  ESP_LOGV(TAG, "sw_rotate = %d, rotated=%d", this->disp_drv_.sw_rotate, this->disp_drv_.rotated);
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
-  for (const auto &v : this->init_lambdas_)
-    v(this);
+}
+
+void LvglComponent::setup() {
+  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
+#if LV_USE_LOG
+  lv_log_register_print_cb([](const char *buf) {
+    auto next = strchr(buf, ')');
+    if (next != nullptr)
+      buf = next + 1;
+    while (isspace(*buf))
+      buf++;
+    esp_log_printf_(LVGL_LOG_LEVEL, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
+  });
+#endif
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
   ESP_LOGCONFIG(TAG, "LVGL Setup complete");
 }
+
 void LvglComponent::update() {
   // update indicators
   if (this->paused_) {
@@ -347,13 +350,6 @@ void LvglComponent::loop() {
       this->write_random_();
   }
   lv_timer_handler_run_in_period(5);
-}
-bool lv_is_pre_initialise() {
-  if (!lv_is_initialized()) {
-    ESP_LOGE(TAG, "LVGL call before component is initialised");
-    return true;
-  }
-  return false;
 }
 
 #ifdef USE_LVGL_ANIMIMG

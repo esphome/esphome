@@ -15,14 +15,14 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, Define
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, focused_widgets, update_to_code
-from .defines import CONF_WIDGETS, add_define
+from .defines import add_define
 from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .hello_world import get_hello_world
@@ -53,7 +53,13 @@ from .types import (
     lv_style_t,
     lvgl_ns,
 )
-from .widgets import Widget, add_widgets, lv_scr_act, set_obj_properties, styles_used
+from .widgets import (
+    Widget,
+    add_widgets,
+    lv_scr_act_spec,
+    set_obj_properties,
+    styles_used,
+)
 from .widgets.animimg import animimg_spec
 from .widgets.arc import arc_spec
 from .widgets.button import button_spec
@@ -199,7 +205,14 @@ async def to_code(config):
     add_define("LV_MEM_CUSTOM_REALLOC", "lv_custom_mem_realloc")
     add_define("LV_MEM_CUSTOM_INCLUDE", '"esphome/components/lvgl/lvgl_hal.h"')
 
-    add_define("LV_LOG_LEVEL", f"LV_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}")
+    add_define(
+        "LV_LOG_LEVEL", f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config[df.CONF_LOG_LEVEL]]}"
+    )
+    # Doesn't seem to be a way to use cg.add_define to add a definition for a literal value
+    CORE.add_define(
+        Define("LVGL_LOG_LEVEL", f"ESPHOME_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}")
+    )
+
     add_define("LV_COLOR_DEPTH", config[df.CONF_COLOR_DEPTH])
     for font in helpers.lv_fonts_used:
         add_define(f"LV_FONT_{font.upper()}")
@@ -219,8 +232,6 @@ async def to_code(config):
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
     Widget.create(config[CONF_ID], lv_component, obj_spec, config)
-    for display in config[df.CONF_DISPLAYS]:
-        cg.add(lv_component.add_display(await cg.get_variable(display)))
 
     frac = config[CONF_BUFFER_SIZE]
     if frac >= 0.75:
@@ -254,6 +265,9 @@ async def to_code(config):
     else:
         add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
 
+    displays = [await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]]
+    cg.add(lv_component.set_displays(displays))
+    lv_scr_act = Widget.create(None, lv_component.get_scr_act(), lv_scr_act_spec, {})
     async with LvContext(lv_component):
         await touchscreens_to_code(lv_component, config)
         await encoders_to_code(lv_component, config)
@@ -263,11 +277,11 @@ async def to_code(config):
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
-        await add_top_layer(config)
-        await msgboxes_to_code(config)
-        await disp_update(f"{lv_component}->get_disp()", config)
+        await add_top_layer(lv_component, config)
+        await msgboxes_to_code(lv_component, config)
+        await disp_update(lv_component.get_disp(), config)
     # At this point only the setup code should be generated
-    assert LvContext.added_lambda_count == 1
+    assert LvContext.added_lambda_count == 0
     Widget.set_completed()
     async with LvContext(lv_component):
         await generate_triggers(lv_component)
@@ -296,9 +310,9 @@ def display_schema(config):
 
 
 def add_hello_world(config):
-    if CONF_WIDGETS not in config and CONF_PAGES not in config:
+    if df.CONF_WIDGETS not in config and CONF_PAGES not in config:
         LOGGER.info("No pages or widgets configured, creating default hello_world page")
-        config[CONF_WIDGETS] = cv.ensure_list(WIDGET_SCHEMA)(get_hello_world())
+        config[df.CONF_WIDGETS] = cv.ensure_list(WIDGET_SCHEMA)(get_hello_world())
     return config
 
 
@@ -316,7 +330,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
             cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
-                *df.LOG_LEVELS, upper=True
+                *df.LV_LOG_LEVELS, upper=True
             ),
             cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
                 "big_endian", "little_endian"

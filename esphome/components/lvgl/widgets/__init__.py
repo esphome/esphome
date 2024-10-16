@@ -67,6 +67,9 @@ class LvScrActType(WidgetType):
         return []
 
 
+lv_scr_act_spec = LvScrActType()
+
+
 class Widget:
     """
     Represents a Widget.
@@ -443,7 +446,3 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     await set_obj_properties(w, w_cnfig)
     await add_widgets(w, w_cnfig)
     await spec.to_code(w, w_cnfig)
-
-
-lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(None, literal("lv_scr_act()"), lv_scr_act_spec, {})

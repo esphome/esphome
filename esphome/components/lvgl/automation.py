@@ -5,7 +5,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
-from esphome.cpp_generator import RawExpression, get_variable
+from esphome.cpp_generator import get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -23,7 +23,6 @@ from .lvcode import (
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
-    LvConditional,
     LvglComponent,
     ReturnStatement,
     add_line_marks,
@@ -45,13 +44,7 @@ from .types import (
     lv_obj_t,
     lv_pseudo_button_t,
 )
-from .widgets import (
-    Widget,
-    get_widgets,
-    lv_scr_act,
-    set_obj_properties,
-    wait_for_widgets,
-)
+from .widgets import Widget, get_widgets, set_obj_properties, wait_for_widgets
 
 # Record widgets that are used in a focused action here
 focused_widgets = set()
@@ -66,8 +59,6 @@ async def action_to_code(
 ):
     await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
-        with LvConditional(lv_expr.is_pre_initialise()):
-            context.add(RawExpression("return"))
         for widget in widgets:
             await action(widget)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
@@ -126,7 +117,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
 async def disp_update(disp, config: dict):
     if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
         return
-    with LocalVariable("lv_disp_tmp", lv_disp_t, literal(disp)) as disp_temp:
+    with LocalVariable("lv_disp_tmp", lv_disp_t, disp) as disp_temp:
         if (bg_color := config.get(CONF_DISP_BG_COLOR)) is not None:
             lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):
@@ -144,7 +135,8 @@ async def disp_update(disp, config: dict):
     ),
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
-    widgets = await get_widgets(config) or [lv_scr_act]
+    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+    widgets = await get_widgets(config) or lv_comp.get_scr_act()
 
     async def do_invalidate(widget: Widget):
         lv_obj.invalidate(widget.obj)
@@ -164,7 +156,7 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
 async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
     w = widgets[0]
-    disp = f"{w.obj}->get_disp()"
+    disp = literal(f"{w.obj}->get_disp()")
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
         await disp_update(disp, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())

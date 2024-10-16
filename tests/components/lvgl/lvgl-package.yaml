@@ -12,7 +12,7 @@ substitutions:
   arrow_down: "\U000F004B"
 
 lvgl:
-  log_level: TRACE
+  log_level: debug
   bg_color: light_blue
   disp_bg_color: color_id
   disp_bg_image: cat_image

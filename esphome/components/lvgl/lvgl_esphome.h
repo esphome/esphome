@@ -41,7 +41,6 @@ namespace lvgl {
 extern lv_event_code_t lv_api_event;     // NOLINT
 extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(uint8_t event_code);
-extern bool lv_is_pre_initialise();
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -110,6 +109,7 @@ class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
+  void set_displays(std::vector<display::Display *> displays);
   static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -119,13 +119,12 @@ class LvglComponent : public PollingComponent {
   void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
     this->idle_callbacks_.add(std::move(callback));
   }
-  void add_display(display::Display *display) { this->displays_.push_back(display); }
-  void add_init_lambda(const std::function<void(LvglComponent *)> &lamb) { this->init_lambdas_.push_back(lamb); }
   void dump_config() override;
   void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
+  lv_obj_t *get_scr_act() { return lv_disp_get_scr_act(this->disp_); }
   void set_paused(bool paused, bool show_snow);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
@@ -161,7 +160,6 @@ class LvglComponent : public PollingComponent {
   bool page_wrap_{true};
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
-  std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
