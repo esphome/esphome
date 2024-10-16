@@ -307,7 +307,8 @@ void EbyteLoraComponent::setup() {
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::request_current_config_() {
-  if (this->can_send_message_("requesting current config")) {
+  if (!this->can_send_message_("requesting current config")) {
+    // can't send a message yet return!
     return;
   }
   if (this->get_mode_() != CONFIGURATION) {
