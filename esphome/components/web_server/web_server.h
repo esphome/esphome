@@ -438,6 +438,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   static std::string event_state_json_generator(WebServer *web_server, void *source);
   static std::string event_all_json_generator(WebServer *web_server, void *source);
+
+  /// Handle a event request under '/event<id>'.
+  void handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
   /// Dump the event details with its value as a JSON string.
   std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif

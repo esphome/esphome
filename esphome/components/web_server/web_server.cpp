@@ -1690,15 +1690,31 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
   this->event_source_list_.deferrable_send_state(obj, "state", event_state_json_generator);
 }
+void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (event::Event *obj : App.get_events()) {
+    if (obj->get_object_id() != match.id)
+      continue;
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_STATE);
 }
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_ALL);
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->event_json(obj, "", detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+  }
+  request->send(404);
 }
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
-  return json::build_json([obj, event_type, start_config](JsonObject root) {
+  return json::build_json([this, obj, event_type, start_config](JsonObject root) {
     set_json_id(root, obj, "event-" + obj->get_object_id(), start_config);
     if (!event_type.empty()) {
       root["event_type"] = event_type;
@@ -1709,6 +1725,12 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
         event_types.add(event_type);
       }
       root["device_class"] = obj->get_device_class();
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
+      }
     }
   });
 }
@@ -1907,6 +1929,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
   if (request->method() == HTTP_GET && match.domain == "alarm_control_panel")
+    return true;
+#endif
+
+#ifdef USE_EVENT
+  if (request->method() == HTTP_GET && match.domain == "event")
     return true;
 #endif
 
