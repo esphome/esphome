@@ -1660,7 +1660,7 @@ void APIConnection::send_event_info(event::Event *event) {
 }
 bool APIConnection::try_send_event(APIConnection *api, void *v_event) {
   event::Event *event = reinterpret_cast<event::Event *>(v_event);
-  return APIConnection::try_send_event(api, event, *(event->state));
+  return APIConnection::try_send_event(api, event, *(event->last_event_type));
 }
 bool APIConnection::try_send_event(APIConnection *api, event::Event *event, std::string event_type) {
   EventResponse resp{};
