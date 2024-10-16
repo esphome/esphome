@@ -258,9 +258,14 @@ lvgl:
             y: 120
         - buttonmatrix:
             on_press:
-              logger.log:
-                format: "matrix button pressed: %d"
-                args: ["x"]
+              then:
+                - logger.log:
+                    format: "matrix button pressed: %d"
+                    args: ["x"]
+                - lvgl.widget.show: b_matrix
+                - lvgl.widget.redraw:
+                - lvgl.widget.redraw: button_button
+
             on_long_press:
               lvgl.matrix.button.update:
                 id: [button_a, button_e, button_c]
