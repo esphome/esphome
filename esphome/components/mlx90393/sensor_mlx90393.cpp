@@ -1,4 +1,5 @@
 #include "sensor_mlx90393.h"
+#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -89,3 +90,4 @@ void MLX90393Cls::update() {
 
 }  // namespace mlx90393
 }  // namespace esphome
+#endif
