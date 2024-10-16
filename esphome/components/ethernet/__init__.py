@@ -59,6 +59,7 @@ ETHERNET_TYPES = {
     "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
+    "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
 }
 
 SPI_ETHERNET_TYPES = ["W5500"]
@@ -171,6 +172,7 @@ CONFIG_SCHEMA = cv.All(
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
             "W5500": SPI_SCHEMA,
+            "OPENETH": BASE_SCHEMA,
         },
         upper=True,
     ),
@@ -240,6 +242,9 @@ async def to_code(config):
         if CORE.using_esp_idf:
             add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
             add_idf_sdkconfig_option("CONFIG_ETH_SPI_ETHERNET_W5500", True)
+    elif config[CONF_TYPE] == "OPENETH":
+        cg.add_define("USE_ETHERNET_OPENETH")
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))

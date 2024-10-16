@@ -1,9 +1,9 @@
 #pragma once
 
 #include <map>
-#include "user_services.h"
 #include "api_server.h"
-
+#ifdef USE_API
+#include "user_services.h"
 namespace esphome {
 namespace api {
 
@@ -216,3 +216,4 @@ class CustomAPIDevice {
 
 }  // namespace api
 }  // namespace esphome
+#endif

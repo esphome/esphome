@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import logging
-
 import hashlib
 import io
+import logging
 from pathlib import Path
 import re
-from magic import Magic
 
-from esphome import core
-from esphome.components import font
-from esphome import external_files
-import esphome.config_validation as cv
+import puremagic
+
+from esphome import core, external_files
 import esphome.codegen as cg
+from esphome.components import font
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DITHER,
     CONF_FILE,
@@ -238,13 +237,12 @@ CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
 def load_svg_image(file: bytes, resize: tuple[int, int]):
-    # Local import only to allow "validate_pillow_installed" to run *before* importing it
-    from PIL import Image
-
-    # This import is only needed in case of SVG images; adding it
+    # Local imports only to allow "validate_pillow_installed" to run *before* importing it
+    # cairosvg is only needed in case of SVG images; adding it
     # to the top would force configurations not using SVG to also have it
     # installed for no reason.
     from cairosvg import svg2png
+    from PIL import Image
 
     if resize:
         req_width, req_height = resize
@@ -274,14 +272,16 @@ async def to_code(config):
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
         path = compute_local_image_path(conf_file).as_posix()
 
+    else:
+        raise core.EsphomeError(f"Unknown image source: {conf_file[CONF_SOURCE]}")
+
     try:
         with open(path, "rb") as f:
             file_contents = f.read()
     except Exception as e:
         raise core.EsphomeError(f"Could not load image file {path}: {e}")
 
-    mime = Magic(mime=True)
-    file_type = mime.from_buffer(file_contents)
+    file_type = puremagic.from_string(file_contents, mime=True)
 
     resize = config.get(CONF_RESIZE)
     if "svg" in file_type:
