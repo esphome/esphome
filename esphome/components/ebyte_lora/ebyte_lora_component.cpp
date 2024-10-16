@@ -392,7 +392,8 @@ void EbyteLoraComponent::update() {
   if (millis() < this->busy_till_)
     return;
   if (!this->current_config_.config_set) {
-    this->set_mode_(CONFIGURATION);
+    if (this->get_mode_() != CONFIGURATION)
+      this->set_mode_(CONFIGURATION);
     delay(20);
     ESP_LOGD(TAG, "Config not set yet! Requesting");
     this->request_current_config_();
@@ -402,16 +403,6 @@ void EbyteLoraComponent::update() {
     ESP_LOGD(TAG, "Config is not right, changing it now");
     this->set_config_();
     return;
-  }
-  // only make it normal when config is set
-  if (this->current_mode_ != NORMAL) {
-    ESP_LOGD(TAG, "Current mode is not normal");
-    this->current_mode_ = this->get_mode_();
-
-    if (this->current_mode_ != NORMAL) {
-      ESP_LOGD(TAG, "Mode is not set right");
-      this->set_mode_(NORMAL);
-    }
   }
   auto now = millis() / 1000;
   if (this->last_key_time_ + this->recyle_time_ < now) {
