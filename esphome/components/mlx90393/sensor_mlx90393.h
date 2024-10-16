@@ -1,6 +1,5 @@
 #pragma once
-#include "esphome/core/defines.h"
-#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
@@ -58,4 +57,3 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
 
 }  // namespace mlx90393
 }  // namespace esphome
-#endif
