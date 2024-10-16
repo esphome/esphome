@@ -292,9 +292,9 @@ void EbyteLoraComponent::setup() {
 #endif
   this->pin_aux_->pin_mode(gpio::FLAG_INPUT);
   this->pin_aux_->setup();
-  this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT);
+  this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_INPUT);
   this->pin_m0_->setup();
-  this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT);
+  this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_INPUT);
   this->pin_m1_->setup();
 
   // set them initial both to high
@@ -312,7 +312,9 @@ void EbyteLoraComponent::request_current_config_() {
     return;
   }
   if (this->get_mode_() != CONFIGURATION) {
+    this->set_mode_(NORMAL);
     ESP_LOGD(TAG, "Mode not set right");
+    delay(20);
     return;
   }
   // program conf command, start at 0 with a size of 8
