@@ -114,7 +114,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  protected:
-  void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source, 
+  void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source,
                           const std::function<std::string()> &generate_config_json, bool include_internal);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
