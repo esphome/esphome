@@ -9,7 +9,7 @@ static const uint8_t REPEATER_KEY = 0x99;
 static const uint8_t PROGRAM_CONF = 0xC1;
 static const uint8_t BINARY_SENSOR_KEY = 0x66;
 static const uint8_t SENSOR_KEY = 0x77;
-bool EbyteLoraComponent::is_config_right() {
+bool EbyteLoraComponent::is_config_right_() {
   if (this->current_config_.addh != this->expected_config_.addh) {
     ESP_LOGD(TAG, "addh is not set right, it should be:");
     ESP_LOGD(TAG, "%u", this->expected_config_.addl);
@@ -270,7 +270,7 @@ void EbyteLoraComponent::setup() {
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
     sensor.sensor->add_on_state_callback([this, &sensor](float x) {
-      this->need_send_info = true;
+      this->need_send_info_ = true;
       sensor.updated = true;
     });
   }
@@ -278,7 +278,7 @@ void EbyteLoraComponent::setup() {
 #ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
     sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
-      this->need_send_info = true;
+      this->need_send_info_ = true;
       sensor.updated = true;
     });
   }
@@ -292,13 +292,16 @@ void EbyteLoraComponent::setup() {
 #endif
   this->pin_aux_->pin_mode(gpio::FLAG_INPUT);
   this->pin_aux_->setup();
-  this->pin_m0_->setup();
   this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT);
-  this->pin_m0_->digital_write(true);
-  this->pin_m1_->setup();
+  this->pin_m0_->setup();
   this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT);
+  this->pin_m1_->setup();
+
+  // set them initial both to high
+  this->pin_m0_->digital_write(true);
   this->pin_m1_->digital_write(true);
-  delay(20);
+  // give it some delay
+  delay(100);
   set_mode_(NORMAL);
   ESP_LOGD(TAG, "Setup success");
 }
@@ -312,7 +315,7 @@ void EbyteLoraComponent::request_current_config_() {
     delay(20);
     return;
   }
-
+  // program conf command, start at 0 with a size of 8
   uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
   this->write_array(data, sizeof(data));
   ESP_LOGD(TAG, "Config info requested");
@@ -343,7 +346,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
     return;
   }
-  delay(5);
+  delay(40);
   switch (mode) {
     case NORMAL:
       this->pin_m0_->digital_write(false);
@@ -389,11 +392,12 @@ void EbyteLoraComponent::update() {
     return;
   if (!this->current_config_.config_set) {
     this->set_mode_(CONFIGURATION);
+    delay(20);
     ESP_LOGD(TAG, "Config not set yet! Requesting");
     this->request_current_config_();
     return;
   }
-  if (!this->is_config_right()) {
+  if (!this->is_config_right_()) {
     ESP_LOGD(TAG, "Config is not right, changing it now");
     this->set_config_();
     return;
@@ -412,7 +416,7 @@ void EbyteLoraComponent::update() {
   if (this->last_key_time_ + this->recyle_time_ < now) {
     ESP_LOGD(TAG, "Requesting all systems to send new info ");
     this->request_repeater_info_update_needed_ = true;
-    this->need_send_info = true;
+    this->need_send_info_ = true;
     this->last_key_time_ = now;
   }
 }
@@ -436,7 +440,7 @@ void EbyteLoraComponent::loop() {
   if (this->request_repeater_info_update_needed_) {
     this->request_repeater_info_();
   }
-  if (this->need_send_info) {
+  if (this->need_send_info_) {
     this->send_data_(true);
   }
 }
@@ -548,7 +552,7 @@ void EbyteLoraComponent::send_data_(bool all) {
   if (!this->can_send_message_("send_data_"))
     return;
   // straight away we are all good for the next cycle
-  this->need_send_info = false;
+  this->need_send_info_ = false;
   std::vector<uint8_t> data;
   data.push_back(network_id_);
 #ifdef USE_SENSOR

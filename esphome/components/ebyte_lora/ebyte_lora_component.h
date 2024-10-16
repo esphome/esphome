@@ -100,7 +100,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_mode_(ModeType mode);
   ModeType get_mode_();
   // check if you can sent a message
-  bool is_config_right();
+  bool is_config_right_();
   void set_config_();
   void request_current_config_();
   void send_data_(bool all);
@@ -109,7 +109,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   bool can_send_message_(const char *info);
 
  protected:
-  bool need_send_info{};
+  bool need_send_info_{};
   bool request_repeater_info_update_needed_{};
   // for now do it every 600s
   uint32_t recyle_time_ = 600;
