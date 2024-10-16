@@ -89,7 +89,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
  protected:
   // surface a couple methods from the base class
   using AsyncEventSource::handleRequest;
-  using AsyncEventSource::send;
+  using AsyncEventSource::try_send;
 
   ListEntitiesIterator entities_iterator_;
   // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory
