@@ -90,7 +90,7 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     std::string message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send_nodefer(message.c_str(), "state")) {
+    if (this->try_send(message.c_str(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
@@ -126,7 +126,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     std::string message = message_generator(web_server_, source);
-    if (!this->try_send_nodefer(message.c_str(), "state")) {
+    if (!this->try_send(message.c_str(), "state")) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
