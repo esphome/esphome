@@ -375,6 +375,12 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
   auto *display = this->displays_[0];
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
+  this->rotation = display->get_rotation();
+  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
+    if (this->rotate_buf_ == nullptr)
+      return;
+  }
   auto *buf = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   if (buf == nullptr)
     return;
@@ -385,12 +391,6 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
   this->disp_drv_.full_refresh = this->full_refresh_;
   this->disp_drv_.flush_cb = static_flush_cb;
   this->disp_drv_.rounder_cb = rounder_cb;
-  this->rotation = display->get_rotation();
-  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
-    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
-    if (this->rotate_buf_ == nullptr)
-      return;
-  }
   // reset the display rotation since we will handle all rotations
   display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   switch (this->rotation) {

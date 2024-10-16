@@ -279,7 +279,6 @@ async def to_code(config):
         await msgboxes_to_code(lv_component, config)
         await disp_update(lv_component.get_disp(), config)
     # At this point only the setup code should be generated
-    assert LvContext.added_lambda_count == 0
     Widget.set_completed()
     async with LvContext(lv_component):
         await generate_triggers(lv_component)
