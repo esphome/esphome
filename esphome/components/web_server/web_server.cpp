@@ -227,7 +227,7 @@ void WebServer::setup() {
   this->setup_controller(this->include_internal_);
   this->base_->init();
 
-  this->events_.onConnect([this](AsyncEventSourceClient *client) {
+  this->event_source_list_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout and send config
     client->send(this->get_config_json().c_str(), "ping", millis(), 30000);
 
@@ -1711,10 +1711,10 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
 }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_STATE);
+  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->last_event_type), DETAIL_STATE);
 }
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_ALL);
+  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->last_event_type), DETAIL_ALL);
 }
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
   return json::build_json([this, obj, event_type, start_config](JsonObject root) {
