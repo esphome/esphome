@@ -565,8 +565,8 @@ class DownloadListRequestHandler(BaseHandler):
             get_download_types = __import__(
                 "esphome.components." + platform, fromlist=["get_download_types"]
             ).get_download_types
-        except AttributeError:
-            raise ValueError(f"Unknown platform {platform}")
+        except AttributeError as exc:
+            raise ValueError(f'Unknown platform {platform}') from exc
         downloads = get_download_types(storage_json)
 
         self.set_status(200)
