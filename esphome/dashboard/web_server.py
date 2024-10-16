@@ -558,6 +558,8 @@ class DownloadListRequestHandler(BaseHandler):
 
         if platform.upper() in ESP32_VARIANTS:
             platform = 'esp32'
+        elif platform in (const.PLATFORM_RTL87XX, const.PLATFORM_BK72XX):
+            platform = 'libretiny'
 
         try:
             get_download_types = __import__("esphome.components." + platform, fromlist=["get_download_types"]).get_download_types
