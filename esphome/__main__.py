@@ -38,7 +38,7 @@ from esphome.const import (
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent, is_ip_address, get_bool_env
+from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import Fore, color, setup_log
 from esphome.util import (
     get_serial_ports,
@@ -378,7 +378,7 @@ def show_logs(config, args, port):
 
             port = mqtt.get_esphome_device_ip(
                 config, args.username, args.password, args.client_id
-            )
+            )[0]
 
         from esphome.components.api.client import run_logs
 
