@@ -18,8 +18,9 @@ from .. import (
     CONF_SI4713_ID,
     Si4713Component,
     si4713_ns,
-    CONF_RDS_STATION,
-    CONF_RDS_TEXT,
+    CONF_SECTION_RDS,
+    CONF_STATION,
+    CONF_TEXT,
     ICON_FORMAT_TEXT,
 )
 
@@ -123,32 +124,38 @@ async def new_text(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_SI4713_ID): cv.use_id(Si4713Component),
-        cv.Optional(CONF_RDS_STATION): text_schema(
-            RDSStationText,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            icon=ICON_FORMAT_TEXT,
-        ),
-        cv.Optional(CONF_RDS_TEXT): text_schema(
-            RDSTextText,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            icon=ICON_FORMAT_TEXT,
+        cv.Optional(CONF_SECTION_RDS): cv.Schema(
+            {
+                cv.Optional(CONF_STATION): text_schema(
+                    RDSStationText,
+                    entity_category=ENTITY_CATEGORY_CONFIG,
+                    icon=ICON_FORMAT_TEXT,
+                ),
+                cv.Optional(CONF_TEXT): text_schema(
+                    RDSTextText,
+                    entity_category=ENTITY_CATEGORY_CONFIG,
+                    icon=ICON_FORMAT_TEXT,
+                ),
+            }
         ),
     }
 )
 
 
-async def new_text_simple(config, id, setter, min_length, max_length, *args):
+async def new_text_simple(parent, config, id, setter, min_length, max_length, *args):
     if c := config.get(id):
         t = await new_text(c, *args, min_length=min_length, max_length=max_length)
-        await cg.register_parented(t, config[CONF_SI4713_ID])
+        await cg.register_parented(t, parent)
         cg.add(setter(t))
+        return t
 
 
 async def to_code(config):
-    c = await cg.get_variable(config[CONF_SI4713_ID])
-    await new_text_simple(
-        config, CONF_RDS_STATION, c.set_rds_station_text, 0, si4713_ns.RDS_STATION_MAX
-    )
-    await new_text_simple(
-        config, CONF_RDS_TEXT, c.set_rds_text_text, 0, si4713_ns.RDS_TEXT_MAX
-    )
+    parent = await cg.get_variable(config[CONF_SI4713_ID])
+    if rds_config := config.get(CONF_SECTION_RDS):
+        await new_text_simple(
+            parent, rds_config, CONF_STATION, parent.set_rds_station_text, 0, si4713_ns.RDS_STATION_MAX
+        )
+        await new_text_simple(
+            parent, rds_config, CONF_TEXT, parent.set_rds_text_text, 0, si4713_ns.RDS_TEXT_MAX
+        )

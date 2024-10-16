@@ -12,7 +12,7 @@ void BinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  Pin: %d", this->pin_);
 }
 
-void Si4713BinaryOutput::write_state(bool state) {
+void BinaryOutput::write_state(bool state) {
   this->parent_->set_gpio(this->pin_, state);
 }
 

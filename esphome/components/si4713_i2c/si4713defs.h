@@ -5,11 +5,140 @@ namespace si4713 {
 
 static const uint8_t SI4710_STATUS_CTS = 0x80;
 
-static const float CH_FREQ_MIN = 76;
-static const float CH_FREQ_MAX = 108;
+static const float FREQ_MIN = 76;
+static const float FREQ_MAX = 108;
+static const int FREQ_RAW_MIN = 7600;
+static const int FREQ_RAW_MAX = 10800;
+static const int POWER_MIN = 88;
+static const int POWER_MAX = 120;
+static const int ANTCAP_MIN = 0;
+static const int ANTCAP_MAX = 191;
+static const int LILEVEL_MIN = 0;
+static const int LILEVEL_MAX = 1023;  // no max in the datasheet, only that it is 10 bits
+static const int DISR_MIN = 32000;
+static const int DISR_MAX = 48000;
+static const float PILOT_FREQ_MIN = 0;
+static const float PILOT_FREQ_MAX = 19;
+static const int PILOT_FREQ_RAW_MIN = 0;
+static const int PILOT_FREQ_RAW_MAX = 19000;
+static const float TXADEV_MIN = 0;
+static const float TXADEV_MAX = 90;
+static const int TXADEV_RAW_MIN = 0;
+static const int TXADEV_RAW_MAX = 9000;
+static const float TXPDEV_MIN = 0;
+static const float TXPDEV_MAX = 90;
+static const int TXPDEV_RAW_MIN = 0;
+static const int TXPDEV_RAW_MAX = 9000;
+static const float TXRDEV_MIN = 0;
+static const float TXRDEV_MAX = 7.5f;
+static const int TXRDEV_RAW_MIN = 0;
+static const int TXRDEV_RAW_MAX = 750;
+static const int REFCLKF_MIN = 31130;
+static const int REFCLKF_MAX = 34406;
+static const int RCLKP_MIN = 1;
+static const int RCLKP_MAX = 4095;
+static const int ACOMP_THRESHOLD_MIN = -40;
+static const int ACOMP_THRESHOLD_MAX = 0;
+static const int ACOMP_GAIN_MIN = 0;
+static const int ACOMP_GAIN_MAX = 20;
+static const float ACOMP_ATTACK_MIN = 0.5f;
+static const float ACOMP_ATTACK_MAX = 5.0f;
+static const int ACOMP_ATTACK_RAW_MIN = 0;
+static const int ACOMP_ATTACK_RAW_MAX = 9;
+static const float LMITERTC_MIN = 0.25f;
+static const float LMITERTC_MAX = 102.4f;
+static const int LMITERTC_RAW_MIN = 5;
+static const int LMITERTC_RAW_MAX = 2000;
+static const int IALTH_MIN = -70;
+static const int IALTH_MAX = 0;
+static const int IALDUR_MIN = 0;
+static const int IALDUR_MAX = 65535;
 
-static const uint8_t RDS_STATION_MAX = 8;
-static const uint8_t RDS_TEXT_MAX = 64;
+static const uint8_t RDS_STATION_MAX = 8;  // TODO
+static const uint8_t RDS_TEXT_MAX = 64;    // TODO
+
+template<typename T> T GET_ENUM_LAST(T value) { return T::LAST; }
+
+enum class OpMode {
+  OPMODE_ANALOG = 0b01010000,   // 0x50
+  OPMODE_DIGITAL = 0b00001111,  // 0x0F
+  LAST,
+};
+
+enum class PreEmphasis {
+  FMPE_75US,  // USA
+  FMPE_50US,  // EU
+  FMPE_DISABLED,
+  LAST,
+};
+
+enum class LineAttenuation {
+  LIATTEN_396KOHM,
+  LIATTEN_100KOHM,
+  LIATTEN_74KOHM,
+  LIATTEN_60KOHM,
+  LAST,
+};
+
+enum class SampleBits {
+  ISIZE_16BITS,
+  ISIZE_20BITS,
+  ISIZE_24BITS,
+  ISIZE_8BITS,
+  LAST,
+};
+
+enum class SampleChannels {
+  IMONO_STEREO,
+  IMONO_MONO,
+  LAST,
+};
+
+enum class DigitalMode {
+  IMODE_DEFAULT,
+  IMODE_I2S,
+  IMODE_LEFT_JUSTIFIED,
+  IMODE_MSB_AT_1ST,
+  IMODE_MSB_AT_2ND,
+  LAST,
+};
+
+enum class DigitalClockEdge {
+  IFALL_DCLK_RISING_EDGE,
+  IFALL_DCLK_FALLIBG_EDGE,
+  LAST,
+};
+
+enum class RefClkSource {
+  RCLKSEL_RCLK,
+  RCLKSEL_DCLK,
+  LAST,
+};
+
+enum class AcompAttack {
+  ATTACK_05MS,
+  ATTACK_10MS,
+  ATTACK_15MS,
+  ATTACK_20MS,
+  ATTACK_25MS,
+  ATTACK_30MS,
+  ATTACK_35MS,
+  ATTACK_40MS,
+  ATTACK_45MS,
+  ATTACK_50MS,
+  LAST,
+};
+
+enum class AcompRelease {
+  RELEASE_100MS,
+  RELEASE_200MS,
+  RELEASE_350MS,
+  RELEASE_525MS,
+  RELEASE_1000MS,
+  LAST,
+};
+
+enum class AcompPreset { ACOMP_MINIMAL, ACOMP_AGGRESSIVE, ACOMP_CUSTOM, LAST };
 
 enum class CmdType : uint8_t {
   POWER_UP = 0x01,         // Power up device and mode selection.
@@ -407,11 +536,9 @@ struct ResTxTuneMeasure : ResBase {};
 
 struct CmdTxTuneStatus : CmdBase {
   union {
-    uint8_t ARG[2];
+    uint8_t ARG[1];
     struct {
       // ARG1
-      uint8_t : 8;  // zero
-      // ARG2
       uint8_t INTACK : 1;  // Seek/Tune Interrupt Clear.
       uint8_t : 7;
     };
@@ -420,7 +547,6 @@ struct CmdTxTuneStatus : CmdBase {
   CmdTxTuneStatus(uint8_t intack = 1) {
     this->CMD = CmdType::TX_TUNE_STATUS;
     this->ARG[0] = 0;
-    this->ARG[1] = 0;
     this->INTACK = intack;
   }
 };
@@ -449,11 +575,9 @@ struct ResTxTuneStatus : ResBase {
 
 struct CmdTxAsqStatus : CmdBase {
   union {
-    uint8_t ARG[2];
+    uint8_t ARG[1];
     struct {
       // ARG1
-      uint8_t : 8;  // zero
-      // ARG2
       uint8_t INTACK : 1;  // Interrupt Acknowledge.  Clears ASQINT, OVERMOD, IALDH, and IALDL
       uint8_t : 7;
     };
@@ -462,7 +586,6 @@ struct CmdTxAsqStatus : CmdBase {
   CmdTxAsqStatus(uint8_t intack = 1) {
     this->CMD = CmdType::TX_ASQ_STATUS;
     this->ARG[0] = 0;
-    this->ARG[1] = 0;
     this->INTACK = intack;
   }
 };
@@ -472,9 +595,9 @@ struct ResTxAsqStatus : ResBase {
     uint8_t RESP[4];
     struct {
       // RESP1
-      uint8_t OVERMOD : 1;  // Overmodulation Detection
+      uint8_t IALL : 1;     // Overmodulation Detection
       uint8_t IALH : 1;     // Input Audio Level Threshold Detect High
-      uint8_t IALL : 1;     // Input Audio Level Threshold Detect Low
+      uint8_t OVERMOD : 1;  // Input Audio Level Threshold Detect Low
       uint8_t : 5;
       // RESP2
       uint8_t : 8;
@@ -673,13 +796,16 @@ struct PropDigitalInputFormat : PropBase {
     };
   };
 
-  PropDigitalInputFormat(uint16_t isize = 0, uint16_t imono = 0, uint16_t imode = 0, uint16_t ifall = 0) {
+  PropDigitalInputFormat(SampleBits isize = SampleBits::ISIZE_16BITS,
+                         SampleChannels imono = SampleChannels::IMONO_STEREO,
+                         DigitalMode imode = DigitalMode::IMODE_DEFAULT,
+                         DigitalClockEdge ifall = DigitalClockEdge::IFALL_DCLK_RISING_EDGE) {
     this->PROP = PropType::DIGITAL_INPUT_FORMAT;
     this->PROPD = 0x0000;
-    this->ISIZE = isize;
-    this->IMONO = imono;
-    this->IMODE = imode;
-    this->IFALL = ifall;
+    this->ISIZE = (uint16_t) isize;
+    this->IMONO = (uint16_t) imono;
+    this->IMODE = (uint16_t) imode;
+    this->IFALL = (uint16_t) ifall;
   }
 };
 
@@ -724,11 +850,11 @@ struct PropRefClkPreScale : PropBase {
     };
   };
 
-  PropRefClkPreScale(uint16_t rclkp = 1, uint16_t rclksel = 0) {
+  PropRefClkPreScale(uint16_t rclkp = 1, RefClkSource rclksel = RefClkSource::RCLKSEL_RCLK) {
     this->PROP = PropType::REFCLK_PRESCALE;
     this->PROPD = 0x0001;
     this->RCLKP = rclkp;
-    this->RCLKSEL = rclksel;
+    this->RCLKSEL = (uint16_t) rclksel;
   }
 };
 
@@ -805,11 +931,11 @@ struct PropTxLineInputLevel : PropBase {
     };
   };
 
-  PropTxLineInputLevel(uint16_t lilevel = 636, uint16_t liatten = 3) {
+  PropTxLineInputLevel(uint16_t lilevel = 636, LineAttenuation liatten = LineAttenuation::LIATTEN_60KOHM) {
     this->PROP = PropType::TX_LINE_INPUT_LEVEL;
     this->PROPD = 0x327C;
     this->LILEVEL = lilevel;
-    this->LIATTEN = liatten;
+    this->LIATTEN = (uint16_t) liatten;
   }
 };
 
@@ -840,10 +966,10 @@ struct PropTxPreEmphasis : PropBase {
     };
   };
 
-  PropTxPreEmphasis(uint16_t fmpe = 0) {
+  PropTxPreEmphasis(PreEmphasis fmpe = PreEmphasis::FMPE_75US) {
     this->PROP = PropType::TX_PREEMPHASIS;
     this->PROPD = 0x0000;
-    this->FMPE = fmpe;
+    this->FMPE = (uint16_t) fmpe;
   }
 };
 
@@ -920,10 +1046,10 @@ struct PropTxAcompReleaseTime : PropBase {
     };
   };
 
-  PropTxAcompReleaseTime(uint16_t release = 4) {
+  PropTxAcompReleaseTime(AcompRelease release = AcompRelease::RELEASE_1000MS) {
     this->PROP = PropType::TX_ACOMP_RELEASE_TIME;
     this->PROPD = 0x0004;
-    this->RELEASE = release;
+    this->RELEASE = (uint16_t) release;
   }
 };
 
@@ -978,8 +1104,8 @@ struct PropTxAsqLevelLow : PropBase {
   union {
     uint16_t PROPD;
     struct {
-      uint16_t IALLTH : 8;  // Input Audio Level Low Threshold (-70 to 0 dB)
-      uint16_t : 8;
+      int8_t IALLTH : 8;  // Input Audio Level Low Threshold (-70 to 0 dB)
+      uint8_t : 8;
     };
   };
 
@@ -1007,8 +1133,8 @@ struct PropTxAsqLevelHigh : PropBase {
   union {
     uint16_t PROPD;
     struct {
-      uint16_t IALHTH : 8;  // Input Audio Level High Threshold (-70 to 0 dB)
-      uint16_t : 8;
+      int8_t IALHTH : 8;  // Input Audio Level High Threshold (-70 to 0 dB)
+      uint8_t : 8;
     };
   };
 
