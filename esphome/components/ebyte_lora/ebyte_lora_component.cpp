@@ -301,7 +301,7 @@ void EbyteLoraComponent::setup() {
   this->pin_m0_->digital_write(true);
   this->pin_m1_->digital_write(true);
   // give it some delay
-  delay(100);
+  delay(5);
   this->busy_till_ = millis() + 500;
   set_mode_(NORMAL);
   ESP_LOGD(TAG, "Setup success");
