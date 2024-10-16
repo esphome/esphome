@@ -593,7 +593,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
         storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
-            print("404")
+            self.send_error(404)
             return
 
         # fallback to type=, but prioritize file=
