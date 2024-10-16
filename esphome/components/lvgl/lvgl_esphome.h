@@ -20,9 +20,6 @@
 #include <lvgl.h>
 #include <vector>
 #include <map>
-#ifdef USE_LVGL_IMAGE
-#include "esphome/components/image/image.h"
-#endif  // USE_LVGL_IMAGE
 
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
@@ -109,7 +106,8 @@ class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
-  void set_displays(std::vector<display::Display *> displays);
+  LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
+                bool resume_on_input);
   static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -120,11 +118,8 @@ class LvglComponent : public PollingComponent {
     this->idle_callbacks_.add(std::move(callback));
   }
   void add_on_pause_callback(std::function<void(bool)> &&callback) { this->pause_callbacks_.add(std::move(callback)); }
-  void add_display(display::Display *display) { this->displays_.push_back(display); }
   void dump_config() override;
-  void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
-  void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
   lv_obj_t *get_scr_act() { return lv_disp_get_scr_act(this->disp_); }
   // Pause or resume the display.
@@ -157,8 +152,6 @@ class LvglComponent : public PollingComponent {
   }
   // rounding factor to align bounds of update area when drawing
   size_t draw_rounding{2};
-  void set_draw_rounding(size_t rounding) { this->draw_rounding = rounding; }
-  void set_resume_on_input(bool resume_on_input) { this->resume_on_input_ = resume_on_input; }
 
   // if set to true, the bounds of the update area will always start at 0,0
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};

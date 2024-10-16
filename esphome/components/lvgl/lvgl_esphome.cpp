@@ -342,8 +342,33 @@ void LvglComponent::write_random_() {
   }
 }
 
-void LvglComponent::set_displays(std::vector<display::Display *> displays) {
-  this->displays_ = std::move(displays);
+/**
+ * @class LvglComponent
+ * @brief Component for rendering LVGL.
+ *
+ * This component renders LVGL widgets on a display. Some initialisation must be done in the constructor
+ * since LVGL needs to be initialised before any widgets can be created.
+ *
+ * @param displays a list of displays to render onto. All displays must have the same
+ *                 resolution.
+ * @param buffer_frac the fraction of the display resolution to use for the LVGL
+ *                    draw buffer. A higher value will make animations smoother but
+ *                    also increase memory usage.
+ * @param full_refresh if true, the display will be fully refreshed on every frame.
+ *                     If false, only changed areas will be updated.
+ * @param draw_rounding the rounding to use when drawing. A value of 1 will draw
+ *                      without any rounding, a value of 2 will round to the nearest
+ *                      multiple of 2, and so on.
+ * @param resume_on_input if true, this component will resume rendering when the user
+ *                         presses a key or clicks on the screen.
+ */
+LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh,
+                             int draw_rounding, bool resume_on_input)
+    : displays_(std::move(displays)),
+      buffer_frac_(buffer_frac),
+      full_refresh_(full_refresh),
+      draw_rounding(draw_rounding),
+      resume_on_input_(resume_on_input) {
   lv_init();
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
   lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
@@ -351,14 +376,8 @@ void LvglComponent::set_displays(std::vector<display::Display *> displays) {
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
   auto *buf = lv_custom_mem_alloc(buf_bytes);  // NOLINT
-  if (buf == nullptr) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-    ESP_LOGE(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
-#endif
-    this->mark_failed();
-    this->status_set_error("Memory allocation failure");
+  if (buf == nullptr)
     return;
-  }
   lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
   lv_disp_drv_init(&this->disp_drv_);
   this->disp_drv_.draw_buf = &this->draw_buf_;
@@ -369,15 +388,10 @@ void LvglComponent::set_displays(std::vector<display::Display *> displays) {
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
-    if (this->rotate_buf_ == nullptr) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-      ESP_LOGE(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
-#endif
-      this->mark_failed();
-      this->status_set_error("Memory allocation failure");
+    if (this->rotate_buf_ == nullptr)
       return;
-    }
   }
+  // reset the display rotation since we will handle all rotations
   display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   switch (this->rotation) {
     default:
@@ -394,6 +408,11 @@ void LvglComponent::set_displays(std::vector<display::Display *> displays) {
 }
 
 void LvglComponent::setup() {
+  if (this->draw_buf_.buf1 == nullptr) {
+    this->mark_failed();
+    this->status_set_error("Memory allocation failure");
+    return;
+  }
   ESP_LOGCONFIG(TAG, "LVGL Setup starts");
 #if LV_USE_LOG
   lv_log_register_print_cb([](const char *buf) {

@@ -54,13 +54,7 @@ from .types import (
     lv_style_t,
     lvgl_ns,
 )
-from .widgets import (
-    Widget,
-    add_widgets,
-    lv_scr_act_spec,
-    set_obj_properties,
-    styles_used,
-)
+from .widgets import Widget, add_widgets, get_scr_act, set_obj_properties, styles_used
 from .widgets.animimg import animimg_spec
 from .widgets.arc import arc_spec
 from .widgets.button import button_spec
@@ -230,10 +224,6 @@ async def to_code(config):
     CORE.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
-    lv_component = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(lv_component, config)
-    Widget.create(config[CONF_ID], lv_component, obj_spec, config)
-
     frac = config[CONF_BUFFER_SIZE]
     if frac >= 0.75:
         frac = 1
@@ -243,10 +233,17 @@ async def to_code(config):
         frac = 4
     else:
         frac = 8
-    cg.add(lv_component.set_buffer_frac(int(frac)))
-    cg.add(lv_component.set_full_refresh(config[df.CONF_FULL_REFRESH]))
-    cg.add(lv_component.set_draw_rounding(config[df.CONF_DRAW_ROUNDING]))
-    cg.add(lv_component.set_resume_on_input(config[df.CONF_RESUME_ON_INPUT]))
+    displays = [await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]]
+    lv_component = cg.new_Pvariable(
+        config[CONF_ID],
+        displays,
+        frac,
+        config[df.CONF_FULL_REFRESH],
+        config[df.CONF_DRAW_ROUNDING],
+        config[df.CONF_RESUME_ON_INPUT],
+    )
+    await cg.register_component(lv_component, config)
+    Widget.create(config[CONF_ID], lv_component, obj_spec, config)
 
     for font in helpers.esphome_fonts_used:
         await cg.get_variable(font)
@@ -268,9 +265,7 @@ async def to_code(config):
     else:
         add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
 
-    displays = [await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]]
-    cg.add(lv_component.set_displays(displays))
-    lv_scr_act = Widget.create(None, lv_component.get_scr_act(), lv_scr_act_spec, {})
+    lv_scr_act = get_scr_act(lv_component)
     async with LvContext(lv_component):
         await touchscreens_to_code(lv_component, config)
         await encoders_to_code(lv_component, config)
