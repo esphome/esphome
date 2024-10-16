@@ -12,6 +12,11 @@ substitutions:
   arrow_down: "\U000F004B"
 
 lvgl:
+  resume_on_input: true
+  on_pause:
+    logger.log: LVGL is Paused
+  on_resume:
+    logger.log: LVGL has resumed
   log_level: TRACE
   bg_color: light_blue
   disp_bg_color: color_id

@@ -117,6 +117,7 @@ class LvglComponent : public PollingComponent {
   void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
     this->idle_callbacks_.add(std::move(callback));
   }
+  void add_on_pause_callback(std::function<void(bool)> &&callback) { this->pause_callbacks_.add(std::move(callback)); }
   void add_display(display::Display *display) { this->displays_.push_back(display); }
   void add_init_lambda(const std::function<void(LvglComponent *)> &lamb) { this->init_lambdas_.push_back(lamb); }
   void dump_config() override;
@@ -124,12 +125,22 @@ class LvglComponent : public PollingComponent {
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
+  // Pause or resume the display.
+  // @param paused If true, pause the display. If false, resume the display.
+  // @param show_snow If true, show the snow effect when paused.
   void set_paused(bool paused, bool show_snow);
+  bool is_paused() const { return this->paused_; }
+  // If the display is paused and we have resume_on_input_ set to true, resume the display.
+  void maybe_wakeup() {
+    if (this->paused_ && this->resume_on_input_) {
+      this->set_paused(false, false);
+    }
+  }
+
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                     lv_event_code_t event3);
-  bool is_paused() const { return this->paused_; }
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
@@ -142,10 +153,17 @@ class LvglComponent : public PollingComponent {
       lv_group_focus_obj(mark);
     }
   }
+  // rounding factor to align bounds of update area when drawing
+  size_t draw_rounding{2};
+  void set_draw_rounding(size_t rounding) { this->draw_rounding = rounding; }
+  void set_resume_on_input(bool resume_on_input) { this->resume_on_input_ = resume_on_input; }
+
+  // if set to true, the bounds of the update area will always start at 0,0
+  display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
 
  protected:
   void write_random_();
-  void draw_buffer_(const lv_area_t *area, const uint8_t *ptr);
+  void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
   std::vector<display::Display *> displays_{};
   lv_disp_draw_buf_t draw_buf_{};
@@ -155,14 +173,16 @@ class LvglComponent : public PollingComponent {
   std::vector<LvPageType *> pages_{};
   size_t current_page_{0};
   bool show_snow_{};
-  lv_coord_t snow_line_{};
   bool page_wrap_{true};
+  bool resume_on_input_{};
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};
+  CallbackManager<void(bool)> pause_callbacks_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
+  lv_color_t *rotate_buf_{};
 };
 
 class IdleTrigger : public Trigger<> {
@@ -172,6 +192,14 @@ class IdleTrigger : public Trigger<> {
  protected:
   TemplatableValue<uint32_t> timeout_;
   bool is_idle_{};
+};
+
+class PauseTrigger : public Trigger<> {
+ public:
+  explicit PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused);
+
+ protected:
+  TemplatableValue<bool> paused_;
 };
 
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
@@ -198,7 +226,10 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
  public:
   LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time);
   void update(const touchscreen::TouchPoints_t &tpoints) override;
-  void release() override { touch_pressed_ = false; }
+  void release() override {
+    touch_pressed_ = false;
+    this->parent_->maybe_wakeup();
+  }
   lv_indev_drv_t *get_drv() { return &this->drv_; }
 
  protected:
@@ -236,12 +267,18 @@ class LVEncoderListener : public Parented<LvglComponent> {
     if (!this->parent_->is_paused()) {
       this->pressed_ = pressed;
       this->key_ = key;
+    } else if (!pressed) {
+      // maybe wakeup on release if paused
+      this->parent_->maybe_wakeup();
     }
   }
 
   void set_count(int32_t count) {
-    if (!this->parent_->is_paused())
+    if (!this->parent_->is_paused()) {
       this->count_ = count;
+    } else {
+      this->parent_->maybe_wakeup();
+    }
   }
 
   lv_indev_drv_t *get_drv() { return &this->drv_; }

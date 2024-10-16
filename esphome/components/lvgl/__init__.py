@@ -48,6 +48,7 @@ from .types import (
     FontEngine,
     IdleTrigger,
     ObjUpdateAction,
+    PauseTrigger,
     lv_font_t,
     lv_group_t,
     lv_style_t,
@@ -233,6 +234,8 @@ async def to_code(config):
         frac = 8
     cg.add(lv_component.set_buffer_frac(int(frac)))
     cg.add(lv_component.set_full_refresh(config[df.CONF_FULL_REFRESH]))
+    cg.add(lv_component.set_draw_rounding(config[df.CONF_DRAW_ROUNDING]))
+    cg.add(lv_component.set_resume_on_input(config[df.CONF_RESUME_ON_INPUT]))
 
     for font in helpers.esphome_fonts_used:
         await cg.get_variable(font)
@@ -273,11 +276,19 @@ async def to_code(config):
     async with LvContext(lv_component):
         await generate_triggers(lv_component)
         await generate_page_triggers(lv_component, config)
+        await initial_focus_to_code(config)
         for conf in config.get(CONF_ON_IDLE, ()):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
-        await initial_focus_to_code(config)
+        for conf in config.get(df.CONF_ON_PAUSE, ()):
+            pause_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, True)
+            await build_automation(pause_trigger, [], conf)
+        for conf in config.get(df.CONF_ON_RESUME, ()):
+            resume_trigger = cg.new_Pvariable(
+                conf[CONF_TRIGGER_ID], lv_component, False
+            )
+            await build_automation(resume_trigger, [], conf)
 
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
@@ -315,6 +326,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+            cv.Optional(df.CONF_DRAW_ROUNDING, default=2): cv.positive_int,
             cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
             cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                 *df.LOG_LEVELS, upper=True
@@ -342,6 +354,16 @@ CONFIG_SCHEMA = (
                     ),
                 }
             ),
+            cv.Optional(df.CONF_ON_PAUSE): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
+                }
+            ),
+            cv.Optional(df.CONF_ON_RESUME): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
+                }
+            ),
             cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(WIDGET_SCHEMA),
             cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
                 container_schema(page_spec)
@@ -357,6 +379,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
             cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
+            cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
         }
     )
     .extend(DISP_BG_SCHEMA)
