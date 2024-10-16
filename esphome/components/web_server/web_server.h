@@ -322,6 +322,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_EVENT
   void on_event(event::Event *obj, const std::string &event_type) override;
 
+  /// Handle a event request under '/event<id>'.
+  void handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
   /// Dump the event details with its value as a JSON string.
   std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
