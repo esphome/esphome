@@ -77,6 +77,9 @@ void FeedbackCover::dump_config() {
   if (this->acceleration_wait_time_) {
     ESP_LOGCONFIG(TAG, "  Acceleration wait time: %.1fs", this->acceleration_wait_time_ / 1e3f);
   }
+  if (this->overshoot_duration_) {
+    ESP_LOGCONFIG(TAG, "  Overshoot duration: %.1fs", this->overshoot_duration_ / 1e3f);
+  }
 #ifdef USE_BINARY_SENSOR
   if (this->obstacle_rollback_ && (this->open_obstacle_ != nullptr || this->close_obstacle_ != nullptr)) {
     ESP_LOGCONFIG(TAG, "  Obstacle rollback: %.1f%%", this->obstacle_rollback_ * 100);
@@ -229,11 +232,26 @@ void FeedbackCover::loop() {
   // (stoping from endstop sensor is handled in callback)
   if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
     if (this->is_at_target_()) {
-      if (this->has_built_in_endstop_ &&
-          (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
-        // Don't trigger stop, let the cover stop by itself.
-        this->set_current_operation_(COVER_OPERATION_IDLE, true);
+      if (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED) {
+        if (this->has_built_in_endstop_) {
+          // Don't trigger stop, let the cover stop by itself.
+          this->set_current_operation_(COVER_OPERATION_IDLE, true);
+        } else if (this->overshoot_duration_) {
+          // We want to overshoot a bit on cover being totaly open or closed, in order to make sure cover is synced
+          if (!this->start_overshoot_time_) {
+            // We just started overshooting, save time for comparison
+            this->start_overshoot_time_ = now;
+          } else if (now - this->start_overshoot_time_ > this->overshoot_duration_) {
+            // We overshot enough, stop the cover
+            ESP_LOGD(TAG, "'%s' - Overshoot duration reached. Stopping cover.", this->name_.c_str());
+            this->start_direction_(COVER_OPERATION_IDLE);
+          }
+        } else {
+          // No overshoot_duration, stop immediately at open-close
+          this->start_direction_(COVER_OPERATION_IDLE);
+        }
       } else {
+        // Not on open-close position, stop immediately
         this->start_direction_(COVER_OPERATION_IDLE);
       }
     } else if (now - this->start_dir_time_ > this->max_duration_) {
@@ -335,6 +353,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   switch (dir) {
     case COVER_OPERATION_IDLE:
       trig = this->stop_trigger_;
+      this->start_overshoot_time_ = 0;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
