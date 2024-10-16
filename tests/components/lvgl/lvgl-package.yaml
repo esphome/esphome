@@ -125,6 +125,8 @@ lvgl:
       on_unload:
         - logger.log: page unloaded
         - lvgl.widget.focus: mark
+        - lvgl.widget.redraw: hello_label
+        - lvgl.widget.redraw:
       on_all_events:
         logger.log:
           format: "Event %s"
