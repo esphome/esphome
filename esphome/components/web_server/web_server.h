@@ -79,7 +79,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
     message_generator_t *message_generator_;
 
    public:
-    DeferredEvent(void *source, const message_generator_t *message_generator)
+    DeferredEvent(void *source, message_generator_t *message_generator)
         : source_(source), message_generator_(message_generator) {}
     bool operator==(const DeferredEvent &test) const {
       return (source_ == test.source_ && message_generator_ == test.message_generator_);
@@ -98,7 +98,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   WebServer *web_server_;
 
   // helper for allowing only unique entries in the queue
-  void deq_push_back_with_dedup_(void *source, const message_generator_t *message_generator);
+  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
 
   void process_deferred_queue_();
 
@@ -108,22 +108,22 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
+  void deferrable_send_state(void *source, char *event_type, const message_generator_t *message_generator);
+  void try_send_nodefer(const char *message, char *event = nullptr, const uint32_t id = 0,
                         const uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  protected:
-  void on_client_connect(DeferredUpdateEventSource *source, const std::function<std::string()> &generate_config_json,
+  void on_client_connect_(DeferredUpdateEventSource *source, const std::function<std::string()> &generate_config_json,
                          const bool include_internal);
-  void on_client_disconnect(DeferredUpdateEventSource *source);
+  void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
+  void deferrable_send_state(void *source, char *event_type, const message_generator_t *message_generator);
+  void try_send_nodefer(const char *message, char *event = nullptr, const uint32_t id = 0,
                         const uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
