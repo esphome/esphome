@@ -273,16 +273,17 @@ class LvSelectable : public LvCompound {
 #ifdef USE_LVGL_DROPDOWN
 class LvDropdownType : public LvSelectable {
  public:
-  void set_options_(const char *options) override { lv_dropdown_set_options(this->obj, options); }
   size_t get_selected_index() override { return lv_dropdown_get_selected(this->obj); }
   void set_selected_index(size_t index, lv_anim_enable_t anim) override { lv_dropdown_set_selected(this->obj, index); }
+
+ protected:
+  void set_options_(const char *options) override { lv_dropdown_set_options(this->obj, options); }
 };
 #endif  // USE_LVGL_DROPDOWN
 
 #ifdef USE_LVGL_ROLLER
 class LvRollerType : public LvSelectable {
  public:
-  void set_options_(const char *options) override { lv_roller_set_options(this->obj, options, this->mode_); }
   size_t get_selected_index() override { return lv_roller_get_selected(this->obj); }
   void set_selected_index(size_t index, lv_anim_enable_t anim) override {
     lv_roller_set_selected(this->obj, index, anim);
@@ -290,6 +291,7 @@ class LvRollerType : public LvSelectable {
   void set_mode(lv_roller_mode_t mode) { this->mode_ = mode; }
 
  protected:
+  void set_options_(const char *options) override { lv_roller_set_options(this->obj, options, this->mode_); }
   lv_roller_mode_t mode_{LV_ROLLER_MODE_NORMAL};
 };
 #endif
