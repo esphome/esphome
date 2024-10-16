@@ -232,7 +232,7 @@ void LvSelectable::set_options(std::vector<std::string> options) {
   if (index >= options.size())
     index = options.size() - 1;
   this->options_ = std::move(options);
-  this->set_options_(join_string(this->options_).c_str());
+  this->set_options(join_string(this->options_).c_str());
   lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
   this->set_selected_index(index, LV_ANIM_OFF);
 }
