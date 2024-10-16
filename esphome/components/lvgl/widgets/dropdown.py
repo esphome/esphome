@@ -72,10 +72,10 @@ class DropdownType(WidgetType):
             lv.dropdown_set_symbol(w.var.obj, await lv_text.process(symbol))
         if (selected := config.get(CONF_SELECTED_INDEX)) is not None:
             value = await lv_int.process(selected)
-            lv_add(w.var.set_selected(value))
+            lv_add(w.var.set_selected_index(value, literal("LV_ANIM_OFF")))
         if (selected := config.get(CONF_SELECTED_TEXT)) is not None:
             value = await lv_text.process(selected)
-            lv_add(w.var.set_selected(value))
+            lv_add(w.var.set_selected_text(value, literal("LV_ANIM_OFF")))
         if dirn := config.get(CONF_DIR):
             lv.dropdown_set_dir(w.obj, literal(dirn))
         if dlist := config.get(CONF_DROPDOWN_LIST):

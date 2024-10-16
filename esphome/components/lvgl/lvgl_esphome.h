@@ -258,34 +258,39 @@ class LVEncoderListener : public Parented<LvglComponent> {
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 class LvSelectable : public LvCompound {
  public:
-  virtual size_t get_selected() = 0;
-  virtual void set_selected(std::string text, lv_anim_enable_t anim = LV_ANIM_OFF);
-  virtual void set_selected(size_t index, lv_anim_enable_t anim = LV_ANIM_OFF) = 0;
+  virtual size_t get_selected_index() = 0;
+  virtual void set_selected_index(size_t index, lv_anim_enable_t anim) = 0;
+  void set_selected_text(const std::string &text, lv_anim_enable_t anim);
   std::string get_selected_text();
   std::vector<std::string> get_options() { return this->options_; }
-  void set_options(std::vector<std::string> options, size_t index);
+  void set_options(std::vector<std::string> options);
 
  protected:
+  virtual void set_options_(const char *options) = 0;
   std::vector<std::string> options_{};
 };
 
 #ifdef USE_LVGL_DROPDOWN
 class LvDropdownType : public LvSelectable {
  public:
-  void set_options(const std::vector<std::string> &options);
-  size_t get_selected() override;
-  void set_selected(size_t index, lv_anim_enable_t anim = LV_ANIM_OFF) override;
-  void set_selected(std::string text) { LvSelectable::set_selected(std::move(text), LV_ANIM_OFF); };
+  void set_options_(const char *options) override { lv_dropdown_set_options(this->obj, options); }
+  size_t get_selected_index() override { return lv_dropdown_get_selected(this->obj); }
+  void set_selected_index(size_t index, lv_anim_enable_t anim) override { lv_dropdown_set_selected(this->obj, index); }
 };
 #endif  // USE_LVGL_DROPDOWN
 
 #ifdef USE_LVGL_ROLLER
 class LvRollerType : public LvSelectable {
  public:
-  void set_options(const std::vector<std::string> &options, lv_roller_mode_t mode);
-  size_t get_selected() override;
-  void set_selected(size_t index, lv_anim_enable_t anim) override;
-  void set_selected(std::string text, lv_anim_enable_t anim) override { LvSelectable::set_selected(text, anim); };
+  void set_options_(const char *options) override { lv_roller_set_options(this->obj, options, this->mode_); }
+  size_t get_selected_index() override { return lv_roller_get_selected(this->obj); }
+  void set_selected_index(size_t index, lv_anim_enable_t anim) override {
+    lv_roller_set_selected(this->obj, index, anim);
+  }
+  void set_mode(lv_roller_mode_t mode) { this->mode_ = mode; }
+
+ protected:
+  lv_roller_mode_t mode_{LV_ROLLER_MODE_NORMAL};
 };
 #endif
 #endif  // defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)

@@ -97,7 +97,7 @@ class LvSelect(LvType):
         super().__init__(
             *args,
             largs=[(cg.int_, "x"), (cg.std_string, "text")],
-            lvalue=lambda w: [w.var.get_selected(), w.var.get_selected_text()],
+            lvalue=lambda w: [w.var.get_selected_index(), w.var.get_selected_text()],
             has_on_value=True,
             parents=parens,
             **kwargs,

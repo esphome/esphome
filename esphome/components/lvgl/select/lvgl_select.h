@@ -42,7 +42,7 @@ class LVGLSelect : public select::Select {
  protected:
   void control(const std::string &value) override {
     if (this->widget_ != nullptr) {
-      this->widget_->set_selected(value, this->anim_);
+      this->widget_->set_selected_text(value, this->anim_);
     } else {
       this->initial_state_ = value;
     }
