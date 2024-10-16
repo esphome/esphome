@@ -13,8 +13,8 @@ void Event::trigger(const std::string &event_type) {
     ESP_LOGE(TAG, "'%s': invalid event type for trigger(): %s", this->get_name().c_str(), event_type.c_str());
     return;
   }
-  state = &(*found);
-  ESP_LOGD(TAG, "'%s' Triggered event '%s'", this->get_name().c_str(), state->c_str());
+  last_event_type_ = &(*found);
+  ESP_LOGD(TAG, "'%s' Triggered event '%s'", this->get_name().c_str(), last_event_type_->c_str());
   this->event_callback_.call(event_type);
 }
 
