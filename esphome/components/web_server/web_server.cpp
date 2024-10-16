@@ -133,7 +133,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, 
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
                                                  uint32_t reconnect) {
   this->send(message, event, id, reconnect);
 }
@@ -190,7 +190,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
       root["name"] = group.second.name;
       root["sorting_weight"] = group.second.weight;
     });
-    
+
     // up to 31 groups should be able to be queued initially without defer
     source->try_send_nodefer(message.c_str(), "sorting_group");
   }
