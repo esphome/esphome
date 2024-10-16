@@ -108,7 +108,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 
   void loop();
 
-  void deferrable_send_state(void *source, char *event_type, const message_generator_t *message_generator);
+  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
   void try_send_nodefer(const char *message, char *event = nullptr, const uint32_t id = 0,
                         const uint32_t reconnect = 0);
 };
@@ -116,13 +116,13 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  protected:
   void on_client_connect_(DeferredUpdateEventSource *source, const std::function<std::string()> &generate_config_json,
-                         const bool include_internal);
+                          const bool include_internal);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
   void loop();
 
-  void deferrable_send_state(void *source, char *event_type, const message_generator_t *message_generator);
+  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
   void try_send_nodefer(const char *message, char *event = nullptr, const uint32_t id = 0,
                         const uint32_t reconnect = 0);
 
