@@ -185,7 +185,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
   std::string message = generate_config_json();
   source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
-  for (auto &group : this->sorting_groups_) {
+  for (auto &group : this->web_server_->sorting_groups_) {
     message = json::build_json([group](JsonObject root) {
       root["name"] = group.second.name;
       root["sorting_weight"] = group.second.weight;
