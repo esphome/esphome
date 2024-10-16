@@ -73,7 +73,7 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 // helper for allowing only unique entries in the queue
-void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, const message_generator_t *message_generator) {
+void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
 
   auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
@@ -105,8 +105,8 @@ void DeferredUpdateEventSource::loop() {
     this->entities_iterator_.advance();
 }
 
-void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *event_type,
-                                                      const message_generator_t *message_generator) {
+void DeferredUpdateEventSource::deferrable_send_state(void *source, char *event_type,
+                                                      message_generator_t *message_generator) {
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
   if (!entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
@@ -133,7 +133,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, char *event, uint32_t id,
                                                  uint32_t reconnect) {
   this->send(message, event, id, reconnect);
 }
@@ -144,14 +144,14 @@ void DeferredUpdateEventSourceList::loop() {
   }
 }
 
-void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const char *event_type,
-                                                          const message_generator_t *message_generator) {
+void DeferredUpdateEventSourceList::deferrable_send_state(void *source, char *event_type,
+                                                          message_generator_t *message_generator) {
   for (DeferredUpdateEventSource *dues : *this) {
     dues->deferrable_send_state(source, event_type, message_generator);
   }
 }
 
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id,
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, char *event, uint32_t id,
                                                      uint32_t reconnect) {
   for (DeferredUpdateEventSource *dues : *this) {
     dues->try_send_nodefer(message, event, id, reconnect);
@@ -166,18 +166,18 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 
   es->onConnect([this, ws, es, generate_config_json, include_internal](AsyncEventSourceClient *client) {
     ws->defer([this, es, generate_config_json, include_internal]() {
-      this->on_client_connect(es, generate_config_json, include_internal);
+      this->on_client_connect_(es, generate_config_json, include_internal);
     });
   });
 
   es->onDisconnect([this, ws](AsyncEventSource *source, const AsyncEventSourceClient *client) {
-    ws->defer([this, source]() { this->on_client_disconnect((DeferredUpdateEventSource *) source); });
+    ws->defer([this, source]() { this->on_client_disconnect_((DeferredUpdateEventSource *) source); });
   });
 
   es->handleRequest(request);
 }
 
-void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource *source,
+void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source,
                                                       const std::function<std::string()> &generate_config_json,
                                                       const bool include_internal) {
   // Configure reconnect timeout and send config
@@ -194,7 +194,7 @@ void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource 
   //}
 }
 
-void DeferredUpdateEventSourceList::on_client_disconnect(DeferredUpdateEventSource *source) {
+void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
   this->remove(source);
   delete source;
 }
