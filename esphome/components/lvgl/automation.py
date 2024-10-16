@@ -44,7 +44,13 @@ from .types import (
     lv_obj_t,
     lv_pseudo_button_t,
 )
-from .widgets import Widget, get_widgets, set_obj_properties, wait_for_widgets
+from .widgets import (
+    Widget,
+    get_scr_act,
+    get_widgets,
+    set_obj_properties,
+    wait_for_widgets,
+)
 
 # Record widgets that are used in a focused action here
 focused_widgets = set()
@@ -127,16 +133,24 @@ async def disp_update(disp, config: dict):
 @automation.register_action(
     "lvgl.widget.redraw",
     ObjUpdateAction,
-    cv.Schema(
-        {
-            cv.Optional(CONF_ID): cv.use_id(lv_obj_t),
-            cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
-        }
+    cv.Any(
+        cv.maybe_simple_value(
+            {
+                cv.Required(CONF_ID): cv.use_id(lv_obj_t),
+                cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
+            },
+            key=CONF_ID,
+        ),
+        cv.Schema(
+            {
+                cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
+            }
+        ),
     ),
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-    widgets = await get_widgets(config) or lv_comp.get_scr_act()
+    widgets = await get_widgets(config) or [get_scr_act(lv_comp)]
 
     async def do_invalidate(widget: Widget):
         lv_obj.invalidate(widget.obj)
