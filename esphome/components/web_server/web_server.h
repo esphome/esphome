@@ -109,7 +109,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   void loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
+  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
 };
 
@@ -123,7 +123,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
   void loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
+  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
