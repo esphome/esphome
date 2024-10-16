@@ -165,8 +165,8 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   this->push_back(es);
 
   es->onConnect([this, ws, es, generate_config_json, include_internal](AsyncEventSourceClient *client) {
-    ws->defer([this, es, generate_config_json, include_internal]() {
-      this->on_client_connect_(es, generate_config_json, include_internal);
+    ws->defer([this, ws, es, generate_config_json, include_internal]() {
+      this->on_client_connect_(ws, es, generate_config_json, include_internal);
     });
   });
 
@@ -177,7 +177,8 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   es->handleRequest(request);
 }
 
-void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source,
+void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, 
+                                                       DeferredUpdateEventSource *source,
                                                        const std::function<std::string()> &generate_config_json,
                                                        const bool include_internal) {
   // Configure reconnect timeout and send config
@@ -185,7 +186,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
   std::string message = generate_config_json();
   source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
-  for (auto &group : this->web_server_->sorting_groups_) {
+  for (auto &group : ws->sorting_groups_) {
     message = json::build_json([group](JsonObject root) {
       root["name"] = group.second.name;
       root["sorting_weight"] = group.second.weight;
