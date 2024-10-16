@@ -133,7 +133,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, char *event, uint32_t id, uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
   this->send(message, event, id, reconnect);
 }
 
@@ -150,7 +150,7 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const ch
   }
 }
 
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, char *event, uint32_t id,
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id,
                                                      uint32_t reconnect) {
   for (DeferredUpdateEventSource *dues : *this) {
     dues->try_send_nodefer(message, event, id, reconnect);
