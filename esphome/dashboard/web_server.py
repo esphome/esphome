@@ -610,11 +610,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
         path = os.path.dirname(storage_json.firmware_bin_path)
         path = os.path.join(path, file_name)
 
-        print("-------------------------", path)
-
         if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
-            print(args)
             rc, stdout, _ = await async_run_system_command(args)
 
             if rc != 0:
