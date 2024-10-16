@@ -121,6 +121,7 @@ def _process_base_package(config: dict) -> dict:
         password=config.get(CONF_PASSWORD),
     )
     files = []
+
     for file in config[CONF_FILES]:
         if isinstance(file, str):
             files.append({CONF_NAME: file, CONF_VARS: {}})
@@ -132,7 +133,7 @@ def _process_base_package(config: dict) -> dict:
         for idx, file in enumerate(files):
             filename = file[CONF_NAME]
             yaml_file: Path = repo_dir / filename
-            vars = file.get(CONF_VARS)
+            vars = file.get(CONF_VARS, {})
 
             if not yaml_file.is_file():
                 raise cv.Invalid(
@@ -153,9 +154,8 @@ def _process_base_package(config: dict) -> dict:
                         raise cv.Invalid(
                             f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
                         )
-                if vars:
-                    vars = {k: str(v) for k, v in vars.items()}
-                    new_yaml = yaml_util.substitute_vars(new_yaml, vars)
+                vars = {k: str(v) for k, v in vars.items()}
+                new_yaml = yaml_util.substitute_vars(new_yaml, vars)
                 packages[f"{filename}{idx}"] = new_yaml
             except EsphomeError as e:
                 raise cv.Invalid(
