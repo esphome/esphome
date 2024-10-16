@@ -153,14 +153,18 @@ class LvglComponent : public PollingComponent {
   // rounding factor to align bounds of update area when drawing
   size_t draw_rounding{2};
 
-  // if set to true, the bounds of the update area will always start at 0,0
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
 
  protected:
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
+
   std::vector<display::Display *> displays_{};
+  size_t buffer_frac_{1};
+  bool full_refresh_{};
+  bool resume_on_input_{};
+
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};
   lv_disp_t *disp_{};
@@ -169,13 +173,10 @@ class LvglComponent : public PollingComponent {
   size_t current_page_{0};
   bool show_snow_{};
   bool page_wrap_{true};
-  bool resume_on_input_{};
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   CallbackManager<void(uint32_t)> idle_callbacks_{};
   CallbackManager<void(bool)> pause_callbacks_{};
-  size_t buffer_frac_{1};
-  bool full_refresh_{};
   lv_color_t *rotate_buf_{};
 };
 

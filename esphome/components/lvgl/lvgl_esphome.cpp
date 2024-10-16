@@ -364,10 +364,10 @@ void LvglComponent::write_random_() {
  */
 LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh,
                              int draw_rounding, bool resume_on_input)
-    : displays_(std::move(displays)),
+    : draw_rounding(draw_rounding),
+      displays_(std::move(displays)),
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
-      draw_rounding(draw_rounding),
       resume_on_input_(resume_on_input) {
   lv_init();
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
