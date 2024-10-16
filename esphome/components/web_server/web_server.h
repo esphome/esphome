@@ -112,7 +112,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 };
 
-class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
+class DeferredUpdateEventSourceList : public std::list<unique_ptr<DeferredUpdateEventSource>> {
  protected:
   void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source,
                           const std::function<std::string()> &generate_config_json, bool include_internal);
