@@ -304,7 +304,7 @@ def copy_src_tree():
         copy_files = __import__(platform, fromlist=["copy_files"]).copy_files
         copy_files()
     except AttributeError:
-        _LOGGER.info("Module '%s' does not have a 'copy_files' function", platform)
+        pass
 
 
 def generate_defines_h():
