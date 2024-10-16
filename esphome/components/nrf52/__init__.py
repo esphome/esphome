@@ -14,7 +14,6 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
-    PLATFORM_NRF52,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -26,7 +25,7 @@ from .gpio import nrf52_pin_to_code  # noqa
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr"]
-
+PLATFORM_NRF52 = 'nrf52'
 
 def set_core_data(config):
     zephyr_set_core_data(config)
