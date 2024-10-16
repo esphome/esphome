@@ -10,6 +10,9 @@ CODEOWNERS = ["@jesserockz", "@Rapsssito"]
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
+CONF_AUTH_REQ_MODE = "auth_req_mode"
+CONF_MAX_KEY_SIZE = "max_key_size"
+CONF_MIN_KEY_SIZE = "min_key_size"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
@@ -34,6 +37,18 @@ IO_CAPABILITY = {
     "display_yes_no": IoCapability.IO_CAP_IO,
 }
 
+AuthReqMode = esp32_ble_ns.enum("AuthReqMode")
+AUTH_REQ_MODE = {
+    "no_bond": AuthReqMode.AUTH_REQ_NO_BOND,
+    "bond": AuthReqMode.AUTH_REQ_BOND,
+    "mitm": AuthReqMode.AUTH_REQ_MITM,
+    "bond_mitm": AuthReqMode.AUTH_REQ_BOND_MITM,
+    "sc_only": AuthReqMode.AUTH_REQ_SC_ONLY,
+    "sc_bond": AuthReqMode.AUTH_REQ_SC_BOND,
+    "sc_mitm": AuthReqMode.AUTH_REQ_SC_MITM,
+    "sc_mitm_bond": AuthReqMode.AUTH_REQ_SC_MITM_BOND,
+}
+
 esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
 
 TX_POWER_LEVELS = {
@@ -53,6 +68,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
+        cv.Optional(CONF_AUTH_REQ_MODE, default="no_bond"): cv.enum(
+            AUTH_REQ_MODE, lower=True
+        ),
+        cv.Optional(CONF_MAX_KEY_SIZE, default="16"): cv.int_range(min=7, max=16),
+        cv.Optional(CONF_MIN_KEY_SIZE, default="7"): cv.int_range(min=7, max=16),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(
             CONF_ADVERTISING_CYCLE_TIME, default="10s"
@@ -74,6 +94,13 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
+    if CONF_AUTH_REQ_MODE in config:
+        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
+    if CONF_MAX_KEY_SIZE in config:
+        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
+    if CONF_MIN_KEY_SIZE in config:
+        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
     await cg.register_component(var, config)
 

@@ -203,10 +203,35 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &(this->io_cap_), sizeof(uint8_t));
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &(this->io_cap_), sizeof(esp_ble_io_cap_t));
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
+    ESP_LOGE(TAG, "esp_ble_gap_set_security_param iocap_mode failed: %d", err);
     return false;
+  }
+
+  if (this->max_key_size_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &(this->max_key_size_), sizeof(uint8_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param max_key_size failed: %d", err);
+      return false;
+    }
+  }
+
+  if (this->min_key_size_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_MIN_KEY_SIZE, &(this->min_key_size_), sizeof(uint8_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param min_key_size failed: %d", err);
+      return false;
+    }
+  }
+
+  if (this->auth_req_mode_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &(this->auth_req_mode_.value()),
+                                         sizeof(esp_ble_auth_req_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param authen_req_mode failed: %d", err);
+      return false;
+    }
   }
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
@@ -388,10 +413,49 @@ void ESP32BLE::dump_config() {
         io_capability_s = "invalid";
         break;
     }
+
+    const char *auth_req_mode_s = "<default>";
+    if (this->auth_req_mode_) {
+      switch (this->auth_req_mode_.value()) {
+        case AUTH_REQ_NO_BOND:
+          auth_req_mode_s = "no_bond";
+          break;
+        case AUTH_REQ_BOND:
+          auth_req_mode_s = "bond";
+          break;
+        case AUTH_REQ_MITM:
+          auth_req_mode_s = "mitm";
+          break;
+        case AUTH_REQ_BOND_MITM:
+          auth_req_mode_s = "bond_mitm";
+          break;
+        case AUTH_REQ_SC_ONLY:
+          auth_req_mode_s = "sc_only";
+          break;
+        case AUTH_REQ_SC_BOND:
+          auth_req_mode_s = "sc_bond";
+          break;
+        case AUTH_REQ_SC_MITM:
+          auth_req_mode_s = "sc_mitm";
+          break;
+        case AUTH_REQ_SC_MITM_BOND:
+          auth_req_mode_s = "sc_mitm_bond";
+          break;
+      }
+    }
+
     ESP_LOGCONFIG(TAG, "ESP32 BLE:");
     ESP_LOGCONFIG(TAG, "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X", mac_address[0], mac_address[1], mac_address[2],
                   mac_address[3], mac_address[4], mac_address[5]);
     ESP_LOGCONFIG(TAG, "  IO Capability: %s", io_capability_s);
+    ESP_LOGCONFIG(TAG, "  Auth Req Mode: %s", auth_req_mode_s);
+    if (this->max_key_size_ && this->min_key_size_) {
+      ESP_LOGCONFIG(TAG, "  Key Size: %u - %u", this->min_key_size_, this->max_key_size_);
+    } else if (this->max_key_size_) {
+      ESP_LOGCONFIG(TAG, "  Key Size: <default> - %u", this->max_key_size_);
+    } else if (this->max_key_size_) {
+      ESP_LOGCONFIG(TAG, "  Key Size: %u - <default>", this->min_key_size_);
+    }
   } else {
     ESP_LOGCONFIG(TAG, "ESP32 BLE: bluetooth stack is not enabled");
   }

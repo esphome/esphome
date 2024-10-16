@@ -39,6 +39,17 @@ enum IoCapability {
   IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
 };
 
+enum AuthReqMode {
+  AUTH_REQ_NO_BOND = ESP_LE_AUTH_NO_BOND,
+  AUTH_REQ_BOND = ESP_LE_AUTH_BOND,
+  AUTH_REQ_MITM = ESP_LE_AUTH_REQ_MITM,
+  AUTH_REQ_BOND_MITM = ESP_LE_AUTH_REQ_BOND_MITM,
+  AUTH_REQ_SC_ONLY = ESP_LE_AUTH_REQ_SC_ONLY,
+  AUTH_REQ_SC_BOND = ESP_LE_AUTH_REQ_SC_BOND,
+  AUTH_REQ_SC_MITM = ESP_LE_AUTH_REQ_SC_MITM,
+  AUTH_REQ_SC_MITM_BOND = ESP_LE_AUTH_REQ_SC_MITM_BOND,
+};
+
 enum BLEComponentState {
   /** Nothing has been initialized yet. */
   BLE_COMPONENT_STATE_OFF = 0,
@@ -77,6 +88,9 @@ class BLEStatusEventHandler {
 class ESP32BLE : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
+  void set_max_key_size(uint8_t key_size) { this->max_key_size_ = key_size; }
+  void set_min_key_size(uint8_t key_size) { this->min_key_size_ = key_size; }
+  void set_auth_req(AuthReqMode req) { this->auth_req_mode_ = (esp_ble_auth_req_t) req; }
 
   void set_advertising_cycle_time(uint32_t advertising_cycle_time) {
     this->advertising_cycle_time_ = advertising_cycle_time;
@@ -129,6 +143,10 @@ class ESP32BLE : public Component {
   Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
+  uint8_t max_key_size_{0};  // range is 7..16, 0 is unset
+  uint8_t min_key_size_{0};  // range is 7..16, 0 is unset
+  optional<esp_ble_auth_req_t> auth_req_mode_;
+
   uint32_t advertising_cycle_time_;
   bool enable_on_boot_;
 };
