@@ -177,7 +177,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   es->handleRequest(request);
 }
 
-void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, 
+void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws,
                                                        DeferredUpdateEventSource *source,
                                                        const std::function<std::string()> &generate_config_json,
                                                        const bool include_internal) {
