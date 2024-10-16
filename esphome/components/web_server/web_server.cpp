@@ -1700,18 +1700,6 @@ std::string WebServer::event_state_json_generator(WebServer *web_server, void *s
 }
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_ALL);
-    if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->event_json(obj, "", detail);
-      request->send(200, "application/json", data.c_str());
-      return;
-    }
-  }
-  request->send(404);
 }
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
   return json::build_json([this, obj, event_type, start_config](JsonObject root) {
@@ -1733,6 +1721,24 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
       }
     }
   });
+}
+void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (event::Event *obj : App.get_events()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->event_json(obj, "", detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+  }
+  request->send(404);
 }
 #endif
 
