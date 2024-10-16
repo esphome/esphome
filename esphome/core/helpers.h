@@ -557,7 +557,7 @@ class Mutex {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   SemaphoreHandle_t handle_;
 #else
-  void *handle_; // d-pointer to store private data on new platforms
+  void *handle_;  // d-pointer to store private data on new platforms
 #endif
 };
 

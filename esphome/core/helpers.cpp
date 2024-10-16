@@ -190,13 +190,9 @@ uint32_t fnv1_hash(const std::string &str) {
 }
 
 #ifdef USE_ESP32
-uint32_t random_uint32() {
-  return esp_random();
-}
+uint32_t random_uint32() { return esp_random(); }
 #elif defined(USE_ESP8266)
-uint32_t random_uint32() {
-  return os_random();
-}
+uint32_t random_uint32() { return os_random(); }
 #elif defined(USE_RP2040)
 uint32_t random_uint32() {
   uint32_t result = 0;
@@ -207,9 +203,7 @@ uint32_t random_uint32() {
   return result;
 }
 #elif defined(USE_LIBRETINY)
-uint32_t random_uint32() {
-  return rand();
-}
+uint32_t random_uint32() { return rand(); }
 #elif defined(USE_HOST)
 uint32_t random_uint32() {
   std::random_device dev;
@@ -225,9 +219,7 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 #elif defined(USE_ESP8266)
-bool random_bytes(uint8_t *data, size_t len) {
- return os_get_random(data, len) == 0;
-}
+bool random_bytes(uint8_t *data, size_t len) { return os_get_random(data, len) == 0; }
 #elif defined(USE_RP2040)
 bool random_bytes(uint8_t *data, size_t len) {
   while (len-- != 0) {
