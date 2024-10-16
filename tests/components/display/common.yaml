@@ -34,3 +34,7 @@ display:
 
         it.line_at_angle(centerX, centerY, minuteAngle, radius - 5, radius);
       }
+
+      // Nice ring around and some gauge
+      it.filled_ring(centerX, centerY, radius+5, radius+8);
+      it.filled_gauge(centerX, centerY, radius/2, radius/2-5, 66);
