@@ -206,7 +206,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, DeferredUp
 
 void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
   this->remove(source);
-  delete source; // NOLINT
+  delete source;  // NOLINT
 }
 
 WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {
