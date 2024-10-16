@@ -311,12 +311,6 @@ void EbyteLoraComponent::request_current_config_() {
     // can't send a message yet return!
     return;
   }
-  // if (this->get_mode_() != CONFIGURATION) {
-  //   this->set_mode_(NORMAL);
-  //   ESP_LOGD(TAG, "Mode not set right");
-  //   delay(20);
-  //   return;
-  // }
   // program conf command, start at 0 with a size of 8
   uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
   this->write_array(data, sizeof(data));
