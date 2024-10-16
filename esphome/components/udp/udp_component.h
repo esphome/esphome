@@ -10,7 +10,8 @@
 #endif
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
-#else
+#endif
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
 #include <WiFiUdp.h>
 #endif
 #include <vector>
@@ -126,7 +127,8 @@ class UDPComponent : public PollingComponent {
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
   std::vector<struct sockaddr> sockaddrs_{};
-#else
+#endif
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
   std::vector<IPAddress> ipaddrs_{};
   WiFiUDP udp_client_{};
 #endif
