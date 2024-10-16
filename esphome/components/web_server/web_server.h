@@ -11,6 +11,7 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <memory>
 #include <utility>
 #include <vector>
 #ifdef USE_ESP32
