@@ -25,6 +25,24 @@ void RealTimeClock::call_setup() {
   this->apply_timezone_();
   PollingComponent::call_setup();
 }
+
+void RealTimeClock::set_system_time_utc(ESPTime &time_to_set) {
+  time_to_set.recalc_timestamp_utc(false);
+  if (!time_to_set.is_valid()) {
+    ESP_LOGE(TAG, "Invalid time, not syncing to system clock.");
+    return;
+  }
+  time::RealTimeClock::synchronize_epoch_(time_to_set.timestamp);
+}
+
+void RealTimeClock::set_system_time_local(ESPTime &time_to_set) {
+  if (!time_to_set.is_valid()) {
+    ESP_LOGE(TAG, "Invalid time, not syncing to system clock.");
+    return;
+  }
+  time::RealTimeClock::synchronize_epoch_(time_to_set.timestamp);
+}
+
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   // Update UTC epoch time.
   struct timeval timev {

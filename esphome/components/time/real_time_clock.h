@@ -41,6 +41,9 @@ class RealTimeClock : public PollingComponent {
     this->time_sync_callback_.add(std::move(callback));
   };
 
+  void set_system_time_local(ESPTime &time_to_set);
+  void set_system_time_utc(ESPTime &time_to_set);
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
