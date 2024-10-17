@@ -58,13 +58,10 @@ styles_used = set()
 class Widget:
     """
     Represents a Widget.
+    This class has a lot of methods. Adding any more runs foul of lint checks ("too many public methods").
     """
 
     widgets_completed = False
-
-    @staticmethod
-    def set_completed():
-        Widget.widgets_completed = True
 
     def __init__(self, var, wtype: WidgetType, config: dict = None):
         self.var = var
@@ -167,8 +164,19 @@ class Widget:
 
     def get_value(self):
         if isinstance(self.type.w_type, LvType):
-            return self.type.w_type.value(self)
+            result = self.type.w_type.value(self)
+            if isinstance(result, list):
+                return result[0]
+            return result
         return self.obj
+
+    def get_values(self):
+        if isinstance(self.type.w_type, LvType):
+            result = self.type.w_type.value(self)
+            if isinstance(result, list):
+                return result
+            return [result]
+        return [self.obj]
 
     def get_number_value(self):
         value = self.type.mock_obj.get_value(self.obj)

@@ -18,8 +18,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include <lvgl.h>
-#include <vector>
 #include <map>
+#include <utility>
+#include <vector>
 
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
@@ -239,6 +240,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
 
+#ifdef USE_BINARY_SENSOR
   void set_left_button(binary_sensor::BinarySensor *left_button) {
     left_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_LEFT, state); });
   }
@@ -249,6 +251,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
   void set_enter_button(binary_sensor::BinarySensor *enter_button) {
     enter_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_ENTER, state); });
   }
+#endif
 
 #ifdef USE_LVGL_ROTARY_ENCODER
   void set_sensor(rotary_encoder::RotaryEncoderSensor *sensor) {
@@ -284,6 +287,48 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int key_{};
 };
 #endif  //  USE_LVGL_KEY_LISTENER
+
+#if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
+class LvSelectable : public LvCompound {
+ public:
+  virtual size_t get_selected_index() = 0;
+  virtual void set_selected_index(size_t index, lv_anim_enable_t anim) = 0;
+  void set_selected_text(const std::string &text, lv_anim_enable_t anim);
+  std::string get_selected_text();
+  std::vector<std::string> get_options() { return this->options_; }
+  void set_options(std::vector<std::string> options);
+
+ protected:
+  virtual void set_option_string(const char *options) = 0;
+  std::vector<std::string> options_{};
+};
+
+#ifdef USE_LVGL_DROPDOWN
+class LvDropdownType : public LvSelectable {
+ public:
+  size_t get_selected_index() override { return lv_dropdown_get_selected(this->obj); }
+  void set_selected_index(size_t index, lv_anim_enable_t anim) override { lv_dropdown_set_selected(this->obj, index); }
+
+ protected:
+  void set_option_string(const char *options) override { lv_dropdown_set_options(this->obj, options); }
+};
+#endif  // USE_LVGL_DROPDOWN
+
+#ifdef USE_LVGL_ROLLER
+class LvRollerType : public LvSelectable {
+ public:
+  size_t get_selected_index() override { return lv_roller_get_selected(this->obj); }
+  void set_selected_index(size_t index, lv_anim_enable_t anim) override {
+    lv_roller_set_selected(this->obj, index, anim);
+  }
+  void set_mode(lv_roller_mode_t mode) { this->mode_ = mode; }
+
+ protected:
+  void set_option_string(const char *options) override { lv_roller_set_options(this->obj, options, this->mode_); }
+  lv_roller_mode_t mode_{LV_ROLLER_MODE_NORMAL};
+};
+#endif
+#endif  // defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 
 #ifdef USE_LVGL_BUTTONMATRIX
 class LvButtonMatrixType : public key_provider::KeyProvider, public LvCompound {

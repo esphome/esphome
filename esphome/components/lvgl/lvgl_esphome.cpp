@@ -5,6 +5,8 @@
 #include "lvgl_hal.h"
 #include "lvgl_esphome.h"
 
+#include <numeric>
+
 namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
@@ -256,6 +258,39 @@ LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_
   };
 }
 #endif  // USE_LVGL_KEY_LISTENER
+
+#if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
+std::string LvSelectable::get_selected_text() {
+  auto selected = this->get_selected_index();
+  if (selected >= this->options_.size())
+    return "";
+  return this->options_[selected];
+}
+
+static std::string join_string(std::vector<std::string> options) {
+  return std::accumulate(
+      options.begin(), options.end(), std::string(),
+      [](const std::string &a, const std::string &b) -> std::string { return a + (a.length() > 0 ? "\n" : "") + b; });
+}
+
+void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
+  auto index = std::find(this->options_.begin(), this->options_.end(), text);
+  if (index != this->options_.end()) {
+    this->set_selected_index(index - this->options_.begin(), anim);
+    lv_event_send(this->obj, lv_api_event, nullptr);
+  }
+}
+
+void LvSelectable::set_options(std::vector<std::string> options) {
+  auto index = this->get_selected_index();
+  if (index >= options.size())
+    index = options.size() - 1;
+  this->options_ = std::move(options);
+  this->set_option_string(join_string(this->options_).c_str());
+  lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
+  this->set_selected_index(index, LV_ANIM_OFF);
+}
+#endif  // USE_LVGL_DROPDOWN || LV_USE_ROLLER
 
 #ifdef USE_LVGL_BUTTONMATRIX
 void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
