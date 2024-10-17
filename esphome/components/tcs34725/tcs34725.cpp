@@ -58,6 +58,9 @@ void TCS34725Component::dump_config() {
   LOG_SENSOR("  ", "Red Channel Irradiance", this->red_irradiance_sensor_);
   LOG_SENSOR("  ", "Green Channel Irradiance", this->green_irradiance_sensor_);
   LOG_SENSOR("  ", "Blue Channel Irradiance", this->blue_irradiance_sensor_);
+  LOG_SENSOR("  ", "CIE1931 X", this->cie1931_x_sensor_);
+  LOG_SENSOR("  ", "CIE1931 Y", this->cie1931_y_sensor_);
+  LOG_SENSOR("  ", "CIE1931 Z", this->cie1931_z_sensor_);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Color Temperature", this->color_temperature_sensor_);
 }
@@ -270,6 +273,64 @@ void TCS34725Component::calculate_irradiance_(uint16_t r, uint16_t g, uint16_t b
            this->irradiance_g_, this->irradiance_b_);
 }
 
+void TCS34725Component::calculate_cie1931_(uint16_t r, uint16_t g, uint16_t b, float current_saturation,
+                                           uint16_t min_raw_value) {
+  this->cie1931_x_ = NAN;
+  this->cie1931_y_ = NAN;
+  this->cie1931_z_ = NAN;
+
+  uint16_t min_raw_limit = get_min_raw_limit_();
+  float sat_limit = get_saturation_limit_();
+
+  if (min_raw_value < min_raw_limit) {
+    ESP_LOGW(TAG,
+             "Sensor Saturation too low, sample with saturation %d (raw value) below limit (%d). CIE1931 colors cannot "
+             "be reliably calculated.",
+             min_raw_value, min_raw_limit);
+    return;
+  }
+
+  if (current_saturation >= sat_limit) {
+    if (this->integration_time_auto_) {
+      ESP_LOGI(TAG, "Saturation too high, skip CIE1931 calculation, autogain ongoing");
+      return;
+    } else {
+      ESP_LOGW(TAG,
+               "Sensor Saturation too high, sample with saturation %.1f above limit (%.1f). CIE1931 colors cannot be "
+               "reliably calculated, reduce integration/gain or use a grey filter.",
+               current_saturation, sat_limit);
+      return;
+    }
+  }
+
+  // CIE1931 transformation matrix
+  static const float C11 = 1.89883277f;
+  static const float C12 = -0.58883081f;
+  static const float C13 = 0.29150381f;
+  static const float C21 = -0.24840751f;
+  static const float C22 = 1.14289469f;
+  static const float C23 = 0.07957766f;
+  static const float C31 = -0.3095245f;
+  static const float C32 = 0.64687886f;
+  static const float C33 = 0.98121083f;
+
+  // Calc scaling based on integration time
+  float integration_time_scaling = this->integration_time_ / 24.f;
+  float gain_scaling = this->gain_ / 16.f;
+
+  // Adjust the raw RGB values based on the integration time scaling factor and gain
+  float scaled_r = (float) r / (integration_time_scaling * gain_scaling);
+  float scaled_g = (float) g / (integration_time_scaling * gain_scaling);
+  float scaled_b = (float) b / (integration_time_scaling * gain_scaling);
+
+  // Calculate CIE1931 values
+  this->cie1931_x_ = std::max(C11 * scaled_r + C12 * scaled_g + C13 * scaled_b, 0.0f);
+  this->cie1931_y_ = std::max(C21 * scaled_r + C22 * scaled_g + C23 * scaled_b, 0.0f);
+  this->cie1931_z_ = std::max(C31 * scaled_r + C32 * scaled_g + C33 * scaled_b, 0.0f);
+
+  ESP_LOGD(TAG, "Calculated CIE1931 - X: %.2f, Y: %.2f, Z: %.2f", this->cie1931_x_, this->cie1931_y_, this->cie1931_z_);
+}
+
 void TCS34725Component::update() {
   uint8_t data[8];  // Buffer to hold the 8 bytes (2 bytes for each of the 4 channels)
 
@@ -307,6 +368,10 @@ void TCS34725Component::update() {
     calculate_irradiance_(raw_r, raw_g, raw_b, current_saturation, min_raw_value);
   }
 
+  if (this->cie1931_x_sensor_ || this->cie1931_y_sensor_ || this->cie1931_z_sensor_) {
+    calculate_cie1931_(raw_r, raw_g, raw_b, current_saturation, min_raw_value);
+  }
+
   if (this->illuminance_sensor_ || this->color_temperature_sensor_) {
     calculate_temperature_and_lux_(raw_r, raw_g, raw_b, current_saturation, min_raw_value);
   }
@@ -318,6 +383,12 @@ void TCS34725Component::update() {
   // - sensor oversaturated but gain and timing cannot go lower
   if (!this->integration_time_auto_ || current_saturation < 99.99f ||
       (this->gain_reg_ == 0 && this->integration_time_ < 200)) {
+    if (this->cie1931_x_sensor_ != nullptr)
+      this->cie1931_x_sensor_->publish_state(this->cie1931_x_);
+    if (this->cie1931_y_sensor_ != nullptr)
+      this->cie1931_y_sensor_->publish_state(this->cie1931_y_);
+    if (this->cie1931_z_sensor_ != nullptr)
+      this->cie1931_z_sensor_->publish_state(this->cie1931_z_);
     if (this->illuminance_sensor_ != nullptr)
       this->illuminance_sensor_->publish_state(this->illuminance_);
     if (this->color_temperature_sensor_ != nullptr)
@@ -334,9 +405,9 @@ void TCS34725Component::update() {
 
   ESP_LOGD(TAG,
            "Calculated: Red Irad=%.2f µW/cm², Green Irad=%.2f µW/cm², Blue Irad=%.2f µW/cm², Sensor Sat=%.2f%%, "
-           "Illum=%.1f lx, Color Temp=%.1f K",
-           this->irradiance_r_, this->irradiance_g_, this->irradiance_b_, current_saturation, this->illuminance_,
-           this->color_temperature_);
+           "CIE1931 (X: %.2f, Y: %.2f, Z: %.2f), Illum=%.1f lx, Color Temp=%.1f K",
+           this->irradiance_r_, this->irradiance_g_, this->irradiance_b_, current_saturation, this->cie1931_x_,
+           this->cie1931_y_, this->cie1931_z_, this->illuminance_, this->color_temperature_);
 
   if (this->integration_time_auto_) {
     // change integration time an gain to achieve maximum resolution an dynamic range

@@ -17,6 +17,8 @@ from esphome.const import (
     UNIT_KELVIN,
     UNIT_LUX,
     UNIT_IRRADIANCE,
+    UNIT_EMPTY,
+    ICON_COLOR,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -29,6 +31,9 @@ CONF_RED_CHANNEL_IRRADIANCE = "red_channel_irradiance"
 CONF_GREEN_CHANNEL_IRRADIANCE = "green_channel_irradiance"
 CONF_BLUE_CHANNEL_IRRADIANCE = "blue_channel_irradiance"
 CONF_SENSOR_SATURATION = "sensor_saturation"
+CONF_CIE1931_X = "cie1931_x"
+CONF_CIE1931_Y = "cie1931_y"
+CONF_CIE1931_Z = "cie1931_z"
 
 tcs34725_ns = cg.esphome_ns.namespace("tcs34725")
 TCS34725Component = tcs34725_ns.class_(
@@ -90,6 +95,12 @@ illuminance_schema = sensor.sensor_schema(
     device_class=DEVICE_CLASS_ILLUMINANCE,
     state_class=STATE_CLASS_MEASUREMENT,
 )
+cie1931_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_EMPTY,
+    icon=ICON_COLOR,
+    accuracy_decimals=2,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -113,6 +124,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SENSOR_SATURATION): sensor_saturation_schema,
             cv.Optional(CONF_ILLUMINANCE): illuminance_schema,
             cv.Optional(CONF_COLOR_TEMPERATURE): color_temperature_schema,
+            cv.Optional(CONF_CIE1931_X): cie1931_schema,
+            cv.Optional(CONF_CIE1931_Y): cie1931_schema,
+            cv.Optional(CONF_CIE1931_Z): cie1931_schema,
             cv.Optional(CONF_INTEGRATION_TIME, default="auto"): cv.enum(
                 TCS34725_INTEGRATION_TIMES, lower=True
             ),
@@ -136,6 +150,15 @@ async def to_code(config):
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
+    if CONF_CIE1931_X in config:
+        sens = await sensor.new_sensor(config[CONF_CIE1931_X])
+        cg.add(var.set_cie1931_x_sensor(sens))
+    if CONF_CIE1931_Y in config:
+        sens = await sensor.new_sensor(config[CONF_CIE1931_Y])
+        cg.add(var.set_cie1931_y_sensor(sens))
+    if CONF_CIE1931_Z in config:
+        sens = await sensor.new_sensor(config[CONF_CIE1931_Z])
+        cg.add(var.set_cie1931_z_sensor(sens))
     if CONF_RED_CHANNEL_IRRADIANCE in config:
         sens = await sensor.new_sensor(config[CONF_RED_CHANNEL_IRRADIANCE])
         cg.add(var.set_red_irradiance_sensor(sens))

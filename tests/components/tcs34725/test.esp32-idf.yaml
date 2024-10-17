@@ -5,6 +5,12 @@ i2c:
 
 sensor:
   - platform: tcs34725
+    cie1931_x:
+      name: CIE1931 X
+    cie1931_y:
+      name: CIE1931 Y
+    cie1931_z:
+      name: CIE1931 Z
     red_channel_irradiance:
       name: Red Channel Irradiance
     green_channel_irradiance:

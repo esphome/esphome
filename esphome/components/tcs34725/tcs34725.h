@@ -56,6 +56,9 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   void set_color_temperature_sensor(sensor::Sensor *color_temperature_sensor) {
     color_temperature_sensor_ = color_temperature_sensor;
   }
+  void set_cie1931_x_sensor(sensor::Sensor *cie1931_x_sensor) { cie1931_x_sensor_ = cie1931_x_sensor; }
+  void set_cie1931_y_sensor(sensor::Sensor *cie1931_y_sensor) { cie1931_y_sensor_ = cie1931_y_sensor; }
+  void set_cie1931_z_sensor(sensor::Sensor *cie1931_z_sensor) { cie1931_z_sensor_ = cie1931_z_sensor; }
 
   void setup() override;
   float get_setup_priority() const override;
@@ -79,6 +82,9 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *blue_irradiance_sensor_{nullptr};
   sensor::Sensor *illuminance_sensor_{nullptr};
   sensor::Sensor *color_temperature_sensor_{nullptr};
+  sensor::Sensor *cie1931_x_sensor_{nullptr};
+  sensor::Sensor *cie1931_y_sensor_{nullptr};
+  sensor::Sensor *cie1931_z_sensor_{nullptr};
   float integration_time_{2.4};
   float gain_{1.0};
   float glass_attenuation_{1.0};
@@ -87,11 +93,15 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   float irradiance_r_{NAN};
   float irradiance_g_{NAN};
   float irradiance_b_{NAN};
+  float cie1931_x_{NAN};
+  float cie1931_y_{NAN};
+  float cie1931_z_{NAN};
   bool integration_time_auto_{true};
 
  private:
   void calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, float current_saturation,
                                       uint16_t min_raw_value);
+  void calculate_cie1931_(uint16_t r, uint16_t g, uint16_t b, float current_saturation, uint16_t min_raw_value);
   void calculate_irradiance_(uint16_t r, uint16_t g, uint16_t b, float current_saturation, uint16_t min_raw_value);
   float get_saturation_limit_() const;
   uint16_t get_min_raw_limit_() const;
