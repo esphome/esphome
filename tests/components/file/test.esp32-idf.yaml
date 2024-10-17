@@ -1,0 +1,7 @@
+file:
+  - id: bloop_local
+    file: ../../components/file/bloop.wav
+  - id: bloop_web
+    # TODO: Change to ESPHome URL after file is merged
+    # file: https://github.com/esphome/esphome/raw/dev/tests/components/file/bloop.wav
+    file: https://github.com/jesserockz/esphome-components/raw/main/tests/file/bloop.wav
