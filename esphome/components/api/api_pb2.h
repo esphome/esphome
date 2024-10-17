@@ -148,6 +148,9 @@ enum MediaPlayerState : uint32_t {
   MEDIA_PLAYER_STATE_IDLE = 1,
   MEDIA_PLAYER_STATE_PLAYING = 2,
   MEDIA_PLAYER_STATE_PAUSED = 3,
+  MEDIA_PLAYER_STATE_ANNOUNCING = 4,
+  MEDIA_PLAYER_STATE_OFF = 5,
+  MEDIA_PLAYER_STATE_ON = 6,
 };
 enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_PLAY = 0,
@@ -155,6 +158,21 @@ enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_STOP = 2,
   MEDIA_PLAYER_COMMAND_MUTE = 3,
   MEDIA_PLAYER_COMMAND_UNMUTE = 4,
+  MEDIA_PLAYER_COMMAND_TOGGLE = 5,
+  MEDIA_PLAYER_COMMAND_VOLUME_UP = 6,
+  MEDIA_PLAYER_COMMAND_VOLUME_DOWN = 7,
+  MEDIA_PLAYER_COMMAND_NEXT_TRACK = 8,
+  MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK = 9,
+  MEDIA_PLAYER_COMMAND_TURN_ON = 10,
+  MEDIA_PLAYER_COMMAND_TURN_OFF = 11,
+  MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 12,
+  MEDIA_PLAYER_COMMAND_SHUFFLE = 13,
+  MEDIA_PLAYER_COMMAND_UNSHUFFLE = 14,
+  MEDIA_PLAYER_COMMAND_REPEAT_OFF = 15,
+  MEDIA_PLAYER_COMMAND_REPEAT_ONE = 16,
+  MEDIA_PLAYER_COMMAND_REPEAT_ALL = 17,
+  MEDIA_PLAYER_COMMAND_JOIN = 18,
+  MEDIA_PLAYER_COMMAND_UNJOIN = 19,
 };
 enum MediaPlayerFormatPurpose : uint32_t {
   MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0,
@@ -1298,6 +1316,9 @@ class ListEntitiesMediaPlayerResponse : public ProtoMessage {
   enums::EntityCategory entity_category{};
   bool supports_pause{false};
   std::vector<MediaPlayerSupportedFormat> supported_formats{};
+  bool supports_turn_off_on{false};
+  bool supports_grouping{false};
+  bool supports_next_previous_track{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1314,6 +1335,13 @@ class MediaPlayerStateResponse : public ProtoMessage {
   enums::MediaPlayerState state{};
   float volume{0.0f};
   bool muted{false};
+  std::string repeat{};
+  bool shuffle{false};
+  std::string artist{};
+  std::string album{};
+  std::string title{};
+  int32_t duration{0};
+  int32_t position{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1321,6 +1349,7 @@ class MediaPlayerStateResponse : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class MediaPlayerCommandRequest : public ProtoMessage {
@@ -1334,6 +1363,10 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   std::string media_url{};
   bool has_announcement{false};
   bool announcement{false};
+  bool has_enqueue{false};
+  std::string enqueue{};
+  bool has_group_members{false};
+  std::string group_members{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

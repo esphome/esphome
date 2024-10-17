@@ -363,6 +363,12 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::Medi
       return "MEDIA_PLAYER_STATE_PLAYING";
     case enums::MEDIA_PLAYER_STATE_PAUSED:
       return "MEDIA_PLAYER_STATE_PAUSED";
+    case enums::MEDIA_PLAYER_STATE_ANNOUNCING:
+      return "MEDIA_PLAYER_STATE_ANNOUNCING";
+    case enums::MEDIA_PLAYER_STATE_OFF:
+      return "MEDIA_PLAYER_STATE_OFF";
+    case enums::MEDIA_PLAYER_STATE_ON:
+      return "MEDIA_PLAYER_STATE_ON";
     default:
       return "UNKNOWN";
   }
@@ -381,6 +387,36 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "MEDIA_PLAYER_COMMAND_MUTE";
     case enums::MEDIA_PLAYER_COMMAND_UNMUTE:
       return "MEDIA_PLAYER_COMMAND_UNMUTE";
+    case enums::MEDIA_PLAYER_COMMAND_TOGGLE:
+      return "MEDIA_PLAYER_COMMAND_TOGGLE";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_UP";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_DOWN";
+    case enums::MEDIA_PLAYER_COMMAND_NEXT_TRACK:
+      return "MEDIA_PLAYER_COMMAND_NEXT_TRACK";
+    case enums::MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK:
+      return "MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK";
+    case enums::MEDIA_PLAYER_COMMAND_TURN_ON:
+      return "MEDIA_PLAYER_COMMAND_TURN_ON";
+    case enums::MEDIA_PLAYER_COMMAND_TURN_OFF:
+      return "MEDIA_PLAYER_COMMAND_TURN_OFF";
+    case enums::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+      return "MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST";
+    case enums::MEDIA_PLAYER_COMMAND_SHUFFLE:
+      return "MEDIA_PLAYER_COMMAND_SHUFFLE";
+    case enums::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+      return "MEDIA_PLAYER_COMMAND_UNSHUFFLE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_OFF";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_ONE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_ALL";
+    case enums::MEDIA_PLAYER_COMMAND_JOIN:
+      return "MEDIA_PLAYER_COMMAND_JOIN";
+    case enums::MEDIA_PLAYER_COMMAND_UNJOIN:
+      return "MEDIA_PLAYER_COMMAND_UNJOIN";
     default:
       return "UNKNOWN";
   }
@@ -5217,6 +5253,18 @@ bool ListEntitiesMediaPlayerResponse::decode_varint(uint32_t field_id, ProtoVarI
       this->supports_pause = value.as_bool();
       return true;
     }
+    case 10: {
+      this->supports_turn_off_on = value.as_bool();
+      return true;
+    }
+    case 11: {
+      this->supports_grouping = value.as_bool();
+      return true;
+    }
+    case 12: {
+      this->supports_next_previous_track = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5269,6 +5317,9 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->supported_formats) {
     buffer.encode_message<MediaPlayerSupportedFormat>(9, it, true);
   }
+  buffer.encode_bool(10, this->supports_turn_off_on);
+  buffer.encode_bool(11, this->supports_grouping);
+  buffer.encode_bool(12, this->supports_next_previous_track);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
@@ -5312,6 +5363,18 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+
+  out.append("  supports_turn_off_on: ");
+  out.append(YESNO(this->supports_turn_off_on));
+  out.append("\n");
+
+  out.append("  supports_grouping: ");
+  out.append(YESNO(this->supports_grouping));
+  out.append("\n");
+
+  out.append("  supports_next_previous_track: ");
+  out.append(YESNO(this->supports_next_previous_track));
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -5323,6 +5386,40 @@ bool MediaPlayerStateResponse::decode_varint(uint32_t field_id, ProtoVarInt valu
     }
     case 4: {
       this->muted = value.as_bool();
+      return true;
+    }
+    case 6: {
+      this->shuffle = value.as_bool();
+      return true;
+    }
+    case 10: {
+      this->duration = value.as_int32();
+      return true;
+    }
+    case 11: {
+      this->position = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 5: {
+      this->repeat = value.as_string();
+      return true;
+    }
+    case 7: {
+      this->artist = value.as_string();
+      return true;
+    }
+    case 8: {
+      this->album = value.as_string();
+      return true;
+    }
+    case 9: {
+      this->title = value.as_string();
       return true;
     }
     default:
@@ -5348,6 +5445,13 @@ void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::MediaPlayerState>(2, this->state);
   buffer.encode_float(3, this->volume);
   buffer.encode_bool(4, this->muted);
+  buffer.encode_string(5, this->repeat);
+  buffer.encode_bool(6, this->shuffle);
+  buffer.encode_string(7, this->artist);
+  buffer.encode_string(8, this->album);
+  buffer.encode_string(9, this->title);
+  buffer.encode_int32(10, this->duration);
+  buffer.encode_int32(11, this->position);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
@@ -5369,6 +5473,36 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
 
   out.append("  muted: ");
   out.append(YESNO(this->muted));
+  out.append("\n");
+
+  out.append("  repeat: ");
+  out.append("'").append(this->repeat).append("'");
+  out.append("\n");
+
+  out.append("  shuffle: ");
+  out.append(YESNO(this->shuffle));
+  out.append("\n");
+
+  out.append("  artist: ");
+  out.append("'").append(this->artist).append("'");
+  out.append("\n");
+
+  out.append("  album: ");
+  out.append("'").append(this->album).append("'");
+  out.append("\n");
+
+  out.append("  title: ");
+  out.append("'").append(this->title).append("'");
+  out.append("\n");
+
+  out.append("  duration: ");
+  sprintf(buffer, "%" PRId32, this->duration);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  position: ");
+  sprintf(buffer, "%" PRId32, this->position);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -5399,6 +5533,14 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->announcement = value.as_bool();
       return true;
     }
+    case 10: {
+      this->has_enqueue = value.as_bool();
+      return true;
+    }
+    case 12: {
+      this->has_group_members = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5407,6 +5549,14 @@ bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDeli
   switch (field_id) {
     case 7: {
       this->media_url = value.as_string();
+      return true;
+    }
+    case 11: {
+      this->enqueue = value.as_string();
+      return true;
+    }
+    case 13: {
+      this->group_members = value.as_string();
       return true;
     }
     default:
@@ -5437,6 +5587,10 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(7, this->media_url);
   buffer.encode_bool(8, this->has_announcement);
   buffer.encode_bool(9, this->announcement);
+  buffer.encode_bool(10, this->has_enqueue);
+  buffer.encode_string(11, this->enqueue);
+  buffer.encode_bool(12, this->has_group_members);
+  buffer.encode_string(13, this->group_members);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerCommandRequest::dump_to(std::string &out) const {
@@ -5478,6 +5632,22 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
 
   out.append("  announcement: ");
   out.append(YESNO(this->announcement));
+  out.append("\n");
+
+  out.append("  has_enqueue: ");
+  out.append(YESNO(this->has_enqueue));
+  out.append("\n");
+
+  out.append("  enqueue: ");
+  out.append("'").append(this->enqueue).append("'");
+  out.append("\n");
+
+  out.append("  has_group_members: ");
+  out.append(YESNO(this->has_group_members));
+  out.append("\n");
+
+  out.append("  group_members: ");
+  out.append("'").append(this->group_members).append("'");
   out.append("\n");
   out.append("}");
 }
