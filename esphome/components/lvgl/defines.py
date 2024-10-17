@@ -189,14 +189,14 @@ LV_ANIM = LvConstant(
 LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
 
-LOG_LEVELS = (
-    "TRACE",
-    "INFO",
-    "WARN",
-    "ERROR",
-    "USER",
-    "NONE",
-)
+LV_LOG_LEVELS = {
+    "VERBOSE": "TRACE",
+    "DEBUG": "TRACE",
+    "INFO": "INFO",
+    "WARN": "WARN",
+    "ERROR": "ERROR",
+    "NONE": "NONE",
+}
 
 LV_LONG_MODES = LvConstant(
     "LV_LABEL_LONG_",

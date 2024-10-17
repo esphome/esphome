@@ -12,12 +12,12 @@ substitutions:
   arrow_down: "\U000F004B"
 
 lvgl:
+  log_level: debug
   resume_on_input: true
   on_pause:
     logger.log: LVGL is Paused
   on_resume:
     logger.log: LVGL has resumed
-  log_level: TRACE
   bg_color: light_blue
   disp_bg_color: color_id
   disp_bg_image: cat_image
@@ -125,6 +125,8 @@ lvgl:
       on_unload:
         - logger.log: page unloaded
         - lvgl.widget.focus: mark
+        - lvgl.widget.redraw: hello_label
+        - lvgl.widget.redraw:
       on_all_events:
         logger.log:
           format: "Event %s"
