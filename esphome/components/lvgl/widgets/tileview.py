@@ -9,6 +9,7 @@ from ..defines import (
     CONF_COLUMN,
     CONF_DIR,
     CONF_MAIN,
+    CONF_SCROLLBAR,
     CONF_TILE_ID,
     CONF_TILES,
     TILE_DIRECTIONS,
@@ -56,7 +57,7 @@ class TileviewType(WidgetType):
         super().__init__(
             CONF_TILEVIEW,
             lv_tileview_t,
-            (CONF_MAIN,),
+            (CONF_MAIN, CONF_SCROLLBAR),
             schema=TILEVIEW_SCHEMA,
             modify_schema={},
         )
