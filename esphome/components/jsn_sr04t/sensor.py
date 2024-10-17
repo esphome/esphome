@@ -19,6 +19,7 @@ Model = jsn_sr04t_ns.enum("Model")
 MODEL = {
     "jsn_sr04t": Model.JSN_SR04T,
     "aj_sr04m": Model.AJ_SR04M,
+    "rcwl_1655": Model.RCWL_1655,
 }
 
 CONFIG_SCHEMA = (

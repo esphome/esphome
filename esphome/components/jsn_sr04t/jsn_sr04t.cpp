@@ -10,23 +10,47 @@ namespace jsn_sr04t {
 static const char *const TAG = "jsn_sr04t.sensor";
 
 void Jsnsr04tComponent::update() {
-  this->write_byte(0x55);
+  switch (this->model_) {
+    case JSN_SR04T:
+    case AJ_SR04M:
+      this->write_byte(0x55);
+      break;
+    case RCWL_1655:
+      this->buffer_.clear();
+      this->write_byte(0xA0);
+      break;
+  }
   ESP_LOGV(TAG, "Request read out from sensor");
 }
 
 void Jsnsr04tComponent::loop() {
-  while (this->available() > 0) {
-    uint8_t data;
-    this->read_byte(&data);
+  uint8_t data;
+  if (this->model_ == RCWL_1655) {
+    while (this->available() > 0) {
+      this->read_byte(&data);
 
-    ESP_LOGV(TAG, "Read byte from sensor: %x", data);
+      ESP_LOGV(TAG, "Read byte [%d] from sensor: %02X", this->buffer_.size(), data);
+      this->buffer_.push_back(data);
 
-    if (this->buffer_.empty() && data != 0xFF)
-      continue;
+      if (this->buffer_.size() == 3) {
+        this->parse_buffer_rclw_1655_();
+      }
+    }
+  } else {
+    while (this->available() > 0) {
+      uint8_t data;
+      this->read_byte(&data);
 
-    this->buffer_.push_back(data);
-    if (this->buffer_.size() == 4)
-      this->check_buffer_();
+      ESP_LOGV(TAG, "Read byte from sensor: %02X", data);
+
+      if (this->buffer_.empty() && data != 0xFF)
+        continue;
+
+      this->buffer_.push_back(data);
+      if (this->buffer_.size() == 4) {
+        this->check_buffer_();
+      }
+    }
   }
 }
 
@@ -39,6 +63,8 @@ void Jsnsr04tComponent::check_buffer_() {
     case AJ_SR04M:
       checksum = this->buffer_[1] + this->buffer_[2];
       break;
+    default:
+      return;
   }
 
   if (this->buffer_[3] == checksum) {
@@ -56,6 +82,15 @@ void Jsnsr04tComponent::check_buffer_() {
   this->buffer_.clear();
 }
 
+void Jsnsr04tComponent::parse_buffer_rclw_1655_() {
+  uint32_t distance = encode_uint24(this->buffer_[0], this->buffer_[1], this->buffer_[2]);
+  float millimeters = distance / 1000.0f;
+  float meters = millimeters / 1000.0f;
+  ESP_LOGV(TAG, "Distance from sensor: %.0fmm, %.3fm", millimeters, meters);
+  this->publish_state(meters);
+  this->buffer_.clear();
+}
+
 void Jsnsr04tComponent::dump_config() {
   LOG_SENSOR("", "JST_SR04T Sensor", this);
   switch (this->model_) {
@@ -64,6 +99,9 @@ void Jsnsr04tComponent::dump_config() {
       break;
     case AJ_SR04M:
       ESP_LOGCONFIG(TAG, "  sensor model: aj_sr04m");
+      break;
+    case RCWL_1655:
+      ESP_LOGCONFIG(TAG, "  sensor model: RCWL-1655");
       break;
   }
   LOG_UPDATE_INTERVAL(this);
