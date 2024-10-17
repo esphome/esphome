@@ -1,0 +1,10 @@
+sensor:
+  - platform: pulse_counter_ulp
+    name: Pulse Counter ULP
+    pin: 4
+    count_mode:
+      rising_edge: INCREMENT
+      falling_edge: DECREMENT
+    sleep_duration: 13ms
+    debounce: 4
+    update_interval: 15s
