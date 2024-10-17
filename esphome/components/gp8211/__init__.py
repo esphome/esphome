@@ -28,7 +28,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(i2c.i2c_device_schema(0x58))  # GP8211 I2C-Adresse
+    .extend(i2c.i2c_device_schema(0x58))
 )
 
 async def to_code(config):

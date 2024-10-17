@@ -6,11 +6,10 @@ namespace gp8211 {
 
 static const char *const TAG = "gp8211";
 
-static const uint8_t RANGE_REGISTER = 0x01;  // Register für die Spannungsrange
+static const uint8_t RANGE_REGISTER = 0x01;
 
 void GP8211::setup() {
-  // Wähle den Spannungsmodus basierend auf der YAML-Konfiguration
-  uint8_t voltage_setting = (this->voltage_ == GP8211_VOLTAGE_10V) ? 0x77 : 0x55;  // 0x77 für 0-10V, 0x55 für 0-5V
+  uint8_t voltage_setting = (this->voltage_ == GP8211_VOLTAGE_10V) ? 0x77 : 0x55;
   this->write_register(RANGE_REGISTER, &voltage_setting, 1);
 }
 

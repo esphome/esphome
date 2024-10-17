@@ -13,14 +13,11 @@ void GP8211Output::dump_config() {
 }
 
 void GP8211Output::write_state(float state) {
-  // Ausgabe des ursprünglichen Helligkeitswerts von der Light-Komponente
   ESP_LOGD(TAG, "Original brightness state received from Light component: %.5f", state);
 
-  // Konvertiere den state (0.0 bis 1.0) in einen 15-Bit DAC-Wert (0 bis 32767)
   uint16_t value = static_cast<uint16_t>(state * 32767);
-  ESP_LOGD(TAG, "Calculated DAC value: %u", value);  // Ausgabe des berechneten Wertes zur Überprüfung
-  
-  // Sende den Wert an den DAC (2 Bytes)
+  ESP_LOGD(TAG, "Calculated DAC value: %u", value);
+
   i2c::ErrorCode err = this->parent_->write_register(OUTPUT_REGISTER, (uint8_t *)&value, 2);
   
   if (err != i2c::ERROR_OK) {
