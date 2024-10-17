@@ -7,11 +7,16 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
 
 #include "commands.h"
+
+static const uint8_t TARGET_COUNT = 9;
 
 namespace esphome {
 namespace dfrobot_sen0395 {
@@ -94,11 +99,28 @@ class DfrobotSen0395Component : public uart::UARTDevice, public Component {
   }
 #endif
 
+#ifdef USE_SENSOR
+  void set_detected_target_distance_sensor(int target, sensor::Sensor *detected_target_distance_sensor) {
+    if (is_valid_target_(target)) {
+      detected_targets_distance_sensors_[target - 1] = detected_target_distance_sensor;
+    }
+  }
+  void set_detected_target_snr_sensor(int target, sensor::Sensor *detected_target_snr_sensor) {
+    if (is_valid_target_(target)) {
+      detected_targets_snr_sensors_[target - 1] = detected_target_snr_sensor;
+    }
+  }
+#endif
+
   int8_t enqueue(std::unique_ptr<Command> cmd);
 
  protected:
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
+#endif
+#ifdef USE_SENSOR
+  sensor::Sensor *detected_targets_distance_sensors_[TARGET_COUNT]{nullptr};
+  sensor::Sensor *detected_targets_snr_sensors_[TARGET_COUNT]{nullptr};
 #endif
 
   bool detected_{false};
@@ -116,6 +138,11 @@ class DfrobotSen0395Component : public uart::UARTDevice, public Component {
   uint8_t send_cmd_(const char *cmd, uint32_t duration);
 
   void set_detected_(bool detected);
+
+  void set_detected_target_distance_(int target, float value);
+  void set_detected_target_snr_(int target, float value);
+
+  bool is_valid_target_(int target) { return target >= 1 && target <= TARGET_COUNT; }
 
   friend class Command;
   friend class ReadStateCommand;

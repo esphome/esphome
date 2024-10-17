@@ -25,6 +25,7 @@ void Sen0395UartPresenceSwitch::write_state(bool state) {
     this->parent_->enqueue(make_unique<PowerCommand>(false));
   }
   this->parent_->enqueue(make_unique<UartOutputCommand>(state));
+  this->parent_->enqueue(make_unique<UartOutputCommand>(2, state));
   this->parent_->enqueue(make_unique<SaveCfgCommand>());
   if (was_active) {
     this->parent_->enqueue(make_unique<PowerCommand>(true));

@@ -84,6 +84,7 @@ uint8_t DfrobotSen0395Component::find_prompt_() {
 uint8_t DfrobotSen0395Component::send_cmd_(const char *cmd, uint32_t duration) {
   // The interval between two commands must be larger than the specified duration (in ms).
   if (millis() - ts_last_cmd_sent_ > duration) {
+    ESP_LOGV(TAG, "Command: %s", cmd);
     this->write_str(cmd);
     ts_last_cmd_sent_ = millis();
     return 1;  // Command sent
@@ -97,6 +98,26 @@ void DfrobotSen0395Component::set_detected_(bool detected) {
 #ifdef USE_BINARY_SENSOR
   if (this->detected_binary_sensor_ != nullptr)
     this->detected_binary_sensor_->publish_state(detected);
+#endif
+}
+
+void DfrobotSen0395Component::set_detected_target_distance_(int target, float value) {
+#ifdef USE_SENSOR
+  if (is_valid_target_(target)) {
+    if (detected_targets_distance_sensors_[target - 1]) {
+      detected_targets_distance_sensors_[target - 1]->publish_state(value);
+    }
+  }
+#endif
+}
+
+void DfrobotSen0395Component::set_detected_target_snr_(int target, float value) {
+#ifdef USE_SENSOR
+  if (is_valid_target_(target)) {
+    if (detected_targets_snr_sensors_[target - 1]) {
+      detected_targets_snr_sensors_[target - 1]->publish_state(value);
+    }
+  }
 #endif
 }
 

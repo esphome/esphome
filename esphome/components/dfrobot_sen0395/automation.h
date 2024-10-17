@@ -69,6 +69,7 @@ class DfrobotSen0395SettingsAction : public Action<Ts...>, public Parented<Dfrob
       int8_t val = this->presence_via_uart_.value(x...);
       if (val >= 0) {
         this->parent_->enqueue(make_unique<UartOutputCommand>(val));
+        this->parent_->enqueue(make_unique<UartOutputCommand>(2, val));
       }
     }
     if (this->sensitivity_.has_value()) {
