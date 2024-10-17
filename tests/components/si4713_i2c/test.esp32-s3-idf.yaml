@@ -1,0 +1,201 @@
+i2c:
+  sda: 10
+  scl: 9
+  scan: True
+
+si4713:
+  id: fm_transmitter
+  reset_pin: 10
+  op_mode: Analog
+  mute: False
+  mono: False
+  pre_emphasis: '75us'
+  tuner:
+    frequency: 87.50
+    deviation: 68.25
+    power: 115
+    antcap: 0
+  analog:
+    level: 636
+    attenuation: '60kOhm'
+  digital:
+    sample_rate: 48000
+    sample_bits: '16'
+    channels: Stereo
+    mode: 'I2S'
+    clock_edge: 'Rising'
+  pilot:
+    enable: True
+    frequency: 19.00
+    deviation: 6.75
+  refclk:
+    frequency: 32768
+    source: 'RCLK'
+    prescaler: 1
+  compressor:
+    enable: True
+    preset: 'Custom'
+    threshold: -40
+    attack: '0.5ms'
+    release: '1000ms'
+    gain: 15
+  limiter:
+    enable: True
+    release_time: 5.01
+  asq:
+    iall: True
+    ialh: True
+    overmod: True
+    level_low: -50
+    duration_low: 10000
+    level_high: -20
+    duration_high: 5000
+  rds:
+    enable: True
+    deviation: 2.0
+    station: si4713
+    text: sample text
+  sensor:
+    chip_id:
+      name: Chip ID
+    frequency:
+      name: Frequency
+    power:
+      name: Power
+    antcap:
+      name: Antenna Tuning Capacitor
+    noise_level:
+      name: Received Noise Level
+    iall:
+      name: Input Audio Level Detection Low
+    ialh:
+      name: Input Audio Level Detection High 
+    overmod:
+      name: Overmodulation Detection
+    inlevel:
+      name: Input Audio Level
+
+number:
+  - platform: si4713
+    tuner:
+      frequency:
+        id: si4713_frequency
+        name: Frequency
+      deviation:
+        name: Audio Deviation
+      power:
+        name: Tune Power
+      antcap:
+        name: Antenna Tuning Capacitor
+    analog:
+      level:
+        name: Line Level
+    digital:
+      sample_rate:
+        name: Digital Input Sample Rate
+    pilot:
+      frequency:
+        name: Pilot Frequency
+      deviation:
+        name: Pilot Deviation
+    refclk:
+      frequency:
+        name: Reference Clock Frequency
+      prescaler:
+        name: Reference Clock Prescaler
+    compressor:
+      threshold:
+        name: Dynamic Range Control Threshold
+      gain:
+        name: Dynamic Range Control Gain
+    limiter:
+      release_time:
+        name: Limiter Release Time
+    asq:
+      level_low:
+        name: Input Audio Level Low Threshold
+      duration_low:
+        name: Input Audio Level Duration Low
+      level_high:
+        name: Input Audio Level High Threshold
+      duration_high:
+        name: Input Audio Level Duration High
+    rds:
+      deviation:
+        name: RDS Deviation
+
+switch:
+  - platform: si4713
+    mute:
+      name: Mute
+    mono:
+      name: Mono
+    pilot:
+      enable:
+        name: Pilot Tone Enable
+    compressor:
+      enable:
+        name: Dynamic Range Control Enable
+    limiter:
+      enable:
+        name: Audio Limiter Enable
+    asq:
+      iall:
+        name: Input Audio Level Detection High Threshold Enable
+      ialh:
+        name: Input Audio Level Detection Low Threshold Enable
+      overmod:
+        name: Overmodulation Detection Enable
+    rds:
+      enable:
+        name: RDS Enable
+    output:
+      gpio1:
+        name: GPIO1 Switch
+      gpio2:
+        name: GPIO2 Switch
+      gpio3:
+        name: GPIO3 Switch
+
+select:
+  - platform: si4713
+    pre_emphasis:
+      name: Pre-Emphasis
+    analog:
+      attenuation:
+        name: Line Attenuation
+    digital:
+      sample_bits:
+        name: Digital Audio Sample Precision
+      channels:
+        name: Digital Audio Channels
+      mode:
+        name: Digital Mode
+      clock_edge:
+        name: Digital Clock Edge
+    refclk:
+      source:
+        name: Reference Clock Source
+    compressor:
+      attack:
+        name: Dynamic Range Control Attack Time
+      release:
+        name: Dynamic Range Control Release Time
+      preset:
+        name: Dynamic Range Control Preset
+
+text:
+  - platform: si4713
+    rds:
+      station:
+        name: RDS Station
+      text:
+        name: RDS Text
+
+output:
+  - platform: si4713
+    id: "GPIO1"
+    pin: 1
+  - platform: si4713
+    id: "GPIO2"
+    pin: 2
