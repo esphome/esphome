@@ -1,0 +1,14 @@
+esp32_ble_tracker:
+
+esp32_ble:
+  io_capability: display_yes_no
+
+ble_client:
+  - mac_address: 01:23:45:AB:CD:EF
+    id: madoka_climate
+
+climate:
+  - platform: madoka
+    name: "Madoka Climate"
+    ble_client_id: madoka_climate
+    update_interval: 15s
