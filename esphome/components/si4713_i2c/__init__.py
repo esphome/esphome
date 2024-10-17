@@ -5,9 +5,6 @@ from esphome.components import i2c, sensor, binary_sensor, text_sensor
 from esphome.const import (
     CONF_ID,
     CONF_FREQUENCY,
-    UNIT_DECIBEL,
-    UNIT_EMPTY,
-    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     ICON_CHIP,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -59,7 +56,7 @@ CONF_MUTE = "mute"
 CONF_MONO = "mono"
 CONF_PRE_EMPHASIS = "pre_emphasis"
 # tuner
-CONF_FREQUENCY = "frequency"
+# CONF_FREQUENCY = "frequency"
 CONF_DEVIATION = "deviation"
 CONF_POWER = "power"
 CONF_ANTCAP = "antcap"
@@ -74,10 +71,10 @@ CONF_MODE = "mode"
 CONF_CLOCK_EDGE = "clock_edge"
 # pilot
 CONF_ENABLE = "enable"
-CONF_FREQUENCY = "frequency"
+# CONF_FREQUENCY = "frequency"
 CONF_DEVIATION = "deviation"
 # refclk
-CONF_FREQUENCY = "frequency"
+# CONF_FREQUENCY = "frequency"
 CONF_SOURCE = "source"
 CONF_PRESCALER = "prescaler"
 # compressor
@@ -104,9 +101,9 @@ CONF_DEVIATION = "deviation"
 CONF_STATION = "station"
 CONF_TEXT = "text"
 # output
-CONF_GPIO1="gpio1"
-CONF_GPIO2="gpio2"
-CONF_GPIO3="gpio3"
+CONF_GPIO1 = "gpio1"
+CONF_GPIO2 = "gpio2"
+CONF_GPIO3 = "gpio3"
 # sensor
 CONF_CHIP_ID = "chip_id"
 CONF_READ_FREQUENCY = "frequency"
@@ -141,10 +138,10 @@ PRE_EMPHASIS = {
 
 LineAttenuation = si4713_ns.enum("LineAttenuation", True)
 LINE_ATTENUATION = {
-  "396kOhm": LineAttenuation.LIATTEN_396KOHM,
-  "100kOhm": LineAttenuation.LIATTEN_100KOHM,
-  "74kOhm": LineAttenuation.LIATTEN_74KOHM,
-  "60kOhm": LineAttenuation.LIATTEN_60KOHM,
+    "396kOhm": LineAttenuation.LIATTEN_396KOHM,
+    "100kOhm": LineAttenuation.LIATTEN_100KOHM,
+    "74kOhm": LineAttenuation.LIATTEN_74KOHM,
+    "60kOhm": LineAttenuation.LIATTEN_60KOHM,
 }
 
 SampleBits = si4713_ns.enum("SampleBits", True)
@@ -212,6 +209,139 @@ ACOMP_PRESET = {
     "Custom": AcompPreset.ACOMP_CUSTOM,
 }
 
+TUNER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_FREQUENCY, default=87.50): cv.float_range(76, 108),  # MHz
+        cv.Optional(CONF_DEVIATION, default=68.25): cv.float_range(0, 90),  # kHz
+        cv.Optional(CONF_POWER, default=115): cv.int_range(88, 115),
+        cv.Optional(CONF_ANTCAP, default=0): cv.int_range(0, 191),
+    }
+)
+
+ANALOG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_LEVEL, default=636): cv.int_range(0, 1023),
+        cv.Optional(CONF_ATTENUATION, default=636): cv.enum(LINE_ATTENUATION),
+    }
+)
+
+DIGITAL_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SAMPLE_RATE, default=44100): cv.int_range(32000, 48000),  # Hz
+        cv.Optional(CONF_SAMPLE_BITS, default="16"): cv.enum(SAMPLE_BITS),
+        cv.Optional(CONF_CHANNELS, default="Stereo"): cv.enum(SAMPLE_CHANNELS),
+        cv.Optional(CONF_MODE, default="Default"): cv.enum(DIGITAL_MODE),
+        cv.Optional(CONF_CLOCK_EDGE, default="Rising"): cv.enum(DIGITAL_CLOCK_EDGE),
+    }
+)
+
+PILOT_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE, default="True"): cv.boolean,
+        cv.Optional(CONF_FREQUENCY, default=19): cv.float_range(0, 19),  # kHz
+        cv.Optional(CONF_DEVIATION, default=6.75): cv.float_range(0, 90),  # kHz
+    }
+)
+
+REFCLK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_FREQUENCY, default=32768): cv.int_range(31130, 34406),  # Hz
+        cv.Optional(CONF_SOURCE, default="RCLK"): cv.enum(REFCLK_SOURCE),
+        cv.Optional(CONF_PRESCALER, default=1): cv.int_range(0, 4095),
+    }
+)
+
+COMPRESSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE, default="False"): cv.boolean,
+        cv.Optional(CONF_THRESHOLD, default=-40): cv.int_range(-40, 0),
+        cv.Optional(CONF_ATTACK, default="0.5"): cv.enum(ACOMP_ATTACK),
+        cv.Optional(CONF_RELEASE, default="1000"): cv.enum(ACOMP_RELEASE),
+        cv.Optional(CONF_GAIN, default=15): cv.int_range(0, 20),
+        cv.Optional(CONF_PRESET, default="Custom"): cv.enum(ACOMP_PRESET),
+    }
+)
+
+LIMITER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE, default="True"): cv.boolean,
+        cv.Optional(CONF_RELEASE_TIME, default=5): cv.float_range(0.25, 102.4),
+    }
+)
+
+ASQ_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_IALL, default="False"): cv.boolean,
+        cv.Optional(CONF_IALH, default="False"): cv.boolean,
+        cv.Optional(CONF_OVERMOD, default="False"): cv.boolean,
+        cv.Optional(CONF_LEVEL_LOW, default=-50): cv.float_range(-70, 0),
+        cv.Optional(CONF_DURATION_LOW, default=10000): cv.int_range(0, 65535),
+        cv.Optional(CONF_LEVEL_HIGH, default=-20): cv.float_range(-70, 0),
+        cv.Optional(CONF_DURATION_HIGH, default=5000): cv.int_range(0, 65535),
+    }
+)
+
+RDS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE, default=False): cv.boolean,
+        cv.Optional(CONF_DEVIATION, default=2.0): cv.float_range(0, 7.5),  # kHz
+        cv.Optional(CONF_STATION): cv.string,
+        cv.Optional(CONF_TEXT): cv.string,
+    }
+)
+
+SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_CHIP_ID): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            icon=ICON_CHIP,
+        ),
+        cv.Optional(CONF_READ_FREQUENCY): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MEGA_HERTZ,
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
+            accuracy_decimals=2,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_READ_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_READ_ANTCAP): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PICO_FARAD,
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_READ_NOISE_LEVEL): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            # state_class=STATE_CLASS_MEASUREMENT,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_IALL): binary_sensor.binary_sensor_schema(
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_IALH): binary_sensor.binary_sensor_schema(
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_OVERMOD): binary_sensor.binary_sensor_schema(
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_INLEVEL): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DECIBEL_FS,
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
+            # icon=ICON_,
+        ),
+    }
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -221,130 +351,16 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MUTE, default=False): cv.boolean,
             cv.Optional(CONF_MONO, default=False): cv.boolean,
             cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS),
-            cv.Optional(CONF_SECTION_TUNER): cv.Schema(
-                {
-                    cv.Optional(CONF_FREQUENCY, default=87.50): cv.float_range(76, 108), # MHz
-                    cv.Optional(CONF_DEVIATION, default=68.25): cv.float_range(0, 90), # kHz
-                    cv.Optional(CONF_POWER, default=115): cv.int_range(88, 115),
-                    cv.Optional(CONF_ANTCAP, default=0): cv.int_range(0, 191),
-                }
-            ),
-            cv.Optional(CONF_SECTION_ANALOG): cv.Schema(
-                {
-                    cv.Optional(CONF_LEVEL, default=636): cv.int_range(0, 1023),
-                    cv.Optional(CONF_ATTENUATION, default=636): cv.enum(LINE_ATTENUATION),
-                }
-            ),
-            cv.Optional(CONF_SECTION_DIGITAL): cv.Schema(
-                {
-                    cv.Optional(CONF_SAMPLE_RATE, default=44100): cv.int_range(32000, 48000), # Hz
-                    cv.Optional(CONF_SAMPLE_BITS, default="16"): cv.enum(SAMPLE_BITS),
-                    cv.Optional(CONF_CHANNELS, default="Stereo"): cv.enum(SAMPLE_CHANNELS),
-                    cv.Optional(CONF_MODE, default="Default"): cv.enum(DIGITAL_MODE),
-                    cv.Optional(CONF_CLOCK_EDGE, default="Rising"): cv.enum(DIGITAL_CLOCK_EDGE),
-                }
-            ),
-            cv.Optional(CONF_SECTION_PILOT): cv.Schema(
-                {
-                    cv.Optional(CONF_ENABLE, default="True"): cv.boolean,
-                    cv.Optional(CONF_FREQUENCY, default=19): cv.float_range(0, 19), # kHz
-                    cv.Optional(CONF_DEVIATION, default=6.75): cv.float_range(0, 90), # kHz
-                }
-            ),
-            cv.Optional(CONF_SECTION_REFCLK): cv.Schema(
-                {
-                    cv.Optional(CONF_FREQUENCY, default=32768): cv.int_range(31130, 34406), # Hz
-                    cv.Optional(CONF_SOURCE, default="RCLK"): cv.enum(REFCLK_SOURCE),
-                    cv.Optional(CONF_PRESCALER, default=1): cv.int_range(0, 4095),
-                    
-                }
-            ),
-            cv.Optional(CONF_SECTION_COMPRESSOR): cv.Schema(
-                {
-                    cv.Optional(CONF_ENABLE, default="False"): cv.boolean,
-                    cv.Optional(CONF_THRESHOLD, default=-40): cv.int_range(-40, 0),
-                    cv.Optional(CONF_ATTACK, default='0.5'): cv.enum(ACOMP_ATTACK),
-                    cv.Optional(CONF_RELEASE, default="1000"): cv.enum(ACOMP_RELEASE),
-                    cv.Optional(CONF_GAIN, default=15): cv.int_range(0, 20),
-                    cv.Optional(CONF_PRESET, default="Custom"): cv.enum(ACOMP_PRESET),
-                }
-            ),
-            cv.Optional(CONF_SECTION_LIMITER): cv.Schema(
-                {
-                    cv.Optional(CONF_ENABLE, default="True"): cv.boolean,
-                    cv.Optional(CONF_RELEASE_TIME, default=5): cv.float_range(0.25, 102.4),
-                }
-            ),
-            cv.Optional(CONF_SECTION_ASQ): cv.Schema(
-                {
-                    cv.Optional(CONF_IALL, default="False"): cv.boolean,
-                    cv.Optional(CONF_IALH, default="False"): cv.boolean,
-                    cv.Optional(CONF_OVERMOD, default="False"): cv.boolean,
-                    cv.Optional(CONF_LEVEL_LOW, default=-50): cv.float_range(-70, 0),
-                    cv.Optional(CONF_DURATION_LOW, default=10000): cv.int_range(0, 65535),
-                    cv.Optional(CONF_LEVEL_HIGH, default=-20): cv.float_range(-70, 0),
-                    cv.Optional(CONF_DURATION_HIGH, default=5000): cv.int_range(0, 65535),
-                }
-            ),
-            cv.Optional(CONF_SECTION_RDS): cv.Schema(
-                {
-                    cv.Optional(CONF_ENABLE, default=False): cv.boolean,
-                    cv.Optional(CONF_DEVIATION, default=2.0): cv.float_range(0, 7.5), # kHz
-                    cv.Optional(CONF_STATION): cv.string,
-                    cv.Optional(CONF_TEXT): cv.string,
-                }
-            ),
-            cv.Optional(CONF_SECTION_SENSOR): cv.Schema(
-                {
-                    cv.Optional(CONF_CHIP_ID): text_sensor.text_sensor_schema(
-                        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        icon=ICON_CHIP,
-                    ),
-                    cv.Optional(CONF_READ_FREQUENCY): sensor.sensor_schema(
-                        unit_of_measurement=UNIT_MEGA_HERTZ,
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        state_class=STATE_CLASS_MEASUREMENT,
-                        accuracy_decimals=2,
-                        # icon=ICON_,
-                    ),
-                    cv.Optional(CONF_READ_POWER): sensor.sensor_schema(
-                        unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        state_class=STATE_CLASS_MEASUREMENT,
-                        # icon=ICON_,
-                    ),
-                    cv.Optional(CONF_READ_ANTCAP): sensor.sensor_schema(
-                        unit_of_measurement=UNIT_PICO_FARAD,
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        state_class=STATE_CLASS_MEASUREMENT,
-                        # icon=ICON_,
-                    ),
-                    cv.Optional(CONF_READ_NOISE_LEVEL): sensor.sensor_schema(
-                        unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        # state_class=STATE_CLASS_MEASUREMENT,
-                        # icon=ICON_,
-                    ),
-                    cv.Optional(CONF_IALL): binary_sensor.binary_sensor_schema(
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        # icon=ICON_,
-                    ),
-                    cv.Optional(CONF_IALH): binary_sensor.binary_sensor_schema(
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        # icon=ICON_,
-                    ),
-                    cv.Optional(CONF_OVERMOD): binary_sensor.binary_sensor_schema(
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        # icon=ICON_,
-                    ),
-                    cv.Optional(CONF_INLEVEL): sensor.sensor_schema(
-                        unit_of_measurement=UNIT_DECIBEL_FS,
-                        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                        state_class=STATE_CLASS_MEASUREMENT,
-                        # icon=ICON_,
-                    ),
-                }
-            ),
+            cv.Optional(CONF_SECTION_TUNER): TUNER_SCHEMA,
+            cv.Optional(CONF_SECTION_ANALOG): ANALOG_SCHEMA,
+            cv.Optional(CONF_SECTION_DIGITAL): DIGITAL_SCHEMA,
+            cv.Optional(CONF_SECTION_PILOT): PILOT_SCHEMA,
+            cv.Optional(CONF_SECTION_REFCLK): REFCLK_SCHEMA,
+            cv.Optional(CONF_SECTION_COMPRESSOR): COMPRESSOR_SCHEMA,
+            cv.Optional(CONF_SECTION_LIMITER): LIMITER_SCHEMA,
+            cv.Optional(CONF_SECTION_ASQ): ASQ_SCHEMA,
+            cv.Optional(CONF_SECTION_RDS): RDS_SCHEMA,
+            cv.Optional(CONF_SECTION_SENSOR): SENSOR_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -355,13 +371,17 @@ CONFIG_SCHEMA = (
 FREQUENCY_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(Si4713Component),
-        cv.Required(CONF_FREQUENCY): cv.templatable(cv.float_range(min = 76, max = 108)),
+        cv.Required(CONF_FREQUENCY): cv.templatable(cv.float_range(min=76, max=108)),
     }
 )
 
 
-@automation.register_action("si4713.set_frequency", SetFrequencyAction, FREQUENCY_SCHEMA)
-@automation.register_action("si4713.measure_frequency", MeasureFrequencyAction, FREQUENCY_SCHEMA)
+@automation.register_action(
+    "si4713.set_frequency", SetFrequencyAction, FREQUENCY_SCHEMA
+)
+@automation.register_action(
+    "si4713.measure_frequency", MeasureFrequencyAction, FREQUENCY_SCHEMA
+)
 async def tune_frequency_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -451,11 +471,17 @@ async def to_code(config):
         await set_var(rds_config, CONF_TEXT, var.set_rds_text)
     if sensor_config := config.get(CONF_SECTION_SENSOR):
         await new_text_sensor(sensor_config, CONF_CHIP_ID, var.set_chip_id_text_sensor)
-        await new_sensor(sensor_config, CONF_READ_FREQUENCY, var.set_read_frequency_sensor)
+        await new_sensor(
+            sensor_config, CONF_READ_FREQUENCY, var.set_read_frequency_sensor
+        )
         await new_sensor(sensor_config, CONF_READ_POWER, var.set_read_power_sensor)
         await new_sensor(sensor_config, CONF_READ_ANTCAP, var.set_read_antcap_sensor)
-        await new_sensor(sensor_config, CONF_READ_NOISE_LEVEL, var.set_read_noise_level_sensor)
+        await new_sensor(
+            sensor_config, CONF_READ_NOISE_LEVEL, var.set_read_noise_level_sensor
+        )
         await new_binary_sensor(sensor_config, CONF_IALL, var.set_iall_binary_sensor)
         await new_binary_sensor(sensor_config, CONF_IALH, var.set_ialh_binary_sensor)
-        await new_binary_sensor(sensor_config, CONF_OVERMOD, var.set_overmod_binary_sensor)
+        await new_binary_sensor(
+            sensor_config, CONF_OVERMOD, var.set_overmod_binary_sensor
+        )
         await new_sensor(sensor_config, CONF_INLEVEL, var.set_inlevel_sensor)

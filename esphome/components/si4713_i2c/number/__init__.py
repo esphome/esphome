@@ -219,7 +219,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def new_number(parent, config, id, setter, min_value, max_value, step, *args, **kwargs):
+async def new_number(p, config, id, setter, min_value, max_value, step, *args, **kwargs):
     if c := config.get(id):
         if CONF_MODE in kwargs:
             if CONF_MODE not in c or c[CONF_MODE] == number.NumberMode.NUMBER_MODE_AUTO:
@@ -227,37 +227,37 @@ async def new_number(parent, config, id, setter, min_value, max_value, step, *ar
         n = await number.new_number(
             c, *args, min_value=min_value, max_value=max_value, step=step
         )
-        await cg.register_parented(n, parent)
+        await cg.register_parented(n, p)
         cg.add(setter(n))
         return n
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_SI4713_ID])
+    p = await cg.get_variable(config[CONF_SI4713_ID])
     if tuner_config := config.get(CONF_SECTION_TUNER):
-        await new_number(parent, tuner_config, CONF_FREQUENCY, parent.set_frequency_number, 76, 108, 0.05)
-        await new_number(parent, tuner_config, CONF_DEVIATION, parent.set_audio_deviation_number, 0, 90, 0.01)
-        await new_number(parent, tuner_config, CONF_POWER, parent.set_power_number, 88, 120, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
-        await new_number(parent, tuner_config, CONF_ANTCAP, parent.set_antcap_number, 0, 191, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, tuner_config, CONF_FREQUENCY, p.set_frequency_number, 76, 108, 0.05)
+        await new_number(p, tuner_config, CONF_DEVIATION, p.set_audio_deviation_number, 0, 90, 0.01)
+        await new_number(p, tuner_config, CONF_POWER, p.set_power_number, 88, 120, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, tuner_config, CONF_ANTCAP, p.set_antcap_number, 0, 191, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
     if analog_config := config.get(CONF_SECTION_ANALOG):
-        await new_number(parent, analog_config, CONF_LEVEL, parent.set_analog_level_number, 0, 1023, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, analog_config, CONF_LEVEL, p.set_analog_level_number, 0, 1023, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
     if digital_config := config.get(CONF_SECTION_DIGITAL):
-        await new_number(parent, digital_config, CONF_SAMPLE_RATE, parent.set_digital_sample_rate_number, 32000, 48000, 1)
+        await new_number(p, digital_config, CONF_SAMPLE_RATE, p.set_digital_sample_rate_number, 32000, 48000, 1)
     if pilot_config := config.get(CONF_SECTION_PILOT):
-        await new_number(parent, pilot_config, CONF_FREQUENCY, parent.set_pilot_frequency_number, 0, 19, 0.001)
-        await new_number(parent, pilot_config, CONF_DEVIATION, parent.set_pilot_deviation_number, 0, 90, 0.001)
+        await new_number(p, pilot_config, CONF_FREQUENCY, p.set_pilot_frequency_number, 0, 19, 0.001)
+        await new_number(p, pilot_config, CONF_DEVIATION, p.set_pilot_deviation_number, 0, 90, 0.001)
     if refclk_config := config.get(CONF_SECTION_REFCLK):
-        await new_number(parent, refclk_config, CONF_FREQUENCY, parent.set_refclk_frequency_number, 31130, 34406, 1)
-        await new_number(parent, refclk_config, CONF_PRESCALER, parent.set_refclk_prescaler_number, 0, 4095, 1)
+        await new_number(p, refclk_config, CONF_FREQUENCY, p.set_refclk_frequency_number, 31130, 34406, 1)
+        await new_number(p, refclk_config, CONF_PRESCALER, p.set_refclk_prescaler_number, 0, 4095, 1)
     if compressor_config := config.get(CONF_SECTION_COMPRESSOR):
-        await new_number(parent, compressor_config, CONF_THRESHOLD, parent.set_acomp_threshold_number, -40, 0, 1)
-        await new_number(parent, compressor_config, CONF_GAIN, parent.set_acomp_gain_number, 0, 20, 1)
+        await new_number(p, compressor_config, CONF_THRESHOLD, p.set_acomp_threshold_number, -40, 0, 1)
+        await new_number(p, compressor_config, CONF_GAIN, p.set_acomp_gain_number, 0, 20, 1)
     if limiter_config := config.get(CONF_SECTION_LIMITER):
-        await new_number(parent, limiter_config, CONF_RELEASE_TIME, parent.set_limiter_release_time_number, 0.25, 102.4, 0.01, mode = number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, limiter_config, CONF_RELEASE_TIME, p.set_limiter_release_time_number, 0.25, 102.4, 0.01, mode = number.NumberMode.NUMBER_MODE_SLIDER)
     if asq_config := config.get(CONF_SECTION_ASQ):
-        await new_number(parent, asq_config, CONF_LEVEL_LOW, parent.set_asq_level_low_number, -70, 0, 1)
-        await new_number(parent, asq_config, CONF_DURATION_LOW, parent.set_asq_duration_low_number, 0, 65535, 1)
-        await new_number(parent, asq_config, CONF_LEVEL_HIGH, parent.set_asq_level_high_number, -70, 0, 1)
-        await new_number(parent, asq_config, CONF_DURATION_HIGH, parent.set_asq_duration_high_number, 0, 65535, 1)
+        await new_number(p, asq_config, CONF_LEVEL_LOW, p.set_asq_level_low_number, -70, 0, 1)
+        await new_number(p, asq_config, CONF_DURATION_LOW, p.set_asq_duration_low_number, 0, 65535, 1)
+        await new_number(p, asq_config, CONF_LEVEL_HIGH, p.set_asq_level_high_number, -70, 0, 1)
+        await new_number(p, asq_config, CONF_DURATION_HIGH, p.set_asq_duration_high_number, 0, 65535, 1)
     if rds_config := config.get(CONF_SECTION_RDS):
-        await new_number(parent, rds_config, CONF_DEVIATION, parent.set_rds_deviation_number, 0, 7.5, 0.01)
+        await new_number(p, rds_config, CONF_DEVIATION, p.set_rds_deviation_number, 0, 7.5, 0.01)

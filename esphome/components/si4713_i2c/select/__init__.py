@@ -122,27 +122,27 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def new_select(parent, config, id, setter, options):
+async def new_select(p, config, id, setter, options):
     if c := config.get(id):
         s = await select.new_select(c, options=list(options.keys()))
-        await cg.register_parented(s, parent)
+        await cg.register_parented(s, p)
         cg.add(setter(s))
         return s
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_SI4713_ID])
-    await new_select(parent, config, CONF_PRE_EMPHASIS, parent.set_pre_emphasis_select, PRE_EMPHASIS)
+    p = await cg.get_variable(config[CONF_SI4713_ID])
+    await new_select(p, config, CONF_PRE_EMPHASIS, p.set_pre_emphasis_select, PRE_EMPHASIS)
     if analog_config := config.get(CONF_SECTION_ANALOG):
-        await new_select(parent, analog_config, CONF_ATTENUATION, parent.set_analog_attenuation_select, LINE_ATTENUATION)
+        await new_select(p, analog_config, CONF_ATTENUATION, p.set_analog_attenuation_select, LINE_ATTENUATION)
     if digital_config := config.get(CONF_SECTION_DIGITAL):
-        await new_select(parent, digital_config, CONF_SAMPLE_BITS, parent.set_digital_sample_bits_select, SAMPLE_BITS)
-        await new_select(parent, digital_config, CONF_CHANNELS, parent.set_digital_channels_select, SAMPLE_CHANNELS)
-        await new_select(parent, digital_config, CONF_MODE, parent.set_digital_mode_select, DIGITAL_MODE)
-        await new_select(parent, digital_config, CONF_CLOCK_EDGE, parent.set_digital_clock_edge_select, DIGITAL_CLOCK_EDGE)
+        await new_select(p, digital_config, CONF_SAMPLE_BITS, p.set_digital_sample_bits_select, SAMPLE_BITS)
+        await new_select(p, digital_config, CONF_CHANNELS, p.set_digital_channels_select, SAMPLE_CHANNELS)
+        await new_select(p, digital_config, CONF_MODE, p.set_digital_mode_select, DIGITAL_MODE)
+        await new_select(p, digital_config, CONF_CLOCK_EDGE, p.set_digital_clock_edge_select, DIGITAL_CLOCK_EDGE)
     if refclk_config := config.get(CONF_SECTION_REFCLK):
-        await new_select(parent, refclk_config, CONF_SOURCE, parent.set_refclk_source_select, REFCLK_SOURCE)
+        await new_select(p, refclk_config, CONF_SOURCE, p.set_refclk_source_select, REFCLK_SOURCE)
     if compressor_config := config.get(CONF_SECTION_COMPRESSOR):
-        await new_select(parent, compressor_config, CONF_ATTACK, parent.set_acomp_attack_select, ACOMP_ATTACK)
-        await new_select(parent, compressor_config, CONF_RELEASE, parent.set_acomp_release_select, ACOMP_RELEASE)
-        await new_select(parent, compressor_config, CONF_PRESET, parent.set_acomp_preset_select, ACOMP_PRESET)
+        await new_select(p, compressor_config, CONF_ATTACK, p.set_acomp_attack_select, ACOMP_ATTACK)
+        await new_select(p, compressor_config, CONF_RELEASE, p.set_acomp_release_select, ACOMP_RELEASE)
+        await new_select(p, compressor_config, CONF_PRESET, p.set_acomp_preset_select, ACOMP_PRESET)
