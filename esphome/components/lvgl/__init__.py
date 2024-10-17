@@ -271,7 +271,8 @@ async def to_code(config):
         await disp_update(f"{lv_component}->get_disp()", config)
     # At this point only the setup code should be generated
     assert LvContext.added_lambda_count == 1
-    Widget.set_completed()
+    # Set this directly since we are limited in how many methods can be added to the Widget class.
+    Widget.widgets_completed = True
     async with LvContext(lv_component):
         await generate_triggers(lv_component)
         await generate_page_triggers(lv_component, config)

@@ -138,6 +138,19 @@ lvgl:
         flex_align_cross: start
         flex_align_track: end
       widgets:
+        - roller:
+            id: lv_roller
+            visible_row_count: 2
+            anim_time: 500ms
+            options:
+              - Nov
+              - Dec
+            selected_index: 1
+            on_value:
+              then:
+                - logger.log:
+                    format: "Roller changed = %d: %s"
+                    args: [x, text.c_str()]
         - animimg:
             height: 60
             id: anim_img
@@ -245,9 +258,13 @@ lvgl:
             y: 120
         - buttonmatrix:
             on_press:
-              logger.log:
-                format: "matrix button pressed: %d"
-                args: ["x"]
+              then:
+                - logger.log:
+                    format: "matrix button pressed: %d"
+                    args: ["x"]
+                - lvgl.widget.show: b_matrix
+                - lvgl.widget.redraw:
+
             on_long_press:
               lvgl.matrix.button.update:
                 id: [button_a, button_e, button_c]
@@ -629,8 +646,6 @@ lvgl:
                         - First
                         - Second
                         - Third
-                        - 4th
-                        - 5th
                         - 6th
                         - 7th
                         - 8th
@@ -651,8 +666,8 @@ lvgl:
                           bg_color: 0xFF
                       on_value:
                         logger.log:
-                          format: "Dropdown changed = %d"
-                          args: [x]
+                          format: "Dropdown changed = %d: %s"
+                          args: [x, text.c_str()]
                       on_cancel:
                         logger.log:
                           format: "Dropdown closed = %d"
@@ -661,6 +676,11 @@ lvgl:
                       src: cat_image
                       on_click:
                         then:
+                          - lvgl.dropdown.update:
+                              id: lv_dropdown
+                              options:
+                                ["First", "Second", "Third", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th"]
+                              selected_index: 3
                           - logger.log: Cat image clicked
                           - lvgl.tabview.select:
                               id: tabview_id
