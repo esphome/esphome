@@ -1,0 +1,19 @@
+spi:
+  clk_pin: GPIO5
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
+
+sx127x:
+  id: sx127x_id
+  nss_pin: GPIO1
+  rst_pin: GPIO2
+  pa_pin: BOOST
+  pa_power: 17
+  frequency: 433920000
+  modulation: OOK
+  rx_start: true
+  rx_bandwidth: 50_0kHz
+  rx_floor: -90
+  fsk_fdev: 5000
+  fsk_shaping: NONE
+  fsk_ramp: 40us
