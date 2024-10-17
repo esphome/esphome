@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
-from esphome.core import CORE, ID, Define
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
@@ -203,11 +203,10 @@ async def to_code(config):
     add_define(
         "LV_LOG_LEVEL", f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config[df.CONF_LOG_LEVEL]]}"
     )
-    # Doesn't seem to be a way to use cg.add_define to add a definition for a literal value
-    CORE.add_define(
-        Define("LVGL_LOG_LEVEL", f"ESPHOME_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}")
+    cg.add_define(
+        "LVGL_LOG_LEVEL",
+        cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}"),
     )
-
     add_define("LV_COLOR_DEPTH", config[df.CONF_COLOR_DEPTH])
     for font in helpers.lv_fonts_used:
         add_define(f"LV_FONT_{font.upper()}")
