@@ -809,6 +809,90 @@ void WaveshareEPaper2P7InV2::dump_config() {
 }
 
 // ========================================================
+//                          1.54inch_v2_e-paper_b
+// ========================================================
+// Datasheet:
+//  - https://files.waveshare.com/upload/9/9e/1.54inch-e-paper-b-v2-specification.pdf
+//  - https://www.waveshare.com/wiki/1.54inch_e-Paper_Module_(B)_Manual
+
+void WaveshareEPaper1P54InBV2::initialize() {
+  this->reset_();
+
+  this->wait_until_idle_();
+
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  this->command(0x01);
+  this->data(0xC7);
+  this->data(0x00);
+  this->data(0x01);
+
+  this->command(0x11);  // data entry mode
+  this->data(0x01);
+
+  this->command(0x44);  // set Ram-X address start/end position
+  this->data(0x00);
+  this->data(0x18);  // 0x18-->(24+1)*8=200
+
+  this->command(0x45);  // set Ram-Y address start/end position
+  this->data(0xC7);     // 0xC7-->(199+1)=200
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0x00);
+
+  this->command(0x3C);  // BorderWavefrom
+  this->data(0x05);
+
+  this->command(0x18);  // Read built-in temperature sensor
+  this->data(0x80);
+
+  this->command(0x4E);  // set RAM x address count to 0;
+  this->data(0x00);
+  this->command(0x4F);  // set RAM y address count to 0X199;
+  this->data(0xC7);
+  this->data(0x00);
+
+  this->wait_until_idle_();
+}
+
+void HOT WaveshareEPaper1P54InBV2::display() {
+  uint32_t buf_len_half = this->get_buffer_length_() >> 1;
+  this->initialize();
+
+  // COMMAND DATA START TRANSMISSION 1 (BLACK)
+  this->command(0x24);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len_half; i++) {
+    this->data(~this->buffer_[i]);
+  }
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2  (RED)
+  this->command(0x26);
+  delay(2);
+  for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
+    this->data(this->buffer_[i]);
+  }
+  this->command(0x22);
+  this->data(0xf7);
+  this->command(0x20);
+  this->wait_until_idle_();
+
+  this->deep_sleep();
+}
+int WaveshareEPaper1P54InBV2::get_height_internal() { return 200; }
+int WaveshareEPaper1P54InBV2::get_width_internal() { return 200; }
+void WaveshareEPaper1P54InBV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 1.54in V2 B");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
 //                          2.7inch_e-paper_b
 // ========================================================
 // Datasheet:
