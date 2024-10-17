@@ -1,21 +1,19 @@
-import esphome.codegen as cg
-from esphome.components import media_player, esp32
-import esphome.config_validation as cv
-
 from esphome import pins
-
+import esphome.codegen as cg
+from esphome.components import esp32, media_player
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE
 
 from .. import (
-    i2s_audio_ns,
-    I2SAudioComponent,
-    I2SAudioOut,
     CONF_I2S_AUDIO_ID,
     CONF_I2S_DOUT_PIN,
     CONF_LEFT,
-    CONF_RIGHT,
     CONF_MONO,
+    CONF_RIGHT,
     CONF_STEREO,
+    I2SAudioComponent,
+    I2SAudioOut,
+    i2s_audio_ns,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -106,7 +104,35 @@ async def to_code(config):
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
         cg.add(var.set_i2s_comm_fmt_lsb(config[CONF_I2S_COMM_FMT] == "lsb"))
 
+    # Add library dependencies:
+    # ESP32-audioI2S
+    # |-- FFat
+    # |   |-- FS
+    # |-- FS
+    # |-- SD
+    # |   |-- FS
+    # |   |-- SPI
+    # |-- SD_MMC
+    # |   |-- FS
+    # |-- SPIFFS
+    # |   |-- FS
+    # |-- WiFi
+    # |-- WiFiClientSecure
+    # |   |-- WiFi
+    cg.add_library("SPI", None)
+    cg.add_library("FS", None)
+    cg.add_library("FFat", None)
+    cg.add_library("SD", None)
+    cg.add_library("SD_MMC", None)
+    cg.add_library("SPIFFS", None)
+
+    cg.add_library("WiFi", None)
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
-    cg.add_library("esphome/ESP32-audioI2S", "2.0.7")
-    cg.add_build_flag("-DAUDIO_NO_SD_FS")
+
+    cg.add_library(
+        name="ESP32-audioI2S",
+        version=None,
+        # use close-to latest commit, since tagged versions are fairly irregular...
+        repository="https://github.com/schreibfaul1/ESP32-audioI2S.git#1bc79e547ebb6f917bf82b47bec9b7e6a9b7e314",
+    )
