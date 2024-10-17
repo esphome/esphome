@@ -68,7 +68,7 @@ class ESPHomeLogFormatter(logging.Formatter):
 
 
 def setup_log(
-    log_level = logging.INFO,
+    log_level=logging.INFO,
     include_timestamp: bool = False,
 ) -> None:
     import colorama
