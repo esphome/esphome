@@ -2,13 +2,15 @@
 #include "esphome/core/log.h"
 #ifdef USE_HOST
 #include <sys/time.h>
+#elif defined(USE_ZEPHYR)
+#include <zephyr/posix/time.h>
 #else
 #include "lwip/opt.h"
 #endif
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_ZEPHYR)
 #include <sys/time.h>
 #endif
 #include <cerrno>
@@ -22,15 +24,18 @@ static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::call_setup() {
+#ifndef USE_ZEPHYR
   this->apply_timezone_();
+#endif
   PollingComponent::call_setup();
 }
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
+  ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
   // Update UTC epoch time.
+#ifndef USE_ZEPHYR
   struct timeval timev {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
-  ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
   struct timezone tz = {0, 0};
   int ret = settimeofday(&timev, &tz);
   if (ret == EINVAL) {
@@ -45,7 +50,18 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   if (ret != 0) {
     ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
   }
+#else
+  struct timespec ts;
+  ts.tv_nsec = 0;
+  ts.tv_sec = static_cast<time_t>(epoch);
 
+  int ret = clock_settime(CLOCK_REALTIME, &ts);
+
+  if (ret != 0) {
+    ESP_LOGW(TAG, "clock_settime() failed with code %d", ret);
+  }
+
+#endif
   auto time = this->now();
   ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
@@ -53,10 +69,12 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   this->time_sync_callback_.call();
 }
 
+#ifndef USE_ZEPHYR
 void RealTimeClock::apply_timezone_() {
   setenv("TZ", this->timezone_.c_str(), 1);
   tzset();
 }
+#endif
 
 }  // namespace time
 }  // namespace esphome

@@ -10,6 +10,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <strings.h>
 
 #ifdef USE_HOST
 #ifndef _WIN32
@@ -51,6 +52,10 @@
 
 #ifdef USE_LIBRETINY
 #include <WiFi.h>  // for macAddress()
+#endif
+
+#ifdef USE_ZEPHYR
+#include <zephyr/random/random.h>
 #endif
 
 namespace esphome {
@@ -207,6 +212,8 @@ uint32_t random_uint32() {
   std::mt19937 rng(dev());
   std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
   return dist(rng);
+#elif defined(USE_ZEPHYR)
+  return rand();  // NOLINT(cert-msc30-c,cert-msc50-cpp)
 #else
 #error "No random source available for this configuration."
 #endif
@@ -243,6 +250,9 @@ bool random_bytes(uint8_t *data, size_t len) {
     exit(1);
   }
   fclose(fp);
+  return true;
+#elif defined(USE_ZEPHYR)
+  sys_rand_get(data, len);
   return true;
 #else
 #error "No random source available for this configuration."
@@ -622,6 +632,11 @@ Mutex::Mutex() {}
 void Mutex::lock() {}
 bool Mutex::try_lock() { return true; }
 void Mutex::unlock() {}
+#elif defined(USE_ZEPHYR)
+Mutex::Mutex() { k_mutex_init(&this->handle_); }
+void Mutex::lock() { k_mutex_lock(&this->handle_, K_FOREVER); }
+bool Mutex::try_lock() { return k_mutex_lock(&this->handle_, K_NO_WAIT) == 0; }
+void Mutex::unlock() { k_mutex_unlock(&this->handle_); }
 #elif defined(USE_ESP32) || defined(USE_LIBRETINY)
 Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
 void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
@@ -683,6 +698,13 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   WiFi.macAddress(mac);
 #elif defined(USE_LIBRETINY)
   WiFi.macAddress(mac);
+#elif defined(USE_NRF52)
+  mac[0] = ((NRF_FICR->DEVICEADDR[1] & 0xFFFF) >> 8) | 0xC0;
+  mac[1] = NRF_FICR->DEVICEADDR[1] & 0xFFFF;
+  mac[2] = NRF_FICR->DEVICEADDR[0] >> 24;
+  mac[3] = NRF_FICR->DEVICEADDR[0] >> 16;
+  mac[4] = NRF_FICR->DEVICEADDR[0] >> 8;
+  mac[5] = NRF_FICR->DEVICEADDR[0];
 #else
 // this should be an error, but that messes with CI checks. #error No mac address method defined
 #endif
