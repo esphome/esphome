@@ -23,6 +23,8 @@ class RealTimeClock : public PollingComponent {
   /// Set the time zone.
   void set_timezone(const std::string &tz) { this->timezone_ = tz; }
 
+  void set_epoch(uint32_t epoch) { this->synchronize_epoch_(epoch); }
+
   /// Get the time zone currently in use.
   std::string get_timezone() { return this->timezone_; }
 
