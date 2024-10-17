@@ -127,14 +127,34 @@ void EthernetComponent::setup() {
   phy_config.reset_gpio_num = this->power_pin_;
 
 #if ESP_IDF_VERSION_MAJOR >= 5
+#if ESP_IDF_VERSION_MINOR >= 3 && ESP_IDF_VERSION_PATCH < 2
+  // fix https://github.com/espressif/esp-idf/commit/e9df36a2dfe9ee074f421aedaff8952a348b339d
+  // for v5.3.0 and v5.3.1
+  eth_esp32_emac_config_t esp32_emac_config = {
+      .smi_gpio = {.mdc_num = this->mdc_pin_, .mdio_num = this->mdio_pin_},
+      .interface = EMAC_DATA_INTERFACE_RMII,
+      .clock_config = {.rmii =
+                           {
+                               .clock_mode = this->clk_mode_,
+                               .clock_gpio = this->clk_gpio_,
+                           }},
+      .dma_burst_len = ETH_DMA_BURST_LEN_32,
+      .intr_priority = 0,
+  };
+#else  // ESP_IDF_VERSION_MINOR >= 3 && ESP_IDF_VERSION_PATCH > 2
   eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+#if ESP_IDF_VERSION_MINOR >= 3
+  esp32_emac_config.smi_gpio = {.mdc_num = this->mdc_pin_, .mdio_num = this->mdio_pin_};
+#else  // ESP_IDF_VERSION_MINOR < 3
   esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
+#endif
   esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
   esp32_emac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
+#endif
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#else
+#else  // ESP_IDF_VERSION_MAJOR < 5
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
   mac_config.clock_config.rmii.clock_mode = this->clk_mode_;
@@ -186,6 +206,12 @@ void EthernetComponent::setup() {
 #ifdef USE_ETHERNET_SPI
     case ETHERNET_TYPE_W5500: {
       this->phy_ = esp_eth_phy_new_w5500(&phy_config);
+      break;
+    }
+#endif
+#if ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 3
+    case ETHERNET_TYPE_LAN867X: {
+      this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
       break;
     }
 #endif
@@ -313,6 +339,10 @@ void EthernetComponent::dump_config() {
 
     case ETHERNET_TYPE_OPENETH:
       eth_type = "OPENETH";
+      break;
+
+    case ETHERNET_TYPE_LAN867X:
+      eth_type = "LAN867X";
       break;
 
     default:
