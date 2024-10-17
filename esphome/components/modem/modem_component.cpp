@@ -33,12 +33,15 @@ ModemComponent::ModemComponent() { global_modem_component = this; }
 
 // setup
 void ModemComponent::setup() {
-  esp_log_level_set("esp-netif_lwip-ppp", ESP_LOG_VERBOSE);
-  esp_log_level_set("esp-netif_lwip", ESP_LOG_VERBOSE);
-  esp_log_level_set("modem", ESP_LOG_VERBOSE);
-  esp_log_level_set("mqtt", ESP_LOG_VERBOSE);
-  esp_log_level_set("command_lib", ESP_LOG_VERBOSE);
-  esp_log_level_set("uart_terminal", ESP_LOG_VERBOSE);
+  // esp_log_level_set("esp-netif_lwip-ppp", ESP_LOG_VERBOSE);
+  // esp_log_level_set("esp-netif_lwip", ESP_LOG_VERBOSE);
+  // esp_log_level_set("modem", ESP_LOG_VERBOSE);
+  // esp_log_level_set("mqtt", ESP_LOG_VERBOSE);
+  // esp_log_level_set("command_lib", ESP_LOG_VERBOSE);
+  // esp_log_level_set("uart_terminal", ESP_LOG_VERBOSE);
+  // esp_log_level_set("vfs_socket_creator", ESP_LOG_VERBOSE);
+  // esp_log_level_set("vfs_uart_creator", ESP_LOG_VERBOSE);
+  // esp_log_level_set("fs_terminal", ESP_LOG_VERBOSE);
 
   ESP_LOGCONFIG(TAG, "Setting up modem...");
   if (this->power_pin_) {
@@ -337,9 +340,9 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
     ESP_LOGI(TAG, "Netmask     : " IPSTR, IP2STR(&event->ip_info.netmask));
     ESP_LOGI(TAG, "Gateway     : " IPSTR, IP2STR(&event->ip_info.gw));
     esp_netif_get_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info);
-    ESP_LOGI(TAG, "Name Server1: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    ESP_LOGI(TAG, "DNS 1: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
     esp_netif_get_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info);
-    ESP_LOGI(TAG, "Name Server2: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    ESP_LOGI(TAG, "DNS 2: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
     ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
 
     ESP_LOGD(TAG, "GOT ip event!!!");
