@@ -176,129 +176,29 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->product_ = R"({"p":"INVALID"})";
       }
       if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
-        this->init_state_ = TuyaInitState::INIT_CONF;
-        this->send_empty_command_(TuyaCommandType::CONF_QUERY);
+        this->init_state_ = TuyaInitState::INIT_WIFI;
+        this->send_raw_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_STATE, .payload = std::vector<uint8_t>{0x03}});
+        this->send_raw_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_STATE, .payload = std::vector<uint8_t>{0x04}});
       }
       break;
     }
-    case TuyaCommandType::CONF_QUERY: {
-      if (len >= 2) {
-        this->status_pin_reported_ = buffer[0];
-        this->reset_pin_reported_ = buffer[1];
-      }
-      if (this->init_state_ == TuyaInitState::INIT_CONF) {
-        // If mcu returned status gpio, then we can omit sending wifi state
-        if (this->status_pin_reported_ != -1) {
-          this->init_state_ = TuyaInitState::INIT_DATAPOINT;
-          this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
-          bool is_pin_equals =
-              this->status_pin_ != nullptr && this->status_pin_->get_pin() == this->status_pin_reported_;
-          // Configure status pin toggling (if reported and configured) or WIFI_STATE periodic send
-          if (is_pin_equals) {
-            ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_reported_);
-            this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
-          } else {
-            ESP_LOGW(TAG, "Supplied status_pin does not equals the reported pin %i. TuyaMcu will work in limited mode.",
-                     this->status_pin_reported_);
-          }
-        } else {
-          this->init_state_ = TuyaInitState::INIT_WIFI;
-          ESP_LOGV(TAG, "Configured WIFI_STATE periodic send");
-          this->set_interval("wifi", 1000, [this] { this->send_wifi_status_(); });
-        }
-      }
+    case TuyaCommandType::LOCAL_TIME_QUERY:
+      this->send_local_time_();
       break;
-    }
     case TuyaCommandType::WIFI_STATE:
       if (this->init_state_ == TuyaInitState::INIT_WIFI) {
-        this->init_state_ = TuyaInitState::INIT_DATAPOINT;
-        this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
-      }
-      break;
-    case TuyaCommandType::WIFI_RESET:
-      ESP_LOGE(TAG, "WIFI_RESET is not handled");
-      break;
-    case TuyaCommandType::WIFI_SELECT:
-      ESP_LOGE(TAG, "WIFI_SELECT is not handled");
-      break;
-    case TuyaCommandType::DATAPOINT_DELIVER:
-      break;
-    case TuyaCommandType::DATAPOINT_REPORT_ASYNC:
-    case TuyaCommandType::DATAPOINT_REPORT_SYNC:
-      if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
-        this->initialized_callback_.call();
       }
+      break;
+    case TuyaCommandType::DATAPOINT_REPORT:
       this->handle_datapoints_(buffer, len);
 
-      if (command_type == TuyaCommandType::DATAPOINT_REPORT_SYNC) {
-        this->send_command_(
-            TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_ACK, .payload = std::vector<uint8_t>{0x01}});
-      }
-      break;
-    case TuyaCommandType::DATAPOINT_QUERY:
-      break;
-    case TuyaCommandType::WIFI_TEST:
-      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_TEST, .payload = std::vector<uint8_t>{0x00, 0x00}});
-      break;
-    case TuyaCommandType::WIFI_RSSI:
       this->send_command_(
-          TuyaCommand{.cmd = TuyaCommandType::WIFI_RSSI, .payload = std::vector<uint8_t>{get_wifi_rssi_()}});
+          TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT, .payload = std::vector<uint8_t>{0x01}});
       break;
-    case TuyaCommandType::LOCAL_TIME_QUERY:
-#ifdef USE_TIME
-      if (this->time_id_ != nullptr) {
-        this->send_local_time_();
-
-        if (!this->time_sync_callback_registered_) {
-          // tuya mcu supports time, so we let them know when our time changed
-          this->time_id_->add_on_time_sync_callback([this] { this->send_local_time_(); });
-          this->time_sync_callback_registered_ = true;
-        }
-      } else
-#endif
-      {
-        ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
-      }
+    case TuyaCommandType::DP_CACHE:
+      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DP_CACHE, .payload = std::vector<uint8_t>{0x01}});
       break;
-    case TuyaCommandType::VACUUM_MAP_UPLOAD:
-      this->send_command_(
-          TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
-      ESP_LOGW(TAG, "Vacuum map upload requested, responding that it is not enabled.");
-      break;
-    case TuyaCommandType::GET_NETWORK_STATUS: {
-      uint8_t wifi_status = this->get_wifi_status_code_();
-
-      this->send_command_(
-          TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
-      ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
-      break;
-    }
-    case TuyaCommandType::EXTENDED_SERVICES: {
-      uint8_t subcommand = buffer[0];
-      switch ((TuyaExtendedServicesCommandType) subcommand) {
-        case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
-          this->send_command_(
-              TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
-                          .payload = std::vector<uint8_t>{
-                              static_cast<uint8_t>(TuyaExtendedServicesCommandType::RESET_NOTIFICATION), 0x00}});
-          ESP_LOGV(TAG, "Reset status notification enabled");
-          break;
-        }
-        case TuyaExtendedServicesCommandType::MODULE_RESET: {
-          ESP_LOGE(TAG, "EXTENDED_SERVICES::MODULE_RESET is not handled");
-          break;
-        }
-        case TuyaExtendedServicesCommandType::UPDATE_IN_PROGRESS: {
-          ESP_LOGE(TAG, "EXTENDED_SERVICES::UPDATE_IN_PROGRESS is not handled");
-          break;
-        }
-        default:
-          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", subcommand);
-      }
-      break;
-    }
     default:
       ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
@@ -424,13 +324,6 @@ void Tuya::send_raw_command_(TuyaCommand command) {
     case TuyaCommandType::PRODUCT_QUERY:
       this->expected_response_ = TuyaCommandType::PRODUCT_QUERY;
       break;
-    case TuyaCommandType::CONF_QUERY:
-      this->expected_response_ = TuyaCommandType::CONF_QUERY;
-      break;
-    case TuyaCommandType::DATAPOINT_DELIVER:
-    case TuyaCommandType::DATAPOINT_QUERY:
-      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT_ASYNC;
-      break;
     default:
       break;
   }
@@ -497,10 +390,11 @@ uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = 0x02;
 
   if (network::is_connected()) {
-    status = 0x03;
+    status = 0x04;
 
     // Protocol version 3 also supports specifying when connected to "the cloud"
-    if (this->protocol_version_ >= 0x03 && remote_is_connected()) {
+    // Protocol version 0 only supports it working in low power mode
+    if ((this->protocol_version_ >= 0x03 && remote_is_connected()) or this->low_power_mode_) {
       status = 0x04;
     }
   } else {
@@ -691,7 +585,7 @@ void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datap
   buffer.push_back(data.size() >> 0);
   buffer.insert(buffer.end(), data.begin(), data.end());
 
-  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_DELIVER, .payload = buffer});
+  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT, .payload = buffer});
 }
 
 void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func) {
