@@ -11,6 +11,8 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
     CONF_CRON,
+    CONF_DATETIME,
+    CONF_DAY,
     CONF_DAYS_OF_MONTH,
     CONF_DAYS_OF_WEEK,
     CONF_HOUR,
@@ -18,6 +20,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MINUTE,
     CONF_MINUTES,
+    CONF_MONTH,
     CONF_MONTHS,
     CONF_ON_TIME,
     CONF_ON_TIME_SYNC,
@@ -25,6 +28,7 @@ from esphome.const import (
     CONF_SECONDS,
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
+    CONF_YEAR,
 )
 from esphome.core import coroutine_with_priority
 
@@ -33,11 +37,14 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@OttoWinter"]
 IS_PLATFORM_COMPONENT = True
 
+CONF_UTC = "utc"
+
 time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
 SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
+SystemTimeSetAction = time_ns.class_("SystemTimeSetAction", automation.Action)
 
 
 def _load_tzdata(iana_key: str) -> Optional[bytes]:
@@ -344,3 +351,39 @@ async def to_code(config):
 async def time_has_time_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_action(
+    "system_time.set",
+    SystemTimeSetAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(RealTimeClock),
+            cv.Required(CONF_DATETIME): cv.Any(
+                cv.returning_lambda, cv.date_time(date=True, time=True)
+            ),
+            cv.Optional(CONF_UTC, default=False): cv.boolean,
+        },
+    ),
+)
+async def system_time_set_to_code(config, action_id, template_arg, args):
+    action_var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(action_var, config[CONF_ID])
+
+    datetime_config = config[CONF_DATETIME]
+    cg.add(action_var.set_utc(config[CONF_UTC]))
+    if cg.is_template(datetime_config):
+        template_ = await cg.templatable(datetime_config, args, cg.ESPTime)
+        cg.add(action_var.set_time(template_))
+    else:
+        datetime_struct = cg.StructInitializer(
+            cg.ESPTime,
+            ("second", datetime_config[CONF_SECOND]),
+            ("minute", datetime_config[CONF_MINUTE]),
+            ("hour", datetime_config[CONF_HOUR]),
+            ("day_of_month", datetime_config[CONF_DAY]),
+            ("month", datetime_config[CONF_MONTH]),
+            ("year", datetime_config[CONF_YEAR]),
+        )
+        cg.add(action_var.set_time(datetime_struct))
+    return action_var
