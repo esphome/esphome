@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/helpers.h"
+#include "esphome/core/helpers.h"
 
 #include <utility>
 #include <vector>
