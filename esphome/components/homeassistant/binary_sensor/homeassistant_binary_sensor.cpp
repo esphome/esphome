@@ -10,6 +10,10 @@ static const char *const TAG = "homeassistant.binary_sensor";
 void HomeassistantBinarySensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, this->attribute_, [this](const std::string &state) {
+        if (this->handle_state(state.c_str())) {
+          ESP_LOGD(TAG, "'%s': Got entity state %s", this->entity_id_.c_str(), state.c_str());
+          return;
+        }
         auto val = parse_on_off(state.c_str());
         switch (val) {
           case PARSE_NONE:

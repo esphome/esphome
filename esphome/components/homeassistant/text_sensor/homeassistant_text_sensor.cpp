@@ -10,6 +10,7 @@ static const char *const TAG = "homeassistant.text_sensor";
 void HomeassistantTextSensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, this->attribute_, [this](const std::string &state) {
+        this->handle_state(state.c_str());
         if (this->attribute_.has_value()) {
           ESP_LOGD(TAG, "'%s::%s': Got attribute state '%s'", this->entity_id_.c_str(),
                    this->attribute_.value().c_str(), state.c_str());
