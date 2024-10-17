@@ -16,7 +16,7 @@ CODEOWNERS = ["@neffs", "@kbx81"]
 
 DOMAIN = "bme68x_bsec2"
 
-BSEC2_LIBRARY_VERSION = "v1.7.2502"
+BSEC2_LIBRARY_VERSION = "v1.8.2610"
 
 CONF_ALGORITHM_OUTPUT = "algorithm_output"
 CONF_BME68X_BSEC2_ID = "bme68x_bsec2_id"
