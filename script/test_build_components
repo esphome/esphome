@@ -2,6 +2,15 @@
 
 set -e
 
+help() {
+  echo "Usage: $0 [-e <config|compile|clean>] [-c <string>] [-t <string>]" 1>&2
+  echo 1>&2
+  echo "  - e - Parameter for esphome command. Default compile. Common alternative is config." 1>&2
+  echo "  - c - Component folder name to test. Default *. E.g. '-c logger'." 1>&2
+  echo "  - t - Target name to test. Put '-t list' to display all possibilities. E.g. '-t esp32-s2-idf-51'." 1>&2
+  exit 1
+}
+
 # Parse parameter:
 # - `e` - Parameter for `esphome` command. Default `compile`. Common alternative is `config`.
 # - `c` - Component folder name to test. Default `*`.
@@ -13,7 +22,7 @@ do
         e) esphome_command=${OPTARG};;
         c) target_component=${OPTARG};;
         t) requested_target_platform=${OPTARG};;
-        \?) echo "Usage: $0 [-e <config|compile|clean>] [-c <string>] [-t <string>]" 1>&2; exit 1;;
+        \?) help;;
     esac
 done
 
@@ -24,8 +33,8 @@ if ! [ -d "./tests/test_build_components/build" ]; then
 fi
 
 start_esphome() {
-  if [ -n "$requested_target_platform" ] && [ "$requested_target_platform" != "$target_platform" ]; then
-    echo "Skiping $target_platform"
+  if [ -n "$requested_target_platform" ] && [ "$requested_target_platform" != "$target_platform_with_version" ]; then
+    echo "Skipping $target_platform_with_version"
     return
   fi
   # create dynamic yaml file in `build` folder.
