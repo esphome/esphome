@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#ifdef USE_NETWORK
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -10,8 +9,7 @@
 #endif
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
+#else
 #include <WiFiUdp.h>
 #endif
 #include <vector>
@@ -127,8 +125,7 @@ class UDPComponent : public PollingComponent {
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
   std::vector<struct sockaddr> sockaddrs_{};
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
+#else
   std::vector<IPAddress> ipaddrs_{};
   WiFiUDP udp_client_{};
 #endif
@@ -159,4 +156,3 @@ class UDPComponent : public PollingComponent {
 
 }  // namespace udp
 }  // namespace esphome
-#endif
