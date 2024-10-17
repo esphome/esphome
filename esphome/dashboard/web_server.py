@@ -52,8 +52,6 @@ if TYPE_CHECKING:
     from requests import Response
 
 
-LOG_LEVEL = os.getenv("ESPHOME_LOG_LEVEL", "INFO").upper()
-logging.getLogger().setLevel(LOG_LEVEL)
 _LOGGER = logging.getLogger(__name__)
 
 ENV_DEV = "ESPHOME_DASHBOARD_DEV"
