@@ -1,5 +1,5 @@
 ethernet:
-  type: W5500
+  type: DM9051
   clk_pin: 19
   mosi_pin: 21
   miso_pin: 23
