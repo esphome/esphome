@@ -1,5 +1,4 @@
 import logging
-import os
 
 from esphome.core import CORE
 
