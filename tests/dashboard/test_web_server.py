@@ -35,14 +35,14 @@ class DashboardTestHelper:
         return result
 
 
-@pytest_asyncio.fixture()
-async def dashboard() -> DashboardTestHelper:
+@pytest_asyncio.fixture(name="dashboard")
+async def fixture_dashboard() -> DashboardTestHelper:
     sock, port = bind_unused_port()
     args = Mock(
         ha_addon=True,
         configuration=get_fixture_path("conf"),
-        port=port,
     )
+    os.environ["ESPHOME_DASHBOARD_PORT"] = str(port)
     DASHBOARD.settings.parse_args(args)
     app = web_server.make_app()
     http_server = HTTPServer(app)
