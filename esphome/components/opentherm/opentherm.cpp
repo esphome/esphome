@@ -283,6 +283,9 @@ bool OpenTherm::init_esp32_timer_() {
     .clk_src = TIMER_SRC_CLK_DEFAULT,
 #endif
     .divider = 80,
+#if defined(SOC_TIMER_GROUP_SUPPORT_XTAL) && ESP_IDF_VERSION_MAJOR < 5
+    .clk_src = TIMER_SRC_CLK_APB
+#endif
   };
 
   esp_err_t result;
