@@ -57,8 +57,6 @@ static const int IALDUR_MAX = 65535;
 static const uint8_t RDS_STATION_MAX = 8;  // TODO
 static const uint8_t RDS_TEXT_MAX = 64;    // TODO
 
-template<typename T> T GET_ENUM_LAST(T value) { return T::LAST; }
-
 enum class OpMode {
   OPMODE_ANALOG = 0b01010000,   // 0x50
   OPMODE_DIGITAL = 0b00001111,  // 0x0F

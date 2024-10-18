@@ -322,6 +322,8 @@ void Si4713Component::loop() {
 
 // config
 
+template<typename T> T GET_ENUM_LAST(T value) { return T::LAST; }
+
 #define CHECK_ENUM(value) \
   if (value >= GET_ENUM_LAST(value)) { \
     ESP_LOGE(TAG, "%s(%d) invalid", __func__, (int) value); \

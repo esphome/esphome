@@ -204,7 +204,6 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
  public:
   Si4713Component();
 
-  // float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void setup() override;
   void dump_config() override;
   void update() override;
