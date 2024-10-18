@@ -20,6 +20,12 @@ class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
 
+  void set_time(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
+                bool utc = false);
+  void set_time(ESPTime datetime, bool utc = false);
+  void set_time(const std::string &datetime, bool utc = false);
+  void set_time(time_t epoch_seconds, bool utc = false);
+
   /// Set the time zone.
   void set_timezone(const std::string &tz) { this->timezone_ = tz; }
 
@@ -58,6 +64,18 @@ template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
 
  protected:
   RealTimeClock *parent_;
+};
+
+template<typename... Ts> class SystemTimeSetAction : public Action<Ts...>, public Parented<RealTimeClock> {
+ public:
+  TEMPLATABLE_VALUE(ESPTime, time)
+  TEMPLATABLE_VALUE(bool, utc)
+
+  void play(Ts... x) override {
+    if (this->time_.has_value() && this->utc_.has_value()) {
+      this->parent_->set_time(this->time_.value(x...), this->utc_.value(x...));
+    }
+  }
 };
 
 }  // namespace time

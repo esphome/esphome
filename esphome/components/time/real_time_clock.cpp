@@ -58,5 +58,52 @@ void RealTimeClock::apply_timezone_() {
   tzset();
 }
 
+void RealTimeClock::set_time(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
+                             bool utc) {
+  ESPTime time{
+      .second = second,
+      .minute = minute,
+      .hour = hour,
+      .day_of_week = 1,  // not used
+      .day_of_month = day,
+      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
+      .month = month,
+      .year = year,
+      .is_dst = false,  // not used
+      .timestamp = 0    // overwritten by recalc_timestamp_utc(false)
+  };
+
+  if (utc) {
+    time.recalc_timestamp_utc();
+  } else {
+    time.recalc_timestamp_local();
+  }
+
+  if (!time.is_valid()) {
+    ESP_LOGE(TAG, "Invalid time, not syncing to system clock.");
+    return;
+  }
+  time::RealTimeClock::synchronize_epoch_(time.timestamp);
+};
+
+void RealTimeClock::set_time(ESPTime datetime, bool utc) {
+  return this->set_time(datetime.year, datetime.month, datetime.day_of_month, datetime.hour, datetime.minute,
+                        datetime.second, utc);
+};
+
+void RealTimeClock::set_time(const std::string &datetime, bool utc) {
+  ESPTime val{};
+  if (!ESPTime::strptime(datetime, val)) {
+    ESP_LOGE(TAG, "Could not convert the time string to an ESPTime object");
+    return;
+  }
+  this->set_time(val, utc);
+}
+
+void RealTimeClock::set_time(time_t epoch_seconds, bool utc) {
+  ESPTime val = ESPTime::from_epoch_local(epoch_seconds);
+  this->set_time(val, utc);
+}
+
 }  // namespace time
 }  // namespace esphome
