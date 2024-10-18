@@ -22,6 +22,7 @@ enum class ChipId {
   KT0803K,
   KT0803M,
   KT0803L,
+  LAST,
 };
 
 enum class PreEmphasis {

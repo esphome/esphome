@@ -198,5 +198,12 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   AlcLow get_alc_low();
 };
 
+template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<KT0803Component> {
+  TEMPLATABLE_VALUE(float, frequency)
+  void play(Ts... x) override {
+    this->parent_->set_frequency(this->frequency_.value(x...));
+  }
+};
+
 }  // namespace kt0803
 }  // namespace esphome
