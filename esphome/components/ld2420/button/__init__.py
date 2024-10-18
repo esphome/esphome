@@ -9,6 +9,7 @@ from esphome.const import (
     ICON_RESTART,
     ICON_RESTART_ALERT,
     ICON_DATABASE,
+    CONF_FACTORY_RESET,
 )
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
