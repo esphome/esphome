@@ -31,9 +31,6 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_ADDRESS,
     CONF_VALUE,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-    KEY_TARGET_FRAMEWORK,
 )
 from esphome.core import CORE, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
@@ -150,71 +147,24 @@ RMII_SCHEMA = BASE_SCHEMA.extend(
 )
 
 SPI_SCHEMA = BASE_SCHEMA.extend(
-    # add CONF_INTERRUPT_PIN and CONF_POLLING_INTERVAL is later
     cv.Schema(
         {
             cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_MISO_PIN): pins.internal_gpio_input_pin_number,
             cv.Required(CONF_MOSI_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
             cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
                 cv.frequency, cv.int_range(int(8e6), int(80e6))
             ),
+            cv.Optional(CONF_POLLING_INTERVAL, default="10ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=TimePeriod(milliseconds=1)),
+            ),
         }
     ),
 )
-
-
-# SPI without IRQ feature is added esp-idf >= (5.3.0+ ,5.2.1+, 5.1.4) and arduino-esp32 >= 3.0.0
-def _add_spi_irq_schema(schema):
-    core_data = CORE.data[KEY_CORE]
-    target_framework = core_data[KEY_TARGET_FRAMEWORK]
-    if target_framework == "esp-idf":
-        idf_version = core_data[KEY_FRAMEWORK_VERSION]
-        if idf_version >= cv.Version(5, 3, 0):
-            no_irq_supported = True
-        elif cv.Version(5, 3, 0) > idf_version >= cv.Version(5, 2, 1):
-            no_irq_supported = True
-        elif cv.Version(5, 2, 0) > idf_version >= cv.Version(5, 1, 4):
-            no_irq_supported = True
-        else:
-            no_irq_supported = False
-    elif target_framework == "arduino":
-        arduino_version = core_data[KEY_FRAMEWORK_VERSION]
-        no_irq_supported = arduino_version >= cv.Version(3, 0, 0)
-    else:
-        raise ValueError(
-            f"framework {target_framework} is unknown for ethernet component"
-        )
-    if no_irq_supported:
-        schema = schema.extend(
-            cv.Schema(
-                {
-                    cv.Optional(
-                        CONF_INTERRUPT_PIN
-                    ): pins.internal_gpio_input_pin_number,
-                    cv.Optional(CONF_POLLING_INTERVAL, default="10ms"): cv.All(
-                        cv.positive_time_period_milliseconds,
-                        cv.Range(min=TimePeriod(milliseconds=1)),
-                    ),
-                }
-            )
-        )
-    else:
-        schema = schema.extend(
-            cv.Schema(
-                {
-                    cv.Required(
-                        CONF_INTERRUPT_PIN
-                    ): pins.internal_gpio_input_pin_number,
-                }
-            )
-        )
-    return schema
-
-
-SPI_SCHEMA = _add_spi_irq_schema(SPI_SCHEMA)
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
