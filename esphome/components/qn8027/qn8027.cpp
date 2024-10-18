@@ -541,7 +541,7 @@ std::string QN8027Component::get_fsm() {
 
 std::string QN8027Component::get_chip_id() { return this->chip_id_; }
 
-uint8_t QN8027Component::get_reg30() { return this->reg30_; }
+float QN8027Component::get_reg30() { return (float) this->reg30_; }
 
 template<class S, class T> void QN8027Component::publish(S *s, T state) {
   if (s != nullptr) {

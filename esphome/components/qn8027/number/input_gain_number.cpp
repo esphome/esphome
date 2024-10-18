@@ -5,7 +5,7 @@ namespace qn8027 {
 
 void InputGainNumber::control(float value) {
   this->publish_state(value);
-  this->parent_->set_input_gain((uint8_t) value);
+  this->parent_->set_input_gain((uint8_t) lround(value));
 }
 
 }  // namespace qn8027
