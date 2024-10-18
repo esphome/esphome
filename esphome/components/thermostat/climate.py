@@ -73,6 +73,7 @@ from esphome.const import (
 CONF_PRESET_CHANGE = "preset_change"
 CONF_DEFAULT_PRESET = "default_preset"
 CONF_ON_BOOT_RESTORE_FROM = "on_boot_restore_from"
+CONF_PRESET_TEMP_RESTORE = "preset_temp_restore"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -116,6 +117,7 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SWING_MODE): cv.templatable(
             climate.validate_climate_swing_mode
         ),
+        cv.Optional(CONF_PRESET_TEMP_RESTORE, default=False): cv.boolean,
     }
 )
 
@@ -924,6 +926,13 @@ async def to_code(config):
                 cg.add(
                     preset_target_variable.set_swing_mode(
                         preset_config[CONF_SWING_MODE]
+                    )
+                )
+
+            if CONF_PRESET_TEMP_RESTORE in preset_config:
+                cg.add(
+                    preset_target_variable.set_preset_temp_restore(
+                        preset_config[CONF_PRESET_TEMP_RESTORE]
                     )
                 )
 
