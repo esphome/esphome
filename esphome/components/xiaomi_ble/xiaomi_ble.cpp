@@ -73,6 +73,14 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   else if ((value_type == 0x1013) && (value_length == 1)) {
     result.tablet = data[0];
   }
+  // open/close state, 1 byte, 8-bit unsigned integer, 1:closed or 0,2:opened
+  else if ((value_type == 0x19) && (value_length == 1)) {
+    result.is_open = data[0] != 0x01;
+  }
+  // light, 1 byte, 0 or 1
+  else if ((value_type == 0x18) && (value_length == 1)) {
+    result.is_light = data[0];
+  }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x1017) && (value_length == 4)) {
     const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
@@ -230,6 +238,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if (device_uuid == 0x0387) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
+  } else if (device_uuid == 0x098b) {  // Door sensor
+    result.type = XiaomiParseResult::TYPE_MCCGQ02HL;
+    result.name = "MCCGQ02HL";
   } else if (device_uuid == 0x0A83) {  // Qingping-branded, motion & ambient light sensor
     result.type = XiaomiParseResult::TYPE_CGPR1;
     result.name = "CGPR1";
@@ -376,6 +387,9 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->button_press.has_value()) {
     ESP_LOGD(TAG, "  Button: %s", (*result->button_press) ? "pressed" : "");
+  }
+  if (result->is_open.has_value()) {
+    ESP_LOGD(TAG, "  Open:  %s", (*result->is_open) ? "on" : "off");
   }
 
   return true;
