@@ -93,4 +93,28 @@ void EntityBase_UnitOfMeasurement::set_unit_of_measurement(const char *unit_of_m
   this->unit_of_measurement_ = unit_of_measurement;
 }
 
+void EntityBase_State::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
+void EntityBase_State::set_entity_state(EntityStateType entity_state) {
+  this->entity_state_ = entity_state;
+  this->state_callback_.call();
+}
+EntityStateType EntityBase_State::get_entity_state() const { return this->entity_state_; };
+bool EntityBase_State::is_unavailable() const { return this->entity_state_ == ENTITY_UNAVAILABLE; };
+bool EntityBase_State::is_unknown() const {
+  return this->entity_state_ == ENTITY_UNKNOWN || this->entity_state_ == ENTITY_UNAVAILABLE;
+};
+
+bool EntityBase_State::handle_state(const char *input) {
+  if (parse_unavailable(input)) {
+    this->set_entity_state(ENTITY_UNAVAILABLE);
+    return true;
+  } else if (parse_unknown(input)) {
+    this->set_entity_state(ENTITY_UNKNOWN);
+    return true;
+  }
+
+  this->set_entity_state(ENTITY_AVAILABLE);
+  return false;
+}
+
 }  // namespace esphome
