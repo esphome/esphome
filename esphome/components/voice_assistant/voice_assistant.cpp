@@ -65,14 +65,12 @@ bool VoiceAssistant::start_udp_socket_() {
   }
 #endif
   this->udp_socket_running_ = true;
+
+  global_voice_assistant = this;
   return true;
 }
 
-void VoiceAssistant::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Voice Assistant...");
-
-  global_voice_assistant = this;
-}
+void VoiceAssistant::setup() { ESP_LOGCONFIG(TAG, "Setting up Voice Assistant..."); }
 
 bool VoiceAssistant::allocate_buffers_() {
   if (this->send_buffer_ != nullptr) {
