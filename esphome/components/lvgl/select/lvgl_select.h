@@ -6,58 +6,52 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "../lvgl.h"
 
 namespace esphome {
 namespace lvgl {
 
-static std::vector<std::string> split_string(const std::string &str) {
-  std::vector<std::string> strings;
-  auto delimiter = std::string("\n");
-
-  std::string::size_type pos;
-  std::string::size_type prev = 0;
-  while ((pos = str.find(delimiter, prev)) != std::string::npos) {
-    strings.push_back(str.substr(prev, pos - prev));
-    prev = pos + delimiter.size();
-  }
-
-  // To get the last substring (or only, if delimiter is not found)
-  strings.push_back(str.substr(prev));
-
-  return strings;
-}
-
 class LVGLSelect : public select::Select {
  public:
-  void set_control_lambda(std::function<void(size_t)> lambda) {
-    this->control_lambda_ = std::move(lambda);
+  void set_widget(LvSelectable *widget, lv_anim_enable_t anim = LV_ANIM_OFF) {
+    this->widget_ = widget;
+    this->anim_ = anim;
+    this->set_options_();
+    lv_obj_add_event_cb(
+        this->widget_->obj,
+        [](lv_event_t *e) {
+          auto *it = static_cast<LVGLSelect *>(e->user_data);
+          it->set_options_();
+        },
+        LV_EVENT_REFRESH, this);
     if (this->initial_state_.has_value()) {
       this->control(this->initial_state_.value());
       this->initial_state_.reset();
     }
+    this->publish();
+    auto lamb = [](lv_event_t *e) {
+      auto *self = static_cast<LVGLSelect *>(e->user_data);
+      self->publish();
+    };
+    lv_obj_add_event_cb(this->widget_->obj, lamb, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(this->widget_->obj, lamb, lv_update_event, this);
   }
 
-  void publish_index(size_t index) {
-    auto value = this->at(index);
-    if (value)
-      this->publish_state(value.value());
-  }
-
-  void set_options(const char *str) { this->traits.set_options(split_string(str)); }
+  void publish() { this->publish_state(this->widget_->get_selected_text()); }
 
  protected:
   void control(const std::string &value) override {
-    if (this->control_lambda_ != nullptr) {
-      auto index = index_of(value);
-      if (index)
-        this->control_lambda_(index.value());
+    if (this->widget_ != nullptr) {
+      this->widget_->set_selected_text(value, this->anim_);
     } else {
-      this->initial_state_ = value.c_str();
+      this->initial_state_ = value;
     }
   }
+  void set_options_() { this->traits.set_options(this->widget_->get_options()); }
 
-  std::function<void(size_t)> control_lambda_{};
-  optional<const char *> initial_state_{};
+  LvSelectable *widget_{};
+  optional<std::string> initial_state_{};
+  lv_anim_enable_t anim_{LV_ANIM_OFF};
 };
 
 }  // namespace lvgl
