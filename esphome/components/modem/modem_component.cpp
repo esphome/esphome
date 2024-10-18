@@ -92,7 +92,6 @@ void ModemComponent::loop() {
         ESP_LOGD(TAG, "Can't turn on modem power pin because it is not configured, go to turn on pwrkey");
         this->set_state(ModemComponentState::TURNING_ON_RESET);
       }
-      this->dce_init();
       break;
 
     // Modem power supply end state
