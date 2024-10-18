@@ -12,12 +12,10 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, LocalVariable, lv, lv_assign, lv_variable
-from .schemas import ALL_STYLES
+from .schemas import ALL_STYLES, STYLE_REMAP
 from .types import lv_lambda_t, lv_obj_t, lv_obj_t_ptr
 from .widgets import Widget, add_widgets, set_obj_properties, theme_widget_map
 from .widgets.obj import obj_spec
-
-TOP_LAYER = literal("lv_disp_get_layer_top(lv_component->get_disp())")
 
 
 async def styles_to_code(config):
@@ -31,7 +29,8 @@ async def styles_to_code(config):
                     value = await validator.process(value)
                 if isinstance(value, list):
                     value = "|".join(value)
-                lv.call(f"style_set_{prop}", svar, literal(value))
+                remapped_prop = STYLE_REMAP.get(prop, prop)
+                lv.call(f"style_set_{remapped_prop}", svar, literal(value))
 
 
 async def theme_to_code(config):
@@ -50,9 +49,10 @@ async def theme_to_code(config):
             lv_assign(apply, await context.get_lambda())
 
 
-async def add_top_layer(config):
+async def add_top_layer(lv_component, config):
+    top_layer = lv.disp_get_layer_top(lv_component.get_disp())
     if top_conf := config.get(CONF_TOP_LAYER):
-        with LocalVariable("top_layer", lv_obj_t, TOP_LAYER) as top_layer_obj:
+        with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
             top_w = Widget(top_layer_obj, obj_spec, top_conf)
             await set_obj_properties(top_w, top_conf)
             await add_widgets(top_w, top_conf)

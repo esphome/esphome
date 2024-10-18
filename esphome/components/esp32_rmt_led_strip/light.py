@@ -43,21 +43,26 @@ class LEDStripTimings:
     bit0_low: int
     bit1_high: int
     bit1_low: int
+    reset_high: int
+    reset_low: int
 
 
 CHIPSETS = {
-    "WS2812": LEDStripTimings(400, 1000, 1000, 400),
-    "SK6812": LEDStripTimings(300, 900, 600, 600),
-    "APA106": LEDStripTimings(350, 1360, 1360, 350),
-    "SM16703": LEDStripTimings(300, 900, 900, 300),
+    "WS2811": LEDStripTimings(300, 1090, 1090, 320, 0, 300000),
+    "WS2812": LEDStripTimings(400, 1000, 1000, 400, 0, 0),
+    "SK6812": LEDStripTimings(300, 900, 600, 600, 0, 0),
+    "APA106": LEDStripTimings(350, 1360, 1360, 350, 0, 0),
+    "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
-
+CONF_USE_PSRAM = "use_psram"
 CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
+CONF_RESET_HIGH = "reset_high"
+CONF_RESET_LOW = "reset_low"
 
 
 CONFIG_SCHEMA = cv.All(
@@ -72,6 +77,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
+            cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
                 "custom",
@@ -87,6 +93,14 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(
                 CONF_BIT1_LOW,
                 "custom",
+            ): cv.positive_time_period_nanoseconds,
+            cv.Optional(
+                CONF_RESET_HIGH,
+                default="0 us",
+            ): cv.positive_time_period_nanoseconds,
+            cv.Optional(
+                CONF_RESET_LOW,
+                default="0 us",
             ): cv.positive_time_period_nanoseconds,
         }
     ),
@@ -113,6 +127,8 @@ async def to_code(config):
                 chipset.bit0_low,
                 chipset.bit1_high,
                 chipset.bit1_low,
+                chipset.reset_high,
+                chipset.reset_low,
             )
         )
     else:
@@ -122,12 +138,15 @@ async def to_code(config):
                 config[CONF_BIT0_LOW],
                 config[CONF_BIT1_HIGH],
                 config[CONF_BIT1_LOW],
+                config[CONF_RESET_HIGH],
+                config[CONF_RESET_LOW],
             )
         )
 
     cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
     cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
     cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
+    cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
 
     cg.add(
         var.set_rmt_channel(

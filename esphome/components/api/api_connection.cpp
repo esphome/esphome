@@ -1,4 +1,5 @@
 #include "api_connection.h"
+#ifdef USE_API
 #include <cerrno>
 #include <cinttypes>
 #include <utility>
@@ -179,6 +180,7 @@ void APIConnection::loop() {
       SubscribeHomeAssistantStateResponse resp;
       resp.entity_id = it.entity_id;
       resp.attribute = it.attribute.value();
+      resp.once = it.once;
       if (this->send_subscribe_home_assistant_state_response(resp)) {
         state_subs_at_++;
       }
@@ -1025,6 +1027,16 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
   auto traits = media_player->get_traits();
   msg.supports_pause = traits.get_supports_pause();
 
+  for (auto &supported_format : traits.get_supported_formats()) {
+    MediaPlayerSupportedFormat media_format;
+    media_format.format = supported_format.format;
+    media_format.sample_rate = supported_format.sample_rate;
+    media_format.num_channels = supported_format.num_channels;
+    media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
+    media_format.sample_bytes = supported_format.sample_bytes;
+    msg.supported_formats.push_back(media_format);
+  }
+
   return this->send_list_entities_media_player_response(msg);
 }
 void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
@@ -1202,6 +1214,52 @@ void APIConnection::on_voice_assistant_timer_event_response(const VoiceAssistant
     voice_assistant::global_voice_assistant->on_timer_event(msg);
   }
 };
+
+void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_announce(msg);
+  }
+}
+
+VoiceAssistantConfigurationResponse APIConnection::voice_assistant_get_configuration(
+    const VoiceAssistantConfigurationRequest &msg) {
+  VoiceAssistantConfigurationResponse resp;
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return resp;
+    }
+
+    auto &config = voice_assistant::global_voice_assistant->get_configuration();
+    for (auto &wake_word : config.available_wake_words) {
+      VoiceAssistantWakeWord resp_wake_word;
+      resp_wake_word.id = wake_word.id;
+      resp_wake_word.wake_word = wake_word.wake_word;
+      for (const auto &lang : wake_word.trained_languages) {
+        resp_wake_word.trained_languages.push_back(lang);
+      }
+      resp.available_wake_words.push_back(std::move(resp_wake_word));
+    }
+    for (auto &wake_word_id : config.active_wake_words) {
+      resp.active_wake_words.push_back(wake_word_id);
+    }
+    resp.max_active_wake_words = config.max_active_wake_words;
+  }
+  return resp;
+}
+
+void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_set_configuration(msg.active_wake_words);
+  }
+}
 
 #endif
 
@@ -1511,3 +1569,4 @@ void APIConnection::on_fatal_error() {
 
 }  // namespace api
 }  // namespace esphome
+#endif
