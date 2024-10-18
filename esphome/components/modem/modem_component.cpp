@@ -112,7 +112,6 @@ void ModemComponent::loop() {
         this->set_state(ModemComponentState::TURNING_ON_POWER);
         break;
       }
-      this->dce_init();
       break;
 
     // The state releases the power key
@@ -133,7 +132,6 @@ void ModemComponent::loop() {
         this->set_state(ModemComponentState::TURNING_OFF_POWER);
         break;
       }
-      this->dce_init();
       break;
 
     // The state of the end of the reset of the modem
@@ -233,6 +231,16 @@ bool ModemComponent::check_modem_component_state_timings() {
 }
 
 void ModemComponent::set_state(ModemComponentState state) {
+   // execute before transition to state
+  switch (state)
+  {
+  case ModemComponentState::SYNC:
+    this->dce_init();
+    break;
+  
+  default:
+    break;
+  }
   ESP_LOGCONFIG(TAG, "Modem component change state from %s to %s", this->state_to_string(this->state_),
                 this->state_to_string(state));
   this->state_ = state;
