@@ -283,7 +283,7 @@ void QN8027Component::loop() {
 template<typename T> T GET_ENUM_LAST(T value) { return T::LAST; }
 
 #define CHECK_ENUM(value) \
-  if (value >= GET_ENUM_LAST(value)) { \
+  if ((value) >= GET_ENUM_LAST(value)) { \
     ESP_LOGE(TAG, "%s(%d) invalid", __func__, (int) (value)); \
     return; \
   }
@@ -301,7 +301,7 @@ template<typename T> T GET_ENUM_LAST(T value) { return T::LAST; }
   }
 
 #define CHECK_TEXT_RANGE(value, max_size) \
-  if ((value).size() > max_size) { \
+  if ((value).size() > (max_size)) { \
     ESP_LOGW(TAG, "%s(%s) trimmed (max %d characters)", __func__, (value).c_str(), max_size); \
     (value).resize(max_size); \
   }
