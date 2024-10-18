@@ -1,4 +1,12 @@
 font:
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: bold
+      italic: true
+    size: 32
+    id: roboto32
+
   - file: "gfonts://Roboto"
     id: roboto
     size: 20
@@ -9,6 +17,10 @@ font:
   - file: "gfonts://Roboto"
     id: roboto_web
     size: 20
+  - file: "gfonts://Roboto"
+    id: roboto_greek
+    size: 20
+    glyphs: ["\u0300", "\u00C5", "\U000000C7"]
   - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
     id: monocraft
     size: 20
@@ -20,6 +32,17 @@ font:
   - file: $component_dir/Monocraft.ttf
     id: monocraft3
     size: 28
+  - file: $component_dir/MatrixChunky8X.bdf
+    id: special_font
+    glyphs:
+      - '"'
+      - "'"
+      - '#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz°'
+
+  - file: $component_dir/MatrixChunky8X.bdf
+    id: default_font
+  - file: $component_dir/x11.pcf
+    id: pcf_font
 
 i2c:
   scl: ${i2c_scl}
@@ -36,3 +59,4 @@ display:
       it.print(0, 40, id(monocraft), "Hello, World!");
       it.print(0, 60, id(monocraft2), "Hello, World!");
       it.print(0, 80, id(monocraft3), "Hello, World!");
+      it.print(0, 100, id(roboto_greek), "Hello κόσμε!");
