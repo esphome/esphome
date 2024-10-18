@@ -94,8 +94,13 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
       std::swap(x, y);
     }
 
-    tp.x = (uint16_t) ((int) x * this->display_width_ / 0x1000);
-    tp.y = (uint16_t) ((int) y * this->display_height_ / 0x1000);
+    if (this->conversion_to_resolution_) {
+      tp.x = (uint16_t) ((int) x * this->display_width_ / 0x1000);
+      tp.y = (uint16_t) ((int) y * this->display_height_ / 0x1000);
+    } else {
+      tp.x = x;
+      tp.y = y;
+    }
   } else {
     tp.state |= STATE_CALIBRATE;
   }
@@ -107,6 +112,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   this->touches_[id] = tp;
 
   this->is_touched_ = true;
+
   if ((tp.x != tp.x_prev) || (tp.y != tp.y_prev)) {
     this->need_update_ = true;
   }
@@ -148,14 +154,18 @@ void Touchscreen::send_touches_() {
 int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted) {
   int16_t ret;
 
-  if (val <= min_val) {
-    ret = 0;
-  } else if (val >= max_val) {
-    ret = 0xfff;
+  // only normalize when min and max value are specified
+  if (min_val && max_val) {
+    if (val <= min_val) {
+      ret = 0;
+    } else if (val >= max_val) {
+      ret = 0xfff;
+    } else {
+      ret = (int16_t) ((int) 0xfff * (val - min_val) / (max_val - min_val));
+    }
   } else {
-    ret = (int16_t) ((int) 0xfff * (val - min_val) / (max_val - min_val));
+    ret = val;
   }
-
   ret = (inverted) ? 0xfff - ret : ret;
 
   return ret;
