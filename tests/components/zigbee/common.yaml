@@ -1,0 +1,41 @@
+---
+switch:
+  - platform: zigbee
+    output: output_template
+    id: zigbee_switch_1
+  - platform: zigbee
+    output: output_template
+    id: zigbee_switch_2
+
+output:
+  - platform: template
+    id: output_template
+    type: binary
+    write_action:
+      - binary_sensor.zigbee.publish:
+          id: zigbee_binary_sensor_1
+          state: ON
+      - binary_sensor.zigbee.publish:
+          id: zigbee_binary_sensor_1
+          state: OFF
+  - platform: template
+    id: output_factory
+    type: binary
+    write_action:
+      - zigbee.factory_reset
+
+binary_sensor:
+  - platform: zigbee
+    id: zigbee_binary_sensor_1
+  - platform: zigbee
+    id: zigbee_binary_sensor_2
+    lambda: return true;
+
+zigbee:
+  on_join:
+    - switch.zigbee.publish:
+        id: zigbee_switch_1
+        state: OFF
+    - switch.zigbee.publish:
+        id: zigbee_switch_1
+        state: ON
