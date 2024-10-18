@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_CURRENT,
     CONF_FREQUENCY,
+    CONF_TEXT,
     UNIT_EMPTY,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
@@ -64,7 +65,7 @@ CONF_POWER_TARGET = "power_target"
 CONF_ENABLE = "enable"
 CONF_DEVIATION = "deviation"
 CONF_STATION = "station"
-CONF_TEXT = "text"
+# CONF_TEXT = "text"
 # sensor
 CONF_AUD_PK = "aud_pk"
 CONF_FSM = "fsm"
