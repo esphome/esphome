@@ -233,6 +233,7 @@ esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
+esphome/components/lps22/* @nagisa
 esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita
