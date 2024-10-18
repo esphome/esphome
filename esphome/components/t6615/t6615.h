@@ -14,6 +14,7 @@ enum class T6615Command : uint8_t {
   GET_SERIAL,
   GET_VERSION,
   GET_ELEVATION,
+  GET_STATUS,
   GET_ABC,
   ENABLE_ABC,
   DISABLE_ABC,
@@ -33,6 +34,8 @@ class T6615Component : public PollingComponent, public uart::UARTDevice {
  protected:
   void query_ppm_();
   void send_ppm_command_();
+  void send_serial_command_();
+  void send_status_command_();
 
   T6615Command command_ = T6615Command::NONE;
   uint32_t command_time_ = 0;
