@@ -183,10 +183,12 @@ void KT0803Component::dump_config() {
 }
 
 void KT0803Component::update() {
+  /*
   if (this->read_reg_(0x0F)) {
     this->publish_pw_ok();
     this->publish_slncid();
   }
+  */
   /*
     for (size_t addr = 0; addr < 0x2F; addr++) {
       uint8_t c;
@@ -197,7 +199,12 @@ void KT0803Component::update() {
   */
 }
 
-void KT0803Component::loop() {}
+void KT0803Component::loop() {
+  if (this->read_reg_(0x0F)) {
+    this->publish_pw_ok();
+    this->publish_slncid();
+  }
+}
 
 // config
 
