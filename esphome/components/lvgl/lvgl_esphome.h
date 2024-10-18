@@ -4,6 +4,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif  // USE_BINARY_SENSOR
+#ifdef USE_LVGL_IMAGE
+#include "esphome/components/image/image.h"
+#endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER
@@ -46,6 +49,14 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 #else   // LV_COLOR_DEPTH
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
 #endif  // LV_COLOR_DEPTH
+
+#ifdef USE_LVGL_IMAGE
+// Shortcut / overload, so that the source of an image can easily be updated
+// from within a lambda.
+inline void lv_img_set_src(lv_obj_t *obj, esphome::image::Image *image) {
+  lv_img_set_src(obj, image->get_lv_img_dsc());
+}
+#endif  // USE_LVGL_IMAGE
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
