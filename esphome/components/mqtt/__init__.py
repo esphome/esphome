@@ -64,7 +64,7 @@ def AUTO_LOAD():
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
-CONF_CONNECTION_INFO_ACTION_ID_ = "connection_info_action_id_"
+CONF_SET_DISCOVERY_INFO_ACTION_ID_ = "set_discovery_info_action_id_"
 
 
 def validate_message_just_topic(value):
@@ -74,7 +74,7 @@ def validate_message_just_topic(value):
 
 MQTT_MESSAGE_BASE = cv.Schema(
     {
-        cv.Required(CONF_TOPIC): cv.publish_topic,
+        cv.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
         cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
         cv.Optional(CONF_RETAIN, default=True): cv.boolean,
     }
@@ -99,8 +99,8 @@ MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTSetDiscoveryAction = mqtt_ns.class_("MQTTSetDiscoveryAction", automation.Action)
-MQTTSetConnectionInfoAction = mqtt_ns.class_(
-    "MQTTSetConnectionInfoAction", automation.Action
+MQTTSetDiscoveryInfoAction = mqtt_ns.class_(
+    "MQTTSetDiscoveryInfoAction", automation.Action
 )
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
@@ -151,54 +151,6 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 }
 
 
-def validate_config(value):
-    # Populate default fields
-    out = value.copy()
-    topic_prefix = value[CONF_TOPIC_PREFIX]
-    # If the topic prefix is not null and these messages are not configured, then set them to the default
-    # If the topic prefix is null and these messages are not configured, then set them to null
-    if CONF_BIRTH_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_BIRTH_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "online",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_BIRTH_MESSAGE] = {}
-    if CONF_WILL_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_WILL_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "offline",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_WILL_MESSAGE] = {}
-    if CONF_SHUTDOWN_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_SHUTDOWN_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "offline",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_SHUTDOWN_MESSAGE] = {}
-    if CONF_LOG_TOPIC not in value:
-        if topic_prefix != "":
-            out[CONF_LOG_TOPIC] = {
-                CONF_TOPIC: f"{topic_prefix}/debug",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_LOG_TOPIC] = {}
-    return out
-
-
 def validate_fingerprint(value):
     value = cv.string(value)
     if re.match(r"^[0-9a-f]{40}$", value) is None:
@@ -230,8 +182,8 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
-            cv.GenerateID(CONF_CONNECTION_INFO_ACTION_ID_): cv.declare_id(
-                MQTTSetConnectionInfoAction
+            cv.GenerateID(CONF_SET_DISCOVERY_INFO_ACTION_ID_): cv.declare_id(
+                MQTTSetDiscoveryInfoAction
             ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.templatable(cv.boolean), cv.one_of("CLEAN", upper=True)
@@ -253,7 +205,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.templatable(
+                cv.publish_topic
+            ),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(
@@ -301,17 +255,39 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    validate_config,
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
 )
 
 
-def exp_mqtt_message(config):
+async def instant_templatable(value, args, output_type, to_exp = None):
+    """Generate code for a templatable config option.
+
+    If `value` is a templated value, the lambda expression is returned with
+    inline exectution with the provided arguments.
+    Otherwise the value is returned as-is (optionally process with to_exp).
+
+    :param value: The value to process.
+    :param args: The arguments for the lambda expression.
+    :param output_type: The output type of the lambda expression.
+    :param to_exp: An optional callable to use for converting non-templated values.
+    :return: The potentially templated value.
+    """
+    if cg.is_template(value):
+        lambda_code = await cg.process_lambda(value, args, return_type=output_type)
+        return cg.RawExpression(f'({lambda_code})({", ".join(args)})');
+    if to_exp is None:
+        return value
+    if isinstance(to_exp, dict):
+        return to_exp[value]
+    return cg.to_exp(value)
+
+
+async def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
     exp = cg.StructInitializer(
         MQTTMessage,
-        ("topic", config[CONF_TOPIC]),
+        ("topic", await instant_templatable(config[CONF_TOPIC], [], cg.std_string)),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
@@ -331,102 +307,162 @@ async def to_code(config):
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 
-    connection_info_action = cg.new_Pvariable(
-        config[CONF_CONNECTION_INFO_ACTION_ID_], cg.TemplateArguments(None), var
-    )
     cg.add(
-        connection_info_action.set_broker_address(
-            await cg.templatable(config[CONF_BROKER], [], cg.std_string)
+        var.set_broker_address(
+            await instant_templatable(config[CONF_BROKER], [], cg.std_string)
         )
     )
     cg.add(
-        connection_info_action.set_broker_port(
-            await cg.templatable(config[CONF_PORT], [], cg.uint16)
+        var.set_broker_port(
+            await instant_templatable(config[CONF_PORT], [], cg.uint16)
         )
     )
     cg.add(
-        connection_info_action.set_username(
-            await cg.templatable(config[CONF_USERNAME], [], cg.std_string)
+        var.set_username(
+            await instant_templatable(config[CONF_USERNAME], [], cg.std_string)
         )
     )
     cg.add(
-        connection_info_action.set_password(
-            await cg.templatable(config[CONF_PASSWORD], [], cg.std_string)
+        var.set_password(
+            await instant_templatable(config[CONF_PASSWORD], [], cg.std_string)
         )
     )
     if CONF_CLIENT_ID in config:
         cg.add(
-            connection_info_action.set_client_id(
-                await cg.templatable(config[CONF_CLIENT_ID], [], cg.std_string)
+            var.set_client_id(
+                await instant_templatable(config[CONF_CLIENT_ID], [], cg.std_string)
             )
         )
 
+    set_discovery_info_action = cg.new_Pvariable(
+        config[CONF_SET_DISCOVERY_INFO_ACTION_ID_], cg.TemplateArguments(None), var
+    )
     if config[CONF_DISCOVERY] == "CLEAN":
-        cg.add(connection_info_action.set_enable(True))
-        cg.add(connection_info_action.set_clean(True))
+        cg.add(set_discovery_info_action.set_enable(True))
+        cg.add(set_discovery_info_action.set_clean(True))
     else:
         cg.add(
-            connection_info_action.set_enable(
+            set_discovery_info_action.set_enable(
                 await cg.templatable(config[CONF_DISCOVERY], [], bool)
             )
         )
-        cg.add(connection_info_action.set_clean(False))
+        cg.add(set_discovery_info_action.set_clean(False))
     cg.add(
-        connection_info_action.set_prefix(
+        set_discovery_info_action.set_prefix(
             await cg.templatable(config[CONF_DISCOVERY_PREFIX], [], cg.std_string)
         )
     )
     cg.add(
-        connection_info_action.set_retain(
+        set_discovery_info_action.set_retain(
             await cg.templatable(config[CONF_DISCOVERY_RETAIN], [], bool)
         )
     )
     cg.add(
-        connection_info_action.set_unique_id_generator(
+        set_discovery_info_action.set_unique_id_generator(
             config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
         )
     )
     cg.add(
-        connection_info_action.set_discover_ip(
+        set_discovery_info_action.set_discover_ip(
             await cg.templatable(config[CONF_DISCOVER_IP], [], bool)
         )
     )
     cg.add(
-        connection_info_action.set_object_id_generator(
+        set_discovery_info_action.set_object_id_generator(
             config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
         )
     )
-    cg.add(connection_info_action.play())
+    cg.add(set_discovery_info_action.play())
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+    topic_prefix = await instant_templatable(
+        config[CONF_TOPIC_PREFIX], [], cg.std_string
+    )
+    cg.add(var.set_topic_prefix(topic_prefix))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
 
-    birth_message = config[CONF_BIRTH_MESSAGE]
-    if not birth_message:
-        cg.add(var.disable_birth_message())
+    if CONF_BIRTH_MESSAGE not in config:
+        if topic_prefix == "":
+            cg.add(var.disable_birth_message())
+        else:
+            birth_topic = f"{topic_prefix}/status" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/status"')
+            birth_message_exp = cg.StructInitializer(
+                MQTTMessage,
+                ("topic", birth_topic),
+                ("payload", "offline"),
+                ("qos", 0),
+                ("retain", True),
+            )
+            cg.add(var.set_birth_message(birth_message_exp))
     else:
-        cg.add(var.set_birth_message(exp_mqtt_message(birth_message)))
-    will_message = config[CONF_WILL_MESSAGE]
-    if not will_message:
-        cg.add(var.disable_last_will())
+        birth_message = config[CONF_BIRTH_MESSAGE]
+        if not birth_message:
+            cg.add(var.disable_birth_message())
+        else:
+            cg.add(var.set_birth_message(await exp_mqtt_message(birth_message)))
+    
+    if CONF_WILL_MESSAGE not in config:
+        if topic_prefix == "":
+            cg.add(var.disable_last_will())
+        else:
+            will_message_topic = f"{topic_prefix}/status" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/status"')
+            will_message_exp = cg.StructInitializer(
+                MQTTMessage,
+                ("topic", will_message_topic),
+                ("payload", "offline"),
+                ("qos", 0),
+                ("retain", True),
+            )
+            cg.add(var.set_last_will(will_message_exp))
     else:
-        cg.add(var.set_last_will(exp_mqtt_message(will_message)))
-    shutdown_message = config[CONF_SHUTDOWN_MESSAGE]
-    if not shutdown_message:
-        cg.add(var.disable_shutdown_message())
+        will_message = config[CONF_WILL_MESSAGE]
+        if not will_message:
+            cg.add(var.disable_last_will())
+        else:
+            cg.add(var.set_last_will(await exp_mqtt_message(will_message)))
+    
+    if CONF_SHUTDOWN_MESSAGE not in config:
+        if topic_prefix == "":
+            cg.add(var.disable_shutdown_message())
+        else:
+            shutdown_message_topic = f"{topic_prefix}/status" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/status"')
+            shutdown_message_exp = cg.StructInitializer(
+                MQTTMessage,
+                ("topic", shutdown_message_topic),
+                ("payload", "offline"),
+                ("qos", 0),
+                ("retain", True),
+            )
+            cg.add(var.set_shutdown_message(shutdown_message_exp))
     else:
-        cg.add(var.set_shutdown_message(exp_mqtt_message(shutdown_message)))
+        shutdown_message = config[CONF_SHUTDOWN_MESSAGE]
+        if not shutdown_message:
+            cg.add(var.disable_shutdown_message())
+        else:
+            cg.add(var.set_shutdown_message(await exp_mqtt_message(shutdown_message)))
 
-    log_topic = config[CONF_LOG_TOPIC]
-    if not log_topic:
-        cg.add(var.disable_log_message())
+    if CONF_LOG_TOPIC not in config:
+        if topic_prefix == "":
+            cg.add(var.disable_log_message())
+        else:
+            log_message_topic = f"{topic_prefix}/debug" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/debug"')
+            log_message_exp = cg.StructInitializer(
+                MQTTMessage,
+                ("topic", log_message_topic),
+                ("payload", ""),
+                ("qos", 0),
+                ("retain", True),
+            )
+            cg.add(var.set_log_message_template(log_message_exp))
     else:
-        cg.add(var.set_log_message_template(exp_mqtt_message(log_topic)))
-
-        if CONF_LEVEL in log_topic:
-            cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
+        log_topic = config[CONF_LOG_TOPIC]
+        if not log_topic:
+            cg.add(var.disable_log_message())
+        else:
+            cg.add(var.set_log_message_template(await exp_mqtt_message(log_topic)))
+            if CONF_LEVEL in log_topic:
+                cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
 
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
