@@ -25,33 +25,44 @@ namespace kt0803 {
   void set_##name##_text(text::Text *text) { this->name##_text_ = text; }
 #endif
 
-#define SUB_NUMBER_EX(name) \
+#define SUB_NUMBER_EX(name, type) \
   SUB_NUMBER(name) \
-  void publish_##name() { this->publish(this->name##_number_, (float) this->get_##name()); }
+  void publish_##name() { this->publish(this->name##_number_, (float) this->get_##name()); } \
+  void set_##name(type value); \
+  type get_##name();
 
 #define SUB_SWITCH_EX(name) \
   SUB_SWITCH(name) \
-  void publish_##name() { this->publish_switch(this->name##_switch_, this->get_##name()); }
+  void publish_##name() { this->publish_switch(this->name##_switch_, this->get_##name()); } \
+  void set_##name(bool value); \
+  bool get_##name();
 
-#define SUB_SELECT_EX(name) \
+#define SUB_SELECT_EX(name, type) \
   SUB_SELECT(name) \
-  void publish_##name() { this->publish_select(this->name##_select_, (size_t) this->get_##name()); }
+  void publish_##name() { this->publish_select(this->name##_select_, (size_t) this->get_##name()); } \
+  void set_##name(type value); \
+  type get_##name();
 
 #define SUB_TEXT_EX(name) \
   SUB_TEXT(name) \
-  void publish_##name() { this->publish(this->name##_text_, this->get_##name()); }
+  void publish_##name() { this->publish(this->name##_text_, this->get_##name()); } \
+  void set_##name(const std::string &value); \
+  std::string get_##name();
 
 #define SUB_SENSOR_EX(name) \
   SUB_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_sensor_, (float) this->get_##name()); }
+  void publish_##name() { this->publish(this->name##_sensor_, (float) this->get_##name()); } \
+  float get_##name();
 
 #define SUB_BINARY_SENSOR_EX(name) \
   SUB_BINARY_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_binary_sensor_, this->get_##name()); }
+  void publish_##name() { this->publish(this->name##_binary_sensor_, this->get_##name()); } \
+  bool get_##name();
 
 #define SUB_TEXT_SENSOR_EX(name) \
   SUB_TEXT_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_text_sensor_, this->get_##name()); }
+  void publish_##name() { this->publish(this->name##_text_sensor_, this->get_##name()); } \
+  std::string get_##name();
 
 class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   ChipId chip_id_;  // no way to detect it
@@ -65,165 +76,58 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   void write_reg_(uint8_t addr);
   bool read_reg_(uint8_t addr);
 
-  SUB_BINARY_SENSOR(pw_ok)
-  SUB_BINARY_SENSOR(slncid)
-  SUB_NUMBER(frequency)
-  SUB_NUMBER(pga)
-  SUB_NUMBER(rfgain)
-  SUB_SWITCH(mute)
-  SUB_SWITCH(mono)
-  SUB_SELECT(pre_emphasis)
-  SUB_SELECT(pilot_tone_amplitude)
-  SUB_SELECT(bass_boost_control)
-  SUB_SWITCH(alc_enable)
-  SUB_SWITCH(auto_pa_down)
-  SUB_SWITCH(pa_down)
-  SUB_SWITCH(standby_enable)
-  SUB_SELECT(alc_attack_time)
-  SUB_SELECT(alc_decay_time)
-  SUB_SWITCH(pa_bias)
-  SUB_SELECT(audio_limiter_level)
-  SUB_SELECT(switch_mode)
-  SUB_SELECT(silence_high)
-  SUB_SELECT(silence_low)
-  SUB_SWITCH(silence_detection)
-  SUB_SELECT(silence_duration)
-  SUB_SELECT(silence_high_counter)
-  SUB_SELECT(silence_low_counter)
-  SUB_NUMBER(alc_gain)
-  SUB_SELECT(xtal_sel)
-  SUB_SWITCH(au_enhance)
-  SUB_SELECT(frequency_deviation)
-  SUB_SELECT(ref_clk)
-  SUB_SWITCH(xtal_enable)
-  SUB_SWITCH(ref_clk_enable)
-  SUB_SELECT(alc_high)
-  SUB_SELECT(alc_hold_time)
-  SUB_SELECT(alc_low)
-
-  void publish_pw_ok();
-  void publish_slncid();
-  void publish_frequency();
-  void publish_pga();
-  void publish_rfgain();
-  void publish_mute();
-  void publish_mono();
-  void publish_pre_emphasis();
-  void publish_pilot_tone_amplitude();
-  void publish_bass_boost_control();
-  void publish_alc_enable();
-  void publish_auto_pa_down();
-  void publish_pa_down();
-  void publish_standby_enable();
-  void publish_alc_attack_time();
-  void publish_alc_decay_time();
-  void publish_pa_bias();
-  void publish_audio_limiter_level();
-  void publish_switch_mode();
-  void publish_silence_high();
-  void publish_silence_low();
-  void publish_silence_detection();
-  void publish_silence_duration();
-  void publish_silence_high_counter();
-  void publish_silence_low_counter();
-  void publish_alc_gain();
-  void publish_xtal_sel();
-  void publish_au_enhance();
-  void publish_frequency_deviation();
-  void publish_ref_clk();
-  void publish_xtal_enable();
-  void publish_ref_clk_enable();
-  void publish_alc_high();
-  void publish_alc_hold_time();
-  void publish_alc_low();
-
-  void publish(sensor::Sensor *s, float state);
-  void publish(binary_sensor::BinarySensor *s, bool state);
-  void publish(text_sensor::TextSensor *s, const std::string &state);
-  void publish(number::Number *n, float state);
-  void publish(switch_::Switch *s, bool state);
-  void publish(select::Select *s, size_t index);
-  void publish(text::Text *t, const std::string &state);
+  template<class S, class T> void publish(S *s, T state);
+  // template specialization here is not supported by the compiler yet
+  void publish_switch(switch_::Switch *s, bool state);
+  void publish_select(select::Select *s, size_t index);
 
  public:
   KT0803Component();
 
-  // float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;
 
+  SUB_NUMBER_EX(frequency, float)
+  SUB_SELECT_EX(deviation, FrequencyDeviation)
+  SUB_SWITCH_EX(mute)
+  SUB_SWITCH_EX(mono)
+  SUB_SELECT_EX(pre_emphasis, PreEmphasis)
+  SUB_NUMBER_EX(pga, float)
+  SUB_NUMBER_EX(rfgain, float)
+  SUB_SELECT_EX(pilot_tone_amplitude, PilotToneAmplitude)
+  SUB_SELECT_EX(bass_boost_control, BassBoostControl)
+  SUB_SWITCH_EX(auto_pa_down)
+  SUB_SWITCH_EX(pa_down)
+  SUB_SWITCH_EX(standby_enable)
+  SUB_SWITCH_EX(pa_bias)
+  SUB_SELECT_EX(audio_limiter_level, AudioLimiterLevel)
+  SUB_SELECT_EX(switch_mode, SwitchMode)
+  SUB_SWITCH_EX(au_enhance)
+  SUB_SWITCH_EX(ref_clk_enable)
+  SUB_SELECT_EX(ref_clk, ReferenceClock)
+  SUB_SWITCH_EX(xtal_enable)
+  SUB_SELECT_EX(xtal_sel, XtalSel)
+  SUB_SWITCH_EX(alc_enable)
+  SUB_NUMBER_EX(alc_gain, float)
+  SUB_SELECT_EX(alc_attack_time, AlcTime)
+  SUB_SELECT_EX(alc_decay_time, AlcTime)
+  SUB_SELECT_EX(alc_hold_time, AlcHoldTime)
+  SUB_SELECT_EX(alc_high, AlcHigh)
+  SUB_SELECT_EX(alc_low, AlcLow)
+  SUB_SWITCH_EX(silence_detection)
+  SUB_SELECT_EX(silence_duration, SilenceLowAndHighLevelDurationTime)
+  SUB_SELECT_EX(silence_high, SilenceHigh)
+  SUB_SELECT_EX(silence_low, SilenceLow)
+  SUB_SELECT_EX(silence_high_counter, SilenceHighLevelCounter)
+  SUB_SELECT_EX(silence_low_counter, SilenceLowLevelCounter)
+  SUB_BINARY_SENSOR_EX(pw_ok)
+  SUB_BINARY_SENSOR_EX(slncid)
+
   void set_chip_id(ChipId value);
   ChipId get_chip_id();
   std::string get_chip_string() const;
-
-  void set_frequency(float value);
-  float get_frequency();
-  void set_pga(float value);
-  float get_pga();
-  void set_rfgain(float value);
-  float get_rfgain();
-  void set_mute(bool value);
-  bool get_mute();
-  void set_mono(bool value);
-  bool get_mono();
-  void set_pre_emphasis(PreEmphasis value);
-  PreEmphasis get_pre_emphasis();
-  void set_pilot_tone_amplitude(PilotToneAmplitude value);
-  PilotToneAmplitude get_pilot_tone_amplitude();
-  void set_bass_boost_control(BassBoostControl value);
-  BassBoostControl get_bass_boost_control();
-  void set_alc_enable(bool value);
-  bool get_alc_enable();
-  void set_auto_pa_down(bool value);
-  bool get_auto_pa_down();
-  void set_pa_down(bool value);
-  bool get_pa_down();
-  void set_standby_enable(bool value);
-  bool get_standby_enable();
-  void set_alc_attack_time(AlcTime value);
-  AlcTime get_alc_attack_time();
-  void set_alc_decay_time(AlcTime value);
-  AlcTime get_alc_decay_time();
-  void set_pa_bias(bool value);
-  bool get_pa_bias();
-  void set_audio_limiter_level(AudioLimiterLevel value);
-  AudioLimiterLevel get_audio_limiter_level();
-  void set_switch_mode(SwitchMode value);
-  SwitchMode get_switch_mode();
-  void set_silence_high(SilenceHigh value);
-  SilenceHigh get_silence_high();
-  void set_silence_low(SilenceLow value);
-  SilenceLow get_silence_low();
-  void set_silence_detection(bool value);
-  bool get_silence_detection();
-  void set_silence_duration(SilenceLowAndHighLevelDurationTime value);
-  SilenceLowAndHighLevelDurationTime get_silence_duration();
-  void set_silence_high_counter(SilenceHighLevelCounter value);
-  SilenceHighLevelCounter get_silence_high_counter();
-  void set_silence_low_counter(SilenceLowLevelCounter value);
-  SilenceLowLevelCounter get_silence_low_counter();
-  void set_alc_gain(float value);
-  float get_alc_gain();
-  void set_xtal_sel(XtalSel value);
-  XtalSel get_xtal_sel();
-  void set_au_enhance(bool value);
-  bool get_au_enhance();
-  void set_frequency_deviation(FrequencyDeviation value);
-  FrequencyDeviation get_frequency_deviation();
-  void set_ref_clk(ReferenceClock value);
-  ReferenceClock get_ref_clk();
-  void set_xtal_enable(bool value);
-  bool get_xtal_enable();
-  void set_ref_clk_enable(bool value);
-  bool get_ref_clk_enable();
-  void set_alc_high(AlcHigh value);
-  AlcHigh get_alc_high();
-  void set_alc_hold_time(AlcHoldTime value);
-  AlcHoldTime get_alc_hold_time();
-  void set_alc_low(AlcLow value);
-  AlcLow get_alc_low();
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<KT0803Component> {

@@ -7,43 +7,47 @@ kt0803:
   id: kt0803_transmitter
   chip_id: KT0803L
   frequency: 87.5
-  pga: -15
-  rfgain: 108
+  deviation: 75kHz
   mute: False
   mono: False
   pre_emphasis: 75us
+  pga: 0
+  rfgain: 108
   pilot_tone_amplitude: Low
   bass_boost_control: Disabled
-  alc_enable: False
   auto_pa_down: True
   pa_down: False
   standby_enable: False
-  alc_attack_time: 25us
-  alc_decay_time: 25us
   pa_bias: False
   audio_limiter_level: '0.875'
   switch_mode: Mute
-  silence_detection: True
-  silence_high: '32mV'
-  silence_low: '8mV'
-  silence_duration: '100ms'
-  silence_high_counter: '15'
-  silence_low_counter: '1'
-  alc_gain: -3
-  xtal_sel: '32.768kHz'
   au_enhance: False
-  frequency_deviation: 75kHz
-  ref_clk: '32.768kHz'
-  xtal_enable: True
-  ref_clk_enable: False
-  alc_high: '0.6'
-  alc_hold_time: 5s
-  alc_low: '0.25'
-  pw_ok:
-    name: Power OK
-  slncid:
-    name: Silence Detected
-  update_interval: 3s
+  ref_clk:
+    enable: False
+    ref_clk: '32.768kHz'
+  xtal:
+    enable: True
+    sel: '32.768kHz'  
+  alc:
+    enable: False
+    gain: -3
+    attack_time: 25us
+    decay_time: 25us
+    hold_time: 5s
+    high: '0.6'
+    low: '0.25'
+  silence:
+    detection: True
+    duration: '100ms'
+    high: '32mV'
+    low: '8mV'
+    high_counter: '15'
+    low_counter: '1'
+  sensor:
+    pw_ok:
+      name: Power OK
+    slncid:
+      name: Silence Detected
 
 number:
   - platform: kt0803
@@ -54,8 +58,9 @@ number:
       name: PGA Gain Control
     rfgain:
       name: RF Gain
-    alc_gain:
-      name: ALC Gain
+    alc:
+      gain:
+        name: ALC Gain
 
 switch:
   - platform: kt0803
@@ -63,8 +68,6 @@ switch:
       name: Mute
     mono:
       name: Mono
-    alc_enable:
-      name: ALC Enable
     auto_pa_down:
       name: Automatic PA Power Down
     pa_down:
@@ -73,50 +76,60 @@ switch:
       name: Standby Enable
     pa_bias:
       name: PA Bias
-    silence_detection:
-      name: Silence Detection
     au_enhance:
       name: Audio Frequency Response Enhancement
-    xtal_enable:
-      name: Crystal Oscillator Enable
-    ref_clk_enable:
-      name: Refence Clock Enable
+    ref_clk:
+      enable:
+        name: Refence Clock Enable
+    xtal:
+      enable:
+        name: Crystal Oscillator Enable 
+    alc:
+      enable:
+        name: ALC Enable
+    silence:
+      detection:
+        name: Silence Detection
 
 select:
   - platform: kt0803
+    deviation:
+      name: Frequency Deviation
     pre_emphasis:
       name: Pre-emphasis
     pilot_tone_amplitude:
       name: Pilot Tone Amplitude
     bass_boost_control:
       name: Bass Boost Control
-    alc_attack_time:
-      name: ALC Attack Time
-    alc_decay_time:
-      name: ALC Decay Time
     audio_limiter_level:
       name: Audio Limiter Level
     switch_mode:
       name: Switching Channel Mode Selection
-    silence_high:
-      name: Silence High
-    silence_low:
-      name: Silence Low
-    silence_duration:
-      name: Silence Duration
-    silence_high_counter:
-      name: Silence High Counter
-    silence_low_counter:
-      name: Silence Low Counter
-    xtal_sel:
-      name: Xtal Selection
-    frequency_deviation:
-      name: Frequency Deviation
+    xtal:
+      sel:
+        name: Xtal Selection
     ref_clk:
-      name: Refence Clock
-    alc_high:
-      name: ALC High Threshold
-    alc_hold_time:
-      name: ALC Hold Time
-    alc_low:
-      name: ALC Low Threshold
+      ref_clk:
+        name: Refence Clock
+    alc:
+      attack_time:
+        name: ALC Attack Time
+      decay_time:
+        name: ALC Decay Time
+      hold_time:
+        name: ALC Hold Time
+      high:
+        name: ALC High Threshold
+      low:
+        name: ALC Low Threshold
+    silence:
+      duration:
+        name: Silence Duration
+      high:
+        name: Silence High
+      low:
+        name: Silence Low
+      high_counter:
+        name: Silence High Counter
+      low_counter:
+        name: Silence Low Counter

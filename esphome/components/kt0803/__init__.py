@@ -4,7 +4,12 @@ from esphome import automation
 from esphome.components import i2c, binary_sensor
 from esphome.const import (
     CONF_ID,
+    CONF_SENSOR,
     CONF_FREQUENCY,
+    CONF_GAIN,
+    CONF_DURATION,
+    CONF_HIGH,
+    CONF_LOW,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_EMPTY,
 )
@@ -43,41 +48,52 @@ KT0803Component = kt0803_ns.class_(
 )
 
 CONF_KT0803_ID = "kt0803_id"
+CONF_REF_CLK = "ref_clk"
+CONF_XTAL = "xtal"
+CONF_ALC = "alc"
+CONF_SILENCE = "silence"
 CONF_CHIP_ID = "chip_id"
-CONF_PW_OK = "pw_ok"
-CONF_SLNCID = "slncid"
-CONF_PGA = "pga"
-CONF_RFGAIN = "rfgain"
+# general config
+# CONF_FREQUENCY = "frequeny"
+CONF_DEVIATION = "deviation"
 CONF_MUTE = "mute"
 CONF_MONO = "mono"
 CONF_PRE_EMPHASIS = "pre_emphasis"
+CONF_PGA = "pga"
+CONF_RFGAIN = "rfgain"
 CONF_PILOT_TONE_AMPLITUDE = "pilot_tone_amplitude"
 CONF_BASS_BOOST_CONTROL = "bass_boost_control"
-CONF_ALC_ENABLE = "alc_enable"
 CONF_AUTO_PA_DOWN = "auto_pa_down"
 CONF_PA_DOWN = "pa_down"
 CONF_STANDBY_ENABLE = "standby_enable"
-CONF_ALC_ATTACK_TIME = "alc_attack_time"
-CONF_ALC_DECAY_TIME = "alc_decay_time"
 CONF_PA_BIAS = "pa_bias"
 CONF_AUDIO_LIMITER_LEVEL = "audio_limiter_level"
 CONF_SWITCH_MODE = "switch_mode"
-CONF_SILENCE_HIGH = "silence_high"
-CONF_SILENCE_LOW = "silence_low"
-CONF_SILENCE_DETECTION = "silence_detection"
-CONF_SILENCE_DURATION = "silence_duration"
-CONF_SILENCE_HIGH_COUNTER = "silence_high_counter"
-CONF_SILENCE_LOW_COUNTER = "silence_low_counter"
-CONF_ALC_GAIN = "alc_gain"
-CONF_XTAL_SEL = "xtal_sel"
 CONF_AU_ENHANCE = "au_enhance"
-CONF_FREQUENCY_DEVIATION = "frequency_deviation"
+# ref_clk
+CONF_ENABLE = "enable"
 CONF_REF_CLK = "ref_clk"
-CONF_XTAL_ENABLE = "xtal_enable"
-CONF_REF_CLK_ENABLE = "ref_clk_enable"
-CONF_ALC_HIGH = "alc_high"
-CONF_ALC_HOLD_TIME = "alc_hold_time"
-CONF_ALC_LOW = "alc_low"
+# xtal
+# CONF_ENABLE = "enable"
+CONF_SEL = "sel"
+# alc
+# CONF_ENABLE = "enable"
+# CONF_GAIN = "gain"
+CONF_ATTACK_TIME = "attack_time"
+CONF_DECAY_TIME = "decay_time"
+CONF_HOLD_TIME = "hold_time"
+# CONF_HIGH = "high"
+# CONF_LOW = "low"
+# silence
+CONF_DETECTION = "detection"
+# CONF_DURATION = "duration"
+# CONF_HIGH = "high"
+# CONF_LOW = "low"
+CONF_HIGH_COUNTER = "high_counter"
+CONF_LOW_COUNTER = "low_counter"
+# sensor
+CONF_PW_OK = "pw_ok"
+CONF_SLNCID = "slncid"
 
 SetFrequencyAction = kt0803_ns.class_(
     "SetFrequencyAction", automation.Action, cg.Parented.template(KT0803Component)
@@ -294,13 +310,68 @@ AUDIO_LIMITER_LEVEL = {
     "0.9625": AudioLimiterLevel.LMTLVL_09625,
 }
 
+REF_CLK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE, default=False): cv.boolean,
+        cv.Optional(CONF_REF_CLK, default="32.768kHz"): cv.enum(REFERENCE_CLOCK),
+    }
+)
+
+XTAL_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE, default=True): cv.boolean,
+        cv.Optional(CONF_SEL, default="32.768kHz"): cv.enum(XTAL_SEL),
+    }
+)
+
+ALC_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE, default=False): cv.boolean,
+        cv.Optional(CONF_GAIN, default=-3): cv.float_range(-15, 6),
+        cv.Optional(CONF_ATTACK_TIME, default="25us"): cv.enum(ALC_TIME),
+        cv.Optional(CONF_DECAY_TIME, default="25us"): cv.enum(ALC_TIME),
+        cv.Optional(CONF_HOLD_TIME, default="5s"): cv.enum(ALC_HOLD_TIME),
+        cv.Optional(CONF_HIGH, default="0.6"): cv.enum(ALC_HIGH),
+        cv.Optional(CONF_LOW, default="0.25"): cv.enum(ALC_LOW),
+    }
+)
+
+SILENCE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_DETECTION, default=False): cv.boolean,
+        cv.Optional(CONF_DURATION, default="100ms"): cv.enum(
+            SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME
+        ),
+        cv.Optional(CONF_HIGH, default="32mV"): cv.enum(SILENCE_HIGH),
+        cv.Optional(CONF_LOW, default="8mV"): cv.enum(SILENCE_LOW),
+        cv.Optional(CONF_HIGH_COUNTER, default="15"): cv.enum(
+            SILENCE_HIGH_LEVEL_COUNTER
+        ),
+        cv.Optional(CONF_LOW_COUNTER, default="1"): cv.enum(SILENCE_LOW_LEVEL_COUNTER),
+    }
+)
+
+SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PW_OK): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_POWER,
+            icon=ICON_RADIO_TOWER,
+        ),
+        cv.Optional(CONF_SLNCID): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_EMPTY,
+            icon=ICON_VOLUME_MUTE,
+        ),
+    }
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(KT0803Component),
             cv.Required(CONF_CHIP_ID): cv.enum(CHIP_ID),
             cv.Optional(CONF_FREQUENCY, default=87.50): cv.float_range(70, 108),
-            cv.Optional(CONF_PGA, default=-15): cv.float_range(-15, 12),
+            cv.Optional(CONF_DEVIATION, default="75kHz"): cv.enum(FREQUENCY_DEVIATION),
+            cv.Optional(CONF_PGA, default=0): cv.float_range(-15, 12),
             cv.Optional(CONF_RFGAIN, default=108): cv.float_range(95.5, 108),
             cv.Optional(CONF_MUTE, default=False): cv.boolean,
             cv.Optional(CONF_MONO, default=False): cv.boolean,
@@ -311,49 +382,20 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BASS_BOOST_CONTROL, default="Disabled"): cv.enum(
                 BASS_BOOST_CONTROL
             ),
-            cv.Optional(CONF_ALC_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_AUTO_PA_DOWN, default=True): cv.boolean,
             cv.Optional(CONF_PA_DOWN, default=False): cv.boolean,
             cv.Optional(CONF_STANDBY_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_ALC_ATTACK_TIME, default="25us"): cv.enum(ALC_TIME),
-            cv.Optional(CONF_ALC_DECAY_TIME, default="25us"): cv.enum(ALC_TIME),
             cv.Optional(CONF_PA_BIAS, default=True): cv.boolean,
             cv.Optional(CONF_AUDIO_LIMITER_LEVEL, default="0.875"): cv.enum(
                 AUDIO_LIMITER_LEVEL
             ),
             cv.Optional(CONF_SWITCH_MODE, default="Mute"): cv.enum(SWITCH_MODE),
-            cv.Optional(CONF_SILENCE_HIGH, default="32mV"): cv.enum(SILENCE_HIGH),
-            cv.Optional(CONF_SILENCE_LOW, default="8mV"): cv.enum(SILENCE_LOW),
-            cv.Optional(CONF_SILENCE_DETECTION, default=False): cv.boolean,
-            cv.Optional(CONF_SILENCE_DURATION, default="100ms"): cv.enum(
-                SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME
-            ),
-            cv.Optional(CONF_SILENCE_HIGH_COUNTER, default="15"): cv.enum(
-                SILENCE_HIGH_LEVEL_COUNTER
-            ),
-            cv.Optional(CONF_SILENCE_LOW_COUNTER, default="1"): cv.enum(
-                SILENCE_LOW_LEVEL_COUNTER
-            ),
-            cv.Optional(CONF_ALC_GAIN, default=-3): cv.float_range(-15, 6),
-            cv.Optional(CONF_XTAL_SEL, default="32.768kHz"): cv.enum(XTAL_SEL),
             cv.Optional(CONF_AU_ENHANCE, default=False): cv.boolean,
-            cv.Optional(CONF_FREQUENCY_DEVIATION, default="75kHz"): cv.enum(
-                FREQUENCY_DEVIATION
-            ),
-            cv.Optional(CONF_REF_CLK, default="32.768kHz"): cv.enum(REFERENCE_CLOCK),
-            cv.Optional(CONF_XTAL_ENABLE, default=True): cv.boolean,
-            cv.Optional(CONF_REF_CLK_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_ALC_HIGH, default="0.6"): cv.enum(ALC_HIGH),
-            cv.Optional(CONF_ALC_HOLD_TIME, default="5s"): cv.enum(ALC_HOLD_TIME),
-            cv.Optional(CONF_ALC_LOW, default="0.25"): cv.enum(ALC_LOW),
-            cv.Optional(CONF_PW_OK): binary_sensor.binary_sensor_schema(
-                device_class=DEVICE_CLASS_POWER,
-                icon=ICON_RADIO_TOWER,
-            ),
-            cv.Optional(CONF_SLNCID): binary_sensor.binary_sensor_schema(
-                device_class=DEVICE_CLASS_EMPTY,
-                icon=ICON_VOLUME_MUTE,
-            ),
+            cv.Optional(CONF_REF_CLK): REF_CLK_SCHEMA,
+            cv.Optional(CONF_XTAL): XTAL_SCHEMA,
+            cv.Optional(CONF_ALC): ALC_SCHEMA,
+            cv.Optional(CONF_SILENCE): SILENCE_SCHEMA,
+            cv.Optional(CONF_SENSOR): SENSOR_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -398,37 +440,44 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
     await set_var(config, CONF_CHIP_ID, var.set_chip_id)
     await set_var(config, CONF_FREQUENCY, var.set_frequency)
-    await set_var(config, CONF_PGA, var.set_pga)
-    await set_var(config, CONF_RFGAIN, var.set_rfgain)
+    await set_var(config, CONF_DEVIATION, var.set_deviation)
     await set_var(config, CONF_MUTE, var.set_mute)
     await set_var(config, CONF_MONO, var.set_mono)
     await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
+    await set_var(config, CONF_PGA, var.set_pga)
+    await set_var(config, CONF_RFGAIN, var.set_rfgain)
     await set_var(config, CONF_PILOT_TONE_AMPLITUDE, var.set_pilot_tone_amplitude)
     await set_var(config, CONF_BASS_BOOST_CONTROL, var.set_bass_boost_control)
-    await set_var(config, CONF_ALC_ENABLE, var.set_alc_enable)
     await set_var(config, CONF_AUTO_PA_DOWN, var.set_auto_pa_down)
     await set_var(config, CONF_PA_DOWN, var.set_pa_down)
     await set_var(config, CONF_STANDBY_ENABLE, var.set_standby_enable)
-    await set_var(config, CONF_ALC_ATTACK_TIME, var.set_alc_attack_time)
-    await set_var(config, CONF_ALC_DECAY_TIME, var.set_alc_decay_time)
     await set_var(config, CONF_PA_BIAS, var.set_pa_bias)
     await set_var(config, CONF_AUDIO_LIMITER_LEVEL, var.set_audio_limiter_level)
     await set_var(config, CONF_SWITCH_MODE, var.set_switch_mode)
-    await set_var(config, CONF_SILENCE_HIGH, var.set_silence_high)
-    await set_var(config, CONF_SILENCE_LOW, var.set_silence_low)
-    await set_var(config, CONF_SILENCE_DETECTION, var.set_silence_detection)
-    await set_var(config, CONF_SILENCE_DURATION, var.set_silence_duration)
-    await set_var(config, CONF_SILENCE_HIGH_COUNTER, var.set_silence_high_counter)
-    await set_var(config, CONF_SILENCE_LOW_COUNTER, var.set_silence_low_counter)
-    await set_var(config, CONF_ALC_GAIN, var.set_alc_gain)
-    await set_var(config, CONF_XTAL_SEL, var.set_xtal_sel)
     await set_var(config, CONF_AU_ENHANCE, var.set_au_enhance)
-    await set_var(config, CONF_FREQUENCY_DEVIATION, var.set_frequency_deviation)
-    await set_var(config, CONF_REF_CLK, var.set_ref_clk)
-    await set_var(config, CONF_XTAL_ENABLE, var.set_xtal_enable)
-    await set_var(config, CONF_REF_CLK_ENABLE, var.set_ref_clk_enable)
-    await set_var(config, CONF_ALC_HIGH, var.set_alc_high)
-    await set_var(config, CONF_ALC_HOLD_TIME, var.set_alc_hold_time)
-    await set_var(config, CONF_ALC_LOW, var.set_alc_low)
-    await set_binary_sensor(config, CONF_PW_OK, var.set_pw_ok_binary_sensor)
-    await set_binary_sensor(config, CONF_SLNCID, var.set_slncid_binary_sensor)
+    if ref_clk_config := config.get(CONF_REF_CLK):
+        await set_var(ref_clk_config, CONF_ENABLE, var.set_ref_clk_enable)
+        await set_var(ref_clk_config, CONF_REF_CLK, var.set_ref_clk)
+    if xtal_config := config.get(CONF_XTAL):
+        await set_var(xtal_config, CONF_ENABLE, var.set_xtal_enable)
+        await set_var(xtal_config, CONF_SEL, var.set_xtal_sel)
+    if alc_config := config.get(CONF_ALC):
+        await set_var(alc_config, CONF_ENABLE, var.set_alc_enable)
+        await set_var(alc_config, CONF_GAIN, var.set_alc_gain)
+        await set_var(alc_config, CONF_ATTACK_TIME, var.set_alc_attack_time)
+        await set_var(alc_config, CONF_DECAY_TIME, var.set_alc_decay_time)
+        await set_var(alc_config, CONF_HOLD_TIME, var.set_alc_hold_time)
+        await set_var(alc_config, CONF_HIGH, var.set_alc_high)
+        await set_var(alc_config, CONF_LOW, var.set_alc_low)
+    if silence_config := config.get(CONF_SILENCE):
+        await set_var(silence_config, CONF_DETECTION, var.set_silence_detection)
+        await set_var(silence_config, CONF_DURATION, var.set_silence_duration)
+        await set_var(silence_config, CONF_HIGH, var.set_silence_high)
+        await set_var(silence_config, CONF_LOW, var.set_silence_low)
+        await set_var(silence_config, CONF_HIGH_COUNTER, var.set_silence_high_counter)
+        await set_var(silence_config, CONF_LOW_COUNTER, var.set_silence_low_counter)
+    if sensor_config := config.get(CONF_SENSOR):
+        await set_binary_sensor(sensor_config, CONF_PW_OK, var.set_pw_ok_binary_sensor)
+        await set_binary_sensor(
+            sensor_config, CONF_SLNCID, var.set_slncid_binary_sensor
+        )
