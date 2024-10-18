@@ -1,0 +1,135 @@
+import esphome.codegen as cg
+from esphome.components import number
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_FREQUENCY,
+    CONF_CURRENT,
+    UNIT_PERCENT,
+    UNIT_DECIBEL,
+    DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_EMPTY,
+    ENTITY_CATEGORY_CONFIG,
+)
+from .. import (
+    CONF_QN8027_ID,
+    QN8027Component,
+    qn8027_ns,
+    CONF_XTAL,
+    CONF_RDS,
+    CONF_DEVIATION,
+    CONF_TX_PILOT,
+    CONF_INPUT_GAIN,
+    CONF_DIGITAL_GAIN,
+    CONF_POWER_TARGET,
+    UNIT_MEGA_HERTZ,
+    UNIT_KILO_HERTZ,
+    UNIT_MICRO_AMPERE,
+    UNIT_DECIBEL_MICRO_VOLT,
+)
+
+FrequencyNumber = qn8027_ns.class_("FrequencyNumber", number.Number)
+DeviationNumber = qn8027_ns.class_("DeviationNumber", number.Number)
+TxPilotNumber = qn8027_ns.class_("TxPilotNumber", number.Number)
+InputGainNumber = qn8027_ns.class_("InputGainNumber", number.Number)
+DigitalGainNumber = qn8027_ns.class_("DigitalGainNumber", number.Number)
+PowerTargetNumber = qn8027_ns.class_("PowerTargetNumber", number.Number)
+XtalCurrentNumber = qn8027_ns.class_("XtalCurrentNumber", number.Number)
+RDSDeviationNumber = qn8027_ns.class_("RDSDeviationNumber", number.Number)
+
+XTAL_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_CURRENT): number.number_schema(
+            XtalCurrentNumber,
+            unit_of_measurement=UNIT_MICRO_AMPERE,
+            device_class=DEVICE_CLASS_CURRENT,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+    }
+)
+
+RDS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_DEVIATION): number.number_schema(
+            RDSDeviationNumber,
+            unit_of_measurement=UNIT_KILO_HERTZ,
+            device_class=DEVICE_CLASS_FREQUENCY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+    }
+)
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_QN8027_ID): cv.use_id(QN8027Component),
+        cv.Optional(CONF_FREQUENCY): number.number_schema(
+            FrequencyNumber,
+            unit_of_measurement=UNIT_MEGA_HERTZ,
+            device_class=DEVICE_CLASS_FREQUENCY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_DEVIATION): number.number_schema(
+            DeviationNumber,
+            unit_of_measurement=UNIT_KILO_HERTZ,
+            device_class=DEVICE_CLASS_FREQUENCY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_TX_PILOT): number.number_schema(
+            TxPilotNumber,
+            unit_of_measurement=UNIT_PERCENT,
+            device_class=DEVICE_CLASS_EMPTY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_INPUT_GAIN): number.number_schema(
+            InputGainNumber,
+            unit_of_measurement=UNIT_DECIBEL,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_DIGITAL_GAIN): number.number_schema(
+            DigitalGainNumber,
+            unit_of_measurement=UNIT_DECIBEL,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_POWER_TARGET): number.number_schema(
+            PowerTargetNumber,
+            unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_XTAL): XTAL_SCHEMA,
+        cv.Optional(CONF_RDS): RDS_SCHEMA,
+    }
+)
+
+
+async def new_number(p, config, id, setter, min_value, max_value, step, *args):
+    if c := config.get(id):
+        n = await number.new_number(
+            c, *args, min_value=min_value, max_value=max_value, step=step
+        )
+        await cg.register_parented(n, p)
+        cg.add(setter(n))
+        return n
+
+
+async def to_code(config):
+    p = await cg.get_variable(config[CONF_QN8027_ID])
+    await new_number(p, config, CONF_FREQUENCY, p.set_frequency_number, 76, 108, 0.05)
+    await new_number(p, config, CONF_DEVIATION, p.set_deviation_number, 0, 147.9, 0.58)
+    await new_number(p, config, CONF_TX_PILOT, p.set_tx_pilot_number, 7, 15, 1)
+    await new_number(p, config, CONF_INPUT_GAIN, p.set_input_gain_number, 0, 5, 1)
+    await new_number(p, config, CONF_DIGITAL_GAIN, p.set_digital_gain_number, 0, 2, 1)
+    await new_number(
+        p, config, CONF_POWER_TARGET, p.set_power_target_number, 83.4, 117.5, 0.62
+    )
+    if xtal_config := config.get(CONF_XTAL):
+        await new_number(
+            p, xtal_config, CONF_CURRENT, p.set_xtal_current_number, 0, 393.75, 6.25
+        )
+    if rds_config := config.get(CONF_RDS):
+        await new_number(
+            p, rds_config, CONF_DEVIATION, p.set_rds_deviation_number, 0, 44.45, 0.35
+        )
