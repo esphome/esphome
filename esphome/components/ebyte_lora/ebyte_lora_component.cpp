@@ -306,6 +306,7 @@ void EbyteLoraComponent::setup() {
   set_mode_(NORMAL);
   ESP_LOGD(TAG, "Setup success");
 }
+
 // this will NOT look if the mode is right, we just assume it is
 // out of testing it seems that it might still say normal but it isn't anymore!
 void EbyteLoraComponent::request_current_config_() {
