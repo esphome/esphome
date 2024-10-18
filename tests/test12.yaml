@@ -1,0 +1,42 @@
+# Tests for OXT dimmer using bk7xx board
+---
+esphome:
+  name: bk72xx-with-oxt-dimmer-test
+
+bk72xx:
+  board: cb3s
+
+wifi:
+  ssid: "ssid"
+
+ota:
+
+captive_portal:
+
+# Disable UART logging - we need UART to talk to dimming MCU
+logger:
+  baud_rate: 0
+  level: VERBOSE
+
+uart:
+  tx_pin: GPIO11
+  baud_rate: 9600
+
+light:
+  - platform: oxt_dimmer
+    channels:
+    - name: lamp1
+      id: lamp1
+      min_value: 0
+      max_value: 255
+      sensing_pin:
+        number: GPIO08
+        inverted: true
+        mode: input_pullup
+    - name: lamp2
+      id: lamp2
+      sensing_pin:
+        number: GPIO09
+        inverted: true
+        mode: input_pullup
+      default_transition_length: 1s
