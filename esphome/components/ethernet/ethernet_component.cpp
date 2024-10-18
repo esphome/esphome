@@ -131,7 +131,7 @@ void EthernetComponent::setup() {
     w5500_config.int_gpio_num = -1;
     w5500_config.poll_period_ms = this->polling_interval_;
 #else
-    ESP_LOGE(TAG, "IRQ pin number is negative(%d), seems configuration error", this->interrupt_pin_);
+    ESP_LOGE(TAG, "IRQ pin number is negative(%d), seems to be configuration error", this->interrupt_pin_);
 #endif
   }
   phy_config.phy_addr = this->phy_addr_spi_;
