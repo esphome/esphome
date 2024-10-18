@@ -75,6 +75,7 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   // config state
 
   OpMode op_mode_;
+  bool power_enable_;
   uint16_t frequency_;
   uint8_t power_;
   uint8_t antcap_;
@@ -160,10 +161,11 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SWITCH_EX(mute)
   SUB_SWITCH_EX(mono)
   SUB_SELECT_EX(pre_emphasis, PreEmphasis)
+  SUB_SWITCH_EX(power_enable)
   SUB_NUMBER_EX(frequency, float)
   SUB_NUMBER_EX(audio_deviation, float)
   SUB_NUMBER_EX(power, int)
-  SUB_NUMBER_EX(antcap, int)
+  SUB_NUMBER_EX(antcap, float)
   SUB_NUMBER_EX(analog_level, int)
   SUB_SELECT_EX(analog_attenuation, LineAttenuation)
   SUB_NUMBER_EX(digital_sample_rate, int)

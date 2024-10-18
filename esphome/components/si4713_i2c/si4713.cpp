@@ -16,6 +16,7 @@ Si4713Component::Si4713Component() {
   this->reset_pin_ = nullptr;
   this->reset_ = false;
   this->op_mode_ = OpMode::OPMODE_ANALOG;
+  this->power_enable_ = true;
   this->frequency_ = 8750;
   this->power_ = 115;
   this->antcap_ = 0;
@@ -129,7 +130,7 @@ bool Si4713Component::detect_chip_id() {
 bool Si4713Component::tune_freq(uint16_t freq) { return this->send_cmd(CmdTxTuneFreq(freq)) && this->stc_wait(); }
 
 bool Si4713Component::tune_power(uint8_t power, uint8_t antcap) {
-  return this->send_cmd(CmdTxTunePower(power, antcap)) && this->stc_wait();
+  return this->send_cmd(CmdTxTunePower(this->power_enable_ ? power : 0, antcap)) && this->stc_wait();
 }
 
 bool Si4713Component::stc_wait() {
@@ -218,6 +219,7 @@ void Si4713Component::setup() {
   this->publish_mute();
   this->publish_mono();
   this->publish_pre_emphasis();
+  this->publish_power_enable();
   this->publish_frequency();
   this->publish_audio_deviation();
   this->publish_power();
@@ -384,6 +386,15 @@ void Si4713Component::set_pre_emphasis(PreEmphasis value) {
 
 PreEmphasis Si4713Component::get_pre_emphasis() { return (PreEmphasis) tx_pre_emphasis_.FMPE; }
 
+void Si4713Component::set_power_enable(bool value) {
+  this->power_enable_ = value;
+  this->tune_power(this->power_, this->antcap_);
+  // this->set_prop(this->tx_component_enable_);
+  this->publish_power_enable();
+}
+
+bool Si4713Component::get_power_enable() { return this->power_enable_; }
+
 void Si4713Component::set_frequency(float value) {
   CHECK_FLOAT_RANGE(value, FREQ_MIN, FREQ_MAX)
   this->frequency_ = (uint16_t) clamp((int) std::lround(value * 20) * 5, FREQ_RAW_MIN, FREQ_RAW_MAX);
@@ -411,14 +422,14 @@ void Si4713Component::set_power(int value) {
 
 int Si4713Component::get_power() { return (int) this->power_; }
 
-void Si4713Component::set_antcap(int value) {
-  CHECK_INT_RANGE(value, ANTCAP_MIN, ANTCAP_MAX)
-  this->antcap_ = (uint8_t) value;
+void Si4713Component::set_antcap(float value) {
+  CHECK_FLOAT_RANGE(value, ANTCAP_MIN, ANTCAP_MAX)
+  this->antcap_ = (uint8_t) lround(value * 4);
   this->tune_power(this->power_, this->antcap_);
   this->publish_antcap();
 }
 
-int Si4713Component::get_antcap() { return (int) this->antcap_; }
+float Si4713Component::get_antcap() { return (float) this->antcap_ * 0.25f; }
 
 void Si4713Component::set_analog_level(int value) {
   CHECK_INT_RANGE(value, LILEVEL_MIN, LILEVEL_MAX)

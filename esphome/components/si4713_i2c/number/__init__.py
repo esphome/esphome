@@ -236,10 +236,10 @@ async def to_code(config):
     if tuner_config := config.get(CONF_TUNER):
         await new_number(p, tuner_config, CONF_FREQUENCY, p.set_frequency_number, 76, 108, 0.05)
         await new_number(p, tuner_config, CONF_DEVIATION, p.set_audio_deviation_number, 0, 90, 0.01)
-        await new_number(p, tuner_config, CONF_POWER, p.set_power_number, 88, 120, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
-        await new_number(p, tuner_config, CONF_ANTCAP, p.set_antcap_number, 0, 191, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, tuner_config, CONF_POWER, p.set_power_number, 88, 120, 1, mode=number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, tuner_config, CONF_ANTCAP, p.set_antcap_number, 0, 47.75, 0.25)
     if analog_config := config.get(CONF_ANALOG):
-        await new_number(p, analog_config, CONF_LEVEL, p.set_analog_level_number, 0, 1023, 1, mode = number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, analog_config, CONF_LEVEL, p.set_analog_level_number, 0, 1023, 1, mode=number.NumberMode.NUMBER_MODE_SLIDER)
     if digital_config := config.get(CONF_DIGITAL):
         await new_number(p, digital_config, CONF_SAMPLE_RATE, p.set_digital_sample_rate_number, 32000, 48000, 1)
     if pilot_config := config.get(CONF_PILOT):
@@ -252,7 +252,7 @@ async def to_code(config):
         await new_number(p, compressor_config, CONF_THRESHOLD, p.set_acomp_threshold_number, -40, 0, 1)
         await new_number(p, compressor_config, CONF_GAIN, p.set_acomp_gain_number, 0, 20, 1)
     if limiter_config := config.get(CONF_LIMITER):
-        await new_number(p, limiter_config, CONF_RELEASE_TIME, p.set_limiter_release_time_number, 0.25, 102.4, 0.01, mode = number.NumberMode.NUMBER_MODE_SLIDER)
+        await new_number(p, limiter_config, CONF_RELEASE_TIME, p.set_limiter_release_time_number, 0.25, 102.4, 0.01, mode=number.NumberMode.NUMBER_MODE_SLIDER)
     if asq_config := config.get(CONF_ASQ):
         await new_number(p, asq_config, CONF_LEVEL_LOW, p.set_asq_level_low_number, -70, 0, 1)
         await new_number(p, asq_config, CONF_DURATION_LOW, p.set_asq_duration_low_number, 0, 65535, 1)

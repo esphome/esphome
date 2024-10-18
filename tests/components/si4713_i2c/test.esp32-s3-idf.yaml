@@ -11,6 +11,7 @@ si4713:
   mono: False
   pre_emphasis: '75us'
   tuner:
+    enable: True
     frequency: 87.50
     deviation: 68.25
     power: 115
@@ -130,6 +131,9 @@ switch:
       name: Mute
     mono:
       name: Mono
+    tuner:
+      enable:
+        name: Power Enable
     pilot:
       enable:
         name: Pilot Tone Enable

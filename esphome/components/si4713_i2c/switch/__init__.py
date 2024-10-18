@@ -10,6 +10,7 @@ from .. import (
     CONF_SI4713_ID,
     Si4713Component,
     si4713_ns,
+    CONF_TUNER,
     CONF_PILOT,
     CONF_COMPRESSOR,
     CONF_LIMITER,
@@ -24,6 +25,7 @@ from .. import (
     CONF_GPIO1,
     CONF_GPIO2,
     CONF_GPIO3,
+    ICON_RADIO_TOWER,
     ICON_SINE_WAVE,
     ICON_VOLUME_MUTE,
     ICON_EAR_HEARING,
@@ -32,6 +34,7 @@ from .. import (
 
 MuteSwitch = si4713_ns.class_("MuteSwitch", switch.Switch)
 MonoSwitch = si4713_ns.class_("MonoSwitch", switch.Switch)
+PowerEnableSwitch = si4713_ns.class_("PowerEnableSwitch", switch.Switch)
 PilotEnableSwitch = si4713_ns.class_("PilotEnableSwitch", switch.Switch)
 AcompEnableSwitch = si4713_ns.class_("AcompEnableSwitch", switch.Switch)
 LimiterEnableSwitch = si4713_ns.class_("LimiterEnableSwitch", switch.Switch)
@@ -41,6 +44,17 @@ AsqIalhEnableSwitch = si4713_ns.class_("AsqIalhEnableSwitch", switch.Switch)
 RdsEnable = si4713_ns.class_("RdsEnable", switch.Switch)
 RDSEnableSwitch = si4713_ns.class_("RDSEnableSwitch", switch.Switch)
 GPIOSwitch = si4713_ns.class_("GPIOSwitch", switch.Switch)
+
+TUNER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLE): switch.switch_schema(
+            PowerEnableSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon=ICON_RADIO_TOWER,
+        ),
+    }
+)
 
 PILOT_SCHEMA = cv.Schema(
     {
@@ -147,6 +161,7 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_EAR_HEARING,
         ),
+        cv.Optional(CONF_TUNER): TUNER_SCHEMA,
         cv.Optional(CONF_PILOT): PILOT_SCHEMA,
         cv.Optional(CONF_COMPRESSOR): COMPRESSOR_SCHEMA,
         cv.Optional(CONF_LIMITER): LIMITER_SCHEMA,
@@ -169,6 +184,8 @@ async def to_code(config):
     p = await cg.get_variable(config[CONF_SI4713_ID])
     await new_switch(p, config, CONF_MUTE, p.set_mute_switch)
     await new_switch(p, config, CONF_MONO, p.set_mono_switch)
+    if tuner_config := config.get(CONF_TUNER):
+        await new_switch(p, tuner_config, CONF_ENABLE, p.set_power_enable_switch)
     if pilot_config := config.get(CONF_PILOT):
         await new_switch(p, pilot_config, CONF_ENABLE, p.set_pilot_enable_switch)
     if compressor_config := config.get(CONF_COMPRESSOR):

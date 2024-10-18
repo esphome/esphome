@@ -65,6 +65,7 @@ CONF_MUTE = "mute"
 CONF_MONO = "mono"
 CONF_PRE_EMPHASIS = "pre_emphasis"
 # tuner
+CONF_ENABLE = "enable"
 # CONF_FREQUENCY = "frequency"
 CONF_DEVIATION = "deviation"
 # CONF_POWER = "power"
@@ -79,7 +80,7 @@ CONF_SAMPLE_BITS = "sample_bits"
 # CONF_MODE = "mode"
 CONF_CLOCK_EDGE = "clock_edge"
 # pilot
-CONF_ENABLE = "enable"
+# CONF_ENABLE = "enable"
 # CONF_FREQUENCY = "frequency"
 CONF_DEVIATION = "deviation"
 # refclk
@@ -135,7 +136,7 @@ MeasureFrequencyAction = si4713_ns.class_(
 OpMode = si4713_ns.enum("OpMode", True)
 OP_MODE = {
     "Analog": OpMode.OPMODE_ANALOG,
-    "Digital": OpMode.OPMODE_Digital,
+    "Digital": OpMode.OPMODE_DIGITAL,
 }
 
 PreEmphasis = si4713_ns.enum("PreEmphasis", True)
@@ -220,17 +221,18 @@ ACOMP_PRESET = {
 
 TUNER_SCHEMA = cv.Schema(
     {
+        cv.Optional(CONF_ENABLE, default="True"): cv.boolean,
         cv.Optional(CONF_FREQUENCY, default=87.50): cv.float_range(76, 108),  # MHz
         cv.Optional(CONF_DEVIATION, default=68.25): cv.float_range(0, 90),  # kHz
         cv.Optional(CONF_POWER, default=115): cv.int_range(88, 115),
-        cv.Optional(CONF_ANTCAP, default=0): cv.int_range(0, 191),
+        cv.Optional(CONF_ANTCAP, default=0): cv.float_range(0, 47.75),  # pF
     }
 )
 
 ANALOG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_LEVEL, default=636): cv.int_range(0, 1023),
-        cv.Optional(CONF_ATTENUATION, default=636): cv.enum(LINE_ATTENUATION),
+        cv.Optional(CONF_ATTENUATION, default="60kOhm"): cv.enum(LINE_ATTENUATION),
     }
 )
 
@@ -434,6 +436,7 @@ async def to_code(config):
     await set_var(config, CONF_MONO, var.set_mono)
     await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
     if tuner_config := config.get(CONF_TUNER):
+        await set_var(tuner_config, CONF_ENABLE, var.set_power_enable)
         await set_var(tuner_config, CONF_FREQUENCY, var.set_frequency)
         await set_var(tuner_config, CONF_DEVIATION, var.set_audio_deviation)
         await set_var(tuner_config, CONF_POWER, var.set_power)
