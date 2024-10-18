@@ -6,9 +6,9 @@
 namespace esphome {
 namespace qn8027 {
 
-class RDSFrequencyDeviationNumber : public number::Number, public Parented<QN8027Component> {
+class RDSDeviationNumber : public number::Number, public Parented<QN8027Component> {
  public:
-  RDSFrequencyDeviationNumber() = default;
+  RDSDeviationNumber() = default;
 
  protected:
   void control(float value) override;

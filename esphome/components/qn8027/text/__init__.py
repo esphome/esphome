@@ -18,8 +18,9 @@ from .. import (
     CONF_QN8027_ID,
     QN8027Component,
     qn8027_ns,
-    CONF_RDS_STATION,
-    CONF_RDS_TEXT,
+    CONF_SECTION_RDS,
+    CONF_STATION,
+    CONF_TEXT,
     ICON_FORMAT_TEXT,
 )
 
@@ -120,15 +121,14 @@ async def new_text(
     return var
 
 
-CONFIG_SCHEMA = cv.Schema(
+RDS_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_QN8027_ID): cv.use_id(QN8027Component),
-        cv.Optional(CONF_RDS_STATION): text_schema(
+        cv.Optional(CONF_STATION): text_schema(
             RDSStationText,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_FORMAT_TEXT,
         ),
-        cv.Optional(CONF_RDS_TEXT): text_schema(
+        cv.Optional(CONF_TEXT): text_schema(
             RDSTextText,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_FORMAT_TEXT,
@@ -137,18 +137,24 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def new_text_simple(config, id, setter, min_length, max_length, *args):
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_QN8027_ID): cv.use_id(QN8027Component),
+        cv.Optional(CONF_SECTION_RDS): RDS_SCHEMA,
+    }
+)
+
+
+async def new_text_simple(p, config, id, setter, min_length, max_length, *args):
     if c := config.get(id):
         t = await new_text(c, *args, min_length=min_length, max_length=max_length)
-        await cg.register_parented(t, config[CONF_QN8027_ID])
+        await cg.register_parented(t, p)
         cg.add(setter(t))
+        return t
 
 
 async def to_code(config):
-    c = await cg.get_variable(config[CONF_QN8027_ID])
-    await new_text_simple(
-        config, CONF_RDS_STATION, c.set_rds_station_text, 0, qn8027_ns.RDS_STATION_MAX
-    )
-    await new_text_simple(
-        config, CONF_RDS_TEXT, c.set_rds_text_text, 0, qn8027_ns.RDS_TEXT_MAX
-    )
+    p = await cg.get_variable(config[CONF_QN8027_ID])
+    if rds_config := config.get(CONF_SECTION_RDS):
+        await new_text_simple(p, rds_config, CONF_STATION, p.set_rds_station_text, 0, 8)
+        await new_text_simple(p, rds_config, CONF_TEXT, p.set_rds_text_text, 0, 64)

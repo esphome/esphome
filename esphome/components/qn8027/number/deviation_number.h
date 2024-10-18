@@ -6,9 +6,9 @@
 namespace esphome {
 namespace qn8027 {
 
-class FrequencyDeviationNumber : public number::Number, public Parented<QN8027Component> {
+class DeviationNumber : public number::Number, public Parented<QN8027Component> {
  public:
-  FrequencyDeviationNumber() = default;
+  DeviationNumber() = default;
 
  protected:
   void control(float value) override;

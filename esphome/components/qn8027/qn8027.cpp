@@ -218,7 +218,7 @@ void QN8027Component::setup() {
   this->publish_chip_id();
   this->publish_reg30();
   this->publish_frequency();
-  this->publish_frequency_deviation();
+  this->publish_deviation();
   this->publish_mute();
   this->publish_mono();
   this->publish_tx_enable();
@@ -226,15 +226,15 @@ void QN8027Component::setup() {
   this->publish_t1m_sel();
   this->publish_priv_en();
   this->publish_pre_emphasis();
-  this->publish_xtal_source();
-  this->publish_xtal_current();
-  this->publish_xtal_frequency();
   this->publish_input_impedance();
   this->publish_input_gain();
   this->publish_digital_gain();
   this->publish_power_target();
+  this->publish_xtal_source();
+  this->publish_xtal_current();
+  this->publish_xtal_frequency();
   this->publish_rds_enable();
-  this->publish_rds_frequency_deviation();
+  this->publish_rds_deviation();
   this->publish_rds_station();
   this->publish_rds_text();
 
@@ -273,7 +273,6 @@ void QN8027Component::update() {
 }
 
 void QN8027Component::loop() {
-  // TODO: check how often this runs, maybe do this in set_interval(1000, ... above
   if (this->read_reg_(REG_STATUS_ADDR)) {
     this->publish_fsm();
   }
@@ -281,18 +280,39 @@ void QN8027Component::loop() {
 
 // config
 
-void QN8027Component::set_frequency(float value) {
-  if (!(CH_FREQ_MIN <= value && value <= CH_FREQ_MAX)) {
-    ESP_LOGE(TAG, "set_frequency(%.2f) invalid (%.2f - %.2f)", value, CH_FREQ_MIN, CH_FREQ_MAX);
-    return;
+template<typename T> T GET_ENUM_LAST(T value) { return T::LAST; }
+
+#define CHECK_ENUM(value) \
+  if (value >= GET_ENUM_LAST(value)) { \
+    ESP_LOGE(TAG, "%s(%d) invalid", __func__, (int) value); \
+    return; \
   }
 
+#define CHECK_FLOAT_RANGE(value, min_value, max_value) \
+  if (!(min_value <= value && value <= max_value)) { \
+    ESP_LOGE(TAG, "%s(%.2f) invalid (%.2f - %.2f)", __func__, value, min_value, max_value); \
+    return; \
+  }
+
+#define CHECK_INT_RANGE(value, min_value, max_value) \
+  if (!(min_value <= value && value <= max_value)) { \
+    ESP_LOGE(TAG, "%s(%d) invalid (%d - %d)", __func__, value, min_value, max_value); \
+    return; \
+  }
+
+#define CHECK_TEXT_RANGE(value, max_size) \
+  if (value.size() > max_size) { \
+    ESP_LOGW(TAG, "%s(%s) trimmed (max %d characters)", __func__, value.c_str(), max_size); \
+    value.resize(max_size); \
+  }
+
+void QN8027Component::set_frequency(float value) {
+  CHECK_FLOAT_RANGE(value, CH_FREQ_MIN, CH_FREQ_MAX)
   int f = clamp((int) std::lround((value - 76) * 20), CH_FREQ_RAW_MIN, CH_FREQ_RAW_MAX);
   this->state_.CH_UPPER = (uint8_t) (f >> 8);
   this->state_.CH_LOWER = (uint8_t) (f & 0xff);
   this->write_reg_(REG_SYSTEM_ADDR);
   this->write_reg_(REG_CH1_ADDR);
-
   this->publish_frequency();
 }
 
@@ -301,24 +321,18 @@ float QN8027Component::get_frequency() {
   return (float) ch / 20 + 76;
 }
 
-void QN8027Component::set_frequency_deviation(float value) {
-  if (!(TX_FDEV_MIN <= value && value <= TX_FDEV_MAX)) {
-    ESP_LOGE(TAG, "set_frequency_deviation(%.2f) invalid (%.2f - %.2f)", value, TX_FDEV_MIN, TX_FDEV_MAX);
-    return;
-  }
-
+void QN8027Component::set_deviation(float value) {
+  CHECK_FLOAT_RANGE(value, TX_FDEV_MIN, TX_FDEV_MAX)
   this->state_.TX_FDEV = (uint8_t) clamp((int) std::lround(value / 0.58f), TX_FDEV_RAW_MIN, TX_FDEV_RAW_MAX);
   this->write_reg_(REG_FDEV_ADDR);
-
-  this->publish_frequency_deviation();
+  this->publish_deviation();
 }
 
-float QN8027Component::get_frequency_deviation() { return 0.58f * this->state_.TX_FDEV; }
+float QN8027Component::get_deviation() { return 0.58f * this->state_.TX_FDEV; }
 
 void QN8027Component::set_mute(bool value) {
   this->state_.MUTE = value ? 1 : 0;
   this->write_reg_(REG_SYSTEM_ADDR);
-
   this->publish_mute();
 }
 
@@ -327,7 +341,6 @@ bool QN8027Component::get_mute() { return this->state_.MUTE == 1; }
 void QN8027Component::set_mono(bool value) {
   this->state_.MONO = value ? 1 : 0;
   this->write_reg_(REG_SYSTEM_ADDR);
-
   this->publish_mono();
 }
 
@@ -336,35 +349,24 @@ bool QN8027Component::get_mono() { return this->state_.MONO == 1; }
 void QN8027Component::set_tx_enable(bool value) {
   this->state_.TXREQ = value ? 1 : 0;
   this->write_reg_(REG_SYSTEM_ADDR);
-
   this->publish_tx_enable();
 }
 
 bool QN8027Component::get_tx_enable() { return this->state_.TXREQ == 1; }
 
 void QN8027Component::set_tx_pilot(uint8_t value) {
-  if (!(GAIN_TXPLT_MIN <= value && value <= GAIN_TXPLT_MAX)) {
-    ESP_LOGE(TAG, "tx_pilot(%d) invalid (7 - 15)", value);
-    return;
-  }
-
+  CHECK_INT_RANGE(value, GAIN_TXPLT_MIN, GAIN_TXPLT_MAX)
   this->state_.GAIN_TXPLT = value;
   this->write_reg_(REG_GPLT_ADDR);
-
   this->publish_tx_pilot();
 }
 
 uint8_t QN8027Component::get_tx_pilot() { return (uint8_t) this->state_.GAIN_TXPLT; }
 
 void QN8027Component::set_t1m_sel(T1mSel value) {
-  if (value >= T1mSel::LAST) {
-    ESP_LOGE(TAG, "set_t1m_sel(%d) invalid (58, 59, 60 or 0 = never)", (int) value);
-    return;
-  }
-
+  CHECK_ENUM(value)
   this->state_.t1m_sel = (uint8_t) value;
   this->write_reg_(REG_GPLT_ADDR);
-
   this->publish_t1m_sel();
 }
 
@@ -373,118 +375,58 @@ T1mSel QN8027Component::get_t1m_sel() { return (T1mSel) this->state_.t1m_sel; }
 void QN8027Component::set_priv_en(bool value) {
   this->state_.priv_en = value ? 1 : 0;
   this->write_reg_(REG_GPLT_ADDR);
-
   this->publish_priv_en();
 }
 
 bool QN8027Component::get_priv_en() { return this->state_.priv_en == 1; }
 
 void QN8027Component::set_pre_emphasis(PreEmphasis value) {
-  if (value >= PreEmphasis::LAST) {
-    ESP_LOGE(TAG, "set_pre_emphasis(%d) invalid (50 or 75)", (int) value);
-    return;
-  }
-
+  CHECK_ENUM(value)
   this->state_.TC = (uint8_t) value;
   this->write_reg_(REG_GPLT_ADDR);
-
   this->publish_pre_emphasis();
 }
 
 PreEmphasis QN8027Component::get_pre_emphasis() { return (PreEmphasis) this->state_.TC; }
 
 void QN8027Component::set_xtal_source(XtalSource value) {
-  if (value >= XtalSource::LAST) {
-    ESP_LOGE(TAG, "set_xtal_source(%d) invalid", (int) value);
-    return;
-  }
-
+  CHECK_ENUM(value)
   this->state_.XINJ = (uint8_t) value;
   this->write_reg_(REG_XTL_ADDR);
-
   this->publish_xtal_source();
 }
 
-XtalSource QN8027Component::get_xtal_source() { return (XtalSource) this->state_.XINJ; }
-
-void QN8027Component::set_xtal_current(float value) {
-  this->state_.XISEL = value >= XISEL_MAX ? 0b00111111 : (uint16_t) (value / 6.25f);
-  if (this->state_.XINJ != (uint8_t) XtalSource::USE_CRYSTAL_ON_XTAL12) {
-    ESP_LOGW(TAG, "set_xtal_current(%d) invalid", (int) XtalSource::USE_CRYSTAL_ON_XTAL12);
-  }
-
-  this->write_reg_(REG_XTL_ADDR);
-
-  this->publish_xtal_current();
-}
-
-float QN8027Component::get_xtal_current() { return 6.25f * this->state_.XISEL; }
-
-void QN8027Component::set_xtal_frequency(XtalFrequency value) {
-  if (value >= XtalFrequency::LAST) {
-    ESP_LOGE(TAG, "set_xtal_frequency(%d) invalid (12 or 24)", (int) value);
-    return;
-  }
-
-  this->state_.XSEL = (uint8_t) value;
-  this->write_reg_(REG_VGA_ADDR);
-
-  this->publish_xtal_frequency();
-}
-
-XtalFrequency QN8027Component::get_xtal_frequency() { return (XtalFrequency) this->state_.XSEL; }
-
 void QN8027Component::set_input_impedance(InputImpedance value) {
-  if (value >= InputImpedance::LAST) {
-    ESP_LOGE(TAG, "set_input_impedance(%d) invalid (5, 10, 20, 40)", (int) value);
-    return;
-  }
-
+  CHECK_ENUM(value)
   this->state_.RIN = (uint8_t) value;
   this->write_reg_(REG_VGA_ADDR);
-
   this->publish_input_impedance();
 }
 
 InputImpedance QN8027Component::get_input_impedance() { return (InputImpedance) this->state_.RIN; }
 
 void QN8027Component::set_input_gain(uint8_t value) {
-  if (value > GVGA_MAX) {
-    ESP_LOGE(TAG, "set_input_gain(%d) invalid (max %ddB)", value, GVGA_MAX);
-    return;
-  }
-
+  CHECK_INT_RANGE(value, 0, GVGA_MAX)
   this->state_.GVGA = value;
   this->write_reg_(REG_VGA_ADDR);
-
   this->publish_input_gain();
 }
 
 uint8_t QN8027Component::get_input_gain() { return this->state_.GVGA; }
 
 void QN8027Component::set_digital_gain(uint8_t value) {
-  if (value > GDB_MAX) {
-    ESP_LOGE(TAG, "set_digital_gain(%d) invalid (max %ddB)", value, GDB_MAX);
-    return;
-  }
-
+  CHECK_INT_RANGE(value, 0, GDB_MAX)
   this->state_.GDB = value;
   this->write_reg_(REG_VGA_ADDR);
-
   this->publish_digital_gain();
 }
 
 uint8_t QN8027Component::get_digital_gain() { return this->state_.GDB; }
 
 void QN8027Component::set_power_target(float value) {
-  if (!(PA_TRGT_MIN <= value && value <= PA_TRGT_MAX)) {
-    ESP_LOGE(TAG, "set_power_target(%.2f) invalid (%.2f and %.2f)", value, PA_TRGT_MIN, PA_TRGT_MAX);
-    return;
-  }
-
+  CHECK_FLOAT_RANGE(value, PA_TRGT_MIN, PA_TRGT_MAX)
   this->state_.PA_TRGT = (uint8_t) clamp((int) std::lround((value - 71) / 0.62f), PA_TRGT_RAW_MIN, PA_TRGT_RAW_MAX);
   this->write_reg_(REG_PAC_ADDR);
-
   this->publish_power_target();
 
   // From the datasheet:
@@ -514,149 +456,94 @@ void QN8027Component::set_power_target(float value) {
 
 float QN8027Component::get_power_target() { return 0.62f * this->state_.PA_TRGT + 71; }
 
+XtalSource QN8027Component::get_xtal_source() { return (XtalSource) this->state_.XINJ; }
+
+void QN8027Component::set_xtal_current(float value) {
+  this->state_.XISEL = value >= XISEL_MAX ? 0b00111111 : (uint16_t) (value / 6.25f);
+  if (this->state_.XINJ != (uint8_t) XtalSource::USE_CRYSTAL_ON_XTAL12) {
+    ESP_LOGW(TAG, "set_xtal_current(%d) invalid", (int) XtalSource::USE_CRYSTAL_ON_XTAL12);
+  }
+  this->write_reg_(REG_XTL_ADDR);
+  this->publish_xtal_current();
+}
+
+float QN8027Component::get_xtal_current() { return 6.25f * this->state_.XISEL; }
+
+void QN8027Component::set_xtal_frequency(XtalFrequency value) {
+  CHECK_ENUM(value)
+  this->state_.XSEL = (uint8_t) value;
+  this->write_reg_(REG_VGA_ADDR);
+  this->publish_xtal_frequency();
+}
+
+XtalFrequency QN8027Component::get_xtal_frequency() { return (XtalFrequency) this->state_.XSEL; }
+
 void QN8027Component::set_rds_enable(bool value) {
   this->state_.RDSEN = value ? 1 : 0;
   this->write_reg_(REG_RDS_ADDR);
-
   this->publish_rds_enable();
 }
 
 bool QN8027Component::get_rds_enable() { return this->state_.RDSEN == 1; }
 
-void QN8027Component::set_rds_frequency_deviation(float value) {
-  if (!(RDSFDEV_MIN <= value && value <= RDSFDEV_MAX)) {
-    ESP_LOGE(TAG, "set_rds_frequency_deviation(%.2f) invalid (%.2f and %.2f)", value, RDSFDEV_MIN, RDSFDEV_MAX);
-    return;
-  }
-
+void QN8027Component::set_rds_deviation(float value) {
+  CHECK_FLOAT_RANGE(value, RDSFDEV_MIN, RDSFDEV_MAX)
   this->state_.RDSFDEV = (uint8_t) clamp((int) std::lround(value / 0.35f), RDSFDEV_RAW_MIN, RDSFDEV_RAW_MAX);
   this->write_reg_(REG_RDS_ADDR);
-
-  this->publish_rds_frequency_deviation();
+  this->publish_rds_deviation();
 }
 
-float QN8027Component::get_rds_frequency_deviation() { return 0.35f * this->state_.RDSFDEV; }
+float QN8027Component::get_rds_deviation() { return 0.35f * this->state_.RDSFDEV; }
 
 void QN8027Component::set_rds_station(const std::string &value) {
-  this->rds_station_ = value;
   this->rds_station_pos_ = 0;
-  if (this->rds_station_.size() > RDS_STATION_MAX) {
-    ESP_LOGW(TAG, "rds station too long '%s' (max %d characters)", value.c_str(), RDS_STATION_MAX);
-    this->rds_station_.resize(RDS_STATION_MAX);
-  }
-
+  this->rds_station_ = value;
+  CHECK_TEXT_RANGE(this->rds_station_, RDS_STATION_MAX)
   this->publish_rds_station();
 }
 
-void QN8027Component::set_rds_text(const std::string &value) {
-  this->rds_text_ = value;
-  this->rds_text_pos_ = 0;
-  if (this->rds_text_.size() > RDS_TEXT_MAX) {
-    ESP_LOGW(TAG, "rds text to long '%s' (max %d characters)", value.c_str(), RDS_TEXT_MAX);
-    this->rds_text_.resize(RDS_TEXT_MAX);
-  }
+std::string QN8027Component::get_rds_station() { return this->rds_station_; }
 
+void QN8027Component::set_rds_text(const std::string &value) {
+  this->rds_text_pos_ = 0;
+  this->rds_text_ = value;
+  CHECK_TEXT_RANGE(this->rds_text_, RDS_TEXT_MAX)
   this->publish_rds_text();
 }
 
-// publish
+std::string QN8027Component::get_rds_text() { return this->rds_text_; }
 
-void QN8027Component::publish_aud_pk() { this->publish(this->aud_pk_sensor_, 45.0f * this->state_.aud_pk); }
+float QN8027Component::get_aud_pk() { return 45.0f * this->state_.aud_pk; }
 
-void QN8027Component::publish_fsm() {
-  const char *value = nullptr;
+std::string QN8027Component::get_fsm() {
   switch (this->state_.FSM) {
     case 0:
-      value = "RESET";
-      break;
+      return "RESET";
     case 1:
-      value = "CALI";
-      break;
+      return "CALI";
     case 2:
-      value = "IDLE";
-      break;
+      return "IDLE";
     case 3:
-      value = "TX_RSTB";
+      return "TX_RSTB";
       break;
     case 4:
-      value = "PA_CALIB";
-      break;
+      return "PA_CALIB";
     case 5:
-      value = "TRANSMIT";
-      break;
+      return "TRANSMIT";
     case 6:
-      value = "PA_OFF";
-      break;
+      return "PA_OFF";
     case 7:
-      value = "RESERVED";
-      break;
+      return "RESERVED";
     default:
-      return;
+      return "";
   }
-  this->publish(this->fsm_text_sensor_, value);
 }
 
-void QN8027Component::publish_chip_id() { this->publish(this->chip_id_text_sensor_, this->chip_id_); }
+std::string QN8027Component::get_chip_id() { return this->chip_id_; }
 
-void QN8027Component::publish_reg30() { this->publish(this->reg30_sensor_, (float) this->reg30_); }
+uint8_t QN8027Component::get_reg30() { return this->reg30_; }
 
-void QN8027Component::publish_frequency() { this->publish(this->frequency_number_, this->get_frequency()); }
-
-void QN8027Component::publish_frequency_deviation() {
-  this->publish(this->frequency_deviation_number_, this->get_frequency_deviation());
-}
-
-void QN8027Component::publish_mute() { this->publish(this->mute_switch_, this->get_mute()); }
-
-void QN8027Component::publish_mono() { this->publish(this->mono_switch_, this->get_mono()); }
-
-void QN8027Component::publish_tx_enable() { this->publish(this->tx_enable_switch_, this->get_tx_enable()); }
-
-void QN8027Component::publish_tx_pilot() { this->publish(this->tx_pilot_number_, this->get_tx_pilot()); }
-
-void QN8027Component::publish_t1m_sel() { this->publish(this->t1m_sel_select_, (size_t) this->get_t1m_sel()); }
-
-void QN8027Component::publish_priv_en() { this->publish(this->priv_en_switch_, this->get_priv_en()); }
-
-void QN8027Component::publish_pre_emphasis() {
-  this->publish(this->pre_emphasis_select_, (size_t) this->get_pre_emphasis());
-}
-
-void QN8027Component::publish_xtal_source() {
-  this->publish(this->xtal_source_select_, (size_t) this->get_xtal_source());
-}
-
-void QN8027Component::publish_xtal_current() { this->publish(this->xtal_current_number_, this->get_xtal_current()); }
-
-void QN8027Component::publish_xtal_frequency() {
-  this->publish(this->xtal_frequency_select_, (size_t) this->get_xtal_frequency());
-}
-
-void QN8027Component::publish_input_impedance() {
-  this->publish(this->input_impedance_select_, (size_t) this->get_input_impedance());
-}
-
-void QN8027Component::publish_input_gain() { this->publish(this->input_gain_number_, (float) this->get_input_gain()); }
-
-void QN8027Component::publish_digital_gain() {
-  this->publish(this->digital_gain_number_, (float) this->get_digital_gain());
-}
-
-void QN8027Component::publish_power_target() {
-  this->publish(this->power_target_number_, (float) this->get_power_target());
-}
-
-void QN8027Component::publish_rds_enable() { this->publish(this->rds_enable_switch_, this->get_rds_enable()); }
-
-void QN8027Component::publish_rds_frequency_deviation() {
-  this->publish(this->rds_frequency_deviation_number_, this->get_rds_frequency_deviation());
-}
-
-void QN8027Component::publish_rds_station() { this->publish(this->rds_station_text_, this->rds_station_); }
-
-void QN8027Component::publish_rds_text() { this->publish(this->rds_text_text_, this->rds_text_); }
-
-void QN8027Component::publish(text_sensor::TextSensor *s, const std::string &state) {
+template<class S, class T> void QN8027Component::publish(S *s, T state) {
   if (s != nullptr) {
     if (!s->has_state() || s->state != state) {
       s->publish_state(state);
@@ -664,23 +551,7 @@ void QN8027Component::publish(text_sensor::TextSensor *s, const std::string &sta
   }
 }
 
-void QN8027Component::publish(sensor::Sensor *s, float state) {
-  if (s != nullptr) {
-    if (!s->has_state() || s->state != state) {
-      s->publish_state(state);
-    }
-  }
-}
-
-void QN8027Component::publish(number::Number *n, float state) {
-  if (n != nullptr) {
-    if (!n->has_state() || n->state != state) {
-      n->publish_state(state);
-    }
-  }
-}
-
-void QN8027Component::publish(switch_::Switch *s, bool state) {
+void QN8027Component::publish_switch(switch_::Switch *s, bool state) {
   if (s != nullptr) {
     if (s->state != state) {  // ?
       s->publish_state(state);
@@ -688,20 +559,12 @@ void QN8027Component::publish(switch_::Switch *s, bool state) {
   }
 }
 
-void QN8027Component::publish(select::Select *s, size_t index) {
+void QN8027Component::publish_select(select::Select *s, size_t index) {
   if (s != nullptr) {
     if (auto state = s->at(index)) {
       if (!s->has_state() || s->state != *state) {
         s->publish_state(*state);
       }
-    }
-  }
-}
-
-void QN8027Component::publish(text::Text *t, const std::string &state) {
-  if (t != nullptr) {
-    if (!t->has_state() || t->state != state) {
-      t->publish_state(state);
     }
   }
 }

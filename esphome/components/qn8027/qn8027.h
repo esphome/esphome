@@ -24,6 +24,34 @@ namespace qn8027 {
   void set_##name##_text(text::Text *text) { this->name##_text_ = text; }
 #endif
 
+#define SUB_NUMBER_EX(name) \
+  SUB_NUMBER(name) \
+  void publish_##name() { this->publish(this->name##_number_, (float) this->get_##name()); }
+
+#define SUB_SWITCH_EX(name) \
+  SUB_SWITCH(name) \
+  void publish_##name() { this->publish_switch(this->name##_switch_, this->get_##name()); }
+
+#define SUB_SELECT_EX(name) \
+  SUB_SELECT(name) \
+  void publish_##name() { this->publish_select(this->name##_select_, (size_t) this->get_##name()); }
+
+#define SUB_TEXT_EX(name) \
+  SUB_TEXT(name) \
+  void publish_##name() { this->publish(this->name##_text_, this->get_##name()); }
+
+#define SUB_SENSOR_EX(name) \
+  SUB_SENSOR(name) \
+  void publish_##name() { this->publish(this->name##_sensor_, (float) this->get_##name()); }
+
+#define SUB_BINARY_SENSOR_EX(name) \
+  SUB_BINARY_SENSOR(name) \
+  void publish_##name() { this->publish(this->name##_binary_sensor_, this->get_##name()); }
+
+#define SUB_TEXT_SENSOR_EX(name) \
+  SUB_TEXT_SENSOR(name) \
+  void publish_##name() { this->publish(this->name##_text_sensor_, this->get_##name()); }
+
 class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   std::string chip_id_;
   bool reset_;
@@ -32,87 +60,59 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
     uint8_t regs_[sizeof(struct QN8027State)];
   };
   uint8_t reg30_;  // undocumented diagnostic register
-
-  void write_reg_(uint8_t addr);
-  bool read_reg_(uint8_t addr);
-
   std::string rds_station_;
   std::string rds_text_;
   uint8_t rds_station_pos_;
   uint8_t rds_text_pos_;
   uint8_t rds_upd_;
 
+  void write_reg_(uint8_t addr);
+  bool read_reg_(uint8_t addr);
   void rds_update_();
 
-  SUB_SENSOR(aud_pk)
-  SUB_TEXT_SENSOR(fsm)
-  SUB_TEXT_SENSOR(chip_id)
-  SUB_SENSOR(reg30)
-  SUB_NUMBER(frequency)
-  SUB_NUMBER(frequency_deviation)
-  SUB_NUMBER(tx_pilot)
-  SUB_SWITCH(mute)
-  SUB_SWITCH(mono)
-  SUB_SWITCH(tx_enable)
-  SUB_SELECT(t1m_sel)
-  SUB_SWITCH(priv_en)
-  SUB_SELECT(pre_emphasis)
-  SUB_SELECT(xtal_source)
-  SUB_NUMBER(xtal_current)
-  SUB_SELECT(xtal_frequency)
-  SUB_SELECT(input_impedance)
-  SUB_NUMBER(input_gain)
-  SUB_NUMBER(digital_gain)
-  SUB_NUMBER(power_target)
-  SUB_SWITCH(rds_enable)
-  SUB_NUMBER(rds_frequency_deviation)
-  SUB_TEXT(rds_station)
-  SUB_TEXT(rds_text)
+  template<class S, class T> void publish(S *s, T state);
+  // template specialization here is not supported by the compiler yet
+  void publish_switch(switch_::Switch *s, bool state);
+  void publish_select(select::Select *s, size_t index);
 
-  void publish_aud_pk();
-  void publish_fsm();
-  void publish_chip_id();
-  void publish_reg30();
-  void publish_frequency();
-  void publish_frequency_deviation();
-  void publish_mute();
-  void publish_mono();
-  void publish_tx_enable();
-  void publish_tx_pilot();
-  void publish_t1m_sel();
-  void publish_priv_en();
-  void publish_pre_emphasis();
-  void publish_xtal_source();
-  void publish_xtal_current();
-  void publish_xtal_frequency();
-  void publish_input_impedance();
-  void publish_input_gain();
-  void publish_digital_gain();
-  void publish_power_target();
-  void publish_rds_enable();
-  void publish_rds_frequency_deviation();
-  void publish_rds_station();
-  void publish_rds_text();
-  void publish(sensor::Sensor *s, float state);
-  void publish(text_sensor::TextSensor *s, const std::string &state);
-  void publish(number::Number *n, float state);
-  void publish(switch_::Switch *s, bool state);
-  void publish(select::Select *s, size_t index);
-  void publish(text::Text *t, const std::string &state);
+  SUB_NUMBER_EX(frequency)
+  SUB_NUMBER_EX(deviation)
+  SUB_NUMBER_EX(tx_pilot)
+  SUB_SWITCH_EX(mute)
+  SUB_SWITCH_EX(mono)
+  SUB_SWITCH_EX(tx_enable)
+  SUB_SELECT_EX(t1m_sel)
+  SUB_SWITCH_EX(priv_en)
+  SUB_SELECT_EX(pre_emphasis)
+  SUB_SELECT_EX(input_impedance)
+  SUB_NUMBER_EX(input_gain)
+  SUB_NUMBER_EX(digital_gain)
+  SUB_NUMBER_EX(power_target)
+  SUB_SELECT_EX(xtal_source)
+  SUB_NUMBER_EX(xtal_current)
+  SUB_SELECT_EX(xtal_frequency)
+  SUB_SWITCH_EX(rds_enable)
+  SUB_NUMBER_EX(rds_deviation)
+  SUB_TEXT_EX(rds_station)
+  SUB_TEXT_EX(rds_text)
+  SUB_SENSOR_EX(aud_pk)
+  SUB_TEXT_SENSOR_EX(fsm)
+  SUB_TEXT_SENSOR_EX(chip_id)
+  SUB_SENSOR_EX(reg30)
 
  public:
   QN8027Component();
 
-  // float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;
 
+  // config
   void set_frequency(float value);  // MHz
   float get_frequency();
-  void set_frequency_deviation(float value);  // kHz
-  float get_frequency_deviation();
+  void set_deviation(float value);  // kHz
+  float get_deviation();
   void set_mute(bool value);
   bool get_mute();
   void set_mono(bool value);
@@ -128,11 +128,6 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   void set_pre_emphasis(PreEmphasis value);
   PreEmphasis get_pre_emphasis();
   void set_xtal_source(XtalSource value);
-  XtalSource get_xtal_source();
-  void set_xtal_current(float value);
-  float get_xtal_current();
-  void set_xtal_frequency(XtalFrequency value);
-  XtalFrequency get_xtal_frequency();
   void set_input_impedance(InputImpedance value);
   InputImpedance get_input_impedance();
   void set_input_gain(uint8_t value);
@@ -141,12 +136,30 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t get_digital_gain();
   void set_power_target(float value);
   float get_power_target();
+  XtalSource get_xtal_source();
+  void set_xtal_current(float value);
+  float get_xtal_current();
+  void set_xtal_frequency(XtalFrequency value);
+  XtalFrequency get_xtal_frequency();
   void set_rds_enable(bool value);
   bool get_rds_enable();
-  void set_rds_frequency_deviation(float value);
-  float get_rds_frequency_deviation();
+  void set_rds_deviation(float value);
+  float get_rds_deviation();
   void set_rds_station(const std::string &value);
+  std::string get_rds_station();
   void set_rds_text(const std::string &value);
+  std::string get_rds_text();
+
+  // used by sensors
+  float get_aud_pk();
+  std::string get_fsm();
+  std::string get_chip_id();
+  uint8_t get_reg30();
+};
+
+template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<QN8027Component> {
+  TEMPLATABLE_VALUE(float, frequency)
+  void play(Ts... x) override { this->parent_->set_frequency(this->frequency_.value(x...)); }
 };
 
 }  // namespace qn8027
