@@ -27,7 +27,7 @@ kt0803:
     ref_clk: '32.768kHz'
   xtal:
     enable: True
-    sel: '32.768kHz'  
+    sel: '32.768kHz'
   alc:
     enable: False
     gain: -3
@@ -83,7 +83,7 @@ switch:
         name: Refence Clock Enable
     xtal:
       enable:
-        name: Crystal Oscillator Enable 
+        name: Crystal Oscillator Enable
     alc:
       enable:
         name: ALC Enable
