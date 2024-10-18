@@ -364,12 +364,14 @@ CONFIG_SCHEMA = (
 FREQUENCY_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(KT0803Component),
-        cv.Required(CONF_FREQUENCY): cv.float_range(min = 70, max = 108),
+        cv.Required(CONF_FREQUENCY): cv.float_range(min=70, max=108),
     }
 )
 
 
-@automation.register_action("kt0803.set_frequency", SetFrequencyAction, FREQUENCY_SCHEMA)
+@automation.register_action(
+    "kt0803.set_frequency", SetFrequencyAction, FREQUENCY_SCHEMA
+)
 async def tune_frequency_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -378,7 +380,7 @@ async def tune_frequency_action_to_code(config, action_id, template_arg, args):
         cg.add(var.set_frequency(template_))
     return var
 
-    
+
 async def set_var(config, id, setter):
     if c := config.get(id):
         cg.add(setter(c))

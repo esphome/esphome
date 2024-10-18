@@ -25,6 +25,34 @@ namespace kt0803 {
   void set_##name##_text(text::Text *text) { this->name##_text_ = text; }
 #endif
 
+#define SUB_NUMBER_EX(name) \
+  SUB_NUMBER(name) \
+  void publish_##name() { this->publish(this->name##_number_, (float) this->get_##name()); }
+
+#define SUB_SWITCH_EX(name) \
+  SUB_SWITCH(name) \
+  void publish_##name() { this->publish_switch(this->name##_switch_, this->get_##name()); }
+
+#define SUB_SELECT_EX(name) \
+  SUB_SELECT(name) \
+  void publish_##name() { this->publish_select(this->name##_select_, (size_t) this->get_##name()); }
+
+#define SUB_TEXT_EX(name) \
+  SUB_TEXT(name) \
+  void publish_##name() { this->publish(this->name##_text_, this->get_##name()); }
+
+#define SUB_SENSOR_EX(name) \
+  SUB_SENSOR(name) \
+  void publish_##name() { this->publish(this->name##_sensor_, (float) this->get_##name()); }
+
+#define SUB_BINARY_SENSOR_EX(name) \
+  SUB_BINARY_SENSOR(name) \
+  void publish_##name() { this->publish(this->name##_binary_sensor_, this->get_##name()); }
+
+#define SUB_TEXT_SENSOR_EX(name) \
+  SUB_TEXT_SENSOR(name) \
+  void publish_##name() { this->publish(this->name##_text_sensor_, this->get_##name()); }
+
 class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   ChipId chip_id_;  // no way to detect it
   bool reset_;
@@ -200,9 +228,7 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<KT0803Component> {
   TEMPLATABLE_VALUE(float, frequency)
-  void play(Ts... x) override {
-    this->parent_->set_frequency(this->frequency_.value(x...));
-  }
+  void play(Ts... x) override { this->parent_->set_frequency(this->frequency_.value(x...)); }
 };
 
 }  // namespace kt0803
