@@ -1,0 +1,76 @@
+spi:
+  id: spi_bus
+  clk_pin: ${spi_clk_pin}
+  mosi_pin: ${spi_mosi_pin}
+  miso_pin: ${spi_most_pin}
+
+display:
+  - platform: ili9xxx
+    invert_colors: true
+    dimensions: 320x240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    model: TFT 2.4
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    color_palette: GRAYSCALE
+    reset_pin: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
+color:
+  - id: layout_black
+    red: 100%
+    green: 100%
+    blue: 100%
+  - id: layout_white
+    red: 0%
+    green: 0%
+    blue: 0%
+
+graphical_layout:
+  id: test_graphical_layout
+  layout:
+    type: horizontal_stack
+    child_align: stretch_to_fit_height
+    items:
+      - type: fixed_dimension_panel
+        width: 100
+        height: 100
+        border: 1
+        child:
+          type: text_panel
+          text: "Simple text panel"
+          font: roboto
+      - type: vertical_stack
+        item_padding: 1
+        margin: 1
+        padding: 1
+        border: 1
+        border_color: layout_black
+        items:
+          - type: display_rendering_panel
+            height: 50
+            width: 50
+            lambda: |-
+              it.filled_circle(25, 25, 10);
+          - type: text_run_panel
+            text_align: baseline_center
+            max_width: 100
+            runs:
+              - font: roboto
+                text: Hello
+              - font: roboto
+                text: World
+                background_color: layout_black
+                foreground_color: layout_white
+              - font: roboto
+                text: !lambda |-
+                  return "Dynamic text";
