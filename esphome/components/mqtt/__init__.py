@@ -281,7 +281,7 @@ async def instant_templatable(value, args, output_type, to_exp=None):
         return value
     if isinstance(to_exp, dict):
         return to_exp[value]
-    return cg.to_exp(value)
+    return to_exp(value)
 
 
 async def exp_mqtt_message(config):
