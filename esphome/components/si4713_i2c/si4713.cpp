@@ -695,7 +695,7 @@ void Si4713Component::set_asq_duration_high(int value) {
 int Si4713Component::get_asq_duration_high() { return (int) this->tx_asq_duration_high_.IALHDUR; }
 
 void Si4713Component::set_rds_enable(bool value) {
-  this->tx_component_enable_.RDS = value ? 0 : 1;
+  this->tx_component_enable_.RDS = value ? 1 : 0;
   this->set_prop(this->tx_component_enable_);
   this->publish_rds_enable();
 }
