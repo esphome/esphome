@@ -2,6 +2,12 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ANALOG,
+    CONF_ATTENUATION,
+    CONF_CHANNELS,
+    CONF_MODE,
+    CONF_SOURCE,
+    CONF_PRESET,
     ENTITY_CATEGORY_CONFIG,
     ICON_PULSE,
 )
@@ -9,20 +15,14 @@ from .. import (
     CONF_SI4713_ID,
     Si4713Component,
     si4713_ns,
-    CONF_SECTION_ANALOG,
-    CONF_SECTION_DIGITAL,
-    CONF_SECTION_REFCLK,
-    CONF_SECTION_COMPRESSOR,
+    CONF_DIGITAL,
+    CONF_REFCLK,
+    CONF_COMPRESSOR,
     CONF_PRE_EMPHASIS,
-    CONF_ATTENUATION,
     CONF_SAMPLE_BITS,
-    CONF_CHANNELS,
-    CONF_MODE,
     CONF_CLOCK_EDGE,
-    CONF_SOURCE,
     CONF_ATTACK,
     CONF_RELEASE,
-    CONF_PRESET,
     ICON_SINE_WAVE,
     ICON_RESISTOR,
     ICON_EAR_HEARING,
@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_SINE_WAVE,
         ),
-        cv.Optional(CONF_SECTION_ANALOG): cv.Schema(
+        cv.Optional(CONF_ANALOG): cv.Schema(
              {
                 cv.Optional(CONF_ATTENUATION): select.select_schema(
                     AnalogAttenuationSelect,
@@ -66,7 +66,7 @@ CONFIG_SCHEMA = cv.Schema(
                 ),
              }
         ),
-        cv.Optional(CONF_SECTION_DIGITAL): cv.Schema(
+        cv.Optional(CONF_DIGITAL): cv.Schema(
              {
                 cv.Optional(CONF_SAMPLE_BITS): select.select_schema(
                     DigitalSampleBitsSelect,
@@ -90,7 +90,7 @@ CONFIG_SCHEMA = cv.Schema(
                 ),
              }
         ),
-        cv.Optional(CONF_SECTION_REFCLK): cv.Schema(
+        cv.Optional(CONF_REFCLK): cv.Schema(
              {
                 cv.Optional(CONF_SOURCE): select.select_schema(
                     RefClkSourceSelect,
@@ -99,7 +99,7 @@ CONFIG_SCHEMA = cv.Schema(
                 ),
              }
         ),
-        cv.Optional(CONF_SECTION_COMPRESSOR): cv.Schema(
+        cv.Optional(CONF_COMPRESSOR): cv.Schema(
              {
                 cv.Optional(CONF_ATTACK): select.select_schema(
                     AcompAttackSelect,
@@ -133,16 +133,16 @@ async def new_select(p, config, id, setter, options):
 async def to_code(config):
     p = await cg.get_variable(config[CONF_SI4713_ID])
     await new_select(p, config, CONF_PRE_EMPHASIS, p.set_pre_emphasis_select, PRE_EMPHASIS)
-    if analog_config := config.get(CONF_SECTION_ANALOG):
+    if analog_config := config.get(CONF_ANALOG):
         await new_select(p, analog_config, CONF_ATTENUATION, p.set_analog_attenuation_select, LINE_ATTENUATION)
-    if digital_config := config.get(CONF_SECTION_DIGITAL):
+    if digital_config := config.get(CONF_DIGITAL):
         await new_select(p, digital_config, CONF_SAMPLE_BITS, p.set_digital_sample_bits_select, SAMPLE_BITS)
         await new_select(p, digital_config, CONF_CHANNELS, p.set_digital_channels_select, SAMPLE_CHANNELS)
         await new_select(p, digital_config, CONF_MODE, p.set_digital_mode_select, DIGITAL_MODE)
         await new_select(p, digital_config, CONF_CLOCK_EDGE, p.set_digital_clock_edge_select, DIGITAL_CLOCK_EDGE)
-    if refclk_config := config.get(CONF_SECTION_REFCLK):
+    if refclk_config := config.get(CONF_REFCLK):
         await new_select(p, refclk_config, CONF_SOURCE, p.set_refclk_source_select, REFCLK_SOURCE)
-    if compressor_config := config.get(CONF_SECTION_COMPRESSOR):
+    if compressor_config := config.get(CONF_COMPRESSOR):
         await new_select(p, compressor_config, CONF_ATTACK, p.set_acomp_attack_select, ACOMP_ATTACK)
         await new_select(p, compressor_config, CONF_RELEASE, p.set_acomp_release_select, ACOMP_RELEASE)
         await new_select(p, compressor_config, CONF_PRESET, p.set_acomp_preset_select, ACOMP_PRESET)

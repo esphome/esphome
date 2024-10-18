@@ -4,7 +4,19 @@ from esphome import automation, pins
 from esphome.components import i2c, sensor, binary_sensor, text_sensor
 from esphome.const import (
     CONF_ID,
+    CONF_ANALOG,
+    CONF_SENSOR,
     CONF_FREQUENCY,
+    CONF_POWER,
+    CONF_LEVEL,
+    CONF_ATTENUATION,
+    CONF_CHANNELS,
+    CONF_MODE,
+    CONF_SOURCE,
+    CONF_THRESHOLD,
+    CONF_GAIN,
+    CONF_PRESET,
+    CONF_TEXT,
     STATE_CLASS_MEASUREMENT,
     ICON_CHIP,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -19,7 +31,7 @@ UNIT_MEGA_HERTZ = "MHz"
 UNIT_KILO_HERTZ = "kHz"
 UNIT_MILLI_VOLT = "mV"
 UNIT_MICRO_AMPERE = "mA"
-UNIT_DECIBEL_MICRO_VOLT = "dBµV"
+UNIT_DECIBEL_MICRO_VOLT = "dBuV"
 UNIT_PICO_FARAD = "pF"
 UNIT_KILO_OHM = "kOhm"
 UNIT_DECIBEL_FS = "dBfs"
@@ -39,17 +51,14 @@ Si4713Component = si4713_ns.class_(
 
 CONF_SI4713_ID = "si4713_id"
 CONF_RESET_PIN = "reset_pin"
-CONF_SECTION_TUNER = "tuner"
-CONF_SECTION_ANALOG = "analog"
-CONF_SECTION_DIGITAL = "digital"
-CONF_SECTION_PILOT = "pilot"
-CONF_SECTION_REFCLK = "refclk"
-CONF_SECTION_COMPRESSOR = "compressor"
-CONF_SECTION_LIMITER = "limiter"
-CONF_SECTION_ASQ = "asq"
-CONF_SECTION_RDS = "rds"
-CONF_SECTION_OUTPUT = "output"
-CONF_SECTION_SENSOR = "sensor"
+CONF_TUNER = "tuner"
+CONF_DIGITAL = "digital"
+CONF_PILOT = "pilot"
+CONF_REFCLK = "refclk"
+CONF_COMPRESSOR = "compressor"
+CONF_LIMITER = "limiter"
+CONF_ASQ = "asq"
+CONF_RDS = "rds"
 # general config
 CONF_OP_MODE = "op_mode"
 CONF_MUTE = "mute"
@@ -58,16 +67,16 @@ CONF_PRE_EMPHASIS = "pre_emphasis"
 # tuner
 # CONF_FREQUENCY = "frequency"
 CONF_DEVIATION = "deviation"
-CONF_POWER = "power"
+# CONF_POWER = "power"
 CONF_ANTCAP = "antcap"
 # analog
-CONF_LEVEL = "level"
-CONF_ATTENUATION = "attenuation"
+# CONF_LEVEL = "level"
+# CONF_ATTENUATION = "attenuation"
 # digital
 CONF_SAMPLE_RATE = "sample_rate"
 CONF_SAMPLE_BITS = "sample_bits"
-CONF_CHANNELS = "channels"
-CONF_MODE = "mode"
+# CONF_CHANNELS = "channels"
+# CONF_MODE = "mode"
 CONF_CLOCK_EDGE = "clock_edge"
 # pilot
 CONF_ENABLE = "enable"
@@ -75,15 +84,15 @@ CONF_ENABLE = "enable"
 CONF_DEVIATION = "deviation"
 # refclk
 # CONF_FREQUENCY = "frequency"
-CONF_SOURCE = "source"
+# CONF_SOURCE = "source"
 CONF_PRESCALER = "prescaler"
 # compressor
 CONF_ENABLE = "enable"
-CONF_THRESHOLD = "threshold"
+# CONF_THRESHOLD = "threshold"
 CONF_ATTACK = "attack"
 CONF_RELEASE = "release"
-CONF_GAIN = "gain"
-CONF_PRESET = "preset"
+# CONF_GAIN = "gain"
+# CONF_PRESET = "preset"
 # limiter
 CONF_ENABLE = "enable"
 CONF_RELEASE_TIME = "release_time"
@@ -99,7 +108,7 @@ CONF_DURATION_HIGH = "duration_high"
 CONF_ENABLE = "enable"
 CONF_DEVIATION = "deviation"
 CONF_STATION = "station"
-CONF_TEXT = "text"
+# CONF_TEXT = "text"
 # output
 CONF_GPIO1 = "gpio1"
 CONF_GPIO2 = "gpio2"
@@ -351,16 +360,16 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MUTE, default=False): cv.boolean,
             cv.Optional(CONF_MONO, default=False): cv.boolean,
             cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS),
-            cv.Optional(CONF_SECTION_TUNER): TUNER_SCHEMA,
-            cv.Optional(CONF_SECTION_ANALOG): ANALOG_SCHEMA,
-            cv.Optional(CONF_SECTION_DIGITAL): DIGITAL_SCHEMA,
-            cv.Optional(CONF_SECTION_PILOT): PILOT_SCHEMA,
-            cv.Optional(CONF_SECTION_REFCLK): REFCLK_SCHEMA,
-            cv.Optional(CONF_SECTION_COMPRESSOR): COMPRESSOR_SCHEMA,
-            cv.Optional(CONF_SECTION_LIMITER): LIMITER_SCHEMA,
-            cv.Optional(CONF_SECTION_ASQ): ASQ_SCHEMA,
-            cv.Optional(CONF_SECTION_RDS): RDS_SCHEMA,
-            cv.Optional(CONF_SECTION_SENSOR): SENSOR_SCHEMA,
+            cv.Optional(CONF_TUNER): TUNER_SCHEMA,
+            cv.Optional(CONF_ANALOG): ANALOG_SCHEMA,
+            cv.Optional(CONF_DIGITAL): DIGITAL_SCHEMA,
+            cv.Optional(CONF_PILOT): PILOT_SCHEMA,
+            cv.Optional(CONF_REFCLK): REFCLK_SCHEMA,
+            cv.Optional(CONF_COMPRESSOR): COMPRESSOR_SCHEMA,
+            cv.Optional(CONF_LIMITER): LIMITER_SCHEMA,
+            cv.Optional(CONF_ASQ): ASQ_SCHEMA,
+            cv.Optional(CONF_RDS): RDS_SCHEMA,
+            cv.Optional(CONF_SENSOR): SENSOR_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -424,39 +433,39 @@ async def to_code(config):
     await set_var(config, CONF_MUTE, var.set_mute)
     await set_var(config, CONF_MONO, var.set_mono)
     await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
-    if tuner_config := config.get(CONF_SECTION_TUNER):
+    if tuner_config := config.get(CONF_TUNER):
         await set_var(tuner_config, CONF_FREQUENCY, var.set_frequency)
         await set_var(tuner_config, CONF_DEVIATION, var.set_audio_deviation)
         await set_var(tuner_config, CONF_POWER, var.set_power)
         await set_var(tuner_config, CONF_ANTCAP, var.set_antcap)
-    if analog_config := config.get(CONF_SECTION_ANALOG):
+    if analog_config := config.get(CONF_ANALOG):
         await set_var(analog_config, CONF_LEVEL, var.set_analog_level)
         await set_var(analog_config, CONF_ATTENUATION, var.set_analog_attenuation)
-    if digital_config := config.get(CONF_SECTION_DIGITAL):
+    if digital_config := config.get(CONF_DIGITAL):
         await set_var(digital_config, CONF_SAMPLE_RATE, var.set_digital_sample_rate)
         await set_var(digital_config, CONF_SAMPLE_BITS, var.set_digital_sample_bits)
         await set_var(digital_config, CONF_CHANNELS, var.set_digital_channels)
         await set_var(digital_config, CONF_MODE, var.set_digital_mode)
         await set_var(digital_config, CONF_CLOCK_EDGE, var.set_digital_clock_edge)
-    if pilot_config := config.get(CONF_SECTION_PILOT):
+    if pilot_config := config.get(CONF_PILOT):
         await set_var(pilot_config, CONF_ENABLE, var.set_pilot_enable)
         await set_var(pilot_config, CONF_FREQUENCY, var.set_pilot_frequency)
         await set_var(pilot_config, CONF_DEVIATION, var.set_pilot_deviation)
-    if refclk_config := config.get(CONF_SECTION_REFCLK):
+    if refclk_config := config.get(CONF_REFCLK):
         await set_var(refclk_config, CONF_FREQUENCY, var.set_refclk_frequency)
         await set_var(refclk_config, CONF_SOURCE, var.set_refclk_source)
         await set_var(refclk_config, CONF_PRESCALER, var.set_refclk_prescaler)
-    if compressor_config := config.get(CONF_SECTION_COMPRESSOR):
+    if compressor_config := config.get(CONF_COMPRESSOR):
         await set_var(compressor_config, CONF_ENABLE, var.set_acomp_enable)
         await set_var(compressor_config, CONF_THRESHOLD, var.set_acomp_threshold)
         await set_var(compressor_config, CONF_ATTACK, var.set_acomp_attack)
         await set_var(compressor_config, CONF_RELEASE, var.set_acomp_release)
         await set_var(compressor_config, CONF_GAIN, var.set_acomp_gain)
         await set_var(compressor_config, CONF_PRESET, var.set_acomp_preset)
-    if limiter_config := config.get(CONF_SECTION_LIMITER):
+    if limiter_config := config.get(CONF_LIMITER):
         await set_var(limiter_config, CONF_ENABLE, var.set_limiter_enable)
         await set_var(limiter_config, CONF_RELEASE_TIME, var.set_limiter_release_time)
-    if asq_config := config.get(CONF_SECTION_ASQ):
+    if asq_config := config.get(CONF_ASQ):
         await set_var(asq_config, CONF_IALL, var.set_asq_iall_enable)
         await set_var(asq_config, CONF_IALH, var.set_asq_ialh_enable)
         await set_var(asq_config, CONF_OVERMOD, var.set_asq_overmod_enable)
@@ -464,12 +473,12 @@ async def to_code(config):
         await set_var(asq_config, CONF_DURATION_LOW, var.set_asq_duration_low)
         await set_var(asq_config, CONF_LEVEL_HIGH, var.set_asq_level_high)
         await set_var(asq_config, CONF_DURATION_HIGH, var.set_asq_duration_high)
-    if rds_config := config.get(CONF_SECTION_RDS):
+    if rds_config := config.get(CONF_RDS):
         await set_var(rds_config, CONF_ENABLE, var.set_rds_enable)
         await set_var(rds_config, CONF_DEVIATION, var.set_rds_deviation)
         await set_var(rds_config, CONF_STATION, var.set_rds_station)
         await set_var(rds_config, CONF_TEXT, var.set_rds_text)
-    if sensor_config := config.get(CONF_SECTION_SENSOR):
+    if sensor_config := config.get(CONF_SENSOR):
         await new_text_sensor(sensor_config, CONF_CHIP_ID, var.set_chip_id_text_sensor)
         await new_sensor(
             sensor_config, CONF_READ_FREQUENCY, var.set_read_frequency_sensor

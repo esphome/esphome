@@ -326,26 +326,26 @@ template<typename T> T GET_ENUM_LAST(T value) { return T::LAST; }
 
 #define CHECK_ENUM(value) \
   if (value >= GET_ENUM_LAST(value)) { \
-    ESP_LOGE(TAG, "%s(%d) invalid", __func__, (int) value); \
+    ESP_LOGE(TAG, "%s(%d) invalid", __func__, (int) (value)); \
     return; \
   }
 
 #define CHECK_FLOAT_RANGE(value, min_value, max_value) \
-  if (!(min_value <= value && value <= max_value)) { \
+  if (!((min_value) <= (value) && (value) <= (max_value))) { \
     ESP_LOGE(TAG, "%s(%.2f) invalid (%.2f - %.2f)", __func__, value, min_value, max_value); \
     return; \
   }
 
 #define CHECK_INT_RANGE(value, min_value, max_value) \
-  if (!(min_value <= value && value <= max_value)) { \
+  if (!((min_value) <= (value) && (value) <= (max_value))) { \
     ESP_LOGE(TAG, "%s(%d) invalid (%d - %d)", __func__, value, min_value, max_value); \
     return; \
   }
 
 #define CHECK_TEXT_RANGE(value, max_size) \
-  if (value.size() > max_size) { \
-    ESP_LOGW(TAG, "%s(%s) trimmed (max %d characters)", __func__, value.c_str(), max_size); \
-    value.resize(max_size); \
+  if ((value).size() > max_size) { \
+    ESP_LOGW(TAG, "%s(%s) trimmed (max %d characters)", __func__, (value).c_str(), max_size); \
+    (value).resize(max_size); \
   }
 
 void Si4713Component::set_reset_pin(InternalGPIOPin *pin) { this->reset_pin_ = pin; }
