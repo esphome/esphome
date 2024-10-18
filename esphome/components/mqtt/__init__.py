@@ -167,6 +167,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=1883): cv.templatable(cv.port),
             cv.Optional(CONF_USERNAME, default=""): cv.templatable(cv.string),
             cv.Optional(CONF_PASSWORD, default=""): cv.templatable(cv.string),
+            cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.templatable(cv.string),
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
@@ -260,7 +261,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def instant_templatable(value, args, output_type, to_exp = None):
+async def instant_templatable(value, args, output_type, to_exp=None):
     """Generate code for a templatable config option.
 
     If `value` is a templated value, the lambda expression is returned with
@@ -275,7 +276,7 @@ async def instant_templatable(value, args, output_type, to_exp = None):
     """
     if cg.is_template(value):
         lambda_code = await cg.process_lambda(value, args, return_type=output_type)
-        return cg.RawExpression(f'({lambda_code})({", ".join(args)})');
+        return cg.RawExpression(f'({lambda_code})({", ".join(args)})')
     if to_exp is None:
         return value
     if isinstance(to_exp, dict):
@@ -314,9 +315,7 @@ async def to_code(config):
         )
     )
     cg.add(
-        var.set_broker_port(
-            await instant_templatable(config[CONF_PORT], [], cg.uint16)
-        )
+        var.set_broker_port(await instant_templatable(config[CONF_PORT], [], cg.uint16))
     )
     cg.add(
         var.set_username(
@@ -328,6 +327,7 @@ async def to_code(config):
             await instant_templatable(config[CONF_PASSWORD], [], cg.std_string)
         )
     )
+    cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
     if CONF_CLIENT_ID in config:
         cg.add(
             var.set_client_id(
@@ -387,11 +387,15 @@ async def to_code(config):
         if topic_prefix == "":
             cg.add(var.disable_birth_message())
         else:
-            birth_topic = f"{topic_prefix}/status" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/status"')
+            birth_topic = (
+                f"{topic_prefix}/status"
+                if not cg.is_template(config[CONF_TOPIC_PREFIX])
+                else cg.RawExpression(f'{topic_prefix}+"/status"')
+            )
             birth_message_exp = cg.StructInitializer(
                 MQTTMessage,
                 ("topic", birth_topic),
-                ("payload", "offline"),
+                ("payload", "online"),
                 ("qos", 0),
                 ("retain", True),
             )
@@ -402,12 +406,16 @@ async def to_code(config):
             cg.add(var.disable_birth_message())
         else:
             cg.add(var.set_birth_message(await exp_mqtt_message(birth_message)))
-    
+
     if CONF_WILL_MESSAGE not in config:
         if topic_prefix == "":
             cg.add(var.disable_last_will())
         else:
-            will_message_topic = f"{topic_prefix}/status" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/status"')
+            will_message_topic = (
+                f"{topic_prefix}/status"
+                if not cg.is_template(config[CONF_TOPIC_PREFIX])
+                else cg.RawExpression(f'{topic_prefix}+"/status"')
+            )
             will_message_exp = cg.StructInitializer(
                 MQTTMessage,
                 ("topic", will_message_topic),
@@ -422,12 +430,16 @@ async def to_code(config):
             cg.add(var.disable_last_will())
         else:
             cg.add(var.set_last_will(await exp_mqtt_message(will_message)))
-    
+
     if CONF_SHUTDOWN_MESSAGE not in config:
         if topic_prefix == "":
             cg.add(var.disable_shutdown_message())
         else:
-            shutdown_message_topic = f"{topic_prefix}/status" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/status"')
+            shutdown_message_topic = (
+                f"{topic_prefix}/status"
+                if not cg.is_template(config[CONF_TOPIC_PREFIX])
+                else cg.RawExpression(f'{topic_prefix}+"/status"')
+            )
             shutdown_message_exp = cg.StructInitializer(
                 MQTTMessage,
                 ("topic", shutdown_message_topic),
@@ -447,7 +459,11 @@ async def to_code(config):
         if topic_prefix == "":
             cg.add(var.disable_log_message())
         else:
-            log_message_topic = f"{topic_prefix}/debug" if not cg.is_template(config[CONF_TOPIC_PREFIX]) else cg.RawExpression(f'{topic_prefix}+"/debug"')
+            log_message_topic = (
+                f"{topic_prefix}/debug"
+                if not cg.is_template(config[CONF_TOPIC_PREFIX])
+                else cg.RawExpression(f'{topic_prefix}+"/debug"')
+            )
             log_message_exp = cg.StructInitializer(
                 MQTTMessage,
                 ("topic", log_message_topic),

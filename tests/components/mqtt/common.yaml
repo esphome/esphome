@@ -17,7 +17,7 @@ mqtt:
   discovery_retain: false
   discovery_prefix: discovery
   discovery_unique_id_generator: legacy
-  topic_prefix: helloworld
+  topic_prefix: 'return "helloworld";'
   log_topic:
     topic: helloworld/hi
     level: INFO
