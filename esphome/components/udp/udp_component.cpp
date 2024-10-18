@@ -261,7 +261,8 @@ void UDPComponent::setup() {
       return;
     }
   }
-#else
+#endif
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
   // 8266 and RP2040 `Duino
   for (const auto &address : this->addresses_) {
     auto ipaddr = IPAddress();
@@ -370,7 +371,8 @@ void UDPComponent::loop() {
     for (;;) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
       auto len = this->listen_socket_->read(buf, sizeof(buf));
-#else
+#endif
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
       auto len = this->udp_client_.parsePacket();
       if (len > 0)
         len = this->udp_client_.read(buf, sizeof(buf));
@@ -587,7 +589,8 @@ void UDPComponent::send_packet_(void *data, size_t len) {
     if (result < 0)
       ESP_LOGW(TAG, "sendto() error %d", errno);
   }
-#else
+#endif
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
   auto iface = IPAddress(0, 0, 0, 0);
   for (const auto &saddr : this->ipaddrs_) {
     if (this->udp_client_.beginPacketMulticast(saddr, this->port_, iface, 128) != 0) {
