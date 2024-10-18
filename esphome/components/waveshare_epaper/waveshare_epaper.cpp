@@ -2163,6 +2163,83 @@ void WaveshareEPaper7P5InBV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//               5.83in B V2 (RBW version)
+// Datasheet/Specification/Reference:
+//  - https://www.waveshare.com/w/upload/0/06/5.83inch-e-paper-v2-specification.pdf
+//  - https://github.com/waveshareteam/e-Paper/tree/master/Arduino/epd5in83b_V2
+// ========================================================
+void WaveshareEPaper5P8InBV2::initialize() {
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x3f);
+  this->data(0x3f);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+
+  // PANNEL SETTING
+  this->command(0x00);
+  this->data(0x0F);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x02);
+  this->data(0x88);
+  this->data(0x01);
+  this->data(0xE0);
+
+  this->command(0x15);
+  this->data(0x00);
+
+  // VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x11);
+  this->data(0x07);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+}
+
+void HOT WaveshareEPaper5P8InBV2::display() {
+  // COMMAND DATA START TRANSMISSION 1 (B/W data)
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2 (RED data)
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0x00);  // no red data, therefore set zeroes
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+}
+int WaveshareEPaper5P8InBV2::get_width_internal() { return 648; }
+int WaveshareEPaper5P8InBV2::get_height_internal() { return 480; }
+void WaveshareEPaper5P8InBV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.83in Bv2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 void WaveshareEPaper7P5InBV3::initialize() { this->init_display_(); }
 bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
