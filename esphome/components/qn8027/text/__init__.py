@@ -5,6 +5,7 @@ from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_TEXT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_MQTT_ID,
@@ -18,9 +19,8 @@ from .. import (
     CONF_QN8027_ID,
     QN8027Component,
     qn8027_ns,
-    CONF_SECTION_RDS,
+    CONF_RDS,
     CONF_STATION,
-    CONF_TEXT,
     ICON_FORMAT_TEXT,
 )
 
@@ -140,7 +140,7 @@ RDS_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_QN8027_ID): cv.use_id(QN8027Component),
-        cv.Optional(CONF_SECTION_RDS): RDS_SCHEMA,
+        cv.Optional(CONF_RDS): RDS_SCHEMA,
     }
 )
 
@@ -155,6 +155,6 @@ async def new_text_simple(p, config, id, setter, min_length, max_length, *args):
 
 async def to_code(config):
     p = await cg.get_variable(config[CONF_QN8027_ID])
-    if rds_config := config.get(CONF_SECTION_RDS):
+    if rds_config := config.get(CONF_RDS):
         await new_text_simple(p, rds_config, CONF_STATION, p.set_rds_station_text, 0, 8)
         await new_text_simple(p, rds_config, CONF_TEXT, p.set_rds_text_text, 0, 64)

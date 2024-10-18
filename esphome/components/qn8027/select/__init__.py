@@ -10,7 +10,7 @@ from .. import (
     CONF_QN8027_ID,
     QN8027Component,
     qn8027_ns,
-    CONF_SECTION_XTAL,
+    CONF_XTAL,
     CONF_T1M_SEL,
     CONF_PRE_EMPHASIS,
     CONF_INPUT_IMPEDANCE,
@@ -64,7 +64,7 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_RESISTOR,
         ),
-        cv.Optional(CONF_SECTION_XTAL): XTAL_SCHEMA,
+        cv.Optional(CONF_XTAL): XTAL_SCHEMA,
     }
 )
 
@@ -86,7 +86,7 @@ async def to_code(config):
     await new_select(
         p, config, CONF_INPUT_IMPEDANCE, p.set_input_impedance_select, INPUT_IMPEDANCE
     )
-    if xtal_config := config.get(CONF_SECTION_XTAL):
+    if xtal_config := config.get(CONF_XTAL):
         await new_select(
             p, xtal_config, CONF_SOURCE, p.set_xtal_source_select, XTAL_SOURCE
         )

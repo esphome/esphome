@@ -10,7 +10,7 @@ from .. import (
     CONF_QN8027_ID,
     QN8027Component,
     qn8027_ns,
-    CONF_SECTION_RDS,
+    CONF_RDS,
     CONF_MUTE,
     CONF_MONO,
     CONF_TX_ENABLE,
@@ -67,7 +67,7 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_SECURITY,
         ),
-        cv.Optional(CONF_SECTION_RDS): RDS_SCHEMA,
+        cv.Optional(CONF_RDS): RDS_SCHEMA,
     }
 )
 
@@ -86,5 +86,5 @@ async def to_code(config):
     await new_switch(p, config, CONF_MONO, p.set_mono_switch)
     await new_switch(p, config, CONF_TX_ENABLE, p.set_tx_enable_switch)
     await new_switch(p, config, CONF_PRIV_EN, p.set_priv_en_switch)
-    if rds_config := config.get(CONF_SECTION_RDS):
+    if rds_config := config.get(CONF_RDS):
         await new_switch(p, rds_config, CONF_ENABLE, p.set_rds_enable_switch)

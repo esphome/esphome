@@ -4,6 +4,9 @@ from esphome import automation
 from esphome.components import i2c, sensor, text_sensor
 from esphome.const import (
     CONF_ID,
+    CONF_SENSOR,
+    CONF_SOURCE,
+    CONF_CURRENT,
     CONF_FREQUENCY,
     UNIT_EMPTY,
     DEVICE_CLASS_VOLTAGE,
@@ -37,9 +40,8 @@ QN8027Component = qn8027_ns.class_(
 )
 
 CONF_QN8027_ID = "qn8027_id"
-CONF_SECTION_RDS = "rds"
-CONF_SECTION_XTAL = "xtal"
-CONF_SECTION_SENSOR = "sensor"
+CONF_RDS = "rds"
+CONF_XTAL = "xtal"
 # general config
 # CONF_FREQUENCY = "frequency"
 CONF_DEVIATION = "deviation"
@@ -55,8 +57,8 @@ CONF_INPUT_GAIN = "input_gain"
 CONF_DIGITAL_GAIN = "digital_gain"
 CONF_POWER_TARGET = "power_target"
 # xtal
-CONF_SOURCE = "source"
-CONF_CURRENT = "current"
+# CONF_SOURCE = "source"
+# CONF_CURRENT = "current"
 # CONF_FREQUENCY = "frequency"
 # rds
 CONF_ENABLE = "enable"
@@ -179,9 +181,9 @@ CONFIG_SCHEMA = (
                 cv.uint8_t, cv.Range(min=0, max=2)
             ),
             cv.Optional(CONF_POWER_TARGET, default=117.5): cv.float_range(83.4, 117.5),
-            cv.Optional(CONF_SECTION_XTAL): XTAL_SCHEMA,
-            cv.Optional(CONF_SECTION_RDS): RDS_SCHEMA,
-            cv.Optional(CONF_SECTION_SENSOR): SENSOR_SCHEMA,
+            cv.Optional(CONF_XTAL): XTAL_SCHEMA,
+            cv.Optional(CONF_RDS): RDS_SCHEMA,
+            cv.Optional(CONF_SENSOR): SENSOR_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -242,16 +244,16 @@ async def to_code(config):
     await set_var(config, CONF_INPUT_GAIN, var.set_input_gain)
     await set_var(config, CONF_DIGITAL_GAIN, var.set_digital_gain)
     await set_var(config, CONF_POWER_TARGET, var.set_power_target)
-    if xtal_config := config.get(CONF_SECTION_XTAL):
+    if xtal_config := config.get(CONF_XTAL):
         await set_var(xtal_config, CONF_SOURCE, var.set_xtal_source)
         await set_var(xtal_config, CONF_CURRENT, var.set_xtal_current)
         await set_var(xtal_config, CONF_FREQUENCY, var.set_xtal_frequency)
-    if rds_config := config.get(CONF_SECTION_RDS):
+    if rds_config := config.get(CONF_RDS):
         await set_var(rds_config, CONF_ENABLE, var.set_rds_enable)
         await set_var(rds_config, CONF_STATION, var.set_rds_station)
         await set_var(rds_config, CONF_TEXT, var.set_rds_text)
         await set_var(rds_config, CONF_DEVIATION, var.set_rds_deviation)
-    if sensor_config := config.get(CONF_SECTION_SENSOR):
+    if sensor_config := config.get(CONF_SENSOR):
         await set_sensor(sensor_config, CONF_AUD_PK, var.set_aud_pk_sensor)
         await set_text_sensor(sensor_config, CONF_FSM, var.set_fsm_text_sensor)
         await set_text_sensor(sensor_config, CONF_CHIP_ID, var.set_chip_id_text_sensor)

@@ -3,6 +3,7 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
+    CONF_CURRENT,
     UNIT_PERCENT,
     UNIT_DECIBEL,
     DEVICE_CLASS_FREQUENCY,
@@ -15,14 +16,13 @@ from .. import (
     CONF_QN8027_ID,
     QN8027Component,
     qn8027_ns,
-    CONF_SECTION_XTAL,
-    CONF_SECTION_RDS,
+    CONF_XTAL,
+    CONF_RDS,
     CONF_DEVIATION,
     CONF_TX_PILOT,
     CONF_INPUT_GAIN,
     CONF_DIGITAL_GAIN,
     CONF_POWER_TARGET,
-    CONF_CURRENT,
     UNIT_MEGA_HERTZ,
     UNIT_KILO_HERTZ,
     UNIT_MICRO_AMPERE,
@@ -99,8 +99,8 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
-        cv.Optional(CONF_SECTION_XTAL): XTAL_SCHEMA,
-        cv.Optional(CONF_SECTION_RDS): RDS_SCHEMA,
+        cv.Optional(CONF_XTAL): XTAL_SCHEMA,
+        cv.Optional(CONF_RDS): RDS_SCHEMA,
     }
 )
 
@@ -125,11 +125,11 @@ async def to_code(config):
     await new_number(
         p, config, CONF_POWER_TARGET, p.set_power_target_number, 83.4, 117.5, 0.62
     )
-    if xtal_config := config.get(CONF_SECTION_XTAL):
+    if xtal_config := config.get(CONF_XTAL):
         await new_number(
             p, xtal_config, CONF_CURRENT, p.set_xtal_current_number, 0, 393.75, 6.25
         )
-    if rds_config := config.get(CONF_SECTION_RDS):
+    if rds_config := config.get(CONF_RDS):
         await new_number(
             p, rds_config, CONF_DEVIATION, p.set_rds_deviation_number, 0, 44.45, 0.35
         )
