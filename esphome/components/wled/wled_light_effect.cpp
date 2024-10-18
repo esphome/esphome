@@ -1,17 +1,7 @@
-#ifdef USE_ARDUINO
-
 #include "wled_light_effect.h"
-#include "esphome/core/log.h"
+
 #include "esphome/core/helpers.h"
-
-#ifdef USE_ESP32
-#include <WiFi.h>
-#endif
-
-#ifdef USE_ESP8266
-#include <ESP8266WiFi.h>
-#include <WiFiUdp.h>
-#endif
+#include "esphome/core/log.h"
 
 #ifdef USE_BK72XX
 #include <WiFiUdp.h>
@@ -43,9 +33,9 @@ void WLEDLightEffect::start() {
 void WLEDLightEffect::stop() {
   AddressableLightEffect::stop();
 
-  if (udp_) {
-    udp_->stop();
-    udp_.reset();
+  if (this->socket_) {
+    this->socket_->close();
+    this->socket_.reset();
   }
 }
 
@@ -58,27 +48,48 @@ void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
 
 void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
   // Init UDP lazily
-  if (!udp_) {
-    udp_ = make_unique<WiFiUDP>();
+  if (this->socket_ == nullptr) {
+    this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
 
-    if (!udp_->begin(port_)) {
-      ESP_LOGW(TAG, "Cannot bind WLEDLightEffect to %d.", port_);
+    int enable = 1;
+    int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+    if (err != 0) {
+      ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+      // we can still continue
+    }
+    err = this->socket_->setblocking(false);
+    if (err != 0) {
+      ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
+      return;
+    }
+
+    struct sockaddr_storage server;
+
+    socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
+    if (sl == 0) {
+      ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
+      return;
+    }
+
+    err = this->socket_->bind((struct sockaddr *) &server, sizeof(server));
+    if (err != 0) {
+      ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
       return;
     }
   }
 
   std::vector<uint8_t> payload;
-  while (uint16_t packet_size = udp_->parsePacket()) {
-    payload.resize(packet_size);
+  uint8_t buf[1460];
 
-    if (!udp_->read(&payload[0], payload.size())) {
-      continue;
-    }
+  ssize_t len = this->socket_->read(buf, sizeof(buf));
+  if (len == -1) {
+    return;
+  }
+  payload.resize(len);
+  memmove(&payload[0], buf, len);
 
-    if (!this->parse_frame_(it, &payload[0], payload.size())) {
-      ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=0x%02X).", payload.size(), payload[0]);
-      continue;
-    }
+  if (!this->parse_frame_(it, &payload[0], payload.size())) {
+    ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=0x%02X).", payload.size(), payload[0]);
   }
 
   // FIXME: Use roll-over safe arithmetic
@@ -283,5 +294,3 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
 
 }  // namespace wled
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
