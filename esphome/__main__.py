@@ -33,6 +33,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
     SECRETS_FILES,
@@ -290,10 +291,11 @@ def upload_using_esptool(config, port, file):
     return run_esptool(115200)
 
 
-def upload_using_platformio(config, port):
+def upload_using_platformio(config, port, upload_args=None):
     from esphome import platformio_api
 
-    upload_args = ["-t", "upload", "-t", "nobuild"]
+    if upload_args is None:
+        upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -330,7 +332,13 @@ def upload_program(config, args, host):
         if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
             return upload_using_platformio(config, host)
 
-        return 1  # Unknown target platform
+        if CORE.target_platform in (PLATFORM_NRF52):
+            return upload_using_platformio(config, host, ["-t", "upload"])
+
+        raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
+
+    if host == "PYOCD":
+        return upload_using_platformio(config, host, ["-t", "flash_pyocd"])
 
     ota_conf = {}
     for ota_item in config.get(CONF_OTA, []):

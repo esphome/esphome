@@ -7,6 +7,8 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <limits>
+#include <array>
 
 #include "esphome/core/optional.h"
 
@@ -20,6 +22,8 @@
 #elif defined(USE_LIBRETINY)
 #include <FreeRTOS.h>
 #include <semphr.h>
+#elif defined(USE_ZEPHYR)
+#include <zephyr/kernel.h>
 #endif
 
 #define HOT __attribute__((hot))
@@ -552,7 +556,9 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ZEPHYR)
+  k_mutex handle_;
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
   SemaphoreHandle_t handle_;
 #endif
 };
