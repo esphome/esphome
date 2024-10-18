@@ -12,6 +12,10 @@
 #include "esp_netif.h"
 #include "esp_mac.h"
 
+#if ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 3
+#include "esp_eth_phy_lan867x.h"
+#endif
+
 namespace esphome {
 namespace ethernet {
 
@@ -26,6 +30,7 @@ enum EthernetType {
   ETHERNET_TYPE_KSZ8081RNA,
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
+  ETHERNET_TYPE_LAN867X,
 };
 
 struct ManualIP {

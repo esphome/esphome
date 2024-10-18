@@ -1,6 +1,10 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+)
 from esphome.components.esp32.const import (
     VARIANT_ESP32C3,
     VARIANT_ESP32S2,
@@ -60,6 +64,7 @@ ETHERNET_TYPES = {
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
+    "LAN867X": EthernetType.ETHERNET_TYPE_LAN867X,
 }
 
 SPI_ETHERNET_TYPES = ["W5500"]
@@ -107,6 +112,9 @@ def _validate(config):
         else:
             use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
+    if config.get(CONF_TYPE) == "LAN867X":
+        validator = cv.require_framework_version(esp_idf=cv.Version(5, 3, 0))
+        validator(config)
     return config
 
 
@@ -130,6 +138,7 @@ PHY_REGISTER_SCHEMA = cv.Schema(
         cv.Optional(CONF_PAGE_ID): cv.hex_int,
     }
 )
+
 RMII_SCHEMA = BASE_SCHEMA.extend(
     cv.Schema(
         {
@@ -171,6 +180,7 @@ CONFIG_SCHEMA = cv.All(
             "JL1101": RMII_SCHEMA,
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
+            "LAN867X": RMII_SCHEMA,
             "W5500": SPI_SCHEMA,
             "OPENETH": BASE_SCHEMA,
         },
@@ -226,6 +236,17 @@ def phy_register(address: int, value: int, page: int):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    if config[CONF_TYPE] == "LAN867X":
+        add_idf_component(
+            name="esp-eth-drivers",
+            repo="https://github.com/espressif/esp-eth-drivers.git",
+            ref="master",
+            path="lan867x",
+        )
+        add_idf_sdkconfig_option("CONFIG_GPIO_CTRL_FUNC_IN_IRAM", True)
+        add_idf_sdkconfig_option("CONFIG_ETHERNET_INTERNAL_SUPPORT", True)
+        add_idf_sdkconfig_option("CONFIG_ETHERNET_PHY_LAN867X", True)
 
     if config[CONF_TYPE] == "W5500":
         cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
