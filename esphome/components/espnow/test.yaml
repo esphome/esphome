@@ -1,0 +1,45 @@
+# These substitutions allow the end user to override certain values
+substitutions:
+  name: "lum-iot-test"
+  friendly_name: "Project Template"
+
+# external_components:
+#  - source: github://pr#7141
+#    components: [ espnow ]
+#    refresh: 1 sec
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  name: "${name}"
+  # Friendly names are used where appropriate in Home Assistant
+  friendly_name: "${friendly_name}"
+  # Automatically add the mac address to the name
+  # so you can use a single firmware for all devices
+  name_add_mac_suffix: false
+
+  # This will allow for (future) project identification,
+  # configuration and updates.
+  project:
+    name: LumenSoft.espnow-test
+    version: "1.0"
+
+# To be able to get logs from the device via serial and api.
+logger:
+  level: verbose
+
+espnow:
+  auto_add_peer: true
+  peers:
+    - FF:FF:FF:FF:FF:FF
+  on_receive:
+    - logger.log:
+        format: "Received: %s  RSSI: %d"
+        args: [packet.get_payload(), packet.rssi]
+interval:
+  - interval: 10sec
+    then:
+      - espnow.send: "hallo everyone"
