@@ -45,27 +45,30 @@ def _validate(config):
     return config
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(ModemComponent),
-        cv.Required(CONF_TYPE): cv.enum(MODEM_TYPES, upper=True),
-        cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_PWRKEY_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
-        cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_APN, default="internet"): cv.string,
-        cv.Optional(
-            CONF_UART_EVENT_TASK_STACK_SIZE, default=2048
-        ): cv.positive_not_null_int,
-        cv.Optional(CONF_UART_EVENT_TASK_PRIORITY, default=5): cv.positive_not_null_int,
-        cv.Optional(CONF_UART_EVENT_QUEUE_SIZE, default=30): cv.positive_not_null_int,
-        cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.positive_not_null_int,
-        cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.positive_not_null_int,
-        cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
-        cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ModemComponent),
+            cv.Required(CONF_TYPE): cv.enum(MODEM_TYPES, upper=True),
+            cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_PWRKEY_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
+            cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_APN, default="internet"): cv.string,
+            cv.Optional(
+                CONF_UART_EVENT_TASK_STACK_SIZE, default=2048
+            ): cv.positive_not_null_int,
+            cv.Optional(CONF_UART_EVENT_TASK_PRIORITY, default=5): cv.positive_not_null_int,
+            cv.Optional(CONF_UART_EVENT_QUEUE_SIZE, default=30): cv.positive_not_null_int,
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.positive_not_null_int,
+            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.positive_not_null_int,
+            cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    _validate,
+)
 
 
 @coroutine_with_priority(60.0)
