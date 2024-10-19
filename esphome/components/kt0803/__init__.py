@@ -301,7 +301,7 @@ AUDIO_LIMITER_LEVEL = {
 REF_CLK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE, default=False): cv.boolean,
-        cv.Optional(CONF_REF_CLK, default="32.768kHz"): cv.enum(REFERENCE_CLOCK),
+        cv.Optional(CONF_SEL, default="32.768kHz"): cv.enum(REFERENCE_CLOCK),
     }
 )
 

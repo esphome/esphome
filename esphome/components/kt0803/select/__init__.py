@@ -72,7 +72,7 @@ SilenceLowCounterSelect = kt0803_ns.class_("SilenceLowCounterSelect", select.Sel
 
 REF_CLK_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_REF_CLK): select.select_schema(
+        cv.Optional(CONF_SEL): select.select_schema(
             RefClkSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_SINE_WAVE,
