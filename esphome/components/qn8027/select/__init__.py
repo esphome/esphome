@@ -23,6 +23,7 @@ from .. import (
     XTAL_SOURCE,
     XTAL_FREQUENCY,
     INPUT_IMPEDANCE,
+    for_each_conf,
 )
 
 T1mSelSelect = qn8027_ns.class_("T1mSelSelect", select.Select)
@@ -69,27 +70,25 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def new_select(p, config, id, setter, options):
-    if c := config.get(id):
-        s = await select.new_select(c, options=list(options.keys()))
-        await cg.register_parented(s, p)
-        cg.add(setter(s))
-        return s
+VARIABLES = {
+    None: [
+        [CONF_T1M_SEL, T1M_SEL],
+        [CONF_PRE_EMPHASIS, PRE_EMPHASIS],
+        [CONF_INPUT_IMPEDANCE, INPUT_IMPEDANCE],
+    ],
+    CONF_XTAL: [
+        [CONF_SOURCE, XTAL_SOURCE],
+        [CONF_FREQUENCY, XTAL_FREQUENCY],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_QN8027_ID])
-    await new_select(p, config, CONF_T1M_SEL, p.set_t1m_sel_select, T1M_SEL)
-    await new_select(
-        p, config, CONF_PRE_EMPHASIS, p.set_pre_emphasis_select, PRE_EMPHASIS
-    )
-    await new_select(
-        p, config, CONF_INPUT_IMPEDANCE, p.set_input_impedance_select, INPUT_IMPEDANCE
-    )
-    if xtal_config := config.get(CONF_XTAL):
-        await new_select(
-            p, xtal_config, CONF_SOURCE, p.set_xtal_source_select, XTAL_SOURCE
-        )
-        await new_select(
-            p, xtal_config, CONF_FREQUENCY, p.set_xtal_frequency_select, XTAL_FREQUENCY
-        )
+    parent = await cg.get_variable(config[CONF_QN8027_ID])
+
+    async def new_select(c, args, setter):
+        s = await select.new_select(c, options=list(args[1].keys()))
+        await cg.register_parented(s, parent)
+        cg.add(getattr(parent, setter + "_select")(s))
+
+    await for_each_conf(config, VARIABLES, new_select)

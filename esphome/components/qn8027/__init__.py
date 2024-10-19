@@ -192,6 +192,78 @@ CONFIG_SCHEMA = (
 )
 
 
+VARIABLES = {
+    None: [
+        [CONF_FREQUENCY],
+        [CONF_DEVIATION],
+        [CONF_MUTE],
+        [CONF_MONO],
+        [CONF_TX_ENABLE],
+        [CONF_TX_PILOT],
+        [CONF_T1M_SEL],
+        [CONF_PRIV_EN],
+        [CONF_PRE_EMPHASIS],
+        [CONF_INPUT_IMPEDANCE],
+        [CONF_INPUT_GAIN],
+        [CONF_DIGITAL_GAIN],
+        [CONF_POWER_TARGET],
+    ],
+    CONF_XTAL: [
+        [CONF_SOURCE],
+        [CONF_CURRENT],
+        [CONF_FREQUENCY],
+    ],
+    CONF_RDS: [
+        [CONF_ENABLE],
+        [CONF_DEVIATION],
+        [CONF_STATION],
+        [CONF_TEXT],
+    ],
+}
+
+SENSORS = {
+    CONF_SENSOR: [
+        [CONF_AUD_PK, "sensor"],
+        [CONF_FSM, "text_sensor"],
+        [CONF_CHIP_ID, "text_sensor"],
+        [CONF_REG30, "sensor"],
+    ]
+}
+
+
+async def for_each_conf(config, vars, callback):
+    for section in vars:
+        c = config[section] if section in config else config
+        for args in vars[section]:
+            setter = "set_"
+            if section is not None and section != CONF_SENSOR:
+                setter += section + "_"
+            setter += args[0]
+            if cc := c.get(args[0]):
+                await callback(cc, args, setter)
+
+
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+
+    async def set_var(c, a, s):
+        cg.add(getattr(var, s)(c))
+
+    await for_each_conf(config, VARIABLES, set_var)
+
+    async def new_sensor(c, args, setter):
+        s = None
+        if args[1] == "sensor":
+            s = await sensor.new_sensor(c)
+        elif args[1] == "text_sensor":
+            s = await text_sensor.new_text_sensor(c)
+        cg.add(getattr(var, setter + "_" + args[1])(s))
+
+    await for_each_conf(config, SENSORS, new_sensor)
+
+
 FREQUENCY_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(QN8027Component),
@@ -210,52 +282,3 @@ async def tune_frequency_action_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(frequency, args, cg.float_)
         cg.add(var.set_frequency(template_))
     return var
-
-
-async def set_var(config, id, setter):
-    if c := config.get(id):
-        cg.add(setter(c))
-
-
-async def set_sensor(config, id, setter):
-    if c := config.get(id):
-        s = await sensor.new_sensor(c)
-        cg.add(setter(s))
-
-
-async def set_text_sensor(config, id, setter):
-    if c := config.get(id):
-        s = await text_sensor.new_text_sensor(c)
-        cg.add(setter(s))
-
-
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
-    await set_var(config, CONF_FREQUENCY, var.set_frequency)
-    await set_var(config, CONF_DEVIATION, var.set_deviation)
-    await set_var(config, CONF_MUTE, var.set_mute)
-    await set_var(config, CONF_MONO, var.set_mono)
-    await set_var(config, CONF_TX_ENABLE, var.set_tx_enable)
-    await set_var(config, CONF_T1M_SEL, var.set_t1m_sel)
-    await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
-    await set_var(config, CONF_PRIV_EN, var.set_priv_en)
-    await set_var(config, CONF_INPUT_IMPEDANCE, var.set_input_impedance)
-    await set_var(config, CONF_INPUT_GAIN, var.set_input_gain)
-    await set_var(config, CONF_DIGITAL_GAIN, var.set_digital_gain)
-    await set_var(config, CONF_POWER_TARGET, var.set_power_target)
-    if xtal_config := config.get(CONF_XTAL):
-        await set_var(xtal_config, CONF_SOURCE, var.set_xtal_source)
-        await set_var(xtal_config, CONF_CURRENT, var.set_xtal_current)
-        await set_var(xtal_config, CONF_FREQUENCY, var.set_xtal_frequency)
-    if rds_config := config.get(CONF_RDS):
-        await set_var(rds_config, CONF_ENABLE, var.set_rds_enable)
-        await set_var(rds_config, CONF_STATION, var.set_rds_station)
-        await set_var(rds_config, CONF_TEXT, var.set_rds_text)
-        await set_var(rds_config, CONF_DEVIATION, var.set_rds_deviation)
-    if sensor_config := config.get(CONF_SENSOR):
-        await set_sensor(sensor_config, CONF_AUD_PK, var.set_aud_pk_sensor)
-        await set_text_sensor(sensor_config, CONF_FSM, var.set_fsm_text_sensor)
-        await set_text_sensor(sensor_config, CONF_CHIP_ID, var.set_chip_id_text_sensor)
-        await set_sensor(sensor_config, CONF_REG30, var.set_reg30_sensor)

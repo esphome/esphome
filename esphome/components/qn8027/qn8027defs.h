@@ -16,39 +16,30 @@ static const uint8_t REG_PAC_ADDR = 0x10;
 static const uint8_t REG_FDEV_ADDR = 0x11;
 static const uint8_t REG_RDS_ADDR = 0x12;
 static const uint8_t REG_REG30 = 30;
-
 static const float CH_FREQ_MIN = 76;
 static const float CH_FREQ_MAX = 108;
 static const int CH_FREQ_RAW_MIN = 0;
 static const int CH_FREQ_RAW_MAX = 640;
-
 static const float TX_FDEV_MIN = 0;
 static const float TX_FDEV_MAX = 147.9f;
 static const int TX_FDEV_RAW_MIN = 0;
 static const int TX_FDEV_RAW_MAX = 255;
-
 static const uint8_t GAIN_TXPLT_MIN = 7;
 static const uint8_t GAIN_TXPLT_MAX = 15;
-
 static const uint8_t GDB_MAX = 2;
 static const uint8_t GVGA_MAX = 5;
-
 static const float PA_TRGT_MIN = 83.4f;
 static const float PA_TRGT_MAX = 117.5f;
 static const int PA_TRGT_RAW_MIN = 20;
 static const int PA_TRGT_RAW_MAX = 75;
-
 static const float RDSFDEV_MIN = 0;
 static const float RDSFDEV_MAX = 44.45f;
 static const int RDSFDEV_RAW_MIN = 0;
 static const int RDSFDEV_RAW_MAX = 127;
-
 static const uint8_t RDS_STATION_MAX = 8;
 static const uint8_t RDS_TEXT_MAX = 64;
-
 static const uint8_t CID1_FM = 0;
 static const uint8_t CID3_QN8027 = 4;
-
 static const float XISEL_MAX = 393.75f;
 
 // TODO: enum class

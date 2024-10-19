@@ -11,57 +11,10 @@
 #include "esphome/components/text/text.h"
 #include <string>
 #include "qn8027defs.h"
+#include "qn8027sub.h"
 
 namespace esphome {
 namespace qn8027 {
-
-#ifndef SUB_TEXT
-#define SUB_TEXT(name) \
- protected: \
-  text::Text *name##_text_{nullptr}; \
-\
- public: \
-  void set_##name##_text(text::Text *text) { this->name##_text_ = text; }
-#endif
-
-#define SUB_NUMBER_EX(name, type) \
-  SUB_NUMBER(name) \
-  void publish_##name() { this->publish(this->name##_number_, (float) this->get_##name()); } \
-  void set_##name(type value); \
-  type get_##name();
-
-#define SUB_SWITCH_EX(name) \
-  SUB_SWITCH(name) \
-  void publish_##name() { this->publish_switch(this->name##_switch_, this->get_##name()); } \
-  void set_##name(bool value); \
-  bool get_##name();
-
-#define SUB_SELECT_EX(name, type) \
-  SUB_SELECT(name) \
-  void publish_##name() { this->publish_select(this->name##_select_, (size_t) this->get_##name()); } \
-  void set_##name(type value); \
-  type get_##name();
-
-#define SUB_TEXT_EX(name) \
-  SUB_TEXT(name) \
-  void publish_##name() { this->publish(this->name##_text_, this->get_##name()); } \
-  void set_##name(const std::string &value); \
-  std::string get_##name();
-
-#define SUB_SENSOR_EX(name) \
-  SUB_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_sensor_, (float) this->get_##name()); } \
-  float get_##name();
-
-#define SUB_BINARY_SENSOR_EX(name) \
-  SUB_BINARY_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_binary_sensor_, this->get_##name()); } \
-  bool get_##name();
-
-#define SUB_TEXT_SENSOR_EX(name) \
-  SUB_TEXT_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_text_sensor_, this->get_##name()); } \
-  std::string get_##name();
 
 class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   std::string chip_id_;
@@ -94,30 +47,30 @@ class QN8027Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void loop() override;
 
-  SUB_NUMBER_EX(frequency, float)
-  SUB_NUMBER_EX(deviation, float)
-  SUB_NUMBER_EX(tx_pilot, uint8_t)
-  SUB_SWITCH_EX(mute)
-  SUB_SWITCH_EX(mono)
-  SUB_SWITCH_EX(tx_enable)
-  SUB_SELECT_EX(t1m_sel, T1mSel)
-  SUB_SWITCH_EX(priv_en)
-  SUB_SELECT_EX(pre_emphasis, PreEmphasis)
-  SUB_SELECT_EX(input_impedance, InputImpedance)
-  SUB_NUMBER_EX(input_gain, uint8_t)
-  SUB_NUMBER_EX(digital_gain, uint8_t)
-  SUB_NUMBER_EX(power_target, float)
-  SUB_SELECT_EX(xtal_source, XtalSource)
-  SUB_NUMBER_EX(xtal_current, float)
-  SUB_SELECT_EX(xtal_frequency, XtalFrequency)
-  SUB_SWITCH_EX(rds_enable)
-  SUB_NUMBER_EX(rds_deviation, float)
-  SUB_TEXT_EX(rds_station)
-  SUB_TEXT_EX(rds_text)
-  SUB_SENSOR_EX(aud_pk)
-  SUB_TEXT_SENSOR_EX(fsm)
-  SUB_TEXT_SENSOR_EX(chip_id)
-  SUB_SENSOR_EX(reg30)
+  QN8027_SUB_NUMBER(frequency, float)
+  QN8027_SUB_NUMBER(deviation, float)
+  QN8027_SUB_NUMBER(tx_pilot, uint8_t)
+  QN8027_SUB_SWITCH(mute)
+  QN8027_SUB_SWITCH(mono)
+  QN8027_SUB_SWITCH(tx_enable)
+  QN8027_SUB_SELECT(t1m_sel, T1mSel)
+  QN8027_SUB_SWITCH(priv_en)
+  QN8027_SUB_SELECT(pre_emphasis, PreEmphasis)
+  QN8027_SUB_SELECT(input_impedance, InputImpedance)
+  QN8027_SUB_NUMBER(input_gain, uint8_t)
+  QN8027_SUB_NUMBER(digital_gain, uint8_t)
+  QN8027_SUB_NUMBER(power_target, float)
+  QN8027_SUB_SELECT(xtal_source, XtalSource)
+  QN8027_SUB_NUMBER(xtal_current, float)
+  QN8027_SUB_SELECT(xtal_frequency, XtalFrequency)
+  QN8027_SUB_SWITCH(rds_enable)
+  QN8027_SUB_NUMBER(rds_deviation, float)
+  QN8027_SUB_TEXT(rds_station)
+  QN8027_SUB_TEXT(rds_text)
+  QN8027_SUB_SENSOR(aud_pk)
+  QN8027_SUB_TEXT_SENSOR(fsm)
+  QN8027_SUB_TEXT_SENSOR(chip_id)
+  QN8027_SUB_SENSOR(reg30)
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<QN8027Component> {

@@ -20,6 +20,7 @@ from .. import (
     ICON_EAR_HEARING,
     ICON_RADIO_TOWER,
     ICON_FORMAT_TEXT,
+    for_each_conf,
 )
 
 MuteSwitch = qn8027_ns.class_("MuteSwitch", switch.Switch)
@@ -38,7 +39,6 @@ RDS_SCHEMA = cv.Schema(
         ),
     }
 )
-
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -71,20 +71,25 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-
-async def new_switch(p, config, id, setter):
-    if c := config.get(id):
-        s = await switch.new_switch(c)
-        await cg.register_parented(s, p)
-        cg.add(setter(s))
-        return s
+VARIABLES = {
+    None: [
+        [CONF_MUTE],
+        [CONF_MONO],
+        [CONF_TX_ENABLE],
+        [CONF_PRIV_EN],
+    ],
+    CONF_RDS: [
+        [CONF_ENABLE],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_QN8027_ID])
-    await new_switch(p, config, CONF_MUTE, p.set_mute_switch)
-    await new_switch(p, config, CONF_MONO, p.set_mono_switch)
-    await new_switch(p, config, CONF_TX_ENABLE, p.set_tx_enable_switch)
-    await new_switch(p, config, CONF_PRIV_EN, p.set_priv_en_switch)
-    if rds_config := config.get(CONF_RDS):
-        await new_switch(p, rds_config, CONF_ENABLE, p.set_rds_enable_switch)
+    parent = await cg.get_variable(config[CONF_QN8027_ID])
+
+    async def new_switch(c, args, setter):
+        s = await switch.new_switch(c)
+        await cg.register_parented(s, parent)
+        cg.add(getattr(parent, setter + "_switch")(s))
+
+    await for_each_conf(config, VARIABLES, new_switch)

@@ -213,10 +213,6 @@ void QN8027Component::setup() {
   this->write_reg_(REG_FDEV_ADDR);
   this->write_reg_(REG_RDS_ADDR);
 
-  this->publish_aud_pk();
-  this->publish_fsm();
-  this->publish_chip_id();
-  this->publish_reg30();
   this->publish_frequency();
   this->publish_deviation();
   this->publish_mute();
@@ -237,6 +233,10 @@ void QN8027Component::setup() {
   this->publish_rds_deviation();
   this->publish_rds_station();
   this->publish_rds_text();
+  this->publish_aud_pk_sensor();
+  this->publish_fsm_text_sensor();
+  this->publish_chip_id_text_sensor();
+  this->publish_reg30_sensor();
 
   this->set_interval(1000, [this]() { this->rds_update_(); });
 }
@@ -257,8 +257,8 @@ void QN8027Component::dump_config() {
 
 void QN8027Component::update() {
   if (this->read_reg_(REG_STATUS_ADDR)) {
-    this->publish_aud_pk();
-    this->publish_fsm();
+    this->publish_aud_pk_sensor();
+    this->publish_fsm_text_sensor();
     // reset aud_pk
     this->state_.TXPD_CLR ^= 1;
     this->write_reg_(REG_PAC_ADDR);
@@ -268,13 +268,13 @@ void QN8027Component::update() {
 
   if (auto b = this->read_byte(REG_REG30)) {
     this->reg30_ = *b;
-    this->publish_reg30();
+    this->publish_reg30_sensor();
   }
 }
 
 void QN8027Component::loop() {
   if (this->read_reg_(REG_STATUS_ADDR)) {
-    this->publish_fsm();
+    this->publish_fsm_text_sensor();
   }
 }
 
@@ -513,9 +513,9 @@ void QN8027Component::set_rds_text(const std::string &value) {
 
 std::string QN8027Component::get_rds_text() { return this->rds_text_; }
 
-float QN8027Component::get_aud_pk() { return 45.0f * this->state_.aud_pk; }
+float QN8027Component::get_aud_pk_sensor() { return 45.0f * this->state_.aud_pk; }
 
-std::string QN8027Component::get_fsm() {
+std::string QN8027Component::get_fsm_text_sensor() {
   switch (this->state_.FSM) {
     case 0:
       return "RESET";
@@ -539,9 +539,9 @@ std::string QN8027Component::get_fsm() {
   }
 }
 
-std::string QN8027Component::get_chip_id() { return this->chip_id_; }
+std::string QN8027Component::get_chip_id_text_sensor() { return this->chip_id_; }
 
-float QN8027Component::get_reg30() { return (float) this->reg30_; }
+float QN8027Component::get_reg30_sensor() { return (float) this->reg30_; }
 
 template<class S, class T> void QN8027Component::publish(S *s, T state) {
   if (s != nullptr) {

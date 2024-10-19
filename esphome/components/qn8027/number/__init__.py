@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
     CONF_CURRENT,
+    CONF_MODE,
     UNIT_PERCENT,
     UNIT_DECIBEL,
     DEVICE_CLASS_FREQUENCY,
@@ -27,6 +28,7 @@ from .. import (
     UNIT_KILO_HERTZ,
     UNIT_MICRO_AMPERE,
     UNIT_DECIBEL_MICRO_VOLT,
+    for_each_conf,
 )
 
 FrequencyNumber = qn8027_ns.class_("FrequencyNumber", number.Number)
@@ -104,32 +106,36 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-
-async def new_number(p, config, id, setter, min_value, max_value, step, *args):
-    if c := config.get(id):
-        n = await number.new_number(
-            c, *args, min_value=min_value, max_value=max_value, step=step
-        )
-        await cg.register_parented(n, p)
-        cg.add(setter(n))
-        return n
+VARIABLES = {
+    None: [
+        [CONF_FREQUENCY, 76, 108, 0.05, None],
+        [CONF_DEVIATION, 0, 147.9, 0.58, None],
+        [CONF_TX_PILOT, 7, 15, 1, None],
+        [CONF_INPUT_GAIN, 0, 5, 1, None],
+        [CONF_DIGITAL_GAIN, 0, 2, 1, None],
+        [CONF_POWER_TARGET, 83.4, 117.5, 0.62, None],
+    ],
+    CONF_XTAL: [
+        [CONF_CURRENT, 0, 393.75, 6.25, None],
+    ],
+    CONF_RDS: [
+        [CONF_DEVIATION, 0, 44.45, 0.35, None],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_QN8027_ID])
-    await new_number(p, config, CONF_FREQUENCY, p.set_frequency_number, 76, 108, 0.05)
-    await new_number(p, config, CONF_DEVIATION, p.set_deviation_number, 0, 147.9, 0.58)
-    await new_number(p, config, CONF_TX_PILOT, p.set_tx_pilot_number, 7, 15, 1)
-    await new_number(p, config, CONF_INPUT_GAIN, p.set_input_gain_number, 0, 5, 1)
-    await new_number(p, config, CONF_DIGITAL_GAIN, p.set_digital_gain_number, 0, 2, 1)
-    await new_number(
-        p, config, CONF_POWER_TARGET, p.set_power_target_number, 83.4, 117.5, 0.62
-    )
-    if xtal_config := config.get(CONF_XTAL):
-        await new_number(
-            p, xtal_config, CONF_CURRENT, p.set_xtal_current_number, 0, 393.75, 6.25
+    parent = await cg.get_variable(config[CONF_QN8027_ID])
+
+    async def new_number(c, args, setter):
+        # only override mode when it's set to auto in user config
+        if CONF_MODE not in c or c[CONF_MODE] == number.NumberMode.NUMBER_MODE_AUTO:
+            if args[4] is not None:
+                c[CONF_MODE] = args[4]
+        n = await number.new_number(
+            c, min_value=args[1], max_value=args[2], step=args[3]
         )
-    if rds_config := config.get(CONF_RDS):
-        await new_number(
-            p, rds_config, CONF_DEVIATION, p.set_rds_deviation_number, 0, 44.45, 0.35
-        )
+        await cg.register_parented(n, parent)
+        cg.add(getattr(parent, setter + "_number")(n))
+
+    await for_each_conf(config, VARIABLES, new_number)
