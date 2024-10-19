@@ -361,24 +361,21 @@ async def to_code(config):
     elif config[CONF_TYPE] in ["RGB565"]:
         image = image.convert("RGBA")
         pixels = list(image.getdata())
-        data = [0 for _ in range(height * width * 2)]
+        bytes_per_pixel = 3 if transparent else 2
+        data = [0 for _ in range(height * width * bytes_per_pixel)]
         pos = 0
         for r, g, b, a in pixels:
             R = r >> 3
             G = g >> 2
             B = b >> 3
             rgb = (R << 11) | (G << 5) | B
-
-            if transparent:
-                if rgb == 0x0020:
-                    rgb = 0
-                if a < 0x80:
-                    rgb = 0x0020
-
             data[pos] = rgb >> 8
             pos += 1
             data[pos] = rgb & 0xFF
             pos += 1
+            if transparent:
+                data[pos] = a
+                pos += 1
 
     elif config[CONF_TYPE] in ["BINARY", "TRANSPARENT_BINARY"]:
         if transparent:
