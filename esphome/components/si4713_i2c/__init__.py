@@ -125,14 +125,6 @@ CONF_IALH = "ialh"
 CONF_OVERMOD = "overmod"
 CONF_INLEVEL = "inlevel"
 
-SetFrequencyAction = si4713_ns.class_(
-    "SetFrequencyAction", automation.Action, cg.Parented.template(Si4713Component)
-)
-
-MeasureFrequencyAction = si4713_ns.class_(
-    "MeasureFrequencyAction", automation.Action, cg.Parented.template(Si4713Component)
-)
-
 OpMode = si4713_ns.enum("OpMode", True)
 OP_MODE = {
     "Analog": OpMode.OPMODE_ANALOG,
@@ -502,6 +494,13 @@ FREQUENCY_SCHEMA = automation.maybe_simple_id(
     }
 )
 
+SetFrequencyAction = si4713_ns.class_(
+    "SetFrequencyAction", automation.Action, cg.Parented.template(Si4713Component)
+)
+
+MeasureFrequencyAction = si4713_ns.class_(
+    "MeasureFrequencyAction", automation.Action, cg.Parented.template(Si4713Component)
+)
 
 @automation.register_action(
     "si4713.set_tuner_frequency", SetFrequencyAction, FREQUENCY_SCHEMA
