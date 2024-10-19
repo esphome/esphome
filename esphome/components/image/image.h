@@ -44,7 +44,7 @@ class Image : public display::BaseImage {
 
   /// Return the stride of the image in bytes, that is, the distance in bytes
   /// between two consecutive rows of pixels.
-  int get_width_stride() const { return (this->width_ * this->get_bpp() + 7u) / 8u; }
+  uint32_t get_width_stride() const { return (this->width_ * this->get_bpp() + 7u) / 8u; }
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
   void set_transparency(bool transparent) { transparent_ = transparent; }
