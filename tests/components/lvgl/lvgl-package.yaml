@@ -419,6 +419,7 @@ lvgl:
             spin_time: 2s
             align: left_mid
         - image:
+            id: lv_image
             src: cat_image
             align: top_left
             y: 50

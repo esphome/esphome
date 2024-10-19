@@ -127,6 +127,11 @@ binary_sensor:
   - platform: lvgl
     name: LVGL checkbox
     widget: checkbox_id
+    on_state:
+      then:
+        - lvgl.image.update:
+            id: lv_image
+            src: !lambda if (x) return id(cat_image); else return id(dog_image);
 
 wifi:
   ssid: SSID
