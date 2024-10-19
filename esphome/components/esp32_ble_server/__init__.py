@@ -113,27 +113,27 @@ def validate_notify_action(action_char_id):
     return action_char_id
 
 
-UUID_SCHEMA = cv.Any(cv.All(cv.string, validate_uuid), cv.hex_uint32_t)
+UUID_SCHEMA = cv.Any(cv.All(cv.string, validate_uuid), cv.uint32_t)
 
 DESCRIPTOR_VALUE_SCHEMA = cv.Any(
     cv.boolean,
     cv.float_,
-    cv.hex_uint8_t,
-    cv.hex_uint16_t,
-    cv.hex_uint32_t,
+    cv.uint8_t,
+    cv.uint16_t,
+    cv.uint32_t,
     cv.int_,
-    cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1)),
+    cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1)),
     cv.string,
 )
 
 CHARACTERISTIC_VALUE_SCHEMA = cv.Any(
     cv.boolean,
     cv.float_,
-    cv.hex_uint8_t,
-    cv.hex_uint16_t,
-    cv.hex_uint32_t,
+    cv.uint8_t,
+    cv.uint16_t,
+    cv.uint32_t,
     cv.int_,
-    cv.templatable(cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1))),
+    cv.templatable(cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1))),
     cv.string,
 )
 
@@ -178,7 +178,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BLEServer),
         cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
         cv.Optional(CONF_MANUFACTURER, default="ESPHome"): cv.string,
-        cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.hex_uint8_t]),
+        cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
         cv.Optional(CONF_MODEL): cv.string,
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
     }
@@ -206,9 +206,9 @@ def parse_descriptor_value(value):
     for val_method in [
         cv.boolean,
         cv.float_,
-        cv.hex_uint8_t,
-        cv.hex_uint16_t,
-        cv.hex_uint32_t,
+        cv.uint8_t,
+        cv.uint16_t,
+        cv.uint32_t,
         cv.int_,
         cv.string,
     ]:
@@ -220,7 +220,7 @@ def parse_descriptor_value(value):
             pass
     # Assume it's a list of bytes
     try:
-        val = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1))(value)
+        val = cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1))(value)
         buffer = ByteBuffer_ns.wrap(cg.std_vector.template(cg.uint8)(val))
         return buffer, buffer.get_capacity()
     except cv.Invalid:
@@ -239,9 +239,9 @@ async def parse_characteristic_value(value, args):
     for val_method in [
         cv.boolean,
         cv.float_,
-        cv.hex_uint8_t,
-        cv.hex_uint16_t,
-        cv.hex_uint32_t,
+        cv.uint8_t,
+        cv.uint16_t,
+        cv.uint32_t,
         cv.int_,
         cv.string,
     ]:
@@ -252,7 +252,7 @@ async def parse_characteristic_value(value, args):
             pass
     # Assume it's a list of bytes
     try:
-        val = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1))(value)
+        val = cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1))(value)
         return ByteBuffer_ns.wrap(cg.std_vector.template(cg.uint8)(val))
     except cv.Invalid:
         pass
