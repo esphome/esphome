@@ -1,5 +1,8 @@
 #pragma once
 
+namespace esphome {
+namespace kt0803 {
+
 #ifndef SUB_TEXT
 #define SUB_TEXT(name) \
  protected: \
@@ -50,3 +53,5 @@
   void publish_##name##_text_sensor() { this->publish(this->name##_text_sensor_, this->get_##name##_text_sensor()); } \
   std::string get_##name##_text_sensor();
 
+}  // namespace kt0803
+}  // namespace esphome

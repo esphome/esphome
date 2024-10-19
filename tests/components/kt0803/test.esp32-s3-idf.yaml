@@ -24,7 +24,7 @@ kt0803:
   au_enhance: False
   ref_clk:
     enable: False
-    ref_clk: '32.768kHz'
+    sel: '32.768kHz'
   xtal:
     enable: True
     sel: '32.768kHz'
@@ -109,7 +109,7 @@ select:
       sel:
         name: Xtal Selection
     ref_clk:
-      ref_clk:
+      sel:
         name: Refence Clock
     alc:
       attack_time:
