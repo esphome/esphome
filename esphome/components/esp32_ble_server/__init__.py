@@ -31,9 +31,14 @@ CONF_INDICATE = "indicate"
 CONF_WRITE_NO_RESPONSE = "write_no_response"
 CONF_DESCRIPTORS = "descriptors"
 CONF_STRING_ENCODING = "string_encoding"
+CONF_DESCRIPTION = "description"
 
 CONF_CHAR_VALUE_ACTION_ID_ = "characteristic_value_action_id_"
 CONF_VALUE_BUFFER_ = "value_buffer_"
+CONF_CUD_ID_ = "cud_id_"
+CONF_CUD_VALUE_BUFFER_ = "cud_value_buffer_"
+CONF_CCCD_ID_ = "cccd_id_"
+CONF_CCCD_VALUE_BUFFER_ = "cccd_value_buffer_"
 
 # Core key to store the global configuration
 _KEY_NOTIFY_REQUIRED = "esp32_ble_server_notify_required"
@@ -107,9 +112,55 @@ def validate_descritor_value_length(descriptor_conf):
         and CONF_BYTE_LENGTH not in descriptor_conf
     ):
         raise cv.Invalid(
-            f"Descriptor {descriptor_conf[CONF_UUID]} is a templatable value and the {CONF_BYTE_LENGTH} property is not set"
+            f"Descriptor {descriptor_conf[CONF_UUID]} is a templatable value, so the {CONF_BYTE_LENGTH} property must be set"
         )
     return descriptor_conf
+
+
+def create_description_cud(char_config):
+    if CONF_DESCRIPTION not in char_config:
+        return char_config
+    # If the config displays a description, there cannot be a descriptor with the CUD UUID
+    for desc in char_config[CONF_DESCRIPTORS]:
+        if desc[CONF_UUID] == 0x2901:
+            raise cv.Invalid(
+                f"Characteristic {char_config[CONF_UUID]} has a description, but a CUD descriptor is already present"
+            )
+    # Manually add the CUD descriptor
+    char_config[CONF_DESCRIPTORS].append(
+        {
+            CONF_ID: char_config[CONF_CUD_ID_],
+            CONF_UUID: 0x2901,
+            CONF_READ: True,
+            CONF_WRITE: False,
+            CONF_VALUE: char_config[CONF_DESCRIPTION],
+            CONF_STRING_ENCODING: char_config[CONF_STRING_ENCODING],
+            CONF_VALUE_BUFFER_: char_config[CONF_CUD_VALUE_BUFFER_],
+        }
+    )
+    return char_config
+
+
+def create_notify_cccd(char_config):
+    if not char_config[CONF_NOTIFY]:
+        return char_config
+    # If the CCCD descriptor is already present, return the config
+    for desc in char_config[CONF_DESCRIPTORS]:
+        if desc[CONF_UUID] == 0x2902:
+            return
+    # Manually add the CCCD descriptor
+    char_config[CONF_DESCRIPTORS].append(
+        {
+            CONF_ID: char_config[CONF_CCCD_ID_],
+            CONF_UUID: 0x2902,
+            CONF_READ: True,
+            CONF_WRITE: True,
+            CONF_VALUE: [0, 0],
+            CONF_STRING_ENCODING: char_config[CONF_STRING_ENCODING],
+            CONF_VALUE_BUFFER_: char_config[CONF_CCCD_VALUE_BUFFER_],
+        }
+    )
+    return char_config
 
 
 def final_validate_config(config):
@@ -178,8 +229,17 @@ SERVICE_CHARACTERISTIC_SCHEMA = (
             cv.Optional(CONF_ON_WRITE): automation.validate_automation(
                 {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
             ),
+            cv.Optional(CONF_DESCRIPTION): cv.string,
+            cv.GenerateID(CONF_CUD_ID_): cv.declare_id(BLEDescriptor),
+            cv.GenerateID(CONF_CUD_VALUE_BUFFER_): cv.declare_id(ByteBuffer),
+            cv.GenerateID(CONF_CCCD_ID_): cv.declare_id(BLEDescriptor),
+            cv.GenerateID(CONF_CCCD_VALUE_BUFFER_): cv.declare_id(ByteBuffer),
         },
-        extra_schemas=[validate_char_on_write],
+        extra_schemas=[
+            validate_char_on_write,
+            create_description_cud,
+            create_notify_cccd,
+        ],
     )
     .extend({cv.Optional(k, default=False): cv.boolean for k in PROPERTY_MAP})
     .extend(VALUE_EXTRAS_SCHEMA)
@@ -215,6 +275,7 @@ def parse_properties(char_conf):
         (PROPERTY_MAP[k] for k in char_conf if k in PROPERTY_MAP and char_conf[k]),
         start=0,
     )
+
 
 def parse_uuid(uuid):
     # If the UUID is a int, use from_uint32
