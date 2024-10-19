@@ -2,7 +2,12 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components.esp32_ble import bt_uuid, bt_uuid16_format, bt_uuid32_format, bt_uuid128_format
+from esphome.components.esp32_ble import (
+    bt_uuid,
+    bt_uuid16_format,
+    bt_uuid32_format,
+    bt_uuid128_format,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
