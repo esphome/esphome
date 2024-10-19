@@ -20,7 +20,6 @@ DEPENDENCIES = ["esp32"]
 CONF_MANUFACTURER = "manufacturer"
 CONF_MANUFACTURER_DATA = "manufacturer_data"
 CONF_ADVERTISE = "advertise"
-CONF_NUM_HANDLES = "num_handles"
 CONF_ON_WRITE = "on_write"
 CONF_CHARACTERISTICS = "characteristics"
 CONF_READ = "read"
@@ -168,7 +167,6 @@ SERVICE_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BLEService),
         cv.Required(CONF_UUID): UUID_SCHEMA,
         cv.Optional(CONF_ADVERTISE, default=False): cv.boolean,
-        cv.Optional(CONF_NUM_HANDLES, default=0): cv.int_,
         cv.Optional(CONF_CHARACTERISTICS, default=[]): cv.ensure_list(
             SERVICE_CHARACTERISTIC_SCHEMA
         ),
@@ -285,10 +283,8 @@ async def to_code(config):
     if CONF_MODEL in config:
         cg.add(var.set_model(config[CONF_MODEL]))
     for service_config in config[CONF_SERVICES]:
-        num_handles = service_config[CONF_NUM_HANDLES]
-        # If num_handles is 0, calculate the optimal number of handles based on the number of characteristics and descriptors
-        if num_handles == 0:
-            num_handles = calculate_num_handles(service_config)
+        # Calculate the optimal number of handles based on the number of characteristics and descriptors
+        num_handles = calculate_num_handles(service_config)
         service_var = cg.Pvariable(
             service_config[CONF_ID],
             var.create_service(
