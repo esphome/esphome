@@ -1,11 +1,10 @@
 esp32_ble_server:
-  id: ble
+  id: ble_server
   manufacturer_data: [0x72, 0x4, 0x00, 0x23]
   manufacturer: ESPHome
   model: Test
   services:
     - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc42d
-      num_handles: 14
       advertise: false
       characteristics:
         - id: test_notify_characteristic
@@ -16,6 +15,7 @@ esp32_ble_server:
           descriptors:
             - uuid: cad48e28-7fbe-41cf-bae9-d77a6c111111
               value: 123.1
+              byte_length: 100
     - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc42d
       advertise: false
       characteristics:
@@ -23,6 +23,9 @@ esp32_ble_server:
           uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc11d
           read: true
           value: "Initial"
+          descriptors:
+            - uuid: cad48e28-7fbe-41cf-bae9-d77a6c111111
+              value: 0x12
         - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12d
           write: true
           on_write:
