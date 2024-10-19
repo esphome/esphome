@@ -40,6 +40,9 @@ static const esp_bt_controller_config_t BT_CONTROLLER_CONFIG = {
     .controller_run_cpu = 0,
     .enable_qa_test = RUN_QA_TEST,
     .enable_bqb_test = RUN_BQB_TEST,
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 1)
+    // The following fields have been removed since ESP IDF version 5.3.1, see commit:
+    // https://github.com/espressif/esp-idf/commit/e761c1de8f9c0777829d597b4d5a33bb070a30a8
     .enable_uart_hci = HCI_UART_EN,
     .ble_hci_uart_port = DEFAULT_BT_LE_HCI_UART_PORT,
     .ble_hci_uart_baud = DEFAULT_BT_LE_HCI_UART_BAUD,
@@ -47,6 +50,7 @@ static const esp_bt_controller_config_t BT_CONTROLLER_CONFIG = {
     .ble_hci_uart_stop_bits = DEFAULT_BT_LE_HCI_UART_STOP_BITS,
     .ble_hci_uart_flow_ctrl = DEFAULT_BT_LE_HCI_UART_FLOW_CTRL,
     .ble_hci_uart_uart_parity = DEFAULT_BT_LE_HCI_UART_PARITY,
+#endif
     .enable_tx_cca = DEFAULT_BT_LE_TX_CCA_ENABLED,
     .cca_rssi_thresh = 256 - DEFAULT_BT_LE_CCA_RSSI_THRESH,
     .sleep_en = NIMBLE_SLEEP_ENABLE,
@@ -58,6 +62,9 @@ static const esp_bt_controller_config_t BT_CONTROLLER_CONFIG = {
     .cpu_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
     .ignore_wl_for_direct_adv = 0,
     .enable_pcl = DEFAULT_BT_LE_POWER_CONTROL_ENABLED,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 3)
+    .csa2_select = DEFAULT_BT_LE_50_FEATURE_SUPPORT,
+#endif
     .config_magic = CONFIG_MAGIC,
 };
 

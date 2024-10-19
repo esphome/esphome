@@ -46,6 +46,13 @@ binary_sensor:
         // Garage Door is closed.
         return false;
       }
+  - platform: template
+    id: other_binary_sensor
+    name: "Garage Door Closed"
+    condition:
+      sensor.in_range:
+        id: template_sens
+        below: 30.0
 
 output:
   - platform: template
