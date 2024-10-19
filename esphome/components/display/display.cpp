@@ -1,5 +1,7 @@
 #include "display.h"
 #include "display_color_utils.h"
+#include <cstdarg>
+#include <sstream>
 #include <utility>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -483,6 +485,76 @@ void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, 
   font->print(x_start, y_start, this, color, text, background);
 }
 
+void Display::print(int x, int y, int width, int height, BaseFont *font, Color color, TextAlign align, const char *text,
+                    Color background, float line_height, bool wrap) {
+  int x_start, y_start;
+  if (!wrap) {
+    this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
+    font->print(x_start, y_start, this, color, text, background);
+  } else {
+    // Calculate the bounds of a single space character
+    int space_x1, space_y1, space_width, space_height;
+    this->get_text_bounds(x, y, " ", font, align, &space_x1, &space_y1, &space_width, &space_height);
+
+    // Break text into words
+    std::vector<std::string> words;
+    std::stringstream ss(text);
+    std::string word;
+    while (std::getline(ss, word, ' ')) {
+      words.push_back(word);
+    }
+
+    // Initialize variables for the wrapped text
+    int line_x = x;
+    int line_y = y;
+    int x_max = x + width;
+    int y_max = y + height;
+    int word_x1, word_y1, word_width, word_height;
+    bool last = false;
+    std::string line;
+
+    // Iterate through the words and wrap them
+    for (const auto &w : words) {
+      this->get_text_bounds(line_x, line_y, w.c_str(), font, align, &word_x1, &word_y1, &word_width, &word_height);
+
+      if (line_x + word_width >= x_max) {
+        // If the next line would overspill the height box, get ready to stop
+        if (line_y + 2 * static_cast<int>(word_height * line_height) > y_max) {
+          last = true;
+          size_t length = line.length();
+          const std::string cont = "...";
+          if (length >= cont.length()) {
+            line.replace(length - cont.length(), cont.length(), cont);
+          }
+        }
+        // Print the current line and move to the next line
+        font->print(x, line_y, this, color, line.c_str(), background);
+        if (last) {
+          break;
+        }
+        line_y += static_cast<int>(word_height * line_height);
+        line_x = x;
+        // Clear the line buffer
+        line.clear();
+      }
+
+      // Add the word to the line buffer and move the cursor
+      line += w;
+      line_x += word_width + space_width;
+
+      // If it's not the last word, add a space
+      if (!line.empty() && &w != &words.back()) {
+        line += " ";
+      }
+    }
+
+    // Print the last line
+    if (!line.empty()) {
+      font->print(x, line_y, this, color, line.c_str(), background);
+    }
+  }
+}
+
 void Display::vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
                        va_list arg) {
   char buffer[256];
@@ -622,6 +694,24 @@ void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
   this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
+
+void Display::printf(int x, int y, int width, int height, BaseFont *font, Color color, Color background,
+                     float line_height, const char *format, ...) {
+  // Text wrapping printf based on https://gist.github.com/alvesvaren/767d9585f0ecbef18ef1c7c0492c4332
+  va_list arg;
+  va_start(arg, format);
+
+  TextAlign align = TextAlign::TOP_LEFT;
+
+  char buffer[256];
+  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  va_end(arg);
+  if (ret == 0)
+    return;
+
+  this->print(x, y, width, height, font, color, align, buffer, background, line_height, true);
+}
+
 void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
 void Display::set_pages(std::vector<DisplayPage *> pages) {
   for (auto *page : pages)
