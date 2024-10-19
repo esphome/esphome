@@ -610,6 +610,9 @@ void Si4713Component::set_acomp_preset(AcompPreset value) {
       this->set_acomp_release(AcompRelease::RELEASE_1000MS);
       this->set_acomp_gain(5);
       break;
+    case AcompPreset::ACOMP_CUSTOM:
+    default:
+      break;
   }
   this->publish_acomp_preset();
 }
