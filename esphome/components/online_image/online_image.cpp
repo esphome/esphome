@@ -215,16 +215,10 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
     }
     case ImageType::IMAGE_TYPE_RGB565: {
       uint16_t col565 = display::ColorUtil::color_to_565(color);
-      if (this->has_transparency()) {
-        if (col565 == 0x0020) {
-          col565 = 0;
-        }
-        if (color.w < 0x80) {
-          col565 = 0x0020;
-        }
-      }
       this->buffer_[pos + 0] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
       this->buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
+      if (this->has_transparency())
+        this->buffer_[pos + 2] = color.w;
       break;
     }
     case ImageType::IMAGE_TYPE_RGBA: {

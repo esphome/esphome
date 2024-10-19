@@ -88,7 +88,7 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
     this->dsc_.header.reserved = 0;
     this->dsc_.header.w = this->width_;
     this->dsc_.header.h = this->height_;
-    this->dsc_.data_size = image_type_to_width_stride(this->dsc_.header.w * this->dsc_.header.h, this->get_type());
+    this->dsc_.data_size = this->get_width_stride() * this->get_height();
     switch (this->get_type()) {
       case IMAGE_TYPE_BINARY:
         this->dsc_.header.cf = LV_IMG_CF_ALPHA_1BIT;

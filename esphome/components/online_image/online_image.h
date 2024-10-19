@@ -86,12 +86,10 @@ class OnlineImage : public PollingComponent,
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
 
   uint32_t get_buffer_size_() const { return get_buffer_size_(this->buffer_width_, this->buffer_height_); }
-  int get_buffer_size_(int width, int height) const {
-    return std::ceil(image::image_type_to_bpp(this->type_) * width * height / 8.0);
-  }
+  int get_buffer_size_(int width, int height) const { return this->get_width_stride() * height; }
 
   int get_position_(int x, int y) const {
-    return ((x + y * this->buffer_width_) * image::image_type_to_bpp(this->type_)) / 8;
+    return ((x + y * this->get_width_stride());
   }
 
   ESPHOME_ALWAYS_INLINE bool auto_resize_() const { return this->fixed_width_ == 0 || this->fixed_height_ == 0; }
