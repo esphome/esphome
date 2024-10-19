@@ -7,3 +7,4 @@ modem:
 
 logger:
   level: DEBUG
+  
