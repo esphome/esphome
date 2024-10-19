@@ -15,6 +15,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
+CODEOWNERS = ["@CCChelios"]
+
 CONFLICTS_WITH = ["wifi", "ethernet"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
