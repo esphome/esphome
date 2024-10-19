@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components.esp32_ble import bt_uuid, bt_uuid16_format, bt_uuid32_format, bt_uuid128_format
+from esphome.components.esp32_ble import bt_uuid
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -33,7 +33,6 @@ CONF_VALUE_ACTION_ID_ = "value_action_id_"
 
 # Core key to store the global configuration
 _KEY_NOTIFY_REQUIRED = "esp32_ble_server_notify_required"
-_KEY_NOTIFY_PROVIDED = "esp32_ble_server_notify_provided"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 ESPBTUUID_ns = cg.esphome_ns.namespace("esp32_ble").namespace("ESPBTUUID")
@@ -80,32 +79,30 @@ def validate_on_write(char_config):
     return char_config
 
 
-def validate_notify_characteristic(char_config):
-    if _KEY_NOTIFY_PROVIDED not in CORE.data:
-        CORE.data[_KEY_NOTIFY_PROVIDED] = {}
-    CORE.data[_KEY_NOTIFY_PROVIDED][char_config[CONF_ID]] = char_config[CONF_NOTIFY]
-    # Check if the NOTIFY property is set if the characteristic has a notify action
-    char_ids = CORE.data.get(_KEY_NOTIFY_REQUIRED, set())
-    if not char_config[CONF_NOTIFY] and char_config[CONF_ID] in char_ids:
-        raise cv.Invalid(
-            "Characteristic has a notify action, but the NOTIFY property is not set"
-        )
-    return char_config
-
-
 def validate_notify_action(action_char_id):
+    # Store the characteristic ID in the global data for the final validation
     if _KEY_NOTIFY_REQUIRED not in CORE.data:
         CORE.data[_KEY_NOTIFY_REQUIRED] = set()
     CORE.data[_KEY_NOTIFY_REQUIRED].add(action_char_id)
-    # Check if the NOTIFY property is set for the characteristic
-    char_notify_value = CORE.data.get(_KEY_NOTIFY_PROVIDED, {}).get(
-        action_char_id, None
-    )
-    if char_notify_value is not None and not char_notify_value:
-        raise cv.Invalid(
-            "Missing NOTIFY property for characteristic with notify action"
-        )
     return action_char_id
+
+
+def final_validate_config(config):
+    # Check if all characteristics that require notifications have the notify property set
+    if _KEY_NOTIFY_REQUIRED in CORE.data:
+        for char_id in CORE.data[_KEY_NOTIFY_REQUIRED]:
+            # Look for the characteristic in the configuration
+            char_config = [
+                char_conf
+                for service_conf in config[CONF_SERVICES]
+                for char_conf in service_conf[CONF_CHARACTERISTICS]
+                if char_conf[CONF_ID] == char_id
+            ][0]
+            if not char_config[CONF_NOTIFY]:
+                raise cv.Invalid(
+                    f"Characteristic {char_id} has notify actions and the {CONF_NOTIFY} property is not set"
+                )
+    return config
 
 
 DESCRIPTOR_VALUE_SCHEMA = cv.Any(
@@ -152,7 +149,7 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
             {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
         ),
     },
-    extra_schemas=[validate_on_write, validate_notify_characteristic],
+    extra_schemas=[validate_on_write],
 ).extend({cv.Optional(k, default=False): cv.boolean for k in PROPERTY_MAP})
 
 SERVICE_SCHEMA = cv.Schema(
@@ -176,6 +173,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+FINAL_VALIDATE_SCHEMA = final_validate_config
 
 
 def parse_properties(char_conf):
