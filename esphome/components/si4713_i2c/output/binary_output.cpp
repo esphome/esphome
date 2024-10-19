@@ -13,7 +13,7 @@ void BinaryOutput::dump_config() {
 }
 
 void BinaryOutput::write_state(bool state) {
-  this->parent_->set_gpio(this->pin_, state);
+  this->parent_->set_output_gpio(this->pin_, state);
 }
 
 }  // namespace si4713

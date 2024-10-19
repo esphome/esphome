@@ -22,6 +22,7 @@ from .. import (
     CONF_RDS,
     CONF_STATION,
     ICON_FORMAT_TEXT,
+    for_each_conf,
 )
 
 RDSStationText = si4713_ns.class_("RDSStationText", text.Text)
@@ -107,20 +108,6 @@ async def register_text(
     )
 
 
-async def new_text(
-    config,
-    *args,
-    min_length: Optional[int] = 0,
-    max_length: Optional[int] = 255,
-    pattern: Optional[str] = None,
-):
-    var = cg.new_Pvariable(config[CONF_ID], *args)
-    await register_text(
-        var, config, min_length=min_length, max_length=max_length, pattern=pattern
-    )
-    return var
-
-
 RDS_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_STATION): text_schema(
@@ -143,17 +130,21 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-
-async def new_text_simple(p, config, id, setter, min_length, max_length, *args):
-    if c := config.get(id):
-        t = await new_text(c, *args, min_length=min_length, max_length=max_length)
-        await cg.register_parented(t, p)
-        cg.add(setter(t))
-        return t
+VARIABLES = {
+    CONF_RDS: [
+        [CONF_STATION, 0, 8],
+        [CONF_TEXT, 0, 64],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_SI4713_ID])
-    if rds_config := config.get(CONF_RDS):
-        await new_text_simple(p, rds_config, CONF_STATION, p.set_rds_station_text, 0, 8)
-        await new_text_simple(p, rds_config, CONF_TEXT, p.set_rds_text_text, 0, 64)
+    parent = await cg.get_variable(config[CONF_SI4713_ID])
+
+    async def new_text(c, args, setter):
+        var = cg.new_Pvariable(c[CONF_ID])
+        await register_text(var, c, min_length=args[1], max_length=args[2])
+        await cg.register_parented(var, parent)
+        cg.add(getattr(parent, setter + "_text")(var))
+
+    await for_each_conf(config, VARIABLES, new_text)

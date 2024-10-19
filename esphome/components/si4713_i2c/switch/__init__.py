@@ -12,7 +12,7 @@ from .. import (
     si4713_ns,
     CONF_TUNER,
     CONF_PILOT,
-    CONF_COMPRESSOR,
+    CONF_ACOMP,
     CONF_LIMITER,
     CONF_ASQ,
     CONF_RDS,
@@ -30,25 +30,26 @@ from .. import (
     ICON_VOLUME_MUTE,
     ICON_EAR_HEARING,
     ICON_FORMAT_TEXT,
+    for_each_conf,
 )
 
 MuteSwitch = si4713_ns.class_("MuteSwitch", switch.Switch)
 MonoSwitch = si4713_ns.class_("MonoSwitch", switch.Switch)
-PowerEnableSwitch = si4713_ns.class_("PowerEnableSwitch", switch.Switch)
+TunerEnableSwitch = si4713_ns.class_("TunerEnableSwitch", switch.Switch)
 PilotEnableSwitch = si4713_ns.class_("PilotEnableSwitch", switch.Switch)
 AcompEnableSwitch = si4713_ns.class_("AcompEnableSwitch", switch.Switch)
 LimiterEnableSwitch = si4713_ns.class_("LimiterEnableSwitch", switch.Switch)
-AsqOvermodEnableSwitch = si4713_ns.class_("AsqOvermodEnableSwitch", switch.Switch)
-AsqIallEnableSwitch = si4713_ns.class_("AsqIallEnableSwitch", switch.Switch)
-AsqIalhEnableSwitch = si4713_ns.class_("AsqIalhEnableSwitch", switch.Switch)
+AsqIallSwitch = si4713_ns.class_("AsqIallSwitch", switch.Switch)
+AsqIalhSwitch = si4713_ns.class_("AsqIalhSwitch", switch.Switch)
+AsqOvermodSwitch = si4713_ns.class_("AsqOvermodSwitch", switch.Switch)
 RdsEnable = si4713_ns.class_("RdsEnable", switch.Switch)
 RDSEnableSwitch = si4713_ns.class_("RDSEnableSwitch", switch.Switch)
-GPIOSwitch = si4713_ns.class_("GPIOSwitch", switch.Switch)
+OutputGpioSwitch = si4713_ns.class_("OutputGpioSwitch", switch.Switch)
 
 TUNER_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE): switch.switch_schema(
-            PowerEnableSwitch,
+            TunerEnableSwitch,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_RADIO_TOWER,
@@ -68,7 +69,7 @@ PILOT_SCHEMA = cv.Schema(
 )
 
 
-COMPRESSOR_SCHEMA = cv.Schema(
+ACOMP_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE): switch.switch_schema(
             AcompEnableSwitch,
@@ -92,20 +93,20 @@ LIMITER_SCHEMA = cv.Schema(
 
 ASQ_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_OVERMOD): switch.switch_schema(
-            AsqOvermodEnableSwitch,
-            device_class=DEVICE_CLASS_SWITCH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            # icon=ICON_,
-        ),
         cv.Optional(CONF_IALL): switch.switch_schema(
-            AsqIallEnableSwitch,
+            AsqIallSwitch,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
             # icon=ICON_,
         ),
         cv.Optional(CONF_IALH): switch.switch_schema(
-            AsqIalhEnableSwitch,
+            AsqIalhSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            # icon=ICON_,
+        ),
+        cv.Optional(CONF_OVERMOD): switch.switch_schema(
+            AsqOvermodSwitch,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
             # icon=ICON_,
@@ -127,19 +128,19 @@ RDS_SCHEMA = cv.Schema(
 OUTPUT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_GPIO1): switch.switch_schema(
-            GPIOSwitch,
+            OutputGpioSwitch,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
             # icon=,
         ),
         cv.Optional(CONF_GPIO2): switch.switch_schema(
-            GPIOSwitch,
+            OutputGpioSwitch,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
             # icon=,
         ),
         cv.Optional(CONF_GPIO3): switch.switch_schema(
-            GPIOSwitch,
+            OutputGpioSwitch,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
             # icon=,
@@ -163,7 +164,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_TUNER): TUNER_SCHEMA,
         cv.Optional(CONF_PILOT): PILOT_SCHEMA,
-        cv.Optional(CONF_COMPRESSOR): COMPRESSOR_SCHEMA,
+        cv.Optional(CONF_ACOMP): ACOMP_SCHEMA,
         cv.Optional(CONF_LIMITER): LIMITER_SCHEMA,
         cv.Optional(CONF_ASQ): ASQ_SCHEMA,
         cv.Optional(CONF_RDS): RDS_SCHEMA,
@@ -171,37 +172,47 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-
-async def new_switch(p, config, id, setter):
-    if c := config.get(id):
-        s = await switch.new_switch(c)
-        await cg.register_parented(s, p)
-        cg.add(setter(s))
-        return s
+VARIABLES = {
+    None: [
+        [CONF_MUTE, None],
+        [CONF_MONO, None],
+    ],
+    CONF_TUNER: [
+        [CONF_ENABLE, None],
+    ],
+    CONF_PILOT: [
+        [CONF_ENABLE, None],
+    ],
+    CONF_ACOMP: [
+        [CONF_ENABLE, None],
+    ],
+    CONF_LIMITER: [
+        [CONF_ENABLE, None],
+    ],
+    CONF_ASQ: [
+        [CONF_IALL, None],
+        [CONF_IALH, None],
+        [CONF_OVERMOD, None],
+    ],
+    CONF_RDS: [
+        [CONF_ENABLE, None],
+    ],
+    CONF_OUTPUT: [
+        [CONF_GPIO1, lambda sw: sw.set_pin(1)],
+        [CONF_GPIO2, lambda sw: sw.set_pin(2)],
+        [CONF_GPIO3, lambda sw: sw.set_pin(3)],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_SI4713_ID])
-    await new_switch(p, config, CONF_MUTE, p.set_mute_switch)
-    await new_switch(p, config, CONF_MONO, p.set_mono_switch)
-    if tuner_config := config.get(CONF_TUNER):
-        await new_switch(p, tuner_config, CONF_ENABLE, p.set_power_enable_switch)
-    if pilot_config := config.get(CONF_PILOT):
-        await new_switch(p, pilot_config, CONF_ENABLE, p.set_pilot_enable_switch)
-    if compressor_config := config.get(CONF_COMPRESSOR):
-        await new_switch(p, compressor_config, CONF_ENABLE, p.set_acomp_enable_switch)
-    if limiter_config := config.get(CONF_LIMITER):
-        await new_switch(p, limiter_config, CONF_ENABLE, p.set_limiter_enable_switch)
-    if asq_config := config.get(CONF_ASQ):
-        await new_switch(p, asq_config, CONF_IALL, p.set_asq_iall_enable_switch)
-        await new_switch(p, asq_config, CONF_IALH, p.set_asq_ialh_enable_switch)
-        await new_switch(p, asq_config, CONF_OVERMOD, p.set_asq_overmod_enable_switch)
-    if rds_config := config.get(CONF_RDS):
-        await new_switch(p, rds_config, CONF_ENABLE, p.set_rds_enable_switch)
-    if output_config := config.get(CONF_OUTPUT):
-        gpio1 = await new_switch(p, output_config, CONF_GPIO1, p.set_gpio1_switch)
-        gpio2 = await new_switch(p, output_config, CONF_GPIO2, p.set_gpio2_switch)
-        gpio3 = await new_switch(p, output_config, CONF_GPIO3, p.set_gpio3_switch)
-        cg.add(gpio1.set_pin(1))
-        cg.add(gpio2.set_pin(2))
-        cg.add(gpio3.set_pin(3))
+    parent = await cg.get_variable(config[CONF_SI4713_ID])
+
+    async def new_switch(c, args, setter):
+        s = await switch.new_switch(c)
+        await cg.register_parented(s, parent)
+        sw = cg.add(getattr(parent, setter + "_switch")(s))
+        if cb := s[1]:
+            cb(sw)
+
+    await for_each_conf(config, VARIABLES, new_switch)

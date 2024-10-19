@@ -6,9 +6,9 @@
 namespace esphome {
 namespace si4713 {
 
-class FrequencyNumber : public number::Number, public Parented<Si4713Component> {
+class TunerDeviationNumber : public number::Number, public Parented<Si4713Component> {
  public:
-  FrequencyNumber() = default;
+  TunerDeviationNumber() = default;
 
  protected:
   void control(float value) override;

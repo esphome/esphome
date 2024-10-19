@@ -17,7 +17,7 @@ from .. import (
     si4713_ns,
     CONF_DIGITAL,
     CONF_REFCLK,
-    CONF_COMPRESSOR,
+    CONF_ACOMP,
     CONF_PRE_EMPHASIS,
     CONF_SAMPLE_BITS,
     CONF_CLOCK_EDGE,
@@ -36,6 +36,7 @@ from .. import (
     ACOMP_ATTACK,
     ACOMP_RELEASE,
     ACOMP_PRESET,
+    for_each_conf,
 )
 
 PreEmphasisSelect = si4713_ns.class_("PreEmphasisSelect", select.Select)
@@ -58,16 +59,16 @@ CONFIG_SCHEMA = cv.Schema(
             icon=ICON_SINE_WAVE,
         ),
         cv.Optional(CONF_ANALOG): cv.Schema(
-             {
+            {
                 cv.Optional(CONF_ATTENUATION): select.select_schema(
                     AnalogAttenuationSelect,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_RESISTOR,
                 ),
-             }
+            }
         ),
         cv.Optional(CONF_DIGITAL): cv.Schema(
-             {
+            {
                 cv.Optional(CONF_SAMPLE_BITS): select.select_schema(
                     DigitalSampleBitsSelect,
                     entity_category=ENTITY_CATEGORY_CONFIG,
@@ -88,19 +89,19 @@ CONFIG_SCHEMA = cv.Schema(
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_PULSE,
                 ),
-             }
+            }
         ),
         cv.Optional(CONF_REFCLK): cv.Schema(
-             {
+            {
                 cv.Optional(CONF_SOURCE): select.select_schema(
                     RefClkSourceSelect,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_PULSE,
                 ),
-             }
+            }
         ),
-        cv.Optional(CONF_COMPRESSOR): cv.Schema(
-             {
+        cv.Optional(CONF_ACOMP): cv.Schema(
+            {
                 cv.Optional(CONF_ATTACK): select.select_schema(
                     AcompAttackSelect,
                     entity_category=ENTITY_CATEGORY_CONFIG,
@@ -116,33 +117,41 @@ CONFIG_SCHEMA = cv.Schema(
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_SINE_WAVE,
                 ),
-             }
+            }
         ),
     }
 )
 
-
-async def new_select(p, config, id, setter, options):
-    if c := config.get(id):
-        s = await select.new_select(c, options=list(options.keys()))
-        await cg.register_parented(s, p)
-        cg.add(setter(s))
-        return s
+VARIABLES = {
+    None: [
+        [CONF_PRE_EMPHASIS, PRE_EMPHASIS],
+    ],
+    CONF_ANALOG: [
+        [CONF_ATTENUATION, LINE_ATTENUATION],
+    ],
+    CONF_DIGITAL: [
+        [CONF_SAMPLE_BITS, SAMPLE_BITS],
+        [CONF_CHANNELS, SAMPLE_CHANNELS],
+        [CONF_MODE, DIGITAL_MODE],
+        [CONF_CLOCK_EDGE, DIGITAL_CLOCK_EDGE],
+    ],
+    CONF_REFCLK: [
+        [CONF_SOURCE, REFCLK_SOURCE],
+    ],
+    CONF_ACOMP: [
+        [CONF_ATTACK, ACOMP_ATTACK],
+        [CONF_RELEASE, ACOMP_RELEASE],
+        [CONF_PRESET, ACOMP_PRESET],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_SI4713_ID])
-    await new_select(p, config, CONF_PRE_EMPHASIS, p.set_pre_emphasis_select, PRE_EMPHASIS)
-    if analog_config := config.get(CONF_ANALOG):
-        await new_select(p, analog_config, CONF_ATTENUATION, p.set_analog_attenuation_select, LINE_ATTENUATION)
-    if digital_config := config.get(CONF_DIGITAL):
-        await new_select(p, digital_config, CONF_SAMPLE_BITS, p.set_digital_sample_bits_select, SAMPLE_BITS)
-        await new_select(p, digital_config, CONF_CHANNELS, p.set_digital_channels_select, SAMPLE_CHANNELS)
-        await new_select(p, digital_config, CONF_MODE, p.set_digital_mode_select, DIGITAL_MODE)
-        await new_select(p, digital_config, CONF_CLOCK_EDGE, p.set_digital_clock_edge_select, DIGITAL_CLOCK_EDGE)
-    if refclk_config := config.get(CONF_REFCLK):
-        await new_select(p, refclk_config, CONF_SOURCE, p.set_refclk_source_select, REFCLK_SOURCE)
-    if compressor_config := config.get(CONF_COMPRESSOR):
-        await new_select(p, compressor_config, CONF_ATTACK, p.set_acomp_attack_select, ACOMP_ATTACK)
-        await new_select(p, compressor_config, CONF_RELEASE, p.set_acomp_release_select, ACOMP_RELEASE)
-        await new_select(p, compressor_config, CONF_PRESET, p.set_acomp_preset_select, ACOMP_PRESET)
+    parent = await cg.get_variable(config[CONF_SI4713_ID])
+
+    async def new_select(c, args, setter):
+        s = await select.new_select(c, options=list(args[1].keys()))
+        await cg.register_parented(s, parent)
+        cg.add(getattr(parent, setter + "_select")(s))
+
+    await for_each_conf(config, VARIABLES, new_select)

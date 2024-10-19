@@ -33,7 +33,7 @@ si4713:
     frequency: 32768
     source: 'RCLK'
     prescaler: 1
-  compressor:
+  acomp:
     enable: True
     preset: 'Custom'
     threshold: -40
@@ -104,7 +104,7 @@ number:
         name: Reference Clock Frequency
       prescaler:
         name: Reference Clock Prescaler
-    compressor:
+    acomp:
       threshold:
         name: Dynamic Range Control Threshold
       gain:
@@ -137,7 +137,7 @@ switch:
     pilot:
       enable:
         name: Pilot Tone Enable
-    compressor:
+    acomp:
       enable:
         name: Dynamic Range Control Enable
     limiter:
@@ -180,7 +180,7 @@ select:
     refclk:
       source:
         name: Reference Clock Source
-    compressor:
+    acomp:
       attack:
         name: Dynamic Range Control Attack Time
       release:

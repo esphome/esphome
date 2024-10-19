@@ -219,11 +219,11 @@ void Si4713Component::setup() {
   this->publish_mute();
   this->publish_mono();
   this->publish_pre_emphasis();
-  this->publish_power_enable();
-  this->publish_frequency();
-  this->publish_audio_deviation();
-  this->publish_power();
-  this->publish_antcap();
+  this->publish_tuner_enable();
+  this->publish_tuner_frequency();
+  this->publish_tuner_deviation();
+  this->publish_tuner_power();
+  this->publish_tuner_antcap();
   this->publish_analog_level();
   this->publish_analog_attenuation();
   this->publish_digital_sample_rate();
@@ -245,9 +245,9 @@ void Si4713Component::setup() {
   this->publish_acomp_preset();
   this->publish_limiter_enable();
   this->publish_limiter_release_time();
-  this->publish_asq_iall_enable();
-  this->publish_asq_ialh_enable();
-  this->publish_asq_overmod_enable();
+  this->publish_asq_iall();
+  this->publish_asq_ialh();
+  this->publish_asq_overmod();
   this->publish_asq_level_low();
   this->publish_asq_duration_low();
   this->publish_asq_level_high();
@@ -256,18 +256,18 @@ void Si4713Component::setup() {
   this->publish_rds_deviation();
   this->publish_rds_station();
   this->publish_rds_text();
-  this->publish_gpio1();
-  this->publish_gpio2();
-  this->publish_gpio3();
-  this->publish_chip_id();
-  this->publish_read_frequency();
-  this->publish_read_power();
-  this->publish_read_antcap();
-  this->publish_read_noise_level();
-  this->publish_iall();
-  this->publish_ialh();
-  this->publish_overmod();
-  this->publish_inlevel();
+  this->publish_output_gpio1();
+  this->publish_output_gpio2();
+  this->publish_output_gpio3();
+  this->publish_chip_id_text_sensor();
+  this->publish_frequency_sensor();
+  this->publish_power_sensor();
+  this->publish_antcap_sensor();
+  this->publish_noise_level_sensor();
+  this->publish_iall_binary_sensor();
+  this->publish_ialh_binary_sensor();
+  this->publish_overmod_binary_sensor();
+  this->publish_inlevel_sensor();
 
   this->set_interval(1000, [this]() { this->rds_update_(); });
 }
@@ -279,7 +279,7 @@ void Si4713Component::dump_config() {
     ESP_LOGE(TAG, "failed!");
   }
   ESP_LOGCONFIG(TAG, "  Chip: %s", this->chip_id_.c_str());
-  ESP_LOGCONFIG(TAG, "  Frequency: %.2f MHz", this->get_frequency());
+  ESP_LOGCONFIG(TAG, "  Frequency: %.2f MHz", this->get_tuner_frequency());
   ESP_LOGCONFIG(TAG, "  RDS station: %s", this->rds_station_.c_str());
   ESP_LOGCONFIG(TAG, "  RDS text: %s", this->rds_text_.c_str());
   // TODO: ...and everything else...
@@ -288,8 +288,8 @@ void Si4713Component::dump_config() {
 
 void Si4713Component::update() {
   // these might be changing too fast for loop()
-  this->publish_read_noise_level();
-  this->publish_inlevel();
+  this->publish_noise_level_sensor();
+  this->publish_inlevel_sensor();
 }
 
 void Si4713Component::loop() {
@@ -301,10 +301,10 @@ void Si4713Component::loop() {
         float f = (float) ((this->tune_status_.READFREQH << 8) | this->tune_status_.READFREQL) / 100;
         ESP_LOGD(TAG, "ResTxTuneStatus FREQ %.2f RFdBuV %d ANTCAP %d NL %d", f, this->tune_status_.READRFdBuV,
                  this->tune_status_.READANTCAP, this->tune_status_.RNL);
-        this->publish_read_frequency();
-        this->publish_read_power();
-        this->publish_read_antcap();
-        // this->publish_read_noise_level();
+        this->publish_frequency_sensor();
+        this->publish_power_sensor();
+        this->publish_antcap_sensor();
+        // this->publish_noise_level_sensor();
       }
     }
     if (res.ASQINT == 1) {
@@ -312,10 +312,10 @@ void Si4713Component::loop() {
         // ESP_LOGD(TAG, "ResTxAsqStatus IALL %d IALH %d OVERMOD %d INLEVEL %d",
         //          this->asq_status_.IALL, this->asq_status_.IALH, this->asq_status_.OVERMOD,
         //          this->asq_status_.INLEVEL);
-        this->publish_iall();
-        this->publish_ialh();
-        this->publish_overmod();
-        // this->publish_inlevel();
+        this->publish_iall_binary_sensor();
+        this->publish_ialh_binary_sensor();
+        this->publish_overmod_binary_sensor();
+        // this->publish_inlevel_sensor();
       }
     }
     // TODO: if (res.RDSINT == 1) {}
@@ -386,50 +386,50 @@ void Si4713Component::set_pre_emphasis(PreEmphasis value) {
 
 PreEmphasis Si4713Component::get_pre_emphasis() { return (PreEmphasis) tx_pre_emphasis_.FMPE; }
 
-void Si4713Component::set_power_enable(bool value) {
+void Si4713Component::set_tuner_enable(bool value) {
   this->power_enable_ = value;
   this->tune_power(this->power_, this->antcap_);
   // this->set_prop(this->tx_component_enable_);
-  this->publish_power_enable();
+  this->publish_tuner_enable();
 }
 
-bool Si4713Component::get_power_enable() { return this->power_enable_; }
+bool Si4713Component::get_tuner_enable() { return this->power_enable_; }
 
-void Si4713Component::set_frequency(float value) {
+void Si4713Component::set_tuner_frequency(float value) {
   CHECK_FLOAT_RANGE(value, FREQ_MIN, FREQ_MAX)
   this->frequency_ = (uint16_t) clamp((int) std::lround(value * 20) * 5, FREQ_RAW_MIN, FREQ_RAW_MAX);
   this->tune_freq(this->frequency_);
-  this->publish_frequency();
+  this->publish_tuner_frequency();
 }
 
-float Si4713Component::get_frequency() { return (float) this->frequency_ / 100; }
+float Si4713Component::get_tuner_frequency() { return (float) this->frequency_ / 100; }
 
-void Si4713Component::set_audio_deviation(float value) {
+void Si4713Component::set_tuner_deviation(float value) {
   CHECK_FLOAT_RANGE(value, TXADEV_MIN, TXADEV_MAX)
   this->tx_audio_deviation_.TXADEV = (uint16_t) clamp((int) std::lround(value * 100), TXADEV_RAW_MIN, TXADEV_RAW_MAX);
   this->set_prop(this->tx_audio_deviation_);
-  this->publish_audio_deviation();
+  this->publish_tuner_deviation();
 }
 
-float Si4713Component::get_audio_deviation() { return (float) this->tx_audio_deviation_.TXADEV / 100; }
+float Si4713Component::get_tuner_deviation() { return (float) this->tx_audio_deviation_.TXADEV / 100; }
 
-void Si4713Component::set_power(int value) {
+void Si4713Component::set_tuner_power(int value) {
   CHECK_INT_RANGE(value, POWER_MIN, POWER_MAX)
   this->power_ = (uint8_t) value;
   this->tune_power(this->power_, this->antcap_);
-  this->publish_power();
+  this->publish_tuner_power();
 }
 
-int Si4713Component::get_power() { return (int) this->power_; }
+int Si4713Component::get_tuner_power() { return (int) this->power_; }
 
-void Si4713Component::set_antcap(float value) {
+void Si4713Component::set_tuner_antcap(float value) {
   CHECK_FLOAT_RANGE(value, ANTCAP_MIN, ANTCAP_MAX)
   this->antcap_ = (uint8_t) lround(value * 4);
   this->tune_power(this->power_, this->antcap_);
-  this->publish_antcap();
+  this->publish_tuner_antcap();
 }
 
-float Si4713Component::get_antcap() { return (float) this->antcap_ * 0.25f; }
+float Si4713Component::get_tuner_antcap() { return (float) this->antcap_ * 0.25f; }
 
 void Si4713Component::set_analog_level(int value) {
   CHECK_INT_RANGE(value, LILEVEL_MIN, LILEVEL_MAX)
@@ -634,29 +634,29 @@ void Si4713Component::set_limiter_release_time(float value) {
 
 float Si4713Component::get_limiter_release_time() { return (float) 512.0f / this->tx_limiter_releasee_time_.LMITERTC; }
 
-void Si4713Component::set_asq_iall_enable(bool value) {
+void Si4713Component::set_asq_iall(bool value) {
   this->tx_asq_interrupt_source_.IALLIEN = value ? 1 : 0;
   this->set_prop(this->tx_asq_interrupt_source_);
-  this->publish_asq_iall_enable();
+  this->publish_asq_iall();
 }
 
-bool Si4713Component::get_asq_iall_enable() { return this->tx_asq_interrupt_source_.IALLIEN != 0; }
+bool Si4713Component::get_asq_iall() { return this->tx_asq_interrupt_source_.IALLIEN != 0; }
 
-void Si4713Component::set_asq_ialh_enable(bool value) {
+void Si4713Component::set_asq_ialh(bool value) {
   this->tx_asq_interrupt_source_.IALHIEN = value ? 1 : 0;
   this->set_prop(this->tx_asq_interrupt_source_);
-  this->publish_asq_ialh_enable();
+  this->publish_asq_ialh();
 }
 
-bool Si4713Component::get_asq_ialh_enable() { return this->tx_asq_interrupt_source_.IALHIEN != 0; }
+bool Si4713Component::get_asq_ialh() { return this->tx_asq_interrupt_source_.IALHIEN != 0; }
 
-void Si4713Component::set_asq_overmod_enable(bool value) {
+void Si4713Component::set_asq_overmod(bool value) {
   this->tx_asq_interrupt_source_.OVERMODIEN = value ? 1 : 0;
   this->set_prop(this->tx_asq_interrupt_source_);
-  this->publish_asq_overmod_enable();
+  this->publish_asq_overmod();
 }
 
-bool Si4713Component::get_asq_overmod_enable() { return this->tx_asq_interrupt_source_.OVERMODIEN != 0; }
+bool Si4713Component::get_asq_overmod() { return this->tx_asq_interrupt_source_.OVERMODIEN != 0; }
 
 void Si4713Component::set_asq_level_low(int value) {
   CHECK_INT_RANGE(value, IALTH_MIN, IALTH_MAX)
@@ -728,17 +728,17 @@ void Si4713Component::set_rds_text(const std::string &value) {
 
 std::string Si4713Component::get_rds_text() { return this->rds_text_; }
 
-void Si4713Component::set_gpio(uint8_t pin, bool value) {
+void Si4713Component::set_output_gpio(uint8_t pin, bool value) {
   if (pin > 2) {
     ESP_LOGE(TAG, "%s(%d, %d) invalid pin number (0 to 2)", __func__, pin, value);
     return;
   }
   this->gpio_[pin] = value ? 1 : 0;
   this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
-  this->publish_gpio(pin);
+  this->publish_output_gpio(pin);
 }
 
-bool Si4713Component::get_gpio(uint8_t pin) {
+bool Si4713Component::get_output_gpio(uint8_t pin) {
   if (pin > 2) {
     ESP_LOGE(TAG, "%s(%d) invalid pin number (0 to 2)", __func__, pin);
     return false;
@@ -746,62 +746,62 @@ bool Si4713Component::get_gpio(uint8_t pin) {
   return this->gpio_[pin] != 0;
 }
 
-void Si4713Component::set_gpio1(bool value) {
+void Si4713Component::set_output_gpio1(bool value) {
   this->gpio_[0] = value ? 1 : 0;
   this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
-  this->publish_gpio1();
+  this->publish_output_gpio1();
 }
 
-bool Si4713Component::get_gpio1() { return this->gpio_[0] != 0; }
+bool Si4713Component::get_output_gpio1() { return this->gpio_[0] != 0; }
 
-void Si4713Component::set_gpio2(bool value) {
+void Si4713Component::set_output_gpio2(bool value) {
   this->gpio_[1] = value ? 1 : 0;
   this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
-  this->publish_gpio2();
+  this->publish_output_gpio2();
 }
 
-bool Si4713Component::get_gpio2() { return this->gpio_[1] != 0; }
+bool Si4713Component::get_output_gpio2() { return this->gpio_[1] != 0; }
 
-void Si4713Component::set_gpio3(bool value) {
+void Si4713Component::set_output_gpio3(bool value) {
   this->gpio_[2] = value ? 1 : 0;
   this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
-  this->publish_gpio2();
+  this->publish_output_gpio2();
 }
 
-bool Si4713Component::get_gpio3() { return this->gpio_[2] != 0; }
+bool Si4713Component::get_output_gpio3() { return this->gpio_[2] != 0; }
 
-std::string Si4713Component::get_chip_id() { return this->chip_id_; }
+std::string Si4713Component::get_chip_id_text_sensor() { return this->chip_id_; }
 
-float Si4713Component::get_read_frequency() {
+float Si4713Component::get_frequency_sensor() {
   return (float) ((this->tune_status_.READFREQH << 8) | this->tune_status_.READFREQL) / 100;
 }
 
-float Si4713Component::get_read_power() { return (float) this->tune_status_.READRFdBuV; }
+float Si4713Component::get_power_sensor() { return (float) this->tune_status_.READRFdBuV; }
 
-float Si4713Component::get_read_antcap() { return (float) this->tune_status_.READANTCAP; }
+float Si4713Component::get_antcap_sensor() { return (float) this->tune_status_.READANTCAP; }
 
-float Si4713Component::get_read_noise_level() { return (float) this->tune_status_.RNL; }
+float Si4713Component::get_noise_level_sensor() { return (float) this->tune_status_.RNL; }
 
-bool Si4713Component::get_iall() { return this->asq_status_.IALL != 0; }
+bool Si4713Component::get_iall_binary_sensor() { return this->asq_status_.IALL != 0; }
 
-bool Si4713Component::get_ialh() { return this->asq_status_.IALH != 0; }
+bool Si4713Component::get_ialh_binary_sensor() { return this->asq_status_.IALH != 0; }
 
-bool Si4713Component::get_overmod() { return this->asq_status_.OVERMOD != 0; }
+bool Si4713Component::get_overmod_binary_sensor() { return this->asq_status_.OVERMOD != 0; }
 
-float Si4713Component::get_inlevel() { return (float) this->asq_status_.INLEVEL; }
+float Si4713Component::get_inlevel_sensor() { return (float) this->asq_status_.INLEVEL; }
 
 // publish
 
-void Si4713Component::publish_gpio(uint8_t pin) {
+void Si4713Component::publish_output_gpio(uint8_t pin) {
   switch (pin) {
     case 0:
-      this->publish_switch(this->gpio1_switch_, this->gpio_[pin] != 0);
+      this->publish_switch(this->output_gpio1_switch_, this->gpio_[pin] != 0);
       break;
     case 1:
-      this->publish_switch(this->gpio2_switch_, this->gpio_[pin] != 0);
+      this->publish_switch(this->output_gpio2_switch_, this->gpio_[pin] != 0);
       break;
     case 2:
-      this->publish_switch(this->gpio3_switch_, this->gpio_[pin] != 0);
+      this->publish_switch(this->output_gpio3_switch_, this->gpio_[pin] != 0);
       break;
     default:
       return;

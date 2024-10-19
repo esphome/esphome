@@ -6,9 +6,9 @@
 namespace esphome {
 namespace si4713 {
 
-class PowerEnableSwitch : public switch_::Switch, public Parented<Si4713Component> {
+class TunerEnableSwitch : public switch_::Switch, public Parented<Si4713Component> {
  public:
-  PowerEnableSwitch() = default;
+  TunerEnableSwitch() = default;
 
  protected:
   void write_state(bool value) override;

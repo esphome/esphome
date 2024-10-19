@@ -1,11 +1,11 @@
-#include "power_number.h"
+#include "asq_ialh_switch.h"
 
 namespace esphome {
 namespace si4713 {
 
-void PowerNumber::control(float value) {
+void AsqIalhSwitch::write_state(bool value) {
   this->publish_state(value);
-  this->parent_->set_power(value);
+  this->parent_->set_asq_ialh(value);
 }
 
 }  // namespace si4713

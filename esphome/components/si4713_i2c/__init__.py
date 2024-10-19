@@ -55,7 +55,7 @@ CONF_TUNER = "tuner"
 CONF_DIGITAL = "digital"
 CONF_PILOT = "pilot"
 CONF_REFCLK = "refclk"
-CONF_COMPRESSOR = "compressor"
+CONF_ACOMP = "acomp"
 CONF_LIMITER = "limiter"
 CONF_ASQ = "asq"
 CONF_RDS = "rds"
@@ -87,7 +87,7 @@ CONF_DEVIATION = "deviation"
 # CONF_FREQUENCY = "frequency"
 # CONF_SOURCE = "source"
 CONF_PRESCALER = "prescaler"
-# compressor
+# acomp
 CONF_ENABLE = "enable"
 # CONF_THRESHOLD = "threshold"
 CONF_ATTACK = "attack"
@@ -262,7 +262,7 @@ REFCLK_SCHEMA = cv.Schema(
     }
 )
 
-COMPRESSOR_SCHEMA = cv.Schema(
+ACOMP_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE, default="False"): cv.boolean,
         cv.Optional(CONF_THRESHOLD, default=-40): cv.int_range(-40, 0),
@@ -367,7 +367,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DIGITAL): DIGITAL_SCHEMA,
             cv.Optional(CONF_PILOT): PILOT_SCHEMA,
             cv.Optional(CONF_REFCLK): REFCLK_SCHEMA,
-            cv.Optional(CONF_COMPRESSOR): COMPRESSOR_SCHEMA,
+            cv.Optional(CONF_ACOMP): ACOMP_SCHEMA,
             cv.Optional(CONF_LIMITER): LIMITER_SCHEMA,
             cv.Optional(CONF_ASQ): ASQ_SCHEMA,
             cv.Optional(CONF_RDS): RDS_SCHEMA,
@@ -377,6 +377,122 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x63))
 )
+
+VARIABLES = {
+    None: [
+        [CONF_OP_MODE],
+        [CONF_MUTE],
+        [CONF_MONO],
+        [CONF_PRE_EMPHASIS],
+    ],
+    CONF_TUNER: [
+        [CONF_ENABLE],
+        [CONF_FREQUENCY],
+        [CONF_DEVIATION],
+        [CONF_POWER],
+        [CONF_ANTCAP],
+    ],
+    CONF_ANALOG: [
+        [CONF_LEVEL],
+        [CONF_ATTENUATION],
+    ],
+    CONF_DIGITAL: [
+        [CONF_SAMPLE_RATE],
+        [CONF_SAMPLE_BITS],
+        [CONF_CHANNELS],
+        [CONF_MODE],
+        [CONF_CLOCK_EDGE],
+    ],
+    CONF_PILOT: [
+        [CONF_ENABLE],
+        [CONF_FREQUENCY],
+        [CONF_DEVIATION],
+    ],
+    CONF_REFCLK: [
+        [CONF_FREQUENCY],
+        [CONF_SOURCE],
+        [CONF_PRESCALER],
+    ],
+    CONF_ACOMP: [
+        [CONF_ENABLE],
+        [CONF_THRESHOLD],
+        [CONF_ATTACK],
+        [CONF_RELEASE],
+        [CONF_GAIN],
+        [CONF_PRESET],
+    ],
+    CONF_LIMITER: [
+        [CONF_ENABLE],
+        [CONF_RELEASE_TIME],
+    ],
+    CONF_ASQ: [
+        [CONF_IALL],
+        [CONF_IALH],
+        [CONF_OVERMOD],
+        [CONF_LEVEL_LOW],
+        [CONF_DURATION_LOW],
+        [CONF_LEVEL_HIGH],
+        [CONF_DURATION_HIGH],
+    ],
+    CONF_RDS: [
+        [CONF_ENABLE],
+        [CONF_DEVIATION],
+        [CONF_STATION],
+        [CONF_TEXT],
+    ],
+}
+
+SENSORS = {
+    CONF_SENSOR: [
+        [CONF_CHIP_ID, "text_sensor"],
+        [CONF_READ_FREQUENCY, "sensor"],
+        [CONF_READ_POWER, "sensor"],
+        [CONF_READ_ANTCAP, "sensor"],
+        [CONF_READ_NOISE_LEVEL, "sensor"],
+        [CONF_IALL, "binary_sensor"],
+        [CONF_IALH, "binary_sensor"],
+        [CONF_OVERMOD, "binary_sensor"],
+        [CONF_INLEVEL, "sensor"],
+    ]
+}
+
+
+async def for_each_conf(config, vars, callback):
+    for section in vars:
+        c = config[section] if section in config else config
+        for args in vars[section]:
+            setter = "set_"
+            if section is not None and section != CONF_SENSOR:
+                setter += section + "_"
+            setter += args[0]
+            if cc := c.get(args[0]):
+                await callback(cc, args, setter)
+
+
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+    reset_pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    cg.add(var.set_reset_pin(reset_pin))
+
+    async def set_var(c, a, s):
+        cg.add(getattr(var, s)(c))
+
+    await for_each_conf(config, VARIABLES, set_var)
+
+    async def new_sensor(c, args, setter):
+        s = None
+        match args[1]:
+            case "sensor":
+                s = await sensor.new_sensor(c)
+            case "binary_sensor":
+                s = await binary_sensor.new_binary_sensor(c)
+            case "text_sensor":
+                s = await text_sensor.new_text_sensor(c)
+        cg.add(getattr(var, setter + "_" + args[1])(s))
+
+    await for_each_conf(config, SENSORS, new_sensor)
 
 
 FREQUENCY_SCHEMA = automation.maybe_simple_id(
@@ -388,7 +504,7 @@ FREQUENCY_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "si4713.set_frequency", SetFrequencyAction, FREQUENCY_SCHEMA
+    "si4713.set_tuner_frequency", SetFrequencyAction, FREQUENCY_SCHEMA
 )
 @automation.register_action(
     "si4713.measure_frequency", MeasureFrequencyAction, FREQUENCY_SCHEMA
@@ -400,100 +516,3 @@ async def tune_frequency_action_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(frequency, args, cg.float_)
         cg.add(var.set_frequency(template_))
     return var
-
-
-async def set_var(config, id, setter):
-    if c := config.get(id):
-        cg.add(setter(c))
-
-
-async def new_sensor(config, id, setter):
-    if c := config.get(id):
-        s = await sensor.new_sensor(c)
-        cg.add(setter(s))
-
-
-async def new_binary_sensor(config, id, setter):
-    if c := config.get(id):
-        s = await binary_sensor.new_binary_sensor(c)
-        cg.add(setter(s))
-
-
-async def new_text_sensor(config, id, setter):
-    if c := config.get(id):
-        s = await text_sensor.new_text_sensor(c)
-        cg.add(setter(s))
-
-
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
-    reset_pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-    cg.add(var.set_reset_pin(reset_pin))
-    await set_var(config, CONF_OP_MODE, var.set_op_mode)
-    await set_var(config, CONF_MUTE, var.set_mute)
-    await set_var(config, CONF_MONO, var.set_mono)
-    await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
-    if tuner_config := config.get(CONF_TUNER):
-        await set_var(tuner_config, CONF_ENABLE, var.set_power_enable)
-        await set_var(tuner_config, CONF_FREQUENCY, var.set_frequency)
-        await set_var(tuner_config, CONF_DEVIATION, var.set_audio_deviation)
-        await set_var(tuner_config, CONF_POWER, var.set_power)
-        await set_var(tuner_config, CONF_ANTCAP, var.set_antcap)
-    if analog_config := config.get(CONF_ANALOG):
-        await set_var(analog_config, CONF_LEVEL, var.set_analog_level)
-        await set_var(analog_config, CONF_ATTENUATION, var.set_analog_attenuation)
-    if digital_config := config.get(CONF_DIGITAL):
-        await set_var(digital_config, CONF_SAMPLE_RATE, var.set_digital_sample_rate)
-        await set_var(digital_config, CONF_SAMPLE_BITS, var.set_digital_sample_bits)
-        await set_var(digital_config, CONF_CHANNELS, var.set_digital_channels)
-        await set_var(digital_config, CONF_MODE, var.set_digital_mode)
-        await set_var(digital_config, CONF_CLOCK_EDGE, var.set_digital_clock_edge)
-    if pilot_config := config.get(CONF_PILOT):
-        await set_var(pilot_config, CONF_ENABLE, var.set_pilot_enable)
-        await set_var(pilot_config, CONF_FREQUENCY, var.set_pilot_frequency)
-        await set_var(pilot_config, CONF_DEVIATION, var.set_pilot_deviation)
-    if refclk_config := config.get(CONF_REFCLK):
-        await set_var(refclk_config, CONF_FREQUENCY, var.set_refclk_frequency)
-        await set_var(refclk_config, CONF_SOURCE, var.set_refclk_source)
-        await set_var(refclk_config, CONF_PRESCALER, var.set_refclk_prescaler)
-    if compressor_config := config.get(CONF_COMPRESSOR):
-        await set_var(compressor_config, CONF_ENABLE, var.set_acomp_enable)
-        await set_var(compressor_config, CONF_THRESHOLD, var.set_acomp_threshold)
-        await set_var(compressor_config, CONF_ATTACK, var.set_acomp_attack)
-        await set_var(compressor_config, CONF_RELEASE, var.set_acomp_release)
-        await set_var(compressor_config, CONF_GAIN, var.set_acomp_gain)
-        await set_var(compressor_config, CONF_PRESET, var.set_acomp_preset)
-    if limiter_config := config.get(CONF_LIMITER):
-        await set_var(limiter_config, CONF_ENABLE, var.set_limiter_enable)
-        await set_var(limiter_config, CONF_RELEASE_TIME, var.set_limiter_release_time)
-    if asq_config := config.get(CONF_ASQ):
-        await set_var(asq_config, CONF_IALL, var.set_asq_iall_enable)
-        await set_var(asq_config, CONF_IALH, var.set_asq_ialh_enable)
-        await set_var(asq_config, CONF_OVERMOD, var.set_asq_overmod_enable)
-        await set_var(asq_config, CONF_LEVEL_LOW, var.set_asq_level_low)
-        await set_var(asq_config, CONF_DURATION_LOW, var.set_asq_duration_low)
-        await set_var(asq_config, CONF_LEVEL_HIGH, var.set_asq_level_high)
-        await set_var(asq_config, CONF_DURATION_HIGH, var.set_asq_duration_high)
-    if rds_config := config.get(CONF_RDS):
-        await set_var(rds_config, CONF_ENABLE, var.set_rds_enable)
-        await set_var(rds_config, CONF_DEVIATION, var.set_rds_deviation)
-        await set_var(rds_config, CONF_STATION, var.set_rds_station)
-        await set_var(rds_config, CONF_TEXT, var.set_rds_text)
-    if sensor_config := config.get(CONF_SENSOR):
-        await new_text_sensor(sensor_config, CONF_CHIP_ID, var.set_chip_id_text_sensor)
-        await new_sensor(
-            sensor_config, CONF_READ_FREQUENCY, var.set_read_frequency_sensor
-        )
-        await new_sensor(sensor_config, CONF_READ_POWER, var.set_read_power_sensor)
-        await new_sensor(sensor_config, CONF_READ_ANTCAP, var.set_read_antcap_sensor)
-        await new_sensor(
-            sensor_config, CONF_READ_NOISE_LEVEL, var.set_read_noise_level_sensor
-        )
-        await new_binary_sensor(sensor_config, CONF_IALL, var.set_iall_binary_sensor)
-        await new_binary_sensor(sensor_config, CONF_IALH, var.set_ialh_binary_sensor)
-        await new_binary_sensor(
-            sensor_config, CONF_OVERMOD, var.set_overmod_binary_sensor
-        )
-        await new_sensor(sensor_config, CONF_INLEVEL, var.set_inlevel_sensor)

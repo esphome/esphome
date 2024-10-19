@@ -52,18 +52,20 @@ namespace si4713 {
 
 #define SUB_SENSOR_EX(name) \
   SUB_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_sensor_, (float) this->get_##name()); } \
-  float get_##name();
+  void publish_##name##_sensor() { this->publish(this->name##_sensor_, (float) this->get_##name##_sensor()); } \
+  float get_##name##_sensor();
 
 #define SUB_BINARY_SENSOR_EX(name) \
   SUB_BINARY_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_binary_sensor_, this->get_##name()); } \
-  bool get_##name();
+  void publish_##name##_binary_sensor() { \
+    this->publish(this->name##_binary_sensor_, this->get_##name##_binary_sensor()); \
+  } \
+  bool get_##name##_binary_sensor();
 
 #define SUB_TEXT_SENSOR_EX(name) \
   SUB_TEXT_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_text_sensor_, this->get_##name()); } \
-  std::string get_##name();
+  void publish_##name##_text_sensor() { this->publish(this->name##_text_sensor_, this->get_##name##_text_sensor()); } \
+  std::string get_##name##_text_sensor();
 
 class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   std::string chip_id_;
@@ -161,11 +163,11 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SWITCH_EX(mute)
   SUB_SWITCH_EX(mono)
   SUB_SELECT_EX(pre_emphasis, PreEmphasis)
-  SUB_SWITCH_EX(power_enable)
-  SUB_NUMBER_EX(frequency, float)
-  SUB_NUMBER_EX(audio_deviation, float)
-  SUB_NUMBER_EX(power, int)
-  SUB_NUMBER_EX(antcap, float)
+  SUB_SWITCH_EX(tuner_enable)
+  SUB_NUMBER_EX(tuner_frequency, float)
+  SUB_NUMBER_EX(tuner_deviation, float)
+  SUB_NUMBER_EX(tuner_power, int)
+  SUB_NUMBER_EX(tuner_antcap, float)
   SUB_NUMBER_EX(analog_level, int)
   SUB_SELECT_EX(analog_attenuation, LineAttenuation)
   SUB_NUMBER_EX(digital_sample_rate, int)
@@ -187,9 +189,9 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SELECT_EX(acomp_preset, AcompPreset)
   SUB_SWITCH_EX(limiter_enable)
   SUB_NUMBER_EX(limiter_release_time, float)
-  SUB_SWITCH_EX(asq_iall_enable)
-  SUB_SWITCH_EX(asq_ialh_enable)
-  SUB_SWITCH_EX(asq_overmod_enable)
+  SUB_SWITCH_EX(asq_iall)
+  SUB_SWITCH_EX(asq_ialh)
+  SUB_SWITCH_EX(asq_overmod)
   SUB_NUMBER_EX(asq_level_low, int)
   SUB_NUMBER_EX(asq_duration_low, int)
   SUB_NUMBER_EX(asq_level_high, int)
@@ -198,23 +200,23 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   SUB_NUMBER_EX(rds_deviation, float)
   SUB_TEXT_EX(rds_station)
   SUB_TEXT_EX(rds_text)
-  SUB_SWITCH_EX(gpio1)
-  SUB_SWITCH_EX(gpio2)
-  SUB_SWITCH_EX(gpio3)
+  SUB_SWITCH_EX(output_gpio1)
+  SUB_SWITCH_EX(output_gpio2)
+  SUB_SWITCH_EX(output_gpio3)
   SUB_TEXT_SENSOR_EX(chip_id)
-  SUB_SENSOR_EX(read_frequency)
-  SUB_SENSOR_EX(read_power)
-  SUB_SENSOR_EX(read_antcap)
-  SUB_SENSOR_EX(read_noise_level)
+  SUB_SENSOR_EX(frequency)
+  SUB_SENSOR_EX(power)
+  SUB_SENSOR_EX(antcap)
+  SUB_SENSOR_EX(noise_level)
   SUB_BINARY_SENSOR_EX(iall)
   SUB_BINARY_SENSOR_EX(ialh)
   SUB_BINARY_SENSOR_EX(overmod)
   SUB_SENSOR_EX(inlevel)
 
   // helper
-  void publish_gpio(uint8_t pin);
-  void set_gpio(uint8_t pin, bool value);
-  bool get_gpio(uint8_t pin);
+  void publish_output_gpio(uint8_t pin);
+  void set_output_gpio(uint8_t pin, bool value);
+  bool get_output_gpio(uint8_t pin);
 
   // used by automation
   void measure_freq(float value);
@@ -222,7 +224,7 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<Si4713Component> {
   TEMPLATABLE_VALUE(float, frequency)
-  void play(Ts... x) override { this->parent_->set_frequency(this->frequency_.value(x...)); }
+  void play(Ts... x) override { this->parent_->set_tuner_frequency(this->frequency_.value(x...)); }
 };
 
 template<typename... Ts> class MeasureFrequencyAction : public Action<Ts...>, public Parented<Si4713Component> {

@@ -6,9 +6,9 @@
 namespace esphome {
 namespace si4713 {
 
-class GPIOSwitch : public switch_::Switch, public Parented<Si4713Component> {
+class OutputGpioSwitch : public switch_::Switch, public Parented<Si4713Component> {
  public:
-  GPIOSwitch() = default;
+  OutputGpioSwitch() = default;
 
   void set_pin(uint8_t pin) { this->pin_ = pin - 1; }
 

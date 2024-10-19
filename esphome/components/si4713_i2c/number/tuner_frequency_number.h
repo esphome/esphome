@@ -6,9 +6,9 @@
 namespace esphome {
 namespace si4713 {
 
-class AntcapNumber : public number::Number, public Parented<Si4713Component> {
+class TunerFrequencyNumber : public number::Number, public Parented<Si4713Component> {
  public:
-  AntcapNumber() = default;
+  TunerFrequencyNumber() = default;
 
  protected:
   void control(float value) override;

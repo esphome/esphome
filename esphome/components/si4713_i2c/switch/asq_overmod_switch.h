@@ -6,9 +6,9 @@
 namespace esphome {
 namespace si4713 {
 
-class AsqIallEnableSwitch : public switch_::Switch, public Parented<Si4713Component> {
+class AsqOvermodSwitch : public switch_::Switch, public Parented<Si4713Component> {
  public:
-  AsqIallEnableSwitch() = default;
+  AsqOvermodSwitch() = default;
 
  protected:
   void write_state(bool value) override;
