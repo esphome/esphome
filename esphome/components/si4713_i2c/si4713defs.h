@@ -3,8 +3,6 @@
 namespace esphome {
 namespace si4713 {
 
-static const uint8_t SI4710_STATUS_CTS = 0x80;
-
 static const float FREQ_MIN = 76;
 static const float FREQ_MAX = 108;
 static const int FREQ_RAW_MIN = 7600;

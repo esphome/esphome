@@ -174,33 +174,33 @@ CONFIG_SCHEMA = cv.Schema(
 
 VARIABLES = {
     None: [
-        [CONF_MUTE, None],
-        [CONF_MONO, None],
+        [CONF_MUTE],
+        [CONF_MONO],
     ],
     CONF_TUNER: [
-        [CONF_ENABLE, None],
+        [CONF_ENABLE],
     ],
     CONF_PILOT: [
-        [CONF_ENABLE, None],
+        [CONF_ENABLE],
     ],
     CONF_ACOMP: [
-        [CONF_ENABLE, None],
+        [CONF_ENABLE],
     ],
     CONF_LIMITER: [
-        [CONF_ENABLE, None],
+        [CONF_ENABLE],
     ],
     CONF_ASQ: [
-        [CONF_IALL, None],
-        [CONF_IALH, None],
-        [CONF_OVERMOD, None],
+        [CONF_IALL],
+        [CONF_IALH],
+        [CONF_OVERMOD],
     ],
     CONF_RDS: [
-        [CONF_ENABLE, None],
+        [CONF_ENABLE],
     ],
     CONF_OUTPUT: [
-        [CONF_GPIO1, lambda sw: sw.set_pin(1)],
-        [CONF_GPIO2, lambda sw: sw.set_pin(2)],
-        [CONF_GPIO3, lambda sw: sw.set_pin(3)],
+        [CONF_GPIO1],
+        [CONF_GPIO2],
+        [CONF_GPIO3],
     ],
 }
 
@@ -211,8 +211,12 @@ async def to_code(config):
     async def new_switch(c, args, setter):
         s = await switch.new_switch(c)
         await cg.register_parented(s, parent)
-        sw = cg.add(getattr(parent, setter + "_switch")(s))
-        if cb := s[1]:
-            cb(sw)
+        cg.add(getattr(parent, setter + "_switch")(s))
+        if args[0] == CONF_GPIO1:
+            cg.add(s.set_pin(1))
+        elif args[0] == CONF_GPIO2:
+            cg.add(s.set_pin(2))
+        elif args[0] == CONF_GPIO3:
+            cg.add(s.set_pin(3))
 
     await for_each_conf(config, VARIABLES, new_switch)
