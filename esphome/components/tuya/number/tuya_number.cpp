@@ -7,14 +7,28 @@ namespace tuya {
 static const char *const TAG = "tuya.number";
 
 void TuyaNumber::setup() {
+  if (this->restore_value_) {
+    this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
+  }
+
   this->parent_->register_listener(this->number_id_, [this](const TuyaDatapoint &datapoint) {
     if (datapoint.type == TuyaDatapointType::INTEGER) {
       ESP_LOGV(TAG, "MCU reported number %u is: %d", datapoint.id, datapoint.value_int);
-      this->publish_state(datapoint.value_int / multiply_by_);
+      float value = datapoint.value_int / multiply_by_;
+      this->publish_state(value);
+      if (this->restore_value_)
+        this->pref_.save(&value);
     } else if (datapoint.type == TuyaDatapointType::ENUM) {
       ESP_LOGV(TAG, "MCU reported number %u is: %u", datapoint.id, datapoint.value_enum);
-      this->publish_state(datapoint.value_enum);
+      float value = datapoint.value_enum;
+      this->publish_state(value);
+      if (this->restore_value_)
+        this->pref_.save(&value);
+    } else {
+      ESP_LOGW(TAG, "Reported type (%d) is not a number!", static_cast<int>(datapoint.type));
+      return;
     }
+
     if ((this->type_) && (this->type_ != datapoint.type)) {
       ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", static_cast<int>(datapoint.type),
                static_cast<int>(*this->type_));
@@ -23,8 +37,26 @@ void TuyaNumber::setup() {
   });
 
   this->parent_->add_on_initialized_callback([this] {
-    if ((this->initial_value_) && (this->type_)) {
-      this->control(*this->initial_value_);
+    if (this->type_) {
+      float value;
+      if (!this->restore_value_) {
+        if (this->initial_value_) {
+          value = *this->initial_value_;
+        } else {
+          return;
+        }
+      } else {
+        if (!this->pref_.load(&value)) {
+          if (this->initial_value_) {
+            value = *this->initial_value_;
+          } else {
+            value = this->traits.get_min_value();
+            ESP_LOGW(TAG, "Failed to restore and there is no initial value defined. Setting min_value (%f)", value);
+          }
+        }
+      }
+
+      this->control(value);
     }
   });
 }
@@ -38,6 +70,9 @@ void TuyaNumber::control(float value) {
     this->parent_->set_enum_datapoint_value(this->number_id_, value);
   }
   this->publish_state(value);
+
+  if (this->restore_value_)
+    this->pref_.save(&value);
 }
 
 void TuyaNumber::dump_config() {
@@ -52,6 +87,8 @@ void TuyaNumber::dump_config() {
   if (this->initial_value_) {
     ESP_LOGCONFIG(TAG, "  Initial Value: %f", *this->initial_value_);
   }
+
+  ESP_LOGCONFIG(TAG, "  Restore Value: %s", YESNO(this->restore_value_));
 }
 
 }  // namespace tuya

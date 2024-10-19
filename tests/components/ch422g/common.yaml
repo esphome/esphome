@@ -1,0 +1,27 @@
+ch422g:
+  - id: ch422g_hub
+
+binary_sensor:
+  - platform: gpio
+    id: ch422g_input
+    name: CH422G Binary Sensor
+    pin:
+      ch422g: ch422g_hub
+      number: 1
+      mode: INPUT
+      inverted: true
+output:
+  - platform: gpio
+    id: ch422_out_0
+    pin:
+      ch422g: ch422g_hub
+      number: 0
+      mode: OUTPUT
+      inverted: false
+  - platform: gpio
+    id: ch422_out_11
+    pin:
+      ch422g: ch422g_hub
+      number: 11
+      mode: OUTPUT_OPEN_DRAIN
+      inverted: true

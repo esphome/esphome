@@ -1,0 +1,11 @@
+display:
+  - platform: sdl
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+touchscreen:
+  - platform: sdl
+
+lvgl:

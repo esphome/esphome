@@ -1,11 +1,12 @@
 from esphome import config_validation as cv
-from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
+from esphome.const import CONF_BUTTON, CONF_ID, CONF_ITEMS, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import new_Pvariable, static_const_array
 from esphome.cpp_types import nullptr
 
 from ..defines import (
     CONF_BODY,
+    CONF_BUTTON_STYLE,
     CONF_BUTTONS,
     CONF_CLOSE_BUTTON,
     CONF_MSGBOXES,
@@ -13,20 +14,20 @@ from ..defines import (
     TYPE_FLEX,
     literal,
 )
-from ..helpers import add_lv_use
+from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import lv_bool, lv_pct, lv_text
 from ..lvcode import (
     EVENT_ARG,
     LambdaContext,
     LocalVariable,
+    lv,
     lv_add,
     lv_assign,
     lv_expr,
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema
-from ..styles import TOP_LAYER
+from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema, part_schema
 from ..types import LV_EVENT, char_ptr, lv_obj_t
 from . import Widget, set_obj_properties
 from .button import button_spec
@@ -48,16 +49,17 @@ MSGBOX_SCHEMA = container_schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(lv_obj_t),
             cv.Required(CONF_TITLE): STYLED_TEXT_SCHEMA,
-            cv.Optional(CONF_BODY): STYLED_TEXT_SCHEMA,
+            cv.Optional(CONF_BODY, default=""): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BUTTONS): cv.ensure_list(BUTTONMATRIX_BUTTON_SCHEMA),
-            cv.Optional(CONF_CLOSE_BUTTON): lv_bool,
+            cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec),
+            cv.Optional(CONF_CLOSE_BUTTON, default=True): lv_bool,
             cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         }
     ),
 )
 
 
-async def msgbox_to_code(conf):
+async def msgbox_to_code(top_layer, conf):
     """
     Construct a message box. This consists of a full-screen translucent background enclosing a centered container
     with an optional title, body, close button and a button matrix. And any other widgets the user cares to add
@@ -72,8 +74,10 @@ async def msgbox_to_code(conf):
         *buttonmatrix_spec.get_uses(),
         *button_spec.get_uses(),
     )
+    lvgl_components_required.add("BUTTONMATRIX")
     messagebox_id = conf[CONF_ID]
-    outer = lv_Pvariable(lv_obj_t, messagebox_id.id)
+    outer_id = f"{messagebox_id.id}_outer"
+    outer = lv_Pvariable(lv_obj_t, messagebox_id.id + "_outer")
     buttonmatrix = new_Pvariable(
         ID(
             f"{messagebox_id.id}_buttonmatrix_",
@@ -81,8 +85,11 @@ async def msgbox_to_code(conf):
             type=lv_buttonmatrix_t,
         )
     )
-    msgbox = lv_Pvariable(lv_obj_t, f"{messagebox_id.id}_msgbox")
-    outer_widget = Widget.create(messagebox_id, outer, obj_spec, conf)
+    msgbox = lv_Pvariable(lv_obj_t, messagebox_id.id)
+    outer_widget = Widget.create(outer_id, outer, obj_spec, conf)
+    outer_widget.move_to_foreground = True
+    msgbox_widget = Widget.create(messagebox_id, msgbox, obj_spec, conf)
+    msgbox_widget.outer = outer_widget
     buttonmatrix_widget = Widget.create(
         str(buttonmatrix), buttonmatrix, buttonmatrix_spec, conf
     )
@@ -91,12 +98,10 @@ async def msgbox_to_code(conf):
     )
     text_id = conf[CONF_BUTTON_TEXT_LIST_ID]
     text_list = static_const_array(text_id, text_list)
-    if (text := conf.get(CONF_BODY)) is not None:
-        text = await lv_text.process(text.get(CONF_TEXT))
-    if (title := conf.get(CONF_TITLE)) is not None:
-        title = await lv_text.process(title.get(CONF_TEXT))
+    text = await lv_text.process(conf[CONF_BODY].get(CONF_TEXT, ""))
+    title = await lv_text.process(conf[CONF_TITLE].get(CONF_TEXT, ""))
     close_button = conf[CONF_CLOSE_BUTTON]
-    lv_assign(outer, lv_expr.obj_create(TOP_LAYER))
+    lv_assign(outer, lv_expr.obj_create(top_layer))
     lv_obj.set_width(outer, lv_pct(100))
     lv_obj.set_height(outer, lv_pct(100))
     lv_obj.set_style_bg_opa(outer, 128, 0)
@@ -110,25 +115,33 @@ async def msgbox_to_code(conf):
     )
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
     lv_add(buttonmatrix.set_obj(lv_expr.msgbox_get_btns(msgbox)))
-    await set_obj_properties(outer_widget, conf)
+    if button_style := conf.get(CONF_BUTTON_STYLE):
+        button_style = {CONF_ITEMS: button_style}
+        await set_obj_properties(buttonmatrix_widget, button_style)
+    await set_obj_properties(msgbox_widget, conf)
+    async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
+        outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
     if close_button:
-        async with LambdaContext(EVENT_ARG, where=messagebox_id) as context:
-            outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_get_close_btn(msgbox)
         ) as close_btn:
             lv_obj.remove_event_cb(close_btn, nullptr)
             lv_obj.add_event_cb(
                 close_btn,
-                await context.get_lambda(),
+                await close_action.get_lambda(),
                 LV_EVENT.CLICKED,
                 nullptr,
             )
+    else:
+        lv_obj.add_event_cb(
+            outer, await close_action.get_lambda(), LV_EVENT.CLICKED, nullptr
+        )
 
     if len(ctrl_list) != 0 or len(width_list) != 0:
         set_btn_data(buttonmatrix.obj, ctrl_list, width_list)
 
 
-async def msgboxes_to_code(config):
+async def msgboxes_to_code(lv_component, config):
+    top_layer = lv.disp_get_layer_top(lv_component.get_disp())
     for conf in config.get(CONF_MSGBOXES, ()):
-        await msgbox_to_code(conf)
+        await msgbox_to_code(top_layer, conf)
