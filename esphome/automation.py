@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALL,
+    CONF_ANY,
     CONF_AUTOMATION_ID,
     CONF_CONDITION,
     CONF_COUNT,
@@ -70,6 +72,13 @@ def validate_potentially_and_condition(value):
     if isinstance(value, list):
         with cv.remove_prepend_path(["and"]):
             return validate_condition({"and": value})
+    return validate_condition(value)
+
+
+def validate_potentially_or_condition(value):
+    if isinstance(value, list):
+        with cv.remove_prepend_path(["or"]):
+            return validate_condition({"or": value})
     return validate_condition(value)
 
 
@@ -166,6 +175,18 @@ async def or_condition_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
+@register_condition("all", AndCondition, validate_condition_list)
+async def all_condition_to_code(config, condition_id, template_arg, args):
+    conditions = await build_condition_list(config, template_arg, args)
+    return cg.new_Pvariable(condition_id, template_arg, conditions)
+
+
+@register_condition("any", OrCondition, validate_condition_list)
+async def any_condition_to_code(config, condition_id, template_arg, args):
+    conditions = await build_condition_list(config, template_arg, args)
+    return cg.new_Pvariable(condition_id, template_arg, conditions)
+
+
 @register_condition("not", NotCondition, validate_potentially_and_condition)
 async def not_condition_to_code(config, condition_id, template_arg, args):
     condition = await build_condition(config, template_arg, args)
@@ -223,15 +244,21 @@ async def delay_action_to_code(config, action_id, template_arg, args):
     IfAction,
     cv.All(
         {
-            cv.Required(CONF_CONDITION): validate_potentially_and_condition,
+            cv.Exclusive(
+                CONF_CONDITION, CONF_CONDITION
+            ): validate_potentially_and_condition,
+            cv.Exclusive(CONF_ANY, CONF_CONDITION): validate_potentially_or_condition,
+            cv.Exclusive(CONF_ALL, CONF_CONDITION): validate_potentially_and_condition,
             cv.Optional(CONF_THEN): validate_action_list,
             cv.Optional(CONF_ELSE): validate_action_list,
         },
         cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
+        cv.has_at_least_one_key(CONF_CONDITION, CONF_ANY, CONF_ALL),
     ),
 )
 async def if_action_to_code(config, action_id, template_arg, args):
-    conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
+    cond_conf = next(el for el in config if el in (CONF_ANY, CONF_ALL, CONF_CONDITION))
+    conditions = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, conditions)
     if CONF_THEN in config:
         actions = await build_action_list(config[CONF_THEN], template_arg, args)

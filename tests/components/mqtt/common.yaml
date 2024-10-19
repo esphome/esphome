@@ -10,6 +10,7 @@ mqtt:
   port: 1883
   username: debug
   password: debug
+  clean_session: True
   client_id: someclient
   use_abbreviations: false
   discovery: true
