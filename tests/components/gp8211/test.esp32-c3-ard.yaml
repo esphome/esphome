@@ -3,7 +3,6 @@ i2c:
   scl: GPIO7
   scan: true
 
-
 gp8211:
   id: my_gp8211
   voltage: 10V
