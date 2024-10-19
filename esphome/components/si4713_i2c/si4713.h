@@ -16,7 +16,7 @@
 #include "si4713sub.h"
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   std::string chip_id_;
@@ -183,5 +183,5 @@ template<typename... Ts> class MeasureFrequencyAction : public Action<Ts...>, pu
   void play(Ts... x) override { this->parent_->measure_freq(this->frequency_.value(x...)); }
 };
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

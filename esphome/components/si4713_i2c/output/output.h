@@ -5,7 +5,7 @@
 #include "../si4713.h"
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 class BinaryOutput : public output::BinaryOutput, public Component, public Parented<Si4713Component> {
  public:
@@ -17,5 +17,5 @@ class BinaryOutput : public output::BinaryOutput, public Component, public Paren
   uint8_t pin_{0};
 };
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

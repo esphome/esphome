@@ -4,7 +4,7 @@
 #include "../si4713.h"
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 class AcompEnableSwitch : public switch_::Switch, public Parented<Si4713Component> {
  protected:
@@ -99,5 +99,5 @@ class TunerEnableSwitch : public switch_::Switch, public Parented<Si4713Componen
   }
 };
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

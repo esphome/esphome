@@ -1,7 +1,7 @@
 #pragma once
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 #ifndef SUB_TEXT
 #define SUB_TEXT(name) \
@@ -53,5 +53,5 @@ namespace si4713 {
   void publish_##name##_text_sensor() { this->publish(this->name##_text_sensor_, this->get_##name##_text_sensor()); } \
   std::string get_##name##_text_sensor();
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

@@ -4,7 +4,7 @@
 #include "../si4713.h"
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 class RDSStationText : public text::Text, public Parented<Si4713Component> {
  protected:
@@ -22,5 +22,5 @@ class RDSTextText : public text::Text, public Parented<Si4713Component> {
   }
 };
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

@@ -5,7 +5,7 @@
 #include <cmath>
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 // TODO: std::clamp isn't here yet
 #define clamp(v, lo, hi) std::max(std::min(v, hi), lo)
@@ -843,5 +843,5 @@ void Si4713Component::measure_freq(float value) {
   // this->stc_wait(); // does not work, locks up, hmm
 }
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

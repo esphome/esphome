@@ -4,7 +4,7 @@
 #include "../si4713.h"
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 class AcompAttackSelect : public select::Select, public Parented<Si4713Component> {
  protected:
@@ -106,5 +106,5 @@ class RefClkSourceSelect : public select::Select, public Parented<Si4713Componen
   }
 };
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

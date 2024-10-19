@@ -4,7 +4,7 @@
 #include "../si4713.h"
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 class AcompGainNumber : public number::Number, public Parented<Si4713Component> {
  protected:
@@ -150,5 +150,5 @@ class TunerPowerNumber : public number::Number, public Parented<Si4713Component>
   }
 };
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome

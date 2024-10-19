@@ -1,7 +1,7 @@
 #pragma once
 
 namespace esphome {
-namespace si4713 {
+namespace si4713_i2c {
 
 static const float FREQ_MIN = 76;
 static const float FREQ_MAX = 108;
@@ -1284,5 +1284,5 @@ struct PropTxRdsFifoSize : PropBase {
   }
 };
 
-}  // namespace si4713
+}  // namespace si4713_i2c
 }  // namespace esphome
