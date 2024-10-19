@@ -13,9 +13,6 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_EMPTY,
 )
-import logging
-
-_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@gabest11"]
 DEPENDENCIES = ["i2c"]
