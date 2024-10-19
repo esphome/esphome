@@ -81,9 +81,9 @@ class ModemComponent : public Component {
       {ModemComponentState::TURNING_OFF_PWRKEY, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::TURNING_OFF_RESET, ModemComponentStateTiming(2000, 0)},
-      {ModemComponentState::SYNC, ModemComponentStateTiming(2000, 15000)},
-      {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(2000, 15000)},
-      {ModemComponentState::CONNECTING, ModemComponentStateTiming(2000, 15000)},
+      {ModemComponentState::SYNC, ModemComponentStateTiming(2000, 30000)},
+      {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(2000, 30000)},
+      {ModemComponentState::CONNECTING, ModemComponentStateTiming(2000, 60000)},
       {ModemComponentState::CONNECTED, ModemComponentStateTiming(5000, 0)},
   };
 
