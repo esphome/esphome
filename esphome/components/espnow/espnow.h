@@ -122,8 +122,9 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
   virtual void on_sent(const ESPNowPacket &packet, bool status){};
   virtual void on_new_peer(const ESPNowPacket &packet){};
 
-  virtual uint32_t get_protocol_component_id() = 0;
-  uint8_t get_next_sequents(uint64_t peer = 0, uint32_t protocol = 0) {
+  virtual uint32_t get_protocol_id() = 0;
+  virtual std::string get_protocol_name() = 0;
+  virtual uint8_t get_next_sequents(uint64_t peer = 0, uint32_t protocol = 0) {
     if (this->next_sequents_ == 255) {
       this->next_sequents_ = 0;
     } else {
@@ -147,7 +148,8 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
 
 class ESPNowDefaultProtocol : public ESPNowProtocol {
  public:
-  uint32_t get_protocol_component_id() override { return ESPNOW_MAIN_PROTOCOL_ID; };
+  uint32_t get_protocol_id() override { return ESPNOW_MAIN_PROTOCOL_ID; };
+  std::string get_protocol_name() override { return "Default"; }
 
   void add_on_receive_callback(std::function<void(const ESPNowPacket)> &&callback) {
     this->on_receive_.add(std::move(callback));
@@ -195,13 +197,11 @@ class ESPNowComponent : public Component {
   void setup() override;
   void loop() override;
 
-  void runner();
-
   bool send(ESPNowPacket packet);
 
   void register_protocol(ESPNowProtocol *protocol) {
     protocol->set_parent(this);
-    this->protocols_[protocol->get_protocol_component_id()] = protocol;
+    this->protocols_[protocol->get_protocol_id()] = protocol;
   }
 
   esp_err_t add_peer(uint64_t addr);
@@ -220,9 +220,11 @@ class ESPNowComponent : public Component {
 
   void show_packet(const std::string &title, const ESPNowPacket &packet);
 
+  static void espnow_task(void *params);
+
  protected:
   bool validate_channel_(uint8_t channel);
-  ESPNowProtocol *get_protocol_component_(uint32_t protocol);
+  ESPNowProtocol *get_protocol_(uint32_t protocol);
 
   uint64_t own_peer_address_{0};
   uint8_t wifi_channel_{0};
