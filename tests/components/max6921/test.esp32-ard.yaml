@@ -1,0 +1,30 @@
+spi:
+  - id: spi_max6921
+    clk_pin: 16
+    mosi_pin: 17
+
+display:
+  - platform: max6921
+    load_pin: 12
+    out_pin_mapping:
+      seg_to_out_map:
+        seg_a_pin: 0
+        seg_b_pin: 2
+        seg_c_pin: 5
+        seg_d_pin: 6
+        seg_e_pin: 4
+        seg_f_pin: 1
+        seg_g_pin: 3
+        seg_p_pin: 7
+      pos_to_out_map:
+        # IV18 positions starts at the right side!
+        pos_0_pin: 15
+        pos_1_pin: 14
+        pos_2_pin: 13
+        pos_3_pin: 16
+        pos_4_pin: 12
+        pos_5_pin: 17
+        pos_6_pin: 11
+        pos_7_pin: 18
+    lambda: |-
+      it.print("01234567");
