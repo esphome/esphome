@@ -475,13 +475,12 @@ async def to_code(config):
 
     async def new_sensor(c, args, setter):
         s = None
-        match args[1]:
-            case "sensor":
-                s = await sensor.new_sensor(c)
-            case "binary_sensor":
-                s = await binary_sensor.new_binary_sensor(c)
-            case "text_sensor":
-                s = await text_sensor.new_text_sensor(c)
+        if args[1] == "sensor":
+            s = await sensor.new_sensor(c)
+        elif args[1] == "binary_sensor":
+            s = await binary_sensor.new_binary_sensor(c)
+        elif args[1] == "text_sensor":
+            s = await text_sensor.new_text_sensor(c)
         cg.add(getattr(var, setter + "_" + args[1])(s))
 
     await for_each_conf(config, SENSORS, new_sensor)
