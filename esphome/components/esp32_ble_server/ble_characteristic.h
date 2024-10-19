@@ -6,6 +6,7 @@
 #include "esphome/core/bytebuffer.h"
 
 #include <vector>
+#include <unordered_map>
 
 #ifdef USE_ESP32
 
@@ -34,8 +35,8 @@ enum EmptyEvt {
 };
 }  // namespace BLECharacteristicEvt
 
-class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>,
-                          public EventEmitter<BLECharacteristicEvt::EmptyEvt> {
+class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>,
+                          public EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t> {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();
@@ -49,10 +50,10 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
   void set_write_property(bool value);
   void set_write_no_response_property(bool value);
 
-  void indicate() { this->notify(true); }
-  void notify(bool require_ack = false);
+  void notify();
 
   void do_create(BLEService *service);
+  void do_delete() { this->clients_to_notify_.clear(); }
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
   void add_descriptor(BLEDescriptor *descriptor);
@@ -84,6 +85,7 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
   SemaphoreHandle_t set_value_lock_;
 
   std::vector<BLEDescriptor *> descriptors_;
+  std::unordered_map<uint16_t, bool> clients_to_notify_;
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 

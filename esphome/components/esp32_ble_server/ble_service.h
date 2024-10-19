@@ -50,10 +50,6 @@ class BLEService {
   bool is_running() { return this->state_ == RUNNING; }
   bool is_starting() { return this->state_ == STARTING; }
   bool is_deleted() { return this->state_ == DELETED; }
-  void on_client_connect(const std::function<void(const uint16_t)> &&func) { this->on_client_connect_ = func; }
-  void on_client_disconnect(const std::function<void(const uint16_t)> &&func) { this->on_client_disconnect_ = func; }
-  void emit_client_connect(uint16_t conn_id);
-  void emit_client_disconnect(uint16_t conn_id);
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
@@ -66,8 +62,6 @@ class BLEService {
   uint8_t inst_id_;
   bool advertise_{false};
   bool should_start_{false};
-  std::function<void(const uint16_t)> on_client_connect_;
-  std::function<void(const uint16_t)> on_client_disconnect_;
 
   bool do_create_characteristics_();
   void stop_();

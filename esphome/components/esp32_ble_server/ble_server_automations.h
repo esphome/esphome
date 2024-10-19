@@ -1,6 +1,8 @@
 #pragma once
 
+#include "ble_server.h"
 #include "ble_characteristic.h"
+#include "ble_descriptor.h"
 
 #include "esphome/core/event_emitter.h"
 #include "esphome/core/automation.h"
@@ -21,8 +23,10 @@ using namespace esp32_ble;
 
 class BLETriggers {
  public:
-  static Trigger<std::vector<uint8_t>> *create_characteristic_on_write_trigger(BLECharacteristic *characteristic);
-  static Trigger<std::vector<uint8_t>> *create_descriptor_on_write_trigger(BLEDescriptor *descriptor);
+  static Trigger<std::vector<uint8_t>, uint16_t> *create_characteristic_on_write_trigger(BLECharacteristic *characteristic);
+  static Trigger<std::vector<uint8_t>, uint16_t> *create_descriptor_on_write_trigger(BLEDescriptor *descriptor);
+  static Trigger<uint16_t> *create_server_on_connect_trigger(BLEServer *server);
+  static Trigger<uint16_t> *create_server_on_disconnect_trigger(BLEServer *server);
 };
 
 enum BLECharacteristicSetValueActionEvt {
@@ -62,8 +66,8 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
     // Set initial value
     this->parent_->set_value(this->buffer_.value(x...));
     // Set the listener for read events
-    this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt>::on(
-        BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...]() {
+    this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::on(
+        BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...](uint16_t id) {
           // Set the value of the characteristic every time it is read
           this->parent_->set_value(this->buffer_.value(x...));
         });

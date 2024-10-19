@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_SERVICES,
     CONF_VALUE,
     CONF_NOTIFY,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
 )
 from esphome.core import CORE
 
@@ -142,7 +144,7 @@ def create_description_cud(char_config):
 
 
 def create_notify_cccd(char_config):
-    if not char_config[CONF_NOTIFY]:
+    if not char_config[CONF_NOTIFY] and not char_config[CONF_INDICATE]:
         return char_config
     # If the CCCD descriptor is already present, return the config
     for desc in char_config[CONF_DESCRIPTORS]:
@@ -206,9 +208,7 @@ DESCRIPTOR_SCHEMA = cv.Schema(
         cv.Required(CONF_UUID): cv.Any(bt_uuid, cv.hex_uint32_t),
         cv.Optional(CONF_READ, default=True): cv.boolean,
         cv.Optional(CONF_WRITE, default=True): cv.boolean,
-        cv.Optional(CONF_ON_WRITE): automation.validate_automation(
-            {cv.GenerateID(): cv.declare_id(BLEDescriptor)}, single=True
-        ),
+        cv.Optional(CONF_ON_WRITE): automation.validate_automation(single=True),
         cv.Required(CONF_VALUE): VALUE_SCHEMA,
     },
     extra_schemas=[validate_descritor_value_length, validate_desc_on_write],
@@ -226,9 +226,7 @@ SERVICE_CHARACTERISTIC_SCHEMA = (
             cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(
                 DESCRIPTOR_SCHEMA
             ),
-            cv.Optional(CONF_ON_WRITE): automation.validate_automation(
-                {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
-            ),
+            cv.Optional(CONF_ON_WRITE): automation.validate_automation(single=True),
             cv.Optional(CONF_DESCRIPTION): cv.string,
             cv.GenerateID(CONF_CUD_ID_): cv.declare_id(BLEDescriptor),
             cv.GenerateID(CONF_CUD_VALUE_BUFFER_): cv.declare_id(ByteBuffer),
@@ -264,6 +262,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
         cv.Optional(CONF_MODEL): cv.string,
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
+        cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -380,7 +380,7 @@ async def to_code_descriptor(descriptor_conf, char_var):
         on_write_conf = descriptor_conf[CONF_ON_WRITE]
         await automation.build_automation(
             BLETriggers_ns.create_descriptor_on_write_trigger(desc_var),
-            [(cg.std_vector.template(cg.uint8), "x")],
+            [(cg.std_vector.template(cg.uint8), "x"), (cg.uint16, "id")],
             on_write_conf,
         )
 
@@ -397,7 +397,7 @@ async def to_code_characteristic(service_var, char_conf):
         on_write_conf = char_conf[CONF_ON_WRITE]
         await automation.build_automation(
             BLETriggers_ns.create_characteristic_on_write_trigger(char_var),
-            [(cg.std_vector.template(cg.uint8), "x")],
+            [(cg.std_vector.template(cg.uint8), "x"), (cg.uint16, "id")],
             on_write_conf,
         )
     if CONF_VALUE in char_conf:
@@ -447,6 +447,18 @@ async def to_code(config):
         for char_conf in service_config[CONF_CHARACTERISTICS]:
             await to_code_characteristic(service_var, char_conf)
         cg.add(var.enqueue_start_service(service_var))
+    if CONF_ON_CONNECT in config:
+        await automation.build_automation(
+            BLETriggers_ns.create_server_on_connect_trigger(var),
+            [(cg.uint16, "id")],
+            config[CONF_ON_CONNECT],
+        )
+    if CONF_ON_DISCONNECT in config:
+        await automation.build_automation(
+            BLETriggers_ns.create_server_on_disconnect_trigger(var),
+            [(cg.uint16, "id")],
+            config[CONF_ON_DISCONNECT],
+        )
     cg.add_define("USE_ESP32_BLE_SERVER")
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

@@ -20,13 +20,14 @@ namespace BLEDescriptorEvt {
 enum VectorEvt {
   ON_WRITE,
 };
-}  // namespace BLECharacteristicEvt
+}  // namespace BLEDescriptorEvt
 
-class BLEDescriptor : public EventEmitter<BLEDescriptorEvt::VectorEvt, std::vector<uint8_t>> {
+class BLEDescriptor : public EventEmitter<BLEDescriptorEvt::VectorEvt, std::vector<uint8_t>, uint16_t> {
  public:
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
   virtual ~BLEDescriptor();
   void do_create(BLECharacteristic *characteristic);
+  ESPBTUUID get_uuid() const { return this->uuid_; }
 
   void set_value(ByteBuffer buffer);
 

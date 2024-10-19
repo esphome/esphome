@@ -182,21 +182,15 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   switch (event) {
     case ESP_GATTS_CONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client connected");
-      this->add_client_(param->connect.conn_id, (void *) this);
-      this->connected_clients_++;
-      for (auto &pair : this->services_) {
-        pair.second->emit_client_connect(param->connect.conn_id);
-      }
+      this->add_client_(param->connect.conn_id);
+      this->emit_(BLEServerEvt::EmptyEvt::ON_CONNECT, param->connect.conn_id);
       break;
     }
     case ESP_GATTS_DISCONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client disconnected");
-      if (this->remove_client_(param->disconnect.conn_id))
-        this->connected_clients_--;
+      this->remove_client_(param->disconnect.conn_id);
       this->parent_->advertising_start();
-      for (auto &pair : this->services_) {
-        pair.second->emit_client_disconnect(param->disconnect.conn_id);
-      }
+      this->emit_(BLEServerEvt::EmptyEvt::ON_DISCONNECT, param->disconnect.conn_id);
       break;
     }
     case ESP_GATTS_REG_EVT: {
