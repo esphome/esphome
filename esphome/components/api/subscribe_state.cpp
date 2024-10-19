@@ -1,4 +1,5 @@
 #include "subscribe_state.h"
+#ifdef USE_API
 #include "api_connection.h"
 #include "esphome/core/log.h"
 
@@ -84,3 +85,4 @@ InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(clie
 
 }  // namespace api
 }  // namespace esphome
+#endif

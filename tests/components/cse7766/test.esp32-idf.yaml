@@ -5,6 +5,7 @@ uart:
     rx_pin:
       number: 16
     baud_rate: 4800
+    parity: EVEN
 
 sensor:
   - platform: cse7766

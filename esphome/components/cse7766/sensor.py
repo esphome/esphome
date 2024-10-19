@@ -79,7 +79,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "cse7766", baud_rate=4800, require_rx=True
+    "cse7766", baud_rate=4800, parity="EVEN", require_rx=True
 )
 
 
