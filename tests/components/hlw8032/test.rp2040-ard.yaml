@@ -1,0 +1,23 @@
+uart:
+  id: uart_hlw8032
+  rx_pin: GPIO5
+  baud_rate: 4800
+  parity: EVEN
+
+sensor:
+  - platform: hlw8032
+    voltage:
+      name: HLW8032 Voltage
+      id: hlw8032_voltage
+    current:
+      name: HLW8032 Current
+      id: hlw8032_current
+    power:
+      name: HLW8032 Power
+      id: hlw8032_power
+    apparent_power:
+      name: HLW8032 Apparent Power
+      id: hlw8032_apparent_power
+    power_factor:
+      name: HLW8032 Power Factor
+      id: hlw8032_power_factor
