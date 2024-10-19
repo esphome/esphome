@@ -1,6 +1,6 @@
 i2c:
-  sda: 10
-  scl: 9
+  sda: 6
+  scl: 4
   scan: True
 
 si4713_i2c:
