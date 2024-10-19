@@ -501,6 +501,7 @@ MeasureFrequencyAction = si4713_ns.class_(
     "MeasureFrequencyAction", automation.Action, cg.Parented.template(Si4713Component)
 )
 
+
 @automation.register_action(
     "si4713.set_tuner_frequency", SetFrequencyAction, FREQUENCY_SCHEMA
 )
