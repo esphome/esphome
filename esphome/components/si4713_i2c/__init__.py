@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_PRESET,
     CONF_TEXT,
     CONF_SAMPLE_RATE,
+    CONF_NOISE_LEVEL,
     STATE_CLASS_MEASUREMENT,
     ICON_CHIP,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -90,14 +91,14 @@ CONF_CLOCK_EDGE = "clock_edge"
 # CONF_SOURCE = "source"
 CONF_PRESCALER = "prescaler"
 # acomp
-CONF_ENABLE = "enable"
+# CONF_ENABLE = "enable"
 # CONF_THRESHOLD = "threshold"
 CONF_ATTACK = "attack"
 CONF_RELEASE = "release"
 # CONF_GAIN = "gain"
 # CONF_PRESET = "preset"
 # limiter
-CONF_ENABLE = "enable"
+# CONF_ENABLE = "enable"
 CONF_RELEASE_TIME = "release_time"
 # asq
 CONF_IALL = "iall"
@@ -108,7 +109,7 @@ CONF_DURATION_LOW = "duration_low"
 CONF_LEVEL_HIGH = "level_high"
 CONF_DURATION_HIGH = "duration_high"
 # rds
-CONF_ENABLE = "enable"
+# CONF_ENABLE = "enable"
 # CONF_DEVIATION = "deviation"
 CONF_STATION = "station"
 # CONF_TEXT = "text"
@@ -121,7 +122,7 @@ CONF_CHIP_ID = "chip_id"
 # CONF_FREQUENCY = "frequency"
 # CONF_POWER = "power"
 # CONF_ANTCAP = "antcap"
-CONF_NOISE_LEVEL = "noise_level"
+# CONF_NOISE_LEVEL = "noise_level"
 CONF_IALL = "iall"
 CONF_IALH = "ialh"
 CONF_OVERMOD = "overmod"
