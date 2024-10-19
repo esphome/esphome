@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_OVERSAMPLING,
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
     ICON_MAGNET,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
@@ -47,7 +48,6 @@ CONF_X_AXIS = "x_axis"
 CONF_Y_AXIS = "y_axis"
 CONF_Z_AXIS = "z_axis"
 CONF_DRDY_PIN = "drdy_pin"
-CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
 CONF_HALLCONF = "hallconf"
 
 
@@ -75,7 +75,7 @@ def mlx90393_axis_schema():
     ).extend(
         cv.Schema(
             {
-                cv.Optional(CONF_RESOLUTION, default="DIV_8"): cv.enum(
+                cv.Optional(CONF_RESOLUTION, default="DIV_4"): cv.enum(
                     RESOLUTION, upper=True, space="_"
                 )
             }
