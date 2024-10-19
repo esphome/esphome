@@ -172,7 +172,6 @@ void ModemComponent::loop() {
 
     // The state of network connection established
     case ModemComponentState::CONNECTED:
-      // ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage() / 1000);
       if (esp_netif_is_netif_up(this->modem_netif_)) {
         ESP_LOGD(TAG, "esp_netif_is_netif_UP");
       } else {
@@ -313,16 +312,7 @@ int ModemComponent::get_rssi() {
   return rssi;
 }
 
-int ModemComponent::get_modem_voltage() {
-  int voltage = 0, bcs = 0, bcl = 0;
-  esp_modem::command_result errr = this->dce->get_battery_status(voltage, bcs, bcl);
-  if (errr != esp_modem::command_result::OK) {
-    ESP_LOGE(TAG, "get_battery_status failed with");
-  }
-  return voltage;
-}
-
-float ModemComponent::get_setup_priority() const { return setup_priority::WIFI; }
+float ModemComponent::get_setup_priority() const { return setup_priority::MODEM; }
 
 bool ModemComponent::can_proceed() { return this->is_connected(); }
 
