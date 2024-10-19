@@ -19,7 +19,7 @@ void GP8211Output::write_state(float state) {
   ESP_LOGD(TAG, "Calculated DAC value: %u", value);
 
   i2c::ErrorCode err = this->parent_->write_register(OUTPUT_REGISTER, (uint8_t *)&value, 2);
-  
+
   if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Error writing to GP8211, code %d", err);
   }
