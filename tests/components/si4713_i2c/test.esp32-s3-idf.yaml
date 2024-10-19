@@ -70,7 +70,7 @@ si4713:
     iall:
       name: Input Audio Level Detection Low
     ialh:
-      name: Input Audio Level Detection High 
+      name: Input Audio Level Detection High
     overmod:
       name: Overmodulation Detection
     inlevel:
