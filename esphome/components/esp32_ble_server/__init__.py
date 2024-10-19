@@ -2,6 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32_ble import bt_uuid, bt_uuid16_format, bt_uuid32_format, bt_uuid128_format
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -70,12 +71,6 @@ PROPERTY_MAP = {
 }
 
 
-def validate_uuid(value):
-    if len(value) != 36:
-        raise cv.Invalid("UUID must be exactly 36 characters long")
-    return value
-
-
 def validate_on_write(char_config):
     if CONF_ON_WRITE in char_config:
         if not char_config[CONF_WRITE] and not char_config[CONF_WRITE_NO_RESPONSE]:
@@ -113,8 +108,6 @@ def validate_notify_action(action_char_id):
     return action_char_id
 
 
-UUID_SCHEMA = cv.Any(cv.All(cv.string, validate_uuid), cv.uint32_t)
-
 DESCRIPTOR_VALUE_SCHEMA = cv.Any(
     cv.boolean,
     cv.float_,
@@ -140,7 +133,7 @@ CHARACTERISTIC_VALUE_SCHEMA = cv.Any(
 DESCRIPTOR_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEDescriptor),
-        cv.Required(CONF_UUID): UUID_SCHEMA,
+        cv.Required(CONF_UUID): bt_uuid,
         cv.Required(CONF_VALUE): DESCRIPTOR_VALUE_SCHEMA,
     }
 )
@@ -148,7 +141,7 @@ DESCRIPTOR_SCHEMA = cv.Schema(
 SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLECharacteristic),
-        cv.Required(CONF_UUID): UUID_SCHEMA,
+        cv.Required(CONF_UUID): bt_uuid,
         cv.Optional(CONF_WRITE_NO_RESPONSE, default=False): cv.boolean,
         cv.Optional(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
         cv.GenerateID(CONF_VALUE_ACTION_ID_): cv.declare_id(
@@ -165,7 +158,7 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
 SERVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEService),
-        cv.Required(CONF_UUID): UUID_SCHEMA,
+        cv.Required(CONF_UUID): bt_uuid,
         cv.Optional(CONF_ADVERTISE, default=False): cv.boolean,
         cv.Optional(CONF_CHARACTERISTICS, default=[]): cv.ensure_list(
             SERVICE_CHARACTERISTIC_SCHEMA
@@ -190,14 +183,6 @@ def parse_properties(char_conf):
         (PROPERTY_MAP[k] for k in char_conf if k in PROPERTY_MAP and char_conf[k]),
         start=0,
     )
-
-
-def parse_uuid(uuid):
-    # If the UUID is a string, use from_raw
-    if isinstance(uuid, str):
-        return ESPBTUUID_ns.from_raw(uuid)
-    # Otherwise, use from_uint32
-    return ESPBTUUID_ns.from_uint32(uuid)
 
 
 def parse_descriptor_value(value):
@@ -288,7 +273,7 @@ async def to_code(config):
         service_var = cg.Pvariable(
             service_config[CONF_ID],
             var.create_service(
-                parse_uuid(service_config[CONF_UUID]),
+                ESPBTUUID_ns.from_raw(service_config[CONF_UUID]),
                 service_config[CONF_ADVERTISE],
                 num_handles,
             ),
@@ -297,7 +282,7 @@ async def to_code(config):
             char_var = cg.Pvariable(
                 char_conf[CONF_ID],
                 service_var.create_characteristic(
-                    parse_uuid(char_conf[CONF_UUID]),
+                    ESPBTUUID_ns.from_raw(char_conf[CONF_UUID]),
                     parse_properties(char_conf),
                 ),
             )
@@ -326,7 +311,7 @@ async def to_code(config):
                 )
                 desc_var = cg.new_Pvariable(
                     descriptor_conf[CONF_ID],
-                    parse_uuid(descriptor_conf[CONF_UUID]),
+                    ESPBTUUID_ns.from_raw(descriptor_conf[CONF_UUID]),
                     max_length,
                 )
                 if CONF_VALUE in descriptor_conf:
