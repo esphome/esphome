@@ -10,7 +10,6 @@ from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
-from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from .helpers import requires_component
@@ -96,11 +95,11 @@ class LvConstant(LValidator):
                 return prefixed_validator(value)
             return self.prefix + cv.one_of(*choices, upper=True)(value)
 
-        super().__init__(validator, rtype=uint32)
+        super().__init__(validator, rtype=cg.uint32)
         self.retmapper = self.mapper
-        self.one_of = LValidator(validator, uint32, retmapper=self.mapper)
+        self.one_of = LValidator(validator, cg.uint32, retmapper=self.mapper)
         self.several_of = LValidator(
-            cv.ensure_list(self.one_of), uint32, retmapper=self.mapper
+            cv.ensure_list(self.one_of), cg.uint32, retmapper=self.mapper
         )
 
     def mapper(self, value):
