@@ -152,7 +152,7 @@ VALUE_EXTRAS_SCHEMA = cv.Schema(
 DESCRIPTOR_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEDescriptor),
-        cv.Required(CONF_UUID): bt_uuid,
+        cv.Required(CONF_UUID): cv.Any(bt_uuid, cv.hex_uint32_t),
         cv.Optional(CONF_READ, default=True): cv.boolean,
         cv.Optional(CONF_WRITE, default=True): cv.boolean,
         cv.Optional(CONF_ON_WRITE): automation.validate_automation(
@@ -167,7 +167,7 @@ SERVICE_CHARACTERISTIC_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BLECharacteristic),
-            cv.Required(CONF_UUID): bt_uuid,
+            cv.Required(CONF_UUID): cv.Any(bt_uuid, cv.hex_uint32_t),
             cv.Optional(CONF_VALUE): VALUE_SCHEMA,
             cv.GenerateID(CONF_CHAR_VALUE_ACTION_ID_): cv.declare_id(
                 BLECharacteristicSetValueAction
@@ -188,7 +188,7 @@ SERVICE_CHARACTERISTIC_SCHEMA = (
 SERVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEService),
-        cv.Required(CONF_UUID): bt_uuid,
+        cv.Required(CONF_UUID): cv.Any(bt_uuid, cv.hex_uint32_t),
         cv.Optional(CONF_ADVERTISE, default=False): cv.boolean,
         cv.Optional(CONF_CHARACTERISTICS, default=[]): cv.ensure_list(
             SERVICE_CHARACTERISTIC_SCHEMA
@@ -215,6 +215,13 @@ def parse_properties(char_conf):
         (PROPERTY_MAP[k] for k in char_conf if k in PROPERTY_MAP and char_conf[k]),
         start=0,
     )
+
+def parse_uuid(uuid):
+    # If the UUID is a int, use from_uint32
+    if isinstance(uuid, int):
+        return ESPBTUUID_ns.from_uint32(uuid)
+    # Otherwise, use ESPBTUUID_ns.from_raw
+    return ESPBTUUID_ns.from_raw(uuid)
 
 
 def bytebuffer_parser_(value, str_encoding):
@@ -301,7 +308,7 @@ async def to_code_descriptor(descriptor_conf, char_var):
     )
     desc_var = cg.new_Pvariable(
         descriptor_conf[CONF_ID],
-        ESPBTUUID_ns.from_raw(descriptor_conf[CONF_UUID]),
+        parse_uuid(descriptor_conf[CONF_UUID]),
         value.get_capacity(),
         descriptor_conf[CONF_READ],
         descriptor_conf[CONF_WRITE],
@@ -321,7 +328,7 @@ async def to_code_characteristic(service_var, char_conf):
     char_var = cg.Pvariable(
         char_conf[CONF_ID],
         service_var.create_characteristic(
-            ESPBTUUID_ns.from_raw(char_conf[CONF_UUID]),
+            parse_uuid(char_conf[CONF_UUID]),
             parse_properties(char_conf),
         ),
     )
@@ -371,7 +378,7 @@ async def to_code(config):
         service_var = cg.Pvariable(
             service_config[CONF_ID],
             var.create_service(
-                ESPBTUUID_ns.from_raw(service_config[CONF_UUID]),
+                parse_uuid(service_config[CONF_UUID]),
                 service_config[CONF_ADVERTISE],
                 num_handles,
             ),
