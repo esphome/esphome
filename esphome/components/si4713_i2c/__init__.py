@@ -4,6 +4,7 @@ from esphome import automation, pins
 from esphome.components import i2c, sensor, binary_sensor, text_sensor
 from esphome.const import (
     CONF_ID,
+    CONF_RESET_PIN,
     CONF_ANALOG,
     CONF_SENSOR,
     CONF_FREQUENCY,
@@ -17,6 +18,7 @@ from esphome.const import (
     CONF_GAIN,
     CONF_PRESET,
     CONF_TEXT,
+    CONF_SAMPLE_RATE,
     STATE_CLASS_MEASUREMENT,
     ICON_CHIP,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -50,7 +52,7 @@ Si4713Component = si4713_ns.class_(
 )
 
 CONF_SI4713_ID = "si4713_id"
-CONF_RESET_PIN = "reset_pin"
+# CONF_RESET_PIN = "reset_pin"
 CONF_TUNER = "tuner"
 CONF_DIGITAL = "digital"
 CONF_PILOT = "pilot"
@@ -74,7 +76,7 @@ CONF_ANTCAP = "antcap"
 # CONF_LEVEL = "level"
 # CONF_ATTENUATION = "attenuation"
 # digital
-CONF_SAMPLE_RATE = "sample_rate"
+# CONF_SAMPLE_RATE = "sample_rate"
 CONF_SAMPLE_BITS = "sample_bits"
 # CONF_CHANNELS = "channels"
 # CONF_MODE = "mode"
@@ -82,7 +84,7 @@ CONF_CLOCK_EDGE = "clock_edge"
 # pilot
 # CONF_ENABLE = "enable"
 # CONF_FREQUENCY = "frequency"
-CONF_DEVIATION = "deviation"
+# CONF_DEVIATION = "deviation"
 # refclk
 # CONF_FREQUENCY = "frequency"
 # CONF_SOURCE = "source"
@@ -107,7 +109,7 @@ CONF_LEVEL_HIGH = "level_high"
 CONF_DURATION_HIGH = "duration_high"
 # rds
 CONF_ENABLE = "enable"
-CONF_DEVIATION = "deviation"
+# CONF_DEVIATION = "deviation"
 CONF_STATION = "station"
 # CONF_TEXT = "text"
 # output
@@ -116,10 +118,10 @@ CONF_GPIO2 = "gpio2"
 CONF_GPIO3 = "gpio3"
 # sensor
 CONF_CHIP_ID = "chip_id"
-CONF_READ_FREQUENCY = "frequency"
-CONF_READ_POWER = "power"
-CONF_READ_ANTCAP = "antcap"
-CONF_READ_NOISE_LEVEL = "noise_level"
+# CONF_FREQUENCY = "frequency"
+# CONF_POWER = "power"
+# CONF_ANTCAP = "antcap"
+CONF_NOISE_LEVEL = "noise_level"
 CONF_IALL = "iall"
 CONF_IALH = "ialh"
 CONF_OVERMOD = "overmod"
@@ -299,26 +301,26 @@ SENSOR_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             icon=ICON_CHIP,
         ),
-        cv.Optional(CONF_READ_FREQUENCY): sensor.sensor_schema(
+        cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
             unit_of_measurement=UNIT_MEGA_HERTZ,
             # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             state_class=STATE_CLASS_MEASUREMENT,
             accuracy_decimals=2,
             # icon=ICON_,
         ),
-        cv.Optional(CONF_READ_POWER): sensor.sensor_schema(
+        cv.Optional(CONF_POWER): sensor.sensor_schema(
             unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
             # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             state_class=STATE_CLASS_MEASUREMENT,
             # icon=ICON_,
         ),
-        cv.Optional(CONF_READ_ANTCAP): sensor.sensor_schema(
+        cv.Optional(CONF_ANTCAP): sensor.sensor_schema(
             unit_of_measurement=UNIT_PICO_FARAD,
             # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             state_class=STATE_CLASS_MEASUREMENT,
             # icon=ICON_,
         ),
-        cv.Optional(CONF_READ_NOISE_LEVEL): sensor.sensor_schema(
+        cv.Optional(CONF_NOISE_LEVEL): sensor.sensor_schema(
             unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
             # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             # state_class=STATE_CLASS_MEASUREMENT,
@@ -437,10 +439,10 @@ VARIABLES = {
 SENSORS = {
     CONF_SENSOR: [
         [CONF_CHIP_ID, "text_sensor"],
-        [CONF_READ_FREQUENCY, "sensor"],
-        [CONF_READ_POWER, "sensor"],
-        [CONF_READ_ANTCAP, "sensor"],
-        [CONF_READ_NOISE_LEVEL, "sensor"],
+        [CONF_FREQUENCY, "sensor"],
+        [CONF_POWER, "sensor"],
+        [CONF_ANTCAP, "sensor"],
+        [CONF_NOISE_LEVEL, "sensor"],
         [CONF_IALL, "binary_sensor"],
         [CONF_IALH, "binary_sensor"],
         [CONF_OVERMOD, "binary_sensor"],
