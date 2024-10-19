@@ -30,7 +30,9 @@ CONF_BROADCAST = "broadcast"
 CONF_INDICATE = "indicate"
 CONF_WRITE_NO_RESPONSE = "write_no_response"
 CONF_DESCRIPTORS = "descriptors"
-CONF_VALUE_ACTION_ID_ = "value_action_id_"
+CONF_STRING_ENCODING = "string_encoding"
+
+CONF_CHAR_VALUE_ACTION_ID_ = "characteristic_value_action_id_"
 CONF_VALUE_BUFFER_ = "value_buffer_"
 
 # Core key to store the global configuration
@@ -72,7 +74,7 @@ PROPERTY_MAP = {
 }
 
 
-def validate_on_write(char_config):
+def validate_char_on_write(char_config):
     if CONF_ON_WRITE in char_config:
         if not char_config[CONF_WRITE] and not char_config[CONF_WRITE_NO_RESPONSE]:
             raise cv.Invalid(
@@ -81,12 +83,33 @@ def validate_on_write(char_config):
     return char_config
 
 
+def validate_desc_on_write(desc_config):
+    if CONF_ON_WRITE in desc_config:
+        if not desc_config[CONF_WRITE]:
+            raise cv.Invalid(
+                f"{CONF_ON_WRITE} requires the {CONF_WRITE} property to be set"
+            )
+    return desc_config
+
+
 def validate_notify_action(action_char_id):
     # Store the characteristic ID in the global data for the final validation
     if _KEY_NOTIFY_REQUIRED not in CORE.data:
         CORE.data[_KEY_NOTIFY_REQUIRED] = set()
     CORE.data[_KEY_NOTIFY_REQUIRED].add(action_char_id)
     return action_char_id
+
+
+def validate_descritor_value_length(descriptor_conf):
+    # Check if the value length is specified for the descriptor if the value is a templatable
+    if (
+        cg.is_template(descriptor_conf[CONF_VALUE])
+        and CONF_BYTE_LENGTH not in descriptor_conf
+    ):
+        raise cv.Invalid(
+            f"Descriptor {descriptor_conf[CONF_UUID]} is a templatable value and the {CONF_BYTE_LENGTH} property is not set"
+        )
+    return descriptor_conf
 
 
 def final_validate_config(config):
@@ -102,61 +125,65 @@ def final_validate_config(config):
             ][0]
             if not char_config[CONF_NOTIFY]:
                 raise cv.Invalid(
-                    f"Characteristic {char_id} has notify actions and the {CONF_NOTIFY} property is not set"
+                    f"Characteristic {char_config[CONF_UUID]} has notify actions and the {CONF_NOTIFY} property is not set"
                 )
     return config
 
 
-DESCRIPTOR_VALUE_SCHEMA = cv.Any(
+VALUE_SCHEMA = cv.Any(
     cv.boolean,
-    cv.float_,
     cv.uint8_t,
     cv.uint16_t,
     cv.uint32_t,
     cv.int_,
-    cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1)),
+    cv.float_,
+    cv.templatable(cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1))),
     cv.string,
 )
 
-CHARACTERISTIC_VALUE_SCHEMA = cv.Any(
-    cv.boolean,
-    cv.float_,
-    cv.uint8_t,
-    cv.uint16_t,
-    cv.uint32_t,
-    cv.int_,
-    cv.templatable(cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1))),
-    cv.string,
+VALUE_EXTRAS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_STRING_ENCODING, default="utf-8"): cv.string,
+        cv.Optional(CONF_BYTE_LENGTH): cv.uint16_t,
+        cv.GenerateID(CONF_VALUE_BUFFER_): cv.declare_id(ByteBuffer),
+    }
 )
 
 DESCRIPTOR_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEDescriptor),
         cv.Required(CONF_UUID): bt_uuid,
-        cv.Required(CONF_VALUE): DESCRIPTOR_VALUE_SCHEMA,
-        cv.Optional(CONF_BYTE_LENGTH): cv.uint16_t,
-        cv.GenerateID(CONF_VALUE_BUFFER_): cv.declare_id(ByteBuffer),
-    }
-)
-
-SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(BLECharacteristic),
-        cv.Required(CONF_UUID): bt_uuid,
-        cv.Optional(CONF_WRITE_NO_RESPONSE, default=False): cv.boolean,
-        cv.Optional(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
-        cv.Optional(CONF_BYTE_LENGTH): cv.uint16_t,
-        cv.GenerateID(CONF_VALUE_BUFFER_): cv.declare_id(ByteBuffer),
-        cv.GenerateID(CONF_VALUE_ACTION_ID_): cv.declare_id(
-            BLECharacteristicSetValueAction
-        ),
-        cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(DESCRIPTOR_SCHEMA),
+        cv.Optional(CONF_READ, default=True): cv.boolean,
+        cv.Optional(CONF_WRITE, default=True): cv.boolean,
         cv.Optional(CONF_ON_WRITE): automation.validate_automation(
-            {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
+            {cv.GenerateID(): cv.declare_id(BLEDescriptor)}, single=True
         ),
+        cv.Required(CONF_VALUE): VALUE_SCHEMA,
     },
-    extra_schemas=[validate_on_write],
-).extend({cv.Optional(k, default=False): cv.boolean for k in PROPERTY_MAP})
+    extra_schemas=[validate_descritor_value_length, validate_desc_on_write],
+).extend(VALUE_EXTRAS_SCHEMA)
+
+SERVICE_CHARACTERISTIC_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(BLECharacteristic),
+            cv.Required(CONF_UUID): bt_uuid,
+            cv.Optional(CONF_VALUE): VALUE_SCHEMA,
+            cv.GenerateID(CONF_CHAR_VALUE_ACTION_ID_): cv.declare_id(
+                BLECharacteristicSetValueAction
+            ),
+            cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(
+                DESCRIPTOR_SCHEMA
+            ),
+            cv.Optional(CONF_ON_WRITE): automation.validate_automation(
+                {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
+            ),
+        },
+        extra_schemas=[validate_char_on_write],
+    )
+    .extend({cv.Optional(k, default=False): cv.boolean for k in PROPERTY_MAP})
+    .extend(VALUE_EXTRAS_SCHEMA)
+)
 
 SERVICE_SCHEMA = cv.Schema(
     {
@@ -190,65 +217,43 @@ def parse_properties(char_conf):
     )
 
 
-def _parse_value_(value, buffer_id, byte_length=None):
-    # Compute the maximum length of the value
-    # Also parse the value for byte arrays
-    for val_method, put_method in zip(
+def bytebuffer_parser_(value, str_encoding):
+    for val_method, casting in zip(
         (
             cv.boolean,
-            cv.float_,
             cv.uint8_t,
             cv.uint16_t,
             cv.uint32_t,
             cv.int_,
+            cv.float_,
             cv.string,
+            cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1)),
         ),
         (
-            "put_bool",
-            "put_float",
-            "put_uint8",
-            "put_uint16",
-            "put_uint32",
-            "put_int",
-            "put_vector",
+            cg.bool_,
+            cg.uint8,
+            cg.uint16,
+            cg.uint32,
+            cg.int_,
+            cg.float_,
+            None,
+            cg.std_vector.template(cg.uint8),
         ),
     ):
         try:
             val = val_method(value)
-            if byte_length is None:
-                # If no byte length is specified, use the default length
-                buffer_var = cg.variable(buffer_id, ByteBuffer_ns.wrap(val))
+            if val_method == cv.string:
+                # Convert to a list of bytes using encoding
+                val = cg.std_vector.template(cg.uint8)(list(val.encode(str_encoding)))
             else:
-                # Create a buffer with the specified length and add the value
-                buffer_var = cg.variable(buffer_id, ByteBuffer(byte_length))
-                if isinstance(val, str):
-                    # Split in characters
-                    val = [ord(c) for c in val]
-                cg.add(getattr(buffer_var, put_method)(val))
-            return buffer_var, buffer_var.get_capacity()
+                val = casting(val)
+            return val, val_method
         except cv.Invalid:
             pass
-    # Assume it's a list of bytes
-    try:
-        val = cv.All(cv.ensure_list(cv.uint8_t), cv.Length(min=1))(value)
-        if byte_length is None:
-            buffer_var = cg.variable(
-                buffer_id, ByteBuffer_ns.wrap(cg.std_vector.template(cg.uint8)(val))
-            )
-        else:
-            buffer_var = cg.variable(buffer_id, ByteBuffer(byte_length))
-            cg.add(buffer_var.put_vector(val))
-        return buffer_var, buffer_var.get_capacity()
-    except cv.Invalid:
-        pass
     raise cv.Invalid(f"Could not find type for value: {value}")
 
 
-def parse_descriptor_value(value, buffer_id, byte_length=None):
-    return _parse_value_(value, buffer_id, byte_length)
-
-
-async def parse_characteristic_value(value, buffer_id, args):
+async def parse_value(value, str_encoding, buffer_id, args, byte_length=None):
     if isinstance(value, cv.Lambda):
         return await cg.templatable(
             value,
@@ -256,7 +261,25 @@ async def parse_characteristic_value(value, buffer_id, args):
             ByteBuffer,
             ByteBuffer_ns.wrap,
         )
-    return _parse_value_(value, buffer_id)[0]
+
+    val, val_method = bytebuffer_parser_(value, str_encoding)
+    if byte_length is None:
+        # If no byte length is specified, use the default length
+        buffer_var = cg.variable(buffer_id, ByteBuffer_ns.wrap(val))
+    else:
+        put_method_dict = {
+            cv.boolean: "put_bool",
+            cv.uint8_t: "put_uint8",
+            cv.uint16_t: "put_uint16",
+            cv.uint32_t: "put_uint32",
+            cv.int_: "put_int",
+            cv.float_: "put_float",
+        }
+        # Create a buffer with the specified length and add the value
+        put_method = put_method_dict.get(val_method, "put_vector")
+        buffer_var = cg.variable(buffer_id, ByteBuffer(byte_length))
+        cg.add(getattr(buffer_var, put_method)(val))
+    return buffer_var
 
 
 def calculate_num_handles(service_config):
@@ -266,6 +289,66 @@ def calculate_num_handles(service_config):
         for _ in char_conf[CONF_DESCRIPTORS]:
             total += 1
     return total
+
+
+async def to_code_descriptor(descriptor_conf, char_var):
+    value = await parse_value(
+        descriptor_conf[CONF_VALUE],
+        descriptor_conf[CONF_STRING_ENCODING],
+        descriptor_conf[CONF_VALUE_BUFFER_],
+        {},
+        descriptor_conf.get(CONF_BYTE_LENGTH, None),
+    )
+    desc_var = cg.new_Pvariable(
+        descriptor_conf[CONF_ID],
+        ESPBTUUID_ns.from_raw(descriptor_conf[CONF_UUID]),
+        value.get_capacity(),
+        descriptor_conf[CONF_READ],
+        descriptor_conf[CONF_WRITE],
+    )
+    cg.add(char_var.add_descriptor(desc_var))
+    cg.add(desc_var.set_value(value))
+    if CONF_ON_WRITE in descriptor_conf:
+        on_write_conf = descriptor_conf[CONF_ON_WRITE]
+        await automation.build_automation(
+            BLETriggers_ns.create_descriptor_on_write_trigger(desc_var),
+            [(cg.std_vector.template(cg.uint8), "x")],
+            on_write_conf,
+        )
+
+
+async def to_code_characteristic(service_var, char_conf):
+    char_var = cg.Pvariable(
+        char_conf[CONF_ID],
+        service_var.create_characteristic(
+            ESPBTUUID_ns.from_raw(char_conf[CONF_UUID]),
+            parse_properties(char_conf),
+        ),
+    )
+    if CONF_ON_WRITE in char_conf:
+        on_write_conf = char_conf[CONF_ON_WRITE]
+        await automation.build_automation(
+            BLETriggers_ns.create_characteristic_on_write_trigger(char_var),
+            [(cg.std_vector.template(cg.uint8), "x")],
+            on_write_conf,
+        )
+    if CONF_VALUE in char_conf:
+        action_conf = {
+            CONF_ID: char_conf[CONF_ID],
+            CONF_VALUE: char_conf[CONF_VALUE],
+            CONF_BYTE_LENGTH: char_conf.get(CONF_BYTE_LENGTH, None),
+            CONF_STRING_ENCODING: char_conf[CONF_STRING_ENCODING],
+            CONF_VALUE_BUFFER_: char_conf[CONF_VALUE_BUFFER_],
+        }
+        value_action = await ble_server_characteristic_set_value(
+            action_conf,
+            char_conf[CONF_CHAR_VALUE_ACTION_ID_],
+            cg.TemplateArguments(None),
+            {},
+        )
+        cg.add(value_action.play())
+    for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
+        await to_code_descriptor(descriptor_conf, char_var)
 
 
 async def to_code(config):
@@ -294,48 +377,7 @@ async def to_code(config):
             ),
         )
         for char_conf in service_config[CONF_CHARACTERISTICS]:
-            char_var = cg.Pvariable(
-                char_conf[CONF_ID],
-                service_var.create_characteristic(
-                    ESPBTUUID_ns.from_raw(char_conf[CONF_UUID]),
-                    parse_properties(char_conf),
-                ),
-            )
-            if CONF_ON_WRITE in char_conf:
-                on_write_conf = char_conf[CONF_ON_WRITE]
-                await automation.build_automation(
-                    BLETriggers_ns.create_on_write_trigger(char_var),
-                    [(cg.std_vector.template(cg.uint8), "x")],
-                    on_write_conf,
-                )
-            if CONF_VALUE in char_conf:
-                action_conf = {
-                    CONF_ID: char_conf[CONF_ID],
-                    CONF_VALUE: char_conf[CONF_VALUE],
-                    CONF_BYTE_LENGTH: char_conf.get(CONF_BYTE_LENGTH, None),
-                    CONF_VALUE_BUFFER_: char_conf[CONF_VALUE_BUFFER_],
-                }
-                value_action = await ble_server_characteristic_set_value(
-                    action_conf,
-                    char_conf[CONF_VALUE_ACTION_ID_],
-                    cg.TemplateArguments(None),
-                    {},
-                )
-                cg.add(value_action.play())
-            for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
-                descriptor_value, max_length = parse_descriptor_value(
-                    descriptor_conf[CONF_VALUE],
-                    descriptor_conf[CONF_VALUE_BUFFER_],
-                    descriptor_conf.get(CONF_BYTE_LENGTH, None),
-                )
-                desc_var = cg.new_Pvariable(
-                    descriptor_conf[CONF_ID],
-                    ESPBTUUID_ns.from_raw(descriptor_conf[CONF_UUID]),
-                    max_length,
-                )
-                if CONF_VALUE in descriptor_conf:
-                    cg.add(desc_var.set_value(descriptor_value))
-                cg.add(char_var.add_descriptor(desc_var))
+            await to_code_characteristic(service_var, char_conf)
         cg.add(var.enqueue_start_service(service_var))
     cg.add_define("USE_ESP32_BLE_SERVER")
     if CORE.using_esp_idf:
@@ -348,16 +390,20 @@ async def to_code(config):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(BLECharacteristic),
-            cv.Required(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
-            cv.Optional(CONF_BYTE_LENGTH): cv.uint16_t,
-            cv.GenerateID(CONF_VALUE_BUFFER_): cv.declare_id(ByteBuffer),
+            cv.Required(CONF_VALUE): VALUE_SCHEMA,
         }
-    ),
+    ).extend(VALUE_EXTRAS_SCHEMA),
 )
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    value = await parse_characteristic_value(config[CONF_VALUE], config[CONF_VALUE_BUFFER_], args)
+    value = await parse_value(
+        config[CONF_VALUE],
+        config[CONF_STRING_ENCODING],
+        config[CONF_VALUE_BUFFER_],
+        args,
+        config.get(CONF_BYTE_LENGTH, None),
+    )
     cg.add(var.set_buffer(value))
     return var
 

@@ -9,11 +9,20 @@ namespace esp32_ble_server_automations {
 
 using namespace esp32_ble;
 
-Trigger<std::vector<uint8_t>> *BLETriggers::create_on_write_trigger(BLECharacteristic *characteristic) {
+Trigger<std::vector<uint8_t>> *BLETriggers::create_characteristic_on_write_trigger(BLECharacteristic *characteristic) {
   Trigger<std::vector<uint8_t>> *on_write_trigger =  // NOLINT(cppcoreguidelines-owning-memory)
       new Trigger<std::vector<uint8_t>>();
   characteristic->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>::on(
       BLECharacteristicEvt::VectorEvt::ON_WRITE,
+      [on_write_trigger](const std::vector<uint8_t> &data) { on_write_trigger->trigger(data); });
+  return on_write_trigger;
+}
+
+Trigger<std::vector<uint8_t>> *BLETriggers::create_descriptor_on_write_trigger(BLEDescriptor *descriptor) {
+  Trigger<std::vector<uint8_t>> *on_write_trigger =  // NOLINT(cppcoreguidelines-owning-memory)
+      new Trigger<std::vector<uint8_t>>();
+  descriptor->EventEmitter<BLEDescriptorEvt::VectorEvt, std::vector<uint8_t>>::on(
+      BLEDescriptorEvt::VectorEvt::ON_WRITE,
       [on_write_trigger](const std::vector<uint8_t> &data) { on_write_trigger->trigger(data); });
   return on_write_trigger;
 }

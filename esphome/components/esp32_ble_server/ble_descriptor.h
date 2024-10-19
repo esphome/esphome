@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/core/event_emitter.h"
 #include "esphome/core/bytebuffer.h"
 
 #ifdef USE_ESP32
@@ -15,9 +16,15 @@ using namespace esp32_ble;
 
 class BLECharacteristic;
 
-class BLEDescriptor {
+namespace BLEDescriptorEvt {
+enum VectorEvt {
+  ON_WRITE,
+};
+}  // namespace BLECharacteristicEvt
+
+class BLEDescriptor : public EventEmitter<BLEDescriptorEvt::VectorEvt, std::vector<uint8_t>> {
  public:
-  BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100);
+  BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
   virtual ~BLEDescriptor();
   void do_create(BLECharacteristic *characteristic);
 
@@ -35,7 +42,7 @@ class BLEDescriptor {
 
   esp_attr_value_t value_;
 
-  esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
+  esp_gatt_perm_t permissions_ = 0;
 
   enum State : uint8_t {
     FAILED = 0x00,

@@ -12,11 +12,17 @@ namespace esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server.descriptor";
 
-BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len) {
+BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, bool read, bool write) {
   this->uuid_ = uuid;
   this->value_.attr_len = 0;
   this->value_.attr_max_len = max_len;
   this->value_.attr_value = (uint8_t *) malloc(max_len);  // NOLINT
+  if (read) {
+    this->permissions_ |= ESP_GATT_PERM_READ;
+  }
+  if (write) {
+    this->permissions_ |= ESP_GATT_PERM_WRITE;
+  }
 }
 
 BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }  // NOLINT
@@ -62,10 +68,14 @@ void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTS_WRITE_EVT: {
-      if (this->handle_ == param->write.handle) {
-        this->value_.attr_len = param->write.len;
-        memcpy(this->value_.attr_value, param->write.value, param->write.len);
-      }
+      if (this->handle_ != param->write.handle)
+        break;
+      this->value_.attr_len = param->write.len;
+      memcpy(this->value_.attr_value, param->write.value, param->write.len);
+      this->EventEmitter<BLEDescriptorEvt::VectorEvt, std::vector<uint8_t>>::emit_(
+        BLEDescriptorEvt::VectorEvt::ON_WRITE,
+        std::vector<uint8_t>(param->write.value, param->write.value + param->write.len)
+      );
       break;
     }
     default:

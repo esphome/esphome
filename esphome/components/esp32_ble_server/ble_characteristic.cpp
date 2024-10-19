@@ -219,7 +219,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
     }
     case ESP_GATTS_WRITE_EVT: {
       if (this->handle_ != param->write.handle)
-        return;
+        break;
 
       if (param->write.is_prep) {
         this->value_.insert(this->value_.end(), param->write.value, param->write.value + param->write.len);
