@@ -60,24 +60,24 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   std::string rds_text_;
   uint8_t gpio_[3];
 
-  bool send_cmd(const void *cmd, size_t cmd_size, void *res, size_t res_size);
+  bool send_cmd_(const void *cmd, size_t cmd_size, void *res, size_t res_size);
 
-  template<typename CMD> bool send_cmd(const CMD &cmd) {
-    return this->send_cmd((const void *) &cmd, sizeof(cmd), nullptr, 0);
+  template<typename CMD> bool send_cmd_(const CMD &cmd) {
+    return this->send_cmd_((const void *) &cmd, sizeof(cmd), nullptr, 0);
   }
 
-  template<typename CMD, typename RES> bool send_cmd(CMD cmd, RES &res) {
-    return this->send_cmd((const void *) &cmd, sizeof(cmd), (void *) &res, sizeof(res));
+  template<typename CMD, typename RES> bool send_cmd_(CMD cmd, RES &res) {
+    return this->send_cmd_((const void *) &cmd, sizeof(cmd), (void *) &res, sizeof(res));
   }
 
-  template<typename P> bool set_prop(P p) {
+  template<typename P> bool set_prop_(P p) {
     CmdSetProperty cmd = CmdSetProperty(p.PROP, p.PROPD);
-    return this->send_cmd(cmd);
+    return this->send_cmd_(cmd);
   }
 
   template<typename P> bool get_prop(P &p) {
     ResGetProperty res;
-    if (this->send_cmd(CmdGetProperty(p.PROP), res)) {
+    if (this->send_cmd_(CmdGetProperty(p.PROP), res)) {
       p.PROPD = ((uint16_t) res.PROPDH << 8) | res.PROPDL;
       return true;
     }
@@ -87,13 +87,13 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
 
   void rds_update_();  // TODO
 
-  bool reset();
-  bool power_up();
-  bool power_down();
-  bool detect_chip_id();
-  bool tune_freq(uint16_t freq);
-  bool tune_power(uint8_t power, uint8_t antcap = 0);
-  bool stc_wait();
+  bool device_reset_();
+  bool power_up_();
+  bool power_down_();
+  bool detect_chip_id_();
+  bool tune_freq_(uint16_t freq);
+  bool tune_power_(uint8_t power, uint8_t antcap = 0);
+  bool stc_wait_();
 
   template<class S, class T> void publish(S *s, T state);
   // template specialization here is not supported by the compiler yet

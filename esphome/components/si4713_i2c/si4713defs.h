@@ -277,8 +277,8 @@ struct ResBase {
       uint8_t ASQINT : 1;  // Signal quality measurement has been triggered
       uint8_t RDSINT : 1;  // RDS interrupt has been triggered
       uint8_t RSQINT : 1;
-      uint8_t _D4 : 1;
-      uint8_t _D5 : 1;
+      uint8_t D4 : 1;
+      uint8_t D5 : 1;
       uint8_t ERR : 1;  // Error
       uint8_t CTS : 1;  // Clear to Send
     };

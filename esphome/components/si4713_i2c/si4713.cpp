@@ -24,23 +24,23 @@ Si4713Component::Si4713Component() {
   memset(this->gpio_, 0, sizeof(gpio_));
 }
 
-bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size_t res_size) {
+bool Si4713Component::send_cmd_(const void *cmd, size_t cmd_size, void *res, size_t res_size) {
   const uint8_t *buff = (const uint8_t *) cmd;
 
   if (!this->reset_) {
     if (this->get_component_state() & COMPONENT_STATE_LOOP) {
-      ESP_LOGE(TAG, "send_cmd(0x%02X, %d) device was not reset", buff[0], cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) device was not reset", __func__, buff[0], cmd_size);
     }
     return false;
   }
 
   if ((CmdType) buff[0] != CmdType::GET_INT_STATUS && (CmdType) buff[0] != CmdType::TX_ASQ_STATUS) {
-    ESP_LOGV(TAG, "send_cmd(0x%02X, %d)", buff[0], cmd_size);
+    ESP_LOGV(TAG, "%s(0x%02X, %d)", __func__, buff[0], cmd_size);
   }
 
   i2c::ErrorCode err = this->write(buff, cmd_size);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "send_cmd(0x%02X, %d) write error", buff[0], cmd_size);
+    ESP_LOGE(TAG, "%s(0x%02X, %d) write error", __func__, buff[0], cmd_size);
     // this->mark_failed();
     return false;
   }
@@ -49,7 +49,7 @@ bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size
   while (status.CTS == 0) {
     err = this->read((uint8_t *) &status, 1);  // TODO: read res_size into res here?
     if (err != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "send_cmd(0x%02X, %d) read status error", buff[0], cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) read status error", __func__, buff[0], cmd_size);
       // this->mark_failed();
       return false;
     }
@@ -59,7 +59,7 @@ bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size
     //((uint8_t*) res)[0] = status;
     err = this->read((uint8_t *) res, res_size);
     if (err != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "send_cmd(0x%02X, %d) read response error", buff[0], cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) read response error", __func__, buff[0], cmd_size);
       // this->mark_failed();
       return false;
     }
@@ -70,7 +70,7 @@ bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size
 
 void Si4713Component::rds_update_() {}
 
-bool Si4713Component::reset() {
+bool Si4713Component::device_reset_() {
   if (this->reset_pin_ == nullptr) {
     ESP_LOGE(TAG, "cannot reset device, reset pin is not set");
     return false;
@@ -91,10 +91,10 @@ bool Si4713Component::reset() {
   return true;
 }
 
-bool Si4713Component::power_up() {
+bool Si4713Component::power_up_() {
   // NOTE: In FMTX component 1.0 and 2.0, a reset is required when the system
   // controller writes a command other than POWER_UP when in powerdown mode
-  this->reset();
+  this->device_reset_();
 
   CmdPowerUp cmd;
   cmd.OPMODE = (uint8_t) this->op_mode_;
@@ -102,14 +102,14 @@ bool Si4713Component::power_up() {
   cmd.XOSCEN = this->op_mode_ == OpMode::OPMODE_ANALOG ? 1 : 0;  // auto-enable(?) xtal for analog mode
   cmd.GPO2OEN = 0;                                               // we do this later
   cmd.CTSIEN = 0;                                                // no interrupts
-  return this->send_cmd(cmd);
+  return this->send_cmd_(cmd);
 }
 
-bool Si4713Component::power_down() { return this->send_cmd(CmdPowerDown()); }
+bool Si4713Component::power_down_() { return this->send_cmd_(CmdPowerDown()); }
 
-bool Si4713Component::detect_chip_id() {
+bool Si4713Component::detect_chip_id_() {
   ResGetRev res;
-  if (!this->send_cmd(CmdGetRev(), res)) {
+  if (!this->send_cmd_(CmdGetRev(), res)) {
     return false;
   }
 
@@ -127,21 +127,21 @@ bool Si4713Component::detect_chip_id() {
   return true;
 }
 
-bool Si4713Component::tune_freq(uint16_t freq) { return this->send_cmd(CmdTxTuneFreq(freq)) && this->stc_wait(); }
+bool Si4713Component::tune_freq_(uint16_t freq) { return this->send_cmd_(CmdTxTuneFreq(freq)) && this->stc_wait_(); }
 
-bool Si4713Component::tune_power(uint8_t power, uint8_t antcap) {
-  return this->send_cmd(CmdTxTunePower(this->power_enable_ ? power : 0, antcap)) && this->stc_wait();
+bool Si4713Component::tune_power_(uint8_t power, uint8_t antcap) {
+  return this->send_cmd_(CmdTxTunePower(this->power_enable_ ? power : 0, antcap)) && this->stc_wait_();
 }
 
-bool Si4713Component::stc_wait() {
+bool Si4713Component::stc_wait_() {
   ResGetIntStatus res;
   while (res.STCINT != 1) {  // risky loop of the day, it will be fine
-    if (!this->send_cmd(CmdGetIntStatus(), res)) {
+    if (!this->send_cmd_(CmdGetIntStatus(), res)) {
       return false;
     }
   }
 
-  return this->send_cmd(CmdTxTuneStatus(0), this->tune_status_);
+  return this->send_cmd_(CmdTxTuneStatus(0), this->tune_status_);
 }
 
 // overrides
@@ -149,12 +149,12 @@ bool Si4713Component::stc_wait() {
 void Si4713Component::setup() {
   // CHIP STATE: POWER DOWN
 
-  if (!this->power_up()) {
+  if (!this->power_up_()) {
     this->mark_failed();
     return;
   }
 
-  if (!this->detect_chip_id()) {
+  if (!this->detect_chip_id_()) {
     this->mark_failed();
     return;
   }
@@ -162,55 +162,55 @@ void Si4713Component::setup() {
   // CHIP STATE: POWER UP
 
   // Set RCLK settings
-  this->set_prop(this->refclk_freq_);
-  this->set_prop(this->refclk_prescale_);
+  this->set_prop_(this->refclk_freq_);
+  this->set_prop_(this->refclk_prescale_);
   // Mono/Stereo?
-  this->set_prop(this->tx_pilot_frequency_);
-  this->set_prop(this->tx_pilot_deviation_);
-  this->set_prop(this->tx_component_enable_);
+  this->set_prop_(this->tx_pilot_frequency_);
+  this->set_prop_(this->tx_pilot_deviation_);
+  this->set_prop_(this->tx_component_enable_);
   // Set Audio Deviation
-  this->set_prop(this->tx_audio_deviation_);
+  this->set_prop_(this->tx_audio_deviation_);
   // Transmit RDS?
-  this->set_prop(this->tx_rds_deviation_);
+  this->set_prop_(this->tx_rds_deviation_);
   // Preemphasis?
-  this->set_prop(this->tx_pre_emphasis_);
-  this->set_prop(this->tx_acomp_enable_);
+  this->set_prop_(this->tx_pre_emphasis_);
+  this->set_prop_(this->tx_acomp_enable_);
   // Compressor?
   // if (tx_acomp_enable_.ACEN) {
-  this->set_prop(this->tx_acomp_threshold_);
-  this->set_prop(this->tx_acomp_attack_time_);
-  this->set_prop(this->tx_acomp_release_time_);
-  this->set_prop(this->tx_acomp_gain_);
+  this->set_prop_(this->tx_acomp_threshold_);
+  this->set_prop_(this->tx_acomp_attack_time_);
+  this->set_prop_(this->tx_acomp_release_time_);
+  this->set_prop_(this->tx_acomp_gain_);
   //}
   // Limiter?
   // if (tx_acomp_enable_.LIMITEN) {
-  this->set_prop(tx_limiter_releasee_time_);
+  this->set_prop_(tx_limiter_releasee_time_);
   //}
   // Tune
-  this->tune_freq(this->frequency_);
-  this->tune_power(this->power_, this->antcap_);
+  this->tune_freq_(this->frequency_);
+  this->tune_power_(this->power_, this->antcap_);
 
   // CHIP STATE: TRANSMITTING
 
   // if (this->op_mode_ == OpMode::OPMODE_DIGITAL) {
   //  Digital Audio Input?
-  this->set_prop(digital_input_format_);
-  this->set_prop(digital_input_sample_rate_);
+  this->set_prop_(digital_input_format_);
+  this->set_prop_(digital_input_sample_rate_);
   //} else if (this->op_mode_ == OpMode::OPMODE_ANALOG) {
   // Analog Audio Input?
-  this->set_prop(tx_line_input_level_);
+  this->set_prop_(tx_line_input_level_);
   //}
   // Mute? Optional: Mute or Unmute Audio based on ASQ status
-  this->set_prop(this->tx_line_input_mute_);
+  this->set_prop_(this->tx_line_input_mute_);
   // GPIO
-  this->send_cmd(CmdGpioCtl(1, 1, 0));  // enable gpio1 and gpio2, clock is on gpio3
-  this->send_cmd(CmdGpioSet(0, 0, 0));  // init gpio to low (TODO: config)
+  this->send_cmd_(CmdGpioCtl(1, 1, 0));  // enable gpio1 and gpio2, clock is on gpio3
+  this->send_cmd_(CmdGpioSet(0, 0, 0));  // init gpio to low (TODO: config)
   // AQS
-  this->set_prop(this->tx_asq_interrupt_source_);
-  this->set_prop(this->tx_asq_level_low_);
-  this->set_prop(this->tx_asq_duration_low_);
-  this->set_prop(this->tx_asq_level_high_);
-  this->set_prop(this->tx_asq_duration_high_);
+  this->set_prop_(this->tx_asq_interrupt_source_);
+  this->set_prop_(this->tx_asq_level_low_);
+  this->set_prop_(this->tx_asq_duration_low_);
+  this->set_prop_(this->tx_asq_level_high_);
+  this->set_prop_(this->tx_asq_duration_high_);
   // RDS
   // TODO: PropTxRds*, CmdTxRdsPs, CmdTxRdsBuff
 
@@ -294,10 +294,10 @@ void Si4713Component::update() {
 
 void Si4713Component::loop() {
   ResGetIntStatus res;
-  if (this->send_cmd(CmdGetIntStatus(), res)) {
+  if (this->send_cmd_(CmdGetIntStatus(), res)) {
     if (res.STCINT == 1) {
       ESP_LOGV(TAG, "STCINT");
-      if (this->send_cmd(CmdTxTuneStatus(1), this->tune_status_)) {
+      if (this->send_cmd_(CmdTxTuneStatus(1), this->tune_status_)) {
         float f = (float) ((this->tune_status_.READFREQH << 8) | this->tune_status_.READFREQL) / 100;
         ESP_LOGD(TAG, "ResTxTuneStatus FREQ %.2f RFdBuV %d ANTCAP %d NL %d", f, this->tune_status_.READRFdBuV,
                  this->tune_status_.READANTCAP, this->tune_status_.RNL);
@@ -308,7 +308,7 @@ void Si4713Component::loop() {
       }
     }
     if (res.ASQINT == 1) {
-      if (this->send_cmd(CmdTxAsqStatus(1), this->asq_status_)) {
+      if (this->send_cmd_(CmdTxAsqStatus(1), this->asq_status_)) {
         // ESP_LOGD(TAG, "ResTxAsqStatus IALL %d IALH %d OVERMOD %d INLEVEL %d",
         //          this->asq_status_.IALL, this->asq_status_.IALH, this->asq_status_.OVERMOD,
         //          this->asq_status_.INLEVEL);
@@ -357,7 +357,7 @@ void Si4713Component::set_op_mode(OpMode value) { this->op_mode_ = (OpMode) valu
 void Si4713Component::set_mute(bool value) {
   this->tx_line_input_mute_.LIMUTE = value ? 1 : 0;
   this->tx_line_input_mute_.RIMUTE = value ? 1 : 0;
-  this->set_prop(this->tx_line_input_mute_);
+  this->set_prop_(this->tx_line_input_mute_);
   this->publish_mute();
 }
 
@@ -368,10 +368,10 @@ bool Si4713Component::get_mute() {
 void Si4713Component::set_mono(bool value) {
   // NOTE: analog/digital mono linked, easier to control this way
   this->tx_component_enable_.LMR = value ? 0 : 1;
-  this->set_prop(this->tx_component_enable_);
+  this->set_prop_(this->tx_component_enable_);
   this->publish_mono();
   this->digital_input_format_.IMONO = value ? 1 : 0;
-  this->set_prop(this->digital_input_format_);
+  this->set_prop_(this->digital_input_format_);
   this->publish_digital_channels();
 }
 
@@ -380,7 +380,7 @@ bool Si4713Component::get_mono() { return this->tx_component_enable_.LMR == 0; }
 void Si4713Component::set_pre_emphasis(PreEmphasis value) {
   CHECK_ENUM(value)
   this->tx_pre_emphasis_.FMPE = (uint16_t) value;
-  this->set_prop(this->tx_pre_emphasis_);
+  this->set_prop_(this->tx_pre_emphasis_);
   this->publish_pre_emphasis();
 }
 
@@ -388,8 +388,8 @@ PreEmphasis Si4713Component::get_pre_emphasis() { return (PreEmphasis) tx_pre_em
 
 void Si4713Component::set_tuner_enable(bool value) {
   this->power_enable_ = value;
-  this->tune_power(this->power_, this->antcap_);
-  // this->set_prop(this->tx_component_enable_);
+  this->tune_power_(this->power_, this->antcap_);
+  // this->set_prop_(this->tx_component_enable_);
   this->publish_tuner_enable();
 }
 
@@ -398,7 +398,7 @@ bool Si4713Component::get_tuner_enable() { return this->power_enable_; }
 void Si4713Component::set_tuner_frequency(float value) {
   CHECK_FLOAT_RANGE(value, FREQ_MIN, FREQ_MAX)
   this->frequency_ = (uint16_t) clamp((int) std::lround(value * 20) * 5, FREQ_RAW_MIN, FREQ_RAW_MAX);
-  this->tune_freq(this->frequency_);
+  this->tune_freq_(this->frequency_);
   this->publish_tuner_frequency();
 }
 
@@ -407,7 +407,7 @@ float Si4713Component::get_tuner_frequency() { return (float) this->frequency_ /
 void Si4713Component::set_tuner_deviation(float value) {
   CHECK_FLOAT_RANGE(value, TXADEV_MIN, TXADEV_MAX)
   this->tx_audio_deviation_.TXADEV = (uint16_t) clamp((int) std::lround(value * 100), TXADEV_RAW_MIN, TXADEV_RAW_MAX);
-  this->set_prop(this->tx_audio_deviation_);
+  this->set_prop_(this->tx_audio_deviation_);
   this->publish_tuner_deviation();
 }
 
@@ -416,7 +416,7 @@ float Si4713Component::get_tuner_deviation() { return (float) this->tx_audio_dev
 void Si4713Component::set_tuner_power(int value) {
   CHECK_INT_RANGE(value, POWER_MIN, POWER_MAX)
   this->power_ = (uint8_t) value;
-  this->tune_power(this->power_, this->antcap_);
+  this->tune_power_(this->power_, this->antcap_);
   this->publish_tuner_power();
 }
 
@@ -425,7 +425,7 @@ int Si4713Component::get_tuner_power() { return (int) this->power_; }
 void Si4713Component::set_tuner_antcap(float value) {
   CHECK_FLOAT_RANGE(value, ANTCAP_MIN, ANTCAP_MAX)
   this->antcap_ = (uint8_t) lround(value * 4);
-  this->tune_power(this->power_, this->antcap_);
+  this->tune_power_(this->power_, this->antcap_);
   this->publish_tuner_antcap();
 }
 
@@ -434,7 +434,7 @@ float Si4713Component::get_tuner_antcap() { return (float) this->antcap_ * 0.25f
 void Si4713Component::set_analog_level(int value) {
   CHECK_INT_RANGE(value, LILEVEL_MIN, LILEVEL_MAX)
   this->tx_line_input_level_.LILEVEL = (uint16_t) value;
-  this->set_prop(this->tx_line_input_level_);
+  this->set_prop_(this->tx_line_input_level_);
   this->publish_analog_level();
 }
 
@@ -443,7 +443,7 @@ int Si4713Component::get_analog_level() { return (int) this->tx_line_input_level
 void Si4713Component::set_analog_attenuation(LineAttenuation value) {
   CHECK_ENUM(value)
   this->tx_line_input_level_.LIATTEN = (uint16_t) value;
-  this->set_prop(this->tx_line_input_level_);
+  this->set_prop_(this->tx_line_input_level_);
   this->publish_analog_attenuation();
 }
 
@@ -454,7 +454,7 @@ LineAttenuation Si4713Component::get_analog_attenuation() {
 void Si4713Component::set_digital_sample_rate(int value) {
   CHECK_INT_RANGE(value, DISR_MIN, DISR_MAX)
   this->digital_input_sample_rate_.DISR = (uint16_t) value;
-  this->set_prop(this->digital_input_sample_rate_);
+  this->set_prop_(this->digital_input_sample_rate_);
   this->publish_digital_sample_rate();
 }
 
@@ -463,7 +463,7 @@ int Si4713Component::get_digital_sample_rate() { return (int) this->digital_inpu
 void Si4713Component::set_digital_sample_bits(SampleBits value) {
   CHECK_ENUM(value)
   this->digital_input_format_.ISIZE = (uint16_t) value;
-  this->set_prop(this->digital_input_format_);
+  this->set_prop_(this->digital_input_format_);
   this->publish_digital_sample_bits();
 }
 
@@ -472,7 +472,7 @@ SampleBits Si4713Component::get_digital_sample_bits() { return (SampleBits) this
 void Si4713Component::set_digital_channels(SampleChannels value) {
   CHECK_ENUM(value)
   this->digital_input_format_.IMONO = (uint16_t) value;
-  this->set_prop(this->digital_input_format_);
+  this->set_prop_(this->digital_input_format_);
   this->publish_digital_channels();
 }
 
@@ -481,7 +481,7 @@ SampleChannels Si4713Component::get_digital_channels() { return (SampleChannels)
 void Si4713Component::set_digital_mode(DigitalMode value) {
   CHECK_ENUM(value)
   this->digital_input_format_.IMODE = (uint16_t) value;
-  this->set_prop(this->digital_input_format_);
+  this->set_prop_(this->digital_input_format_);
   this->publish_digital_mode();
 }
 
@@ -490,7 +490,7 @@ DigitalMode Si4713Component::get_digital_mode() { return (DigitalMode) this->dig
 void Si4713Component::set_digital_clock_edge(DigitalClockEdge value) {
   CHECK_ENUM(value)
   this->digital_input_format_.IFALL = (uint16_t) value;
-  this->set_prop(this->digital_input_format_);
+  this->set_prop_(this->digital_input_format_);
   this->publish_digital_clock_edge();
 }
 
@@ -498,7 +498,7 @@ DigitalClockEdge Si4713Component::get_digital_clock_edge() { return (DigitalCloc
 
 void Si4713Component::set_pilot_enable(bool value) {
   this->tx_component_enable_.PILOT = value ? 1 : 0;
-  this->set_prop(this->tx_component_enable_);
+  this->set_prop_(this->tx_component_enable_);
   this->publish_pilot_enable();
 }
 
@@ -508,7 +508,7 @@ void Si4713Component::set_pilot_frequency(float value) {
   CHECK_FLOAT_RANGE(value, PILOT_FREQ_MIN, PILOT_FREQ_MAX)
   this->tx_pilot_frequency_.FREQ =
       (uint16_t) clamp((int) std::lround(value * 1000), PILOT_FREQ_RAW_MIN, PILOT_FREQ_RAW_MAX);
-  this->set_prop(this->tx_pilot_frequency_);
+  this->set_prop_(this->tx_pilot_frequency_);
   this->publish_pilot_frequency();
 }
 
@@ -517,7 +517,7 @@ float Si4713Component::get_pilot_frequency() { return (float) this->tx_pilot_fre
 void Si4713Component::set_pilot_deviation(float value) {
   CHECK_FLOAT_RANGE(value, TXPDEV_MIN, TXPDEV_MAX)
   this->tx_pilot_deviation_.TXPDEV = (uint16_t) clamp((int) std::lround(value * 100), TXPDEV_RAW_MIN, TXPDEV_RAW_MAX);
-  this->set_prop(this->tx_pilot_deviation_);
+  this->set_prop_(this->tx_pilot_deviation_);
   this->publish_pilot_deviation();
 }
 
@@ -526,7 +526,7 @@ float Si4713Component::get_pilot_deviation() { return (float) this->tx_pilot_dev
 void Si4713Component::set_refclk_frequency(int value) {
   CHECK_INT_RANGE(value, REFCLKF_MIN, REFCLKF_MAX)
   this->refclk_freq_.REFCLKF = (uint16_t) value;
-  this->set_prop(this->refclk_freq_);
+  this->set_prop_(this->refclk_freq_);
   this->publish_refclk_frequency();
 }
 
@@ -535,7 +535,7 @@ int Si4713Component::get_refclk_frequency() { return this->refclk_freq_.REFCLKF;
 void Si4713Component::set_refclk_source(RefClkSource value) {
   CHECK_ENUM(value)
   this->refclk_prescale_.RCLKSEL = (uint16_t) value;
-  this->set_prop(this->refclk_prescale_);
+  this->set_prop_(this->refclk_prescale_);
   this->publish_refclk_source();
 }
 
@@ -544,7 +544,7 @@ RefClkSource Si4713Component::get_refclk_source() { return (RefClkSource) this->
 void Si4713Component::set_refclk_prescaler(int value) {
   CHECK_INT_RANGE(value, RCLKP_MIN, RCLKP_MAX)
   this->refclk_prescale_.RCLKP = (uint16_t) value;
-  this->set_prop(this->refclk_freq_);
+  this->set_prop_(this->refclk_freq_);
   this->publish_refclk_prescaler();
 }
 
@@ -552,7 +552,7 @@ int Si4713Component::get_refclk_prescaler() { return (int) this->refclk_prescale
 
 void Si4713Component::set_acomp_enable(bool value) {
   this->tx_acomp_enable_.ACEN = value ? 1 : 0;
-  this->set_prop(this->tx_acomp_enable_);
+  this->set_prop_(this->tx_acomp_enable_);
   this->publish_acomp_enable();
 }
 
@@ -561,7 +561,7 @@ bool Si4713Component::get_acomp_enable() { return this->tx_acomp_enable_.ACEN !=
 void Si4713Component::set_acomp_threshold(int value) {
   CHECK_INT_RANGE(value, ACOMP_THRESHOLD_MIN, ACOMP_THRESHOLD_MAX)
   this->tx_acomp_threshold_.THRESHOLD = (int16_t) value;
-  this->set_prop(this->tx_acomp_threshold_);
+  this->set_prop_(this->tx_acomp_threshold_);
   this->publish_acomp_threshold();
 }
 
@@ -570,7 +570,7 @@ int Si4713Component::get_acomp_threshold() { return (int) this->tx_acomp_thresho
 void Si4713Component::set_acomp_attack(AcompAttack value) {
   CHECK_ENUM(value)
   this->tx_acomp_attack_time_.ATTACK = (uint16_t) value;
-  this->set_prop(this->tx_acomp_attack_time_);
+  this->set_prop_(this->tx_acomp_attack_time_);
   this->publish_acomp_attack();
 }
 
@@ -579,7 +579,7 @@ AcompAttack Si4713Component::get_acomp_attack() { return (AcompAttack) tx_acomp_
 void Si4713Component::set_acomp_release(AcompRelease value) {
   CHECK_ENUM(value)
   this->tx_acomp_release_time_.RELEASE = (uint16_t) value;
-  this->set_prop(this->tx_acomp_release_time_);
+  this->set_prop_(this->tx_acomp_release_time_);
   this->publish_acomp_release();
 }
 
@@ -588,7 +588,7 @@ AcompRelease Si4713Component::get_acomp_release() { return (AcompRelease) this->
 void Si4713Component::set_acomp_gain(int value) {
   CHECK_INT_RANGE(value, ACOMP_GAIN_MIN, ACOMP_GAIN_MAX)
   this->tx_acomp_gain_.GAIN = (int16_t) value;
-  this->set_prop(this->tx_acomp_gain_);
+  this->set_prop_(this->tx_acomp_gain_);
   this->publish_acomp_gain();
 }
 
@@ -621,7 +621,7 @@ AcompPreset Si4713Component::get_acomp_preset() { return this->tx_acomp_preset_;
 
 void Si4713Component::set_limiter_enable(bool value) {
   this->tx_acomp_enable_.LIMITEN = value ? 1 : 0;
-  this->set_prop(this->tx_acomp_enable_);
+  this->set_prop_(this->tx_acomp_enable_);
   this->publish_limiter_enable();
 }
 
@@ -631,7 +631,7 @@ void Si4713Component::set_limiter_release_time(float value) {
   CHECK_FLOAT_RANGE(value, LMITERTC_MIN, LMITERTC_MAX)
   this->tx_limiter_releasee_time_.LMITERTC =
       (uint16_t) clamp((int) std::lround(512.0f / value), LMITERTC_RAW_MIN, LMITERTC_RAW_MAX);
-  this->set_prop(this->tx_limiter_releasee_time_);
+  this->set_prop_(this->tx_limiter_releasee_time_);
   this->publish_limiter_release_time();
 }
 
@@ -639,7 +639,7 @@ float Si4713Component::get_limiter_release_time() { return (float) 512.0f / this
 
 void Si4713Component::set_asq_iall(bool value) {
   this->tx_asq_interrupt_source_.IALLIEN = value ? 1 : 0;
-  this->set_prop(this->tx_asq_interrupt_source_);
+  this->set_prop_(this->tx_asq_interrupt_source_);
   this->publish_asq_iall();
 }
 
@@ -647,7 +647,7 @@ bool Si4713Component::get_asq_iall() { return this->tx_asq_interrupt_source_.IAL
 
 void Si4713Component::set_asq_ialh(bool value) {
   this->tx_asq_interrupt_source_.IALHIEN = value ? 1 : 0;
-  this->set_prop(this->tx_asq_interrupt_source_);
+  this->set_prop_(this->tx_asq_interrupt_source_);
   this->publish_asq_ialh();
 }
 
@@ -655,7 +655,7 @@ bool Si4713Component::get_asq_ialh() { return this->tx_asq_interrupt_source_.IAL
 
 void Si4713Component::set_asq_overmod(bool value) {
   this->tx_asq_interrupt_source_.OVERMODIEN = value ? 1 : 0;
-  this->set_prop(this->tx_asq_interrupt_source_);
+  this->set_prop_(this->tx_asq_interrupt_source_);
   this->publish_asq_overmod();
 }
 
@@ -664,7 +664,7 @@ bool Si4713Component::get_asq_overmod() { return this->tx_asq_interrupt_source_.
 void Si4713Component::set_asq_level_low(int value) {
   CHECK_INT_RANGE(value, IALTH_MIN, IALTH_MAX)
   this->tx_asq_level_low_.IALLTH = (int8_t) value;
-  this->set_prop(this->tx_asq_level_low_);
+  this->set_prop_(this->tx_asq_level_low_);
   this->publish_asq_level_low();
 }
 
@@ -673,7 +673,7 @@ int Si4713Component::get_asq_level_low() { return (int) this->tx_asq_level_low_.
 void Si4713Component::set_asq_duration_low(int value) {
   CHECK_INT_RANGE(value, IALDUR_MIN, IALDUR_MAX)
   this->tx_asq_duration_low_.IALLDUR = (uint16_t) value;
-  this->set_prop(this->tx_asq_duration_low_);
+  this->set_prop_(this->tx_asq_duration_low_);
   this->publish_asq_duration_low();
 }
 
@@ -682,7 +682,7 @@ int Si4713Component::get_asq_duration_low() { return (int) this->tx_asq_duration
 void Si4713Component::set_asq_level_high(int value) {
   CHECK_INT_RANGE(value, IALTH_MIN, IALTH_MAX)
   this->tx_asq_level_high_.IALHTH = (int8_t) value;
-  this->set_prop(this->tx_asq_level_high_);
+  this->set_prop_(this->tx_asq_level_high_);
   this->publish_asq_level_high();
 }
 
@@ -691,7 +691,7 @@ int Si4713Component::get_asq_level_high() { return (int) this->tx_asq_level_high
 void Si4713Component::set_asq_duration_high(int value) {
   CHECK_INT_RANGE(value, IALDUR_MIN, IALDUR_MAX)
   this->tx_asq_duration_high_.IALHDUR = (uint16_t) value;
-  this->set_prop(this->tx_asq_duration_high_);
+  this->set_prop_(this->tx_asq_duration_high_);
   this->publish_asq_duration_high();
 }
 
@@ -699,7 +699,7 @@ int Si4713Component::get_asq_duration_high() { return (int) this->tx_asq_duratio
 
 void Si4713Component::set_rds_enable(bool value) {
   this->tx_component_enable_.RDS = value ? 1 : 0;
-  this->set_prop(this->tx_component_enable_);
+  this->set_prop_(this->tx_component_enable_);
   this->publish_rds_enable();
 }
 
@@ -708,7 +708,7 @@ bool Si4713Component::get_rds_enable() { return this->tx_component_enable_.RDS !
 void Si4713Component::set_rds_deviation(float value) {
   CHECK_FLOAT_RANGE(value, TXRDEV_MIN, TXRDEV_MAX)
   this->tx_rds_deviation_.TXRDEV = (uint16_t) clamp((int) std::lround(value * 100), TXRDEV_RAW_MIN, TXRDEV_RAW_MAX);
-  this->set_prop(this->tx_rds_deviation_);
+  this->set_prop_(this->tx_rds_deviation_);
   this->publish_rds_deviation();
 }
 
@@ -737,7 +737,7 @@ void Si4713Component::set_output_gpio(uint8_t pin, bool value) {
     return;
   }
   this->gpio_[pin] = value ? 1 : 0;
-  this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
+  this->send_cmd_(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
   this->publish_output_gpio(pin);
 }
 
@@ -751,7 +751,7 @@ bool Si4713Component::get_output_gpio(uint8_t pin) {
 
 void Si4713Component::set_output_gpio1(bool value) {
   this->gpio_[0] = value ? 1 : 0;
-  this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
+  this->send_cmd_(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
   this->publish_output_gpio1();
 }
 
@@ -759,7 +759,7 @@ bool Si4713Component::get_output_gpio1() { return this->gpio_[0] != 0; }
 
 void Si4713Component::set_output_gpio2(bool value) {
   this->gpio_[1] = value ? 1 : 0;
-  this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
+  this->send_cmd_(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
   this->publish_output_gpio2();
 }
 
@@ -767,7 +767,7 @@ bool Si4713Component::get_output_gpio2() { return this->gpio_[1] != 0; }
 
 void Si4713Component::set_output_gpio3(bool value) {
   this->gpio_[2] = value ? 1 : 0;
-  this->send_cmd(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
+  this->send_cmd_(CmdGpioSet(this->gpio_[0], this->gpio_[1], this->gpio_[2]));
   this->publish_output_gpio2();
 }
 
@@ -839,7 +839,7 @@ void Si4713Component::publish_select(select::Select *s, size_t index) {
 
 void Si4713Component::measure_freq(float value) {
   uint16_t f = (uint16_t) clamp((int) std::lround(value * 20) * 5, FREQ_RAW_MIN, FREQ_RAW_MAX);
-  if (!this->send_cmd(CmdTxTuneMeasure(f))) {
+  if (!this->send_cmd_(CmdTxTuneMeasure(f))) {
     return;
   }
 
