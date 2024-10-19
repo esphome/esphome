@@ -44,7 +44,7 @@ ICON_SINE_WAVE = "mdi:sine-wave"
 ICON_RESISTOR = "mdi:resistor"
 ICON_FORMAT_TEXT = "mdi:format-text"
 
-si4713_ns = cg.esphome_ns.namespace("si4713")
+si4713_ns = cg.esphome_ns.namespace("si4713_i2c")
 Si4713Component = si4713_ns.class_(
     "Si4713Component", cg.PollingComponent, i2c.I2CDevice
 )
