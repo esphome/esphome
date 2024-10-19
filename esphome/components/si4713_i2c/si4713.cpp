@@ -46,8 +46,8 @@ bool Si4713Component::send_cmd(const void *cmd, size_t cmd_size, void *res, size
   }
 
   ResBase status;
-  while(status.CTS == 0) {
-    err = this->read((uint8_t*) &status, 1);  // TODO: read res_size into res here?
+  while (status.CTS == 0) {
+    err = this->read((uint8_t *) &status, 1);  // TODO: read res_size into res here?
     if (err != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "send_cmd(0x%02X, %d) read status error", buff[0], cmd_size);
       // this->mark_failed();

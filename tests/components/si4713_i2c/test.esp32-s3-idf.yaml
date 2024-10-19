@@ -3,7 +3,7 @@ i2c:
   scl: 9
   scan: True
 
-si4713:
+si4713_i2c:
   id: fm_transmitter
   reset_pin: 10
   op_mode: Analog
@@ -77,7 +77,7 @@ si4713:
       name: Input Audio Level
 
 number:
-  - platform: si4713
+  - platform: si4713_i2c
     tuner:
       frequency:
         id: si4713_frequency
@@ -126,7 +126,7 @@ number:
         name: RDS Deviation
 
 switch:
-  - platform: si4713
+  - platform: si4713_i2c
     mute:
       name: Mute
     mono:
@@ -162,7 +162,7 @@ switch:
         name: GPIO3 Switch
 
 select:
-  - platform: si4713
+  - platform: si4713_i2c
     pre_emphasis:
       name: Pre-Emphasis
     analog:
@@ -189,7 +189,7 @@ select:
         name: Dynamic Range Control Preset
 
 text:
-  - platform: si4713
+  - platform: si4713_i2c
     rds:
       station:
         name: RDS Station
@@ -197,9 +197,9 @@ text:
         name: RDS Text
 
 output:
-  - platform: si4713
+  - platform: si4713_i2c
     id: "GPIO1"
     pin: 1
-  - platform: si4713
+  - platform: si4713_i2c
     id: "GPIO2"
     pin: 2

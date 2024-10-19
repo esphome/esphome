@@ -12,9 +12,7 @@ class BinaryOutput : public output::BinaryOutput, public Component, public Paren
   void set_pin(uint8_t pin) { this->pin_ = pin - 1; }
 
  protected:
-  void write_state(bool state) override {
-    this->parent_->set_output_gpio(this->pin_, state);
-  }
+  void write_state(bool state) override { this->parent_->set_output_gpio(this->pin_, state); }
 
   uint8_t pin_{0};
 };

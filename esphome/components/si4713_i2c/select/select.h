@@ -56,7 +56,6 @@ class DigitalChannelsSelect : public select::Select, public Parented<Si4713Compo
   }
 };
 
-
 class DigitalClockEdgeSelect : public select::Select, public Parented<Si4713Component> {
  protected:
   void control(const std::string &value) override {
