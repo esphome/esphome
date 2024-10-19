@@ -64,6 +64,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_AIRWAY, []() { return new AIRWAYHeatpumpIR(); }},                              // NOLINT
     {PROTOCOL_BGH_AUD, []() { return new BGHHeatpumpIR(); }},                                // NOLINT
     {PROTOCOL_PANASONIC_ALTDKE, []() { return new PanasonicAltDKEHeatpumpIR(); }},           // NOLINT
+    {PROTOCOL_PHILCO_PHS32, []() { return new PhilcoPHS32HeatpumpIR(); }},                   // NOLINT
     {PROTOCOL_VAILLANTVAI8, []() { return new VaillantHeatpumpIR(); }},                      // NOLINT
     {PROTOCOL_R51M, []() { return new R51MHeatpumpIR(); }},                                  // NOLINT
 };
