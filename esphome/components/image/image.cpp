@@ -148,10 +148,11 @@ Color Image::get_rgb24_pixel_(int x, int y) const {
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
   const uint8_t *pos = this->data_start_;
-  if (this->transparent_)
+  if (this->transparent_) {
     pos += (x + y * this->width_) * 3;
-  else
+  } else {
     pos += (x + y * this->width_) * 2;
+  }
   uint16_t rgb565 = encode_uint16(progmem_read_byte(pos), progmem_read_byte(pos + 1));
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
