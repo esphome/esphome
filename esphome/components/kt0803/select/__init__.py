@@ -48,6 +48,7 @@ from .. import (
     SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME,
     SILENCE_HIGH_LEVEL_COUNTER,
     SILENCE_LOW_LEVEL_COUNTER,
+    for_each_conf,
 )
 
 FrequencyDeviationSelect = kt0803_ns.class_("FrequencyDeviationSelect", select.Select)
@@ -189,88 +190,44 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-
-async def new_select(p, config, id, setter, options):
-    if c := config.get(id):
-        s = await select.new_select(c, options=list(options.keys()))
-        await cg.register_parented(s, p)
-        cg.add(setter(s))
-        return s
+VARIABLES = {
+    None: [
+        [CONF_DEVIATION, FREQUENCY_DEVIATION],
+        [CONF_PRE_EMPHASIS, PRE_EMPHASIS],
+        [CONF_PILOT_TONE_AMPLITUDE, PILOT_TONE_AMPLITUDE],
+        [CONF_BASS_BOOST_CONTROL, BASS_BOOST_CONTROL],
+        [CONF_AUDIO_LIMITER_LEVEL, AUDIO_LIMITER_LEVEL],
+        [CONF_SWITCH_MODE, SWITCH_MODE],
+    ],
+    CONF_REF_CLK: [
+        [CONF_SEL, REFERENCE_CLOCK],
+    ],
+    CONF_XTAL: [
+        [CONF_SEL, XTAL_SEL],
+    ],
+    CONF_ALC: [
+        [CONF_ATTACK_TIME, ALC_TIME],
+        [CONF_DECAY_TIME, ALC_TIME],
+        [CONF_HOLD_TIME, ALC_HOLD_TIME],
+        [CONF_HIGH, ALC_HIGH],
+        [CONF_LOW, ALC_LOW],
+    ],
+    CONF_SILENCE: [
+        [CONF_DURATION, SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME],
+        [CONF_HIGH, SILENCE_HIGH],
+        [CONF_LOW, SILENCE_LOW],
+        [CONF_HIGH_COUNTER, SILENCE_HIGH_LEVEL_COUNTER],
+        [CONF_LOW_COUNTER, SILENCE_LOW_LEVEL_COUNTER],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_KT0803_ID])
-    await new_select(
-        p, config, CONF_DEVIATION, p.set_deviation_select, FREQUENCY_DEVIATION
-    )
-    await new_select(
-        p, config, CONF_PRE_EMPHASIS, p.set_pre_emphasis_select, PRE_EMPHASIS
-    )
-    await new_select(
-        p,
-        config,
-        CONF_PILOT_TONE_AMPLITUDE,
-        p.set_pilot_tone_amplitude_select,
-        PILOT_TONE_AMPLITUDE,
-    )
-    await new_select(
-        p,
-        config,
-        CONF_BASS_BOOST_CONTROL,
-        p.set_bass_boost_control_select,
-        BASS_BOOST_CONTROL,
-    )
-    await new_select(
-        p,
-        config,
-        CONF_AUDIO_LIMITER_LEVEL,
-        p.set_audio_limiter_level_select,
-        AUDIO_LIMITER_LEVEL,
-    )
-    await new_select(p, config, CONF_SWITCH_MODE, p.set_switch_mode_select, SWITCH_MODE)
-    if ref_clk_config := config.get(CONF_REF_CLK):
-        await new_select(
-            p, ref_clk_config, CONF_REF_CLK, p.set_ref_clk_select, REFERENCE_CLOCK
-        )
-    if xtal_config := config.get(CONF_XTAL):
-        await new_select(p, xtal_config, CONF_SEL, p.set_xtal_sel_select, XTAL_SEL)
-    if alc_config := config.get(CONF_ALC):
-        await new_select(
-            p, alc_config, CONF_ATTACK_TIME, p.set_alc_attack_time_select, ALC_TIME
-        )
-        await new_select(
-            p, alc_config, CONF_DECAY_TIME, p.set_alc_decay_time_select, ALC_TIME
-        )
-        await new_select(
-            p, alc_config, CONF_HOLD_TIME, p.set_alc_hold_time_select, ALC_HOLD_TIME
-        )
-        await new_select(p, alc_config, CONF_HIGH, p.set_alc_high_select, ALC_HIGH)
-        await new_select(p, alc_config, CONF_LOW, p.set_alc_low_select, ALC_LOW)
-    if silence_config := config.get(CONF_SILENCE):
-        await new_select(
-            p,
-            silence_config,
-            CONF_DURATION,
-            p.set_silence_duration_select,
-            SILENCE_LOW_AND_HIGH_LEVEL_DURATION_TIME,
-        )
-        await new_select(
-            p, silence_config, CONF_HIGH, p.set_silence_high_select, SILENCE_HIGH
-        )
-        await new_select(
-            p, silence_config, CONF_LOW, p.set_silence_low_select, SILENCE_LOW
-        )
-        await new_select(
-            p,
-            silence_config,
-            CONF_HIGH_COUNTER,
-            p.set_silence_high_counter_select,
-            SILENCE_HIGH_LEVEL_COUNTER,
-        )
-        await new_select(
-            p,
-            silence_config,
-            CONF_LOW_COUNTER,
-            p.set_silence_low_counter_select,
-            SILENCE_LOW_LEVEL_COUNTER,
-        )
+    parent = await cg.get_variable(config[CONF_KT0803_ID])
+
+    async def new_select(c, args, setter):
+        s = await select.new_select(c, options=list(args[1].keys()))
+        await cg.register_parented(s, parent)
+        cg.add(getattr(parent, setter + "_select")(s))
+
+    await for_each_conf(config, VARIABLES, new_select)

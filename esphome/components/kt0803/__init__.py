@@ -13,18 +13,13 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_EMPTY,
 )
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@gabest11"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = [
-    "sensor",
-    "text_sensor",
-    "binary_sensor",
-    "number",
-    "switch",
-    "select",
-    "text",
-]
+AUTO_LOAD = ["binary_sensor", "number", "switch", "select", "text"]
 MULTI_CONF = True
 
 UNIT_MEGA_HERTZ = "MHz"
@@ -72,10 +67,10 @@ CONF_SWITCH_MODE = "switch_mode"
 CONF_AU_ENHANCE = "au_enhance"
 # ref_clk
 CONF_ENABLE = "enable"
-CONF_REF_CLK = "ref_clk"
+CONF_SEL = "sel"
 # xtal
 # CONF_ENABLE = "enable"
-CONF_SEL = "sel"
+# CONF_SEL = "sel"
 # alc
 # CONF_ENABLE = "enable"
 # CONF_GAIN = "gain"
@@ -94,10 +89,6 @@ CONF_LOW_COUNTER = "low_counter"
 # sensor
 CONF_PW_OK = "pw_ok"
 CONF_SLNCID = "slncid"
-
-SetFrequencyAction = kt0803_ns.class_(
-    "SetFrequencyAction", automation.Action, cg.Parented.template(KT0803Component)
-)
 
 ChipId = kt0803_ns.enum("ChipId", True)
 CHIP_ID = {
@@ -371,11 +362,11 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_CHIP_ID): cv.enum(CHIP_ID),
             cv.Optional(CONF_FREQUENCY, default=87.50): cv.float_range(70, 108),
             cv.Optional(CONF_DEVIATION, default="75kHz"): cv.enum(FREQUENCY_DEVIATION),
-            cv.Optional(CONF_PGA, default=0): cv.float_range(-15, 12),
-            cv.Optional(CONF_RFGAIN, default=108): cv.float_range(95.5, 108),
             cv.Optional(CONF_MUTE, default=False): cv.boolean,
             cv.Optional(CONF_MONO, default=False): cv.boolean,
             cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS),
+            cv.Optional(CONF_PGA, default=0): cv.float_range(-15, 12),
+            cv.Optional(CONF_RFGAIN, default=108): cv.float_range(95.5, 108),
             cv.Optional(CONF_PILOT_TONE_AMPLITUDE, default="Low"): cv.enum(
                 PILOT_TONE_AMPLITUDE
             ),
@@ -402,12 +393,102 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x3E))
 )
 
+VARIABLES = {
+    None: [
+        [CONF_CHIP_ID],
+        [CONF_FREQUENCY],
+        [CONF_DEVIATION],
+        [CONF_MUTE],
+        [CONF_MONO],
+        [CONF_PRE_EMPHASIS],
+        [CONF_PGA],
+        [CONF_RFGAIN],
+        [CONF_PILOT_TONE_AMPLITUDE],
+        [CONF_BASS_BOOST_CONTROL],
+        [CONF_AUTO_PA_DOWN],
+        [CONF_PA_DOWN],
+        [CONF_STANDBY_ENABLE],
+        [CONF_PA_BIAS],
+        [CONF_AUDIO_LIMITER_LEVEL],
+        [CONF_SWITCH_MODE],
+        [CONF_AU_ENHANCE],
+    ],
+    CONF_REF_CLK: [
+        [CONF_ENABLE],
+        [CONF_SEL],
+    ],
+    CONF_XTAL: [
+        [CONF_ENABLE],
+        [CONF_SEL],
+    ],
+    CONF_ALC: [
+        [CONF_ENABLE],
+        [CONF_GAIN],
+        [CONF_ATTACK_TIME],
+        [CONF_DECAY_TIME],
+        [CONF_HOLD_TIME],
+        [CONF_HIGH],
+        [CONF_LOW],
+    ],
+    CONF_SILENCE: [
+        [CONF_DETECTION],
+        [CONF_DURATION],
+        [CONF_HIGH],
+        [CONF_LOW],
+        [CONF_HIGH_COUNTER],
+        [CONF_LOW_COUNTER],
+    ],
+}
+
+SENSORS = {
+    CONF_SENSOR: [
+        [CONF_PW_OK, "binary_sensor"],
+        [CONF_SLNCID, "binary_sensor"],
+    ]
+}
+
+
+async def for_each_conf(config, vars, callback):
+    for section in vars:
+        c = config[section] if section in config else config
+        for args in vars[section]:
+            setter = "set_"
+            if section is not None and section != CONF_SENSOR:
+                setter += section + "_"
+            setter += args[0]
+            if cc := c.get(args[0]):
+                await callback(cc, args, setter)
+
+
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+
+    async def set_var(c, a, s):
+        cg.add(getattr(var, s)(c))
+
+    await for_each_conf(config, VARIABLES, set_var)
+
+    async def new_sensor(c, args, setter):
+        s = None
+        match args[1]:
+            case "binary_sensor":
+                s = await binary_sensor.new_binary_sensor(c)
+        cg.add(getattr(var, setter + "_" + args[1])(s))
+
+    await for_each_conf(config, SENSORS, new_sensor)
+
 
 FREQUENCY_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(KT0803Component),
         cv.Required(CONF_FREQUENCY): cv.float_range(min=70, max=108),
     }
+)
+
+SetFrequencyAction = kt0803_ns.class_(
+    "SetFrequencyAction", automation.Action, cg.Parented.template(KT0803Component)
 )
 
 
@@ -421,63 +502,3 @@ async def tune_frequency_action_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(frequency, args, cg.float_)
         cg.add(var.set_frequency(template_))
     return var
-
-
-async def set_var(config, id, setter):
-    if c := config.get(id):
-        cg.add(setter(c))
-
-
-async def set_binary_sensor(config, id, setter):
-    if c := config.get(id):
-        s = await binary_sensor.new_binary_sensor(c)
-        cg.add(setter(s))
-
-
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
-    await set_var(config, CONF_CHIP_ID, var.set_chip_id)
-    await set_var(config, CONF_FREQUENCY, var.set_frequency)
-    await set_var(config, CONF_DEVIATION, var.set_deviation)
-    await set_var(config, CONF_MUTE, var.set_mute)
-    await set_var(config, CONF_MONO, var.set_mono)
-    await set_var(config, CONF_PRE_EMPHASIS, var.set_pre_emphasis)
-    await set_var(config, CONF_PGA, var.set_pga)
-    await set_var(config, CONF_RFGAIN, var.set_rfgain)
-    await set_var(config, CONF_PILOT_TONE_AMPLITUDE, var.set_pilot_tone_amplitude)
-    await set_var(config, CONF_BASS_BOOST_CONTROL, var.set_bass_boost_control)
-    await set_var(config, CONF_AUTO_PA_DOWN, var.set_auto_pa_down)
-    await set_var(config, CONF_PA_DOWN, var.set_pa_down)
-    await set_var(config, CONF_STANDBY_ENABLE, var.set_standby_enable)
-    await set_var(config, CONF_PA_BIAS, var.set_pa_bias)
-    await set_var(config, CONF_AUDIO_LIMITER_LEVEL, var.set_audio_limiter_level)
-    await set_var(config, CONF_SWITCH_MODE, var.set_switch_mode)
-    await set_var(config, CONF_AU_ENHANCE, var.set_au_enhance)
-    if ref_clk_config := config.get(CONF_REF_CLK):
-        await set_var(ref_clk_config, CONF_ENABLE, var.set_ref_clk_enable)
-        await set_var(ref_clk_config, CONF_REF_CLK, var.set_ref_clk)
-    if xtal_config := config.get(CONF_XTAL):
-        await set_var(xtal_config, CONF_ENABLE, var.set_xtal_enable)
-        await set_var(xtal_config, CONF_SEL, var.set_xtal_sel)
-    if alc_config := config.get(CONF_ALC):
-        await set_var(alc_config, CONF_ENABLE, var.set_alc_enable)
-        await set_var(alc_config, CONF_GAIN, var.set_alc_gain)
-        await set_var(alc_config, CONF_ATTACK_TIME, var.set_alc_attack_time)
-        await set_var(alc_config, CONF_DECAY_TIME, var.set_alc_decay_time)
-        await set_var(alc_config, CONF_HOLD_TIME, var.set_alc_hold_time)
-        await set_var(alc_config, CONF_HIGH, var.set_alc_high)
-        await set_var(alc_config, CONF_LOW, var.set_alc_low)
-    if silence_config := config.get(CONF_SILENCE):
-        await set_var(silence_config, CONF_DETECTION, var.set_silence_detection)
-        await set_var(silence_config, CONF_DURATION, var.set_silence_duration)
-        await set_var(silence_config, CONF_HIGH, var.set_silence_high)
-        await set_var(silence_config, CONF_LOW, var.set_silence_low)
-        await set_var(silence_config, CONF_HIGH_COUNTER, var.set_silence_high_counter)
-        await set_var(silence_config, CONF_LOW_COUNTER, var.set_silence_low_counter)
-    if sensor_config := config.get(CONF_SENSOR):
-        await set_binary_sensor(sensor_config, CONF_PW_OK, var.set_pw_ok_binary_sensor)
-        await set_binary_sensor(
-            sensor_config, CONF_SLNCID, var.set_slncid_binary_sensor
-        )

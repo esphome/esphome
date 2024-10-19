@@ -12,57 +12,10 @@
 #include "esphome/components/text/text.h"
 #include <string>
 #include "kt0803defs.h"
+#include "kt0803sub.h"
 
 namespace esphome {
 namespace kt0803 {
-
-#ifndef SUB_TEXT
-#define SUB_TEXT(name) \
- protected: \
-  text::Text *name##_text_{nullptr}; \
-\
- public: \
-  void set_##name##_text(text::Text *text) { this->name##_text_ = text; }
-#endif
-
-#define SUB_NUMBER_EX(name, type) \
-  SUB_NUMBER(name) \
-  void publish_##name() { this->publish(this->name##_number_, (float) this->get_##name()); } \
-  void set_##name(type value); \
-  type get_##name();
-
-#define SUB_SWITCH_EX(name) \
-  SUB_SWITCH(name) \
-  void publish_##name() { this->publish_switch(this->name##_switch_, this->get_##name()); } \
-  void set_##name(bool value); \
-  bool get_##name();
-
-#define SUB_SELECT_EX(name, type) \
-  SUB_SELECT(name) \
-  void publish_##name() { this->publish_select(this->name##_select_, (size_t) this->get_##name()); } \
-  void set_##name(type value); \
-  type get_##name();
-
-#define SUB_TEXT_EX(name) \
-  SUB_TEXT(name) \
-  void publish_##name() { this->publish(this->name##_text_, this->get_##name()); } \
-  void set_##name(const std::string &value); \
-  std::string get_##name();
-
-#define SUB_SENSOR_EX(name) \
-  SUB_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_sensor_, (float) this->get_##name()); } \
-  float get_##name();
-
-#define SUB_BINARY_SENSOR_EX(name) \
-  SUB_BINARY_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_binary_sensor_, this->get_##name()); } \
-  bool get_##name();
-
-#define SUB_TEXT_SENSOR_EX(name) \
-  SUB_TEXT_SENSOR(name) \
-  void publish_##name() { this->publish(this->name##_text_sensor_, this->get_##name()); } \
-  std::string get_##name();
 
 class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   ChipId chip_id_;  // no way to detect it
@@ -89,41 +42,41 @@ class KT0803Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void loop() override;
 
-  SUB_NUMBER_EX(frequency, float)
-  SUB_SELECT_EX(deviation, FrequencyDeviation)
-  SUB_SWITCH_EX(mute)
-  SUB_SWITCH_EX(mono)
-  SUB_SELECT_EX(pre_emphasis, PreEmphasis)
-  SUB_NUMBER_EX(pga, float)
-  SUB_NUMBER_EX(rfgain, float)
-  SUB_SELECT_EX(pilot_tone_amplitude, PilotToneAmplitude)
-  SUB_SELECT_EX(bass_boost_control, BassBoostControl)
-  SUB_SWITCH_EX(auto_pa_down)
-  SUB_SWITCH_EX(pa_down)
-  SUB_SWITCH_EX(standby_enable)
-  SUB_SWITCH_EX(pa_bias)
-  SUB_SELECT_EX(audio_limiter_level, AudioLimiterLevel)
-  SUB_SELECT_EX(switch_mode, SwitchMode)
-  SUB_SWITCH_EX(au_enhance)
-  SUB_SWITCH_EX(ref_clk_enable)
-  SUB_SELECT_EX(ref_clk, ReferenceClock)
-  SUB_SWITCH_EX(xtal_enable)
-  SUB_SELECT_EX(xtal_sel, XtalSel)
-  SUB_SWITCH_EX(alc_enable)
-  SUB_NUMBER_EX(alc_gain, float)
-  SUB_SELECT_EX(alc_attack_time, AlcTime)
-  SUB_SELECT_EX(alc_decay_time, AlcTime)
-  SUB_SELECT_EX(alc_hold_time, AlcHoldTime)
-  SUB_SELECT_EX(alc_high, AlcHigh)
-  SUB_SELECT_EX(alc_low, AlcLow)
-  SUB_SWITCH_EX(silence_detection)
-  SUB_SELECT_EX(silence_duration, SilenceLowAndHighLevelDurationTime)
-  SUB_SELECT_EX(silence_high, SilenceHigh)
-  SUB_SELECT_EX(silence_low, SilenceLow)
-  SUB_SELECT_EX(silence_high_counter, SilenceHighLevelCounter)
-  SUB_SELECT_EX(silence_low_counter, SilenceLowLevelCounter)
-  SUB_BINARY_SENSOR_EX(pw_ok)
-  SUB_BINARY_SENSOR_EX(slncid)
+  KT0803_SUB_NUMBER(frequency, float)
+  KT0803_SUB_SELECT(deviation, FrequencyDeviation)
+  KT0803_SUB_SWITCH(mute)
+  KT0803_SUB_SWITCH(mono)
+  KT0803_SUB_SELECT(pre_emphasis, PreEmphasis)
+  KT0803_SUB_NUMBER(pga, float)
+  KT0803_SUB_NUMBER(rfgain, float)
+  KT0803_SUB_SELECT(pilot_tone_amplitude, PilotToneAmplitude)
+  KT0803_SUB_SELECT(bass_boost_control, BassBoostControl)
+  KT0803_SUB_SWITCH(auto_pa_down)
+  KT0803_SUB_SWITCH(pa_down)
+  KT0803_SUB_SWITCH(standby_enable)
+  KT0803_SUB_SWITCH(pa_bias)
+  KT0803_SUB_SELECT(audio_limiter_level, AudioLimiterLevel)
+  KT0803_SUB_SELECT(switch_mode, SwitchMode)
+  KT0803_SUB_SWITCH(au_enhance)
+  KT0803_SUB_SWITCH(ref_clk_enable)
+  KT0803_SUB_SELECT(ref_clk_sel, ReferenceClock)
+  KT0803_SUB_SWITCH(xtal_enable)
+  KT0803_SUB_SELECT(xtal_sel, XtalSel)
+  KT0803_SUB_SWITCH(alc_enable)
+  KT0803_SUB_NUMBER(alc_gain, float)
+  KT0803_SUB_SELECT(alc_attack_time, AlcTime)
+  KT0803_SUB_SELECT(alc_decay_time, AlcTime)
+  KT0803_SUB_SELECT(alc_hold_time, AlcHoldTime)
+  KT0803_SUB_SELECT(alc_high, AlcHigh)
+  KT0803_SUB_SELECT(alc_low, AlcLow)
+  KT0803_SUB_SWITCH(silence_detection)
+  KT0803_SUB_SELECT(silence_duration, SilenceLowAndHighLevelDurationTime)
+  KT0803_SUB_SELECT(silence_high, SilenceHigh)
+  KT0803_SUB_SELECT(silence_low, SilenceLow)
+  KT0803_SUB_SELECT(silence_high_counter, SilenceHighLevelCounter)
+  KT0803_SUB_SELECT(silence_low_counter, SilenceLowLevelCounter)
+  KT0803_SUB_BINARY_SENSOR(pw_ok)
+  KT0803_SUB_BINARY_SENSOR(slncid)
 
   void set_chip_id(ChipId value);
   ChipId get_chip_id();

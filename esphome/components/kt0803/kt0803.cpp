@@ -133,8 +133,6 @@ void KT0803Component::setup() {
     }
   }
 
-  this->publish_pw_ok();
-  this->publish_slncid();
   this->publish_frequency();
   this->publish_deviation();
   this->publish_mute();
@@ -152,7 +150,7 @@ void KT0803Component::setup() {
   this->publish_switch_mode();
   this->publish_au_enhance();
   this->publish_ref_clk_enable();
-  this->publish_ref_clk();
+  this->publish_ref_clk_sel();
   this->publish_xtal_enable();
   this->publish_xtal_sel();
   this->publish_alc_enable();
@@ -168,6 +166,8 @@ void KT0803Component::setup() {
   this->publish_silence_duration();
   this->publish_silence_high_counter();
   this->publish_silence_low_counter();
+  this->publish_pw_ok_binary_sensor();
+  this->publish_slncid_binary_sensor();
 }
 
 void KT0803Component::dump_config() {
@@ -201,8 +201,8 @@ void KT0803Component::update() {
 
 void KT0803Component::loop() {
   if (this->read_reg_(0x0F)) {
-    this->publish_pw_ok();
-    this->publish_slncid();
+    this->publish_pw_ok_binary_sensor();
+    this->publish_slncid_binary_sensor();
   }
 }
 
@@ -516,16 +516,16 @@ void KT0803Component::set_ref_clk_enable(bool value) {
 
 bool KT0803Component::get_ref_clk_enable() { return this->state_.DCLK == 1; }
 
-void KT0803Component::set_ref_clk(ReferenceClock value) {
+void KT0803Component::set_ref_clk_sel(ReferenceClock value) {
   CHECK_ENUM(value)
   this->state_.REF_CLK = (uint8_t) value;
   if (this->chip_id_ == ChipId::KT0803L) {
     this->write_reg_(0x1E);
   }
-  this->publish_ref_clk();
+  this->publish_ref_clk_sel();
 }
 
-ReferenceClock KT0803Component::get_ref_clk() { return (ReferenceClock) this->state_.REF_CLK; }
+ReferenceClock KT0803Component::get_ref_clk_sel() { return (ReferenceClock) this->state_.REF_CLK; }
 
 void KT0803Component::set_xtal_enable(bool value) {
   this->state_.XTALD = value ? 0 : 1;
@@ -715,9 +715,11 @@ SilenceLowLevelCounter KT0803Component::get_silence_low_counter() {
   return (SilenceLowLevelCounter) this->state_.SLNCCNTLOW;
 }
 
-bool KT0803Component::get_pw_ok() { return this->state_.PW_OK != 0; }
+bool KT0803Component::get_pw_ok_binary_sensor() { return this->state_.PW_OK != 0; }
 
-bool KT0803Component::get_slncid() { return this->state_.SLNCID != 0; }
+bool KT0803Component::get_slncid_binary_sensor() { return this->state_.SLNCID != 0; }
+
+// publish
 
 template<class S, class T> void KT0803Component::publish(S *s, T state) {
   if (s != nullptr) {

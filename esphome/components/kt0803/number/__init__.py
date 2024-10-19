@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
     CONF_GAIN,
+    CONF_MODE,
     UNIT_DECIBEL,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -18,6 +19,7 @@ from .. import (
     CONF_RFGAIN,
     UNIT_MEGA_HERTZ,
     UNIT_DECIBEL_MICRO_VOLT,
+    for_each_conf,
 )
 
 FrequencyNumber = kt0803_ns.class_("FrequencyNumber", number.Number)
@@ -61,53 +63,36 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-
-async def new_number(p, config, id, setter, min_value, max_value, step):
-    if c := config.get(id):
-        n = await number.new_number(
-            c, min_value=min_value, max_value=max_value, step=step
-        )
-        await cg.register_parented(n, p)
-        cg.add(setter(n))
-        return n
+VARIABLES = {
+    None: [
+        [
+            CONF_FREQUENCY,
+            kt0803_ns.CHSEL_MIN,
+            kt0803_ns.CHSEL_MAX,
+            kt0803_ns.CHSEL_STEP,
+            None,
+        ],
+        [CONF_PGA, kt0803_ns.PGA_MIN, kt0803_ns.PGA_MAX, kt0803_ns.PGA_STEP, None],
+        [CONF_RFGAIN, kt0803_ns.RFGAIN_MIN, kt0803_ns.RFGAIN_MAX, 0.1, None],
+    ],
+    CONF_ALC: [
+        [CONF_GAIN, kt0803_ns.ALC_GAIN_MIN, kt0803_ns.ALC_GAIN_MAX, 3, None],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_KT0803_ID])
-    await new_number(
-        p,
-        config,
-        CONF_FREQUENCY,
-        p.set_frequency_number,
-        kt0803_ns.CHSEL_MIN,
-        kt0803_ns.CHSEL_MAX,
-        kt0803_ns.CHSEL_STEP,
-    )
-    await new_number(
-        p,
-        config,
-        CONF_PGA,
-        p.set_pga_number,
-        kt0803_ns.PGA_MIN,
-        kt0803_ns.PGA_MAX,
-        kt0803_ns.PGA_STEP,
-    )
-    await new_number(
-        p,
-        config,
-        CONF_RFGAIN,
-        p.set_rfgain_number,
-        kt0803_ns.RFGAIN_MIN,
-        kt0803_ns.RFGAIN_MAX,
-        0.1,
-    )
-    if alc_config := config.get(CONF_ALC):
-        await new_number(
-            p,
-            alc_config,
-            CONF_GAIN,
-            p.set_alc_gain_number,
-            kt0803_ns.ALC_GAIN_MIN,
-            kt0803_ns.ALC_GAIN_MAX,
-            3,
+    parent = await cg.get_variable(config[CONF_KT0803_ID])
+
+    async def new_number(c, args, setter):
+        # only override mode when it's set to auto in user config
+        if CONF_MODE not in c or c[CONF_MODE] == number.NumberMode.NUMBER_MODE_AUTO:
+            if args[4] is not None:
+                c[CONF_MODE] = args[4]
+        n = await number.new_number(
+            c, min_value=args[1], max_value=args[2], step=args[3]
         )
+        await cg.register_parented(n, parent)
+        cg.add(getattr(parent, setter + "_number")(n))
+
+    await for_each_conf(config, VARIABLES, new_number)

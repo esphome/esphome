@@ -27,6 +27,7 @@ from .. import (
     ICON_EAR_HEARING,
     ICON_SINE_WAVE,
     ICON_SLEEP,
+    for_each_conf,
 )
 
 MuteSwitch = kt0803_ns.class_("MuteSwitch", switch.Switch)
@@ -138,31 +139,37 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-
-async def new_switch(p, config, id, setter):
-    if c := config.get(id):
-        s = await switch.new_switch(c)
-        await cg.register_parented(s, p)
-        cg.add(setter(s))
-        return s
+VARIABLES = {
+    None: [
+        [CONF_MUTE],
+        [CONF_MONO],
+        [CONF_AUTO_PA_DOWN],
+        [CONF_PA_DOWN],
+        [CONF_STANDBY_ENABLE],
+        [CONF_PA_BIAS],
+        [CONF_AU_ENHANCE],
+    ],
+    CONF_REF_CLK: [
+        [CONF_ENABLE],
+    ],
+    CONF_XTAL: [
+        [CONF_ENABLE],
+    ],
+    CONF_ALC: [
+        [CONF_ENABLE],
+    ],
+    CONF_SILENCE: [
+        [CONF_DETECTION],
+    ],
+}
 
 
 async def to_code(config):
-    p = await cg.get_variable(config[CONF_KT0803_ID])
-    await new_switch(p, config, CONF_MUTE, p.set_mute_switch)
-    await new_switch(p, config, CONF_MONO, p.set_mono_switch)
-    await new_switch(p, config, CONF_AUTO_PA_DOWN, p.set_auto_pa_down_switch)
-    await new_switch(p, config, CONF_PA_DOWN, p.set_pa_down_switch)
-    await new_switch(p, config, CONF_STANDBY_ENABLE, p.set_standby_enable_switch)
-    await new_switch(p, config, CONF_PA_BIAS, p.set_pa_bias_switch)
-    await new_switch(p, config, CONF_AU_ENHANCE, p.set_au_enhance_switch)
-    if ref_clk_config := config.get(CONF_REF_CLK):
-        await new_switch(p, ref_clk_config, CONF_ENABLE, p.set_ref_clk_enable_switch)
-    if xtal_config := config.get(CONF_XTAL):
-        await new_switch(p, xtal_config, CONF_ENABLE, p.set_xtal_enable_switch)
-    if alc_config := config.get(CONF_ALC):
-        await new_switch(p, alc_config, CONF_ENABLE, p.set_alc_enable_switch)
-    if silence_config := config.get(CONF_SILENCE):
-        await new_switch(
-            p, silence_config, CONF_DETECTION, p.set_silence_detection_switch
-        )
+    parent = await cg.get_variable(config[CONF_KT0803_ID])
+
+    async def new_switch(c, args, setter):
+        s = await switch.new_switch(c)
+        await cg.register_parented(s, parent)
+        cg.add(getattr(parent, setter + "_switch")(s))
+
+    await for_each_conf(config, VARIABLES, new_switch)
