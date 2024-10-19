@@ -27,7 +27,15 @@ from esphome.const import (
 
 CODEOWNERS = ["@gabest11"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensor", "binary_sensor", "text_sensor", "number", "switch", "select", "text"]
+AUTO_LOAD = [
+    "sensor",
+    "binary_sensor",
+    "text_sensor",
+    "number",
+    "switch",
+    "select",
+    "text",
+]
 MULTI_CONF = True
 
 UNIT_MEGA_HERTZ = "MHz"
