@@ -75,7 +75,7 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
 
  protected:
   bool write_event_{false};
-  BLEService *service_ = nullptr;
+  BLEService *service_{};
   ESPBTUUID uuid_;
   esp_gatt_char_prop_t properties_;
   uint16_t handle_{0xFFFF};
