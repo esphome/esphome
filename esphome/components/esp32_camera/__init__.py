@@ -1,28 +1,27 @@
+from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
-from esphome import automation
-from esphome import pins
 from esphome.const import (
+    CONF_BRIGHTNESS,
+    CONF_CONTRAST,
+    CONF_DATA_PINS,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_PIN,
-    CONF_SCL,
-    CONF_SDA,
-    CONF_DATA_PINS,
     CONF_RESET_PIN,
     CONF_RESOLUTION,
-    CONF_BRIGHTNESS,
-    CONF_CONTRAST,
+    CONF_SCL,
+    CONF_SDA,
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
 )
 from esphome.core import CORE
-from esphome.components.esp32 import add_idf_component
 from esphome.cpp_helpers import setup_entity
 
 DEPENDENCIES = ["esp32"]
 
-AUTO_LOAD = ["psram"]
+AUTO_LOAD = ["psram", "camera"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
