@@ -91,7 +91,8 @@ struct Configuration {
 
 class VoiceAssistant : public Component {
  public:
-  VoiceAssistant();
+  VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
+
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;

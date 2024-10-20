@@ -23,8 +23,6 @@ static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
 
-VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
-
 float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 bool VoiceAssistant::start_udp_socket_() {
