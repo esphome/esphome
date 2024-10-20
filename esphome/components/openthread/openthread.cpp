@@ -1,5 +1,4 @@
 #include "esphome/core/defines.h"
-#define USE_OPENTHREAD
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
