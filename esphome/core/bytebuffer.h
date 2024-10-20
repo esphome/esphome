@@ -291,6 +291,16 @@ class ByteBuffer {
   inline void little_endian() { this->endianness_ = LITTLE; }
   // retrieve a pointer to the underlying data.
   std::vector<uint8_t> get_data() { return this->data_; };
+
+  void get_bytes(void *dest, size_t length) {
+    std::copy(this->data_.begin() + this->position_, this->data_.begin() + this->position_ + length, (uint8_t *) dest);
+    this->position_ += length;
+  }
+
+  void get_bytes(void *dest, size_t length, size_t offset) {
+    std::copy(this->data_.begin() + offset, this->data_.begin() + offset + length, (uint8_t *) dest);
+  }
+
   void rewind() { this->position_ = 0; }
   void reset() { this->position_ = this->mark_; }
 
