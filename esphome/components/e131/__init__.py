@@ -23,6 +23,7 @@ CHANNELS = {
 
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
+CONF_CHANNEL_OFFSET = "channel_offset"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -46,6 +47,7 @@ async def to_code(config):
         cv.GenerateID(CONF_E131_ID): cv.use_id(E131Component),
         cv.Required(CONF_UNIVERSE): cv.int_range(min=1, max=512),
         cv.Optional(CONF_CHANNELS, default="RGB"): cv.one_of(*CHANNELS, upper=True),
+        cv.Optional(CONF_CHANNEL_OFFSET, default=0): cv.int_range(min=0, max=512),
     },
 )
 async def e131_light_effect_to_code(config, effect_id):
@@ -54,5 +56,6 @@ async def e131_light_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_first_universe(config[CONF_UNIVERSE]))
     cg.add(effect.set_channels(CHANNELS[config[CONF_CHANNELS]]))
+    cg.add(effect.set_channel_offset(config[CONF_CHANNEL_OFFSET]))
     cg.add(effect.set_e131(parent))
     return effect
