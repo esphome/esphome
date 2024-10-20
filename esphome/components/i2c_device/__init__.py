@@ -5,15 +5,15 @@ from esphome.const import CONF_ID
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@gabest11"]
-
 MULTI_CONF = True
+
 i2c_device_ns = cg.esphome_ns.namespace("i2c_device")
 
-i2c_device = i2c_device_ns.class_("I2CDeviceComponent", cg.Component, i2c.I2CDevice)
+I2CDeviceComponent = i2c_device_ns.class_("I2CDeviceComponent", cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_ID): cv.declare_id(i2c_device),
+        cv.GenerateID(CONF_ID): cv.declare_id(I2CDeviceComponent),
     }
 ).extend(i2c.i2c_device_schema(None))
 
