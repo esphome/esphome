@@ -1,12 +1,12 @@
 #pragma once
+#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
-
-#ifdef USE_ESP32
 
 #include <map>
 using esphome::esp_log_printf_;
@@ -132,4 +132,5 @@ extern ModemComponent *global_modem_component;
 }  // namespace modem
 }  // namespace esphome
 
+#endif  // USE_ESP_IDF
 #endif  // USE_ESP32

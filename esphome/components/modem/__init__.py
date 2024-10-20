@@ -61,8 +61,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_UART_EVENT_TASK_STACK_SIZE, default=2048
             ): cv.positive_not_null_int,
-            cv.Optional(CONF_UART_EVENT_TASK_PRIORITY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_UART_EVENT_QUEUE_SIZE, default=30): cv.positive_not_null_int,
+            cv.Optional(
+                CONF_UART_EVENT_TASK_PRIORITY, default=5
+            ): cv.positive_not_null_int,
+            cv.Optional(
+                CONF_UART_EVENT_QUEUE_SIZE, default=30
+            ): cv.positive_not_null_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.positive_not_null_int,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.positive_not_null_int,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,

@@ -1,10 +1,11 @@
+#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
+
 #include "modem_component.h"
 
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
-
-#ifdef USE_ESP32
 
 #include "esp_modem_c_api_types.h"
 #include "esp_netif_ppp.h"
@@ -64,7 +65,7 @@ void ModemComponent::setup() {
   err = esp_event_loop_create_default();
   ESPHL_ERROR_CHECK(err, "modem event loop error");
   ESP_LOGCONFIG(TAG, "Initing netif");
-  esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::got_ip_event_handler, NULL);
+  esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::got_ip_event_handler, nullptr);
   ESP_LOGD(TAG, "Initializing esp_modem");
   this->modem_netif_init();
   this->dte_init();
@@ -230,15 +231,14 @@ bool ModemComponent::check_modem_component_state_timings() {
 }
 
 void ModemComponent::set_state(ModemComponentState state) {
-   // execute before transition to state
-  switch (state)
-  {
-  case ModemComponentState::SYNC:
-    this->dce_init();
-    break;
-  
-  default:
-    break;
+  // execute before transition to state
+  switch (state) {
+    case ModemComponentState::SYNC:
+      this->dce_init();
+      break;
+
+    default:
+      break;
   }
   ESP_LOGCONFIG(TAG, "Modem component change state from %s to %s", this->state_to_string(this->state_),
                 this->state_to_string(state));
@@ -278,7 +278,8 @@ void ModemComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Type: %d", this->type_);
   ESP_LOGCONFIG(TAG, "  Power pin : %s", (this->power_pin_) ? this->power_pin_->dump_summary().c_str() : "Not defined");
   ESP_LOGCONFIG(TAG, "  Reset pin : %s", (this->reset_pin_) ? this->reset_pin_->dump_summary().c_str() : "Not defined");
-  ESP_LOGCONFIG(TAG, "  Pwrkey pin : %s", (this->pwrkey_pin_) ? this->pwrkey_pin_->dump_summary().c_str() : "Not defined");
+  ESP_LOGCONFIG(TAG, "  Pwrkey pin : %s",
+                (this->pwrkey_pin_) ? this->pwrkey_pin_->dump_summary().c_str() : "Not defined");
   ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
   ESP_LOGCONFIG(TAG, "  TX Pin: %d", this->tx_pin_);
   ESP_LOGCONFIG(TAG, "  RX Pin: %d", this->rx_pin_);
@@ -385,4 +386,5 @@ void ModemComponent::set_use_address(const std::string &use_address) { this->use
 }  // namespace modem
 }  // namespace esphome
 
+#endif  // USE_ESP_IDF
 #endif  // USE_ESP32

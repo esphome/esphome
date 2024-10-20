@@ -565,7 +565,7 @@ class EsphomeCore:
 
         if CONF_ETHERNET in self.config:
             return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
-        
+
         if CONF_MODEM in self.config:
             return self.config[CONF_MODEM][CONF_USE_ADDRESS]
 
