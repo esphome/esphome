@@ -9,7 +9,9 @@ MULTI_CONF = True
 
 i2c_device_ns = cg.esphome_ns.namespace("i2c_device")
 
-I2CDeviceComponent = i2c_device_ns.class_("I2CDeviceComponent", cg.Component, i2c.I2CDevice)
+I2CDeviceComponent = i2c_device_ns.class_(
+    "I2CDeviceComponent", cg.Component, i2c.I2CDevice
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
