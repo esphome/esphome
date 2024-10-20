@@ -176,7 +176,7 @@ class ByteBuffer {
   // Get a 32 bit unsigned value, increment by 4
   uint32_t get_uint32() { return this->get<uint32_t>(); };
   // Get a 64 bit unsigned value, increment by 8
-  uint64_t get_uint64() { return this->get_uint64_(sizeof(uint64_t)); };
+  uint64_t get_uint64() { return this->get<uint64_t>(); };
   // Signed versions of the get functions
   uint8_t get_int8() { return static_cast<int8_t>(this->get_uint8()); };
   int16_t get_int16() { return this->get<uint16_t>(); }
@@ -216,8 +216,7 @@ class ByteBuffer {
     return result;
   }
 
-  // Put values into the buffer, increment the position accordingly
-  // put any integral value, length represents the number of bytes
+  // Convenience named functions
   void put_uint8(uint8_t value) { this->data_[this->position_++] = value; }
   void put_uint16(uint16_t value) { this->put(value); }
   void put_uint24(uint32_t value) { this->put_uint32_(value, 3); }
@@ -234,21 +233,21 @@ class ByteBuffer {
 
   // versions of the above with an offset, these do not update the position
 
-  uint64_t get_uint64(size_t offset) { return this->get_uint64_(offset, sizeof(uint64_t)); };
+  uint64_t get_uint64(size_t offset) { return this->get<uint64_t>(offset); }
   uint32_t get_uint24(size_t offset) { return this->get_uint32_(offset, 3); };
   double get_double(size_t offset) { return get<double>(offset); }
 
   // Get one byte from the buffer, increment position by 1
   uint8_t get_uint8(size_t offset) { return this->data_[offset]; }
   // Get a 16 bit unsigned value, increment by 2
-  uint16_t get_uint16(size_t offset) { return static_cast<uint16_t>(this->get_uint32_(offset, sizeof(uint16_t))); };
+  uint16_t get_uint16(size_t offset) { return get<uint16_t>(offset); }
   // Get a 24 bit unsigned value, increment by 3
   uint32_t get_uint32(size_t offset) { return this->get_uint32_(offset, sizeof(uint32_t)); };
   // Get a 64 bit unsigned value, increment by 8
-  uint8_t get_int8(size_t offset) { return static_cast<int8_t>(this->get_uint8(offset)); };
-  int16_t get_int16(size_t offset) { return static_cast<int16_t>(this->get_uint32_(offset, sizeof(int16_t))); }
-  int32_t get_int32(size_t offset) { return static_cast<int32_t>(this->get_uint32_(offset, sizeof(int32_t))); }
-  int64_t get_int64(size_t offset) { return static_cast<int64_t>(this->get_uint64_(offset, sizeof(int64_t))); }
+  uint8_t get_int8(size_t offset) { return get<int8_t>(offset); }
+  int16_t get_int16(size_t offset) { return get<int16_t>(offset); }
+  int32_t get_int32(size_t offset) { return get<int32_t>(offset); }
+  int64_t get_int64(size_t offset) { return get<int64_t>(offset); }
   // Get a float value, increment by 4
   float get_float(size_t offset) { return get<float>(offset); }
   // Get a double value, increment by 8
@@ -258,7 +257,7 @@ class ByteBuffer {
 
   void put_uint8(uint8_t value, size_t offset) { this->data_[offset] = value; }
   void put_uint16(uint16_t value, size_t offset) { this->put(value, offset); }
-  void put_uint24(uint32_t value, size_t offset) { this->put_uint32_(value, offset, 3); }
+  void put_uint24(uint32_t value, size_t offset) { this->put(value, offset); }
   void put_uint32(uint32_t value, size_t offset) { this->put(value, offset); }
   void put_uint64(uint64_t value, size_t offset) { this->put(value, offset); }
   // Signed versions of the put functions
