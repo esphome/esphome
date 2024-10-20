@@ -70,12 +70,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(OpenThreadComponent),
             cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
-            cv.Required(CONF_NETWORK_NAME): cv.string_strict,
+            cv.Required(CONF_PANID): cv.int_,
             cv.Required(CONF_CHANNEL): cv.int_,
             cv.Required(CONF_NETWORK_KEY): cv.string_strict,
-            cv.Required(CONF_PSKC): cv.string_strict,
-            cv.Required(CONF_PANID): cv.int_,
-            cv.Required(CONF_EXTPANID): cv.string_strict,
+            cv.Optional(CONF_EXTPANID): cv.string_strict,
+            cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
+            cv.Optional(CONF_PSKC): cv.string_strict,
         }
     ),
 )
