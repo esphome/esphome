@@ -41,9 +41,10 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #endif
 
 #ifdef USE_CAMERA
-  if (camera::Camera::global_camera != nullptr)
+  if (camera::Camera::global_camera != nullptr) {
     this->image_reader_ =
         std::unique_ptr<camera::CameraImageReader>{camera::Camera::global_camera->create_image_reader()};
+  }
 #endif
 }
 void APIConnection::start() {

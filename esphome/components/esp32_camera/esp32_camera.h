@@ -152,12 +152,12 @@ class ESP32Camera : public Component, public camera::Camera {
   void dump_config() override;
   float get_setup_priority() const override;
   /* public API (specific) */
-  void start_stream(camera::CameraRequester requester);
-  void stop_stream(camera::CameraRequester requester);
-  void request_image(camera::CameraRequester requester);
+  void start_stream(camera::CameraRequester requester) override;
+  void stop_stream(camera::CameraRequester requester) override;
+  void request_image(camera::CameraRequester requester) override;
   void update_camera_parameters();
 
-  void add_image_callback(std::function<void(std::shared_ptr<camera::CameraImage>)> &&callback);
+  void add_image_callback(std::function<void(std::shared_ptr<camera::CameraImage>)> &&callback) override;
   void add_stream_start_callback(std::function<void()> &&callback);
   void add_stream_stop_callback(std::function<void()> &&callback);
   camera::CameraImageReader *create_image_reader() override;
