@@ -876,8 +876,6 @@ void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) 
 #endif
 }
 
-VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 }  // namespace voice_assistant
 }  // namespace esphome
 
