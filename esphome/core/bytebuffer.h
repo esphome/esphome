@@ -278,7 +278,7 @@ class ByteBuffer {
     this->put_vector(value, this->position_);
     this->position_ += value.size();
   }
-  void put_vector(const std::vector<uint8_t> &value) { this->put_vector(value); }
+  void put_vector(const std::vector<uint8_t> &value) { this->put(value); }
 
   // Getters
 
