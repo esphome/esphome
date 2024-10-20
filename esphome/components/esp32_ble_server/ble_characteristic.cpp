@@ -55,8 +55,8 @@ void BLECharacteristic::notify() {
       ESP_LOGW(TAG, "INDICATE acknowledgment is not yet supported (i.e. it works as a NOTIFY)");
       require_ack = false;
     }
-    esp_err_t err = esp_ble_gatts_send_indicate(this->service_->get_server()->get_gatts_if(), client,
-                                                this->handle_, length, this->value_.data(), require_ack);
+    esp_err_t err = esp_ble_gatts_send_indicate(this->service_->get_server()->get_gatts_if(), client, this->handle_,
+                                                length, this->value_.data(), require_ack);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gatts_send_indicate failed %d", err);
       return;
@@ -67,21 +67,18 @@ void BLECharacteristic::notify() {
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
   if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
-    descriptor->on(
-      BLEDescriptorEvt::VectorEvt::ON_WRITE,
-      [this](const std::vector<uint8_t> &value, uint16_t conn_id) {
-        if (value.size() != 2)
-          return;
-        uint16_t cccd = encode_uint16(value[1], value[0]);
-        bool notify = (cccd & 1) != 0;
-        bool indicate = (cccd & 2) != 0;
-        if (notify || indicate) {
-          this->clients_to_notify_[conn_id] = indicate;
-        } else {
-          this->clients_to_notify_.erase(conn_id);
-        }
+    descriptor->on(BLEDescriptorEvt::VectorEvt::ON_WRITE, [this](const std::vector<uint8_t> &value, uint16_t conn_id) {
+      if (value.size() != 2)
+        return;
+      uint16_t cccd = encode_uint16(value[1], value[0]);
+      bool notify = (cccd & 1) != 0;
+      bool indicate = (cccd & 2) != 0;
+      if (notify || indicate) {
+        this->clients_to_notify_[conn_id] = indicate;
+      } else {
+        this->clients_to_notify_.erase(conn_id);
       }
-    );
+    });
   }
   this->descriptors_.push_back(descriptor);
 }
@@ -204,8 +201,8 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (!param->read.need_rsp)
         break;  // For some reason you can request a read but not want a response
 
-      this->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::emit_(
-        BLECharacteristicEvt::EmptyEvt::ON_READ, param->read.conn_id);
+      this->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::emit_(BLECharacteristicEvt::EmptyEvt::ON_READ,
+                                                                          param->read.conn_id);
 
       uint16_t max_offset = 22;
 

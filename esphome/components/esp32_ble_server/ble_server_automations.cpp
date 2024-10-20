@@ -9,7 +9,8 @@ namespace esp32_ble_server_automations {
 
 using namespace esp32_ble;
 
-Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_characteristic_on_write_trigger(BLECharacteristic *characteristic) {
+Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_characteristic_on_write_trigger(
+    BLECharacteristic *characteristic) {
   Trigger<std::vector<uint8_t>, uint16_t> *on_write_trigger =  // NOLINT(cppcoreguidelines-owning-memory)
       new Trigger<std::vector<uint8_t>, uint16_t>();
   characteristic->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::on(
@@ -29,13 +30,15 @@ Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_descriptor_on_write
 
 Trigger<uint16_t> *BLETriggers::create_server_on_connect_trigger(BLEServer *server) {
   Trigger<uint16_t> *on_connect_trigger = new Trigger<uint16_t>();  // NOLINT(cppcoreguidelines-owning-memory)
-  server->on(BLEServerEvt::EmptyEvt::ON_CONNECT, [on_connect_trigger](uint16_t conn_id) { on_connect_trigger->trigger(conn_id); });
+  server->on(BLEServerEvt::EmptyEvt::ON_CONNECT,
+             [on_connect_trigger](uint16_t conn_id) { on_connect_trigger->trigger(conn_id); });
   return on_connect_trigger;
 }
 
 Trigger<uint16_t> *BLETriggers::create_server_on_disconnect_trigger(BLEServer *server) {
   Trigger<uint16_t> *on_disconnect_trigger = new Trigger<uint16_t>();  // NOLINT(cppcoreguidelines-owning-memory)
-  server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT, [on_disconnect_trigger](uint16_t conn_id) { on_disconnect_trigger->trigger(conn_id); });
+  server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT,
+             [on_disconnect_trigger](uint16_t conn_id) { on_disconnect_trigger->trigger(conn_id); });
   return on_disconnect_trigger;
 }
 
@@ -50,7 +53,7 @@ void BLECharacteristicSetValueActionManager::set_listener(BLECharacteristic *cha
     EventEmitterListenerID old_pre_notify_listener_id = listener_pairs.second;
     // Remove the previous listener
     characteristic->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::off(BLECharacteristicEvt::EmptyEvt::ON_READ,
-                                                                      old_listener_id);
+                                                                                old_listener_id);
     // Remove the pre-notify listener
     this->off(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, old_pre_notify_listener_id);
   }

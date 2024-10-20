@@ -23,7 +23,8 @@ using namespace esp32_ble;
 
 class BLETriggers {
  public:
-  static Trigger<std::vector<uint8_t>, uint16_t> *create_characteristic_on_write_trigger(BLECharacteristic *characteristic);
+  static Trigger<std::vector<uint8_t>, uint16_t> *create_characteristic_on_write_trigger(
+      BLECharacteristic *characteristic);
   static Trigger<std::vector<uint8_t>, uint16_t> *create_descriptor_on_write_trigger(BLEDescriptor *descriptor);
   static Trigger<uint16_t> *create_server_on_connect_trigger(BLEServer *server);
   static Trigger<uint16_t> *create_server_on_disconnect_trigger(BLEServer *server);

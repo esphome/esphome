@@ -35,7 +35,7 @@ CONF_DESCRIPTORS = "descriptors"
 CONF_STRING_ENCODING = "string_encoding"
 CONF_DESCRIPTION = "description"
 
-CONF_CHAR_VALUE_ACTION_ID_ = "characteristic_value_action_id_"
+CONF_CHAR_VALUE_ACTION_ID_ = "char_value_action_id_"
 CONF_VALUE_BUFFER_ = "value_buffer_"
 CONF_CUD_ID_ = "cud_id_"
 CONF_CUD_VALUE_BUFFER_ = "cud_value_buffer_"
@@ -149,7 +149,12 @@ def create_notify_cccd(char_config):
     # If the CCCD descriptor is already present, return the config
     for desc in char_config[CONF_DESCRIPTORS]:
         if desc[CONF_UUID] == 0x2902:
-            return
+            # Check if the WRITE property is set
+            if not desc[CONF_WRITE]:
+                raise cv.Invalid(
+                    f"Characteristic {char_config[CONF_UUID]} has notify actions, but the CCCD descriptor does not have the {CONF_WRITE} property set"
+                )
+            return char_config
     # Manually add the CCCD descriptor
     char_config[CONF_DESCRIPTORS].append(
         {

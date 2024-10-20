@@ -34,8 +34,11 @@ enum EmptyEvt {
 };
 }  // namespace BLEServerEvt
 
-class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler,
-                  public Parented<ESP32BLE>, public EventEmitter<BLEServerEvt::EmptyEvt, uint16_t> {
+class BLEServer : public Component,
+                  public GATTsEventHandler,
+                  public BLEStatusEventHandler,
+                  public Parented<ESP32BLE>,
+                  public EventEmitter<BLEServerEvt::EmptyEvt, uint16_t> {
  public:
   void setup() override;
   void loop() override;
