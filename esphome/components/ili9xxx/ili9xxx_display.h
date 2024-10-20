@@ -28,12 +28,14 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
  public:
   ILI9XXXDisplay() = default;
-  ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height, bool invert_colors)
-      : init_sequence_{init_sequence}, width_{width}, height_{height}, pre_invertcolors_{invert_colors} {
+  ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height)
+      : init_sequence_{init_sequence}, width_{width}, height_{height} {
     uint8_t cmd, num_args, bits;
     const uint8_t *addr = init_sequence;
     while ((cmd = *addr++) != 0) {
-      num_args = *addr++ & 0x7F;
+      num_args = *addr++;
+      if (num_args == ILI9XXX_DELAY_FLAG)
+        continue;
       bits = *addr;
       switch (cmd) {
         case ILI9XXX_MADCTL: {
@@ -50,13 +52,10 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
           break;
         }
 
-        case ILI9XXX_DELAY:
-          continue;  // no args to skip
-
         default:
           break;
       }
-      addr += num_args;
+      addr += (num_args & 0x7F);
     }
   }
 
@@ -90,6 +89,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   void dump_config() override;
   void setup() override;
+  void on_shutdown() override { this->command(ILI9XXX_SLPIN); }
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -109,7 +109,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   virtual void set_madctl();
   void display_();
-  virtual void init_lcd(const uint8_t *addr);
+  void init_lcd_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
   void reset_();
 
@@ -145,7 +145,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
   PixelMode pixel_mode_{};
-  bool pre_invertcolors_ = false;
+  bool pre_invertcolors_{};
   display::ColorOrder color_order_{display::COLOR_ORDER_BGR};
   bool swap_xy_{};
   bool mirror_x_{};
@@ -155,54 +155,54 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 //-----------   M5Stack display --------------
 class ILI9XXXM5Stack : public ILI9XXXDisplay {
  public:
-  ILI9XXXM5Stack() : ILI9XXXDisplay(INITCMD_M5STACK, 320, 240, true) {}
+  ILI9XXXM5Stack() : ILI9XXXDisplay(INITCMD_M5STACK, 320, 240) {}
 };
 
 //-----------   M5Stack display --------------
 class ILI9XXXM5CORE : public ILI9XXXDisplay {
  public:
-  ILI9XXXM5CORE() : ILI9XXXDisplay(INITCMD_M5CORE, 320, 240, true) {}
+  ILI9XXXM5CORE() : ILI9XXXDisplay(INITCMD_M5CORE, 320, 240) {}
 };
 
 //-----------   ST7789V display --------------
 class ILI9XXXST7789V : public ILI9XXXDisplay {
  public:
-  ILI9XXXST7789V() : ILI9XXXDisplay(INITCMD_ST7789V, 240, 320, false) {}
+  ILI9XXXST7789V() : ILI9XXXDisplay(INITCMD_ST7789V, 240, 320) {}
 };
 
 //-----------   ILI9XXX_24_TFT display --------------
 class ILI9XXXILI9341 : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI9341() : ILI9XXXDisplay(INITCMD_ILI9341, 240, 320, false) {}
+  ILI9XXXILI9341() : ILI9XXXDisplay(INITCMD_ILI9341, 240, 320) {}
 };
 
 //-----------   ILI9XXX_24_TFT rotated display --------------
 class ILI9XXXILI9342 : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI9342() : ILI9XXXDisplay(INITCMD_ILI9341, 320, 240, false) {}
+  ILI9XXXILI9342() : ILI9XXXDisplay(INITCMD_ILI9341, 320, 240) {}
 };
 
 //-----------   ILI9XXX_??_TFT rotated display --------------
 class ILI9XXXILI9481 : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI9481() : ILI9XXXDisplay(INITCMD_ILI9481, 480, 320, false) {}
+  ILI9XXXILI9481() : ILI9XXXDisplay(INITCMD_ILI9481, 480, 320) {}
 };
 
 //-----------   ILI9481 in 18 bit mode --------------
 class ILI9XXXILI948118 : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI948118() : ILI9XXXDisplay(INITCMD_ILI9481_18, 320, 480, true) {}
+  ILI9XXXILI948118() : ILI9XXXDisplay(INITCMD_ILI9481_18, 320, 480) {}
 };
 
 //-----------   ILI9XXX_35_TFT rotated display --------------
 class ILI9XXXILI9486 : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI9486() : ILI9XXXDisplay(INITCMD_ILI9486, 480, 320, false) {}
+  ILI9XXXILI9486() : ILI9XXXDisplay(INITCMD_ILI9486, 480, 320) {}
 };
 
 class ILI9XXXILI9488 : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI9488(const uint8_t *seq = INITCMD_ILI9488) : ILI9XXXDisplay(seq, 480, 320, true) {}
+  ILI9XXXILI9488(const uint8_t *seq = INITCMD_ILI9488) : ILI9XXXDisplay(seq, 480, 320) {}
 
  protected:
   void set_madctl() override {
@@ -247,35 +247,34 @@ class WAVESHARERES35 : public ILI9XXXILI9488 {
 //-----------   ILI9XXX_35_TFT origin colors rotated display --------------
 class ILI9XXXILI9488A : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI9488A() : ILI9XXXDisplay(INITCMD_ILI9488_A, 480, 320, true) {}
+  ILI9XXXILI9488A() : ILI9XXXDisplay(INITCMD_ILI9488_A, 480, 320) {}
 };
 
 //-----------   ILI9XXX_35_TFT rotated display --------------
 class ILI9XXXST7796 : public ILI9XXXDisplay {
  public:
-  ILI9XXXST7796() : ILI9XXXDisplay(INITCMD_ST7796, 320, 480, false) {}
+  ILI9XXXST7796() : ILI9XXXDisplay(INITCMD_ST7796, 320, 480) {}
 };
 
 class ILI9XXXS3Box : public ILI9XXXDisplay {
  public:
-  ILI9XXXS3Box() : ILI9XXXDisplay(INITCMD_S3BOX, 320, 240, false) {}
+  ILI9XXXS3Box() : ILI9XXXDisplay(INITCMD_S3BOX, 320, 240) {}
 };
 
 class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
  public:
-  ILI9XXXS3BoxLite() : ILI9XXXDisplay(INITCMD_S3BOXLITE, 320, 240, true) {}
+  ILI9XXXS3BoxLite() : ILI9XXXDisplay(INITCMD_S3BOXLITE, 320, 240) {}
 };
 
 class ILI9XXXGC9A01A : public ILI9XXXDisplay {
  public:
-  ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240, true) {}
-  void init_lcd(const uint8_t *addr) override;
+  ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240) {}
 };
 
 //-----------   ILI9XXX_24_TFT display --------------
 class ILI9XXXST7735 : public ILI9XXXDisplay {
  public:
-  ILI9XXXST7735() : ILI9XXXDisplay(INITCMD_ST7735, 128, 160, false) {}
+  ILI9XXXST7735() : ILI9XXXDisplay(INITCMD_ST7735, 128, 160) {}
 };
 
 }  // namespace ili9xxx

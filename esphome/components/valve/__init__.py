@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import maybe_simple_id, Condition
+from esphome.automation import Condition, maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ID,
@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_STOP,
     CONF_TRIGGER_ID,
-    CONF_WEB_SERVER_ID,
+    CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
@@ -124,9 +124,8 @@ async def setup_valve_core_(var, config):
                 mqtt_.set_custom_position_command_topic(position_command_topic_config)
             )
 
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_valve(var, config):

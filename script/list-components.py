@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
+import argparse
 from pathlib import Path
 import sys
-import argparse
 
-from helpers import git_ls_files, changed_files
-from esphome.loader import get_component, get_platform
-from esphome.core import CORE
+from helpers import changed_files, git_ls_files
+
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -13,6 +12,8 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
+from esphome.core import CORE
+from esphome.loader import get_component, get_platform
 
 
 def filter_component_files(str):

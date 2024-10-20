@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
 
-from helpers import (
-    print_error_for_file,
-    get_output,
-    git_ls_files,
-    filter_changed,
-    get_binary,
-)
 import argparse
-import click
-import colorama
 import multiprocessing
 import os
 import queue
@@ -18,6 +9,9 @@ import subprocess
 import sys
 import threading
 
+import click
+import colorama
+from helpers import filter_changed, get_binary, git_ls_files, print_error_for_file
 
 
 def run_format(executable, args, queue, lock, failed_files):

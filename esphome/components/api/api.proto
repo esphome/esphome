@@ -62,6 +62,8 @@ service APIConnection {
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
+  rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
+  rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration) returns (void) {}
 
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
 }
@@ -686,6 +688,7 @@ message SubscribeHomeAssistantStateResponse {
   option (source) = SOURCE_SERVER;
   string entity_id = 1;
   string attribute = 2;
+  bool once = 3;
 }
 
 message HomeAssistantStateResponse {
@@ -1106,6 +1109,19 @@ enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_MUTE = 3;
   MEDIA_PLAYER_COMMAND_UNMUTE = 4;
 }
+enum MediaPlayerFormatPurpose {
+  MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0;
+  MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT = 1;
+}
+message MediaPlayerSupportedFormat {
+  option (ifdef) = "USE_MEDIA_PLAYER";
+
+  string format = 1;
+  uint32 sample_rate = 2;
+  uint32 num_channels = 3;
+  MediaPlayerFormatPurpose purpose = 4;
+  uint32 sample_bytes = 5;
+}
 message ListEntitiesMediaPlayerResponse {
   option (id) = 63;
   option (source) = SOURCE_SERVER;
@@ -1121,6 +1137,8 @@ message ListEntitiesMediaPlayerResponse {
   EntityCategory entity_category = 7;
 
   bool supports_pause = 8;
+
+  repeated MediaPlayerSupportedFormat supported_formats = 9;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;
@@ -1538,6 +1556,53 @@ message VoiceAssistantTimerEventResponse {
   bool is_active = 6;
 }
 
+message VoiceAssistantAnnounceRequest {
+  option (id) = 119;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  string media_id = 1;
+  string text = 2;
+}
+
+message VoiceAssistantAnnounceFinished {
+  option (id) = 120;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bool success = 1;
+}
+
+message VoiceAssistantWakeWord {
+  string id = 1;
+  string wake_word = 2;
+  repeated string trained_languages = 3;
+}
+
+message VoiceAssistantConfigurationRequest {
+  option (id) = 121;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+}
+
+message VoiceAssistantConfigurationResponse {
+  option (id) = 122;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated VoiceAssistantWakeWord available_wake_words = 1;
+  repeated string active_wake_words = 2;
+  uint32 max_active_wake_words = 3;
+}
+
+message VoiceAssistantSetConfiguration {
+  option (id) = 123;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated string active_wake_words = 1;
+}
+
 // ==================== ALARM CONTROL PANEL ====================
 enum AlarmControlPanelState {
   ALARM_STATE_DISARMED = 0;
@@ -1872,6 +1937,11 @@ message UpdateStateResponse {
   string release_summary = 9;
   string release_url = 10;
 }
+enum UpdateCommand {
+  UPDATE_COMMAND_NONE = 0;
+  UPDATE_COMMAND_UPDATE = 1;
+  UPDATE_COMMAND_CHECK = 2;
+}
 message UpdateCommandRequest {
   option (id) = 118;
   option (source) = SOURCE_CLIENT;
@@ -1879,5 +1949,5 @@ message UpdateCommandRequest {
   option (no_delay) = true;
 
   fixed32 key = 1;
-  bool install = 2;
+  UpdateCommand command = 2;
 }

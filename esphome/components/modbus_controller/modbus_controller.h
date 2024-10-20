@@ -312,7 +312,6 @@ struct RegisterRange {
 class ModbusCommandItem {
  public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
-  static const uint8_t MAX_SEND_REPEATS = 5;
   ModbusController *modbusdevice;
   uint16_t register_address;
   uint16_t register_count;
@@ -322,9 +321,9 @@ class ModbusCommandItem {
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
-  // wrong commands (esp. custom commands) can block the send queue
-  // limit the number of repeats
-  uint8_t send_countdown{MAX_SEND_REPEATS};
+  /// Check if the command should be retried based on the max_retries parameter
+  bool should_retry(uint8_t max_retries) { return this->send_count_ <= max_retries; };
+
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
@@ -413,6 +412,11 @@ class ModbusCommandItem {
           &&handler = nullptr);
 
   bool is_equal(const ModbusCommandItem &other);
+
+ protected:
+  // wrong commands (esp. custom commands) can block the send queue, limit the number of repeats.
+  /// How many times this command has been sent
+  uint8_t send_count_{0};
 };
 
 /** Modbus controller class.
@@ -448,6 +452,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// incoming queue
   void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                   const std::vector<uint8_t> &data);
+  /// Allow a duplicate command to be sent
+  void set_allow_duplicate_commands(bool allow_duplicate_commands) {
+    this->allow_duplicate_commands_ = allow_duplicate_commands;
+  }
+  /// get if a duplicate command can be sent
+  bool get_allow_duplicate_commands() { return this->allow_duplicate_commands_; }
   /// called by esphome generated code to set the command_throttle period
   void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
   /// called by esphome generated code to set the offline_skip_updates
@@ -456,6 +466,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   size_t get_command_queue_length() { return command_queue_.size(); }
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
+  /// Set callback for commands
+  void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
+  /// called by esphome generated code to set the max_cmd_retries.
+  void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
+  /// get how many times a command will be (re)sent if no response is received
+  uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -480,6 +496,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   std::list<std::unique_ptr<ModbusCommandItem>> command_queue_;
   /// modbus response data waiting to get processed
   std::queue<std::unique_ptr<ModbusCommandItem>> incoming_queue_;
+  /// if duplicate commands can be sent
+  bool allow_duplicate_commands_;
   /// when was the last send operation
   uint32_t last_command_timestamp_;
   /// min time in ms between sending modbus commands
@@ -488,6 +506,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool module_offline_;
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_;
+  /// How many times we will retry a command if we get no response
+  uint8_t max_cmd_retries_{4};
+  CallbackManager<void(int, int)> command_sent_callback_{};
 };
 
 /** Convert vector<uint8_t> response payload to float.

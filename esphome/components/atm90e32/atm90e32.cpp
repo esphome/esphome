@@ -132,10 +132,77 @@ void ATM90E32Component::update() {
   this->status_clear_warning();
 }
 
+void ATM90E32Component::restore_calibrations_() {
+  if (enable_offset_calibration_) {
+    this->pref_.load(&this->offset_phase_);
+  }
+};
+
+void ATM90E32Component::run_offset_calibrations() {
+  // Run the calibrations and
+  // Setup voltage and current calibration offsets for PHASE A
+  this->offset_phase_[PHASEA].voltage_offset_ = calibrate_voltage_offset_phase(PHASEA);
+  this->phase_[PHASEA].voltage_offset_ = this->offset_phase_[PHASEA].voltage_offset_;
+  this->write16_(ATM90E32_REGISTER_UOFFSETA, this->phase_[PHASEA].voltage_offset_);  // C Voltage offset
+  this->offset_phase_[PHASEA].current_offset_ = calibrate_current_offset_phase(PHASEA);
+  this->phase_[PHASEA].current_offset_ = this->offset_phase_[PHASEA].current_offset_;
+  this->write16_(ATM90E32_REGISTER_IOFFSETA, this->phase_[PHASEA].current_offset_);  // C Current offset
+  // Setup voltage and current calibration offsets for PHASE B
+  this->offset_phase_[PHASEB].voltage_offset_ = calibrate_voltage_offset_phase(PHASEB);
+  this->phase_[PHASEB].voltage_offset_ = this->offset_phase_[PHASEB].voltage_offset_;
+  this->write16_(ATM90E32_REGISTER_UOFFSETB, this->phase_[PHASEB].voltage_offset_);  // C Voltage offset
+  this->offset_phase_[PHASEB].current_offset_ = calibrate_current_offset_phase(PHASEB);
+  this->phase_[PHASEB].current_offset_ = this->offset_phase_[PHASEB].current_offset_;
+  this->write16_(ATM90E32_REGISTER_IOFFSETB, this->phase_[PHASEB].current_offset_);  // C Current offset
+  // Setup voltage and current calibration offsets for PHASE C
+  this->offset_phase_[PHASEC].voltage_offset_ = calibrate_voltage_offset_phase(PHASEC);
+  this->phase_[PHASEC].voltage_offset_ = this->offset_phase_[PHASEC].voltage_offset_;
+  this->write16_(ATM90E32_REGISTER_UOFFSETC, this->phase_[PHASEC].voltage_offset_);  // C Voltage offset
+  this->offset_phase_[PHASEC].current_offset_ = calibrate_current_offset_phase(PHASEC);
+  this->phase_[PHASEC].current_offset_ = this->offset_phase_[PHASEC].current_offset_;
+  this->write16_(ATM90E32_REGISTER_IOFFSETC, this->phase_[PHASEC].current_offset_);  // C Current offset
+  this->pref_.save(&this->offset_phase_);
+  ESP_LOGI(TAG, "PhaseA Vo=%5d PhaseB Vo=%5d PhaseC Vo=%5d", this->offset_phase_[PHASEA].voltage_offset_,
+           this->offset_phase_[PHASEB].voltage_offset_, this->offset_phase_[PHASEC].voltage_offset_);
+  ESP_LOGI(TAG, "PhaseA Io=%5d PhaseB Io=%5d PhaseC Io=%5d", this->offset_phase_[PHASEA].current_offset_,
+           this->offset_phase_[PHASEB].current_offset_, this->offset_phase_[PHASEC].current_offset_);
+}
+
+void ATM90E32Component::clear_offset_calibrations() {
+  // Clear the calibrations and
+  this->offset_phase_[PHASEA].voltage_offset_ = 0;
+  this->phase_[PHASEA].voltage_offset_ = this->offset_phase_[PHASEA].voltage_offset_;
+  this->write16_(ATM90E32_REGISTER_UOFFSETA, this->phase_[PHASEA].voltage_offset_);  // C Voltage offset
+  this->offset_phase_[PHASEA].current_offset_ = 0;
+  this->phase_[PHASEA].current_offset_ = this->offset_phase_[PHASEA].current_offset_;
+  this->write16_(ATM90E32_REGISTER_IOFFSETA, this->phase_[PHASEA].current_offset_);  // C Current offset
+  this->offset_phase_[PHASEB].voltage_offset_ = 0;
+  this->phase_[PHASEB].voltage_offset_ = this->offset_phase_[PHASEB].voltage_offset_;
+  this->write16_(ATM90E32_REGISTER_UOFFSETB, this->phase_[PHASEB].voltage_offset_);  // C Voltage offset
+  this->offset_phase_[PHASEB].current_offset_ = 0;
+  this->phase_[PHASEB].current_offset_ = this->offset_phase_[PHASEB].current_offset_;
+  this->write16_(ATM90E32_REGISTER_IOFFSETB, this->phase_[PHASEB].current_offset_);  // C Current offset
+  this->offset_phase_[PHASEC].voltage_offset_ = 0;
+  this->phase_[PHASEC].voltage_offset_ = this->offset_phase_[PHASEC].voltage_offset_;
+  this->write16_(ATM90E32_REGISTER_UOFFSETC, this->phase_[PHASEC].voltage_offset_);  // C Voltage offset
+  this->offset_phase_[PHASEC].current_offset_ = 0;
+  this->phase_[PHASEC].current_offset_ = this->offset_phase_[PHASEC].current_offset_;
+  this->write16_(ATM90E32_REGISTER_IOFFSETC, this->phase_[PHASEC].current_offset_);  // C Current offset
+  this->pref_.save(&this->offset_phase_);
+  ESP_LOGI(TAG, "PhaseA Vo=%5d PhaseB Vo=%5d PhaseC Vo=%5d", this->offset_phase_[PHASEA].voltage_offset_,
+           this->offset_phase_[PHASEB].voltage_offset_, this->offset_phase_[PHASEC].voltage_offset_);
+  ESP_LOGI(TAG, "PhaseA Io=%5d PhaseB Io=%5d PhaseC Io=%5d", this->offset_phase_[PHASEA].current_offset_,
+           this->offset_phase_[PHASEB].current_offset_, this->offset_phase_[PHASEC].current_offset_);
+}
+
 void ATM90E32Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ATM90E32 Component...");
   this->spi_setup();
-
+  if (this->enable_offset_calibration_) {
+    uint32_t hash = fnv1_hash(App.get_friendly_name());
+    this->pref_ = global_preferences->make_preference<Calibration[3]>(hash, true);
+    this->restore_calibrations_();
+  }
   uint16_t mmode0 = 0x87;  // 3P4W 50Hz
   if (line_freq_ == 60) {
     mmode0 |= 1 << 12;  // sets 12th bit to 1, 60Hz
@@ -167,27 +234,12 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_SSTARTTH, 0x1D4C);       // All Reactive Startup Power Threshold - 50%
   this->write16_(ATM90E32_REGISTER_PPHASETH, 0x02EE);       // Each Phase Active Phase Threshold - 0.002A/0.00032 = 750
   this->write16_(ATM90E32_REGISTER_QPHASETH, 0x02EE);       // Each phase Reactive Phase Threshold - 10%
-  // Setup voltage and current calibration offsets for PHASE A
-  this->phase_[PHASEA].voltage_offset_ = calibrate_voltage_offset_phase(PHASEA);
-  this->write16_(ATM90E32_REGISTER_UOFFSETA, this->phase_[PHASEA].voltage_offset_);  // A Voltage offset
-  this->phase_[PHASEA].current_offset_ = calibrate_current_offset_phase(PHASEA);
-  this->write16_(ATM90E32_REGISTER_IOFFSETA, this->phase_[PHASEA].current_offset_);  // A Current offset
   // Setup voltage and current gain for PHASE A
   this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[PHASEA].voltage_gain_);  // A Voltage rms gain
   this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[PHASEA].ct_gain_);       // A line current gain
-  // Setup voltage and current calibration offsets for PHASE B
-  this->phase_[PHASEB].voltage_offset_ = calibrate_voltage_offset_phase(PHASEB);
-  this->write16_(ATM90E32_REGISTER_UOFFSETB, this->phase_[PHASEB].voltage_offset_);  // B Voltage offset
-  this->phase_[PHASEB].current_offset_ = calibrate_current_offset_phase(PHASEB);
-  this->write16_(ATM90E32_REGISTER_IOFFSETB, this->phase_[PHASEB].current_offset_);  // B Current offset
   // Setup voltage and current gain for PHASE B
   this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[PHASEB].voltage_gain_);  // B Voltage rms gain
   this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[PHASEB].ct_gain_);       // B line current gain
-  // Setup voltage and current calibration offsets for PHASE C
-  this->phase_[PHASEC].voltage_offset_ = calibrate_voltage_offset_phase(PHASEC);
-  this->write16_(ATM90E32_REGISTER_UOFFSETC, this->phase_[PHASEC].voltage_offset_);  // C Voltage offset
-  this->phase_[PHASEC].current_offset_ = calibrate_current_offset_phase(PHASEC);
-  this->write16_(ATM90E32_REGISTER_IOFFSETC, this->phase_[PHASEC].current_offset_);  // C Current offset
   // Setup voltage and current gain for PHASE C
   this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[PHASEC].voltage_gain_);  // C Voltage rms gain
   this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[PHASEC].ct_gain_);       // C line current gain

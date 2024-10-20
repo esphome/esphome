@@ -1,12 +1,10 @@
 from esphome import automation
-import esphome.config_validation as cv
-import esphome.codegen as cg
-
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_DATA
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_DATA, CONF_ID, CONF_VOLUME
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
-
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -22,8 +20,16 @@ PlayAction = speaker_ns.class_(
 StopAction = speaker_ns.class_(
     "StopAction", automation.Action, cg.Parented.template(Speaker)
 )
+FinishAction = speaker_ns.class_(
+    "FinishAction", automation.Action, cg.Parented.template(Speaker)
+)
+VolumeSetAction = speaker_ns.class_(
+    "VolumeSetAction", automation.Action, cg.Parented.template(Speaker)
+)
+
 
 IsPlayingCondition = speaker_ns.class_("IsPlayingCondition", automation.Condition)
+IsStoppedCondition = speaker_ns.class_("IsStoppedCondition", automation.Condition)
 
 
 async def setup_speaker_core_(var, config):
@@ -75,10 +81,36 @@ async def speaker_play_action(config, action_id, template_arg, args):
 automation.register_action("speaker.stop", StopAction, SPEAKER_AUTOMATION_SCHEMA)(
     speaker_action
 )
+automation.register_action("speaker.finish", FinishAction, SPEAKER_AUTOMATION_SCHEMA)(
+    speaker_action
+)
 
 automation.register_condition(
     "speaker.is_playing", IsPlayingCondition, SPEAKER_AUTOMATION_SCHEMA
 )(speaker_action)
+
+automation.register_condition(
+    "speaker.is_stopped", IsStoppedCondition, SPEAKER_AUTOMATION_SCHEMA
+)(speaker_action)
+
+
+@automation.register_action(
+    "speaker.volume_set",
+    VolumeSetAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(Speaker),
+            cv.Required(CONF_VOLUME): cv.templatable(cv.percentage),
+        },
+        key=CONF_VOLUME,
+    ),
+)
+async def speaker_volume_set_action(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    volume = await cg.templatable(config[CONF_VOLUME], args, float)
+    cg.add(var.set_volume(volume))
+    return var
 
 
 @coroutine_with_priority(100.0)

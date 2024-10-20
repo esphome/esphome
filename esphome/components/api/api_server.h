@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -7,7 +9,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
@@ -112,10 +113,13 @@ class APIServer : public Component, public Controller {
     std::string entity_id;
     optional<std::string> attribute;
     std::function<void(std::string)> callback;
+    bool once;
   };
 
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(std::string)> f);
+  void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 
@@ -150,3 +154,4 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
 
 }  // namespace api
 }  // namespace esphome
+#endif

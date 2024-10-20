@@ -1,31 +1,31 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DIRECTION,
     CONF_ID,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
-    CONF_OSCILLATING,
-    CONF_OSCILLATION_COMMAND_TOPIC,
-    CONF_OSCILLATION_STATE_TOPIC,
-    CONF_SPEED,
-    CONF_SPEED_LEVEL_COMMAND_TOPIC,
-    CONF_SPEED_LEVEL_STATE_TOPIC,
-    CONF_SPEED_COMMAND_TOPIC,
-    CONF_SPEED_STATE_TOPIC,
     CONF_OFF_SPEED_CYCLE,
     CONF_ON_DIRECTION_SET,
     CONF_ON_OSCILLATING_SET,
+    CONF_ON_PRESET_SET,
     CONF_ON_SPEED_SET,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
-    CONF_ON_PRESET_SET,
-    CONF_TRIGGER_ID,
-    CONF_DIRECTION,
+    CONF_OSCILLATING,
+    CONF_OSCILLATION_COMMAND_TOPIC,
+    CONF_OSCILLATION_STATE_TOPIC,
     CONF_RESTORE_MODE,
+    CONF_SPEED,
+    CONF_SPEED_COMMAND_TOPIC,
+    CONF_SPEED_LEVEL_COMMAND_TOPIC,
+    CONF_SPEED_LEVEL_STATE_TOPIC,
+    CONF_SPEED_STATE_TOPIC,
+    CONF_TRIGGER_ID,
+    CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -218,9 +218,8 @@ async def setup_fan_core_(var, config):
         if (speed_command_topic := config.get(CONF_SPEED_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_speed_command_topic(speed_command_topic))
 
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

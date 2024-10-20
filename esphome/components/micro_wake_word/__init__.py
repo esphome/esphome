@@ -1,39 +1,31 @@
-import logging
-
-import json
 import hashlib
-from urllib.parse import urljoin
+import json
+import logging
 from pathlib import Path
-import requests
+from urllib.parse import urljoin
 
-import esphome.config_validation as cv
-import esphome.codegen as cg
-
-from esphome.core import CORE, HexInt
-
-from esphome.components import esp32, microphone
-from esphome import automation, git, external_files
+from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
-
-
+import esphome.codegen as cg
+from esphome.components import esp32, microphone
+import esphome.config_validation as cv
 from esphome.const import (
-    __version__,
+    CONF_FILE,
     CONF_ID,
     CONF_MICROPHONE,
     CONF_MODEL,
-    CONF_URL,
-    CONF_FILE,
+    CONF_PASSWORD,
     CONF_PATH,
+    CONF_RAW_DATA_ID,
     CONF_REF,
     CONF_REFRESH,
     CONF_TYPE,
+    CONF_URL,
     CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_RAW_DATA_ID,
     TYPE_GIT,
     TYPE_LOCAL,
 )
-
+from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -174,34 +166,14 @@ def _convert_manifest_v1_to_v2(v1_manifest):
         CONF_SLIDING_WINDOW_AVERAGE_SIZE
     ]
     del v2_manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE]
-    v2_manifest[KEY_MICRO][
-        CONF_TENSOR_ARENA_SIZE
-    ] = 45672  # Original Inception-based V1 manifest models require a minimum of 45672 bytes
-    v2_manifest[KEY_MICRO][
-        CONF_FEATURE_STEP_SIZE
-    ] = 20  # Original Inception-based V1 manifest models use a 20 ms feature step size
+
+    # Original Inception-based V1 manifest models require a minimum of 45672 bytes
+    v2_manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE] = 45672
+
+    # Original Inception-based V1 manifest models use a 20 ms feature step size
+    v2_manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE] = 20
 
     return v2_manifest
-
-
-def _download_file(url: str, path: Path) -> bytes:
-    if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.debug("Remote file has not changed, skipping download")
-        return path.read_bytes()
-
-    try:
-        req = requests.get(
-            url,
-            timeout=external_files.NETWORK_TIMEOUT,
-            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
-        )
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download file from {url}: {e}") from e
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
-    return req.content
 
 
 def _validate_manifest_version(manifest_data):
@@ -228,7 +200,7 @@ def _process_http_source(config):
 
     json_path = path / "manifest.json"
 
-    json_contents = _download_file(url, json_path)
+    json_contents = external_files.download_content(url, json_path)
 
     manifest_data = json.loads(json_contents)
     if not isinstance(manifest_data, dict):
@@ -239,7 +211,7 @@ def _process_http_source(config):
 
     model_path = path / model
 
-    _download_file(str(model_url), model_path)
+    external_files.download_content(str(model_url), model_path)
 
     return config
 
@@ -447,6 +419,13 @@ async def to_code(config):
         repo="https://github.com/espressif/esp-tflite-micro",
         ref="v1.3.1",
     )
+    # add esp-nn dependency for tflite-micro to work around https://github.com/espressif/esp-nn/issues/17
+    # ...remove after switching to IDF 5.1.4+
+    esp32.add_idf_component(
+        name="esp-nn",
+        repo="https://github.com/espressif/esp-nn",
+        ref="v1.1.0",
+    )
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
@@ -502,7 +481,7 @@ async def to_code(config):
             )
 
     cg.add(var.set_features_step_size(manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]))
-    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.0.0")
+    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.1.0")
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})

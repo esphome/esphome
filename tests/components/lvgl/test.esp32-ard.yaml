@@ -1,0 +1,59 @@
+spi:
+  clk_pin: 14
+  mosi_pin: 13
+
+i2c:
+  sda: GPIO18
+  scl: GPIO19
+
+display:
+  - platform: ili9xxx
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    transform:
+      swap_xy: false
+      mirror_x: true
+      mirror_y: true
+    data_rate: 80MHz
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+binary_sensor:
+  - platform: gpio
+    internal: true
+    id: up_button
+    pin:
+      number: GPIO38
+      inverted: true
+  - platform: gpio
+    internal: true
+    id: down_button
+    pin:
+      number: GPIO37
+      inverted: true
+  - platform: gpio
+    internal: true
+    id: select_button
+    pin:
+      number: GPIO39
+      inverted: true
+lvgl:
+  draw_rounding: 8
+  encoders:
+    group: switches
+    initial_focus: button_button
+    enter_button: select_button
+    sensor:
+      left_button: up_button
+      right_button: down_button
+
+packages:
+  lvgl: !include lvgl-package.yaml
+
+<<: !include common.yaml
