@@ -270,13 +270,15 @@ class ByteBuffer {
   void put_float(float value, size_t offset) { this->put(value, offset); }
   void put_double(double value, size_t offset) { this->put(value, offset); }
   void put_bool(bool value, size_t offset) { this->put_uint8(value, offset); }
-  void put_vector(const std::vector<uint8_t> &value, size_t offset) {
+  void put(const std::vector<uint8_t> &value, size_t offset) {
     std::copy(value.begin(), value.end(), this->data_.begin() + offset);
   }
-  void put_vector(const std::vector<uint8_t> &value) {
+  void put_vector(const std::vector<uint8_t> &value, size_t offset) { this->put(value, offset); }
+  void put(const std::vector<uint8_t> &value) {
     this->put_vector(value, this->position_);
     this->position_ += value.size();
   }
+  void put_vector(const std::vector<uint8_t> &value) { this->put_vector(value); }
 
   // Getters
 
