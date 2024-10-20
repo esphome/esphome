@@ -140,3 +140,5 @@ sdkconfig.*
 /components
 /managed_components
 
+# visual studio
+.vs/
