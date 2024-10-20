@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_INTEGRATION_TIME,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
+    ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_THERMOMETER,
@@ -23,6 +24,7 @@ CONF_RED_CHANNEL = "red_channel"
 CONF_GREEN_CHANNEL = "green_channel"
 CONF_BLUE_CHANNEL = "blue_channel"
 CONF_CLEAR_CHANNEL = "clear_channel"
+CONF_SENSOR_SATURATION = "sensor_saturation"
 
 tcs34725_ns = cg.esphome_ns.namespace("tcs34725")
 TCS34725Component = tcs34725_ns.class_(
@@ -66,6 +68,12 @@ color_channel_schema = sensor.sensor_schema(
     accuracy_decimals=1,
     state_class=STATE_CLASS_MEASUREMENT,
 )
+sensor_saturation_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_PERCENT,
+    icon=ICON_GAUGE,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
 color_temperature_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_KELVIN,
     icon=ICON_THERMOMETER,
@@ -86,7 +94,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_RED_CHANNEL): color_channel_schema,
             cv.Optional(CONF_GREEN_CHANNEL): color_channel_schema,
             cv.Optional(CONF_BLUE_CHANNEL): color_channel_schema,
-            cv.Optional(CONF_CLEAR_CHANNEL): color_channel_schema,
+            cv.Optional(CONF_CLEAR_CHANNEL): cv.invalid(
+                "The 'clear_channel' configuration option has been removed. Use 'sensor_saturation' instead."
+            ),
+            cv.Optional(CONF_SENSOR_SATURATION): sensor_saturation_schema,
             cv.Optional(CONF_ILLUMINANCE): illuminance_schema,
             cv.Optional(CONF_COLOR_TEMPERATURE): color_temperature_schema,
             cv.Optional(CONF_INTEGRATION_TIME, default="auto"): cv.enum(
@@ -121,9 +132,9 @@ async def to_code(config):
     if CONF_BLUE_CHANNEL in config:
         sens = await sensor.new_sensor(config[CONF_BLUE_CHANNEL])
         cg.add(var.set_blue_sensor(sens))
-    if CONF_CLEAR_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_CLEAR_CHANNEL])
-        cg.add(var.set_clear_sensor(sens))
+    if CONF_SENSOR_SATURATION in config:
+        sens = await sensor.new_sensor(config[CONF_SENSOR_SATURATION])
+        cg.add(var.set_sensor_saturation(sens))
     if CONF_ILLUMINANCE in config:
         sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
         cg.add(var.set_illuminance_sensor(sens))
