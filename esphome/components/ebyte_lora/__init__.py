@@ -111,7 +111,6 @@ CONF_ENABLE_LBT = "enable_lbt"
 CONF_RSSI_NOISE = "rssi_noise"
 CONF_UART_PARITY = "uart_parity"
 CONF_SUB_PACKET = "sub_packet"
-CONF_SENT_SWITCH_STATE = "sent_switch_state"
 CONF_REPEATER = "repeater"
 CONF_NETWORK_ID = "network_id"
 CONF_RECYCLE_TIME = "recycle_time"
@@ -173,9 +172,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_UART_BPS, default="UART_9600"): cv.enum(
                 UART_BPS_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_UART_PARITY, default="EBYTE_UART_8N1"): cv.enum(
-                UART_PARITY_OPTIONS, upper=True
-            ),
             cv.Optional(CONF_SUB_PACKET, default="SUB_200B"): cv.enum(
                 SUB_PACKET_OPTIONS, upper=True
             ),
@@ -191,7 +187,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AIR_DATA_RATE, default="AIR_2_4KB"): cv.enum(
                 AIR_DATA_RATE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_ENABLE_RSSI, default="EBYTE_DISABLED"): cv.enum(
+            cv.Optional(CONF_ENABLE_RSSI, default="EBYTE_ENABLED"): cv.enum(
                 ENABLE_OPTIONS, upper=True
             ),
             cv.Optional(CONF_ENABLE_LBT, default="EBYTE_DISABLED"): cv.enum(
