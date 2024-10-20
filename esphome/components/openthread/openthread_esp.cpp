@@ -48,12 +48,12 @@ void OpenThreadComponent::setup() {
       },
       "ot_main", 10240, this, 5, nullptr);
 
-  xTaskCreate(
-      [](void *arg) {
-        static_cast<OpenThreadComponent *>(arg)->srp_setup_();
-        vTaskDelete(nullptr);
-      },
-      "ot_srp_setup", 10240, this, 5, nullptr);
+  // xTaskCreate(
+  //     [](void *arg) {
+  //       static_cast<OpenThreadComponent *>(arg)->srp_setup_();
+  //       vTaskDelete(nullptr);
+  //     },
+  //     "ot_srp_setup", 10240, this, 5, nullptr);
 
   ESP_LOGI(TAG, "OpenThread started");
 }
@@ -91,6 +91,8 @@ void OpenThreadComponent::ot_main() {
 
   // Initialize the OpenThread stack
   ESP_ERROR_CHECK(esp_openthread_init(&config));
+
+  this->srp_setup_();
 
 #if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
   ESP_ERROR_CHECK(esp_openthread_state_indicator_init(esp_openthread_get_instance()));
@@ -132,9 +134,6 @@ void OpenThreadComponent::ot_main() {
   esp_vfs_eventfd_unregister();
 }
 
-// TODO: This gets used by mqtt in order to register the device's IP. Likely it doesn't
-// make sense to return thread-local addresses, since they can't be reached from outside the thread network.
-// It could make more sense to return the off-mesh-routable address instead.
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -148,23 +147,23 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   return addresses;
 }
 
-std::optional<OpenThreadLockGuard> OpenThreadLockGuard::try_acquire(int delay) {
+std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
   if (esp_openthread_lock_acquire(delay)) {
-    return OpenThreadLockGuard();
+    return InstanceLock();
   }
   return {};
 }
 
-std::optional<OpenThreadLockGuard> OpenThreadLockGuard::acquire() {
+std::optional<InstanceLock> InstanceLock::acquire() {
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }
-  return OpenThreadLockGuard();
+  return InstanceLock();
 }
 
-otInstance *OpenThreadLockGuard::get_instance() { return esp_openthread_get_instance(); }
+otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
 
-OpenThreadLockGuard::~OpenThreadLockGuard() { esp_openthread_lock_release(); }
+InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
 
 }  // namespace openthread
 }  // namespace esphome

@@ -1,4 +1,5 @@
 #include "esphome/core/defines.h"
+
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
@@ -27,7 +28,7 @@ OpenThreadComponent *global_openthread_component = nullptr;
 OpenThreadComponent::OpenThreadComponent() { global_openthread_component = this; }
 
 OpenThreadComponent::~OpenThreadComponent() {
-  auto lock = OpenThreadLockGuard::try_acquire(100);
+  auto lock = InstanceLock::try_acquire(100);
   if (!lock) {
     ESP_LOGW(TAG, "Failed to acquire OpenThread lock in destructor, leaking memory");
     return;
@@ -35,12 +36,11 @@ OpenThreadComponent::~OpenThreadComponent() {
   otInstance *instance = lock->get_instance();
   otSrpClientClearHostAndServices(instance);
   otSrpClientBuffersFreeAllServices(instance);
-
   global_openthread_component = nullptr;
 }
 
 bool OpenThreadComponent::is_connected() {
-  auto lock = OpenThreadLockGuard::try_acquire(100);
+  auto lock = InstanceLock::try_acquire(100);
   if (!lock) {
     ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
     return false;
@@ -59,26 +59,21 @@ bool OpenThreadComponent::is_connected() {
 
 // Gets the off-mesh routable address
 std::optional<otIp6Address> OpenThreadComponent::get_omr_address() {
-  auto lock = OpenThreadLockGuard::acquire();
+  auto lock = InstanceLock::acquire();
   return this->get_omr_address_(lock);
 }
 
-std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(std::optional<OpenThreadLockGuard> &lock) {
+std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(std::optional<InstanceLock> &lock) {
   otNetworkDataIterator iterator = OT_NETWORK_DATA_ITERATOR_INIT;
   otInstance *instance = nullptr;
 
   instance = lock->get_instance();
 
   otBorderRouterConfig aConfig;
-  while (otNetDataGetNextOnMeshPrefix(instance, &iterator, &aConfig) != OT_ERROR_NONE) {
-    lock.reset();
-    vTaskDelay(100);
-    lock = OpenThreadLockGuard::try_acquire(portMAX_DELAY);
-    if (!lock) {
-      ESP_LOGW(TAG, "Could not re-acquire lock");
-      return {};
-    }
-  };
+  if (otNetDataGetNextOnMeshPrefix(instance, &iterator, &aConfig) != OT_ERROR_NONE) {
+    return std::nullopt;
+  }
+
   const otIp6Prefix *omrPrefix = &aConfig.mPrefix;
   const otNetifAddress *unicastAddrs = otIp6GetUnicastAddresses(instance);
   for (const otNetifAddress *addr = unicastAddrs; addr; addr = addr->mNext) {
@@ -87,14 +82,25 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(std::optional<
       return *localIp;
     }
   }
-  ESP_LOGW(TAG, "Could not find the OMR address");
   return {};
+}
+
+void srpCallback(otError aError, const otSrpClientHostInfo *aHostInfo, const otSrpClientService *aServices,
+                 const otSrpClientService *aRemovedServices, void *aContext) {
+  ESP_LOGW(TAG, "*** SRP callback *** error=%d hostInfo=%p services=%p removedServices=%p", aError, aHostInfo,
+           aServices, aRemovedServices);
+}
+
+void srpStartCallback(const otSockAddr *aServerSockAddr, void *aContext) {
+  ESP_LOGW(TAG, "*** SRP start callback ***");
 }
 
 void OpenThreadComponent::srp_setup_() {
   otError error;
-  auto lock = OpenThreadLockGuard::acquire();
+  auto lock = InstanceLock::acquire();
   otInstance *instance = lock->get_instance();
+
+  otSrpClientSetCallback(instance, srpCallback, nullptr);
 
   // set the host name
   uint16_t size;
@@ -168,7 +174,8 @@ void OpenThreadComponent::srp_setup_() {
     }
   }
 
-  otSrpClientEnableAutoStartMode(instance, nullptr, nullptr);
+  otSrpClientEnableAutoStartMode(instance, srpStartCallback, nullptr);
+  ESP_LOGW(TAG, "Finished SRP setup **** ");
 }
 
 void *OpenThreadComponent::pool_alloc_(size_t size) {

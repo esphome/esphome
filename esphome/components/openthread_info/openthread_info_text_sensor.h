@@ -8,12 +8,12 @@
 namespace esphome {
 namespace openthread_info {
 
-using esphome::openthread::OpenThreadLockGuard;
+using esphome::openthread::InstanceLock;
 
 class OpenThreadInstancePollingComponent : public PollingComponent {
  public:
   void update() override {
-    auto lock = OpenThreadLockGuard::try_acquire(100);
+    auto lock = InstanceLock::try_acquire(10);
     if (!lock) {
       return;
     }
@@ -93,7 +93,7 @@ class ExtAddrOpenThreadInfo : public OpenThreadInstancePollingComponent, public 
     auto extaddr = otLinkGetExtendedAddress(instance);
     if (!std::equal(this->last_extaddr_.begin(), this->last_extaddr_.end(), extaddr->m8)) {
       std::copy(extaddr->m8, extaddr->m8 + 8, this->last_extaddr_.begin());
-      this->publish_state(format_hex_pretty(extaddr->m8, 8));
+      this->publish_state(format_hex(extaddr->m8, 8));
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -112,7 +112,7 @@ class Eui64OpenThreadInfo : public OpenThreadInstancePollingComponent, public te
 
     if (!std::equal(this->last_eui64_.begin(), this->last_eui64_.end(), addr.m8)) {
       std::copy(addr.m8, addr.m8 + 8, this->last_eui64_.begin());
-      this->publish_state(format_hex_pretty(this->last_eui64_.begin(), 8));
+      this->publish_state(format_hex(this->last_eui64_.begin(), 8));
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -176,7 +176,7 @@ class NetworkKeyOpenThreadInfo : public DatasetOpenThreadInfo, public text_senso
   void update_dataset_(otOperationalDataset *dataset) override {
     if (!std::equal(this->last_key_.begin(), this->last_key_.end(), dataset->mNetworkKey.m8)) {
       std::copy(dataset->mNetworkKey.m8, dataset->mNetworkKey.m8 + 16, this->last_key_.begin());
-      this->publish_state(format_hex_pretty(dataset->mNetworkKey.m8, 16));
+      this->publish_state(format_hex(dataset->mNetworkKey.m8, 16));
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -211,7 +211,7 @@ class ExtPanIdOpenThreadInfo : public DatasetOpenThreadInfo, public text_sensor:
   void update_dataset_(otOperationalDataset *dataset) override {
     if (!std::equal(this->last_extpanid_.begin(), this->last_extpanid_.end(), dataset->mExtendedPanId.m8)) {
       std::copy(dataset->mExtendedPanId.m8, dataset->mExtendedPanId.m8 + 8, this->last_extpanid_.begin());
-      this->publish_state(format_hex_pretty(this->last_extpanid_.begin(), 8));
+      this->publish_state(format_hex(this->last_extpanid_.begin(), 8));
     }
   }
 

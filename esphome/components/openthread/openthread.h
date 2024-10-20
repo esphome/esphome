@@ -14,7 +14,7 @@
 namespace esphome {
 namespace openthread {
 
-class OpenThreadLockGuard;
+class InstanceLock;
 
 class OpenThreadComponent : public Component {
  public:
@@ -32,13 +32,11 @@ class OpenThreadComponent : public Component {
 
  protected:
   void srp_setup_();
-  std::optional<otIp6Address> get_omr_address_(std::optional<OpenThreadLockGuard> &lock);
+  std::optional<otIp6Address> get_omr_address_(std::optional<InstanceLock> &lock);
   std::string host_name_;
   void *pool_alloc_(size_t size);
 
  private:
-  // void platform_init();
-
   esphome::mdns::MDNSComponent *mdns_{nullptr};
   std::vector<esphome::mdns::MDNSService> mdns_services_;
   std::vector<std::unique_ptr<uint8_t[]>> memory_pool_;
@@ -46,11 +44,11 @@ class OpenThreadComponent : public Component {
 
 extern OpenThreadComponent *global_openthread_component;
 
-class OpenThreadLockGuard {
+class InstanceLock {
  public:
-  static std::optional<OpenThreadLockGuard> try_acquire(int delay);
-  static std::optional<OpenThreadLockGuard> acquire();
-  ~OpenThreadLockGuard();
+  static std::optional<InstanceLock> try_acquire(int delay);
+  static std::optional<InstanceLock> acquire();
+  ~InstanceLock();
 
   // Returns the global openthread instance guarded by this lock
   otInstance *get_instance();
@@ -58,7 +56,7 @@ class OpenThreadLockGuard {
  private:
   // Use a private constructor in order to force thehandling
   // of acquisition failure
-  OpenThreadLockGuard() {}
+  InstanceLock() {}
 };
 
 }  // namespace openthread
