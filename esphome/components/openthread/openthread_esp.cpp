@@ -48,13 +48,6 @@ void OpenThreadComponent::setup() {
       },
       "ot_main", 10240, this, 5, nullptr);
 
-  // xTaskCreate(
-  //     [](void *arg) {
-  //       static_cast<OpenThreadComponent *>(arg)->srp_setup_();
-  //       vTaskDelete(nullptr);
-  //     },
-  //     "ot_srp_setup", 10240, this, 5, nullptr);
-
   ESP_LOGI(TAG, "OpenThread started");
 }
 
@@ -90,9 +83,8 @@ void OpenThreadComponent::ot_main() {
   };
 
   // Initialize the OpenThread stack
+  // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
   ESP_ERROR_CHECK(esp_openthread_init(&config));
-
-  this->srp_setup_();
 
 #if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
   ESP_ERROR_CHECK(esp_openthread_state_indicator_init(esp_openthread_get_instance()));

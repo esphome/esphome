@@ -20,6 +20,7 @@ CONF_PSKC = "pskc"
 CONF_PANID = "panid"
 CONF_EXTPANID = "extpanid"
 CONF_MDNS_ID = "mdns_id"
+CONF_SRP_ID = "srp_id"
 
 
 def set_sdkconfig_options(config):
@@ -64,11 +65,13 @@ def set_sdkconfig_options(config):
 
 openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
+OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(OpenThreadComponent),
+            cv.GenerateID(CONF_SRP_ID): cv.declare_id(OpenThreadSrpComponent),
             cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
             cv.Required(CONF_PANID): cv.int_,
             cv.Required(CONF_CHANNEL): cv.int_,
@@ -84,10 +87,13 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add_define("USE_OPENTHREAD")
 
-    var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_host_name(cg.RawExpression(f'"{CORE.name}"')))
+    ot = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(ot, config)
+
+    srp = cg.new_Pvariable(config[CONF_SRP_ID])
+    cg.add(srp.set_host_name(cg.RawExpression(f'"{CORE.name}"')))
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
-    cg.add(var.set_mdns(mdns_component))
-    await cg.register_component(var, config)
+    cg.add(srp.set_mdns(mdns_component))
+    await cg.register_component(srp, config)
 
     set_sdkconfig_options(config)

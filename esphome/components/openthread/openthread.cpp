@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-
+#define USE_OPENTHREAD
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
@@ -87,15 +87,20 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(std::optional<
 
 void srpCallback(otError aError, const otSrpClientHostInfo *aHostInfo, const otSrpClientService *aServices,
                  const otSrpClientService *aRemovedServices, void *aContext) {
-  ESP_LOGW(TAG, "*** SRP callback *** error=%d hostInfo=%p services=%p removedServices=%p", aError, aHostInfo,
-           aServices, aRemovedServices);
+  if (aError != 0) {
+    ESP_LOGW(TAG, "SRP client reported an error: %s", otThreadErrorToString(aError));
+    for (const otSrpClientHostInfo *host = aHostInfo; host; host = nullptr) {
+      ESP_LOGW(TAG, "  Host: %s", host->mName);
+    }
+    for (const otSrpClientService *service = aServices; service; service = service->mNext) {
+      ESP_LOGW(TAG, "  Service: %s", service->mName);
+    }
+  }
 }
 
-void srpStartCallback(const otSockAddr *aServerSockAddr, void *aContext) {
-  ESP_LOGW(TAG, "*** SRP start callback ***");
-}
+void srpStartCallback(const otSockAddr *aServerSockAddr, void *aContext) { ESP_LOGI(TAG, "SRP client has started"); }
 
-void OpenThreadComponent::srp_setup_() {
+void OpenThreadSrpComponent::setup() {
   otError error;
   auto lock = InstanceLock::acquire();
   otInstance *instance = lock->get_instance();
@@ -114,7 +119,7 @@ void OpenThreadComponent::srp_setup_() {
 
   error = otSrpClientSetHostName(instance, existing_host_name);
   if (error != 0) {
-    ESP_LOGW(TAG, "Could not set host name with srp server");
+    ESP_LOGW(TAG, "Could not set host name");
     return;
   }
 
@@ -127,6 +132,7 @@ void OpenThreadComponent::srp_setup_() {
   // Copy the mdns services to our local instance so that the c_str pointers remain valid for the lifetime of this
   // component
   this->mdns_services_ = this->mdns_->get_services();
+  ESP_LOGW(TAG, "Setting up SRP services. count = %d\n", this->mdns_services_.size());
   for (const auto &service : this->mdns_services_) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
@@ -172,23 +178,22 @@ void OpenThreadComponent::srp_setup_() {
     if (error != OT_ERROR_NONE) {
       ESP_LOGW(TAG, "Failed to add service: %s", otThreadErrorToString(error));
     }
+    ESP_LOGW(TAG, "Added service: %s", full_service.c_str());
   }
 
   otSrpClientEnableAutoStartMode(instance, srpStartCallback, nullptr);
   ESP_LOGW(TAG, "Finished SRP setup **** ");
 }
 
-void *OpenThreadComponent::pool_alloc_(size_t size) {
+void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
   uint8_t *ptr = new uint8_t[size];
-  if (ptr) {
-    this->memory_pool_.emplace_back(std::unique_ptr<uint8_t[]>(ptr));
-  }
+  this->memory_pool_.emplace_back(std::unique_ptr<uint8_t[]>(ptr));
   return ptr;
 }
 
-void OpenThreadComponent::set_host_name(std::string host_name) { this->host_name_ = host_name; }
+void OpenThreadSrpComponent::set_host_name(std::string host_name) { this->host_name_ = host_name; }
 
-void OpenThreadComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 
 }  // namespace openthread
 }  // namespace esphome
