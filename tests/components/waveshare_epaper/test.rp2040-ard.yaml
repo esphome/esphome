@@ -1,0 +1,107 @@
+spi:
+  - id: spi_bme280
+    clk_pin: 2
+    mosi_pin: 3
+    miso_pin: 4
+
+display:
+  - platform: waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: 5
+    dc_pin:
+      allow_other_uses: true
+      number: 5
+    busy_pin:
+      allow_other_uses: true
+      number: 5
+    reset_pin:
+      allow_other_uses: true
+      number: 5
+    model: 2.13in-ttgo-b1
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: 5
+    dc_pin:
+      allow_other_uses: true
+      number: 5
+    busy_pin:
+      allow_other_uses: true
+      number: 5
+    reset_pin:
+      allow_other_uses: true
+      number: 5
+    model: 2.90in
+    full_update_every: 30
+    reset_duration: 200ms
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: 5
+    dc_pin:
+      allow_other_uses: true
+      number: 5
+    busy_pin:
+      allow_other_uses: true
+      number: 5
+    reset_pin:
+      allow_other_uses: true
+      number: 5
+    model: 2.90inv2
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: 5
+    dc_pin:
+      allow_other_uses: true
+      number: 5
+    busy_pin:
+      allow_other_uses: true
+      number: 5
+    reset_pin:
+      allow_other_uses: true
+      number: 5
+    model: 2.70in-b
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: 5
+    dc_pin:
+      allow_other_uses: true
+      number: 5
+    busy_pin:
+      allow_other_uses: true
+      number: 5
+    reset_pin:
+      allow_other_uses: true
+      number: 5
+    model: 2.70in-bv2
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: 5
+    dc_pin:
+      allow_other_uses: true
+      number: 5
+    busy_pin:
+      allow_other_uses: true
+      number: 5
+    reset_pin:
+      allow_other_uses: true
+      number: 5
+    model: 1.54in-m5coreink-m09
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());

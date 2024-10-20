@@ -48,7 +48,10 @@ WaveshareEPaper2P9InBV3 = waveshare_epaper_ns.class_(
 WaveshareEPaper2P9InV2R2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P9InV2R2", WaveshareEPaper
 )
-GDEY029T94 = waveshare_epaper_ns.class_("GDEY029T94", WaveshareEPaper)
+GDEW029T5 = waveshare_epaper_ns.class_("GDEW029T5", WaveshareEPaper)
+WaveshareEPaper2P9InDKE = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P9InDKE", WaveshareEPaper
+)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
     "WaveshareEPaper4P2In", WaveshareEPaper
 )
@@ -85,8 +88,14 @@ WaveshareEPaper7P5InHDB = waveshare_epaper_ns.class_(
 WaveshareEPaper2P13InDKE = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P13InDKE", WaveshareEPaper
 )
+WaveshareEPaper2P13InV2 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P13InV2", WaveshareEPaper
+)
 WaveshareEPaper2P13InV3 = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P13InV3", WaveshareEPaper
+)
+WaveshareEPaper13P3InK = waveshare_epaper_ns.class_(
+    "WaveshareEPaper13P3InK", WaveshareEPaper
 )
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
 
@@ -97,13 +106,14 @@ MODELS = {
     "1.54in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
     "1.54inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN_V2),
     "2.13in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
+    "2.13inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN_V2),
     "2.13in-ttgo": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
     "2.13in-ttgo-b1": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B1),
     "2.13in-ttgo-b73": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
     "2.13in-ttgo-b74": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B74),
     "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
-    "gdey029t94": ("c", GDEY029T94),
+    "gdew029t5": ("c", GDEW029T5),
     "2.70in": ("b", WaveshareEPaper2P7In),
     "2.70in-b": ("b", WaveshareEPaper2P7InB),
     "2.70in-bv2": ("b", WaveshareEPaper2P7InBV2),
@@ -111,6 +121,7 @@ MODELS = {
     "2.90in-b": ("b", WaveshareEPaper2P9InB),
     "2.90in-bv3": ("b", WaveshareEPaper2P9InBV3),
     "2.90inv2-r2": ("c", WaveshareEPaper2P9InV2R2),
+    "2.90in-dke": ("c", WaveshareEPaper2P9InDKE),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "5.83in": ("b", WaveshareEPaper5P8In),
@@ -125,7 +136,10 @@ MODELS = {
     "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
     "2.13inv3": ("c", WaveshareEPaper2P13InV3),
     "1.54in-m5coreink-m09": ("c", GDEW0154M09),
+    "13.3in-k": ("b", WaveshareEPaper13P3InK),
 }
+
+RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")
 
 
 def validate_full_update_every_only_types_ac(value):
@@ -141,6 +155,14 @@ def validate_full_update_every_only_types_ac(value):
             + ", ".join(full_models)
         )
     return value
+
+
+def validate_reset_pin_required(config):
+    if config[CONF_MODEL] in RESET_PIN_REQUIRED_MODELS and CONF_RESET_PIN not in config:
+        raise cv.Invalid(
+            f"'{CONF_RESET_PIN}' is required for model {config[CONF_MODEL]}"
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -161,6 +183,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
     validate_full_update_every_only_types_ac,
+    validate_reset_pin_required,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 

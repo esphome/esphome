@@ -71,7 +71,7 @@ void SelectCall::perform() {
       return;
     }
     if (this->index_.value() >= options.size()) {
-      ESP_LOGW(TAG, "'%s' - Index value %d out of bounds", name, this->index_.value());
+      ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", name, this->index_.value());
       return;
     }
     target_value = options[this->index_.value()];

@@ -3,16 +3,16 @@ from __future__ import annotations
 import fnmatch
 import functools
 import inspect
+from io import TextIOWrapper
 import logging
 import math
 import os
-import uuid
-from io import TextIOWrapper
 from typing import Any
+import uuid
 
 import yaml
-import yaml.constructor
 from yaml import SafeLoader as PurePythonLoader
+import yaml.constructor
 
 try:
     from yaml import CSafeLoader as FastestAvailableSafeLoader
@@ -321,8 +321,9 @@ class ESPHomeLoaderMixin:
             file, vars = node.value, None
 
         result = _load_yaml_internal(self._rel_path(file))
-        if vars:
-            result = substitute_vars(result, vars)
+        if not vars:
+            vars = {}
+        result = substitute_vars(result, vars)
         return result
 
     @_add_data_ref
@@ -417,20 +418,25 @@ def load_yaml(fname: str, clear_secrets: bool = True) -> Any:
     return _load_yaml_internal(fname)
 
 
+def parse_yaml(file_name: str, file_handle: TextIOWrapper) -> Any:
+    """Parse a YAML file."""
+    try:
+        return _load_yaml_internal_with_type(ESPHomeLoader, file_name, file_handle)
+    except EsphomeError:
+        # Loading failed, so we now load with the Python loader which has more
+        # readable exceptions
+        # Rewind the stream so we can try again
+        file_handle.seek(0, 0)
+        return _load_yaml_internal_with_type(
+            ESPHomePurePythonLoader, file_name, file_handle
+        )
+
+
 def _load_yaml_internal(fname: str) -> Any:
     """Load a YAML file."""
     try:
         with open(fname, encoding="utf-8") as f_handle:
-            try:
-                return _load_yaml_internal_with_type(ESPHomeLoader, fname, f_handle)
-            except EsphomeError:
-                # Loading failed, so we now load with the Python loader which has more
-                # readable exceptions
-                # Rewind the stream so we can try again
-                f_handle.seek(0, 0)
-                return _load_yaml_internal_with_type(
-                    ESPHomePurePythonLoader, fname, f_handle
-                )
+            return parse_yaml(fname, f_handle)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
 

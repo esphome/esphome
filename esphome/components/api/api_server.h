@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -7,7 +9,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
@@ -66,6 +67,15 @@ class APIServer : public Component, public Controller {
 #ifdef USE_NUMBER
   void on_number_update(number::Number *obj, float state) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  void on_date_update(datetime::DateEntity *obj) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  void on_time_update(datetime::TimeEntity *obj) override;
+#endif
+#ifdef USE_DATETIME_DATETIME
+  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+#endif
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
 #endif
@@ -74,6 +84,9 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;
+#endif
+#ifdef USE_VALVE
+  void on_valve_update(valve::Valve *obj) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
@@ -87,6 +100,12 @@ class APIServer : public Component, public Controller {
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
+#endif
+#ifdef USE_UPDATE
+  void on_update(update::UpdateEntity *obj) override;
+#endif
 
   bool is_connected() const;
 
@@ -94,10 +113,13 @@ class APIServer : public Component, public Controller {
     std::string entity_id;
     optional<std::string> attribute;
     std::function<void(std::string)> callback;
+    bool once;
   };
 
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(std::string)> f);
+  void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 
@@ -132,3 +154,4 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
 
 }  // namespace api
 }  // namespace esphome
+#endif

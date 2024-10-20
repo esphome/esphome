@@ -77,6 +77,10 @@ class MQTTComponent : public Component {
 
   virtual bool is_internal();
 
+  /// Set QOS for state messages.
+  void set_qos(uint8_t qos);
+  uint8_t get_qos() const;
+
   /// Set whether state message should be retained.
   void set_retain(bool retain);
   bool get_retain() const;
@@ -199,6 +203,7 @@ class MQTTComponent : public Component {
 
   bool command_retain_{false};
   bool retain_{true};
+  uint8_t qos_{0};
   bool discovery_enabled_{true};
   bool resend_state_{false};
 };

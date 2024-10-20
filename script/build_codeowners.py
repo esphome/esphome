@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-from pathlib import Path
-import sys
 import argparse
 from collections import defaultdict
+from pathlib import Path
+import sys
 
-from esphome.helpers import write_file_if_changed
 from esphome.config import get_component, get_platform
-from esphome.core import CORE
 from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK
+from esphome.core import CORE
+from esphome.helpers import write_file_if_changed
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -28,7 +28,7 @@ BASE = """
 # the integration's code owner is automatically notified.
 
 # Core Code
-setup.py @esphome/core
+pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 

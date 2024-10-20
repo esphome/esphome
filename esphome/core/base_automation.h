@@ -134,7 +134,7 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
     uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
     ESPPreferenceObject pref = global_preferences->make_preference<char[30]>(hash, true);
     char previous_version[30];
-    char current_version[30] = ESPHOME_PROJECT_VERSION;
+    char current_version[30] = ESPHOME_PROJECT_VERSION_30;
     if (pref.load(&previous_version)) {
       int cmp = strcmp(previous_version, current_version);
       if (cmp < 0) {
@@ -278,10 +278,11 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<uint32_t, Ts...>([this](uint32_t iteration, Ts... x) {
       iteration++;
-      if (iteration >= this->count_.value(x...))
+      if (iteration >= this->count_.value(x...)) {
         this->play_next_tuple_(this->var_);
-      else
+      } else {
         this->then_.play(iteration, x...);
+      }
     }));
   }
 

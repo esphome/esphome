@@ -1,0 +1,18 @@
+output:
+  - platform: ledc
+    id: light_output_1
+    pin: 12
+  - platform: ledc
+    id: light_output_2
+    pin: 13
+  - platform: ledc
+    id: light_output_3
+    pin: 14
+
+light:
+  - platform: rgb
+    name: RGB Light
+    id: rgb_light
+    red: light_output_1
+    green: light_output_2
+    blue: light_output_3

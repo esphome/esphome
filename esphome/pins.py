@@ -1,20 +1,20 @@
-import operator
 from functools import reduce
-import esphome.config_validation as cv
-from esphome.core import CORE
+import operator
 
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_INPUT,
+    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
-    CONF_IGNORE_STRAPPING_WARNING,
-    CONF_ALLOW_OTHER_USES,
-    CONF_INVERTED,
 )
+from esphome.core import CORE
 
 
 class PinRegistry(dict):
@@ -311,14 +311,24 @@ def gpio_base_schema(
         map(lambda m: (cv.Optional(m, default=mode_default), cv.boolean), modes)
     )
 
+    def _number_validator(value):
+        if isinstance(value, str) and value.upper().startswith("GPIOX"):
+            raise cv.Invalid(
+                f"Found placeholder '{value}' when expecting a GPIO pin number.\n"
+                "You must replace this with an actual pin number."
+            )
+        return number_validator(value)
+
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(pin_type),
-            cv.Required(CONF_NUMBER): number_validator,
+            cv.Required(CONF_NUMBER): _number_validator,
             cv.Optional(CONF_ALLOW_OTHER_USES): cv.boolean,
             cv.Optional(CONF_MODE, default={}): cv.All(mode_dict, mode_validator),
         }
     )
+
     if invertable:
         return schema.extend({cv.Optional(CONF_INVERTED, default=False): cv.boolean})
+
     return schema

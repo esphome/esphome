@@ -1,6 +1,1 @@
-button:
-  - platform: template
-    name: Button
-    id: some_button
-    on_press:
-      - logger.log: Button pressed
+<<: !include common.yaml

@@ -4,6 +4,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/time.h"
@@ -91,7 +93,6 @@ class UponorSmatrixComponent : public uart::UARTDevice, public Component {
   std::queue<std::vector<uint8_t>> tx_queue_;
   uint32_t last_rx_;
   uint32_t last_tx_;
-  uint32_t last_poll_start_;
 
 #ifdef USE_TIME
   time::RealTimeClock *time_id_{nullptr};

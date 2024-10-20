@@ -49,8 +49,8 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     const uint16_t conductivity = encode_uint16(data[1], data[0]);
     result.conductivity = conductivity;
   }
-  // battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x100A) && (value_length == 1)) {
+  // battery / MiaoMiaoce battery, 1 byte, 8-bit unsigned integer, 1 %
+  else if ((value_type == 0x100A || value_type == 0x4803) && (value_length == 1)) {
     result.battery_level = data[0];
   }
   // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
@@ -80,6 +80,17 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     result.has_motion = !idle_time;
   } else if ((value_type == 0x1018) && (value_length == 1)) {
     result.is_light = data[0];
+  }
+  // MiaoMiaoce temperature, 4 bytes, float, 0.1 °C
+  else if ((value_type == 0x4C01) && (value_length == 4)) {
+    const uint32_t int_number = encode_uint32(data[3], data[2], data[1], data[0]);
+    float temperature;
+    std::memcpy(&temperature, &int_number, sizeof(temperature));
+    result.temperature = temperature;
+  }
+  // MiaoMiaoce humidity, 1 byte, 8-bit unsigned integer, 1 %
+  else if ((value_type == 0x4C02) && (value_length == 1)) {
+    result.humidity = data[0];
   } else {
     return false;
   }
@@ -111,7 +122,8 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   }
 
   while (payload_length > 3) {
-    if (payload[payload_offset + 1] != 0x10 && payload[payload_offset + 1] != 0x00) {
+    if (payload[payload_offset + 1] != 0x10 && payload[payload_offset + 1] != 0x00 &&
+        payload[payload_offset + 1] != 0x4C && payload[payload_offset + 1] != 0x48) {
       ESP_LOGVV(TAG, "parse_xiaomi_message(): fixed byte not found, stop parsing residual data.");
       break;
     }
@@ -190,6 +202,11 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if (device_uuid == 0x045b) {  // rectangular body, e-ink display
     result.type = XiaomiParseResult::TYPE_LYWSD02;
     result.name = "LYWSD02";
+  } else if (device_uuid == 0x2542) {  // rectangular body, e-ink display — with bindkeys
+    result.type = XiaomiParseResult::TYPE_LYWSD02MMC;
+    result.name = "LYWSD02MMC";
+    if (raw.size() == 19)
+      result.raw_offset -= 6;
   } else if (device_uuid == 0x040a) {  // Mosquito Repellent Smart Version
     result.type = XiaomiParseResult::TYPE_WX08ZM;
     result.name = "WX08ZM";

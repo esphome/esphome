@@ -34,16 +34,29 @@ runs:
           echo $l >> $GITHUB_OUTPUT
         done
 
+    # set cache-to only if dev branch
+    - id: cache-to
+      shell: bash
+      run: |-
+        if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+          echo "value=type=gha,mode=max" >> $GITHUB_OUTPUT
+        else
+          echo "value=" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build and push to ghcr by digest
       id: build-ghcr
-      uses: docker/build-push-action@v5.0.0
+      uses: docker/build-push-action@v6.9.0
+      env:
+        DOCKER_BUILD_SUMMARY: false
+        DOCKER_BUILD_RECORD_UPLOAD: false
       with:
         context: .
         file: ./docker/Dockerfile
         platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
         cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
           BASEIMGTYPE=${{ inputs.baseimg }}
           BUILD_VERSION=${{ inputs.version }}
@@ -57,24 +70,19 @@ runs:
         digest="${{ steps.build-ghcr.outputs.digest }}"
         touch "/tmp/digests/${{ inputs.target }}/ghcr/${digest#sha256:}"
 
-    - name: Upload ghcr digest
-      uses: actions/upload-artifact@v3.1.3
-      with:
-        name: digests-${{ inputs.target }}-ghcr
-        path: /tmp/digests/${{ inputs.target }}/ghcr/*
-        if-no-files-found: error
-        retention-days: 1
-
     - name: Build and push to dockerhub by digest
       id: build-dockerhub
-      uses: docker/build-push-action@v5.0.0
+      uses: docker/build-push-action@v6.9.0
+      env:
+        DOCKER_BUILD_SUMMARY: false
+        DOCKER_BUILD_RECORD_UPLOAD: false
       with:
         context: .
         file: ./docker/Dockerfile
         platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
         cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
           BASEIMGTYPE=${{ inputs.baseimg }}
           BUILD_VERSION=${{ inputs.version }}
@@ -87,11 +95,3 @@ runs:
         mkdir -p /tmp/digests/${{ inputs.target }}/dockerhub
         digest="${{ steps.build-dockerhub.outputs.digest }}"
         touch "/tmp/digests/${{ inputs.target }}/dockerhub/${digest#sha256:}"
-
-    - name: Upload dockerhub digest
-      uses: actions/upload-artifact@v3.1.3
-      with:
-        name: digests-${{ inputs.target }}-dockerhub
-        path: /tmp/digests/${{ inputs.target }}/dockerhub/*
-        if-no-files-found: error
-        retention-days: 1

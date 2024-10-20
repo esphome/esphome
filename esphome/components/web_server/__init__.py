@@ -1,49 +1,67 @@
+from __future__ import annotations
+
 import gzip
+
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTH,
     CONF_CSS_INCLUDE,
     CONF_CSS_URL,
+    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
     CONF_ID,
+    CONF_INCLUDE_INTERNAL,
     CONF_JS_INCLUDE,
     CONF_JS_URL,
-    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
-    CONF_PORT,
-    CONF_AUTH,
-    CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_INCLUDE_INTERNAL,
-    CONF_OTA,
-    CONF_LOG,
-    CONF_VERSION,
     CONF_LOCAL,
+    CONF_LOG,
+    CONF_NAME,
+    CONF_OTA,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_VERSION,
+    CONF_WEB_SERVER,
+    CONF_WEB_SERVER_ID,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
+import esphome.final_validate as fv
 
 AUTO_LOAD = ["json", "web_server_base"]
 
+CONF_SORTING_GROUP_ID = "sorting_group_id"
+CONF_SORTING_GROUPS = "sorting_groups"
+CONF_SORTING_WEIGHT = "sorting_weight"
+
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
+
+sorting_groups = {}
 
 
 def default_url(config):
     config = config.copy()
     if config[CONF_VERSION] == 1:
-        if not (CONF_CSS_URL in config):
+        if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
-        if not (CONF_JS_URL in config):
+        if CONF_JS_URL not in config:
             config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
-        if not (CONF_CSS_URL in config):
+        if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
-        if not (CONF_JS_URL in config):
+        if CONF_JS_URL not in config:
             config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
+    if config[CONF_VERSION] == 3:
+        if CONF_CSS_URL not in config:
+            config[CONF_CSS_URL] = ""
+        if CONF_JS_URL not in config:
+            config[CONF_JS_URL] = "https://oi.esphome.io/v3/www.js"
     return config
 
 
@@ -59,12 +77,84 @@ def validate_ota(config):
     return config
 
 
+def validate_sorting_groups(config):
+    if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
+        raise cv.Invalid(
+            f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
+        )
+    return config
+
+
+def _validate_no_sorting_component(
+    sorting_component: str,
+    webserver_version: int,
+    config: dict,
+    path: list[str] | None = None,
+) -> None:
+    if path is None:
+        path = []
+    if CONF_WEB_SERVER in config and sorting_component in config[CONF_WEB_SERVER]:
+        raise cv.FinalExternalInvalid(
+            f"{sorting_component} on entities is not supported in web_server version {webserver_version}",
+            path=path + [sorting_component],
+        )
+    for p, value in config.items():
+        if isinstance(value, dict):
+            _validate_no_sorting_component(
+                sorting_component, webserver_version, value, path + [p]
+            )
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, dict):
+                    _validate_no_sorting_component(
+                        sorting_component, webserver_version, item, path + [p, i]
+                    )
+
+
+def _final_validate_sorting(config):
+    if (webserver_version := config.get(CONF_VERSION)) != 3:
+        _validate_no_sorting_component(
+            CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
+        )
+        _validate_no_sorting_component(
+            CONF_SORTING_GROUP_ID, webserver_version, fv.full_config.get()
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_sorting
+
+sorting_group = {
+    cv.Required(CONF_ID): cv.declare_id(cg.int_),
+    cv.Required(CONF_NAME): cv.string,
+    cv.Optional(CONF_SORTING_WEIGHT): cv.float_,
+}
+
+WEBSERVER_SORTING_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_WEB_SERVER): cv.Schema(
+            {
+                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
+                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.float_,
+                ),
+                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.use_id(cg.int_),
+                ),
+            }
+        )
+    }
+)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
-            cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
+            cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
@@ -94,13 +184,40 @@ CONFIG_SCHEMA = cv.All(
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
+            cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
     default_url,
     validate_local,
     validate_ota,
+    validate_sorting_groups,
 )
+
+
+def add_sorting_groups(web_server_var, config):
+    for group in config:
+        sorting_groups[group[CONF_ID]] = group[CONF_NAME]
+        group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
+        cg.add(
+            web_server_var.add_sorting_group(
+                hash(group[CONF_ID]), group[CONF_NAME], group_sorting_weight
+            )
+        )
+
+
+async def add_entity_config(entity, config):
+    web_server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
+    sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
+    sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
+
+    cg.add(
+        web_server.add_entity_config(
+            entity,
+            sorting_weight,
+            sorting_group_hash,
+        )
+    )
 
 
 def build_index_html(config) -> str:
@@ -145,14 +262,13 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
-    cg.add_define("USE_WEBSERVER")
     version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
-    if version == 2:
+    if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
         add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
     else:
@@ -178,3 +294,6 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
+
+    if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
+        add_sorting_groups(var, sorting_group_config)

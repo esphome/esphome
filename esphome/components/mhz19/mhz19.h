@@ -25,6 +25,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_abc_enabled(bool abc_enabled) { abc_boot_logic_ = abc_enabled ? MHZ19_ABC_ENABLED : MHZ19_ABC_DISABLED; }
+  void set_warmup_seconds(uint32_t seconds) { warmup_seconds_ = seconds; }
 
  protected:
   bool mhz19_write_command_(const uint8_t *command, uint8_t *response);
@@ -32,6 +33,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
   MHZ19ABCLogic abc_boot_logic_{MHZ19_ABC_NONE};
+  uint32_t warmup_seconds_;
 };
 
 template<typename... Ts> class MHZ19CalibrateZeroAction : public Action<Ts...> {

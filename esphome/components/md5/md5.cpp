@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
 #include "md5.h"
+#ifdef USE_MD5
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -65,3 +66,4 @@ bool MD5Digest::equals_hex(const char *expected) {
 
 }  // namespace md5
 }  // namespace esphome
+#endif

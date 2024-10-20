@@ -2,14 +2,19 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import nfc
-from esphome.const import CONF_ID, CONF_ON_TAG_REMOVED, CONF_ON_TAG, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_ID,
+    CONF_ON_FINISHED_WRITE,
+    CONF_ON_TAG_REMOVED,
+    CONF_ON_TAG,
+    CONF_TRIGGER_ID,
+)
 
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 AUTO_LOAD = ["binary_sensor", "nfc"]
 MULTI_CONF = True
 
 CONF_PN532_ID = "pn532_id"
-CONF_ON_FINISHED_WRITE = "on_finished_write"
 
 pn532_ns = cg.esphome_ns.namespace("pn532")
 PN532 = pn532_ns.class_("PN532", cg.PollingComponent)

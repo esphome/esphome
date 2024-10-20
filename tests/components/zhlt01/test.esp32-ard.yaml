@@ -1,0 +1,7 @@
+remote_transmitter:
+  pin: 2
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: zhlt01
+    name: ZH/LT-01 Climate

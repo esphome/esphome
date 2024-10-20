@@ -1,20 +1,21 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
+    CONF_FROM,
     CONF_ICON,
     CONF_ID,
-    CONF_ON_VALUE,
-    CONF_ON_RAW_VALUE,
-    CONF_TRIGGER_ID,
     CONF_MQTT_ID,
+    CONF_ON_RAW_VALUE,
+    CONF_ON_VALUE,
     CONF_STATE,
-    CONF_FROM,
     CONF_TO,
+    CONF_TRIGGER_ID,
+    CONF_WEB_SERVER,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
@@ -124,25 +125,31 @@ async def map_filter_to_code(config, filter_id):
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
-        cv.GenerateID(): cv.declare_id(TextSensor),
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-        cv.Optional(CONF_FILTERS): validate_filters,
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextSensorStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    TextSensorStateRawTrigger
-                ),
-            }
-        ),
-    }
+TEXT_SENSOR_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
+            cv.GenerateID(): cv.declare_id(TextSensor),
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        TextSensorStateTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        TextSensorStateRawTrigger
+                    ),
+                }
+            ),
+        }
+    )
 )
 
 _UNDEF = object()
@@ -186,8 +193,8 @@ async def build_filters(config):
 async def setup_text_sensor_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
 
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
@@ -201,9 +208,12 @@ async def setup_text_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_text_sensor(var, config):

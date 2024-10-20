@@ -12,9 +12,11 @@
 #include <cstring>
 
 #ifdef USE_HOST
+#ifndef _WIN32
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#endif
 #include <unistd.h>
 #endif
 #if defined(USE_ESP8266)
@@ -42,9 +44,7 @@
 #endif
 #ifdef USE_ESP32
 #include "esp32/rom/crc.h"
-#endif
 
-#if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 #endif
@@ -76,7 +76,7 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
 
 // STL backports
 
-#if _GLIBCXX_RELEASE < 7
+#if _GLIBCXX_RELEASE < 8
 std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
 std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
 std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
@@ -91,7 +91,7 @@ std::string to_string(long double value) { return str_snprintf("%Lf", 32, value)
 // Mathematics
 
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
-uint8_t crc8(uint8_t *data, uint8_t len) {
+uint8_t crc8(const uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
   while ((len--) != 0u) {
@@ -431,6 +431,107 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
+static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        "abcdefghijklmnopqrstuvwxyz"
+                                        "0123456789+/";
+
+static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
+
+std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
+
+std::string base64_encode(const uint8_t *buf, size_t buf_len) {
+  std::string ret;
+  int i = 0;
+  int j = 0;
+  char char_array_3[3];
+  char char_array_4[4];
+
+  while (buf_len--) {
+    char_array_3[i++] = *(buf++);
+    if (i == 3) {
+      char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+      char_array_4[3] = char_array_3[2] & 0x3f;
+
+      for (i = 0; (i < 4); i++)
+        ret += BASE64_CHARS[char_array_4[i]];
+      i = 0;
+    }
+  }
+
+  if (i) {
+    for (j = i; j < 3; j++)
+      char_array_3[j] = '\0';
+
+    char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+    char_array_4[3] = char_array_3[2] & 0x3f;
+
+    for (j = 0; (j < i + 1); j++)
+      ret += BASE64_CHARS[char_array_4[j]];
+
+    while ((i++ < 3))
+      ret += '=';
+  }
+
+  return ret;
+}
+
+size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
+  std::vector<uint8_t> decoded = base64_decode(encoded_string);
+  if (decoded.size() > buf_len) {
+    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+    decoded.resize(buf_len);
+  }
+  memcpy(buf, decoded.data(), decoded.size());
+  return decoded.size();
+}
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
+  int in_len = encoded_string.size();
+  int i = 0;
+  int j = 0;
+  int in = 0;
+  uint8_t char_array_4[4], char_array_3[3];
+  std::vector<uint8_t> ret;
+
+  while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
+    char_array_4[i++] = encoded_string[in];
+    in++;
+    if (i == 4) {
+      for (i = 0; i < 4; i++)
+        char_array_4[i] = BASE64_CHARS.find(char_array_4[i]);
+
+      char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+      char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+      char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+      for (i = 0; (i < 3); i++)
+        ret.push_back(char_array_3[i]);
+      i = 0;
+    }
+  }
+
+  if (i) {
+    for (j = i; j < 4; j++)
+      char_array_4[j] = 0;
+
+    for (j = 0; j < 4; j++)
+      char_array_4[j] = BASE64_CHARS.find(char_array_4[j]);
+
+    char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+    char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+    char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+    for (j = 0; (j < i - 1); j++)
+      ret.push_back(char_array_3[j]);
+  }
+
+  return ret;
+}
+
 // Colors
 
 float gamma_correct(float value, float gamma) {
@@ -561,16 +662,20 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   static const uint8_t esphome_host_mac_address[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
   memcpy(mac, esphome_host_mac_address, sizeof(esphome_host_mac_address));
 #elif defined(USE_ESP32)
-#if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
+#if defined(CONFIG_SOC_IEEE802154_SUPPORTED)
   // When CONFIG_SOC_IEEE802154_SUPPORTED is defined, esp_efuse_mac_get_default
-  // returns the 802.15.4 EUI-64 address. Read directly from eFuse instead.
-  // On some devices, the MAC address that is burnt into EFuse does not
-  // match the CRC that goes along with it. For those devices, this
-  // work-around reads and uses the MAC address as-is from EFuse,
-  // without doing the CRC check.
-  esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
+  // returns the 802.15.4 EUI-64 address, so we read directly from eFuse instead.
+  if (has_custom_mac_address()) {
+    esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48);
+  } else {
+    esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
+  }
 #else
-  esp_efuse_mac_get_default(mac);
+  if (has_custom_mac_address()) {
+    esp_efuse_mac_get_custom(mac);
+  } else {
+    esp_efuse_mac_get_default(mac);
+  }
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
@@ -582,19 +687,53 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 // this should be an error, but that messes with CI checks. #error No mac address method defined
 #endif
 }
+
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
+
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
+
 #ifdef USE_ESP32
 void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 #endif
+
+bool has_custom_mac_address() {
+#if defined(USE_ESP32) && !defined(USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC)
+  uint8_t mac[6];
+  // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
+#ifndef USE_ESP32_VARIANT_ESP32
+  return (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
+#else
+  return (esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
+#endif
+#else
+  return false;
+#endif
+}
+
+bool mac_address_is_valid(const uint8_t *mac) {
+  bool is_all_zeros = true;
+  bool is_all_ones = true;
+
+  for (uint8_t i = 0; i < 6; i++) {
+    if (mac[i] != 0) {
+      is_all_zeros = false;
+    }
+  }
+  for (uint8_t i = 0; i < 6; i++) {
+    if (mac[i] != 0xFF) {
+      is_all_ones = false;
+    }
+  }
+  return !(is_all_zeros || is_all_ones);
+}
 
 void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
   uint32_t start = micros();

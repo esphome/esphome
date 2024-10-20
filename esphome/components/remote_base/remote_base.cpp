@@ -15,8 +15,11 @@ RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_b
   next_rmt_channel = rmt_channel_t(int(next_rmt_channel) + mem_block_num);
 }
 
+RemoteRMTChannel::RemoteRMTChannel(rmt_channel_t channel, uint8_t mem_block_num)
+    : channel_(channel), mem_block_num_(mem_block_num) {}
+
 void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
-  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) >= RMT_CHANNEL_MAX) {
+  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) > RMT_CHANNEL_MAX) {
     this->mem_block_num_ = int(RMT_CHANNEL_MAX) - int(this->channel_);
     ESP_LOGW(TAG, "Not enough RMT memory blocks available, reduced to %i blocks.", this->mem_block_num_);
   }
@@ -105,18 +108,18 @@ void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
 
 void RemoteReceiverBase::call_listeners_() {
   for (auto *listener : this->listeners_)
-    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_));
+    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
 }
 
 void RemoteReceiverBase::call_dumpers_() {
   bool success = false;
   for (auto *dumper : this->dumpers_) {
-    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_)))
+    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_)))
       success = true;
   }
   if (!success) {
     for (auto *dumper : this->secondary_dumpers_)
-      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_));
+      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
   }
 }
 

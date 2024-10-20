@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_MQTT
 #include <string>
 #include <map>
 #include "esphome/components/network/ip_address.h"
@@ -67,3 +68,4 @@ class MQTTBackend {
 
 }  // namespace mqtt
 }  // namespace esphome
+#endif

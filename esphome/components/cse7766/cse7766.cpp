@@ -147,6 +147,7 @@ void CSE7766Component::parse_data_() {
   float power = 0.0f;
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
+    have_power = true;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);
     }
@@ -177,6 +178,15 @@ void CSE7766Component::parse_data_() {
     const float apparent_power = voltage * current;
     if (this->apparent_power_sensor_ != nullptr) {
       this->apparent_power_sensor_->publish_state(apparent_power);
+    }
+    if (have_power && this->reactive_power_sensor_ != nullptr) {
+      const float reactive_power = apparent_power - power;
+      if (reactive_power < 0.0f) {
+        ESP_LOGD(TAG, "Impossible reactive power: %.4f is negative", reactive_power);
+        this->reactive_power_sensor_->publish_state(0.0f);
+      } else {
+        this->reactive_power_sensor_->publish_state(reactive_power);
+      }
     }
     if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
       float pf = NAN;
@@ -232,6 +242,7 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Energy", this->energy_sensor_);
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
+  LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
   this->check_uart_settings(4800);
 }

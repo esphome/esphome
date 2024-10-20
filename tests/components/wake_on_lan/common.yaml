@@ -1,0 +1,9 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+button:
+  - platform: wake_on_lan
+    id: wol_1
+    name: wol_test_1
+    target_mac_address: 12:34:56:78:90:ab

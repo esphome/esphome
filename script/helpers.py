@@ -1,8 +1,8 @@
 import json
 import os.path
+from pathlib import Path
 import re
 import subprocess
-from pathlib import Path
 
 import colorama
 
@@ -70,11 +70,11 @@ def splitlines_no_ends(string):
     return [s.strip() for s in string.splitlines()]
 
 
-def changed_files():
+def changed_files(branch="dev"):
     check_remotes = ["upstream", "origin"]
     check_remotes.extend(splitlines_no_ends(get_output("git", "remote")))
     for remote in check_remotes:
-        command = ["git", "merge-base", f"refs/remotes/{remote}/dev", "HEAD"]
+        command = ["git", "merge-base", f"refs/remotes/{remote}/{branch}", "HEAD"]
         try:
             merge_base = splitlines_no_ends(get_output(*command))[0]
             break
@@ -159,20 +159,19 @@ def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
         result = subprocess.check_output([binary_file, "-version"])
-        if result.returncode == 0:
-            return binary_file
-    except Exception:
+        return binary_file
+    except FileNotFoundError:
         pass
     binary_file = name
     try:
         result = subprocess.run(
-            [binary_file, "-version"], text=True, capture_output=True
+            [binary_file, "-version"], text=True, capture_output=True, check=False
         )
         if result.returncode == 0 and (f"version {version}") in result.stdout:
             return binary_file
         raise FileNotFoundError(f"{name} not found")
 
-    except FileNotFoundError as ex:
+    except FileNotFoundError:
         print(
             f"""
             Oops. It looks like {name} is not installed. It should be available under venv/bin
