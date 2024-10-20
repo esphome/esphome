@@ -69,6 +69,7 @@ class Camera : public EntityBase {
   virtual void stop_stream(CameraRequester requester) = 0;
   virtual ~Camera() {}
   /// The singleton instance of the camera implementation.
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static Camera *global_camera;
 };
 
