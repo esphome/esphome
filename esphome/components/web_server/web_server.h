@@ -47,6 +47,12 @@ struct UrlMatch {
 
 struct SortingComponents {
   float weight;
+  uint64_t group_id;
+};
+
+struct SortingGroup {
+  std::string name;
+  float weight;
 };
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
@@ -81,7 +87,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
     message_generator_t *message_generator_;
 
    public:
-    DeferredEvent(void *source, const message_generator_t *message_generator)
+    DeferredEvent(void *source, message_generator_t *message_generator)
         : source_(source), message_generator_(message_generator) {}
     bool operator==(const DeferredEvent &test) const {
       return (source_ == test.source_ && message_generator_ == test.message_generator_);
@@ -91,7 +97,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
  protected:
   // surface a couple methods from the base class
   using AsyncEventSource::handleRequest;
-  using AsyncEventSource::send;
+  using AsyncEventSource::try_send;
 
   ListEntitiesIterator entities_iterator_;
   // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory
@@ -100,7 +106,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   WebServer *web_server_;
 
   // helper for allowing only unique entries in the queue
-  void deq_push_back_with_dedup_(void *source, const message_generator_t *message_generator);
+  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
 
   void process_deferred_queue_();
 
@@ -110,26 +116,24 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
-                        const uint32_t reconnect = 0);
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  protected:
-  void on_client_connect(DeferredUpdateEventSource *source, const std::function<std::string()> &generate_config_json,
-                         const bool include_internal);
-  void on_client_disconnect(DeferredUpdateEventSource *source);
+  void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source,
+                          const std::function<std::string()> &generate_config_json, bool include_internal);
+  void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, const message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0,
-                        const uint32_t reconnect = 0);
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
-                      const std::function<std::string()> &generate_config_json, const bool include_internal);
+                      const std::function<std::string()> &generate_config_json, bool include_internal);
 };
 #endif
 
@@ -443,6 +447,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   static std::string event_state_json_generator(WebServer *web_server, void *source);
   static std::string event_all_json_generator(WebServer *web_server, void *source);
+
+  /// Handle a event request under '/event<id>'.
+  void handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
   /// Dump the event details with its value as a JSON string.
   std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
@@ -466,7 +474,8 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;  // NOLINT(readability-identifier-naming)
 
-  void add_entity_to_sorting_list(EntityBase *entity, float weight);
+  void add_entity_config(EntityBase *entity, float weight, uint64_t group);
+  void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
  protected:
   void schedule_(std::function<void()> &&f);
@@ -478,6 +487,8 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   AsyncEventSource events_{"/events"};
 #endif
   std::map<EntityBase *, SortingComponents> sorting_entitys_;
+  std::map<uint64_t, SortingGroup> sorting_groups_;
+
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};

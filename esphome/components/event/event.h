@@ -23,7 +23,7 @@ namespace event {
 
 class Event : public EntityBase, public EntityBase_DeviceClass {
  public:
-  const std::string *state;
+  const std::string *last_event_type;
 
   void trigger(const std::string &event_type);
   void set_event_types(const std::set<std::string> &event_types) { this->types_ = event_types; }

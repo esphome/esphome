@@ -55,6 +55,7 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
   pulse_counter_t read_raw_value() override;
 
   pcnt_unit_t pcnt_unit;
+  pcnt_channel_t pcnt_channel;
 };
 #endif
 
