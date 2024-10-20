@@ -5,9 +5,7 @@ namespace camera {
 
 Camera *Camera::global_camera = nullptr;
 
-Camera::Camera() {
-  global_camera = this;
-}
+Camera::Camera() { global_camera = this; }
 
 }  // namespace camera
 }  // namespace esphome

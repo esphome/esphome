@@ -82,13 +82,12 @@ void APIServer::setup() {
 
 #ifdef USE_CAMERA
   if (camera::Camera::global_camera != nullptr && !camera::Camera::global_camera->is_internal()) {
-    camera::Camera::global_camera->add_image_callback(
-        [this](const std::shared_ptr<camera::CameraImage> &image) {
-          for (auto &c : this->clients_) {
-            if (!c->remove_)
-              c->send_camera_state(image);
-          }
-        });
+    camera::Camera::global_camera->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
+      for (auto &c : this->clients_) {
+        if (!c->remove_)
+          c->send_camera_state(image);
+      }
+    });
   }
 #endif
 }

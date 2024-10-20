@@ -51,9 +51,7 @@ bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
 }
 
 #ifdef USE_CAMERA
-bool ListEntitiesIterator::on_camera(camera::Camera *camera) {
-  return this->client_->send_camera_info(camera);
-}
+bool ListEntitiesIterator::on_camera(camera::Camera *camera) { return this->client_->send_camera_info(camera); }
 #endif
 
 #ifdef USE_CLIMATE

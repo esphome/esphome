@@ -60,7 +60,7 @@ class Camera : public EntityBase {
   // Camera implementation invokes callback to publish a new image.
   virtual void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) = 0;
   /// Returns a new camera image reader that keeps track of the JPEG data in the camera image.
-  virtual CameraImageReader* create_image_reader() = 0;
+  virtual CameraImageReader *create_image_reader() = 0;
   // Connection, camera or web server requests one new JPEG image.
   virtual void request_image(CameraRequester requester) = 0;
   // Connection, camera or web server requests a stream of images.

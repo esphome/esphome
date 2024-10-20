@@ -160,7 +160,8 @@ class ESP32Camera : public Component, public camera::Camera {
   void add_image_callback(std::function<void(std::shared_ptr<camera::CameraImage>)> &&callback);
   void add_stream_start_callback(std::function<void()> &&callback);
   void add_stream_stop_callback(std::function<void()> &&callback);
-  camera::CameraImageReader* create_image_reader() override;
+  camera::CameraImageReader *create_image_reader() override;
+
  protected:
   /* internal methods */
   bool has_requested_image_() const;
