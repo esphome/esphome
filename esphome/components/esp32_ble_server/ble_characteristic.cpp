@@ -72,7 +72,7 @@ void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
       [this](const std::vector<uint8_t> &value, uint16_t conn_id) {
         if (value.size() != 2)
           return;
-        uint16_t cccd = (value[1] << 8) | value[0];
+        uint16_t cccd = encode_uint16(value[1], value[0]);
         bool notify = (cccd & 1) != 0;
         bool indicate = (cccd & 2) != 0;
         if (notify || indicate) {
