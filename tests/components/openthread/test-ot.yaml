@@ -23,9 +23,28 @@ openthread:
   extpanid: d63e8e3e495ebbc3
   pskc: c23a76e98f1a6483639b1ac1271e2e27
 
-# The web server will cause the HA integration to fail, see note in the README
-# web_server:
-#   port: 80
+text_sensor:
+  - platform: openthread_info
+    ip_address:
+      name: "Off-mesh routable IP Address"
+    channel:
+      name: "Channel"
+    role:
+      name: "Device Role"
+    rloc16:
+      name: "RLOC16"
+    extaddr:
+      name: "Extended Address"
+    eui64:
+      name: "EUI64"
+    network_name:
+      name: "Network Name"
+    network_key:
+      name: "Network Key"
+    panid:
+      name: "PAN ID"
+    extpanid:
+      name: "Extended PAN ID"
 
 api:
   encryption:
