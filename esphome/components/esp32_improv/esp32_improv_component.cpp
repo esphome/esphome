@@ -27,6 +27,9 @@ void ESP32ImprovComponent::setup() {
     });
   }
 #endif
+  global_ble_server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT, [this](uint16_t conn_id) {
+    this->set_error_(improv::ERROR_NONE);
+  });
 }
 
 void ESP32ImprovComponent::setup_characteristics() {
@@ -83,7 +86,6 @@ void ESP32ImprovComponent::loop() {
     // Setup the service
     ESP_LOGD(TAG, "Creating Improv service");
     this->service_ = global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
-    this->service_->on_client_disconnect([this](const uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
     this->setup_characteristics();
   }
 
