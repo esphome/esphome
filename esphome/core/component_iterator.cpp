@@ -158,16 +158,16 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
     case IteratorState::CAMERA:
-      if (esp32_camera::global_esp32_camera == nullptr) {
+      if (camera::Camera::global_camera == nullptr) {
         advance_platform = true;
       } else {
-        if (esp32_camera::global_esp32_camera->is_internal() && !this->include_internal_) {
+        if (camera::Camera::global_camera->is_internal() && !this->include_internal_) {
           advance_platform = success = true;
           break;
         } else {
-          advance_platform = success = this->on_camera(esp32_camera::global_esp32_camera);
+          advance_platform = success = this->on_camera(camera::Camera::global_camera);
         }
       }
       break;
@@ -386,8 +386,8 @@ bool ComponentIterator::on_begin() { return true; }
 #ifdef USE_API
 bool ComponentIterator::on_service(api::UserServiceDescriptor *service) { return true; }
 #endif
-#ifdef USE_ESP32_CAMERA
-bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
+#ifdef USE_CAMERA
+bool ComponentIterator::on_camera(camera::Camera *camera) { return true; }
 #endif
 #ifdef USE_MEDIA_PLAYER
 bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }

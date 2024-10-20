@@ -13,8 +13,6 @@ static const char *const TAG = "esp32_camera";
 
 /* ---------------- public API (derivated) ---------------- */
 void ESP32Camera::setup() {
-  global_esp32_camera = this;
-
   /* initialize time to now */
   this->last_update_ = millis();
 
@@ -36,7 +34,7 @@ void ESP32Camera::setup() {
   xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
                           "framebuffer_task",  // name
                           1024,                // stack size
-                          nullptr,             // task pv params
+                          this,             // task pv params
                           1,                   // priority
                           nullptr,             // handle
                           1                    // core
@@ -165,7 +163,7 @@ void ESP32Camera::loop() {
   const uint32_t now = millis();
   if (this->idle_update_interval_ != 0 && now - this->last_idle_request_ > this->idle_update_interval_) {
     this->last_idle_request_ = now;
-    this->request_image(IDLE);
+    this->request_image(camera::IDLE);
   }
 
   // Check if we should fetch a new image
@@ -191,7 +189,7 @@ void ESP32Camera::loop() {
     xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     return;
   }
-  this->current_image_ = std::make_shared<CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
+  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
   ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
   this->new_image_callback_.call(this->current_image_);
@@ -214,8 +212,6 @@ ESP32Camera::ESP32Camera() {
   this->config_.fb_count = 1;
   this->config_.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   this->config_.fb_location = CAMERA_FB_IN_PSRAM;
-
-  global_esp32_camera = this;
 }
 
 /* ---------------- setters ---------------- */
@@ -343,7 +339,7 @@ void ESP32Camera::set_frame_buffer_count(uint8_t fb_count) {
 }
 
 /* ---------------- public API (specific) ---------------- */
-void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) {
+void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<camera::CameraImage>)> &&callback) {
   this->new_image_callback_.add(std::move(callback));
 }
 void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
@@ -352,15 +348,18 @@ void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
 void ESP32Camera::add_stream_stop_callback(std::function<void()> &&callback) {
   this->stream_stop_callback_.add(std::move(callback));
 }
-void ESP32Camera::start_stream(CameraRequester requester) {
+camera::CameraImageReader* ESP32Camera::create_image_reader() {
+  return new ESP32CameraImageReader;
+}
+void ESP32Camera::start_stream(camera::CameraRequester requester) {
   this->stream_start_callback_.call();
   this->stream_requesters_ |= (1U << requester);
 }
-void ESP32Camera::stop_stream(CameraRequester requester) {
+void ESP32Camera::stop_stream(camera::CameraRequester requester) {
   this->stream_stop_callback_.call();
   this->stream_requesters_ &= ~(1U << requester);
 }
-void ESP32Camera::request_image(CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
+void ESP32Camera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
 void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
   /* update image */
@@ -389,39 +388,38 @@ void ESP32Camera::update_camera_parameters() {
 bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
 void ESP32Camera::framebuffer_task(void *pv) {
+  ESP32Camera *that = (ESP32Camera *)pv;
   while (true) {
     camera_fb_t *framebuffer = esp_camera_fb_get();
-    xQueueSend(global_esp32_camera->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
+    xQueueSend(that->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
     // return is no-op for config with 1 fb
-    xQueueReceive(global_esp32_camera->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
+    xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
     esp_camera_fb_return(framebuffer);
   }
 }
 
-ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 /* ---------------- CameraImageReader class ---------------- */
-void CameraImageReader::set_image(std::shared_ptr<CameraImage> image) {
-  this->image_ = std::move(image);
+void ESP32CameraImageReader::set_image(std::shared_ptr<camera::CameraImage> image) {
+  this->image_ = std::static_pointer_cast<ESP32CameraImage>(image);
   this->offset_ = 0;
 }
-size_t CameraImageReader::available() const {
+size_t ESP32CameraImageReader::available() const {
   if (!this->image_)
     return 0;
 
   return this->image_->get_data_length() - this->offset_;
 }
-void CameraImageReader::return_image() { this->image_.reset(); }
-void CameraImageReader::consume_data(size_t consumed) { this->offset_ += consumed; }
-uint8_t *CameraImageReader::peek_data_buffer() { return this->image_->get_data_buffer() + this->offset_; }
+void ESP32CameraImageReader::return_image() { this->image_.reset(); }
+void ESP32CameraImageReader::consume_data(size_t consumed) { this->offset_ += consumed; }
+uint8_t *ESP32CameraImageReader::peek_data_buffer() { return this->image_->get_data_buffer() + this->offset_; }
 
 /* ---------------- CameraImage class ---------------- */
-CameraImage::CameraImage(camera_fb_t *buffer, uint8_t requesters) : buffer_(buffer), requesters_(requesters) {}
+ESP32CameraImage::ESP32CameraImage(camera_fb_t *buffer, uint8_t requesters) : buffer_(buffer), requesters_(requesters) {}
 
-camera_fb_t *CameraImage::get_raw_buffer() { return this->buffer_; }
-uint8_t *CameraImage::get_data_buffer() { return this->buffer_->buf; }
-size_t CameraImage::get_data_length() { return this->buffer_->len; }
-bool CameraImage::was_requested_by(CameraRequester requester) const {
+camera_fb_t *ESP32CameraImage::get_raw_buffer() { return this->buffer_; }
+uint8_t *ESP32CameraImage::get_data_buffer() { return this->buffer_->buf; }
+size_t ESP32CameraImage::get_data_length() { return this->buffer_->len; }
+bool ESP32CameraImage::was_requested_by(camera::CameraRequester requester) const {
   return (this->requesters_ & (1 << requester)) != 0;
 }
 

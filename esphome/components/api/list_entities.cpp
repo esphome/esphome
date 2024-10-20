@@ -50,8 +50,8 @@ bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   return this->client_->send_list_entities_services_response(resp);
 }
 
-#ifdef USE_ESP32_CAMERA
-bool ListEntitiesIterator::on_camera(esp32_camera::ESP32Camera *camera) {
+#ifdef USE_CAMERA
+bool ListEntitiesIterator::on_camera(camera::Camera *camera) {
   return this->client_->send_camera_info(camera);
 }
 #endif

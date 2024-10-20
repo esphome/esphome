@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_PORT, CONF_MODE
 
 CODEOWNERS = ["@ayufan"]
-DEPENDENCIES = ["esp32_camera"]
+DEPENDENCIES = ["camera"]
 MULTI_CONF = True
 
 esp32_camera_web_server_ns = cg.esphome_ns.namespace("esp32_camera_web_server")
