@@ -55,28 +55,13 @@ theme_widget_map = {}
 styles_used = set()
 
 
-class LvScrActType(WidgetType):
-    """
-    A "widget" representing the active screen.
-    """
-
-    def __init__(self):
-        super().__init__("lv_scr_act()", lv_obj_t, ())
-
-    async def to_code(self, w, config: dict):
-        return []
-
-
 class Widget:
     """
     Represents a Widget.
+    This class has a lot of methods. Adding any more runs foul of lint checks ("too many public methods").
     """
 
     widgets_completed = False
-
-    @staticmethod
-    def set_completed():
-        Widget.widgets_completed = True
 
     def __init__(self, var, wtype: WidgetType, config: dict = None):
         self.var = var
@@ -179,8 +164,19 @@ class Widget:
 
     def get_value(self):
         if isinstance(self.type.w_type, LvType):
-            return self.type.w_type.value(self)
+            result = self.type.w_type.value(self)
+            if isinstance(result, list):
+                return result[0]
+            return result
         return self.obj
+
+    def get_values(self):
+        if isinstance(self.type.w_type, LvType):
+            result = self.type.w_type.value(self)
+            if isinstance(result, list):
+                return result
+            return [result]
+        return [self.obj]
 
     def get_number_value(self):
         value = self.type.mock_obj.get_value(self.obj)
@@ -211,6 +207,25 @@ class Widget:
 
 # Map of widgets to their config, used for trigger generation
 widget_map: dict[Any, Widget] = {}
+
+
+class LvScrActType(WidgetType):
+    """
+    A "widget" representing the active screen.
+    """
+
+    def __init__(self):
+        super().__init__("lv_scr_act()", lv_obj_t, ())
+
+    async def to_code(self, w, config: dict):
+        return []
+
+
+lv_scr_act_spec = LvScrActType()
+
+
+def get_scr_act(lv_comp: MockObj) -> Widget:
+    return Widget.create(None, lv_comp.get_scr_act(), lv_scr_act_spec, {})
 
 
 def get_widget_generator(wid):
@@ -443,7 +458,3 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     await set_obj_properties(w, w_cnfig)
     await add_widgets(w, w_cnfig)
     await spec.to_code(w, w_cnfig)
-
-
-lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(None, literal("lv_scr_act()"), lv_scr_act_spec, {})
