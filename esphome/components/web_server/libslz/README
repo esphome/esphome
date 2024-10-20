@@ -1,0 +1,248 @@
+SLZ / StateLess Zip - v1.2.1 - 2022/10/23 - Willy Tarreau <w+slz@1wt.eu>
+------------------------------------------------------------------------
+
+SLZ is a fast and memory-less stream compressor which produces an output that
+can be decompressed with zlib or gzip. It does not implement decompression at
+all, zlib is perfectly fine for this.
+
+The purpose is to use SLZ in situations where a zlib-compatible stream is
+needed and zlib's resource usage would be too high while the compression ratio
+is not critical. The typical use case is in HTTP servers and gateways which
+have to compress many streams in parallel with little CPU resources to assign
+to this task, and without having to limit the compression ratio due to the
+memory usage. In such an environment, the server's memory usage can easily be
+divided by 10 and the CPU usage by 3.
+
+While zlib uses 256 kB of memory per stream in addition to a few tens of bytes
+for the stream descriptor itself, SLZ only stores a stream descriptor made of
+28 bytes. Thus it is particularly suited to environments having to deal with
+tens to hundreds of thousands of concurrent streams.
+
+The key difference between zlib and SLZ is that SLZ is stateless in that it
+doesn't consider the data previously compressed as part of its dictionary. It
+doesn't hurt compression performance when it is fed in large enough chunks (at
+least a few kB at once), but it must not be used if it has to read less than
+a few kB at a time, or the caller will have to implement the input buffer to
+maximize the compression ratio. For example, an HTTP gateway may defragment all
+the parts from a chunked-encoded response buffer into a linear buffer that is
+then fed at once to SLZ. This temporary buffer would then be static and shared
+between all streams running on the same thread.
+
+A side effect from its stateless nature is that it can emit a zlib-compatible
+stream without being vulnerable to CRIME-like attacks by processing the
+sensitive and attacker-controlled data in distinct batches. Since no dictionary
+persists between calls, there is no risk that attacker-controlled data is used
+to guess sensitive data using dictionary lookups.
+
+Another induced benefit which was not initially seeked is that SLZ is on
+average 3 times as fast as zlib in its fastest mode. This is the result of the
+simpler matching and encoding mechanisms involved which permit even more
+optimisations.
+
+Some performance tests were run on various types of data showing anything
+between 227 MB/s and 753 MB/s per core on the test machine depending on the
+difficulty to find matching strings and on the amount of data emitted as
+literals (hence not compressed). In the end, comparative tests were performed
+using some reference datasets that are already being used for other libraries.
+This performance report was produced using the Silesia Corpus to get something
+comparable to what is reported by the LZ4 utility here :
+
+        https://github.com/Cyan4973/lz4
+
+The tests were run on a single core of a core i5-3320M at 3.3 GHz (turbo mode).
+
+Product           Input BW  Compression ratio
+
+lz4-r124          352 MB/s  2.09
+lzo-2.09          347 MB/s  2.10
+slz-1.2.1 -1 -D   293 MB/s  2.12  # deflate format
+slz-1.2.1 -3 -D   279 MB/s  2.20  # deflate format
+slz-1.2.1 -1      232 MB/s  2.12  # gzip format
+slz-1.2.1 -3      223 MB/s  2.20  # gzip format
+zlib-1.28 -1 -h    88 MB/s  1.64  # huffman only
+zlib-1.28 -1 -r    81 MB/s  1.65  # RLE only
+zlib-1.28 -1 -F    70 MB/s  2.32  # fixed huffman
+zlib-1.28 -1       70 MB/s  2.74
+
+Only zlib and SLZ can emit a stream that a regular zlib-compatible browser can
+decompress (RFC1950/1951/1952 aka zlib, deflate, gzip). Here SLZ is 3 times
+faster than zlib for a less compressed payload (29% larger than zlib). Tests
+run on other file types (including HTML, CSS, JS) show that the ratio of
+compression speed between SLZ and zlib varies from 2.5 to 3.5. The output
+compressed stream is often 24 to 32% larger for SLZ than zlib.
+
+Since SLZ focuses a lot on performance savings gained by keeping most of the
+workload in CPU cache, it scales very well when multiple cores are used in
+parallel (low memory bandwidth) as shown in this tests run on a quad-core ARM
+Cortex A17 (RK3288) running at 1.8 GHz and the same input data :
+
+   #Cores  Input size  Time(s)  BW/core(MB/s)   Total BW(MB/s)
+      1     211938580   2.870       73.8             73.8
+      2     211938580   2.880       73.5            147.1
+      3     211938580   2.885       73.4            220.3
+      4     211938580   2.975       71.2            284.9
+
+On an ARMv8 with CRC32 (88F8040) running at 2.0 GHz it's even better:
+
+   #Cores  Input size  Time(s)  BW/core(MB/s)   Total BW(MB/s)
+      1     211938580   2.016      105.1            105.1
+      2     211938580   2.025      104.6            209.3
+      3     211938580   2.085      101.6            304.9
+      4     211938580   2.041      103.8            415.3
+
+Since some products automatically throttle the compression level based on the
+CPU usage or the available memory, on high speed networks, zlib can end up
+showing a much lower average compression ratio in order to fill an uplink. With
+SLZ, no extra memory usage is needed for compression, and the CPU usage is
+reduced by 2.5-3.5 times, meaning that the throttling will happen at much
+higher data rates. The net effect is a significant improvement on the
+compression ratio compared to zlib at a given resource usage.
+
+HAProxy running on a single core of a core i5-3320M, with 500 concurrent users,
+the default 16kB buffers, and accessing www.haproxy.org (76 kB) shows the
+following measures with traffic leaving the machine via a gigabit Ethernet link
+(hence the 976 Mbps of IP traffic) after being compressed with zlib and SLZ,
+respectively :
+
+  At 100% CPU (no CPU usage limit) :
+            BW In      BW Out     BW Saved   Ratio   memory VSZ/RSS  hits/s
+  zlib      480 Mbps   188 Mbps   292 Mbps   2.55     130M / 101M     744
+  slz      1700 Mbps   810 Mbps   890 Mbps   2.10    23.7M / 9.7M    2382
+
+  At 85% CPU (limited) :
+            BW In      BW Out     BW Saved   Ratio   memory VSZ/RSS  hits/s
+  zlib     1240 Mbps   976 Mbps   264 Mbps   1.27     130M / 100M    1738
+  slz      1600 Mbps   976 Mbps   624 Mbps   1.64    23.7M / 9.7M    2210
+
+In the CPU-limited test, once CPU usage limit was reached, blocks were sent
+uncompressed. This explains how the gigabit link was always saturated, and it
+is then the input bandwidth which varies according to the average compression
+ratio. In all situations, SLZ resulted in bandwidth savings 3 times higher than
+zlib.
+
+The "zenc" utility, which was orginally aimed at running regression tests,
+found its way into backup systems since it permits to reach network links
+limits with compressed streams before saturating the CPU. This results in a
+shorter total backup time, while relying on a well-known and standard output
+compression format. Such use cases could benefit from a multithreaded version
+that would work on different blocks and adapt the running CRC once blocks are
+finished, but given that a not-so-fast x86 system easily saturates a gigabit
+link using a single core, there's not much demand for this at the moment.
+
+There are 6 key points having a large impact on compression speed in any LZ-
+based compressor :
+
+- dictionary lookup : looking up a sequence of bytes in a recent window is not
+  necessarily fast. SLZ uses a hash-based technique similar to LZO or LZ4,
+  focusing on keeping track of only the most recent occurrence of a given
+  sequence. The hash table contains the absolute position in the stream of the
+  last occurrence of the hashed entry. This table is initialized to impossible
+  values prior to compressing so that unused entries are not even evaluated, as
+  it was found to be faster than not initializing them. During tests, it was
+  found that hashing 4 bytes to one value among 4096-65536 resulted in the best
+  compression ratio, and that 8192 entries was the best tradeoff between speed
+  and compression ratio. Smaller hash tables cause more collisions hurting the
+  compression ratio, and larger ones experience a significant slowdown on
+  certain datasets due to the hashtable having more difficulties to fit
+  entirely in the CPU cache.
+
+- indexing : if sequences of less than 3 bytes are considered for a lookup,
+  since we only keep the last occurrence, there's a high risk of not keeping
+  the most useful sequence which has large changes of matching a similar word.
+  For example in HTML a lot of occurrences of '><', '</', '/>' can be found so
+  the probability that the one from '</a>' is picked instead of the one from
+  '</td>' will make it hard to find long matches. Conversely, sequences larger
+  than 4 bytes will only match once in a while and will prevent shorter series
+  of characters from being matched. Experimentation has shown that hashing 3
+  bytes only provided the same compression ratio as hashing 4 bytes, with up to
+  10% faster input processing thanks to the reduced cost of hashing. Attempts
+  to index the repeated data were made, and caused a significant performance
+  drop (about 5%) for less than 1% compression ratio improvement, so they were
+  abandonned.
+
+- longest match : the longest match measurement is very similar to an strcmp()
+  call except that we count similar characters. In order to avoid this slow
+  operation most of the time, we store in the hash table a copy of the 4 bytes
+  that were hashed. This makes it easy to perform a comparison and to skip
+  those which do not match, then to only start the longest match measurement
+  for parts which already match on the first 4 bytes. With a 13-bits hash on
+  32-bit character sequence, there's a theorical 1 chance over 524288 that a
+  matching hash implies a matching sequence. But in practice on selected text
+  this chance is significantly higher since not all 32 bits are used, it's more
+  like 24 bits (6 bits per char), so it's one chance over 2048 that an entry
+  will match. That's still 2047/2048 useless calls to the memmatch function
+  that are saved this way.
+
+- encoding the output : deflate is often criticized for its bit-oriented stream
+  which is expensive to manipulate as it requires bit shifts. Moreover, on top
+  of this the deflate stream supports several encoding modes, the most common
+  one being dynamic huffman trees, which requires some significant maintenance
+  to keep a valid tree up to date and which SLZ doesn't use. Instead, SLZ uses
+  static huffman trees, and when too many binary entries are found to keep this
+  encoding efficient, it switches to the plain literal mode. Proceeding like
+  this comes with a significant benefit : all code sequences, all distances and
+  all lengths are stored as their respective huffman output bits. This avoids
+  an encoding phase, sequences of bits are immediately sent to the destination
+  buffer without any further operation, and remain reasonably cheap compared to
+  the more common usages.
+
+- checksumming : 3 checksum methods exist depending on the encoding format.
+  RFC1950 (zlib format) uses an Adler-32 checksum which theorically involves
+  modulus (divide) but which can be optimized as it's done with a number very
+  close to a power of two. RFC1951 (raw deflate) doesn't involve any checksum.
+  RFC1952 (gzip) uses a CRC-32 which is somewhat expensive but can be optimized
+  in various ways. Since SLZ was designed around gzip mainly, most of the
+  optimizations were done to optimize CRC-32. Some well-known methods involve
+  pre-computed tables, which can be further optimized for multi-byte processing
+  and single-byte processing as well. It was found that updating the CRC-32 on
+  a per-character basis before looking up the hash came at almost no cost
+  because it would probably benefit make use of some pipeline stalls when the
+  hashed entry was not in the CPU's L1 cache. But in order to avoid multiplying
+  the functions, the checksum computation was moved out of the function with a
+  very low extra cost (less than 1%) as it can process all the input at once 4
+  bytes at a time, contributes to preloading the input data into the caches.
+  And on CPU architectures featuring a CRC32 instruction (e.g. ARMv8), this
+  instruction is used and allows the gzip format to be roughly as fast as the
+  deflate one.
+
+- implementation-specific optimizations : modern CPUs can load unaligned words
+  from memory with minimal to no overhead. On architectures that support this
+  (ix86, x86_64, armv7), this is used to limit the number of operations and
+  memory accesses. Some CPUs have a smaller cache and the direct mapping
+  between distances and huffman sequences can make it thrash a lot. Some
+  experimentations were made using a direct mapping only for shortest distances
+  (the most common ones), but results were not encouraging for now as a cache
+  miss is not completely offset by the amount of extra operations.
+
+
+These two factors have a significant impact on the compression ratio :
+
+- collisions in the dictionary, caused by suboptimal hash distribution. Here
+  with 8k entries we have what looks like the best tradeoff between speed and
+  compression ratio for most workloads tested, and it can easily be changed
+  using a macro.
+
+- output encoding : the dynamic huffman trees would definitely shorten the
+  output stream but at an important performance cost. But even with fixed trees
+  it is possible to waste a lot of space. First, input bytes 144 to 255 are
+  encoded on 9 bits per byte. SLZ constantly monitors the output stream to
+  decide when it's preferable to switch to plain literals which cost exactly
+  52 bits to switch back and forth and will not inflate the output stream any
+  further. Second, referencing a match can be longer than the data it replaces.
+  This is true for short sequences, but it can be true even for a long sequence
+  in the middle of a series of plain literals. By monitoring the output stream
+  and verifying the encoding cost before switching, it is possible to avoid any
+  overhead beyond the base 5 bytes per 32kB plus headers for non-compressible
+  data.
+
+SLZ is provided as a library with a few extra tools (such as the zenc testing
+utility mentioned above). It is distributed under the X11 license, meaning
+that you can do a lot of things with it, such as merge it into GPL or BSD-
+licensed programs, as well as use it in proprietary software. Contributions are
+welcome and should be sent as Git patches (see "git format-patch") and will be
+made under the same license exclusively.
+
+Project's webpage : http://www.libslz.org/
+Download sources  : https://github.com/wtarreau/libslz/
+Contact           : Willy Tarreau <w+slz@1wt.eu>
+

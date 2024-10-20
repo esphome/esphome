@@ -77,7 +77,12 @@ class ListEntitiesIterator : public ComponentIterator {
 
  protected:
   const WebServer *web_server_;
-  DeferredUpdateEventSource *event_source_;
+#ifdef USE_ARDUINO
+  DeferredUpdateEventSourceList events_;
+#endif
+#ifdef USE_ESP_IDF
+  AsyncEventSource events_{"/events"};
+#endif
 };
 
 }  // namespace web_server

@@ -1,4 +1,5 @@
 #pragma once
+#define USE_ESP_IDF 1
 #ifdef USE_ESP_IDF
 
 #include <esp_http_server.h>

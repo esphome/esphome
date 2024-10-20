@@ -51,6 +51,14 @@ struct SortingComponents {
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
+/* 
+  In order to defer updates in arduino mode, we need to create one AsyncEventSource per incoming request to /events. 
+  This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred 
+  update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with 
+  multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's 
+  implemented differently for ESP-IDF. 
+*/
+#ifdef USE_ARDUINO
 using message_generator_t = std::string(WebServer *, void *);
 
 class DeferredUpdateEventSourceList;
@@ -123,6 +131,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
                       const std::function<std::string()> &generate_config_json, const bool include_internal);
 };
+#endif
 
 /** This class allows users to create a web server with their ESP nodes.
  *
@@ -134,7 +143,9 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
+#ifdef USE_ARDUINO
   friend class DeferredUpdateEventSourceList;
+#endif
 
  public:
   WebServer(web_server_base::WebServerBase *base);
@@ -460,7 +471,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  protected:
   void schedule_(std::function<void()> &&f);
   web_server_base::WebServerBase *base_;
-  DeferredUpdateEventSourceList event_source_list_;
+#ifdef USE_ARDUINO
+  DeferredUpdateEventSourceList events_;
+#endif
+#ifdef USE_ESP_IDF
+  AsyncEventSource events_{"/events"};
+#endif
   std::map<EntityBase *, SortingComponents> sorting_entitys_;
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};

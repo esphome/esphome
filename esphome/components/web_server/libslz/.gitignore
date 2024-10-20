@@ -1,0 +1,7 @@
+*.o
+*.a
+*.so
+*.so.*
+
+zdec
+zenc
