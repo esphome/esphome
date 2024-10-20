@@ -28,12 +28,11 @@ namespace esphome {
 namespace openthread {
 
 void OpenThreadComponent::setup() {
-  ESP_LOGI("openthread", "Setting up OpenThread...");
+  ESP_LOGI(TAG, "Setting up OpenThread...");
   // Used eventfds:
   // * netif
   // * ot task queue
   // * radio driver
-  // TODO: Does anything else in esphome set this up?
   esp_vfs_eventfd_config_t eventfd_config = {
       .max_fds = 3,
   };
@@ -56,7 +55,7 @@ void OpenThreadComponent::setup() {
       },
       "ot_srp_setup", 10240, this, 5, nullptr);
 
-  ESP_LOGI("openthread", "OpenThread started");
+  ESP_LOGI(TAG, "OpenThread started");
 }
 
 static esp_netif_t *init_openthread_netif(const esp_openthread_platform_config_t *config) {

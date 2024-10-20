@@ -75,26 +75,19 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(std::optional<
     vTaskDelay(100);
     lock = OpenThreadLockGuard::try_acquire(portMAX_DELAY);
     if (!lock) {
-      ESP_LOGW("OT SRP", "Could not re-acquire lock");
+      ESP_LOGW(TAG, "Could not re-acquire lock");
       return {};
     }
   };
   const otIp6Prefix *omrPrefix = &aConfig.mPrefix;
-
-  char addressAsString[40];
-  otIp6PrefixToString(omrPrefix, addressAsString, 40);
-  ESP_LOGW("OT SRP", "USING omr prefix %s", addressAsString);
-
   const otNetifAddress *unicastAddrs = otIp6GetUnicastAddresses(instance);
   for (const otNetifAddress *addr = unicastAddrs; addr; addr = addr->mNext) {
     const otIp6Address *localIp = &addr->mAddress;
     if (otIp6PrefixMatch(&omrPrefix->mPrefix, localIp)) {
-      otIp6AddressToString(localIp, addressAsString, 40);
-      ESP_LOGW("OT SRP", "USING %s for SRP address", addressAsString);
       return *localIp;
     }
   }
-  ESP_LOGW("OT SRP", "Could not find the OMR address");
+  ESP_LOGW(TAG, "Could not find the OMR address");
   return {};
 }
 
@@ -108,30 +101,20 @@ void OpenThreadComponent::srp_setup_() {
   char *existing_host_name = otSrpClientBuffersGetHostNameString(instance, &size);
   uint16_t len = this->host_name_.size();
   if (len > size) {
-    ESP_LOGW("OT SRP", "Hostname is too long, choose a shorter project name");
+    ESP_LOGW(TAG, "Hostname is too long, choose a shorter project name");
     return;
   }
   memcpy(existing_host_name, this->host_name_.c_str(), len + 1);
 
   error = otSrpClientSetHostName(instance, existing_host_name);
   if (error != 0) {
-    ESP_LOGW("OT SRP", "Could not set host name with srp server");
+    ESP_LOGW(TAG, "Could not set host name with srp server");
     return;
   }
 
-  uint8_t arrayLength;
-  otIp6Address *hostAddressArray = otSrpClientBuffersGetHostAddressesArray(instance, &arrayLength);
-
-  const std::optional<otIp6Address> localIp = this->get_omr_address_(lock);
-  if (!localIp) {
-    ESP_LOGW("OT SRP", "Could not get local IP address");
-    return;
-  }
-  memcpy(hostAddressArray, &*localIp, sizeof(localIp));
-
-  error = otSrpClientSetHostAddresses(instance, hostAddressArray, 1);
+  error = otSrpClientEnableAutoHostAddress(instance);
   if (error != 0) {
-    ESP_LOGW("OT SRP", "Could not set ip address with srp server");
+    ESP_LOGW(TAG, "Could not enable auto host address");
     return;
   }
 
@@ -141,7 +124,7 @@ void OpenThreadComponent::srp_setup_() {
   for (const auto &service : this->mdns_services_) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
-      ESP_LOGW("OT SRP", "Failed to allocate service entry");
+      ESP_LOGW(TAG, "Failed to allocate service entry");
       continue;
     }
 
@@ -149,7 +132,7 @@ void OpenThreadComponent::srp_setup_() {
     char *string = otSrpClientBuffersGetServiceEntryServiceNameString(entry, &size);
     std::string full_service = service.service_type + "." + service.proto;
     if (full_service.size() > size) {
-      ESP_LOGW("OT SRP", "Service name too long: %s", full_service.c_str());
+      ESP_LOGW(TAG, "Service name too long: %s", full_service.c_str());
       continue;
     }
     memcpy(string, full_service.c_str(), full_service.size() + 1);
@@ -157,7 +140,7 @@ void OpenThreadComponent::srp_setup_() {
     // Set instance name (using host_name)
     string = otSrpClientBuffersGetServiceEntryInstanceNameString(entry, &size);
     if (this->host_name_.size() > size) {
-      ESP_LOGW("OT SRP", "Instance name too long: %s", this->host_name_.c_str());
+      ESP_LOGW(TAG, "Instance name too long: %s", this->host_name_.c_str());
       continue;
     }
     memcpy(string, this->host_name_.c_str(), this->host_name_.size() + 1);
@@ -181,7 +164,7 @@ void OpenThreadComponent::srp_setup_() {
     // Add service
     error = otSrpClientAddService(instance, &entry->mService);
     if (error != OT_ERROR_NONE) {
-      ESP_LOGW("OT SRP", "Failed to add service: %s", otThreadErrorToString(error));
+      ESP_LOGW(TAG, "Failed to add service: %s", otThreadErrorToString(error));
     }
   }
 

@@ -10,7 +10,7 @@ CODEOWNERS = ["@mrene"]
 AUTO_LOAD = ["network"]
 
 # Wi-fi / Bluetooth / Thread coexistence isn't implemented at this time
-# TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor)
+# TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 
