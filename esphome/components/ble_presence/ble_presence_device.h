@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/number/number.h"
 
 #ifdef USE_ESP32
 
@@ -46,9 +47,12 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     this->ibeacon_minor_ = minor;
   }
   void set_minimum_rssi(int rssi) {
+    set_minimum_rssi_(rssi);
     this->check_minimum_rssi_ = true;
-    this->minimum_rssi_ = rssi;
   }
+
+  void set_minimum_rssi_input(number::Number *min_rssi_number);
+
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     if (this->check_minimum_rssi_ && this->minimum_rssi_ > device.get_rssi()) {
@@ -108,6 +112,8 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
+  void set_minimum_rssi_(int rssi) { this->minimum_rssi_ = rssi; }
+
   void set_found_(bool state) {
     this->found_ = state;
     if (state)
