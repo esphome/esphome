@@ -75,7 +75,7 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
     return this->send_cmd_(cmd);
   }
 
-  template<typename P> bool get_prop(P &p) {
+  template<typename P> bool get_prop_(P &p) {
     ResGetProperty res;
     if (this->send_cmd_(CmdGetProperty(p.PROP), res)) {
       p.PROPD = ((uint16_t) res.PROPDH << 8) | res.PROPDL;
