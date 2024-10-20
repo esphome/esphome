@@ -65,13 +65,13 @@ class ByteBuffer {
   template<typename T>
   void put(const T &value, typename std::enable_if<std::is_integral<T>::value, T>::type * = 0,
            typename std::enable_if<(sizeof(T) <= sizeof(uint32_t)), T>::type * = 0) {
-    this->put_uint32_(value, sizeof(T));
+    this->put_uint32_(static_cast<uint32_t>(value), sizeof(T));
   }
 
   template<typename T>
   void put(const T &value, size_t offset, typename std::enable_if<std::is_integral<T>::value, T>::type * = 0,
            typename std::enable_if<(sizeof(T) <= sizeof(uint32_t)), T>::type * = 0) {
-    this->put_uint32_(value, offset, sizeof(T));
+    this->put_uint32_(static_cast<uint32_t>(value), offset, sizeof(T));
   }
 
   // integral types that do not fit into 32 bit (basically only 64 bit types)
@@ -88,9 +88,15 @@ class ByteBuffer {
   }
 
   template<typename T>
+  void put(const T &value, typename std::enable_if<std::is_integral<T>::value, T>::type * = 0,
+           typename std::enable_if<(sizeof(T) == sizeof(uint64_t)), T>::type * = 0) {
+    this->put_uint64_(value, sizeof(T));
+  }
+
+  template<typename T>
   void put(const T &value, size_t offset, typename std::enable_if<std::is_integral<T>::value, T>::type * = 0,
            typename std::enable_if<(sizeof(T) == sizeof(uint64_t)), T>::type * = 0) {
-    this->put_uint64_(value, offset, sizeof(T));
+    this->put_uint64_(static_cast<uint64_t>(value), offset, sizeof(T));
   }
 
   // floating point types. Caters for 32 and 64 bit floating point.
@@ -116,12 +122,6 @@ class ByteBuffer {
   T get(size_t offset, typename std::enable_if<std::is_floating_point<T>::value, T>::type * = 0,
         typename std::enable_if<(sizeof(T) == sizeof(uint64_t)), T>::type * = 0) {
     return bit_cast<T>(this->get_uint64_(offset, sizeof(T)));
-  }
-
-  template<typename T>
-  void put(const T &value, typename std::enable_if<std::is_integral<T>::value, T>::type * = 0,
-           typename std::enable_if<(sizeof(T) == sizeof(uint64_t)), T>::type * = 0) {
-    this->put_uint64_(value, sizeof(T));
   }
   template<typename T>
   void put(const T &value, typename std::enable_if<std::is_floating_point<T>::value, T>::type * = 0,
@@ -183,9 +183,9 @@ class ByteBuffer {
   int32_t get_int32() { return this->get<int32_t>(); }
   int64_t get_int64() { return this->get<int64_t>(); }
   // Get a float value, increment by 4
-  float get_float() { return bit_cast<float>(this->get<uint32_t>()); }
+  float get_float() { return this->get<float>(); }
   // Get a double value, increment by 8
-  double get_double() { return bit_cast<double>(this->get<uint64_t>()); }
+  double get_double() { return this->get<double>(); }
 
   // Get a bool value, increment by 1
   bool get_bool() { return static_cast<bool>(this->get_uint8()); }
@@ -220,13 +220,13 @@ class ByteBuffer {
   // put any integral value, length represents the number of bytes
   void put_uint8(uint8_t value) { this->data_[this->position_++] = value; }
   void put_uint16(uint16_t value) { this->put(value); }
-  void put_uint24(uint32_t value) { this->put(value); }
+  void put_uint24(uint32_t value) { this->put_uint32_(value, 3); }
   void put_uint32(uint32_t value) { this->put(value); }
   void put_uint64(uint64_t value) { this->put(value); }
   // Signed versions of the put functions
   void put_int8(int8_t value) { this->put_uint8(static_cast<uint8_t>(value)); }
-  void put_int16(int32_t value) { this->put(value); }
-  void put_int24(int32_t value) { this->put(value); }
+  void put_int16(int16_t value) { this->put(value); }
+  void put_int24(int32_t value) { this->put_uint32_(value, 3); }
   void put_int32(int32_t value) { this->put(value); }
   void put_int64(int64_t value) { this->put(value); }
   // Extra put functions
@@ -258,13 +258,13 @@ class ByteBuffer {
 
   void put_uint8(uint8_t value, size_t offset) { this->data_[offset] = value; }
   void put_uint16(uint16_t value, size_t offset) { this->put(value, offset); }
-  void put_uint24(uint32_t value, size_t offset) { this->put(value, offset); }
+  void put_uint24(uint32_t value, size_t offset) { this->put_uint32_(value, offset, 3); }
   void put_uint32(uint32_t value, size_t offset) { this->put(value, offset); }
   void put_uint64(uint64_t value, size_t offset) { this->put(value, offset); }
   // Signed versions of the put functions
   void put_int8(int8_t value, size_t offset) { this->put_uint8(static_cast<uint8_t>(value), offset); }
-  void put_int16(int32_t value, size_t offset) { this->put(value, offset); }
-  void put_int24(int32_t value, size_t offset) { this->put(value, offset); }
+  void put_int16(int16_t value, size_t offset) { this->put(value, offset); }
+  void put_int24(int32_t value, size_t offset) { this->put_uint32_(value, offset, 3); }
   void put_int32(int32_t value, size_t offset) { this->put(value, offset); }
   void put_int64(int64_t value, size_t offset) { this->put(value, offset); }
   // Extra put functions
