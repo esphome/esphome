@@ -210,7 +210,6 @@ bool APIServerConnectionBase::send_list_entities_services_response(const ListEnt
 #endif
   return this->send_message_<ListEntitiesServicesResponse>(msg, 41);
 }
-
 #ifdef USE_CAMERA
 bool APIServerConnectionBase::send_list_entities_camera_response(const ListEntitiesCameraResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -226,6 +225,8 @@ bool APIServerConnectionBase::send_camera_image_response(const CameraImageRespon
 #endif
   return this->send_message_<CameraImageResponse>(msg, 44);
 }
+#endif
+#ifdef USE_CAMERA
 #endif
 #ifdef USE_CLIMATE
 bool APIServerConnectionBase::send_list_entities_climate_response(const ListEntitiesClimateResponse &msg) {
