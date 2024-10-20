@@ -242,7 +242,7 @@ class ByteBuffer {
   // Get a 16 bit unsigned value, increment by 2
   uint16_t get_uint16(size_t offset) { return get<uint16_t>(offset); }
   // Get a 24 bit unsigned value, increment by 3
-  uint32_t get_uint32(size_t offset) { return this->get_uint32_(offset, sizeof(uint32_t)); };
+  uint32_t get_uint32(size_t offset) { return this->get<uint32_t>(offset); };
   // Get a 64 bit unsigned value, increment by 8
   uint8_t get_int8(size_t offset) { return get<int8_t>(offset); }
   int16_t get_int16(size_t offset) { return get<int16_t>(offset); }
