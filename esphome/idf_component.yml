@@ -1,4 +1,39 @@
 dependencies:
+  ##### ESP-ADF #####
+  audio_board:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_board
+  audio_hal:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_hal
+  audio_pipeline:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_pipeline
+  audio_recorder:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_recorder
+  audio_sal:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_sal
+  audio_stream:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_stream
+  esp-adf-libs:
+    git: https://github.com/espressif/esp-adf-libs.git
+    version: 4534b324c93cbf1d07b11ff8a236b3064d9634d0 # Submodule references in esp-adf
+  esp-dsp:
+    git: https://github.com/espressif/esp-dsp.git
+    version: v1.2.0
+  esp-sr:
+    git: https://github.com/espressif/esp-sr.git
+    version: 36ec4242d08f68b38f39cfc80b6057bc9d6c0269 # Submodule references in esp-adf
+  #### END ESP-ADF ####
   esp-tflite-micro:
     git: https://github.com/espressif/esp-tflite-micro.git
     version: v1.3.1
