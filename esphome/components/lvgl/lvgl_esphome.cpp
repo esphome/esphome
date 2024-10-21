@@ -84,6 +84,7 @@ lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LVGL:");
+  ESP_LOGCONFIG(TAG, "  Display width/height: %d x %d", this->disp_drv_.hor_res, this->disp_drv_.ver_res);
   ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation);
   ESP_LOGCONFIG(TAG, "  Draw rounding: %d", (int) this->draw_rounding);
 }
@@ -426,19 +427,8 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
   this->disp_drv_.full_refresh = this->full_refresh_;
   this->disp_drv_.flush_cb = static_flush_cb;
   this->disp_drv_.rounder_cb = rounder_cb;
-  // reset the display rotation since we will handle all rotations
-  display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
-  switch (this->rotation) {
-    default:
-      this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
-      this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
-      break;
-    case display::DISPLAY_ROTATION_90_DEGREES:
-    case display::DISPLAY_ROTATION_270_DEGREES:
-      this->disp_drv_.ver_res = (lv_coord_t) display->get_width();
-      this->disp_drv_.hor_res = (lv_coord_t) display->get_height();
-      break;
-  }
+  this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
+  this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
 }
 
@@ -459,6 +449,9 @@ void LvglComponent::setup() {
     esp_log_printf_(LVGL_LOG_LEVEL, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
+  // Rotation will be handled by our drawing function, so reset the display rotation.
+  for (auto *display : this->displays_)
+    display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
   ESP_LOGCONFIG(TAG, "LVGL Setup complete");

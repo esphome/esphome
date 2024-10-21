@@ -91,7 +91,8 @@ struct Configuration {
 
 class VoiceAssistant : public Component {
  public:
-  void setup() override;
+  VoiceAssistant();
+
   void loop() override;
   float get_setup_priority() const override;
   void start_streaming();

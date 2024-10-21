@@ -318,6 +318,8 @@ async def add_includes(includes):
 async def _add_platformio_options(pio_options):
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
+        if key == "build_flags" and not isinstance(val, list):
+            val = [val]
         cg.add_platformio_option(key, val)
 
 

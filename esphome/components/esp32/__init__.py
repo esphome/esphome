@@ -395,6 +395,13 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
             cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+            cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                {
+                    cv.Optional(
+                        CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
+                    ): cv.boolean,
+                }
+            ),
         }
     ),
     _arduino_check_versions,
@@ -494,6 +501,9 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
+    if CONF_ADVANCED in conf and conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
+        cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
+
     add_extra_script(
         "post",
         "post_build.py",
@@ -540,8 +550,6 @@ async def to_code(config):
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
-        if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
-            cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
         if conf[CONF_ADVANCED].get(CONF_IGNORE_EFUSE_MAC_CRC):
             add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
             if (framework_ver.major, framework_ver.minor) >= (4, 4):
