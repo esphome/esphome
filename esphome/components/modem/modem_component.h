@@ -39,8 +39,8 @@ enum class ModemComponentState {
 };
 
 struct ModemComponentStateTiming {
-  int poll_period;
-  int time_limit;
+  uint poll_period;
+  uint time_limit;
   ModemComponentStateTiming() : poll_period(0), time_limit(0) {}
   ModemComponentStateTiming(int poll_period, int time_limit) : poll_period(poll_period), time_limit(time_limit) {}
 };

@@ -74,7 +74,6 @@ void ModemComponent::setup() {
 }
 
 void ModemComponent::loop() {
-  const int now = millis();
   if (!ModemComponent::check_modem_component_state_timings_()) {
     return;
   }
