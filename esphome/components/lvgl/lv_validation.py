@@ -46,7 +46,7 @@ def opacity_validator(value):
     return value
 
 
-opacity = LValidator(opacity_validator, uint32, retmapper=literal)
+opacity = LValidator(opacity_validator, uint32, retmapper=literal, animatable=True)
 
 COLOR_NAMES = {
     "aliceblue": 0xF0F8FF,
@@ -235,7 +235,7 @@ def option_string(value):
     return value
 
 
-lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
+lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper, animatable=True)
 
 
 def pixels_or_percent_validator(value):
@@ -250,7 +250,7 @@ def pixels_or_percent_validator(value):
     return f"lv_pct({int(value * 100)})"
 
 
-pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
+pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal, animatable=True)
 
 
 def zoom(value):
@@ -290,7 +290,7 @@ def pixels_validator(value):
     return cv.int_(value)
 
 
-pixels = LValidator(pixels_validator, uint32, retmapper=literal)
+pixels = LValidator(pixels_validator, uint32, retmapper=literal, animatable=True)
 
 radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 
@@ -402,9 +402,9 @@ class TextValidator(LValidator):
 
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
-lv_int = LValidator(cv.int_, cg.int_)
-lv_positive_int = LValidator(cv.positive_int, cg.int_)
-lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
+lv_int = LValidator(cv.int_, cg.int_, animatable=True)
+lv_positive_int = LValidator(cv.positive_int, cg.int_, animatable=True)
+lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255), animatable=True)
 
 
 def gradient_mapper(value):

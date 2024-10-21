@@ -118,6 +118,7 @@ void lv_animimg_stop(lv_obj_t *obj);
 
 class LvglLooper {
  public:
+  virtual ~LvglLooper() = default;
   virtual void update() = 0;
 };
 

@@ -21,6 +21,7 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
+from .animation import ANIMATION_SCHEMA, animations_to_code
 from .automation import disp_update, focused_widgets, update_to_code
 from .defines import add_define
 from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
@@ -276,6 +277,7 @@ async def to_code(config):
         await add_pages(lv_component, config)
         await add_top_layer(lv_component, config)
         await msgboxes_to_code(lv_component, config)
+        await animations_to_code(config)
         await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
     Widget.widgets_completed = True
@@ -375,6 +377,7 @@ CONFIG_SCHEMA = (
                 container_schema(page_spec)
             ),
             cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_ANIMATIONS): cv.ensure_list(ANIMATION_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,

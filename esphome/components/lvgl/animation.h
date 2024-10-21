@@ -7,8 +7,8 @@
 #include "esphome/core/hal.h"
 #include <functional>
 
-namespace esphome {
-namespace lvgl {
+
+namespace esphome::lvgl {
 
 static const char *const TAG = "lvgl.animation";
 
@@ -18,15 +18,23 @@ enum class AnimationState {
   RUNNING,
 };
 
-template<size_t DATA_SIZE> class LvglAnimation : public Parented<LvglComponent>, public LvglLooper {
+template<size_t DATA_SIZE> class LvAnimation : public Parented<LvglComponent>, public LvglLooper {
  public:
-  LvglAnimation(std::function<void(float data[DATA_SIZE])> update_callback)
-      : update_callback_(std::move(update_callback)) {}
+  LvAnimation(
+      std::function<void(uint32_t data[DATA_SIZE])> update_callback,
+      TemplatableValue<float> from[DATA_SIZE],
+      TemplatableValue<float> to[DATA_SIZE])
+      : update_callback_(std::move(update_callback)), from_(from), to_(to) {}
 
   void start() {
     if (this->duration_ == 0) {
       this->state_ = AnimationState::STOPPED;
       return;
+    }
+    // evaluate any lambdas
+    for (size_t i = 0; i != DATA_SIZE; i++) {
+      this->data_from_[i] = this->from_[i].value();
+      this->data_to_[i] = this->to_[i].value();
     }
     this->start_time_ = esphome::millis();
     if (this->state_ == AnimationState::STOPPED)
@@ -37,7 +45,7 @@ template<size_t DATA_SIZE> class LvglAnimation : public Parented<LvglComponent>,
 
   void stop() { this->state_ = AnimationState::STOPPED; }
 
-  void update() {
+  void update() override {
     uint32_t elapsed = esphome::millis() - this->start_time_;
     switch (this->state_) {
       case AnimationState::STARTED:
@@ -57,9 +65,9 @@ template<size_t DATA_SIZE> class LvglAnimation : public Parented<LvglComponent>,
     float progress = static_cast<float>(elapsed) / static_cast<float>(this->duration_);
     if (progress > 1.0f)
       progress = 1.0f;
-    float data[DATA_SIZE];
+    uint32_t data[DATA_SIZE];
     for (size_t i = 0; i < DATA_SIZE; i++)
-      data[i] = this->data_from_[i] + (this->data_to_[i] - this->data_from_[i]) * progress;
+      data[i] = static_cast<uint32_t>(roundf(this->data_from_[i] + (this->data_to_[i] - this->data_from_[i]) * progress));
     this->update_callback_(data);
   }
 
@@ -67,7 +75,9 @@ template<size_t DATA_SIZE> class LvglAnimation : public Parented<LvglComponent>,
   void set_start_delay(uint32_t start_delay) { this->start_delay_ = start_delay; }
 
  protected:
-  std::function<void(float data[DATA_SIZE])> update_callback_;
+  std::function<void(uint32_t data[DATA_SIZE])> update_callback_;
+  TemplatableValue<float> from_[DATA_SIZE]{};
+  TemplatableValue<float> to_[DATA_SIZE]{};
   uint32_t duration_{0};
   uint32_t start_delay_{0};
   uint32_t start_time_{0};
@@ -76,6 +86,6 @@ template<size_t DATA_SIZE> class LvglAnimation : public Parented<LvglComponent>,
   AnimationState state_{AnimationState::STOPPED};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+} // namespace esphome::lvgl
+
 #endif

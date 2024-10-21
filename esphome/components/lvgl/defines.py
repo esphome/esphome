@@ -47,11 +47,12 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype, retmapper=None, requires=None):
+    def __init__(self, validator, rtype, retmapper=None, requires=None, animatable=False):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
         self.requires = requires
+        self.animatable = animatable
 
     def __call__(self, value):
         if self.requires:
@@ -385,6 +386,7 @@ CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
 CONF_ANIMATED = "animated"
 CONF_ANIMATION = "animation"
+CONF_ANIMATIONS = "animations"
 CONF_ANTIALIAS = "antialias"
 CONF_ARC_LENGTH = "arc_length"
 CONF_AUTO_START = "auto_start"
