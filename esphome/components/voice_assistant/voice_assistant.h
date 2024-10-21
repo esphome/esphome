@@ -93,7 +93,6 @@ class VoiceAssistant : public Component {
  public:
   VoiceAssistant();
 
-  void setup() override;
   void loop() override;
   float get_setup_priority() const override;
   void start_streaming();
@@ -147,7 +146,7 @@ class VoiceAssistant : public Component {
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
-  void on_set_configuration(const std::vector<std::string> &active_wake_words){};
+  void on_set_configuration(const std::vector<std::string> &active_wake_words) {};
   const Configuration &get_configuration() { return this->config_; };
 
   bool is_running() const { return this->state_ != State::IDLE; }
