@@ -163,6 +163,15 @@ bool WaveshareEPaperBase::wait_until_idle_() {
   }
   return true;
 }
+
+void WaveshareEPaperBase::wait_until_idle_async_(const std::function<void()> &&f) {
+  if (this->busy_pin_ == nullptr || !this->busy_pin_->digital_read()) {
+    return f();
+  }
+
+  this->set_timeout(20, [this, f] { this->wait_until_idle_async_(std::move(f)); });
+}
+
 void WaveshareEPaperBase::update() {
   this->do_update_();
   this->display();
