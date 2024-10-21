@@ -16,7 +16,7 @@ from .const import KEY_HOST
 from .gpio import host_pin_to_code  # noqa
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
-AUTO_LOAD = ["network"]
+AUTO_LOAD = ["network", "preferences"]
 
 
 def set_core_data(config):
