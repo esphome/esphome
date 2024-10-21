@@ -11,7 +11,7 @@ sx127x:
   pa_power: 17
   frequency: 433920000
   modulation: OOK
-  shaping: NO_SHAPING
+  shaping: NONE
   rx_start: true
   rx_bandwidth: 50_0kHz
   rx_floor: -90
