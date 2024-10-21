@@ -593,6 +593,8 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+        # not supported in Arduino (yet)...
+        cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
 
 APP_PARTITION_SIZES = {
