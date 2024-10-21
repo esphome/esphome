@@ -28,7 +28,7 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
 
   void start() {
     if (this->state_ >= AnimationState::STOPPED)
-      this->state_ = AnimationState::STOPPED;
+      this->stop();
     if (this->duration_ == 0)
       return;
     // evaluate any lambdas
@@ -68,8 +68,8 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
 
     uint32_t data[DATA_SIZE];
     for (size_t i = 0; i < DATA_SIZE; i++) {
-      data[i] = static_cast<uint32_t>(
-          roundf(this->data_from_[i] + (int32_t) (this->data_to_[i] - this->data_from_[i]) * progress));
+      data[i] =
+          (uint32_t) (roundf(this->data_from_[i] + (int32_t) (this->data_to_[i] - this->data_from_[i]) * progress));
     }
     this->update_callback_(data);
   }

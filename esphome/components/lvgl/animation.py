@@ -8,16 +8,22 @@ from esphome.components.lvgl.defines import (
 )
 from esphome.components.lvgl.lvcode import LambdaContext, LvglComponent
 from esphome.components.lvgl.schemas import STYLE_PROPS
-from esphome.components.lvgl.types import LvAnimation, LvglAction, lv_obj_t
+from esphome.components.lvgl.types import LvAnimation, LvglAction, lv_color_t, lv_obj_t
 from esphome.config_validation import COMPONENT_SCHEMA
 from esphome.const import CONF_DURATION, CONF_FROM, CONF_ID, CONF_TO
 from esphome.cpp_generator import TemplateArguments
 
 from .defines import CONF_LVGL_ID
+from .lv_validation import color, get_component_colors, lv_color
 from .lvcode import LVGL_COMP_ARG
 from .widgets import get_widgets
 
 CONF_START_DELAY = "start_delay"
+
+
+literal_color = LValidator(
+    color, lv_color_t, retmapper=get_component_colors, animatable=True
+)
 
 
 def from_to(validator):
@@ -29,8 +35,15 @@ def from_to(validator):
     )
 
 
+# Colors can only be animated between constants, not lambdas.
+def map_v(validator):
+    if validator == lv_color:
+        return literal_color
+    return validator
+
+
 ANIMABLE_STYLES = {
-    k: from_to(v)
+    k: map_v(v)
     for k, v in STYLE_PROPS.items()
     if isinstance(v, LValidator) and v.animatable
 }
@@ -49,15 +62,26 @@ ANIMATION_SCHEMA = ANIMATION_CONFIG.extend(
                 {
                     cv.Required(CONF_ID): cv.use_id(lv_obj_t),
                 }
-            ).extend({cv.Optional(k): v for k, v in ANIMABLE_STYLES.items()})
+            ).extend({cv.Optional(k): from_to(v) for k, v in ANIMABLE_STYLES.items()})
         ),
     }
 ).extend(COMPONENT_SCHEMA)
 
 
-async def process_arg(prop, arg):
-    value = await STYLE_PROPS[prop].process(arg)
-    return literal(f"TemplatableValue<uint32_t>({value})")
+async def process_arg(validator, arg) -> list:
+    if validator == literal_color:
+        value = get_component_colors(arg)
+    else:
+        value = [await validator.process(arg, raw_lambda=True)]
+    return [literal(f"TemplatableValue<uint32_t>({v})") for v in value]
+
+
+def process_value(validator, index):
+    if validator != literal_color:
+        return literal(f"values[{index}]")
+    return literal(
+        f"lv_color_make(values[{index}+0], values[{index}+1], values[{index}+2])"
+    )
 
 
 async def animations_to_code(config):
@@ -75,12 +99,12 @@ async def animations_to_code(config):
                 props = [
                     (k, v) for k, v in widget.items() if k in ANIMABLE_STYLES.keys()
                 ]
-                for prop in props:
-                    validator = STYLE_PROPS[prop[0]]
-                    value = literal(validator.from_int(f"values[{len(froms)}]"))
-                    w.set_style(prop[0], value, 0)
-                    froms.append(await process_arg(prop[0], prop[1][CONF_FROM]))
-                    tos.append(await process_arg(prop[0], prop[1][CONF_TO]))
+                for prop, limits in props:
+                    validator = ANIMABLE_STYLES[prop]
+                    value = process_value(validator, len(froms))
+                    w.set_style(prop, value, 0)
+                    froms.extend(await process_arg(validator, limits[CONF_FROM]))
+                    tos.extend(await process_arg(validator, limits[CONF_TO]))
 
         data_size = len(froms)
         var = cg.new_Pvariable(

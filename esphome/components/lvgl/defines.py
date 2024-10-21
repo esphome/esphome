@@ -63,21 +63,17 @@ class LValidator:
             return cv.returning_lambda(value)
         return self.validator(value)
 
-    async def process(self, value, args=()):
+    async def process(self, value, args=(), raw_lambda=False):
         if value is None:
             return None
         if isinstance(value, Lambda):
-            return cg.RawExpression(
-                call_lambda(
-                    await cg.process_lambda(value, args, return_type=self.rtype)
-                )
-            )
+            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
+            if raw_lambda:
+                return lamb
+            return cg.RawExpression(call_lambda(lamb))
         if self.retmapper is not None:
             return self.retmapper(value)
         return cg.safe_exp(value)
-
-    def from_int(self, value):
-        return value
 
 
 class LvConstant(LValidator):

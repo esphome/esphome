@@ -209,31 +209,29 @@ def color(value):
     )
 
 
-def color_retmapper(value):
-    if isinstance(value, cv.Lambda):
-        return cv.returning_lambda(value)
+def get_component_colors(value):
     if isinstance(value, str) and value in COLOR_NAMES:
         value = COLOR_NAMES[value]
     if isinstance(value, int):
-        return literal(
-            f"lv_color_make({(value >> 16) & 0xFF}, {(value >> 8) & 0xFF}, {value & 0xFF})"
-        )
+        return value >> 16, value >> 8 & 0xFF, value & 0xFF
     if isinstance(value, ID):
         cval = [x for x in CORE.config[CONF_COLOR] if x[CONF_ID] == value][0]
         if CONF_HEX in cval:
             r, g, b = cval[CONF_HEX]
         else:
             r, g, b, _ = from_rgbw(cval)
-        return literal(f"lv_color_make({r}, {g}, {b})")
+        return r, g, b
     assert False
 
 
-def color_from_int(value):
-    return literal(f"lv_color_hex({value})")
+def color_retmapper(value):
+    if isinstance(value, cv.Lambda):
+        return cv.returning_lambda(value)
+    r, g, b = get_component_colors(value)
+    return literal(f"lv_color_make({r}, {g}, {b})")
 
 
 lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper, animatable=True)
-lv_color.from_int = color_from_int
 
 
 def option_string(value):
@@ -370,7 +368,7 @@ class TextValidator(LValidator):
             return value
         return super().__call__(value)
 
-    async def process(self, value, args=()):
+    async def process(self, value, args=(), raw_lambda=False):
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
                 args = [str(x) for x in value[CONF_ARGS]]
@@ -453,7 +451,7 @@ class LvFont(LValidator):
 
         super().__init__(validator, lv_font_t)
 
-    async def process(self, value, args=()):
+    async def process(self, value, args=(), raw_lambda=False):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
         return literal(f"{value}_engine->get_lv_font()")
