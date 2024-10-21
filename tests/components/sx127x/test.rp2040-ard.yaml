@@ -1,0 +1,19 @@
+spi:
+  clk_pin: 2
+  mosi_pin: 3
+  miso_pin: 4
+
+sx127x:
+  id: sx127x_id
+  nss_pin: 5
+  rst_pin: 6
+  pa_pin: BOOST
+  pa_power: 17
+  frequency: 433920000
+  modulation: OOK
+  shaping: NONE
+  rx_start: true
+  rx_bandwidth: 50_0kHz
+  rx_floor: -90
+  fsk_fdev: 5000
+  fsk_ramp: 40us
