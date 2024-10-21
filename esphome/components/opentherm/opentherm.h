@@ -20,7 +20,6 @@
 namespace esphome {
 namespace opentherm {
 
-// TODO: Account for immutable semantics change in hub.cpp when doing later installments of OpenTherm PR
 template<class T> constexpr T read_bit(T value, uint8_t bit) { return (value >> bit) & 0x01; }
 
 template<class T> constexpr T set_bit(T value, uint8_t bit) { return value |= (1UL << bit); }
@@ -28,7 +27,7 @@ template<class T> constexpr T set_bit(T value, uint8_t bit) { return value |= (1
 template<class T> constexpr T clear_bit(T value, uint8_t bit) { return value &= ~(1UL << bit); }
 
 template<class T> constexpr T write_bit(T value, uint8_t bit, uint8_t bit_value) {
-  return bit_value ? setBit(value, bit) : clearBit(value, bit);
+  return bit_value ? set_bit(value, bit) : clear_bit(value, bit);
 }
 
 enum OperationMode {

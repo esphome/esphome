@@ -7,50 +7,114 @@ namespace esphome {
 namespace opentherm {
 
 static const char *const TAG = "opentherm";
+namespace message_data {
+bool parse_flag8_lb_0(OpenthermData &data) { return read_bit(data.valueLB, 0); }
+bool parse_flag8_lb_1(OpenthermData &data) { return read_bit(data.valueLB, 1); }
+bool parse_flag8_lb_2(OpenthermData &data) { return read_bit(data.valueLB, 2); }
+bool parse_flag8_lb_3(OpenthermData &data) { return read_bit(data.valueLB, 3); }
+bool parse_flag8_lb_4(OpenthermData &data) { return read_bit(data.valueLB, 4); }
+bool parse_flag8_lb_5(OpenthermData &data) { return read_bit(data.valueLB, 5); }
+bool parse_flag8_lb_6(OpenthermData &data) { return read_bit(data.valueLB, 6); }
+bool parse_flag8_lb_7(OpenthermData &data) { return read_bit(data.valueLB, 7); }
+bool parse_flag8_hb_0(OpenthermData &data) { return read_bit(data.valueHB, 0); }
+bool parse_flag8_hb_1(OpenthermData &data) { return read_bit(data.valueHB, 1); }
+bool parse_flag8_hb_2(OpenthermData &data) { return read_bit(data.valueHB, 2); }
+bool parse_flag8_hb_3(OpenthermData &data) { return read_bit(data.valueHB, 3); }
+bool parse_flag8_hb_4(OpenthermData &data) { return read_bit(data.valueHB, 4); }
+bool parse_flag8_hb_5(OpenthermData &data) { return read_bit(data.valueHB, 5); }
+bool parse_flag8_hb_6(OpenthermData &data) { return read_bit(data.valueHB, 6); }
+bool parse_flag8_hb_7(OpenthermData &data) { return read_bit(data.valueHB, 7); }
+uint8_t parse_u8_lb(OpenthermData &data) { return data.valueLB; }
+uint8_t parse_u8_hb(OpenthermData &data) { return data.valueHB; }
+int8_t parse_s8_lb(OpenthermData &data) { return (int8_t) data.valueLB; }
+int8_t parse_s8_hb(OpenthermData &data) { return (int8_t) data.valueHB; }
+uint16_t parse_u16(OpenthermData &data) { return data.u16(); }
+int16_t parse_s16(OpenthermData &data) { return data.s16(); }
+float parse_f88(OpenthermData &data) { return data.f88(); }
 
-OpenthermData OpenthermHub::build_request_(MessageId request_id) {
+void write_flag8_lb_0(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 0, value); }
+void write_flag8_lb_1(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 1, value); }
+void write_flag8_lb_2(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 2, value); }
+void write_flag8_lb_3(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 3, value); }
+void write_flag8_lb_4(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 4, value); }
+void write_flag8_lb_5(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 5, value); }
+void write_flag8_lb_6(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 6, value); }
+void write_flag8_lb_7(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 7, value); }
+void write_flag8_hb_0(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 0, value); }
+void write_flag8_hb_1(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 1, value); }
+void write_flag8_hb_2(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 2, value); }
+void write_flag8_hb_3(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 3, value); }
+void write_flag8_hb_4(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 4, value); }
+void write_flag8_hb_5(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 5, value); }
+void write_flag8_hb_6(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 6, value); }
+void write_flag8_hb_7(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 7, value); }
+void write_u8_lb(const uint8_t value, OpenthermData &data) { data.valueLB = value; }
+void write_u8_hb(const uint8_t value, OpenthermData &data) { data.valueHB = value; }
+void write_s8_lb(const int8_t value, OpenthermData &data) { data.valueLB = (uint8_t) value; }
+void write_s8_hb(const int8_t value, OpenthermData &data) { data.valueHB = (uint8_t) value; }
+void write_u16(const uint16_t value, OpenthermData &data) { data.u16(value); }
+void write_s16(const int16_t value, OpenthermData &data) { data.s16(value); }
+void write_f88(const float value, OpenthermData &data) { data.f88(value); }
+
+}  // namespace message_data
+
+OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
   OpenthermData data;
   data.type = 0;
   data.id = 0;
   data.valueHB = 0;
   data.valueLB = 0;
 
-  // First, handle the status request. This requires special logic, because we
-  // wouldn't want to inadvertently disable domestic hot water, for example.
-  // It is also included in the macro-generated code below, but that will
-  // never be executed, because we short-circuit it here.
+  // We need this special logic for STATUS message because we have two options for specifying boiler modes:
+  // with static config values in the hub, or with separate switches.
   if (request_id == MessageId::STATUS) {
-    bool const ch_enabled = this->ch_enable;
-    bool dhw_enabled = this->dhw_enable;
-    bool cooling_enabled = this->cooling_enable;
-    bool otc_enabled = this->otc_active;
-    bool ch2_enabled = this->ch2_active;
+    // NOLINTBEGIN
+    bool const ch_enabled = this->ch_enable && OPENTHERM_READ_ch_enable && OPENTHERM_READ_t_set > 0.0;
+    bool const dhw_enabled = this->dhw_enable && OPENTHERM_READ_dhw_enable;
+    bool const cooling_enabled =
+        this->cooling_enable && OPENTHERM_READ_cooling_enable && OPENTHERM_READ_cooling_control > 0.0;
+    bool const otc_enabled = this->otc_active && OPENTHERM_READ_otc_active;
+    bool const ch2_enabled = this->ch2_active && OPENTHERM_READ_ch2_active && OPENTHERM_READ_t_set_ch2 > 0.0;
+    bool const summer_mode_is_active = this->summer_mode_active && OPENTHERM_READ_summer_mode_active;
+    bool const dhw_blocked = this->dhw_block && OPENTHERM_READ_dhw_block;
+    // NOLINTEND
 
     data.type = MessageType::READ_DATA;
     data.id = MessageId::STATUS;
-    data.valueHB = ch_enabled | (dhw_enabled << 1) | (cooling_enabled << 2) | (otc_enabled << 3) | (ch2_enabled << 4);
+    data.valueHB = ch_enabled | (dhw_enabled << 1) | (cooling_enabled << 2) | (otc_enabled << 3) | (ch2_enabled << 4) |
+                   (summer_mode_is_active << 5) | (dhw_blocked << 6);
+
+    return data;
+  }
 
 // Disable incomplete switch statement warnings, because the cases in each
 // switch are generated based on the configured sensors and inputs.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch"
 
-    // TODO: This is a placeholder for an auto-generated switch statement which builds request structure based on
-    // which sensors are enabled in config.
+  switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , ) }
 
 #pragma GCC diagnostic pop
 
-    return data;
-  }
-  return OpenthermData();
+  // And if we get here, a message was requested which somehow wasn't handled.
+  // This shouldn't happen due to the way the defines are configured, so we
+  // log an error and just return a 0 message.
+  ESP_LOGE(TAG, "Tried to create a request with unknown id %d. This should never happen, so please open an issue.",
+           request_id);
+  return {};
 }
 
-OpenthermHub::OpenthermHub() : Component() {}
+OpenthermHub::OpenthermHub() : Component(), in_pin_{}, out_pin_{} {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
   ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s)", data.id,
            this->opentherm_->message_id_to_str((MessageId) data.id));
   ESP_LOGD(TAG, "%s", this->opentherm_->debug_data(data).c_str());
+
+  switch (data.id) {
+    OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
+                                      OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
+  }
 }
 
 void OpenthermHub::setup() {
@@ -254,15 +318,17 @@ void OpenthermHub::handle_timeout_error_() {
   this->stop_opentherm_();
 }
 
-#define ID(x) x
-#define SHOW2(x) #x
-#define SHOW(x) SHOW2(x)
-
 void OpenthermHub::dump_config() {
   ESP_LOGCONFIG(TAG, "OpenTherm:");
   LOG_PIN("  In: ", this->in_pin_);
   LOG_PIN("  Out: ", this->out_pin_);
   ESP_LOGCONFIG(TAG, "  Sync mode: %d", this->sync_mode_);
+  ESP_LOGCONFIG(TAG, "  Sensors: %s", SHOW(OPENTHERM_SENSOR_LIST(ID, )));
+  ESP_LOGCONFIG(TAG, "  Binary sensors: %s", SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )));
+  ESP_LOGCONFIG(TAG, "  Switches: %s", SHOW(OPENTHERM_SWITCH_LIST(ID, )));
+  ESP_LOGCONFIG(TAG, "  Input sensors: %s", SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )));
+  ESP_LOGCONFIG(TAG, "  Outputs: %s", SHOW(OPENTHERM_OUTPUT_LIST(ID, )));
+  ESP_LOGCONFIG(TAG, "  Numbers: %s", SHOW(OPENTHERM_NUMBER_LIST(ID, )));
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : this->initial_messages_) {
     ESP_LOGCONFIG(TAG, "  - %d", type);
