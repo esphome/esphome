@@ -2,13 +2,12 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID
-from esphome.cpp_generator import MockObj
 
 from ..automation import action_to_code
 from ..defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
 from ..helpers import lvgl_components_required
 from ..lv_validation import lv_image, lv_milliseconds
-from ..lvcode import lv, lv_expr
+from ..lvcode import lv
 from ..types import LvType, ObjUpdateAction, void_ptr
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
@@ -63,7 +62,7 @@ class AnimimgType(WidgetType):
         if CONF_SRC in config:
             for x in config[CONF_SRC]:
                 await cg.get_variable(x)
-            srcs = [lv_expr.img_from(MockObj(x)) for x in config[CONF_SRC]]
+            srcs = [await lv_image.process(x) for x in config[CONF_SRC]]
             src_id = cg.static_const_array(config[CONF_SRC_LIST_ID], srcs)
             count = len(config[CONF_SRC])
             lv.animimg_set_src(w.obj, src_id, count)
@@ -73,7 +72,7 @@ class AnimimgType(WidgetType):
             lv.animimg_start(w.obj)
 
     def get_uses(self):
-        return CONF_IMAGE, CONF_LABEL
+        return "img", CONF_IMAGE, CONF_LABEL
 
 
 animimg_spec = AnimimgType()
