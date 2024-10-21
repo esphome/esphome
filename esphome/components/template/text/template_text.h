@@ -1,9 +1,11 @@
 #pragma once
 
+#include <esphome/components/text_sensor/text_sensor.h>
 #include "esphome/components/text/text.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "wrench.h"
 
 namespace esphome {
 namespace template_ {
@@ -72,15 +74,24 @@ class TemplateText : public text::Text, public PollingComponent {
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_initial_value(const std::string &initial_value) { this->initial_value_ = initial_value; }
   void set_value_saver(TemplateTextSaverBase *restore_value_saver) { this->pref_ = restore_value_saver; }
+  void set_dynamic(bool dynamic) { this->dynamic_ = dynamic; }
+  void set_lambda_result(text_sensor::TextSensor *lambda_result) { this->lambda_result_ = lambda_result; }
 
  protected:
   void control(const std::string &value) override;
   bool optimistic_ = false;
+  bool dynamic_ = true;
   std::string initial_value_;
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
   optional<std::function<optional<std::string>()>> f_{nullptr};
+  void execute_wrench(const std::string &value);
 
   TemplateTextSaverBase *pref_ = nullptr;
+  text_sensor::TextSensor *lambda_result_{nullptr};
+  // text_sensor::TextSensor *lambda_result_nullptr};
+  unsigned char *outBytes;  // compiled code is alloc'ed
+  int outLen;
+  WRState *w;
 };
 
 }  // namespace template_
