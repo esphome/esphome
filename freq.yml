@@ -1,0 +1,11 @@
+i2c:
+  sda: GPIO33
+  scl: GPIO25
+  frequency: 400kHz
+
+//Increase Buffer Size
+
+wk2168_i2c:
+  address: 0x70
+  id: wk2168_bridge_i2c
+  transfer_buffer_size: 256
