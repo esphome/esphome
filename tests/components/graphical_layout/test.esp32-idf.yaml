@@ -1,0 +1,9 @@
+substitutions:
+  spi_clk_pin: GPIO21
+  spi_mosi_pin: GPIO22
+  spi_most_pin: GPIO23
+  cs_pin: GPIO5
+  dc_pin: GPIO19
+  reset_pin: GPIO20
+
+<<: !include common.yaml

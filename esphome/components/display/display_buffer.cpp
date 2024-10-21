@@ -4,6 +4,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "point.h"
 
 namespace esphome {
 namespace display {
@@ -45,6 +46,11 @@ int DisplayBuffer::get_height() {
 }
 
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
+  // Convert (x, y) from the local coordinate system to the display absolute coordinate system
+  Point local_coord = this->get_local_coordinates();
+  x += local_coord.x;
+  y += local_coord.y;
+
   if (!this->get_clipping().inside(x, y))
     return;  // NOLINT
 
