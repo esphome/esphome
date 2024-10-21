@@ -1,0 +1,11 @@
+i2c:
+  - id: i2c_external_eeprom
+    sda: GPIO21
+    scl: GPIO22
+
+external_eeprom:
+  - id: ext_eeprom_component_1
+    address: 0x57
+    ee_memory_type: 24XX32
+    i2c_buffer_size: 128
+    i2c_id: i2c_external_eeprom
