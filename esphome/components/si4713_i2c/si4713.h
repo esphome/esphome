@@ -62,9 +62,7 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
 
   bool send_cmd_(const CmdBase *cmd, size_t cmd_size, ResBase *res, size_t res_size);
 
-  template<typename CMD> bool send_cmd_(const CMD &cmd) {
-    return this->send_cmd_(&cmd, sizeof(cmd), nullptr, 0);
-  }
+  template<typename CMD> bool send_cmd_(const CMD &cmd) { return this->send_cmd_(&cmd, sizeof(cmd), nullptr, 0); }
 
   template<typename CMD, typename RES> bool send_cmd_(CMD cmd, RES &res) {
     return this->send_cmd_(&cmd, sizeof(cmd), &res, sizeof(res));
