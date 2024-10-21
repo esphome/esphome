@@ -228,14 +228,19 @@ def color_retmapper(value):
     assert False
 
 
+def color_from_int(value):
+    return literal(f"lv_color_hex({value})")
+
+
+lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper, animatable=True)
+lv_color.from_int = color_from_int
+
+
 def option_string(value):
     value = cv.string(value).strip()
     if value.find("\n") != -1:
         raise cv.Invalid("Options strings must not contain newlines")
     return value
-
-
-lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper, animatable=True)
 
 
 def pixels_or_percent_validator(value):
@@ -250,7 +255,9 @@ def pixels_or_percent_validator(value):
     return f"lv_pct({int(value * 100)})"
 
 
-pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal, animatable=True)
+pixels_or_percent = LValidator(
+    pixels_or_percent_validator, uint32, retmapper=literal, animatable=True
+)
 
 
 def zoom(value):
@@ -404,7 +411,9 @@ lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
 lv_int = LValidator(cv.int_, cg.int_, animatable=True)
 lv_positive_int = LValidator(cv.positive_int, cg.int_, animatable=True)
-lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255), animatable=True)
+lv_brightness = LValidator(
+    cv.percentage, cg.float_, retmapper=lambda x: int(x * 255), animatable=True
+)
 
 
 def gradient_mapper(value):

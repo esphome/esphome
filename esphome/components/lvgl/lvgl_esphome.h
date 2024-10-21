@@ -116,12 +116,6 @@ class FontEngine {
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
 
-class LvglLooper {
- public:
-  virtual ~LvglLooper() = default;
-  virtual void update() = 0;
-};
-
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
@@ -175,9 +169,6 @@ class LvglComponent : public PollingComponent {
 
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
 
-  void add_looper(LvglLooper *looper) { this->loopers_.push_back(looper); }
-  void remove_looper(LvglLooper *looper) { this->loopers_.remove(looper); }
-
  protected:
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
@@ -201,7 +192,6 @@ class LvglComponent : public PollingComponent {
   CallbackManager<void(uint32_t)> idle_callbacks_{};
   CallbackManager<void(bool)> pause_callbacks_{};
   lv_color_t *rotate_buf_{};
-  std::list<LvglLooper *> loopers_{};
 };
 
 class IdleTrigger : public Trigger<> {

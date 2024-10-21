@@ -476,10 +476,6 @@ void LvglComponent::loop() {
     if (this->show_snow_)
       this->write_random_();
   }
-  for (auto looper : this->loopers_) {
-    looper->update();
-  }
-
   lv_timer_handler_run_in_period(5);
 }
 

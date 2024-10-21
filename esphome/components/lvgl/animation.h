@@ -7,7 +7,6 @@
 #include "esphome/core/hal.h"
 #include <functional>
 
-
 namespace esphome::lvgl {
 
 static const char *const TAG = "lvgl.animation";
@@ -18,56 +17,60 @@ enum class AnimationState {
   RUNNING,
 };
 
-template<size_t DATA_SIZE> class LvAnimation : public Parented<LvglComponent>, public LvglLooper {
+template<size_t DATA_SIZE> class LvAnimation : public Component {
  public:
-  LvAnimation(
-      std::function<void(uint32_t data[DATA_SIZE])> update_callback,
-      TemplatableValue<float> from[DATA_SIZE],
-      TemplatableValue<float> to[DATA_SIZE])
-      : update_callback_(std::move(update_callback)), from_(from), to_(to) {}
+  LvAnimation(std::function<void(const uint32_t *data)> update_callback, std::vector<TemplatableValue<uint32_t>> from,
+              std::vector<TemplatableValue<uint32_t>> to)
+      : update_callback_(std::move(update_callback)) {
+    std::copy(from.begin(), from.end(), this->from_);
+    std::copy(to.begin(), to.end(), this->to_);
+  }
 
   void start() {
-    if (this->duration_ == 0) {
+    if (this->state_ >= AnimationState::STOPPED)
       this->state_ = AnimationState::STOPPED;
+    if (this->duration_ == 0)
       return;
-    }
     // evaluate any lambdas
     for (size_t i = 0; i != DATA_SIZE; i++) {
       this->data_from_[i] = this->from_[i].value();
       this->data_to_[i] = this->to_[i].value();
     }
-    this->start_time_ = esphome::millis();
-    if (this->state_ == AnimationState::STOPPED)
-      this->parent_->add_looper(&this);
+    this->start_time_ = millis();
     this->state_ = AnimationState::STARTED;
-    this->update();
+    this->loop();
   }
 
   void stop() { this->state_ = AnimationState::STOPPED; }
 
-  void update() override {
-    uint32_t elapsed = esphome::millis() - this->start_time_;
+  void loop() override {
+    if (this->state_ == AnimationState::STOPPED)
+      return;
+    uint32_t elapsed = millis() - this->start_time_;
+    float progress = static_cast<float>(elapsed) / static_cast<float>(this->duration_);
     switch (this->state_) {
       case AnimationState::STARTED:
         if (elapsed < this->start_delay_)
           return;
         this->state_ = AnimationState::RUNNING;
+        this->start_time_ = millis();
+        progress = 0.0f;
         break;
       case AnimationState::RUNNING:
-        if (elapsed >= this->duration_)
-          this->state_ = AnimationState::STOPPED;
+        if (progress >= 1.0f) {
+          progress = 1.0f;
+          this->stop();
+        }
         break;
-      case AnimationState::STOPPED:
-        this->parent_->remove_looper(&this);
+      default:
         return;
     }
 
-    float progress = static_cast<float>(elapsed) / static_cast<float>(this->duration_);
-    if (progress > 1.0f)
-      progress = 1.0f;
     uint32_t data[DATA_SIZE];
-    for (size_t i = 0; i < DATA_SIZE; i++)
-      data[i] = static_cast<uint32_t>(roundf(this->data_from_[i] + (this->data_to_[i] - this->data_from_[i]) * progress));
+    for (size_t i = 0; i < DATA_SIZE; i++) {
+      data[i] = static_cast<uint32_t>(
+          roundf(this->data_from_[i] + (int32_t) (this->data_to_[i] - this->data_from_[i]) * progress));
+    }
     this->update_callback_(data);
   }
 
@@ -75,17 +78,17 @@ template<size_t DATA_SIZE> class LvAnimation : public Parented<LvglComponent>, p
   void set_start_delay(uint32_t start_delay) { this->start_delay_ = start_delay; }
 
  protected:
-  std::function<void(uint32_t data[DATA_SIZE])> update_callback_;
-  TemplatableValue<float> from_[DATA_SIZE]{};
-  TemplatableValue<float> to_[DATA_SIZE]{};
+  std::function<void(const uint32_t *)> update_callback_;
+  TemplatableValue<uint32_t> from_[DATA_SIZE]{};
+  TemplatableValue<uint32_t> to_[DATA_SIZE]{};
   uint32_t duration_{0};
   uint32_t start_delay_{0};
   uint32_t start_time_{0};
-  float data_from_[DATA_SIZE]{0};
-  float data_to_[DATA_SIZE]{0};
+  uint32_t data_from_[DATA_SIZE]{0};
+  uint32_t data_to_[DATA_SIZE]{0};
   AnimationState state_{AnimationState::STOPPED};
 };
 
-} // namespace esphome::lvgl
+}  // namespace esphome::lvgl
 
-#endif
+#endif  // USE_LVGL_ANIMATION

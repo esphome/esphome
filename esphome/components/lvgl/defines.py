@@ -47,7 +47,9 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype, retmapper=None, requires=None, animatable=False):
+    def __init__(
+        self, validator, rtype, retmapper=None, requires=None, animatable=False
+    ):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
@@ -73,6 +75,9 @@ class LValidator:
         if self.retmapper is not None:
             return self.retmapper(value)
         return cg.safe_exp(value)
+
+    def from_int(self, value):
+        return value
 
 
 class LvConstant(LValidator):
