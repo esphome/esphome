@@ -442,6 +442,7 @@ constexpr const char *const MQTT_PRESET_MODE_COMMAND_TOPIC = "preset_mode_comman
 constexpr const char *const MQTT_PRESET_MODE_STATE_TOPIC = "preset_mode_state_topic";
 constexpr const char *const MQTT_PRESET_MODE_VALUE_TEMPLATE = "preset_mode_value_template";
 constexpr const char *const MQTT_PRESET_MODES = "preset_modes";
+constexpr const char *const MQTT_QOS = "qos";
 constexpr const char *const MQTT_RED_TEMPLATE = "red_template";
 constexpr const char *const MQTT_RETAIN = "retain";
 constexpr const char *const MQTT_RGB_COMMAND_TEMPLATE = "rgb_command_template";
