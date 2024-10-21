@@ -74,7 +74,7 @@ class ModemComponent : public Component {
   bool powerdown();
 
  protected:
-  std::map<ModemComponentState, ModemComponentStateTiming> modemComponentStateTimingMap = {
+  std::map<ModemComponentState, ModemComponentStateTiming> modem_component_state_timing_map_ = {
       {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(2000, 0)},
       {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(2000, 0)},
@@ -88,19 +88,19 @@ class ModemComponent : public Component {
   };
 
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int event_id, void *event_data);
-  void modem_netif_init();
-  void dte_init();
-  void dce_init();
+  void modem_netif_init_();
+  void dte_init_();
+  void dce_init_();
 
-  bool check_modem_component_state_timings();
-  int get_rssi();
-  int get_modem_voltage();
-  const char *get_state();
-  void set_state(ModemComponentState state);
-  const char *state_to_string(ModemComponentState state);
+  bool check_modem_component_state_timings_();
+  int get_rssi_();
+  int get_modem_voltage_();
+  const char *get_state_();
+  void set_state_(ModemComponentState state);
+  const char *state_to_string_(ModemComponentState state);
 
-  std::shared_ptr<esp_modem::DTE> dte{nullptr};
-  std::unique_ptr<esp_modem::DCE> dce{nullptr};
+  std::shared_ptr<esp_modem::DTE> dte_{nullptr};
+  std::unique_ptr<esp_modem::DCE> dce_{nullptr};
   ModemType type_{MODEM_TYPE_UNKNOWN};
   InternalGPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *power_pin_{nullptr};
