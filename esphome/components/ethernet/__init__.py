@@ -106,7 +106,7 @@ EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
-def _is_framework_spi_polling_mode_support():
+def _is_framework_spi_polling_mode_supported():
     # SPI Ethernet without IRQ feature is added in
     # esp-idf >= (5.3+ ,5.2.1+, 5.1.4) and arduino-esp32 >= 3.0.0
     build_framework = CORE.target_framework
@@ -137,7 +137,7 @@ def _validate(config):
             use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
-        if _is_framework_spi_polling_mode_support():
+        if _is_framework_spi_polling_mode_supported():
             if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
                 raise cv.Invalid(
                     f"Cannot specify more than one of {CONF_INTERRUPT_PIN}, {CONF_POLLING_INTERVAL}"
