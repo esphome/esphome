@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 #include "string_ref.h"
+#include "helpers.h"
 
 namespace esphome {
 
@@ -10,6 +11,12 @@ enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
+};
+
+enum EntityStateType : uint8_t {
+  ENTITY_UNAVAILABLE = 0,
+  ENTITY_UNKNOWN = 1,
+  ENTITY_AVAILABLE = 255,
 };
 
 // The generic Entity base class that provides an interface common to all Entities.
@@ -83,6 +90,29 @@ class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
 
  protected:
   const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
+};
+
+// The generic Entity State class that provides an interface common to all Entities that needs to track states like
+// unavailable and unknown.
+class EntityBase_State {
+ public:
+  /// Manually set the unit of measurement.
+  void set_entity_state(EntityStateType entity_state);
+  EntityStateType get_entity_state() const;
+
+  bool is_unavailable() const;
+  bool is_unknown() const;
+
+  // return true if successfully parsed the new entity_state
+  // all not handled strings will return false and
+  // assume that the new state is ENTITY_AVAILABLE
+  bool handle_state(const char *input);
+
+  void add_on_state_callback(std::function<void()> &&f);
+
+ protected:
+  EntityStateType entity_state_{ENTITY_UNAVAILABLE};  ///< generic entity state
+  CallbackManager<void()> state_callback_{};
 };
 
 }  // namespace esphome
