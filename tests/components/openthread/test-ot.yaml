@@ -1,0 +1,51 @@
+esphome:
+  name: openthread
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: esp32c6
+  framework:
+    type: esp-idf
+    version: "5.3.1"
+    platform_version: 6.8.1
+
+logger:
+  level: DEBUG
+
+network:
+  enable_ipv6: true
+
+openthread:
+  channel: 13
+  network_name: OpenThread-8f28
+  network_key: dfd34f0f05cad978ec4e32b0413038ff
+  panid: 0x8f28
+  extpanid: d63e8e3e495ebbc3
+  pskc: c23a76e98f1a6483639b1ac1271e2e27
+
+text_sensor:
+  - platform: openthread_info
+    ip_address:
+      name: "Off-mesh routable IP Address"
+    channel:
+      name: "Channel"
+    role:
+      name: "Device Role"
+    rloc16:
+      name: "RLOC16"
+    extaddr:
+      name: "Extended Address"
+    eui64:
+      name: "EUI64"
+    network_name:
+      name: "Network Name"
+    network_key:
+      name: "Network Key"
+    panid:
+      name: "PAN ID"
+    extpanid:
+      name: "Extended PAN ID"
+
+api:
+  encryption:
+    key: CXybYc0oErjlPMacNX70d2rHshyLv/FPDrJO4Yrs+Ho=
