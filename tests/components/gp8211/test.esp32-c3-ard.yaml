@@ -1,0 +1,20 @@
+i2c:
+  sda: GPIO6
+  scl: GPIO7
+  scan: true
+
+gp8211:
+  id: my_gp8211
+  voltage: 10V
+
+output:
+  - platform: gp8211
+    id: dac_output
+    gp8211_id: my_gp8211
+
+light:
+  - platform: monochromatic
+    name: "Light"
+    output: dac_output
+    default_transition_length: 0s
+    gamma_correct: 1.0
