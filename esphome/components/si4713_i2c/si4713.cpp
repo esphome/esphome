@@ -24,23 +24,28 @@ Si4713Component::Si4713Component() {
   memset(this->gpio_, 0, sizeof(gpio_));
 }
 
-bool Si4713Component::send_cmd_(const void *cmd, size_t cmd_size, void *res, size_t res_size) {
+bool Si4713Component::send_cmd_(const CmdBase *cmd, size_t cmd_size, ResBase *res, size_t res_size) {
   const uint8_t *buff = (const uint8_t *) cmd;
 
   if (!this->reset_) {
     if (this->get_component_state() & COMPONENT_STATE_LOOP) {
-      ESP_LOGE(TAG, "%s(0x%02X, %d) device was not reset", __func__, buff[0], cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) device was not reset", __func__, cmd->CMD, cmd_size);
     }
     return false;
   }
 
-  if ((CmdType) buff[0] != CmdType::GET_INT_STATUS && (CmdType) buff[0] != CmdType::TX_ASQ_STATUS) {
-    ESP_LOGV(TAG, "%s(0x%02X, %d)", __func__, buff[0], cmd_size);
+  if (cmd->CMD != CmdType::GET_INT_STATUS && cmd->CMD != CmdType::TX_ASQ_STATUS) {
+    ESP_LOGV(TAG, "Cmd %02X %d", cmd->CMD, cmd_size);
+  }
+
+  if (cmd->CMD == CmdType::SET_PROPERTY) {
+    const CmdSetProperty *c = (const CmdSetProperty *) cmd;
+    ESP_LOGV(TAG, "Set %02X%02X %02X%02X", c->PROPH, c->PROPL, c->PROPDH, c->PROPDL);
   }
 
   i2c::ErrorCode err = this->write(buff, cmd_size);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "%s(0x%02X, %d) write error", __func__, buff[0], cmd_size);
+    ESP_LOGE(TAG, "%s(0x%02X, %d) write error", __func__, cmd->CMD, cmd_size);
     // this->mark_failed();
     return false;
   }
@@ -49,7 +54,7 @@ bool Si4713Component::send_cmd_(const void *cmd, size_t cmd_size, void *res, siz
   while (status.CTS == 0) {
     err = this->read((uint8_t *) &status, 1);  // TODO: read res_size into res here?
     if (err != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "%s(0x%02X, %d) read status error", __func__, buff[0], cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) read status error", __func__, cmd->CMD, cmd_size);
       // this->mark_failed();
       return false;
     }
@@ -59,9 +64,15 @@ bool Si4713Component::send_cmd_(const void *cmd, size_t cmd_size, void *res, siz
     //((uint8_t*) res)[0] = status;
     err = this->read((uint8_t *) res, res_size);
     if (err != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "%s(0x%02X, %d) read response error", __func__, buff[0], cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) read response error", __func__, cmd->CMD, cmd_size);
       // this->mark_failed();
       return false;
+    }
+
+    if (cmd->CMD == CmdType::GET_PROPERTY) {
+      const CmdGetProperty *c = (const CmdGetProperty *) cmd;
+      ResGetProperty *r = (ResGetProperty *) res;
+      ESP_LOGV(TAG, "Get %02X%02X %02X%02X", c->PROPH, c->PROPL, r->PROPDH, r->PROPDL);
     }
   }
 
@@ -480,12 +491,43 @@ SampleChannels Si4713Component::get_digital_channels() { return (SampleChannels)
 
 void Si4713Component::set_digital_mode(DigitalMode value) {
   CHECK_ENUM(value)
-  this->digital_input_format_.IMODE = (uint16_t) value;
+  switch (value) {
+    case DigitalMode::IMODE_I2S:
+      this->digital_input_format_.IMODE = 1;
+      break;
+    case DigitalMode::IMODE_LEFT_JUSTIFIED:
+      this->digital_input_format_.IMODE = 7;
+      break;
+    case DigitalMode::IMODE_MSB_AT_1ST:
+      this->digital_input_format_.IMODE = 13;
+      break;
+    case DigitalMode::IMODE_MSB_AT_2ND:
+      this->digital_input_format_.IMODE = 9;
+      break;
+    case DigitalMode::IMODE_DEFAULT:
+    default:
+      this->digital_input_format_.IMODE = 0;
+      break;
+  }
   this->set_prop_(this->digital_input_format_);
   this->publish_digital_mode();
 }
 
-DigitalMode Si4713Component::get_digital_mode() { return (DigitalMode) this->digital_input_format_.IMODE; }
+DigitalMode Si4713Component::get_digital_mode() {
+  switch (this->digital_input_format_.IMODE) {
+    case 1:
+      return DigitalMode::IMODE_I2S;
+    case 7:
+      return DigitalMode::IMODE_LEFT_JUSTIFIED;
+    case 13:
+      return DigitalMode::IMODE_MSB_AT_1ST;
+    case 9:
+      return DigitalMode::IMODE_MSB_AT_2ND;
+    case 0:
+    default:
+      return DigitalMode::IMODE_DEFAULT;
+  }
+}
 
 void Si4713Component::set_digital_clock_edge(DigitalClockEdge value) {
   CHECK_ENUM(value)

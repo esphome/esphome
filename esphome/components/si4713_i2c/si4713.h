@@ -60,14 +60,14 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   std::string rds_text_;
   uint8_t gpio_[3];
 
-  bool send_cmd_(const void *cmd, size_t cmd_size, void *res, size_t res_size);
+  bool send_cmd_(const CmdBase *cmd, size_t cmd_size, ResBase *res, size_t res_size);
 
   template<typename CMD> bool send_cmd_(const CMD &cmd) {
-    return this->send_cmd_((const void *) &cmd, sizeof(cmd), nullptr, 0);
+    return this->send_cmd_(&cmd, sizeof(cmd), nullptr, 0);
   }
 
   template<typename CMD, typename RES> bool send_cmd_(CMD cmd, RES &res) {
-    return this->send_cmd_((const void *) &cmd, sizeof(cmd), (void *) &res, sizeof(res));
+    return this->send_cmd_(&cmd, sizeof(cmd), &res, sizeof(res));
   }
 
   template<typename P> bool set_prop_(P p) {
