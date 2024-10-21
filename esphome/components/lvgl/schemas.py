@@ -216,7 +216,7 @@ def automation_schema(typ: LvType):
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
     else:
         events = df.LV_EVENT_TRIGGERS
-    args = [typ.get_arg_type()] if isinstance(typ, LvType) else []
+    args = typ.get_arg_type() if isinstance(typ, LvType) else []
     args.append(lv_event_t_ptr)
     return {
         cv.Optional(event): validate_automation(

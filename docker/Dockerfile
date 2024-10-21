@@ -33,7 +33,7 @@ RUN \
         python3-venv=3.11.2-1+b1 \
         python3-wheel=0.38.4-2 \
         iputils-ping=3:20221126-1 \
-        git=1:2.39.2-1.1 \
+        git=1:2.39.5-0+deb12u1 \
         curl=7.88.1-10+deb12u7 \
         openssh-client=1:9.2p1-2+deb12u3 \
         python3-cffi=1.15.1-5 \
@@ -86,7 +86,7 @@ RUN \
     pip3 install \
     --break-system-packages --no-cache-dir \
     # Keep platformio version in sync with requirements.txt
-    platformio==6.1.15 \
+    platformio==6.1.16 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \

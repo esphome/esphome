@@ -67,9 +67,9 @@ async def add_trigger(conf, lv_component, w, *events):
     tid = conf[CONF_TRIGGER_ID]
     trigger = cg.new_Pvariable(tid)
     args = w.get_args() + [(lv_event_t_ptr, "event")]
-    value = w.get_value()
+    value = w.get_values()
     await automation.build_automation(trigger, args, conf)
     async with LambdaContext(EVENT_ARG, where=tid) as context:
         with LvConditional(w.is_selected()):
-            lv_add(trigger.trigger(value, literal("event")))
+            lv_add(trigger.trigger(*value, literal("event")))
     lv_add(lv_component.add_event_cb(w.obj, await context.get_lambda(), *events))
