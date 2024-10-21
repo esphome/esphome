@@ -94,13 +94,13 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_get_time_response(const GetTimeResponse &value){};
   bool send_list_entities_services_response(const ListEntitiesServicesResponse &msg);
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   bool send_list_entities_camera_response(const ListEntitiesCameraResponse &msg);
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   bool send_camera_image_response(const CameraImageResponse &msg);
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void on_camera_image_request(const CameraImageRequest &value){};
 #endif
 #ifdef USE_CLIMATE
@@ -361,7 +361,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_SWITCH
   virtual void switch_command(const SwitchCommandRequest &msg) = 0;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void camera_image(const CameraImageRequest &msg) = 0;
 #endif
 #ifdef USE_CLIMATE
@@ -469,7 +469,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_SWITCH
   void on_switch_command_request(const SwitchCommandRequest &msg) override;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   void on_camera_image_request(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE

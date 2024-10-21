@@ -210,7 +210,7 @@ bool APIServerConnectionBase::send_list_entities_services_response(const ListEnt
 #endif
   return this->send_message_<ListEntitiesServicesResponse>(msg, 41);
 }
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 bool APIServerConnectionBase::send_list_entities_camera_response(const ListEntitiesCameraResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_camera_response: %s", msg.dump().c_str());
@@ -218,7 +218,7 @@ bool APIServerConnectionBase::send_list_entities_camera_response(const ListEntit
   return this->send_message_<ListEntitiesCameraResponse>(msg, 43);
 }
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 bool APIServerConnectionBase::send_camera_image_response(const CameraImageResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_camera_image_response: %s", msg.dump().c_str());
@@ -226,7 +226,7 @@ bool APIServerConnectionBase::send_camera_image_response(const CameraImageRespon
   return this->send_message_<CameraImageResponse>(msg, 44);
 }
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 #endif
 #ifdef USE_CLIMATE
 bool APIServerConnectionBase::send_list_entities_climate_response(const ListEntitiesClimateResponse &msg) {
@@ -843,7 +843,7 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 45: {
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
       CameraImageRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1363,7 +1363,7 @@ void APIServerConnection::on_switch_command_request(const SwitchCommandRequest &
   this->switch_command(msg);
 }
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 void APIServerConnection::on_camera_image_request(const CameraImageRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();

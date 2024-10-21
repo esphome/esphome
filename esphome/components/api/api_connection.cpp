@@ -39,6 +39,13 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #else
 #error "No frame helper defined"
 #endif
+
+#ifdef USE_CAMERA
+  if (camera::Camera::global_camera != nullptr) {
+    this->image_reader_ =
+        std::unique_ptr<camera::CameraImageReader>{camera::Camera::global_camera->create_image_reader()};
+  }
+#endif
 }
 void APIConnection::start() {
   this->last_traffic_ = millis();
@@ -149,24 +156,24 @@ void APIConnection::loop() {
     }
   }
 
-#ifdef USE_ESP32_CAMERA
-  if (this->image_reader_.available() && this->helper_->can_write_without_blocking()) {
-    uint32_t to_send = std::min((size_t) 1024, this->image_reader_.available());
+#ifdef USE_CAMERA
+  if (this->image_reader_ && this->image_reader_->available() && this->helper_->can_write_without_blocking()) {
+    uint32_t to_send = std::min((size_t) 1024, this->image_reader_->available());
     auto buffer = this->create_buffer();
     // fixed32 key = 1;
-    buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
+    buffer.encode_fixed32(1, camera::Camera::global_camera->get_object_id_hash());
     // bytes data = 2;
-    buffer.encode_bytes(2, this->image_reader_.peek_data_buffer(), to_send);
+    buffer.encode_bytes(2, this->image_reader_->peek_data_buffer(), to_send);
     // bool done = 3;
-    bool done = this->image_reader_.available() == to_send;
+    bool done = this->image_reader_->available() == to_send;
     buffer.encode_bool(3, done);
     bool success = this->send_buffer(buffer, 44);
 
     if (success) {
-      this->image_reader_.consume_data(to_send);
+      this->image_reader_->consume_data(to_send);
     }
     if (success && done) {
-      this->image_reader_.return_image();
+      this->image_reader_->return_image();
     }
   }
 #endif
@@ -1061,17 +1068,18 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
 }
 #endif
 
-#ifdef USE_ESP32_CAMERA
-void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
+#ifdef USE_CAMERA
+void APIConnection::send_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->state_subscription_)
     return;
-  if (this->image_reader_.available())
+  if (!this->image_reader_)
     return;
-  if (image->was_requested_by(esphome::esp32_camera::API_REQUESTER) ||
-      image->was_requested_by(esphome::esp32_camera::IDLE))
-    this->image_reader_.set_image(std::move(image));
+  if (this->image_reader_->available())
+    return;
+  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE))
+    this->image_reader_->set_image(std::move(image));
 }
-bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
+bool APIConnection::send_camera_info(camera::Camera *camera) {
   ListEntitiesCameraResponse msg;
   msg.key = camera->get_object_id_hash();
   msg.object_id = camera->get_object_id();
@@ -1084,17 +1092,16 @@ bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   return this->send_list_entities_camera_response(msg);
 }
 void APIConnection::camera_image(const CameraImageRequest &msg) {
-  if (esp32_camera::global_esp32_camera == nullptr)
+  if (camera::Camera::global_camera == nullptr)
     return;
 
   if (msg.single)
-    esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::API_REQUESTER);
+    camera::Camera::global_camera->request_image(esphome::camera::API_REQUESTER);
   if (msg.stream) {
-    esp32_camera::global_esp32_camera->start_stream(esphome::esp32_camera::API_REQUESTER);
+    camera::Camera::global_camera->start_stream(esphome::camera::API_REQUESTER);
 
-    App.scheduler.set_timeout(this->parent_, "api_esp32_camera_stop_stream", ESP32_CAMERA_STOP_STREAM, []() {
-      esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::API_REQUESTER);
-    });
+    App.scheduler.set_timeout(this->parent_, "api_esp32_camera_stop_stream", ESP32_CAMERA_STOP_STREAM,
+                              []() { camera::Camera::global_camera->stop_stream(esphome::camera::API_REQUESTER); });
   }
 }
 #endif
