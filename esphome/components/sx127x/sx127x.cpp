@@ -8,7 +8,7 @@ namespace sx127x {
 static const char *const TAG = "sx127x";
 
 void IRAM_ATTR HOT SX127xStore::gpio_intr(SX127xStore *arg) {
-  if (arg->dio2_toggle) {
+  if (arg->dio2_set && arg->dio2_toggle) {
     arg->dio2_pin.pin_mode(gpio::FLAG_INPUT);
   }
   arg->dio0_micros = micros();
@@ -73,7 +73,7 @@ void SX127x::setup() {
     this->dio2_pin_->setup();
     this->dio2_pin_->pin_mode(gpio::FLAG_OPEN_DRAIN);
     this->store_.dio2_pin = this->dio2_pin_->to_isr();
-    this->store_.dio2_toggle = true;
+    this->store_.dio2_set = true;
   }
 
   // start spi
@@ -202,6 +202,7 @@ void SX127x::configure() {
 
   // clear irq flag
   this->store_.dio0_irq = false;
+  this->store_.dio2_toggle = (this->rx_duration_ > 0 && this->payload_length_ == 0);
 
   // enable standby mode
   this->set_mode_standby();
@@ -260,7 +261,11 @@ void SX127x::set_mode_rx() {
   if (this->dio2_pin_) {
     this->write_register_(REG_OP_MODE, this->modulation_ | MODE_STDBY);
     delay(1);
-    this->dio2_pin_->pin_mode(this->modulation_ == MOD_OOK ? gpio::FLAG_INPUT : gpio::FLAG_OPEN_DRAIN);
+    if (this->rx_duration_ > 0 && this->payload_length_ == 0) {
+      this->dio2_pin_->pin_mode(gpio::FLAG_OPEN_DRAIN);
+    } else {
+      this->dio2_pin_->pin_mode(gpio::FLAG_INPUT);
+    }
   }
   this->write_register_(REG_OP_MODE, this->modulation_ | MODE_RX_FS);
   delay(1);
@@ -303,11 +308,11 @@ void SX127x::dump_config() {
     ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s", format_hex(this->sync_value_).c_str());
   }
   if (this->modulation_ == MOD_FSK) {
-    static const char *shaping_lut[4] = {"NO_SHAPING", "GAUSSIAN_BT_1_0", "GAUSSIAN_BT_0_5", "GAUSSIAN_BT_0_3"};
-    ESP_LOGCONFIG(TAG, "  Shaping: %s", shaping_lut[this->shaping_ >> 5]);
+    static const char *shaping_lut[4] = {"NONE", "GAUSSIAN_BT_1_0", "GAUSSIAN_BT_0_5", "GAUSSIAN_BT_0_3"};
+    ESP_LOGCONFIG(TAG, "  Shaping: %s", shaping_lut[this->shaping_ >> SHAPING_SHIFT]);
   } else {
-    static const char *shaping_lut[4] = {"NO_SHAPING", "CUTOFF_BR_X_1", "CUTOFF_BR_X_2", "ERROR"};
-    ESP_LOGCONFIG(TAG, "  Shaping: %s", shaping_lut[this->shaping_ >> 5]);
+    static const char *shaping_lut[4] = {"NONE", "CUTOFF_BR_X_1", "CUTOFF_BR_X_2", "ERROR"};
+    ESP_LOGCONFIG(TAG, "  Shaping: %s", shaping_lut[this->shaping_ >> SHAPING_SHIFT]);
   }
   ESP_LOGCONFIG(TAG, "  PA Pin: %s", this->pa_pin_ == PA_PIN_BOOST ? "BOOST" : "RFO");
   ESP_LOGCONFIG(TAG, "  PA Power: %" PRIu32 " dBm", this->pa_power_);

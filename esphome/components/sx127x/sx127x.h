@@ -183,7 +183,8 @@ enum SX127xPaRamp : uint8_t {
   GAUSSIAN_BT_0_3 = 0x60,
   GAUSSIAN_BT_0_5 = 0x40,
   GAUSSIAN_BT_1_0 = 0x20,
-  NO_SHAPING = 0x00,
+  SHAPING_NONE = 0x00,
+  SHAPING_SHIFT = 0x05,
   PA_RAMP_10 = 0x0F,
   PA_RAMP_12 = 0x0E,
   PA_RAMP_15 = 0x0D,
@@ -206,6 +207,7 @@ struct SX127xStore {
   static void gpio_intr(SX127xStore *arg);
   volatile uint32_t dio0_micros{0};
   volatile bool dio0_irq{false};
+  volatile bool dio2_set{false};
   volatile bool dio2_toggle{false};
   ISRInternalGPIOPin dio2_pin;
 };
