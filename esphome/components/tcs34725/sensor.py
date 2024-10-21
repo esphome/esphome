@@ -10,11 +10,15 @@ from esphome.const import (
     CONF_INTEGRATION_TIME,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
+    ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_THERMOMETER,
     UNIT_KELVIN,
     UNIT_LUX,
+    UNIT_IRRADIANCE,
+    UNIT_EMPTY,
+    ICON_COLOR,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -23,6 +27,13 @@ CONF_RED_CHANNEL = "red_channel"
 CONF_GREEN_CHANNEL = "green_channel"
 CONF_BLUE_CHANNEL = "blue_channel"
 CONF_CLEAR_CHANNEL = "clear_channel"
+CONF_RED_CHANNEL_IRRADIANCE = "red_channel_irradiance"
+CONF_GREEN_CHANNEL_IRRADIANCE = "green_channel_irradiance"
+CONF_BLUE_CHANNEL_IRRADIANCE = "blue_channel_irradiance"
+CONF_SENSOR_SATURATION = "sensor_saturation"
+CONF_CIE1931_X = "cie1931_x"
+CONF_CIE1931_Y = "cie1931_y"
+CONF_CIE1931_Z = "cie1931_z"
 
 tcs34725_ns = cg.esphome_ns.namespace("tcs34725")
 TCS34725Component = tcs34725_ns.class_(
@@ -60,9 +71,15 @@ TCS34725_GAINS = {
     "60X": TCS34725Gain.TCS34725_GAIN_60X,
 }
 
-color_channel_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
+color_channel_irradiance_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_IRRADIANCE,
     icon=ICON_LIGHTBULB,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+sensor_saturation_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_PERCENT,
+    icon=ICON_GAUGE,
     accuracy_decimals=1,
     state_class=STATE_CLASS_MEASUREMENT,
 )
@@ -78,17 +95,38 @@ illuminance_schema = sensor.sensor_schema(
     device_class=DEVICE_CLASS_ILLUMINANCE,
     state_class=STATE_CLASS_MEASUREMENT,
 )
+cie1931_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_EMPTY,
+    icon=ICON_COLOR,
+    accuracy_decimals=2,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TCS34725Component),
-            cv.Optional(CONF_RED_CHANNEL): color_channel_schema,
-            cv.Optional(CONF_GREEN_CHANNEL): color_channel_schema,
-            cv.Optional(CONF_BLUE_CHANNEL): color_channel_schema,
-            cv.Optional(CONF_CLEAR_CHANNEL): color_channel_schema,
+            cv.Optional(CONF_RED_CHANNEL): cv.invalid(
+                "The 'red_channel' configuration option has been removed. Use 'red_channel_irradiance' instead."
+            ),
+            cv.Optional(CONF_GREEN_CHANNEL): cv.invalid(
+                "The 'green_channel' configuration option has been removed. Use 'green_channel_irradiance' instead."
+            ),
+            cv.Optional(CONF_BLUE_CHANNEL): cv.invalid(
+                "The 'blue_channel' configuration option has been removed. Use 'blue_channel_irradiance' instead."
+            ),
+            cv.Optional(CONF_CLEAR_CHANNEL): cv.invalid(
+                "The 'clear_channel' configuration option has been removed. Use 'sensor_saturation' instead."
+            ),
+            cv.Optional(CONF_RED_CHANNEL_IRRADIANCE): color_channel_irradiance_schema,
+            cv.Optional(CONF_GREEN_CHANNEL_IRRADIANCE): color_channel_irradiance_schema,
+            cv.Optional(CONF_BLUE_CHANNEL_IRRADIANCE): color_channel_irradiance_schema,
+            cv.Optional(CONF_SENSOR_SATURATION): sensor_saturation_schema,
             cv.Optional(CONF_ILLUMINANCE): illuminance_schema,
             cv.Optional(CONF_COLOR_TEMPERATURE): color_temperature_schema,
+            cv.Optional(CONF_CIE1931_X): cie1931_schema,
+            cv.Optional(CONF_CIE1931_Y): cie1931_schema,
+            cv.Optional(CONF_CIE1931_Z): cie1931_schema,
             cv.Optional(CONF_INTEGRATION_TIME, default="auto"): cv.enum(
                 TCS34725_INTEGRATION_TIMES, lower=True
             ),
@@ -112,18 +150,27 @@ async def to_code(config):
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
-    if CONF_RED_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_RED_CHANNEL])
-        cg.add(var.set_red_sensor(sens))
-    if CONF_GREEN_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_GREEN_CHANNEL])
-        cg.add(var.set_green_sensor(sens))
-    if CONF_BLUE_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_BLUE_CHANNEL])
-        cg.add(var.set_blue_sensor(sens))
-    if CONF_CLEAR_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_CLEAR_CHANNEL])
-        cg.add(var.set_clear_sensor(sens))
+    if CONF_CIE1931_X in config:
+        sens = await sensor.new_sensor(config[CONF_CIE1931_X])
+        cg.add(var.set_cie1931_x_sensor(sens))
+    if CONF_CIE1931_Y in config:
+        sens = await sensor.new_sensor(config[CONF_CIE1931_Y])
+        cg.add(var.set_cie1931_y_sensor(sens))
+    if CONF_CIE1931_Z in config:
+        sens = await sensor.new_sensor(config[CONF_CIE1931_Z])
+        cg.add(var.set_cie1931_z_sensor(sens))
+    if CONF_RED_CHANNEL_IRRADIANCE in config:
+        sens = await sensor.new_sensor(config[CONF_RED_CHANNEL_IRRADIANCE])
+        cg.add(var.set_red_irradiance_sensor(sens))
+    if CONF_GREEN_CHANNEL_IRRADIANCE in config:
+        sens = await sensor.new_sensor(config[CONF_GREEN_CHANNEL_IRRADIANCE])
+        cg.add(var.set_green_irradiance_sensor(sens))
+    if CONF_BLUE_CHANNEL_IRRADIANCE in config:
+        sens = await sensor.new_sensor(config[CONF_BLUE_CHANNEL_IRRADIANCE])
+        cg.add(var.set_blue_irradiance_sensor(sens))
+    if CONF_SENSOR_SATURATION in config:
+        sens = await sensor.new_sensor(config[CONF_SENSOR_SATURATION])
+        cg.add(var.set_sensor_saturation(sens))
     if CONF_ILLUMINANCE in config:
         sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
         cg.add(var.set_illuminance_sensor(sens))
