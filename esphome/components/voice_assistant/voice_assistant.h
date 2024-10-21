@@ -30,8 +30,6 @@
 namespace esphome {
 namespace voice_assistant {
 
-VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 // Version 1: Initial version
 // Version 2: Adds raw speaker support
 static const uint32_t LEGACY_INITIAL_VERSION = 1;
@@ -93,7 +91,7 @@ struct Configuration {
 
 class VoiceAssistant : public Component {
  public:
-  VoiceAssistant() { global_voice_assistant = this; }
+  VoiceAssistant();
 
   void setup() override;
   void loop() override;
