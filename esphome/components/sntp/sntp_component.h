@@ -17,21 +17,28 @@ class SNTPComponent : public time::RealTimeClock {
   void setup() override;
   void dump_config() override;
   /// Change the servers used by SNTP for timekeeping
-  void set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3) {
-    this->server_1_ = server_1;
-    this->server_2_ = server_2;
-    this->server_3_ = server_3;
-  }
+  void set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3);
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
   void update() override;
   void loop() override;
+#if defined(USE_ESP_IDF)
+  void set_update_interval(uint32_t update_interval) override;
+  uint32_t get_update_interval() const override;
+#endif
 
  protected:
-  std::string server_1_;
-  std::string server_2_;
-  std::string server_3_;
+  void setup_servers_();
+
+ private:
+  // Private because buffer address should stay unchanged
+  std::string servers_[3];
+
+ protected:
+#if !defined(USE_ESP_IDF)
   bool has_time_{false};
+#endif
+  bool servers_was_setup_{false};
 };
 
 }  // namespace sntp
