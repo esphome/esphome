@@ -619,7 +619,7 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
   void init_display_();
 };
 
-class WaveshareEPaper7P5InBC : public WaveshareEPaper {
+class WaveshareEPaper7P5InBC : public WaveshareEPaperBWR {
  public:
   void initialize() override;
 
