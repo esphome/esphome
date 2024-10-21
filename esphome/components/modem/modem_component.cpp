@@ -74,7 +74,6 @@ void ModemComponent::setup() {
 }
 
 void ModemComponent::loop() {
-  const int now = millis();
   if (!ModemComponent::check_modem_component_state_timings_()) {
     return;
   }
@@ -212,7 +211,7 @@ void ModemComponent::dce_init_() {
 }
 
 bool ModemComponent::check_modem_component_state_timings_() {
-  const int now = millis();
+  const uint now = millis();
   ModemComponentStateTiming timing = this->modem_component_state_timing_map_[this->state_];
   if (timing.time_limit && ((this->change_state_ + timing.time_limit) < now)) {
     ESP_LOGE(TAG, "State time limit %s", this->state_to_string_(this->state_));
