@@ -3,12 +3,7 @@
 #include "esphome/components/display/display.h"
 
 #ifdef USE_LVGL
-// required for clang-tidy
-#ifndef LV_CONF_H
-#define LV_CONF_SKIP 1  // NOLINT
-#endif                  // LV_CONF_H
-
-#include <lvgl.h>
+#include "esphome/components/lvgl/lvgl_proxy.h"
 #endif  // USE_LVGL
 
 namespace esphome {
@@ -22,24 +17,6 @@ enum ImageType {
   IMAGE_TYPE_RGBA = 4,
 };
 
-inline int image_type_to_bpp(ImageType type) {
-  switch (type) {
-    case IMAGE_TYPE_BINARY:
-      return 1;
-    case IMAGE_TYPE_GRAYSCALE:
-      return 8;
-    case IMAGE_TYPE_RGB565:
-      return 16;
-    case IMAGE_TYPE_RGB24:
-      return 24;
-    case IMAGE_TYPE_RGBA:
-      return 32;
-  }
-  return 0;
-}
-
-inline int image_type_to_width_stride(int width, ImageType type) { return (width * image_type_to_bpp(type) + 7u) / 8u; }
-
 class Image : public display::BaseImage {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
@@ -49,6 +26,25 @@ class Image : public display::BaseImage {
   const uint8_t *get_data_start() const { return this->data_start_; }
   ImageType get_type() const;
 
+  int get_bpp() const {
+    switch (this->type_) {
+      case IMAGE_TYPE_BINARY:
+        return 1;
+      case IMAGE_TYPE_GRAYSCALE:
+        return 8;
+      case IMAGE_TYPE_RGB565:
+        return this->transparent_ ? 24 : 16;
+      case IMAGE_TYPE_RGB24:
+        return 24;
+      case IMAGE_TYPE_RGBA:
+        return 32;
+    }
+    return 0;
+  }
+
+  /// Return the stride of the image in bytes, that is, the distance in bytes
+  /// between two consecutive rows of pixels.
+  uint32_t get_width_stride() const { return (this->width_ * this->get_bpp() + 7u) / 8u; }
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
   void set_transparency(bool transparent) { transparent_ = transparent; }

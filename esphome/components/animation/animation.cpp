@@ -62,7 +62,7 @@ void Animation::set_frame(int frame) {
 }
 
 void Animation::update_data_start_() {
-  const uint32_t image_size = image_type_to_width_stride(this->width_, this->type_) * this->height_;
+  const uint32_t image_size = this->get_width_stride() * this->height_;
   this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 
