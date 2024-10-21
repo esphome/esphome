@@ -15,27 +15,24 @@ std::vector<BME680BSECComponent *>
 uint8_t BME680BSECComponent::work_buffer_[BSEC_MAX_WORKBUFFER_SIZE] = {0};
 
 void BME680BSECComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BME680(%s) via BSEC...", this->device_id_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up BME68x(%s) via BSEC...", this->device_id_.c_str());
 
   uint8_t new_idx = BME680BSECComponent::instances.size();
   BME680BSECComponent::instances.push_back(this);
 
   this->bsec_state_data_valid_ = false;
 
-  // Initialize the bme680_ structure (passed-in to the bme680_* functions) and the BME680 device
-  this->bme680_.dev_id =
-      new_idx;  // This is a "Place holder to store the id of the device structure" (see bme680_defs.h).
-                // This will be passed-in as first parameter to the next "read" and "write" function pointers.
-                // We currently use the index of the object in the BME680BSECComponent::instances vector to identify
-                // the different devices in the system.
-  this->bme680_.intf = BME680_I2C_INTF;
-  this->bme680_.read = BME680BSECComponent::read_bytes_wrapper;
-  this->bme680_.write = BME680BSECComponent::write_bytes_wrapper;
-  this->bme680_.delay_ms = BME680BSECComponent::delay_ms;
-  this->bme680_.amb_temp = 25;
+  // Initialize the bme68x_ structure (passed-in to the bme68x_* functions) and the BME68x device
+  this->bme68x_.intf_ptr =
+      this;  // This will be passed-in as last parameter to the next "read" and "write" function pointers.
+  this->bme68x_.intf = BME68X_I2C_INTF;  // We currently only support I2C interface
+  this->bme68x_.read = BME680BSECComponent::read_bytes_wrapper;
+  this->bme68x_.write = BME680BSECComponent::write_bytes_wrapper;
+  this->bme68x_.delay_us = BME680BSECComponent::delay_us;
+  this->bme68x_.amb_temp = 25;
 
-  this->bme680_status_ = bme680_init(&this->bme680_);
-  if (this->bme680_status_ != BME680_OK) {
+  this->bme68x_status_ = bme68x_init(&this->bme68x_);
+  if (this->bme68x_status_ != BME68X_OK) {
     this->mark_failed();
     return;
   }
@@ -155,8 +152,8 @@ void BME680BSECComponent::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication failed (BSEC Status: %d, BME680 Status: %d)", this->bsec_status_,
-             this->bme680_status_);
+    ESP_LOGE(TAG, "Communication failed (BSEC Status: %d, BME68x Status: %d)", this->bsec_status_,
+             this->bme68x_status_);
   }
 
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
@@ -184,12 +181,12 @@ float BME680BSECComponent::get_setup_priority() const { return setup_priority::D
 void BME680BSECComponent::loop() {
   this->run_();
 
-  if (this->bsec_status_ < BSEC_OK || this->bme680_status_ < BME680_OK) {
+  if (this->bsec_status_ < BSEC_OK || this->bme68x_status_ < BME68X_OK) {
     this->status_set_error();
   } else {
     this->status_clear_error();
   }
-  if (this->bsec_status_ > BSEC_OK || this->bme680_status_ > BME680_OK) {
+  if (this->bsec_status_ > BSEC_OK || this->bme68x_status_ > BME68X_OK) {
     this->status_set_warning();
   } else {
     this->status_clear_warning();
@@ -221,36 +218,50 @@ void BME680BSECComponent::run_() {
       return;
   }
 
-  this->bsec_status_ = bsec_sensor_control(curr_time_ns, &this->bme680_settings_);
+  this->bsec_status_ = bsec_sensor_control(curr_time_ns, &this->bseclib_settings_);
   if (this->bsec_status_ < BSEC_OK) {
     ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC Error Code %d)", this->bsec_status_);
     return;
   }
-  this->next_call_ns_ = this->bme680_settings_.next_call;
+  this->next_call_ns_ = this->bseclib_settings_.next_call;
 
-  if (this->bme680_settings_.trigger_measurement) {
-    this->bme680_.tph_sett.os_temp = this->bme680_settings_.temperature_oversampling;
-    this->bme680_.tph_sett.os_pres = this->bme680_settings_.pressure_oversampling;
-    this->bme680_.tph_sett.os_hum = this->bme680_settings_.humidity_oversampling;
-    this->bme680_.gas_sett.run_gas = this->bme680_settings_.run_gas;
-    this->bme680_.gas_sett.heatr_temp = this->bme680_settings_.heater_temperature;
-    this->bme680_.gas_sett.heatr_dur = this->bme680_settings_.heating_duration;
-    this->bme680_.power_mode = BME680_FORCED_MODE;
-    uint16_t desired_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_GAS_SENSOR_SEL;
-    this->bme680_status_ = bme680_set_sensor_settings(desired_settings, &this->bme680_);
-    if (this->bme680_status_ != BME680_OK) {
-      ESP_LOGW(TAG, "Failed to set sensor settings (BME680 Error Code %d)", this->bme680_status_);
+  if (this->bseclib_settings_.trigger_measurement) {
+    // Time to perform a new measurement
+
+    // Set general sensor configuration
+    struct bme68x_conf bme68x_general_conf;
+    bme68x_general_conf.os_temp = this->bseclib_settings_.temperature_oversampling;
+    bme68x_general_conf.os_pres = this->bseclib_settings_.pressure_oversampling;
+    bme68x_general_conf.os_hum = this->bseclib_settings_.humidity_oversampling;
+    bme68x_general_conf.filter = BME68X_FILTER_OFF;
+    bme68x_general_conf.odr = BME68X_ODR_NONE;
+    this->bme68x_status_ = bme68x_set_conf(&bme68x_general_conf, &this->bme68x_);
+    if (this->bme68x_status_ != BME68X_OK) {
+      ESP_LOGW(TAG, "Failed to set general sensor config (BME68x Error Code %d)", this->bme68x_status_);
       return;
     }
 
-    this->bme680_status_ = bme680_set_sensor_mode(&this->bme680_);
-    if (this->bme680_status_ != BME680_OK) {
-      ESP_LOGW(TAG, "Failed to set sensor mode (BME680 Error Code %d)", this->bme680_status_);
+    // Set heater configuration
+    struct bme68x_heatr_conf bme68x_heater_conf;
+    bme68x_heater_conf.enable = this->bseclib_settings_.run_gas;
+    bme68x_heater_conf.heatr_temp = this->bseclib_settings_.heater_temperature;
+    bme68x_heater_conf.heatr_dur = this->bseclib_settings_.heating_duration;
+    this->bme68x_status_ = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &bme68x_heater_conf, &this->bme68x_);
+    if (this->bme68x_status_ != BME68X_OK) {
+      ESP_LOGW(TAG, "Failed to set gas sensor config (BME68x Error Code %d)", this->bme68x_status_);
       return;
     }
 
-    uint16_t meas_dur = 0;
-    bme680_get_profile_dur(&meas_dur, &this->bme680_);
+    // Set sensor operation mode
+    this->bme68x_status_ = bme68x_set_op_mode(BME68X_FORCED_MODE, &this->bme68x_);
+    if (this->bme68x_status_ != BME68X_OK) {
+      ESP_LOGW(TAG, "Failed to set sensor mode (BME68x Error Code %d)", this->bme68x_status_);
+      return;
+    }
+
+    // Calculate time for the measurement to be ready
+    uint32_t meas_dur_us = bme68x_get_meas_dur(BME68X_FORCED_MODE, &bme68x_general_conf, &this->bme68x_) +
+                           bme68x_heater_conf.heatr_dur * 1000;
 
     // Since we are about to go "out of scope" in the loop, take a snapshot of the state now so we can restore it later
     // TODO: it would be interesting to see if this is really needed here, or if it's needed only after each
@@ -258,6 +269,8 @@ void BME680BSECComponent::run_() {
     if (BME680BSECComponent::instances.size() > 1)
       this->snapshot_state_();
 
+    // Queuing read for later, so ESPHome can do something more productive in the meantime
+    uint32_t meas_dur = meas_dur_us / 1000;
     ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
     this->set_timeout("read", meas_dur, [this]() { this->read_(); });
   } else {
@@ -270,67 +283,85 @@ void BME680BSECComponent::read_() {
   ESP_LOGV(TAG, "%s: Reading data", this->device_id_.c_str());
   int64_t curr_time_ns = this->get_time_ns_();
 
-  if (this->bme680_settings_.trigger_measurement) {
-    while (this->bme680_.power_mode != BME680_SLEEP_MODE) {
-      this->bme680_status_ = bme680_get_sensor_mode(&this->bme680_);
-      if (this->bme680_status_ != BME680_OK) {
-        ESP_LOGW(TAG, "Failed to get sensor mode (BME680 Error Code %d)", this->bme680_status_);
+  if (this->bseclib_settings_.trigger_measurement) {
+    uint8_t op_mode = BME68X_FORCED_MODE;
+    while (op_mode != BME68X_SLEEP_MODE) {
+      this->bme68x_status_ = bme68x_get_op_mode(&op_mode, &this->bme68x_);
+      if (this->bme68x_status_ != BME68X_OK) {
+        ESP_LOGW(TAG, "Failed to get sensor mode (BME68x Error Code %d)", this->bme68x_status_);
+        return;
       }
     }
   }
 
-  if (!this->bme680_settings_.process_data) {
+  if (!this->bseclib_settings_.process_data) {
     ESP_LOGV(TAG, "Data processing not required");
     return;
   }
 
-  struct bme680_field_data data;
-  this->bme680_status_ = bme680_get_sensor_data(&data, &this->bme680_);
-
-  if (this->bme680_status_ != BME680_OK) {
-    ESP_LOGW(TAG, "Failed to get sensor data (BME680 Error Code %d)", this->bme680_status_);
+  struct bme68x_data data;
+  uint8_t data_count = 0;
+  this->bme68x_status_ = bme68x_get_data(BME68X_FORCED_MODE, &data, &data_count, &this->bme68x_);
+  if (this->bme68x_status_ != BME68X_OK) {
+    ESP_LOGW(TAG, "Failed to get sensor data (BME68x Error Code %d)", this->bme68x_status_);
     return;
   }
-  if (!(data.status & BME680_NEW_DATA_MSK)) {
-    ESP_LOGD(TAG, "BME680 did not report new data");
+  if (!(data.status & BME68X_NEW_DATA_MSK)) {
+    ESP_LOGD(TAG, "BME68x did not report new data");
     return;
   }
 
-  bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR];  // Temperature, Pressure, Humidity & Gas Resistance
+  bsec_input_t
+      inputs[BSEC_MAX_PHYSICAL_SENSOR];  // Temperature, Temperature offset, Pressure, Humidity & Gas Resistance
   uint8_t num_inputs = 0;
 
-  if (this->bme680_settings_.process_data & BSEC_PROCESS_TEMPERATURE) {
+  if (this->bseclib_settings_.process_data & BSEC_PROCESS_TEMPERATURE) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_TEMPERATURE;
-    inputs[num_inputs].signal = data.temperature / 100.0f;
+    inputs[num_inputs].signal = data.temperature;
     inputs[num_inputs].time_stamp = curr_time_ns;
+    ESP_LOGV(TAG, "%s: BSEC In[%d](Temperature)=%f", this->device_id_.c_str(), num_inputs, inputs[num_inputs].signal);
     num_inputs++;
 
     // Temperature offset from the real temperature due to external heat sources
     inputs[num_inputs].sensor_id = BSEC_INPUT_HEATSOURCE;
     inputs[num_inputs].signal = this->temperature_offset_;
     inputs[num_inputs].time_stamp = curr_time_ns;
+    ESP_LOGV(TAG, "%s: BSEC In[%d](TemperatureOffset)=%f", this->device_id_.c_str(), num_inputs,
+             inputs[num_inputs].signal);
     num_inputs++;
   }
-  if (this->bme680_settings_.process_data & BSEC_PROCESS_HUMIDITY) {
+  if (this->bseclib_settings_.process_data & BSEC_PROCESS_HUMIDITY) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_HUMIDITY;
-    inputs[num_inputs].signal = data.humidity / 1000.0f;
+    inputs[num_inputs].signal =
+        data.humidity;  // Comment in struct bme68x_data wrongly states that humidity unit is %RH x1000, but inspecting
+                        // the data when using float type the unit is plain %RH
     inputs[num_inputs].time_stamp = curr_time_ns;
+    ESP_LOGV(TAG, "%s: BSEC In[%d](Humidity)=%f", this->device_id_.c_str(), num_inputs, inputs[num_inputs].signal);
     num_inputs++;
   }
-  if (this->bme680_settings_.process_data & BSEC_PROCESS_PRESSURE) {
+  if (this->bseclib_settings_.process_data & BSEC_PROCESS_PRESSURE) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_PRESSURE;
     inputs[num_inputs].signal = data.pressure;
     inputs[num_inputs].time_stamp = curr_time_ns;
+    ESP_LOGV(TAG, "%s: BSEC In[%d](Pressure)=%f", this->device_id_.c_str(), num_inputs, inputs[num_inputs].signal);
     num_inputs++;
   }
-  if (this->bme680_settings_.process_data & BSEC_PROCESS_GAS) {
-    if (data.status & BME680_GASM_VALID_MSK) {
+  if (this->bseclib_settings_.process_data & BSEC_PROCESS_GAS) {
+    if (data.status & BME68X_GASM_VALID_MSK) {
       inputs[num_inputs].sensor_id = BSEC_INPUT_GASRESISTOR;
-      inputs[num_inputs].signal = data.gas_resistance;
+      inputs[num_inputs].signal = min(
+          data.gas_resistance,
+          12800000.0f);  // Limit the maximum value to avoid BSEC error -2 (BSEC_E_DOSTEPS_VALUELIMITS)
+                         // Starting with clean calibration data, a sensor has been observed generating constant gas
+                         // resistance values at 12917167, which then decreased over time. A signal value at 12800001.0f
+                         // results in the BSEC library v1.8.1492 returning error -2 (BSEC_E_DOSTEPS_VALUELIMITS).
+                         // 12800000 and below are OK; no problem at all in BSEC v1.6.1480
       inputs[num_inputs].time_stamp = curr_time_ns;
+      ESP_LOGV(TAG, "%s: BSEC In[%d](GasResistance)=%f (original=%f)", this->device_id_.c_str(), num_inputs,
+               inputs[num_inputs].signal, data.gas_resistance);
       num_inputs++;
     } else {
-      ESP_LOGD(TAG, "BME680 did not report gas data");
+      ESP_LOGD(TAG, "BME68x did not report gas data");
     }
   }
   if (num_inputs < 1) {
@@ -346,8 +377,8 @@ void BME680BSECComponent::read_() {
     if (res != 0)
       return;
     // Now that the BSEC library has been re-initialized, bsec_sensor_control *NEEDS* to be called in order to support
-    // multiple devices with a different set of enabled sensors (even if the bme680_settings_ data is not used)
-    this->bsec_status_ = bsec_sensor_control(curr_time_ns, &this->bme680_settings_);
+    // multiple devices with a different set of enabled sensors (even if the bseclib_settings_ data is not used)
+    this->bsec_status_ = bsec_sensor_control(curr_time_ns, &this->bseclib_settings_);
     if (this->bsec_status_ < BSEC_OK) {
       ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC Error Code %d)", this->bsec_status_);
       return;
@@ -440,24 +471,26 @@ void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, const
 }
 
 // Communication function - read
-// First parameter is the "dev_id" member of our "bme680_" object, which is passed-back here as-is
-int8_t BME680BSECComponent::read_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len) {
-  BME680BSECComponent *inst = instances[devid];
+// Last parameter is a pointer to our BME680BSECComponent object, which is passed-back here as-is
+BME68X_INTF_RET_TYPE BME680BSECComponent::read_bytes_wrapper(uint8_t reg_addr, uint8_t *reg_data, uint32_t len,
+                                                             void *ptr) {
+  BME680BSECComponent *inst = (BME680BSECComponent *) ptr;
   // Use the I2CDevice::read_bytes method to perform the actual I2C register read
-  return inst->read_bytes(a_register, data, len) ? 0 : -1;
+  return inst->read_bytes(reg_addr, reg_data, len) ? 0 : -1;
 }
 
 // Communication function - write
-// First parameter is the "dev_id" member of our "bme680_" object, which is passed-back here as-is
-int8_t BME680BSECComponent::write_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len) {
-  BME680BSECComponent *inst = instances[devid];
+// Last parameter is a pointer to our BME680BSECComponent object, which is passed-back here as-is
+BME68X_INTF_RET_TYPE BME680BSECComponent::write_bytes_wrapper(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len,
+                                                              void *ptr) {
+  BME680BSECComponent *inst = (BME680BSECComponent *) ptr;
   // Use the I2CDevice::write_bytes method to perform the actual I2C register write
-  return inst->write_bytes(a_register, data, len) ? 0 : -1;
+  return inst->write_bytes(reg_addr, reg_data, len) ? 0 : -1;
 }
 
-void BME680BSECComponent::delay_ms(uint32_t period) {
-  ESP_LOGV(TAG, "Delaying for %ums", period);
-  delay(period);
+void BME680BSECComponent::delay_us(uint32_t period, void *ptr) {
+  ESP_LOGV(TAG, "Delaying for %uus", period);
+  delay_microseconds_safe(period);
 }
 
 // Fetch the BSEC library state and save it in the bsec_state_data_ member (volatile memory)
@@ -515,7 +548,7 @@ int BME680BSECComponent::reinit_bsec_lib_() {
 }
 
 void BME680BSECComponent::load_state_() {
-  uint32_t hash = fnv1_hash("bme680_bsec_state_" + this->device_id_);
+  uint32_t hash = fnv1_hash("bme68x_bsec_state_" + this->device_id_);
   this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
   if (!this->bsec_state_.load(&this->bsec_state_data_)) {
