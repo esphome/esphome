@@ -29,13 +29,13 @@ bool Si4713Component::send_cmd_(const CmdBase *cmd, size_t cmd_size, ResBase *re
 
   if (!this->reset_) {
     if (this->get_component_state() & COMPONENT_STATE_LOOP) {
-      ESP_LOGE(TAG, "%s(0x%02X, %d) device was not reset", __func__, cmd->CMD, cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) device was not reset", __func__, (uint8_t) cmd->CMD, cmd_size);
     }
     return false;
   }
 
   if (cmd->CMD != CmdType::GET_INT_STATUS && cmd->CMD != CmdType::TX_ASQ_STATUS) {
-    ESP_LOGV(TAG, "Cmd %02X %d", cmd->CMD, cmd_size);
+    ESP_LOGV(TAG, "Cmd %02X %d", (uint8_t) cmd->CMD, cmd_size);
   }
 
   if (cmd->CMD == CmdType::SET_PROPERTY) {
@@ -45,7 +45,7 @@ bool Si4713Component::send_cmd_(const CmdBase *cmd, size_t cmd_size, ResBase *re
 
   i2c::ErrorCode err = this->write(buff, cmd_size);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "%s(0x%02X, %d) write error", __func__, cmd->CMD, cmd_size);
+    ESP_LOGE(TAG, "%s(0x%02X, %d) write error", __func__, (uint8_t) cmd->CMD, cmd_size);
     // this->mark_failed();
     return false;
   }
@@ -54,7 +54,7 @@ bool Si4713Component::send_cmd_(const CmdBase *cmd, size_t cmd_size, ResBase *re
   while (status.CTS == 0) {
     err = this->read((uint8_t *) &status, 1);  // TODO: read res_size into res here?
     if (err != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "%s(0x%02X, %d) read status error", __func__, cmd->CMD, cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) read status error", __func__, (uint8_t) cmd->CMD, cmd_size);
       // this->mark_failed();
       return false;
     }
@@ -64,7 +64,7 @@ bool Si4713Component::send_cmd_(const CmdBase *cmd, size_t cmd_size, ResBase *re
     //((uint8_t*) res)[0] = status;
     err = this->read((uint8_t *) res, res_size);
     if (err != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "%s(0x%02X, %d) read response error", __func__, cmd->CMD, cmd_size);
+      ESP_LOGE(TAG, "%s(0x%02X, %d) read response error", __func__, (uint8_t) cmd->CMD, cmd_size);
       // this->mark_failed();
       return false;
     }
