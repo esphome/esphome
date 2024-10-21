@@ -2,3 +2,6 @@ i2c:
   - id: i2c_i2c
     scl: 5
     sda: 4
+    scan: true
+    frequency: "280kHz"
+    timeout: "1000us"
