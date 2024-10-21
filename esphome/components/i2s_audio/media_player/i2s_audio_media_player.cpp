@@ -21,8 +21,12 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       if (this->audio_->isRunning()) {
         this->audio_->stopSong();
       }
-      this->audio_->connecttohost(this->current_url_.value().c_str());
-      this->state = play_state;
+      if (this->connecttouri_(this->current_url_.value())) {
+        this->state = play_state;
+      } else {
+        this->stop_();
+        ESP_LOGD(TAG, "connecttouri_ failed");
+      }
     } else {
       this->start();
     }
@@ -114,7 +118,7 @@ void I2SAudioMediaPlayer::unmute_() {
 }
 void I2SAudioMediaPlayer::set_volume_(float volume, bool publish) {
   if (this->audio_ != nullptr)
-    this->audio_->setVolume(remap<uint8_t, float>(volume, 0.0f, 1.0f, 0, 21));
+    this->audio_->setVolume(remap<uint8_t, float>(volume, 0.0f, 1.0f, 0, this->audio_->maxVolume()));
   if (publish)
     this->volume = volume;
 }
@@ -178,14 +182,21 @@ void I2SAudioMediaPlayer::start_() {
 
   this->i2s_state_ = I2S_STATE_RUNNING;
   this->high_freq_.start();
-  this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, 21));
+  this->audio_->setVolumeSteps(255);  // use 255 steps for smoother volume control
+  this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, this->audio_->maxVolume()));
   if (this->current_url_.has_value()) {
-    this->audio_->connecttohost(this->current_url_.value().c_str());
-    this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-    if (this->is_announcement_) {
-      this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+    if (this->connecttouri_(this->current_url_.value())) {
+      if (this->is_announcement_) {
+        this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+      } else {
+        this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+      }
+
+      this->publish_state();
+    } else {
+      this->stop_();
+      ESP_LOGD(TAG, "connecttouri_ failed");
     }
-    this->publish_state();
   }
 }
 void I2SAudioMediaPlayer::stop() {
@@ -252,7 +263,60 @@ void I2SAudioMediaPlayer::dump_config() {
 #endif
 }
 
+bool I2SAudioMediaPlayer::connecttouri_(const std::string &uri) {
+  if (this->audio_ == nullptr) {
+    return false;
+  }
+
+  // web stream?
+  if (uri.find("http://", 0) == 0 || uri.find("https://", 0) == 0) {
+    ESP_LOGD(TAG, "ConnectTo WebStream '%s'", uri.c_str());
+
+    if (uri.size() > 2048) {
+      // ESP32-audioI2S limits the URI to 2048 characters
+      // (since https://github.com/schreibfaul1/ESP32-audioI2S/commit/b1b89a9f64b73b0b171493bf55e6158f37a0bccd)
+      ESP_LOGE(TAG, "WebStream URI too long");
+      return false;
+    }
+
+    return this->audio_->connecttohost(uri.c_str());
+  }
+
+  // local file?
+  if (uri.find("file://", 0) == 0) {
+    // format: file://<path>
+    // const std::string path = uri.substr(7);
+    // ESP_LOGD(TAG, "ConnectTo File '%s'", path.c_str());
+    // return this->audio_->connecttoFS(?, uri.c_str() + 7);
+    return false;
+  }
+
+  // text to speech?
+  if (uri.find("tts://", 0) == 0) {
+    // format: tts://<lang>:<text>
+    const size_t colon = uri.find(':', 6);
+    if (colon > 10) {
+      // language code is expected to be 2-5 characters
+      ESP_LOGW(TAG, "Invalid TTS URI");
+      return false;
+    }
+
+    const std::string lang = uri.substr(6, colon - 6);
+    const std::string text = uri.substr(colon + 1);
+
+    ESP_LOGD(TAG, "ConnectTo TTS: lang='%s', text='%s'", lang.c_str(), text.c_str());
+    return this->audio_->connecttospeech(text.c_str(), lang.c_str());
+  }
+
+  return false;
+}
+
 }  // namespace i2s_audio
 }  // namespace esphome
+
+void audio_info(const char *info) {
+  using namespace esphome;
+  ESP_LOGD("audio_info", "%s", info);
+}
 
 #endif  // USE_ESP32_FRAMEWORK_ARDUINO
