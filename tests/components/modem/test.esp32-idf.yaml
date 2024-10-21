@@ -1,0 +1,50 @@
+logger:
+
+modem:
+  id: atmodem
+  rx_pin: GPIO26
+  tx_pin: GPIO27
+  baud_rate: 115200
+  power_pin:
+    number: GPIO04
+    inverted: True
+  model: SIM7600
+  apn: orange
+  pin_code: "0000"
+  enable_on_boot: True
+  enable_cmux: True
+  reboot_timeout: 5min
+  init_at:
+    - AT
+  on_not_responding:
+    logger.log: "modem not responding"
+  on_connect:
+    logger.log: "modem connected"
+  on_disconnect:
+    logger.log: "modem disconnected"
+
+text_sensor:
+  - platform: modem
+    network_type:
+      name: network type
+    signal_strength:
+      name: Signal strength
+
+sensor:
+  - platform: modem
+    rssi:
+      name: rssi
+    ber:
+      name: ber
+    latitude:
+      name: Latitude
+    longitude:
+      name: Longitude
+    altitude:
+      name: Altitude
+
+switch:
+  - platform: modem
+    gnss:
+      name: GNSS
+      restore_mode: ALWAYS_ON
