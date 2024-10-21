@@ -31,6 +31,7 @@ service APIConnection {
     option (needs_authentication) = false;
   }
   rpc execute_service (ExecuteServiceRequest) returns (void) {}
+  rpc noise_encryption_set_key (NoiseEncryptionSetKeyRequest) returns (NoiseEncryptionSetKeyResponse) {}
 
   rpc cover_command (CoverCommandRequest) returns (void) {}
   rpc fan_command (FanCommandRequest) returns (void) {}
@@ -227,6 +228,9 @@ message DeviceInfoResponse {
   uint32 voice_assistant_feature_flags = 17;
 
   string suggested_area = 16;
+
+  // Supports receiving and saving api encryption key
+  bool api_encryption_supported = 18;
 }
 
 message ListEntitiesRequest {
@@ -649,6 +653,23 @@ message SubscribeLogsResponse {
   LogLevel level = 1;
   string message = 3;
   bool send_failed = 4;
+}
+
+// ==================== NOISE ENCRYPTION ====================
+message NoiseEncryptionSetKeyRequest {
+  option (id) = 119;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_NOISE";
+
+  bytes key = 1;
+}
+
+message NoiseEncryptionSetKeyResponse {
+  option (id) = 120;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_NOISE";
+
+  bool success = 1;
 }
 
 // ==================== HOMEASSISTANT.SERVICE ====================

@@ -209,6 +209,9 @@ class APIConnection : public APIServerConnection {
     return {};
   }
   void execute_service(const ExecuteServiceRequest &msg) override;
+#ifdef USE_API_NOISE
+  NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) override;
+#endif
 
   bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
   bool is_connection_setup() override {
