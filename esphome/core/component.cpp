@@ -22,6 +22,7 @@ const float BLUETOOTH = 350.0f;
 const float AFTER_BLUETOOTH = 300.0f;
 const float WIFI = 250.0f;
 const float ETHERNET = 250.0f;
+const float MODEM = 250.0f;
 const float BEFORE_CONNECTION = 220.0f;
 const float AFTER_WIFI = 200.0f;
 const float AFTER_CONNECTION = 100.0f;
