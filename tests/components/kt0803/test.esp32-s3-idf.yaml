@@ -1,0 +1,135 @@
+i2c:
+  sda: 10
+  scl: 9
+  scan: True
+
+kt0803:
+  id: kt0803_transmitter
+  chip_id: KT0803L
+  frequency: 87.5
+  deviation: 75kHz
+  mute: False
+  mono: False
+  pre_emphasis: 75us
+  pga: 0
+  rfgain: 108
+  pilot_tone_amplitude: Low
+  bass_boost_control: Disabled
+  auto_pa_down: True
+  pa_down: False
+  standby_enable: False
+  pa_bias: False
+  audio_limiter_level: '0.875'
+  switch_mode: Mute
+  au_enhance: False
+  ref_clk:
+    enable: False
+    sel: '32.768kHz'
+  xtal:
+    enable: True
+    sel: '32.768kHz'
+  alc:
+    enable: False
+    gain: -3
+    attack_time: 25us
+    decay_time: 25us
+    hold_time: 5s
+    high: '0.6'
+    low: '0.25'
+  silence:
+    detection: True
+    duration: '100ms'
+    high: '32mV'
+    low: '8mV'
+    high_counter: '15'
+    low_counter: '1'
+  sensor:
+    pw_ok:
+      name: Power OK
+    slncid:
+      name: Silence Detected
+
+number:
+  - platform: kt0803
+    frequency:
+      id: kt0803_frequency
+      name: Frequency
+    pga:
+      name: PGA Gain Control
+    rfgain:
+      name: RF Gain
+    alc:
+      gain:
+        name: ALC Gain
+
+switch:
+  - platform: kt0803
+    mute:
+      name: Mute
+    mono:
+      name: Mono
+    auto_pa_down:
+      name: Automatic PA Power Down
+    pa_down:
+      name: PA Power Down
+    standby_enable:
+      name: Standby Enable
+    pa_bias:
+      name: PA Bias
+    au_enhance:
+      name: Audio Frequency Response Enhancement
+    ref_clk:
+      enable:
+        name: Refence Clock Enable
+    xtal:
+      enable:
+        name: Crystal Oscillator Enable
+    alc:
+      enable:
+        name: ALC Enable
+    silence:
+      detection:
+        name: Silence Detection
+
+select:
+  - platform: kt0803
+    deviation:
+      name: Frequency Deviation
+    pre_emphasis:
+      name: Pre-emphasis
+    pilot_tone_amplitude:
+      name: Pilot Tone Amplitude
+    bass_boost_control:
+      name: Bass Boost Control
+    audio_limiter_level:
+      name: Audio Limiter Level
+    switch_mode:
+      name: Switching Channel Mode Selection
+    xtal:
+      sel:
+        name: Xtal Selection
+    ref_clk:
+      sel:
+        name: Refence Clock
+    alc:
+      attack_time:
+        name: ALC Attack Time
+      decay_time:
+        name: ALC Decay Time
+      hold_time:
+        name: ALC Hold Time
+      high:
+        name: ALC High Threshold
+      low:
+        name: ALC Low Threshold
+    silence:
+      duration:
+        name: Silence Duration
+      high:
+        name: Silence High
+      low:
+        name: Silence Low
+      high_counter:
+        name: Silence High Counter
+      low_counter:
+        name: Silence Low Counter
