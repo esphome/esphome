@@ -282,15 +282,6 @@ bool I2SAudioMediaPlayer::connecttouri_(const std::string &uri) {
     return this->audio_->connecttohost(uri.c_str());
   }
 
-  // local file?
-  if (uri.find("file://", 0) == 0) {
-    // format: file://<path>
-    // const std::string path = uri.substr(7);
-    // ESP_LOGD(TAG, "ConnectTo File '%s'", path.c_str());
-    // return this->audio_->connecttoFS(?, uri.c_str() + 7);
-    return false;
-  }
-
   // text to speech?
   if (uri.find("tts://", 0) == 0) {
     // format: tts://<lang>:<text>
