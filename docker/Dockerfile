@@ -62,7 +62,8 @@ RUN \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
-        /var/lib/apt/lists/*
+        /var/lib/apt/lists/* \
+    && usermod -U root -a -G staff
 
 ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
