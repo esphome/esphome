@@ -88,14 +88,11 @@ class MR60FDA2Component : public Component,
   uint8_t current_sensitivity_;
   uint8_t select_index_;
 
-  bool validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum);
-  uint8_t calculate_checksum_(const uint8_t *data, size_t len);
   void split_frame_(uint8_t buffer);
   void process_frame_();
   void send_query_(uint8_t *query, size_t string_length);
   void float_to_bytes_(float value, unsigned char *bytes);
   void int_to_bytes_(uint32_t value, unsigned char *bytes);
-  uint8_t find_nearest_index_(float value, const float *arr, int size);
 
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }

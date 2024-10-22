@@ -73,7 +73,7 @@ void MR60FDA2Component::loop() {
  * @param len The length of the byte array.
  * @return The calculated checksum.
  */
-uint8_t MR60FDA2Component::calculate_checksum_(const uint8_t *data, size_t len) {
+static uint8_t calculate_checksum_(const uint8_t *data, size_t len) {
   uint8_t checksum = 0;
   for (size_t i = 0; i < len; i++) {
     checksum ^= data[i];
@@ -93,11 +93,11 @@ uint8_t MR60FDA2Component::calculate_checksum_(const uint8_t *data, size_t len) 
  * @param expected_checksum The expected checksum.
  * @return True if the checksum is valid, false otherwise.
  */
-bool MR60FDA2Component::validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum) {
+static bool validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum) {
   return calculate_checksum_(data, len) == expected_checksum;
 }
 
-uint8_t MR60FDA2Component::find_nearest_index_(float value, const float *arr, int size) {
+static uint8_t find_nearest_index_(float value, const float *arr, int size) {
   int nearest_index = 0;
   float min_diff = std::abs(value - arr[0]);
   for (int i = 1; i < size; ++i) {
@@ -183,7 +183,7 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
       }
       break;
     case LOCATE_HEAD_CKSUM_FRAME:
-      if (this->validate_checksum_(this->current_frame_buf_, this->current_frame_len_, buffer)) {
+      if (validate_checksum_(this->current_frame_buf_, this->current_frame_len_, buffer)) {
         this->current_frame_len_++;
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
@@ -207,7 +207,7 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
       }
       break;
     case LOCATE_DATA_CKSUM_FRAME:
-      if (this->validate_checksum_(this->current_data_buf_, this->current_data_frame_len_, buffer)) {
+      if (validate_checksum_(this->current_data_buf_, this->current_data_frame_len_, buffer)) {
         this->current_frame_len_++;
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
