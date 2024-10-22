@@ -71,7 +71,7 @@ void MR60FDA2Component::loop() {
  * @param len The length of the byte array.
  * @return The calculated checksum.
  */
-static uint8_t calculate_checksum_(const uint8_t *data, size_t len) {
+static uint8_t calculate_checksum(const uint8_t *data, size_t len) {
   uint8_t checksum = 0;
   for (size_t i = 0; i < len; i++) {
     checksum ^= data[i];
@@ -91,11 +91,11 @@ static uint8_t calculate_checksum_(const uint8_t *data, size_t len) {
  * @param expected_checksum The expected checksum.
  * @return True if the checksum is valid, false otherwise.
  */
-static bool validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum) {
-  return calculate_checksum_(data, len) == expected_checksum;
+static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_checksum) {
+  return calculate_checksum(data, len) == expected_checksum;
 }
 
-static uint8_t find_nearest_index_(float value, const float *arr, int size) {
+static uint8_t find_nearest_index(float value, const float *arr, int size) {
   int nearest_index = 0;
   float min_diff = std::abs(value - arr[0]);
   for (int i = 1; i < size; ++i) {
@@ -181,7 +181,7 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
       }
       break;
     case LOCATE_HEAD_CKSUM_FRAME:
-      if (validate_checksum_(this->current_frame_buf_, this->current_frame_len_, buffer)) {
+      if (validate_checksum(this->current_frame_buf_, this->current_frame_len_, buffer)) {
         this->current_frame_len_++;
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
@@ -206,7 +206,7 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
       }
       break;
     case LOCATE_DATA_CKSUM_FRAME:
-      if (validate_checksum_(this->current_data_buf_, this->current_data_frame_len_, buffer)) {
+      if (validate_checksum(this->current_data_buf_, this->current_data_frame_len_, buffer)) {
         this->current_frame_len_++;
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
@@ -281,17 +281,17 @@ void MR60FDA2Component::process_frame_() {
           encode_uint32(current_data_buf_[3], current_data_buf_[2], current_data_buf_[1], current_data_buf_[0]);
       float install_height_float;
       memcpy(&install_height_float, &current_install_height_int_, sizeof(float));
-      select_index_ = find_nearest_index_(install_height_float, INSTALL_HEIGHT, 7);
+      select_index_ = find_nearest_index(install_height_float, INSTALL_HEIGHT, 7);
       this->install_height_select_->publish_state(this->install_height_select_->at(select_index_).value());
       this->current_height_threshold_int_ =
           encode_uint32(current_data_buf_[7], current_data_buf_[6], current_data_buf_[5], current_data_buf_[4]);
       float height_threshold_float;
       memcpy(&height_threshold_float, &current_height_threshold_int_, sizeof(float));
-      select_index_ = find_nearest_index_(height_threshold_float, HEIGHT_THRESHOLD, 7);
+      select_index_ = find_nearest_index(height_threshold_float, HEIGHT_THRESHOLD, 7);
       this->height_threshold_select_->publish_state(this->height_threshold_select_->at(select_index_).value());
       this->current_sensitivity_ =
           encode_uint32(current_data_buf_[11], current_data_buf_[10], current_data_buf_[9], current_data_buf_[8]);
-      select_index_ = find_nearest_index_(this->current_sensitivity_, SENSITIVITY, 3);
+      select_index_ = find_nearest_index(this->current_sensitivity_, SENSITIVITY, 3);
       this->sensitivity_select_->publish_state(this->sensitivity_select_->at(select_index_).value());
       ESP_LOGD(TAG, "Mounting height: %.2f, Height threshold: %.2f, Sensitivity: %u", install_height_float,
                height_threshold_float, this->current_sensitivity_);
@@ -349,7 +349,7 @@ void MR60FDA2Component::set_install_height(uint8_t index) {
     data_frame[i] = send_data[i + 8];
   }
 
-  send_data[12] = calculate_checksum_(data_frame, 4);
+  send_data[12] = calculate_checksum(data_frame, 4);
   this->send_query_(send_data, 13);
   ESP_LOGV(TAG, "SEND INSTALL HEIGHT FRAME: %s", format_hex_pretty(send_data, 13).c_str());
 }
@@ -364,7 +364,7 @@ void MR60FDA2Component::set_height_threshold(uint8_t index) {
     data_frame[i] = send_data[i + 8];
   }
 
-  send_data[12] = calculate_checksum_(data_frame, 4);
+  send_data[12] = calculate_checksum(data_frame, 4);
   this->send_query_(send_data, 13);
   ESP_LOGV(TAG, "SEND HEIGHT THRESHOLD: %s", format_hex_pretty(send_data, 13).c_str());
 }
@@ -379,7 +379,7 @@ void MR60FDA2Component::set_sensitivity(uint8_t index) {
     data_frame[i] = send_data[i + 8];
   }
 
-  send_data[12] = calculate_checksum_(data_frame, 4);
+  send_data[12] = calculate_checksum(data_frame, 4);
   this->send_query_(send_data, 13);
   ESP_LOGV(TAG, "SEND SET SENSITIVITY: %s", format_hex_pretty(send_data, 13).c_str());
 }
