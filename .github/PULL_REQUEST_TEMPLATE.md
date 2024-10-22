@@ -7,11 +7,16 @@
 - [ ] Bugfix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Code quality improvements to existing code or addition of tests
 - [ ] Other
 
-**Related issue or feature (if applicable):** fixes <link to issue>
+**Related issue or feature (if applicable):**
 
-**Pull request in [esphome-docs](https://github.com/esphome/esphome-docs) with documentation (if applicable):** esphome/esphome-docs#<esphome-docs PR number goes here>
+- fixes <link to issue>
+
+**Pull request in [esphome-docs](https://github.com/esphome/esphome-docs) with documentation (if applicable):**
+
+- esphome/esphome-docs#<esphome-docs PR number goes here>
 
 ## Test Environment
 
@@ -23,12 +28,6 @@
 - [ ] RTL87xx
 
 ## Example entry for `config.yaml`:
-<!--
-  Supplying a configuration snippet, makes it easier for a maintainer to test
-  your PR. Furthermore, for new integrations, it gives an impression of how
-  the configuration would look like.
-  Note: Remove this section if this PR does not have an example entry.
--->
 
 ```yaml
 # Example config.yaml
