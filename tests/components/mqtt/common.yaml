@@ -227,6 +227,7 @@ datetime:
     type: date
     state_topic: some/topic/date
     qos: 2
+    subscribe_qos: 2
     set_action:
       - logger.log: "set_value"
     on_value:

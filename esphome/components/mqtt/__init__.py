@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_SHUTDOWN_MESSAGE,
     CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
+    CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_TRIGGER_ID,
@@ -518,6 +519,8 @@ async def register_mqtt_component(var, config):
         cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
+    if CONF_SUBSCRIBE_QOS in config:
+        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:

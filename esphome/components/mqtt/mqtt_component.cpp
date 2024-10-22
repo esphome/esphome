@@ -16,6 +16,8 @@ static const char *const TAG = "mqtt.component";
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
 
+void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }
+
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
@@ -76,6 +78,10 @@ bool MQTTComponent::send_discovery_() {
         config.command_topic = true;
 
         this->send_discovery(root, config);
+        // Set subscription QoS (default is 0)
+        if (this->subscribe_qos_ != 0) {
+          root[MQTT_QOS] = this->subscribe_qos_;
+        }
 
         // Fields from EntityBase
         if (this->get_entity()->has_own_name()) {

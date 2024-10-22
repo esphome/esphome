@@ -93,7 +93,7 @@ light:
   - platform: lvgl
     name: LVGL LED
     id: lv_light
-    led: lv_led
+    widget: lv_led
 
 binary_sensor:
   - platform: lvgl

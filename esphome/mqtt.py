@@ -209,6 +209,12 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     elif CONF_MQTT in config:
         conf = config[CONF_MQTT]
         if CONF_LOG_TOPIC in conf:
+            if config[CONF_MQTT][CONF_LOG_TOPIC] is None:
+                _LOGGER.error("MQTT log topic set to null, can't start MQTT logs")
+                return 1
+            if CONF_TOPIC not in config[CONF_MQTT][CONF_LOG_TOPIC]:
+                _LOGGER.error("MQTT log topic not available, can't start MQTT logs")
+                return 1
             topic = config[CONF_MQTT][CONF_LOG_TOPIC][CONF_TOPIC]
         elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
             topic = f"{config[CONF_MQTT][CONF_TOPIC_PREFIX]}/debug"
