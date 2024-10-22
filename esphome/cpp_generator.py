@@ -734,6 +734,30 @@ async def templatable(
     return to_exp(value)
 
 
+async def instant_templatable(
+    value: Any,
+    output_type: Optional[SafeExpType],
+    to_exp: Union[Callable, dict] = None,
+):
+    """Generate code for a templatable config option that is executed
+    immediately on setup.
+
+    If `value` is a templated value, the lambda expression is returned
+    is returned with inline exectution with the provided arguments.
+    Otherwise the value is returned as-is (optionally process with to_exp).
+
+    :param value: The value to process.
+    :param output_type: The output type of the lambda expression.
+    :param to_exp: An optional callable to use for converting non-templated values.
+    :return: The potentially templated value.
+    """
+    lambda_ = await templatable(value, [], output_type, to_exp)
+    # If the lambda is a LambdaExpression, we can inline it
+    if isinstance(lambda_, LambdaExpression):
+        return CallExpression(lambda_, None)
+    return lambda_
+
+
 class MockObj(Expression):
     """A general expression that can be used to represent any value.
 

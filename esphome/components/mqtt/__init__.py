@@ -261,35 +261,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def instant_templatable(value, args, output_type, to_exp=None):
-    """Generate code for a templatable config option.
-
-    If `value` is a templated value, the lambda expression is returned with
-    inline exectution with the provided arguments.
-    Otherwise the value is returned as-is (optionally process with to_exp).
-
-    :param value: The value to process.
-    :param args: The arguments for the lambda expression.
-    :param output_type: The output type of the lambda expression.
-    :param to_exp: An optional callable to use for converting non-templated values.
-    :return: The potentially templated value.
-    """
-    if cg.is_template(value):
-        lambda_code = await cg.process_lambda(value, args, return_type=output_type)
-        return cg.RawExpression(f'({lambda_code})({", ".join(args)})')
-    if to_exp is None:
-        return value
-    if isinstance(to_exp, dict):
-        return to_exp[value]
-    return to_exp(value)
-
-
 async def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
     exp = cg.StructInitializer(
         MQTTMessage,
-        ("topic", await instant_templatable(config[CONF_TOPIC], [], cg.std_string)),
+        ("topic", await cg.instant_templatable(config[CONF_TOPIC], cg.std_string)),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
@@ -311,27 +288,27 @@ async def to_code(config):
 
     cg.add(
         var.set_broker_address(
-            await instant_templatable(config[CONF_BROKER], [], cg.std_string)
+            await cg.instant_templatable(config[CONF_BROKER], cg.std_string)
         )
     )
     cg.add(
-        var.set_broker_port(await instant_templatable(config[CONF_PORT], [], cg.uint16))
+        var.set_broker_port(await cg.instant_templatable(config[CONF_PORT], cg.uint16))
     )
     cg.add(
         var.set_username(
-            await instant_templatable(config[CONF_USERNAME], [], cg.std_string)
+            await cg.instant_templatable(config[CONF_USERNAME], cg.std_string)
         )
     )
     cg.add(
         var.set_password(
-            await instant_templatable(config[CONF_PASSWORD], [], cg.std_string)
+            await cg.instant_templatable(config[CONF_PASSWORD], cg.std_string)
         )
     )
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
     if CONF_CLIENT_ID in config:
         cg.add(
             var.set_client_id(
-                await instant_templatable(config[CONF_CLIENT_ID], [], cg.std_string)
+                await cg.instant_templatable(config[CONF_CLIENT_ID], cg.std_string)
             )
         )
 
@@ -375,8 +352,8 @@ async def to_code(config):
     )
     cg.add(set_discovery_info_action.play())
 
-    topic_prefix = await instant_templatable(
-        config[CONF_TOPIC_PREFIX], [], cg.std_string
+    topic_prefix = await cg.instant_templatable(
+        config[CONF_TOPIC_PREFIX], cg.std_string
     )
     cg.add(var.set_topic_prefix(topic_prefix))
 
