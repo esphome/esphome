@@ -9,7 +9,11 @@ uint8_t temprature_sens_read();
 }
 #elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || \
     defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #include "driver/temp_sensor.h"
+#else
+#include "driver/temperature_sensor.h"
+#endif  // ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
 #ifdef USE_RP2040
@@ -37,6 +41,7 @@ void InternalTemperatureSensor::update() {
   success = (raw != 128);
 #elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || \
     defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
   temp_sensor_config_t tsens = TSENS_CONFIG_DEFAULT();
   temp_sensor_set_config(tsens);
   temp_sensor_start();
@@ -47,6 +52,25 @@ void InternalTemperatureSensor::update() {
   esp_err_t result = temp_sensor_read_celsius(&temperature);
   temp_sensor_stop();
   success = (result == ESP_OK);
+#else
+  esp_err_t result;
+
+  temperature_sensor_config_t tsens_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+  temperature_sensor_handle_t tsens = NULL;
+  result = temperature_sensor_install(&tsens_config, &tsens);
+  if (result == ESP_OK){
+	  result = temperature_sensor_enable(tsens);
+	  if (result == ESP_OK || result == ESP_ERR_INVALID_STATE){
+		  result = temperature_sensor_get_celsius(tsens, &temperature);
+		  temperature_sensor_disable(tsens);
+		  success = (result == ESP_OK);
+	  } else {
+		  ESP_LOGE(TAG, "Failed to enable temperature sensor: %d", result);
+	  }
+  } else {
+	  ESP_LOGE(TAG, "Failed to install temperature sensor: %d", result);
+  }
+#endif  // ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
 #ifdef USE_RP2040
