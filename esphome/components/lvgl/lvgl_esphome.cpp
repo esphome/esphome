@@ -146,7 +146,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
   lv_color_t *dst = this->rotate_buf_;
   switch (this->rotation) {
     case display::DISPLAY_ROTATION_90_DEGREES:
-      for (lv_coord_t x = height - 1; x-- != 0;) {
+      for (lv_coord_t x = height; x-- != 0;) {
         for (lv_coord_t y = 0; y != width; y++) {
           dst[y * height + x] = *ptr++;
         }
