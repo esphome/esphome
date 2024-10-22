@@ -267,6 +267,9 @@ def angle(value):
     return int(cv.float_range(0.0, 360.0)(cv.angle(value)) * 10)
 
 
+lv_angle = LValidator(angle, uint32)
+
+
 @schema_extractor("one_of")
 def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
@@ -401,6 +404,7 @@ class TextValidator(LValidator):
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
 lv_int = LValidator(cv.int_, cg.int_)
+lv_positive_int = LValidator(cv.positive_int, cg.int_)
 lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
 
 
