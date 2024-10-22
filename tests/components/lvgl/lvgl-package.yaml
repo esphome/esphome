@@ -422,7 +422,7 @@ lvgl:
             id: lv_image
             src: cat_image
             align: top_left
-            y: 50
+            y: "50" # Testing use of string that looks like an integer
         - tileview:
             id: tileview_id
             scrollbar_mode: active
@@ -461,7 +461,7 @@ lvgl:
               bg_opa: transp
             knob:
               radius: 1
-              width: 4
+              width: "4" # Testing use of string that looks like an integer
               height: 10%
               bg_color: 0x000000
             width: 100%
