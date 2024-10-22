@@ -14,7 +14,7 @@ void MR60FDA2Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MR60FDA2:");
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR(" ", "People Exist Binary Sensor", this->people_exist_binary_sensor_);
-  LOG_BINARY_SENSOR(" ", "Is Fall Binary Sensor", this->is_fall_binary_sensor_);
+  LOG_BINARY_SENSOR(" ", "Is Fall Binary Sensor", this->fall_detected_binary_sensor_);
 #endif
 #ifdef USE_BUTTON
   LOG_BUTTON(" ", "Get Radar Parameters Button", this->get_radar_parameters_button_);
@@ -225,8 +225,8 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
 void MR60FDA2Component::process_frame_() {
   switch (this->current_frame_type_) {
     case IS_FALL_TYPE_BUFFER:
-      if (this->is_fall_binary_sensor_ != nullptr) {
-        this->is_fall_binary_sensor_->publish_state(this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
+      if (this->fall_detected_binary_sensor_ != nullptr) {
+        this->fall_detected_binary_sensor_->publish_state(this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
       }
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
@@ -279,17 +279,17 @@ void MR60FDA2Component::process_frame_() {
       float install_height_float;
       memcpy(&install_height_float, &current_install_height_int_, sizeof(float));
       select_index_ = find_nearest_index_(install_height_float, INSTALL_HEIGHT, 7);
-      this->install_height_select_->publish_state(this->install_height_select_.at(select_index_));
+      this->install_height_select_->publish_state(this->install_height_select_->at(select_index_).value());
       this->current_height_threshold_int_ =
           encode_uint32(current_data_buf_[7], current_data_buf_[6], current_data_buf_[5], current_data_buf_[4]);
       float height_threshold_float;
       memcpy(&height_threshold_float, &current_height_threshold_int_, sizeof(float));
       select_index_ = find_nearest_index_(height_threshold_float, HEIGHT_THRESHOLD, 7);
-      this->height_threshold_select_->publish_state(this->height_threshold_select_.at(select_index_));
+      this->height_threshold_select_->publish_state(this->height_threshold_select_->at(select_index_).value());
       this->current_sensitivity_ =
           encode_uint32(current_data_buf_[11], current_data_buf_[10], current_data_buf_[9], current_data_buf_[8]);
       select_index_ = find_nearest_index_(this->current_sensitivity_, SENSITIVITY, 3);
-      this->sensitivity_select_->publish_state(this->sensitivity_select_.at(select_index_));
+      this->sensitivity_select_->publish_state(this->sensitivity_select_->at(select_index_).value());
       ESP_LOGD(TAG, "Mounting height: %.2f, Height threshold: %.2f, Sensitivity: %u", install_height_float,
                height_threshold_float, this->current_sensitivity_);
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
