@@ -67,11 +67,11 @@ void SlowPWMOutput::loop() {
     ESP_LOGVV(TAG, "Current cycle reduced to %d ms to obey max period", this->current_period_);
   }
 
-  if (this->state_ == 0)
+  if (this->state_ == 0) {
     scaled_state = 0;
-  else if (this->state_ == 1)
+  } else if (this->state_ == 1) {
     scaled_state = (float) this->current_period_;
-  else {
+  } else {
     scaled_state = std::min(std::max((float) this->min_time_on_, this->state_ * this->current_period_),
                             (float) this->current_period_ - this->min_time_off_);
   }
