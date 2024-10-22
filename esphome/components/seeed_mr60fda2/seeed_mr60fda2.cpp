@@ -187,8 +187,9 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
         this->current_frame_locate_++;
       } else {
         ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buffer);
-        ESP_LOGV(TAG, "FRAME: %s", format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str(),
-                 buffer);
+        ESP_LOGV(TAG, "CURRENT_FRAME: %s %s",
+                 format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str(),
+                 format_hex_pretty(&buffer, 1).c_str());
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
       break;
@@ -212,8 +213,10 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
         this->process_frame_();
       } else {
         ESP_LOGD(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", buffer);
-        ESP_LOGV(TAG, "GET CURRENT_FRAME: %s",
-                 format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str(), buffer);
+        ESP_LOGV(TAG, "GET CURRENT_FRAME: %s %s",
+                 format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str(),
+                 format_hex_pretty(&buffer, 1).c_str());
+
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
       break;
