@@ -857,20 +857,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_backlight_brightness(float brightness);
 
   /**
-   * Set the touch sleep timeout of the display.
-   * @param timeout Timeout in seconds.
-   *
-   * Example:
-   * ```cpp
-   * it.set_touch_sleep_timeout(30);
-   * ```
-   *
-   * After 30 seconds the display will go to sleep. Note: the display will only wakeup by a restart or by setting up
-   * `thup`.
-   */
-  void set_touch_sleep_timeout(uint16_t timeout);
-
-  /**
    * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
    * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
    * wakes up to current page.
@@ -1166,6 +1152,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void update_components_by_prefix(const std::string &prefix);
 
+  /**
+   * Set the touch sleep timeout of the display.
+   * @param timeout Timeout in seconds.
+   *
+   * Example:
+   * ```cpp
+   * it.set_touch_sleep_timeout(30);
+   * ```
+   *
+   * After 30 seconds the display will go to sleep. Note: the display will only wakeup by a restart or by setting up
+   * `thup`.
+   */
   void set_touch_sleep_timeout(uint32_t touch_sleep_timeout) {
     this->touch_sleep_timeout_ = touch_sleep_timeout;
   }

@@ -280,10 +280,6 @@ void Nextion::loop() {
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
     this->set_exit_reparse_on_start(this->exit_reparse_on_start_);
 
-    if (this->touch_sleep_timeout_ != 0) {
-      this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
-    }
-
     if (this->wake_up_page_ != -1) {
       this->set_wake_up_page(this->wake_up_page_);
     }
