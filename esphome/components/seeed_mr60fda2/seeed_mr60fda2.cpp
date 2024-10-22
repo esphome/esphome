@@ -189,16 +189,8 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
         this->current_frame_locate_++;
       } else {
         ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buffer);
-        ESP_LOGD(TAG, "GET CURRENT_FRAME: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-                 this->current_frame_buf_[this->current_frame_len_ - 9],
-                 this->current_frame_buf_[this->current_frame_len_ - 8],
-                 this->current_frame_buf_[this->current_frame_len_ - 7],
-                 this->current_frame_buf_[this->current_frame_len_ - 6],
-                 this->current_frame_buf_[this->current_frame_len_ - 5],
-                 this->current_frame_buf_[this->current_frame_len_ - 4],
-                 this->current_frame_buf_[this->current_frame_len_ - 3],
-                 this->current_frame_buf_[this->current_frame_len_ - 2],
-                 this->current_frame_buf_[this->current_frame_len_ - 1], buffer);
+        ESP_LOGV(TAG, "FRAME: %s", format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str(),
+                 buffer);
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
       break;
@@ -222,16 +214,8 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
         this->process_frame_();
       } else {
         ESP_LOGD(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", buffer);
-        ESP_LOGD(TAG, "GET CURRENT_FRAME: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-                 this->current_frame_buf_[this->current_frame_len_ - 9],
-                 this->current_frame_buf_[this->current_frame_len_ - 8],
-                 this->current_frame_buf_[this->current_frame_len_ - 7],
-                 this->current_frame_buf_[this->current_frame_len_ - 6],
-                 this->current_frame_buf_[this->current_frame_len_ - 5],
-                 this->current_frame_buf_[this->current_frame_len_ - 4],
-                 this->current_frame_buf_[this->current_frame_len_ - 3],
-                 this->current_frame_buf_[this->current_frame_len_ - 2],
-                 this->current_frame_buf_[this->current_frame_len_ - 1], buffer);
+        ESP_LOGV(TAG, "GET CURRENT_FRAME: %s",
+                 format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str(), buffer);
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
       break;
@@ -373,11 +357,7 @@ void MR60FDA2Component::set_install_height(uint8_t index) {
 
   send_data[12] = calculate_checksum_(data_frame, 4);
   this->send_query_(send_data, 13);
-  ESP_LOGD(TAG,
-           "SEND INSTALL HEIGHT FRAME: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
-           "0x%02x 0x%02x",
-           send_data[0], send_data[1], send_data[2], send_data[3], send_data[4], send_data[5], send_data[6],
-           send_data[7], send_data[8], send_data[9], send_data[10], send_data[11], send_data[12]);
+  ESP_LOGV(TAG, "SEND INSTALL HEIGHT FRAME: %s", format_hex_pretty(send_data, 13).c_str());
 }
 
 void MR60FDA2Component::set_height_threshold(uint8_t index) {
@@ -392,11 +372,7 @@ void MR60FDA2Component::set_height_threshold(uint8_t index) {
 
   send_data[12] = calculate_checksum_(data_frame, 4);
   this->send_query_(send_data, 13);
-  ESP_LOGD(TAG,
-           "SEND HEIGHT THRESHOLD: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
-           "0x%02x 0x%02x",
-           send_data[0], send_data[1], send_data[2], send_data[3], send_data[4], send_data[5], send_data[6],
-           send_data[7], send_data[8], send_data[9], send_data[10], send_data[11], send_data[12]);
+  ESP_LOGV(TAG, "SEND HEIGHT THRESHOLD: %s", format_hex_pretty(send_data, 13).c_str());
 }
 
 void MR60FDA2Component::set_sensitivity(uint8_t index) {
@@ -411,25 +387,19 @@ void MR60FDA2Component::set_sensitivity(uint8_t index) {
 
   send_data[12] = calculate_checksum_(data_frame, 4);
   this->send_query_(send_data, 13);
-  ESP_LOGD(TAG,
-           "SEND SET SENSITIVITY: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
-           "0x%02x 0x%02x",
-           send_data[0], send_data[1], send_data[2], send_data[3], send_data[4], send_data[5], send_data[6],
-           send_data[7], send_data[8], send_data[9], send_data[10], send_data[11], send_data[12]);
+  ESP_LOGV(TAG, "SEND SET SENSITIVITY: %s", format_hex_pretty(send_data, 13).c_str());
 }
 
 void MR60FDA2Component::get_radar_parameters() {
   uint8_t send_data[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x06, 0xF6};
   this->send_query_(send_data, 8);
-  ESP_LOGD(TAG, "SEND GET PARAMETERS: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x", send_data[0],
-           send_data[1], send_data[2], send_data[3], send_data[4], send_data[5], send_data[6], send_data[7]);
+  ESP_LOGV(TAG, "SEND GET PARAMETERS: %s", format_hex_pretty(send_data, 8).c_str());
 }
 
 void MR60FDA2Component::reset_radar() {
   uint8_t send_data[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x21, 0x10, 0xCF};
   this->send_query_(send_data, 8);
-  ESP_LOGD(TAG, "SEND RESET: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x", send_data[0], send_data[1],
-           send_data[2], send_data[3], send_data[4], send_data[5], send_data[6], send_data[7]);
+  ESP_LOGV(TAG, "SEND RESET: %s", format_hex_pretty(send_data, 8).c_str());
   this->get_radar_parameters();
 }
 
