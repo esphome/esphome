@@ -1108,8 +1108,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * After 30 seconds the display will go to sleep. Note: the display will only wakeup by a restart or by setting up
    * `thup`.
    */
-  void set_touch_sleep_timeout(uint32_t touch_sleep_timeout) { this->touch_sleep_timeout_ = touch_sleep_timeout; }
-
+  void set_touch_sleep_timeout(uint32_t touch_sleep_timeout);
 
   /**
    * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
@@ -1123,7 +1122,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * The display will wake up to page 2.
    */
-  void set_wake_up_page(uint8_t wake_up_page = 255) { this->wake_up_page_ = wake_up_page; }
+  void set_wake_up_page(uint8_t wake_up_page = 255);
 
   /**
    * Sets which page Nextion loads when connecting to ESPHome.
@@ -1139,7 +1138,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void set_start_up_page(uint8_t start_up_page = 255) { this->start_up_page_ = start_up_page; }
 
-
   /**
    * Sets if Nextion should auto-wake from sleep when touch press occurs.
    * @param auto_wake_on_touch True or false. When auto_wake is true and Nextion is in sleep mode,
@@ -1152,7 +1150,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * The display will wake up by touch.
    */
-  void set_auto_wake_on_touch(bool auto_wake_on_touch) { this->auto_wake_on_touch_ = auto_wake_on_touch; }
+  void set_auto_wake_on_touch(bool auto_wake_on_touch);
 
   /**
    * Sets if Nextion should exit the active reparse mode before the "connect" command is sent
