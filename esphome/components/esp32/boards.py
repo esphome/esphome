@@ -1301,10 +1301,10 @@ ESP32_BOARD_PINS = {
     },
     "wemosbat": {"LED": 16},
     "wesp32": {
-        "MISO": 32, 
+        "MISO": 32,
         "MOSI": 23,
         "SCK": 18,
-        "SCL": 4, 
+        "SCL": 4,
         "SDA": 15,
         "MISO1": 12,
         "MOSI1": 13,
