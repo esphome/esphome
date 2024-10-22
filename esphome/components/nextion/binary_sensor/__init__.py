@@ -6,16 +6,11 @@ from esphome.components import binary_sensor
 from esphome.const import (
     CONF_ID,
     CONF_STATE,
-    CONF_COMPONENT_ID, 
-    CONF_PAGE_ID, 
+    CONF_COMPONENT_ID,
+    CONF_PAGE_ID,
 )
 
-from .. import (
-    nextion_ns,
-    CONF_NEXTION_ID,
-    CONF_PUBLISH_STATE,
-    CONF_SEND_TO_NEXTION
-)
+from .. import nextion_ns, CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION
 
 
 from ..base_component import (
@@ -31,7 +26,9 @@ NextionBinarySensor = nextion_ns.class_(
     "NextionBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent
 )
 
-NextionPublishBoolAction = nextion_ns.class_("NextionPublishBoolAction", automation.Action)
+NextionPublishBoolAction = nextion_ns.class_(
+    "NextionPublishBoolAction", automation.Action
+)
 
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(NextionBinarySensor)
@@ -67,6 +64,7 @@ async def to_code(config):
         await setup_component_core_(var, config, ".val")
         cg.add(hub.register_binarysensor_component(var))
 
+
 @automation.register_action(
     "binary_sensor.nextion.publish",
     NextionPublishBoolAction,
@@ -75,7 +73,9 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(NextionBinarySensor),
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
             cv.Optional(CONF_PUBLISH_STATE, default="true"): cv.templatable(cv.boolean),
-            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(cv.boolean)
+            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(
+                cv.boolean
+            ),
         }
     ),
 )

@@ -2,17 +2,9 @@ from esphome import automation
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import (
-    CONF_ID,
-    CONF_STATE
-)
+from esphome.const import CONF_ID, CONF_STATE
 
-from .. import (
-    nextion_ns,
-    CONF_NEXTION_ID,
-    CONF_PUBLISH_STATE,
-    CONF_SEND_TO_NEXTION
-)
+from .. import nextion_ns, CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION
 
 from ..base_component import (
     setup_component_core_,
@@ -25,7 +17,9 @@ NextionTextSensor = nextion_ns.class_(
     "NextionTextSensor", text_sensor.TextSensor, cg.PollingComponent
 )
 
-NextionPublishTextAction = nextion_ns.class_("NextionPublishTextAction", automation.Action)
+NextionPublishTextAction = nextion_ns.class_(
+    "NextionPublishTextAction", automation.Action
+)
 
 CONFIG_SCHEMA = (
     text_sensor.text_sensor_schema(NextionTextSensor)
@@ -44,6 +38,7 @@ async def to_code(config):
 
     await setup_component_core_(var, config, ".txt")
 
+
 @automation.register_action(
     "text_sensor.nextion.publish",
     NextionPublishTextAction,
@@ -52,9 +47,11 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(NextionTextSensor),
             cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
             cv.Optional(CONF_PUBLISH_STATE, default="true"): cv.templatable(cv.boolean),
-            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(cv.boolean)
+            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(
+                cv.boolean
+            ),
         }
-    )
+    ),
 )
 async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

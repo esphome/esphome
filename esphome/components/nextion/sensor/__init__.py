@@ -3,18 +3,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 
-from esphome.const import (
-    CONF_ID,
-    CONF_COMPONENT_ID,
-    CONF_STATE
-)
+from esphome.const import CONF_ID, CONF_COMPONENT_ID, CONF_STATE
 
-from .. import (
-    nextion_ns,
-    CONF_NEXTION_ID,
-    CONF_PUBLISH_STATE,
-    CONF_SEND_TO_NEXTION
-)
+from .. import nextion_ns, CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION
 
 from ..base_component import (
     setup_component_core_,
@@ -33,7 +24,10 @@ CODEOWNERS = ["@senexcrenshaw"]
 
 NextionSensor = nextion_ns.class_("NextionSensor", sensor.Sensor, cg.PollingComponent)
 
-NextionPublishFloatAction = nextion_ns.class_("NextionPublishFloatAction", automation.Action)
+NextionPublishFloatAction = nextion_ns.class_(
+    "NextionPublishFloatAction", automation.Action
+)
+
 
 def CheckWaveID(value):
     value = cv.int_(value)
@@ -49,6 +43,7 @@ def _validate(config):
         )
 
     return config
+
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
@@ -104,6 +99,7 @@ async def to_code(config):
     if CONF_WAVE_MAX_LENGTH in config:
         cg.add(var.set_wave_max_length(config[CONF_WAVE_MAX_LENGTH]))
 
+
 @automation.register_action(
     "sensor.nextion.publish",
     NextionPublishFloatAction,
@@ -112,7 +108,9 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(NextionSensor),
             cv.Required(CONF_STATE): cv.templatable(cv.float_),
             cv.Optional(CONF_PUBLISH_STATE, default="true"): cv.templatable(cv.boolean),
-            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(cv.boolean)
+            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(
+                cv.boolean
+            ),
         }
     ),
 )
