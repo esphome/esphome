@@ -281,22 +281,19 @@ void MR60FDA2Component::process_frame_() {
       //     this->current_data_buf_[6], this->current_data_buf_[7], this->current_data_buf_[8],
       //     this->current_data_buf_[9], this->current_data_buf_[10], this->current_data_buf_[11]);
       this->current_install_height_int_ =
-          (static_cast<uint32_t>(current_data_buf_[3]) << 24) | (static_cast<uint32_t>(current_data_buf_[2]) << 16) |
-          (static_cast<uint32_t>(current_data_buf_[1]) << 8) | static_cast<uint32_t>(current_data_buf_[0]);
+          encode_uint32(current_data_buf_[3], current_data_buf_[2], current_data_buf_[1], current_data_buf_[0]);
       float install_height_float;
       memcpy(&install_height_float, &current_install_height_int_, sizeof(float));
       select_index_ = find_nearest_index_(install_height_float, INSTALL_HEIGHT, 7);
       this->install_height_select_->publish_state(INSTALL_HEIGHT_STR[select_index_]);
       this->current_height_threshold_int_ =
-          (static_cast<uint32_t>(current_data_buf_[7]) << 24) | (static_cast<uint32_t>(current_data_buf_[6]) << 16) |
-          (static_cast<uint32_t>(current_data_buf_[5]) << 8) | static_cast<uint32_t>(current_data_buf_[4]);
+          encode_uint32(current_data_buf_[7], current_data_buf_[6], current_data_buf_[5], current_data_buf_[4]);
       float height_threshold_float;
       memcpy(&height_threshold_float, &current_height_threshold_int_, sizeof(float));
       select_index_ = find_nearest_index_(height_threshold_float, HEIGHT_THRESHOLD, 7);
       this->height_threshold_select_->publish_state(HEIGHT_THRESHOLD_STR[select_index_]);
       this->current_sensitivity_ =
-          (static_cast<uint32_t>(current_data_buf_[11]) << 24) | (static_cast<uint32_t>(current_data_buf_[10]) << 16) |
-          (static_cast<uint32_t>(current_data_buf_[9]) << 8) | static_cast<uint32_t>(current_data_buf_[8]);
+          encode_uint32(current_data_buf_[11], current_data_buf_[10], current_data_buf_[9], current_data_buf_[8]);
       select_index_ = find_nearest_index_(this->current_sensitivity_, SENSITIVITY, 3);
       this->sensitivity_select_->publish_state(SENSITIVITY_STR[select_index_]);
       ESP_LOGD(TAG, "Mounting height: %.2f, Height threshold: %.2f, Sensitivity: %u", install_height_float,
