@@ -55,6 +55,7 @@ class ModemComponent : public Component {
   float get_setup_priority() const override;
   bool can_proceed() override;
   bool is_connected();
+  bool started{false};
   void set_power_pin(InternalGPIOPin *power_pin);
   void set_pwrkey_pin(InternalGPIOPin *pwrkey_pin);
   void set_type(ModemType type);
@@ -67,6 +68,9 @@ class ModemComponent : public Component {
   void set_uart_event_queue_size(int uart_event_queue_size);
   void set_uart_tx_buffer_size(int uart_tx_buffer_size);
   void set_uart_rx_buffer_size(int uart_rx_buffer_size);
+  int get_rssi();
+  int get_ber();
+  int get_modem_voltage();
 
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
@@ -93,8 +97,6 @@ class ModemComponent : public Component {
   void dce_init_();
 
   bool check_modem_component_state_timings_();
-  int get_rssi_();
-  int get_modem_voltage_();
   const char *get_state_();
   void set_state_(ModemComponentState state);
   const char *state_to_string_(ModemComponentState state);
@@ -117,8 +119,6 @@ class ModemComponent : public Component {
 
   uint pull_time_{0};
   uint change_state_{0};
-
-  bool started_{false};
 
   ModemComponentState state_{ModemComponentState::TURNING_ON_POWER};
   int connect_begin_;

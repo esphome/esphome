@@ -69,8 +69,6 @@ void ModemComponent::setup() {
   ESP_LOGD(TAG, "Initializing esp_modem");
   this->modem_netif_init_();
   this->dte_init_();
-
-  this->started_ = true;
 }
 
 void ModemComponent::loop() {
@@ -154,11 +152,12 @@ void ModemComponent::loop() {
 
     // The state of waiting for the modem to register in the network
     case ModemComponentState::REGISTRATION_IN_NETWORK:
-      if (get_rssi_()) {
+      if (get_rssi()) {
         ESP_LOGD(TAG, "Starting modem connection");
-        ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi_());
+        ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
         this->set_state_(ModemComponentState::CONNECTING);
-        this->dce_->set_data();
+        // this->dce_->set_data();
+        this->dce_->set_mode(esp_modem::modem_mode::CMUX_MODE);
       } else {
         ESP_LOGD(TAG, "Wait RSSI");
       }
@@ -172,11 +171,6 @@ void ModemComponent::loop() {
 
     // The state of network connection established
     case ModemComponentState::CONNECTED:
-      if (esp_netif_is_netif_up(this->modem_netif_)) {
-        ESP_LOGD(TAG, "esp_netif_is_netif_UP");
-      } else {
-        ESP_LOGD(TAG, "esp_netif_is_netif_DOWN");
-      }
       break;
 
     default:
@@ -234,6 +228,7 @@ void ModemComponent::set_state_(ModemComponentState state) {
   switch (state) {
     case ModemComponentState::SYNC:
       this->dce_init_();
+      this->started = true;
       break;
 
     default:
@@ -302,14 +297,40 @@ void ModemComponent::dump_connect_params() {
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(&dns_info.ip.u_addr.ip4).str().c_str());
 }
 
-int ModemComponent::get_rssi_() {
-  int rssi = 0, ber = 0;
-  esp_modem::command_result errr = this->dce_->get_signal_quality(rssi, ber);
-  // esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
-  if (errr != esp_modem::command_result::OK) {
-    ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
+int ModemComponent::get_rssi() {
+  if (this->started){
+    int rssi = 0, ber = 0;
+    esp_modem::command_result errr = this->dce_->get_signal_quality(rssi, ber);
+    if (errr != esp_modem::command_result::OK) {
+      ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
+    }
+    return rssi;
   }
-  return rssi;
+  return 0;
+}
+
+int ModemComponent::get_ber() {
+  if (this->started){
+    int rssi = 0, ber = 0;
+    esp_modem::command_result errr = this->dce_->get_signal_quality(rssi, ber);
+    if (errr != esp_modem::command_result::OK) {
+      ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
+    }
+    return ber;
+  }
+  return 0;
+}
+
+int ModemComponent::get_modem_voltage() {
+  if (this->started){
+    int milli_volt = 0, bcs = 0, bcl = 0;
+    esp_modem::command_result errr = this->dce_->get_battery_status(milli_volt, bcs, bcl);
+    if (errr != esp_modem::command_result::OK) {
+      ESP_LOGE(TAG, "esp_modem_get_modem_voltage failed with");
+    }
+    return milli_volt;
+  }
+  return 0;
 }
 
 float ModemComponent::get_setup_priority() const { return setup_priority::MODEM; }
