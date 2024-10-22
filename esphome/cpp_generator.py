@@ -752,7 +752,7 @@ async def instant_templatable(
     :return: The potentially templated value.
     """
     lambda_ = await templatable(value, [], output_type, to_exp)
-    # If the lambda is a LambdaExpression, we can inline it
+    # If the lambda is a LambdaExpression, we execute it immediately
     if isinstance(lambda_, LambdaExpression):
         return CallExpression(lambda_, None)
     return lambda_
