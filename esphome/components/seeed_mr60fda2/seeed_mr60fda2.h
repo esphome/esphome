@@ -30,10 +30,10 @@ static const uint8_t LEN_TO_DATA_FRAME = 9;
 static const uint8_t FRAME_HEADER_BUFFER = 0x01;
 static const uint16_t IS_FALL_TYPE_BUFFER = 0x0E02;
 static const uint16_t PEOPLE_EXIST_TYPE_BUFFER = 0x0F09;
-static const uint16_t RUSULT_INSTALL_HEIGHT = 0x0E04;
-static const uint16_t RUSULT_PARAMETERS = 0x0E06;
-static const uint16_t RUSULT_HEIGHT_THRESHOLD = 0x0E08;
-static const uint16_t RUSULT_SENSITIVITY = 0x0E0A;
+static const uint16_t RESULT_INSTALL_HEIGHT = 0x0E04;
+static const uint16_t RESULT_PARAMETERS = 0x0E06;
+static const uint16_t RESULT_HEIGHT_THRESHOLD = 0x0E08;
+static const uint16_t RESULT_SENSITIVITY = 0x0E0A;
 
 enum FrameLocation {
   LOCATE_FRAME_HEADER,

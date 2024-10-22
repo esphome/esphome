@@ -165,8 +165,8 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
       this->current_frame_type_ += buffer;
       if ((this->current_frame_type_ == IS_FALL_TYPE_BUFFER) ||
           (this->current_frame_type_ == PEOPLE_EXIST_TYPE_BUFFER) ||
-          (this->current_frame_type_ == RUSULT_INSTALL_HEIGHT) || (this->current_frame_type_ == RUSULT_PARAMETERS) ||
-          (this->current_frame_type_ == RUSULT_HEIGHT_THRESHOLD) || (this->current_frame_type_ == RUSULT_SENSITIVITY)) {
+          (this->current_frame_type_ == RESULT_INSTALL_HEIGHT) || (this->current_frame_type_ == RESULT_PARAMETERS) ||
+          (this->current_frame_type_ == RESULT_HEIGHT_THRESHOLD) || (this->current_frame_type_ == RESULT_SENSITIVITY)) {
         this->current_frame_len_++;
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
@@ -235,7 +235,7 @@ void MR60FDA2Component::process_frame_() {
         this->people_exist_binary_sensor_->publish_state(this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
-    case RUSULT_INSTALL_HEIGHT:
+    case RESULT_INSTALL_HEIGHT:
       if (this->current_data_buf_[0]) {
         ESP_LOGD(TAG, "Successfully set the mounting height");
       } else {
@@ -243,7 +243,7 @@ void MR60FDA2Component::process_frame_() {
       }
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
-    case RUSULT_HEIGHT_THRESHOLD:
+    case RESULT_HEIGHT_THRESHOLD:
       if (this->current_data_buf_[0]) {
         ESP_LOGD(TAG, "Successfully set the height threshold");
       } else {
@@ -251,7 +251,7 @@ void MR60FDA2Component::process_frame_() {
       }
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
-    case RUSULT_SENSITIVITY:
+    case RESULT_SENSITIVITY:
       if (this->current_data_buf_[0]) {
         ESP_LOGD(TAG, "Successfully set the sensitivity");
       } else {
@@ -259,7 +259,7 @@ void MR60FDA2Component::process_frame_() {
       }
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
-    case RUSULT_PARAMETERS:
+    case RESULT_PARAMETERS:
       // ESP_LOGD(
       //     TAG,
       //     "GET CURRENT_FRAME: 0x%02x 0x%02x 0x%02x 0x%02x, 0x%02x 0x%02x 0x%02x 0x%02x, 0x%02x 0x%02x 0x%02x 0x%02x",
