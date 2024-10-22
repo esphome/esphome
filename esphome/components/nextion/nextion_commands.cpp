@@ -21,8 +21,8 @@ void Nextion::set_touch_sleep_timeout(uint32_t touch_sleep_timeout) {
     return;
   }
 
- this->touch_sleep_timeout_ = touch_sleep_timeout;
- this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", touch_sleep_timeout, true);
+  this->touch_sleep_timeout_ = touch_sleep_timeout;
+  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", touch_sleep_timeout, true);
 }
 
 void Nextion::sleep(bool sleep) {
@@ -194,7 +194,6 @@ void Nextion::set_auto_wake_on_touch(bool auto_wake_on_touch) {
   this->auto_wake_on_touch_ = auto_wake_on_touch;
   this->add_no_result_to_queue_with_set("auto_wake_on_touch", "thup", auto_wake_on_touch ? 1 : 0);
 }
-
 
 // General Component
 void Nextion::set_component_font(const char *component, uint8_t font_id) {
