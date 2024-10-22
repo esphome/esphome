@@ -3,7 +3,12 @@
 #include "esphome/components/display/display.h"
 
 #ifdef USE_LVGL
-#include "esphome/components/lvgl/lvgl_proxy.h"
+// required for clang-tidy
+#ifndef LV_CONF_H
+#define LV_CONF_SKIP 1  // NOLINT
+#endif                  // LV_CONF_H
+
+#include <lvgl.h>
 #endif  // USE_LVGL
 
 namespace esphome {
