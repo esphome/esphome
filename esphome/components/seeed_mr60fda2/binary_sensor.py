@@ -2,9 +2,10 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_OCCUPANCY
+
 from . import CONF_MR60FDA2_ID, MR60FDA2Component
 
-AUTO_LOAD = ["seeed_mr60fda2"]
+DEPENDENCIES = ["seeed_mr60fda2"]
 
 CONF_PEOPLE_EXIST = "people_exist"
 

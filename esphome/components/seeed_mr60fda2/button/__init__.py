@@ -2,12 +2,15 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_UPDATE,
-    ENTITY_CATEGORY_NONE,
     DEVICE_CLASS_RESTART,
+    DEVICE_CLASS_UPDATE,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ENTITY_CATEGORY_NONE,
 )
+
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns
+
+DEPENDENCIES = ["seeed_mr60fda2"]
 
 GetRadarParametersButton = mr60fda2_ns.class_("GetRadarParametersButton", button.Button)
 ResetRadarButton = mr60fda2_ns.class_("ResetRadarButton", button.Button)
