@@ -404,6 +404,7 @@ class TextValidator(LValidator):
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
 lv_int = LValidator(cv.int_, cg.int_)
+lv_positive_int = LValidator(cv.positive_int, cg.int_)
 lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
 
 
