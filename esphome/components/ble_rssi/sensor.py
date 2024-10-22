@@ -45,7 +45,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
-            cv.Optional(CONF_IBEACON_UUID): cv.uuid,
+            cv.Optional(CONF_IBEACON_UUID): esp32_ble_tracker.bt_uuid,
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -79,7 +79,7 @@ async def to_code(config):
             cg.add(var.set_service_uuid128(uuid128))
 
     if ibeacon_uuid := config.get(CONF_IBEACON_UUID):
-        ibeacon_uuid = esp32_ble_tracker.as_hex_array(str(ibeacon_uuid))
+        ibeacon_uuid = esp32_ble_tracker.as_reversed_hex_array(ibeacon_uuid)
         cg.add(var.set_ibeacon_uuid(ibeacon_uuid))
 
         if (ibeacon_major := config.get(CONF_IBEACON_MAJOR)) is not None:
