@@ -743,8 +743,8 @@ async def instant_templatable(
     immediately on setup.
 
     If `value` is a templated value, the lambda expression is returned
-    is returned with inline exectution with the provided arguments.
-    Otherwise the value is returned as-is (optionally process with to_exp).
+    with inline exectution. Otherwise the value is returned as-is
+    (optionally process with to_exp).
 
     :param value: The value to process.
     :param output_type: The output type of the lambda expression.
