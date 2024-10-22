@@ -274,10 +274,8 @@ def size_validator(value):
         return ["SIZE_CONTENT", "number of pixels", "percentage"]
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
-    if isinstance(value, str) and not value.endswith("%"):
-        if value.upper() == "SIZE_CONTENT":
-            return "LV_SIZE_CONTENT"
-        raise cv.Invalid("must be 'size_content', a percentage or an integer (pixels)")
+    if isinstance(value, str) and value.upper() == "SIZE_CONTENT":
+        return "LV_SIZE_CONTENT"
     return pixels_or_percent_validator(value)
 
 
