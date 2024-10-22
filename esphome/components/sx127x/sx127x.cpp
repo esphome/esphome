@@ -6,6 +6,7 @@ namespace esphome {
 namespace sx127x {
 
 static const char *const TAG = "sx127x";
+static const uint32_t FXOSC = 32000000u;
 
 void IRAM_ATTR HOT SX127xStore::gpio_intr(SX127xStore *arg) {
   if (arg->dio2_set && arg->dio2_toggle) {
@@ -103,7 +104,7 @@ void SX127x::configure() {
   delay(1);
 
   // set freq
-  uint64_t frf = ((uint64_t) this->frequency_ << 19) / 32000000;
+  uint64_t frf = ((uint64_t) this->frequency_ << 19) / FXOSC;
   this->write_register_(REG_FRF_MSB, (uint8_t) ((frf >> 16) & 0xFF));
   this->write_register_(REG_FRF_MID, (uint8_t) ((frf >> 8) & 0xFF));
   this->write_register_(REG_FRF_LSB, (uint8_t) ((frf >> 0) & 0xFF));
@@ -118,7 +119,7 @@ void SX127x::configure() {
 
   // set bitrate
   if (this->bitrate_ > 0) {
-    uint64_t bitrate = (32000000u + this->bitrate_ / 2) / this->bitrate_;
+    uint64_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // round up
     this->write_register_(REG_BITRATE_MSB, (uint8_t) ((bitrate >> 8) & 0xFF));
     this->write_register_(REG_BITRATE_LSB, (uint8_t) ((bitrate >> 0) & 0xFF));
     bit_sync = BIT_SYNC_ON;
@@ -287,7 +288,7 @@ void SX127x::dump_config() {
   static const uint16_t RAMP_LUT[16] = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
   uint32_t rx_bw_mant = 16 + (this->rx_bandwidth_ >> 3) * 4;
   uint32_t rx_bw_exp = this->rx_bandwidth_ & 0x7;
-  float rx_bw = (float) 32000000 / (rx_bw_mant * (1 << (rx_bw_exp + 2)));
+  float rx_bw = (float) FXOSC / (rx_bw_mant * (1 << (rx_bw_exp + 2)));
   ESP_LOGCONFIG(TAG, "SX127x:");
   LOG_PIN("  NSS Pin: ", this->nss_pin_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
