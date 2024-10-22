@@ -53,22 +53,34 @@ void InternalTemperatureSensor::update() {
   temp_sensor_stop();
   success = (result == ESP_OK);
 #else
+  static bool is_sensor_installed = false;
+  static bool is_sensor_enabled = false;
+  static temperature_sensor_config_t tsens_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+  static temperature_sensor_handle_t tsens = NULL;
   esp_err_t result;
 
-  temperature_sensor_config_t tsens_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
-  temperature_sensor_handle_t tsens = NULL;
-  result = temperature_sensor_install(&tsens_config, &tsens);
-  if (result == ESP_OK) {
-    result = temperature_sensor_enable(tsens);
-    if (result == ESP_OK || result == ESP_ERR_INVALID_STATE) {
-      result = temperature_sensor_get_celsius(tsens, &temperature);
-      temperature_sensor_disable(tsens);
-      success = (result == ESP_OK);
+  if (!is_sensor_installed) {
+    result = temperature_sensor_install(&tsens_config, &tsens);
+    if (result == ESP_OK) {
+      is_sensor_installed = true;
     } else {
-      ESP_LOGE(TAG, "Failed to enable temperature sensor: %d", result);
+      ESP_LOGE(TAG, "Failed to install temperature sensor: %d", result);
     }
-  } else {
-    ESP_LOGE(TAG, "Failed to install temperature sensor: %d", result);
+  }
+  if (is_sensor_installed && !is_sensor_enabled) {
+      result = temperature_sensor_enable(tsens);
+      if (result == ESP_OK) {
+        is_sensor_enabled = true;
+      } else {
+        ESP_LOGE(TAG, "Failed to enable temperature sensor: %d", result);
+      }
+  }
+  if (is_sensor_enabled) {
+    result = temperature_sensor_get_celsius(tsens, &temperature);
+    success = (result == ESP_OK);
+    if (!success) {
+      ESP_LOGE(TAG, "Failed to get temperature: %d", result);
+    }
   }
 #endif  // ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #endif  // USE_ESP32_VARIANT
