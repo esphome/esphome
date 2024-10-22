@@ -18,8 +18,8 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
 
 void Touchscreen::call_setup() {
   if (this->display_ != nullptr) {
-    this->display_width_ = this->display_->get_native_width();
-    this->display_height_ = this->display_->get_native_height();
+    this->display_width_ = this->display_->get_width();
+    this->display_height_ = this->display_->get_height();
   }
   PollingComponent::call_setup();
 }

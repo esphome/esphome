@@ -285,6 +285,13 @@ class Display : public PollingComponent {
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
   void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
 
+  /// Fill a ring centered around [center_x,center_y] between two circles with the radius1 and radius2 with the given
+  /// color.
+  void filled_ring(int center_x, int center_y, int radius1, int radius2, Color color = COLOR_ON);
+  /// Fill a half-ring "gauge" centered around [center_x,center_y] between two circles with the radius1 and radius2
+  /// with he given color and filled up to 'progress' percent
+  void filled_gauge(int center_x, int center_y, int radius1, int radius2, int progress, Color color = COLOR_ON);
+
   /// Draw the outline of a triangle contained between the points [x1,y1], [x2,y2] and [x3,y3] with the given color.
   void triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color = COLOR_ON);
 

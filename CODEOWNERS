@@ -48,7 +48,9 @@ esphome/components/at581x/* @X-Ryl669
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/atm90e26/* @danieltwagner
 esphome/components/atm90e32/* @circuitsetup @descipher
+esphome/components/audio/* @kahrendt
 esphome/components/audio_dac/* @kbx81
+esphome/components/axs15231/* @clydebarrow
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
@@ -237,6 +239,7 @@ esphome/components/ltr_als_ps/* @latonita
 esphome/components/lvgl/* @clydebarrow
 esphome/components/m5stack_8angle/* @rnauber
 esphome/components/matrix_keypad/* @ssieb
+esphome/components/max17043/* @blacknell
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger
 esphome/components/max6956/* @looping40
@@ -324,7 +327,7 @@ esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
-esphome/components/qspi_amoled/* @clydebarrow
+esphome/components/qspi_dbi/* @clydebarrow
 esphome/components/qwiic_pir/* @kahrendt
 esphome/components/radon_eye_ble/* @jeffeb3
 esphome/components/radon_eye_rd200/* @jeffeb3
@@ -404,6 +407,7 @@ esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/t6615/* @tylermenezes
+esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
