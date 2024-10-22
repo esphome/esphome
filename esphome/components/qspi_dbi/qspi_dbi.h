@@ -14,11 +14,12 @@
 #include "esp_lcd_panel_rgb.h"
 
 namespace esphome {
-namespace qspi_amoled {
+namespace qspi_dbi {
 
-constexpr static const char *const TAG = "display.qspi_amoled";
+constexpr static const char *const TAG = "display.qspi_dbi";
 static const uint8_t SW_RESET_CMD = 0x01;
 static const uint8_t SLEEP_OUT = 0x11;
+static const uint8_t NORON = 0x13;
 static const uint8_t INVERT_OFF = 0x20;
 static const uint8_t INVERT_ON = 0x21;
 static const uint8_t ALL_ON = 0x23;
@@ -42,6 +43,7 @@ static const uint8_t MADCTL_MV = 0x20;   ///< Bit 5 Reverse Mode
 static const uint8_t MADCTL_RGB = 0x00;  ///< Bit 3 Red-Green-Blue pixel order
 static const uint8_t MADCTL_BGR = 0x08;  ///< Bit 3 Blue-Green-Red pixel order
 
+static const uint8_t DELAY_FLAG = 0xFF;
 // store a 16 bit value in a buffer, big endian.
 static inline void put16_be(uint8_t *buf, uint16_t value) {
   buf[0] = value >> 8;
@@ -49,15 +51,16 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
 }
 
 enum Model {
+  CUSTOM,
   RM690B0,
   RM67162,
 };
 
-class QspiAmoLed : public display::DisplayBuffer,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                         spi::DATA_RATE_1MHZ> {
+class QspiDbi : public display::DisplayBuffer,
+                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                      spi::DATA_RATE_1MHZ> {
  public:
-  void set_model(Model model) { this->model_ = model; }
+  void set_model(const char *model) { this->model_ = model; }
   void update() override;
   void setup() override;
   display::ColorOrder get_color_mode() { return this->color_mode_; }
@@ -93,17 +96,27 @@ class QspiAmoLed : public display::DisplayBuffer,
     this->offset_x_ = offset_x;
     this->offset_y_ = offset_y;
   }
+
+  void set_draw_from_origin(bool draw_from_origin) { this->draw_from_origin_ = draw_from_origin; }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void dump_config() override;
 
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   bool can_proceed() override { return this->setup_complete_; }
+  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequences_.push_back(sequence); }
 
  protected:
+  void check_buffer_() {
+    if (this->buffer_ == nullptr)
+      this->init_internal_(this->width_ * this->height_ * 2);
+  }
+  void write_sequence_(const std::vector<uint8_t> &vec);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
   /**
    * the RM67162 in quad SPI mode seems to work like this (not in the datasheet, this is deduced from the
    * sample code.)
@@ -122,11 +135,7 @@ class QspiAmoLed : public display::DisplayBuffer,
    * @param bytes
    * @param len
    */
-  void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
-    this->enable();
-    this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
-    this->disable();
-  }
+  void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len);
 
   void write_command_(uint8_t cmd, uint8_t data) { this->write_command_(cmd, &data, 1); }
   void write_command_(uint8_t cmd) { this->write_command_(cmd, &cmd, 0); }
@@ -136,8 +145,8 @@ class QspiAmoLed : public display::DisplayBuffer,
 
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *enable_pin_{nullptr};
-  uint16_t x_low_{0};
-  uint16_t y_low_{0};
+  uint16_t x_low_{1};
+  uint16_t y_low_{1};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   bool setup_complete_{};
@@ -151,12 +160,14 @@ class QspiAmoLed : public display::DisplayBuffer,
   bool swap_xy_{};
   bool mirror_x_{};
   bool mirror_y_{};
+  bool draw_from_origin_{false};
   uint8_t brightness_{0xD0};
-  Model model_{RM690B0};
+  const char *model_{"Unknown"};
+  std::vector<std::vector<uint8_t>> init_sequences_{};
 
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace qspi_amoled
+}  // namespace qspi_dbi
 }  // namespace esphome
 #endif

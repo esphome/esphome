@@ -34,6 +34,11 @@ template<typename... Ts> class PlayAction : public Action<Ts...>, public Parente
   std::vector<uint8_t> data_static_{};
 };
 
+template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<Speaker> {
+  TEMPLATABLE_VALUE(float, volume)
+  void play(Ts... x) override { this->parent_->set_volume(this->volume_.value(x...)); }
+};
+
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<Speaker> {
  public:
   void play(Ts... x) override { this->parent_->stop(); }

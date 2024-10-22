@@ -7,7 +7,8 @@
 extern "C" {
 uint8_t temprature_sens_read();
 }
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || \
+    defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "driver/temp_sensor.h"
 #endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
@@ -34,7 +35,8 @@ void InternalTemperatureSensor::update() {
   ESP_LOGV(TAG, "Raw temperature value: %d", raw);
   temperature = (raw - 32) / 1.8f;
   success = (raw != 128);
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || \
+    defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
   temp_sensor_config_t tsens = TSENS_CONFIG_DEFAULT();
   temp_sensor_set_config(tsens);
   temp_sensor_start();

@@ -5,7 +5,7 @@ spi:
   data_pins: [14, 10, 16, 12]
 
 display:
-  - platform: qspi_amoled
+  - platform: qspi_dbi
     model: RM690B0
     data_rate: 80MHz
     spi_mode: mode0
@@ -20,9 +20,10 @@ display:
     reset_pin: 13
     enable_pin: 9
 
-  - platform: qspi_amoled
-    model: RM67162
+  - platform: qspi_dbi
+    model: CUSTOM
     id: main_lcd
+    draw_from_origin: true
     dimensions:
       height: 240
       width: 536
@@ -34,3 +35,10 @@ display:
     cs_pin: 6
     reset_pin: 17
     enable_pin: 38
+    init_sequence:
+      - [0x3A, 0x66]
+      - [0x11]
+      - delay 120ms
+      - [0x29]
+      - delay 20ms
+
