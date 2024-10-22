@@ -30,10 +30,10 @@ static const uint8_t LEN_TO_DATA_FRAME = 9;
 static const uint8_t FRAME_HEADER_BUFFER = 0x01;
 static const uint16_t IS_FALL_TYPE_BUFFER = 0x0E02;
 static const uint16_t PEOPLE_EXIST_TYPE_BUFFER = 0x0F09;
-static const uint16_t RUSULT_INSTALL_HEIGHT = 0x0E04;
-static const uint16_t RUSULT_PARAMETERS = 0x0E06;
-static const uint16_t RUSULT_HEIGHT_THRESHOLD = 0x0E08;
-static const uint16_t RUSULT_SENSITIVITY = 0x0E0A;
+static const uint16_t RESULT_INSTALL_HEIGHT = 0x0E04;
+static const uint16_t RESULT_PARAMETERS = 0x0E06;
+static const uint16_t RESULT_HEIGHT_THRESHOLD = 0x0E08;
+static const uint16_t RESULT_SENSITIVITY = 0x0E0A;
 
 enum FrameLocation {
   LOCATE_FRAME_HEADER,
@@ -61,6 +61,7 @@ class MR60FDA2Component : public Component,
                           public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(people_exist)
+  SUB_BINARY_SENSOR(is_fall)
 #endif
 #ifdef USE_BUTTON
   SUB_BUTTON(get_radar_parameters)
@@ -70,9 +71,6 @@ class MR60FDA2Component : public Component,
   SUB_SELECT(install_height)
   SUB_SELECT(height_threshold)
   SUB_SELECT(sensitivity)
-#endif
-#ifdef USE_TEXT_SENSOR
-  SUB_TEXT_SENSOR(is_fall)
 #endif
 
  protected:
@@ -88,14 +86,11 @@ class MR60FDA2Component : public Component,
   uint8_t current_sensitivity_;
   uint8_t select_index_;
 
-  bool validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum);
-  uint8_t calculate_checksum_(const uint8_t *data, size_t len);
   void split_frame_(uint8_t buffer);
   void process_frame_();
   void send_query_(uint8_t *query, size_t string_length);
   void float_to_bytes_(float value, unsigned char *bytes);
   void int_to_bytes_(uint32_t value, unsigned char *bytes);
-  uint8_t find_nearest_index_(float value, const float *arr, int size);
 
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
