@@ -1308,7 +1308,7 @@ ESP32_BOARD_PINS = {
         "SDA": 15,
         "MISO1": 12,
         "MOSI1": 13,
-        "SCK1": 13,
+        "SCK1": 14,
         "SCL1": 5,
         "SDA1": 33,
     },
