@@ -68,12 +68,12 @@ void InternalTemperatureSensor::update() {
     }
   }
   if (is_sensor_installed && !is_sensor_enabled) {
-      result = temperature_sensor_enable(tsens);
-      if (result == ESP_OK) {
-        is_sensor_enabled = true;
-      } else {
-        ESP_LOGE(TAG, "Failed to enable temperature sensor: %d", result);
-      }
+    result = temperature_sensor_enable(tsens);
+    if (result == ESP_OK) {
+      is_sensor_enabled = true;
+    } else {
+      ESP_LOGE(TAG, "Failed to enable temperature sensor: %d", result);
+    }
   }
   if (is_sensor_enabled) {
     result = temperature_sensor_get_celsius(tsens, &temperature);
