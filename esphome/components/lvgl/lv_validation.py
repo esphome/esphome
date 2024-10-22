@@ -267,6 +267,9 @@ def angle(value):
     return int(cv.float_range(0.0, 360.0)(cv.angle(value)) * 10)
 
 
+lv_angle = LValidator(angle, uint32)
+
+
 @schema_extractor("one_of")
 def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""

@@ -150,7 +150,7 @@ STYLE_PROPS = {
     "text_letter_space": cv.positive_int,
     "text_line_space": cv.positive_int,
     "text_opa": lvalid.opacity,
-    "transform_angle": lvalid.angle,
+    "transform_angle": lvalid.lv_angle,
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
