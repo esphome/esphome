@@ -30,4 +30,4 @@ async def to_code(config):
 
     if is_fall_config := config.get(CONF_FALL_DETECTED):
         sens = await binary_sensor.new_binary_sensor(is_fall_config)
-        cg.add(mr60fda2_component.set_is_fall_binary_sensor(sens))
+        cg.add(mr60fda2_component.set_fall_detected_binary_sensor(sens))
