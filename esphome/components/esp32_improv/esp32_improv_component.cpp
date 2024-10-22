@@ -27,9 +27,8 @@ void ESP32ImprovComponent::setup() {
     });
   }
 #endif
-  global_ble_server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT, [this](uint16_t conn_id) {
-    this->set_error_(improv::ERROR_NONE);
-  });
+  global_ble_server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT,
+                        [this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
 }
 
 void ESP32ImprovComponent::setup_characteristics() {
