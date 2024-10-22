@@ -99,7 +99,6 @@ MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
-MQTTSetDiscoveryAction = mqtt_ns.class_("MQTTSetDiscoveryAction", automation.Action)
 MQTTSetDiscoveryInfoAction = mqtt_ns.class_(
     "MQTTSetDiscoveryInfoAction", automation.Action
 )
