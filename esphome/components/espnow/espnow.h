@@ -124,8 +124,9 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
 
   virtual uint32_t get_protocol_id() = 0;
   virtual std::string get_protocol_name() = 0;
-  uint8_t get_next_sequents() { return this->get_next_sequents(0, 0); }
-  virtual uint8_t get_next_sequents(uint64_t peer, uint32_t protocol) {
+
+  uint8_t get_next_sequents() { return this->get_next_sequents(0); }
+  virtual uint8_t get_next_sequents(uint64_t peer) {
     if (this->next_sequents_ == 255) {
       this->next_sequents_ = 0;
     } else {
@@ -133,6 +134,7 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
     }
     return this->next_sequents_;
   }
+
   bool is_valid_squence(uint8_t received_sequence) {
     bool valid = this->next_sequents_ + 1 == received_sequence;
     if (valid) {
