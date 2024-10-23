@@ -26,7 +26,7 @@ from .gpio import rp2040_pin_to_code  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = []
+AUTO_LOAD = ["preferences"]
 
 
 def set_core_data(config):
