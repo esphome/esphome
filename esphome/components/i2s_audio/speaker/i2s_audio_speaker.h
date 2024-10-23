@@ -49,11 +49,17 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
   bool has_buffered_data() const override;
 
-  /// @brief Sets the volume of the speaker. It is implemented as a software volume control.
-  /// Overrides the default setter to convert the floating point volume to a Q15 fixed-point factor.
-  /// @param volume
+  /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
+  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
+  /// Q15 fixed-point factor.
+  /// @param volume between 0.0 and 1.0
   void set_volume(float volume) override;
-  float get_volume() override { return this->volume_; }
+
+  /// @brief Mutes or unmute the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
+  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
+  /// Q15 fixed-point factor.
+  /// @param mute_state true for muting, false for unmuting
+  void set_mute_state(bool mute_state) override;
 
  protected:
   /// @brief Function for the FreeRTOS task handling audio output.
