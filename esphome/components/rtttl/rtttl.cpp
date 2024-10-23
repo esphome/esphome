@@ -140,16 +140,23 @@ void Rtttl::stop() {
 }
 
 void Rtttl::loop() {
-  if (this->note_duration_ == 0 || this->state_ == State::STATE_STOPPED)
-    return;
-
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     if (this->state_ == State::STATE_STOPPING) {
       if (this->speaker_->is_stopped()) {
         this->set_state_(State::STATE_STOPPED);
       }
-    } else if (this->state_ == State::STATE_INIT) {
+      return;
+    }
+  }
+#endif
+
+  if (this->note_duration_ == 0 || this->state_ == State::STATE_STOPPED)
+    return;
+
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    if (this->state_ == State::STATE_INIT) {
       if (this->speaker_->is_stopped()) {
         audio::AudioStreamInfo audio_stream_info;
         audio_stream_info.channels = 1;
@@ -208,7 +215,7 @@ void Rtttl::loop() {
   if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_)
     return;
 #endif
-  if (!this->rtttl_[position_]) {
+  if (!this->rtttl_[this->position_]) {
     this->finish_();
     return;
   }
@@ -297,9 +304,9 @@ void Rtttl::loop() {
     // Add small silence gap between same note
     this->output_freq_ = freq;
 
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note, this->note_duration_);
+    ESP_LOGV(TAG, "playing note: %d for %dms", note, this->note_duration_);
   } else {
-    ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
+    ESP_LOGV(TAG, "waiting: %dms", this->note_duration_);
     this->output_freq_ = 0;
   }
 
