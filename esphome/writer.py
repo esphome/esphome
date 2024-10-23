@@ -1,3 +1,4 @@
+import importlib
 import logging
 import os
 from pathlib import Path
@@ -301,7 +302,8 @@ def copy_src_tree():
 
     platform = "esphome.components." + CORE.target_platform
     try:
-        copy_files = __import__(platform, fromlist=["copy_files"]).copy_files
+        module = importlib.import_module(platform)
+        copy_files = getattr(module, "copy_files")
         copy_files()
     except AttributeError:
         pass
