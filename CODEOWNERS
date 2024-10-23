@@ -107,6 +107,7 @@ esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
 esphome/components/daikin_arc/* @MagicBear
 esphome/components/daikin_brc/* @hagak
+esphome/components/daikin_brc52a61/* @andrewkww
 esphome/components/dallas_temp/* @ssieb
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
