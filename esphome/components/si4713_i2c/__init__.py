@@ -127,6 +127,11 @@ CONF_GPIO2 = "gpio2"
 CONF_GPIO3 = "gpio3"
 # sensor
 CONF_CHIP_ID = "chip_id"
+CONF_CHIP_REVISION = "chip_revision"
+CONF_CHIP_FIRMWARE = "chip_firmware"
+CONF_CHIP_COMPONENT = "chip_component"
+CONF_CHIP_LIBRARY = "chip_library"
+CONF_CHIP_PATCH = "chip_patch"
 # CONF_FREQUENCY = "frequency"
 # CONF_POWER = "power"
 # CONF_ANTCAP = "antcap"
@@ -310,6 +315,26 @@ SENSOR_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             icon=ICON_CHIP,
         ),
+        cv.Optional(CONF_CHIP_REVISION): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            icon=ICON_CHIP,
+        ),
+        cv.Optional(CONF_CHIP_FIRMWARE): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            icon=ICON_CHIP,
+        ),
+        cv.Optional(CONF_CHIP_COMPONENT): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            icon=ICON_CHIP,
+        ),
+        cv.Optional(CONF_CHIP_LIBRARY): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            icon=ICON_CHIP,
+        ),
+        cv.Optional(CONF_CHIP_PATCH): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            icon=ICON_CHIP,
+        ),
         cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
             unit_of_measurement=UNIT_MEGA_HERTZ,
             # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -448,6 +473,11 @@ VARIABLES = {
 SENSORS = {
     CONF_SENSOR: [
         [CONF_CHIP_ID, "text_sensor"],
+        [CONF_CHIP_REVISION, "text_sensor"],
+        [CONF_CHIP_FIRMWARE, "text_sensor"],
+        [CONF_CHIP_COMPONENT, "text_sensor"],
+        [CONF_CHIP_LIBRARY, "text_sensor"],
+        [CONF_CHIP_PATCH, "text_sensor"],
         [CONF_FREQUENCY, "sensor"],
         [CONF_POWER, "sensor"],
         [CONF_ANTCAP, "sensor"],

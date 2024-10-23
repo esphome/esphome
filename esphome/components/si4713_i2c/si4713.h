@@ -19,9 +19,10 @@ namespace esphome {
 namespace si4713_i2c {
 
 class Si4713Component : public PollingComponent, public i2c::I2CDevice {
-  std::string chip_id_;
   InternalGPIOPin *reset_pin_;
   bool reset_;
+  ResPowerUpQueryLibrary library_;
+  ResGetRev revision_;
   ResTxTuneStatus tune_status_;
   ResTxAsqStatus asq_status_;
 
@@ -88,7 +89,6 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   bool device_reset_();
   bool power_up_();
   bool power_down_();
-  bool detect_chip_id_();
   bool tune_freq_(uint16_t freq);
   bool tune_power_(uint8_t power, uint8_t antcap = 0);
   bool stc_wait_();
@@ -153,6 +153,11 @@ class Si4713Component : public PollingComponent, public i2c::I2CDevice {
   SI4713_SUB_SWITCH(output_gpio2)
   SI4713_SUB_SWITCH(output_gpio3)
   SI4713_SUB_TEXT_SENSOR(chip_id)
+  SI4713_SUB_TEXT_SENSOR(chip_revision)
+  SI4713_SUB_TEXT_SENSOR(chip_firmware)
+  SI4713_SUB_TEXT_SENSOR(chip_component)
+  SI4713_SUB_TEXT_SENSOR(chip_library)
+  SI4713_SUB_TEXT_SENSOR(chip_patch)
   SI4713_SUB_SENSOR(frequency)
   SI4713_SUB_SENSOR(power)
   SI4713_SUB_SENSOR(antcap)

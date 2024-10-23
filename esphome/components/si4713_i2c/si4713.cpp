@@ -109,34 +109,30 @@ bool Si4713Component::power_up_() {
 
   CmdPowerUp cmd;
   cmd.OPMODE = (uint8_t) this->op_mode_;
-  cmd.FUNC = 2;                                                  // transmit
+  cmd.FUNC = (uint8_t) PowerUpFunc::FUNC_QUERY_LIBRARY_ID;
   cmd.XOSCEN = this->op_mode_ == OpMode::OPMODE_ANALOG ? 1 : 0;  // auto-enable(?) xtal for analog mode
   cmd.GPO2OEN = 0;                                               // we do this later
   cmd.CTSIEN = 0;                                                // no interrupts
-  return this->send_cmd_(cmd);
-}
-
-bool Si4713Component::power_down_() { return this->send_cmd_(CmdPowerDown()); }
-
-bool Si4713Component::detect_chip_id_() {
-  ResGetRev res;
-  if (!this->send_cmd_(CmdGetRev(), res)) {
+  if (!this->send_cmd_(cmd, this->library_)) {
+    ESP_LOGE(TAG, "query library id failed");
     return false;
   }
 
-  char buff[32] = {0};
-  snprintf(buff, sizeof(buff), "Si47%02d Rev %d", res.PN, res.CHIPREV);
-  this->chip_id_ = buff;
+  cmd.FUNC = (uint8_t) PowerUpFunc::FUNC_TRANSMIT;  // transmit
+  if (!this->send_cmd_(cmd)) {
+    ESP_LOGE(TAG, "power up failed");
+    return false;
+  }
 
-  // TODO: support all transmitters 10/11/12/13/20/21, mask unsupported features
-
-  if (res.PN != 10 && res.PN != 11 && res.PN != 12 && res.PN != 13) {
-    ESP_LOGE(TAG, "Si47%02d is not supported", res.PN);
+  if (this->library_.PN != 10 && this->library_.PN != 11 && this->library_.PN != 12 && this->library_.PN != 13) {
+    ESP_LOGE(TAG, "Si47%02d is not supported", this->library_.PN);
     return false;
   }
 
   return true;
 }
+
+bool Si4713Component::power_down_() { return this->send_cmd_(CmdPowerDown()); }
 
 bool Si4713Component::tune_freq_(uint16_t freq) { return this->send_cmd_(CmdTxTuneFreq(freq)) && this->stc_wait_(); }
 
@@ -165,7 +161,7 @@ void Si4713Component::setup() {
     return;
   }
 
-  if (!this->detect_chip_id_()) {
+  if (!this->send_cmd_(CmdGetRev(), this->revision_)) {
     this->mark_failed();
     return;
   }
@@ -289,7 +285,12 @@ void Si4713Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "failed!");
   }
-  ESP_LOGCONFIG(TAG, "  Chip: %s", this->chip_id_.c_str());
+  ESP_LOGCONFIG(TAG, "  Chip Id: %s", this->get_chip_id_text_sensor().c_str());
+  ESP_LOGCONFIG(TAG, "    Revision: %s", this->get_chip_revision_text_sensor().c_str());
+  ESP_LOGCONFIG(TAG, "    Firmware: %s", this->get_chip_firmware_text_sensor().c_str());
+  ESP_LOGCONFIG(TAG, "    Component: %s", this->get_chip_component_text_sensor().c_str());
+  ESP_LOGCONFIG(TAG, "    Library: %s", this->get_chip_library_text_sensor().c_str());
+  ESP_LOGCONFIG(TAG, "    Patch: %s", this->get_chip_patch_text_sensor().c_str());
   ESP_LOGCONFIG(TAG, "  Frequency: %.2f MHz", this->get_tuner_frequency());
   ESP_LOGCONFIG(TAG, "  RDS station: %s", this->rds_station_.c_str());
   ESP_LOGCONFIG(TAG, "  RDS text: %s", this->rds_text_.c_str());
@@ -815,7 +816,41 @@ void Si4713Component::set_output_gpio3(bool value) {
 
 bool Si4713Component::get_output_gpio3() { return this->gpio_[2] != 0; }
 
-std::string Si4713Component::get_chip_id_text_sensor() { return this->chip_id_; }
+std::string Si4713Component::get_chip_id_text_sensor() {
+  char buff[16];
+  snprintf(buff, sizeof(buff), "Si47%02d", this->library_.PN);
+  return std::string(buff);
+}
+
+std::string Si4713Component::get_chip_revision_text_sensor() {
+  char buff[16];
+  snprintf(buff, sizeof(buff), "%c", (char) this->library_.CHIPREV);
+  return std::string(buff);
+}
+
+std::string Si4713Component::get_chip_firmware_text_sensor() {
+  char buff[16];
+  snprintf(buff, sizeof(buff), "%c.%c", (char) this->library_.FWMAJOR, (char) this->library_.FWMINOR);
+  return std::string(buff);
+}
+
+std::string Si4713Component::get_chip_component_text_sensor() {
+  char buff[16];
+  snprintf(buff, sizeof(buff), "%c.%c", (char) this->revision_.CMPMAJOR, (char) this->revision_.CMPMINOR);
+  return std::string(buff);
+}
+
+std::string Si4713Component::get_chip_library_text_sensor() {
+  char buff[16];
+  snprintf(buff, sizeof(buff), "R%d", this->library_.LIBRARYID);
+  return std::string(buff);
+}
+
+std::string Si4713Component::get_chip_patch_text_sensor() {
+  char buff[16];
+  snprintf(buff, sizeof(buff), "%d", ((uint16_t) this->revision_.PATCHH << 8) | this->revision_.PATCHL);
+  return std::string(buff);
+}
 
 float Si4713Component::get_frequency_sensor() {
   return (float) ((this->tune_status_.READFREQH << 8) | this->tune_status_.READFREQL) / 100;

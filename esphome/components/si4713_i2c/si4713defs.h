@@ -287,6 +287,11 @@ struct ResBase {
   ResBase() { this->STATUS = 0; }
 };
 
+enum class PowerUpFunc : uint8_t {
+  FUNC_TRANSMIT = 2,
+  FUNC_QUERY_LIBRARY_ID = 15,
+};
+
 struct CmdPowerUp : CmdBase {
   union {
     uint8_t ARG[2];
