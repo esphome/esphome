@@ -32,6 +32,7 @@ enum SpeakerEventGroupBits : uint32_t {
   STATE_RUNNING = (1 << 11),
   STATE_STOPPING = (1 << 12),
   STATE_STOPPED = (1 << 13),
+  ERR_INVALID_FORMAT = (1 << 14),
   ERR_TASK_FAILED_TO_START = (1 << 15),
   ERR_ESP_INVALID_STATE = (1 << 16),
   ERR_ESP_INVALID_ARG = (1 << 17),
@@ -106,6 +107,16 @@ void I2SAudioSpeaker::loop() {
 
   if (event_group_bits & SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START) {
     this->status_set_error("Failed to start speaker task");
+    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START);
+  }
+
+  if (event_group_bits & SpeakerEventGroupBits::ERR_INVALID_FORMAT) {
+    this->status_set_error("Failed to adjust I2S bus to match the incoming audio");
+    ESP_LOGE(TAG,
+             "Incompatible audio format: sample rate = %" PRIu32 " channels = %" PRIu8 " bits per sample = %" PRIu8,
+             this->audio_stream_info_.sample_rate, this->audio_stream_info_.channels,
+             this->audio_stream_info_.bits_per_sample);
+    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_INVALID_FORMAT);
   }
 
   if (event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS) {
@@ -308,6 +319,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         i2s_zero_dma_buffer(this_speaker->parent_->get_port());
       }
     }
+  } else {
+    // Couldn't configure the I2S port to be compatible with the incoming audio
+    xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::ERR_INVALID_FORMAT);
   }
   i2s_zero_dma_buffer(this_speaker->parent_->get_port());
 
