@@ -29,6 +29,12 @@ FinishAction = speaker_ns.class_(
 VolumeSetAction = speaker_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(Speaker)
 )
+MuteOnAction = speaker_ns.class_(
+    "MuteOnAction", automation.Action, cg.Parented.template(Speaker)
+)
+MuteOffAction = speaker_ns.class_(
+    "MuteOffAction", automation.Action, cg.Parented.template(Speaker)
+)
 
 
 IsPlayingCondition = speaker_ns.class_("IsPlayingCondition", automation.Condition)
@@ -54,6 +60,12 @@ SPEAKER_SCHEMA = cv.Schema(
 )
 
 SPEAKER_AUTOMATION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(Speaker)})
+
+MUTE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(Speaker),
+    }
+)
 
 
 async def speaker_action(config, action_id, template_arg, args):
@@ -119,6 +131,13 @@ async def speaker_volume_set_action(config, action_id, template_arg, args):
     volume = await cg.templatable(config[CONF_VOLUME], args, float)
     cg.add(var.set_volume(volume))
     return var
+
+
+@automation.register_action("speaker.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA)
+@automation.register_action("speaker.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA)
+async def speaker_mute_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @coroutine_with_priority(100.0)
