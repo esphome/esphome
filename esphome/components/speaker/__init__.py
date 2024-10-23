@@ -127,8 +127,8 @@ async def speaker_volume_set_action(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("speaker.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA)
-@automation.register_action("speaker.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA)
+@automation.register_action("speaker.mute_off", MuteOffAction, SPEAKER_AUTOMATION_SCHEMA)
+@automation.register_action("speaker.mute_on", MuteOnAction, SPEAKER_AUTOMATION_SCHEMA)
 async def speaker_mute_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
