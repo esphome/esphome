@@ -5,9 +5,14 @@ dependencies:
   esp32_camera:
     git: https://github.com/espressif/esp32-camera.git
     version: v2.0.9
+  esp_modem:
+    git: https://github.com/espressif/esp-protocols.git
+    version: modem-v1.1.0
+    path: components/esp_modem
   mdns:
     git: https://github.com/espressif/esp-protocols.git
     version: mdns-v1.3.2
     path: components/mdns
     rules:
       - if: "idf_version >=5.0"
+
