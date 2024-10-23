@@ -8,6 +8,8 @@
 #include <freertos/FreeRTOS.h>
 #endif
 
+#include "esphome/core/defines.h"
+
 #include "esphome/components/audio/audio.h"
 #ifdef USE_AUDIO_DAC
 #include "esphome/components/audio_dac/audio_dac.h"
