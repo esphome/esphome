@@ -143,8 +143,16 @@ void I2SAudioSpeaker::loop() {
 
 void I2SAudioSpeaker::set_volume(float volume) {
   this->volume_ = volume;
-  ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
-  this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+#ifdef USE_AUDIO_DAC
+  if (this->audio_dac_ != nullptr) {
+    this->audio_dac_->set_volume(volume);
+  } else
+#endif
+  {
+    // Fallback to software volume control by using a Q15 fixed point scaling factor
+    ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
+    this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+  }
 }
 
 size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
