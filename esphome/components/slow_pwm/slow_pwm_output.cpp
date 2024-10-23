@@ -58,8 +58,6 @@ void SlowPWMOutput::loop() {
     this->current_period_ = (unsigned int) ((float) this->min_time_off_ / (1.0 - this->state_));
     ESP_LOGVV(TAG, "Current cycle extended to %d ms to prevent off time of just %.0f ms", this->current_period_,
               required_time_off);
-
-    scaled_state = (float) (this->current_period_ - this->min_time_off_);
   }
 
   if (this->max_period_ && this->current_period_ > this->max_period_) {
