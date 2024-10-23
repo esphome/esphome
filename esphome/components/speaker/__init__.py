@@ -1,6 +1,7 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
+from esphome.components import audio_dac
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_VOLUME
 from esphome.core import CORE
@@ -9,6 +10,8 @@ from esphome.coroutine import coroutine_with_priority
 CODEOWNERS = ["@jesserockz"]
 
 IS_PLATFORM_COMPONENT = True
+
+CONF_AUDIO_DAC = "audio_dac"
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
 
@@ -33,7 +36,9 @@ IsStoppedCondition = speaker_ns.class_("IsStoppedCondition", automation.Conditio
 
 
 async def setup_speaker_core_(var, config):
-    pass
+    if audio_dac_config := config.get(CONF_AUDIO_DAC):
+        aud_dac = await cg.get_variable(audio_dac_config)
+        cg.add(var.set_audio_dac(aud_dac))
 
 
 async def register_speaker(var, config):
@@ -42,8 +47,11 @@ async def register_speaker(var, config):
     await setup_speaker_core_(var, config)
 
 
-SPEAKER_SCHEMA = cv.Schema({})
-
+SPEAKER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_AUDIO_DAC): cv.use_id(audio_dac.AudioDac),
+    }
+)
 
 SPEAKER_AUTOMATION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(Speaker)})
 

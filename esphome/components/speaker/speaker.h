@@ -9,6 +9,9 @@
 #endif
 
 #include "esphome/components/audio/audio.h"
+#ifdef USE_AUDIO_DAC
+#include "esphome/components/audio_dac/audio_dac.h"
+#endif
 
 namespace esphome {
 namespace speaker {
@@ -56,9 +59,21 @@ class Speaker {
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
-  // Volume control must be implemented by each speaker component, otherwise it will have no effect.
-  virtual void set_volume(float volume) { this->volume_ = volume; };
+  // Volume control is handled by a configured audio dac component. Individual speaker components can
+  // override and implement in software if an audio dac isn't available.
+  virtual void set_volume(float volume) {
+    this->volume_ = volume;
+#ifdef USE_AUDIO_DAC
+    if (this->audio_dac_ != nullptr) {
+      this->audio_dac_->set_volume(volume);
+    }
+#endif
+  };
   virtual float get_volume() { return this->volume_; }
+
+#ifdef USE_AUDIO_DAC
+  void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
+#endif
 
   void set_audio_stream_info(const audio::AudioStreamInfo &audio_stream_info) {
     this->audio_stream_info_ = audio_stream_info;
@@ -68,6 +83,10 @@ class Speaker {
   State state_{STATE_STOPPED};
   audio::AudioStreamInfo audio_stream_info_;
   float volume_{1.0f};
+
+#ifdef USE_AUDIO_DAC
+  audio_dac::AudioDac *audio_dac_{nullptr};
+#endif
 };
 
 }  // namespace speaker
