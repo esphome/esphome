@@ -161,11 +161,8 @@ void MR60BHA2Component::split_frame_(uint8_t buffer) {
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
       } else {
-        ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buffer);
-        ESP_LOGD(TAG, "GET CURRENT_FRAME:");
-        for (size_t i = 0; i < this->current_frame_len_; i++) {
-          ESP_LOGD(TAG, "  0x%02x", current_frame_buf_[i]);
-        }
+        ESP_LOGV(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buffer);
+        ESP_LOGV(TAG, " GET FRAME: %s", format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str());
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
       break;
@@ -177,7 +174,7 @@ void MR60BHA2Component::split_frame_(uint8_t buffer) {
         this->current_frame_locate_++;
       }
       if (this->current_frame_len_ > FRAME_BUF_MAX_SIZE) {
-        ESP_LOGD(TAG, "PRACTICE_DATA_FRAME_LEN ERROR: %d", this->current_frame_len_ - LEN_TO_HEAD_CKSUM);
+        ESP_LOGV(TAG, "PRACTICE_DATA_FRAME_LEN ERROR: %d", this->current_frame_len_ - LEN_TO_HEAD_CKSUM);
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
       break;
@@ -188,11 +185,8 @@ void MR60BHA2Component::split_frame_(uint8_t buffer) {
         this->current_frame_locate_++;
         this->process_frame_();
       } else {
-        ESP_LOGD(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", buffer);
-        ESP_LOGD(TAG, "GET CURRENT_FRAME:");
-        for (size_t i = 0; i < this->current_frame_len_; i++) {
-          ESP_LOGD(TAG, "  0x%02x", current_frame_buf_[i]);
-        }
+        ESP_LOGV(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", buffer);
+        ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty(this->current_frame_buf_, this->current_frame_len_).c_str());
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
       break;
