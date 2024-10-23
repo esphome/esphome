@@ -57,8 +57,6 @@ class MR60BHA2Component : public Component,
   uint32_t current_heart_rate_int_;
   uint32_t current_distance_int_;
 
-  bool validate_checksum_(const uint8_t *data, size_t len, uint8_t expected_checksum);
-  uint8_t calculate_checksum_(const uint8_t *data, size_t len);
   void split_frame_(uint8_t buffer);
   void process_frame_();
 
