@@ -489,6 +489,7 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
+    cg.set_cpp_standard("gnu++17")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")

@@ -517,6 +517,8 @@ class EsphomeCore:
         self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A set of build unflags to set in the platformio project
+        self.build_unflags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: set[Define] = set()
         # A map of all platformio options to apply
@@ -548,6 +550,7 @@ class EsphomeCore:
         self.global_statements = []
         self.libraries = []
         self.build_flags = set()
+        self.build_unflags = set()
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
@@ -765,6 +768,11 @@ class EsphomeCore:
         self.build_flags.add(build_flag)
         _LOGGER.debug("Adding build flag: %s", build_flag)
         return build_flag
+
+    def add_build_unflag(self, build_unflag):
+        self.build_unflags.add(build_unflag)
+        _LOGGER.debug("Adding build unflag: %s", build_unflag)
+        return build_unflag
 
     def add_define(self, define):
         if isinstance(define, str):
