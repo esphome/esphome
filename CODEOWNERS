@@ -202,7 +202,7 @@ esphome/components/i2c_device/* @gabest11
 esphome/components/i2s_audio/* @jesserockz
 esphome/components/i2s_audio/media_player/* @jesserockz
 esphome/components/i2s_audio/microphone/* @jesserockz
-esphome/components/i2s_audio/speaker/* @jesserockz
+esphome/components/i2s_audio/speaker/* @jesserockz @kahrendt
 esphome/components/iaqcore/* @yozik04
 esphome/components/ili9xxx/* @clydebarrow @nielsnl68
 esphome/components/improv_base/* @esphome/core
@@ -377,7 +377,7 @@ esphome/components/smt100/* @piechade
 esphome/components/sn74hc165/* @jesserockz
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
-esphome/components/speaker/* @jesserockz
+esphome/components/speaker/* @jesserockz @kahrendt
 esphome/components/spi/* @clydebarrow @esphome/core
 esphome/components/spi_device/* @clydebarrow
 esphome/components/spi_led_strip/* @clydebarrow
