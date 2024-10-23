@@ -5,15 +5,11 @@
 #include "lvgl_hal.h"
 #include "lvgl_esphome.h"
 
+#include <numeric>
+
 namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
-
-#if LV_USE_LOG
-static void log_cb(const char *buf) {
-  esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
-}
-#endif  // LV_USE_LOG
 
 static const char *const EVENT_NAMES[] = {
     "NONE",
@@ -88,6 +84,7 @@ lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LVGL:");
+  ESP_LOGCONFIG(TAG, "  Display width/height: %d x %d", this->disp_drv_.hor_res, this->disp_drv_.ver_res);
   ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation);
   ESP_LOGCONFIG(TAG, "  Draw rounding: %d", (int) this->draw_rounding);
 }
@@ -149,7 +146,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
   lv_color_t *dst = this->rotate_buf_;
   switch (this->rotation) {
     case display::DISPLAY_ROTATION_90_DEGREES:
-      for (lv_coord_t x = height - 1; x-- != 0;) {
+      for (lv_coord_t x = height; x-- != 0;) {
         for (lv_coord_t y = 0; y != width; y++) {
           dst[y * height + x] = *ptr++;
         }
@@ -263,6 +260,39 @@ LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_
 }
 #endif  // USE_LVGL_KEY_LISTENER
 
+#if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
+std::string LvSelectable::get_selected_text() {
+  auto selected = this->get_selected_index();
+  if (selected >= this->options_.size())
+    return "";
+  return this->options_[selected];
+}
+
+static std::string join_string(std::vector<std::string> options) {
+  return std::accumulate(
+      options.begin(), options.end(), std::string(),
+      [](const std::string &a, const std::string &b) -> std::string { return a + (a.length() > 0 ? "\n" : "") + b; });
+}
+
+void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
+  auto index = std::find(this->options_.begin(), this->options_.end(), text);
+  if (index != this->options_.end()) {
+    this->set_selected_index(index - this->options_.begin(), anim);
+    lv_event_send(this->obj, lv_api_event, nullptr);
+  }
+}
+
+void LvSelectable::set_options(std::vector<std::string> options) {
+  auto index = this->get_selected_index();
+  if (index >= options.size())
+    index = options.size() - 1;
+  this->options_ = std::move(options);
+  this->set_option_string(join_string(this->options_).c_str());
+  lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
+  this->set_selected_index(index, LV_ANIM_OFF);
+}
+#endif  // USE_LVGL_DROPDOWN || LV_USE_ROLLER
+
 #ifdef USE_LVGL_BUTTONMATRIX
 void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
   LvCompound::set_obj(lv_obj);
@@ -348,26 +378,48 @@ void LvglComponent::write_random_() {
   }
 }
 
-void LvglComponent::setup() {
-  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
-#if LV_USE_LOG
-  lv_log_register_print_cb(log_cb);
-#endif
+/**
+ * @class LvglComponent
+ * @brief Component for rendering LVGL.
+ *
+ * This component renders LVGL widgets on a display. Some initialisation must be done in the constructor
+ * since LVGL needs to be initialised before any widgets can be created.
+ *
+ * @param displays a list of displays to render onto. All displays must have the same
+ *                 resolution.
+ * @param buffer_frac the fraction of the display resolution to use for the LVGL
+ *                    draw buffer. A higher value will make animations smoother but
+ *                    also increase memory usage.
+ * @param full_refresh if true, the display will be fully refreshed on every frame.
+ *                     If false, only changed areas will be updated.
+ * @param draw_rounding the rounding to use when drawing. A value of 1 will draw
+ *                      without any rounding, a value of 2 will round to the nearest
+ *                      multiple of 2, and so on.
+ * @param resume_on_input if true, this component will resume rendering when the user
+ *                         presses a key or clicks on the screen.
+ */
+LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh,
+                             int draw_rounding, bool resume_on_input)
+    : draw_rounding(draw_rounding),
+      displays_(std::move(displays)),
+      buffer_frac_(buffer_frac),
+      full_refresh_(full_refresh),
+      resume_on_input_(resume_on_input) {
   lv_init();
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
   lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
   auto *display = this->displays_[0];
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
-  auto *buf = lv_custom_mem_alloc(buf_bytes);  // NOLINT
-  if (buf == nullptr) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-    ESP_LOGE(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
-#endif
-    this->mark_failed();
-    this->status_set_error("Memory allocation failure");
-    return;
+  this->rotation = display->get_rotation();
+  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
+    if (this->rotate_buf_ == nullptr)
+      return;
   }
+  auto *buf = lv_custom_mem_alloc(buf_bytes);  // NOLINT
+  if (buf == nullptr)
+    return;
   lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
   lv_disp_drv_init(&this->disp_drv_);
   this->disp_drv_.draw_buf = &this->draw_buf_;
@@ -375,37 +427,36 @@ void LvglComponent::setup() {
   this->disp_drv_.full_refresh = this->full_refresh_;
   this->disp_drv_.flush_cb = static_flush_cb;
   this->disp_drv_.rounder_cb = rounder_cb;
-  this->rotation = display->get_rotation();
-  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
-    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
-    if (this->rotate_buf_ == nullptr) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-      ESP_LOGE(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
-#endif
-      this->mark_failed();
-      this->status_set_error("Memory allocation failure");
-      return;
-    }
-  }
-  display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
-  switch (this->rotation) {
-    default:
-      this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
-      this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
-      break;
-    case display::DISPLAY_ROTATION_90_DEGREES:
-    case display::DISPLAY_ROTATION_270_DEGREES:
-      this->disp_drv_.ver_res = (lv_coord_t) display->get_width();
-      this->disp_drv_.hor_res = (lv_coord_t) display->get_height();
-      break;
-  }
+  this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
+  this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
-  for (const auto &v : this->init_lambdas_)
-    v(this);
+}
+
+void LvglComponent::setup() {
+  if (this->draw_buf_.buf1 == nullptr) {
+    this->mark_failed();
+    this->status_set_error("Memory allocation failure");
+    return;
+  }
+  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
+#if LV_USE_LOG
+  lv_log_register_print_cb([](const char *buf) {
+    auto next = strchr(buf, ')');
+    if (next != nullptr)
+      buf = next + 1;
+    while (isspace(*buf))
+      buf++;
+    esp_log_printf_(LVGL_LOG_LEVEL, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
+  });
+#endif
+  // Rotation will be handled by our drawing function, so reset the display rotation.
+  for (auto *display : this->displays_)
+    display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
   ESP_LOGCONFIG(TAG, "LVGL Setup complete");
 }
+
 void LvglComponent::update() {
   // update indicators
   if (this->paused_) {
@@ -419,13 +470,6 @@ void LvglComponent::loop() {
       this->write_random_();
   }
   lv_timer_handler_run_in_period(5);
-}
-bool lv_is_pre_initialise() {
-  if (!lv_is_initialized()) {
-    ESP_LOGE(TAG, "LVGL call before component is initialised");
-    return true;
-  }
-  return false;
 }
 
 #ifdef USE_LVGL_ANIMIMG

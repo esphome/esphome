@@ -89,6 +89,9 @@ class MQTTComponent : public Component {
   void disable_discovery();
   bool is_discovery_enabled() const;
 
+  /// Set the QOS for subscribe messages (used in discovery).
+  void set_subscribe_qos(uint8_t qos);
+
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual std::string component_type() const = 0;
 
@@ -204,6 +207,7 @@ class MQTTComponent : public Component {
   bool command_retain_{false};
   bool retain_{true};
   uint8_t qos_{0};
+  uint8_t subscribe_qos_{0};
   bool discovery_enabled_{true};
   bool resend_state_{false};
 };

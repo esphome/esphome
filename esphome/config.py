@@ -782,7 +782,7 @@ def validate_config(
         from esphome.components import substitutions
 
         result[CONF_SUBSTITUTIONS] = {
-            **config.get(CONF_SUBSTITUTIONS, {}),
+            **(config.get(CONF_SUBSTITUTIONS) or {}),
             **command_line_substitutions,
         }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
