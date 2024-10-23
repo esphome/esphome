@@ -61,12 +61,6 @@ SPEAKER_SCHEMA = cv.Schema(
 
 SPEAKER_AUTOMATION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(Speaker)})
 
-MUTE_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(Speaker),
-    }
-)
-
 
 async def speaker_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
