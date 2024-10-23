@@ -71,7 +71,21 @@ class Speaker {
     }
 #endif
   };
-  virtual float get_volume() { return this->volume_; }
+  float get_volume() { return this->volume_; }
+
+  virtual void set_mute_state(bool mute_state) {
+    this->mute_state_ = mute_state;
+#ifdef USE_AUDIO_DAC
+    if (this->audio_dac_) {
+      if (mute_state) {
+        this->audio_dac_->set_mute_on();
+      } else {
+        this->audio_dac_->set_mute_off();
+      }
+    }
+#endif
+  }
+  bool get_mute_state() { return this->mute_state_; }
 
 #ifdef USE_AUDIO_DAC
   void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
@@ -85,6 +99,7 @@ class Speaker {
   State state_{STATE_STOPPED};
   audio::AudioStreamInfo audio_stream_info_;
   float volume_{1.0f};
+  bool mute_state_{false};
 
 #ifdef USE_AUDIO_DAC
   audio_dac::AudioDac *audio_dac_{nullptr};

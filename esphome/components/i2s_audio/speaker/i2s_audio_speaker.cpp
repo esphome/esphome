@@ -145,6 +145,9 @@ void I2SAudioSpeaker::set_volume(float volume) {
   this->volume_ = volume;
 #ifdef USE_AUDIO_DAC
   if (this->audio_dac_ != nullptr) {
+    if (volume > 0.0) {
+      this->audio_dac_->set_mute_off();
+    }
     this->audio_dac_->set_volume(volume);
   } else
 #endif
@@ -152,6 +155,28 @@ void I2SAudioSpeaker::set_volume(float volume) {
     // Fallback to software volume control by using a Q15 fixed point scaling factor
     ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
     this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+  }
+}
+
+void I2SAudioSpeaker::set_mute_state(bool mute_state) {
+  this->mute_state_ = mute_state;
+#ifdef USE_AUDIO_DAC
+  if (this->audio_dac_) {
+    if (mute_state) {
+      this->audio_dac_->set_mute_on();
+    } else {
+      this->audio_dac_->set_mute_off();
+    }
+  } else
+#endif
+  {
+    if (mute_state) {
+      // Fallback to software volume control and scale by 0
+      this->q15_volume_factor_ = 0;
+    } else {
+      // Revert to previous volume when unmuting
+      this->set_volume(this->volume_);
+    }
   }
 }
 
