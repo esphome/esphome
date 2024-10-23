@@ -105,26 +105,6 @@ void I2SAudioSpeaker::setup() {
 void I2SAudioSpeaker::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
-  if (event_group_bits & SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START) {
-    this->status_set_error("Failed to start speaker task");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START);
-  }
-
-  if (event_group_bits & SpeakerEventGroupBits::ERR_INVALID_FORMAT) {
-    this->status_set_error("Failed to adjust I2S bus to match the incoming audio");
-    ESP_LOGE(TAG,
-             "Incompatible audio format: sample rate = %" PRIu32 " channels = %" PRIu8 " bits per sample = %" PRIu8,
-             this->audio_stream_info_.sample_rate, this->audio_stream_info_.channels,
-             this->audio_stream_info_.bits_per_sample);
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_INVALID_FORMAT);
-  }
-
-  if (event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS) {
-    uint32_t error_bits = event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS;
-    ESP_LOGW(TAG, "Error writing to I2S: %s", esp_err_to_name(err_bit_to_esp_err(error_bits)));
-    this->status_set_warning();
-  }
-
   if (event_group_bits & SpeakerEventGroupBits::STATE_STARTING) {
     ESP_LOGD(TAG, "Starting Speaker");
     this->state_ = speaker::STATE_STARTING;
@@ -149,6 +129,25 @@ void I2SAudioSpeaker::loop() {
       xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
       this->speaker_task_handle_ = nullptr;
     }
+  }
+
+  if (event_group_bits & SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START) {
+    this->status_set_error("Failed to start speaker task");
+    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START);
+  }
+
+  if (event_group_bits & SpeakerEventGroupBits::ERR_INVALID_FORMAT) {
+    this->status_set_error("Failed to adjust I2S bus to match the incoming audio");
+    ESP_LOGE(TAG,
+             "Incompatible audio format: sample rate = %" PRIu32 ", channels = %" PRIu8 ", bits per sample = %" PRIu8,
+             this->audio_stream_info_.sample_rate, this->audio_stream_info_.channels,
+             this->audio_stream_info_.bits_per_sample);
+  }
+
+  if (event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS) {
+    uint32_t error_bits = event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS;
+    ESP_LOGW(TAG, "Error writing to I2S: %s", esp_err_to_name(err_bit_to_esp_err(error_bits)));
+    this->status_set_warning();
   }
 }
 
@@ -335,7 +334,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 }
 
 void I2SAudioSpeaker::start() {
-  if (this->is_failed())
+  if (this->is_failed() || this->status_has_error())
     return;
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
     return;
