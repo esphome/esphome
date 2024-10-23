@@ -323,6 +323,13 @@ lvgl:
             id: button_button
             width: 20%
             height: 10%
+            transform_angle: !lambda return 180*100;
+            arc_width: !lambda return 4;
+            border_width: !lambda return 6;
+            shadow_ofs_x: !lambda return 6;
+            shadow_ofs_y: !lambda return 6;
+            shadow_spread: !lambda return 6;
+            shadow_width: !lambda return 6;
             pressed:
               bg_color: light_blue
             checkable: true
@@ -422,7 +429,7 @@ lvgl:
             id: lv_image
             src: cat_image
             align: top_left
-            y: 50
+            y: "50"
         - tileview:
             id: tileview_id
             scrollbar_mode: active
@@ -461,7 +468,7 @@ lvgl:
               bg_opa: transp
             knob:
               radius: 1
-              width: 4
+              width: "4"
               height: 10%
               bg_color: 0x000000
             width: 100%
