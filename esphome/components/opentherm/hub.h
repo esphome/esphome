@@ -7,10 +7,16 @@
 
 #include "opentherm.h"
 
+#ifdef OPENTHERM_USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+
+#include "opentherm_macros.h"
 
 namespace esphome {
 namespace opentherm {
@@ -22,6 +28,8 @@ class OpenthermHub : public Component {
   InternalGPIOPin *in_pin_, *out_pin_;
   // The OpenTherm interface
   std::unique_ptr<OpenTherm> opentherm_;
+
+  OPENTHERM_SENSOR_LIST(OPENTHERM_DECLARE_SENSOR, )
 
   // The set of initial messages to send on starting communication with the boiler
   std::unordered_set<MessageId> initial_messages_;
@@ -44,7 +52,7 @@ class OpenthermHub : public Component {
   bool sync_mode_ = false;
 
   // Create OpenTherm messages based on the message id
-  OpenthermData build_request_(MessageId request_id);
+  OpenthermData build_request_(MessageId request_id) const;
   void handle_protocol_write_error_();
   void handle_protocol_read_error_();
   void handle_timeout_error_();
@@ -78,6 +86,8 @@ class OpenthermHub : public Component {
   void set_in_pin(InternalGPIOPin *in_pin) { this->in_pin_ = in_pin; }
   void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin_ = out_pin; }
 
+  OPENTHERM_SENSOR_LIST(OPENTHERM_SET_SENSOR, )
+
   // Add a request to the set of initial requests
   void add_initial_message(MessageId message_id) { this->initial_messages_.insert(message_id); }
   // Add a request to the set of repeating requests. Note that a large number of repeating
@@ -86,9 +96,10 @@ class OpenthermHub : public Component {
   // will be processed.
   void add_repeating_message(MessageId message_id) { this->repeating_messages_.insert(message_id); }
 
-  // There are five status variables, which can either be set as a simple variable,
+  // There are seven status variables, which can either be set as a simple variable,
   // or using a switch. ch_enable and dhw_enable default to true, the others to false.
-  bool ch_enable = true, dhw_enable = true, cooling_enable = false, otc_active = false, ch2_active = false;
+  bool ch_enable = true, dhw_enable = true, cooling_enable = false, otc_active = false, ch2_active = false,
+       summer_mode_active = false, dhw_block = false;
 
   // Setters for the status variables
   void set_ch_enable(bool value) { this->ch_enable = value; }
@@ -96,6 +107,8 @@ class OpenthermHub : public Component {
   void set_cooling_enable(bool value) { this->cooling_enable = value; }
   void set_otc_active(bool value) { this->otc_active = value; }
   void set_ch2_active(bool value) { this->ch2_active = value; }
+  void set_summer_mode_active(bool value) { this->summer_mode_active = value; }
+  void set_dhw_block(bool value) { this->dhw_block = value; }
   void set_sync_mode(bool sync_mode) { this->sync_mode_ = sync_mode; }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

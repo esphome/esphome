@@ -1,3 +1,76 @@
+api:
+wifi:
+  ap:
+    ssid: "Thermostat"
+    password: "MySecretThemostat"
+
 opentherm:
-  in_pin: 1
-  out_pin: 2
+  in_pin: 4
+  out_pin: 5
+  ch_enable: true
+  dhw_enable: false
+  cooling_enable: false
+  otc_active: false
+  ch2_active: true
+  summer_mode_active: true
+  dhw_block: true
+  sync_mode: true
+
+sensor:
+  - platform: opentherm
+    rel_mod_level:
+      name: "Boiler Relative modulation level"
+    ch_pressure:
+      name: "Boiler Water pressure in CH circuit"
+    dhw_flow_rate:
+      name: "Boiler Water flow rate in DHW circuit"
+    t_boiler:
+      name: "Boiler water temperature"
+    t_dhw:
+      name: "Boiler DHW temperature"
+    t_outside:
+      name: "Boiler Outside temperature"
+    t_ret:
+      name: "Boiler Return water temperature"
+    t_storage:
+      name: "Boiler Solar storage temperature"
+    t_collector:
+      name: "Boiler Solar collector temperature"
+    t_flow_ch2:
+      name: "Boiler Flow water temperature CH2 circuit"
+    t_dhw2:
+      name: "Boiler Domestic hot water temperature 2"
+    t_exhaust:
+      name: "Boiler Exhaust temperature"
+    burner_starts:
+      name: "Boiler Number of starts burner"
+    ch_pump_starts:
+      name: "Boiler Number of starts CH pump"
+    dhw_pump_valve_starts:
+      name: "Boiler Number of starts DHW pump/valve"
+    dhw_burner_starts:
+      name: "Boiler Number of starts burner during DHW mode"
+    burner_operation_hours:
+      name: "Boiler Number of hours that burner is in operation (i.e. flame on)"
+    ch_pump_operation_hours:
+      name: "Boiler Number of hours that CH pump has been running"
+    dhw_pump_valve_operation_hours:
+      name: "Boiler Number of hours that DHW pump has been running or DHW valve has been opened"
+    dhw_burner_operation_hours:
+      name: "Boiler Number of hours that burner is in operation during DHW mode"
+    t_dhw_set_ub:
+      name: "Boiler Upper bound for adjustement of DHW setpoint"
+    t_dhw_set_lb:
+      name: "Boiler Lower bound for adjustement of DHW setpoint"
+    max_t_set_ub:
+      name: "Boiler Upper bound for adjustement of max CH setpoint"
+    max_t_set_lb:
+      name: "Boiler Lower bound for adjustement of max CH setpoint"
+    t_dhw_set:
+      name: "Boiler Domestic hot water temperature setpoint"
+    max_t_set:
+      name: "Boiler Maximum allowable CH water setpoint"
+    otc_hc_ratio_ub:
+      name: "OTC heat curve ratio upper bound"
+    otc_hc_ratio_lb:
+      name: "OTC heat curve ratio lower bound"
