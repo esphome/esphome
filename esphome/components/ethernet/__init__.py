@@ -109,9 +109,8 @@ ManualIP = ethernet_ns.struct("ManualIP")
 def _is_framework_spi_polling_mode_supported():
     # SPI Ethernet without IRQ feature is added in
     # esp-idf >= (5.3+ ,5.2.1+, 5.1.4) and arduino-esp32 >= 3.0.0
-    build_framework = CORE.target_framework
     framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if build_framework == "esp-idf":
+    if CORE.using_esp_idf:
         if framework_version >= cv.Version(5, 3, 0):
             return True
         if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
@@ -119,12 +118,12 @@ def _is_framework_spi_polling_mode_supported():
         if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):
             return True
         return False
-    if build_framework == "arduino":
+    if CORE.using_arduino:
         return framework_version >= cv.Version(3, 0, 0)
     # Postel's law
     LOGGER.warning(
         "`ethernet` component is not compatible with framework '%s' (expecting esp-idf or arduino)",
-        build_framework,
+        CORE.target_framework,
     )
     return True
 
