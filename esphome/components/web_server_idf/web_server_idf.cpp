@@ -387,18 +387,19 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
 }
 
 void AsyncEventSourceResponse::process_buffer_() {
-  if(event_bytes_sent == event_buffer.size()) {
+  if (event_bytes_sent == event_buffer.size()) {
     event_buffer.resize(0);
     event_bytes_sent = 0;
   }
 
-  int bytes_sent = httpd_socket_send(this->hd_, this->fd_, event_buffer.c_str() + event_bytes_sent, event_buffer.size() - event_bytes_sent, 0);
+  int bytes_sent = httpd_socket_send(this->hd_, this->fd_, event_buffer.c_str() + event_bytes_sent,
+                                     event_buffer.size() - event_bytes_sent, 0);
   if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || bytes_sent == HTTPD_SOCK_ERR_FAIL) {
     return;
   }
   event_bytes_sent += bytes_sent;
 
-  if(event_bytes_sent == event_buffer.size()) {
+  if (event_bytes_sent == event_buffer.size()) {
     event_buffer.resize(0);
     event_bytes_sent = 0;
   }
@@ -418,7 +419,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
   }
 
   process_buffer_();
-  if(event_buffer.size() > 0) {
+  if (event_buffer.size() > 0) {
     // there is still pending event data to send first
     return false;
   }
