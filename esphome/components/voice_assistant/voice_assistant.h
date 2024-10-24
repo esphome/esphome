@@ -103,14 +103,13 @@ class VoiceAssistant : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
     this->speaker_ = speaker;
-    this->local_output_ = true;
+    this->local_output_ = (this->speaker_ != nullptr);
   }
 #endif
 #ifdef USE_MEDIA_PLAYER
   void set_media_player(media_player::MediaPlayer *media_player) {
     this->media_player_ = media_player;
-    this->local_output_ = true;
-  }
+    this->local_output_ = (this->media_player_ != nullptr);
 #endif
 
   uint32_t get_legacy_version() const {
