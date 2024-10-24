@@ -286,6 +286,8 @@ async def to_code(config):
             cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
         else:
             cg.add(var.set_polling_interval(config[CONF_POLLING_INTERVAL]))
+        if _is_framework_spi_polling_mode_supported():
+            cg.add_define("USE_ETHERNET_SPI_POLLING_SUPPORT")
         if CONF_RESET_PIN in config:
             cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
