@@ -37,6 +37,7 @@ from esphome.cpp_generator import (  # noqa: F401
     statement,
     static_const_array,
     templatable,
+    instant_templatable,
     variable,
     with_local_variable,
 )
