@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import partial
 import json
 import logging
+from pathlib import Path
 import threading
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -102,12 +103,23 @@ class ESPHomeDashboard:
         self.loop = asyncio.get_running_loop()
         self.ping_request = asyncio.Event()
         self.entries = DashboardEntries(self)
+        self.load_ignored_devices()
 
+    def load_ignored_devices(self) -> None:
+        storage_path = Path(ignored_devices_storage_path())
         try:
-            with open(ignored_devices_storage_path(), encoding="utf-8") as f_handle:
-                self.ignored_devices = set(json.load(f_handle))
+            with storage_path.open("r", encoding="utf-8") as f_handle:
+                data = json.load(f_handle)
+                self.ignored_devices = set(data.get("ignored_devices", set()))
         except FileNotFoundError:
             pass
+
+    def save_ignored_devices(self) -> None:
+        storage_path = Path(ignored_devices_storage_path())
+        with storage_path.open("w", encoding="utf-8") as f_handle:
+            json.dump(
+                {"ignored_devices": sorted(self.ignored_devices)}, indent=2, fp=f_handle
+            )
 
     async def async_run(self) -> None:
         """Run the dashboard."""

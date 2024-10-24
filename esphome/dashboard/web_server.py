@@ -36,13 +36,8 @@ import yaml
 from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
-from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
-from esphome.storage_json import (
-    StorageJSON,
-    ext_storage_path,
-    ignored_devices_storage_path,
-    trash_storage_path,
-)
+from esphome.helpers import get_bool_env, mkdir_p
+from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_path
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
@@ -580,9 +575,7 @@ class IgnoreDeviceRequestHandler(BaseHandler):
         else:
             dashboard.ignored_devices.discard(ignored_device.device_name)
 
-        write_file_if_changed(
-            ignored_devices_storage_path(), json.dumps(list(dashboard.ignored_devices))
-        )
+        dashboard.save_ignored_devices()
 
         self.set_status(204)
         self.finish()
