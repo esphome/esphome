@@ -18,7 +18,9 @@ class LvType(cg.MockObjClass):
         self.value_property = None
 
     def get_arg_type(self):
-        return self.args[0][0] if len(self.args) else None
+        if len(self.args) == 0:
+            return None
+        return [arg[0] for arg in self.args]
 
 
 class LvNumber(LvType):
@@ -40,6 +42,7 @@ lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 FontEngine = lvgl_ns.class_("FontEngine")
 IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
+PauseTrigger = lvgl_ns.class_("PauseTrigger", automation.Trigger.template())
 ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
 LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
 LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
@@ -91,11 +94,13 @@ class LvBoolean(LvType):
 
 class LvSelect(LvType):
     def __init__(self, *args, **kwargs):
+        parens = kwargs.pop("parents", ()) + (LvCompound,)
         super().__init__(
             *args,
-            largs=[(cg.int_, "x")],
-            lvalue=lambda w: w.get_property("selected"),
+            largs=[(cg.int_, "x"), (cg.std_string, "text")],
+            lvalue=lambda w: [w.var.get_selected_index(), w.var.get_selected_text()],
             has_on_value=True,
+            parents=parens,
             **kwargs,
         )
 

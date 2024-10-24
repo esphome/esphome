@@ -16,7 +16,8 @@ from .. import (
     register_i2s_audio_component,
 )
 
-CODEOWNERS = ["@jesserockz"]
+AUTO_LOAD = ["audio"]
+CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
 
 I2SAudioSpeaker = i2s_audio_ns.class_(
@@ -72,7 +73,7 @@ BASE_SCHEMA = (
     .extend(
         {
             cv.Optional(
-                CONF_TIMEOUT, default="100ms"
+                CONF_TIMEOUT, default="500ms"
             ): cv.positive_time_period_milliseconds,
         }
     )

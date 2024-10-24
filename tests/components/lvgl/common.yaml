@@ -93,7 +93,7 @@ light:
   - platform: lvgl
     name: LVGL LED
     id: lv_light
-    led: lv_led
+    widget: lv_led
 
 binary_sensor:
   - platform: lvgl
@@ -127,6 +127,11 @@ binary_sensor:
   - platform: lvgl
     name: LVGL checkbox
     widget: checkbox_id
+    on_state:
+      then:
+        - lvgl.image.update:
+            id: lv_image
+            src: !lambda if (x) return id(cat_image); else return id(dog_image);
 
 wifi:
   ssid: SSID
@@ -135,3 +140,9 @@ wifi:
 time:
   platform: sntp
   id: time_id
+
+text:
+  - id: lvgl_text
+    platform: lvgl
+    widget: hello_label
+    mode: text
