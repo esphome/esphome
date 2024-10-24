@@ -275,15 +275,35 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->already_discovered_.clear();
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
-  this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
   this->scan_params_.scan_interval = this->scan_interval_;
   this->scan_params_.scan_window = this->scan_window_;
+
+  if (!allowlist_address_vec_.empty()) {
+    this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ONLY_WLST;
+  } else {
+    this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
+  }
 
   esp_err_t err = esp_ble_gap_set_scan_params(&this->scan_params_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_scan_params failed: %d", err);
     return;
   }
+
+  if (!this->allowlist_address_vec_.empty() && !this->allowlist_populated_) {
+    ESP_LOGD(TAG, "Clearing allowlist.");
+    esp_ble_gap_clear_whitelist();  // NOLINT(lint_inclusive_language)
+
+    ESP_LOGD(TAG, "Building allowlist...");
+    for (uint64_t address : this->allowlist_address_vec_) {
+      ESP_LOGD(TAG, "Adding to allowlist");
+      esp_bd_addr_t esp_address;
+      uint64_to_bd_addr(address, esp_address);
+      esp_ble_gap_update_whitelist(true, esp_address, BLE_WL_ADDR_TYPE_PUBLIC);  // NOLINT(lint_inclusive_language)
+    }
+    this->allowlist_populated_ = true;
+  }
+
   err = esp_ble_gap_start_scanning(this->scan_duration_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_start_scanning failed: %d", err);
