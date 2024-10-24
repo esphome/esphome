@@ -113,6 +113,7 @@ else:
 
 
 CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
+CONF_CUSTOM_PLATFORM = "custom_platform"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -167,6 +168,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
             ): cv.int_range(min=1, max=multiprocessing.cpu_count()),
+            cv.Optional(CONF_CUSTOM_PLATFORM): cv.string,
         }
     ),
     validate_hostname,
@@ -201,6 +203,9 @@ def preload_core_config(config, result):
         build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
         conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
     CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
+
+    if conf.get(CONF_CUSTOM_PLATFORM):
+        TARGET_PLATFORMS.extend([conf.get(CONF_CUSTOM_PLATFORM)])
 
     has_oldstyle = CONF_PLATFORM in conf
     newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
