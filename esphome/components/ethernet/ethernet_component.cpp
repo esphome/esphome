@@ -14,7 +14,6 @@
 #include <driver/spi_master.h>
 #endif
 
-
 namespace esphome {
 namespace ethernet {
 
