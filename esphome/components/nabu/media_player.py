@@ -223,7 +223,7 @@ FINAL_VALIDATE_SCHEMA = _supported_local_file_validate
 
 
 async def to_code(config):
-    cg.add_library("https://github.com/esphome/esp-audio-libs", "1.0.0")
+    cg.add_library("esphome/esp-audio-libs", "1.0.0")
 
     # Wifi settings based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
     esp32.add_idf_sdkconfig_option("CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM", 16)
