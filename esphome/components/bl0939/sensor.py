@@ -14,6 +14,7 @@ from esphome.const import (
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
+    CONF_ADDRESS,
 )
 
 DEPENDENCIES = ["uart"]
@@ -81,6 +82,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.Optional(CONF_ADDRESS, default=5): cv.int_range(min=0, max=15),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -117,3 +119,4 @@ async def to_code(config):
     if energy_total_config := config.get(CONF_ENERGY_TOTAL):
         sens = await sensor.new_sensor(energy_total_config)
         cg.add(var.set_energy_sensor_sum(sens))
+    cg.add(var.set_address(config.get(CONF_ADDRESS)))

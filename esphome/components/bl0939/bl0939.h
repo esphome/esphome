@@ -67,6 +67,7 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   void set_energy_sensor_1(sensor::Sensor *energy_sensor_1) { energy_sensor_1_ = energy_sensor_1; }
   void set_energy_sensor_2(sensor::Sensor *energy_sensor_2) { energy_sensor_2_ = energy_sensor_2; }
   void set_energy_sensor_sum(sensor::Sensor *energy_sensor_sum) { energy_sensor_sum_ = energy_sensor_sum; }
+  void set_address(int address) { address_ = address; }
 
   void loop() override;
 
@@ -86,6 +87,9 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *energy_sensor_2_{nullptr};
   sensor::Sensor *energy_sensor_sum_{nullptr};
 
+  int address_;
+  uint8_t bl0939_init_[6][6];
+
   // Divide by this to turn into Watt
   float power_reference_ = BL0939_PREF;
   // Divide by this to turn into Volt
@@ -99,7 +103,7 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
 
   static int32_t to_int32_t(sbe24_t input);
 
-  static bool validate_checksum(const DataPacket *data);
+  bool validate_checksum_(const DataPacket *data) const;
 
   void received_package_(const DataPacket *data) const;
 };

@@ -9,11 +9,11 @@ static const char *const TAG = "bl0939";
 
 // https://www.belling.com.cn/media/file_object/bel_product/BL0939/datasheet/BL0939_V1.2_cn.pdf
 // (unfortunately chinese, but the protocol can be understood with some translation tool)
-static const uint8_t BL0939_READ_COMMAND = 0x55;  // 0x5{A4,A3,A2,A1}
+static const uint8_t BL0939_READ_COMMAND = 0x50;  // 0x5{A4,A3,A2,A1}
 static const uint8_t BL0939_FULL_PACKET = 0xAA;
 static const uint8_t BL0939_PACKET_HEADER = 0x55;
 
-static const uint8_t BL0939_WRITE_COMMAND = 0xA5;  // 0xA{A4,A3,A2,A1}
+static const uint8_t BL0939_WRITE_COMMAND = 0xA0;  // 0xA{A4,A3,A2,A1}
 static const uint8_t BL0939_REG_IA_FAST_RMS_CTRL = 0x10;
 static const uint8_t BL0939_REG_IB_FAST_RMS_CTRL = 0x1E;
 static const uint8_t BL0939_REG_MODE = 0x18;
@@ -21,7 +21,7 @@ static const uint8_t BL0939_REG_SOFT_RESET = 0x19;
 static const uint8_t BL0939_REG_USR_WRPROT = 0x1A;
 static const uint8_t BL0939_REG_TPS_CTRL = 0x1B;
 
-const uint8_t BL0939_INIT[6][6] = {
+static const uint8_t BL0939_INIT_DEFAULT[6][6] = {
     // Reset to default
     {BL0939_WRITE_COMMAND, BL0939_REG_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x33},
     // Enable User Operation Write
@@ -41,7 +41,7 @@ void BL0939::loop() {
     return;
   }
   if (read_array((uint8_t *) &buffer, sizeof(buffer))) {
-    if (validate_checksum(&buffer)) {
+    if (validate_checksum_(&buffer)) {
       received_package_(&buffer);
     }
   } else {
@@ -51,8 +51,8 @@ void BL0939::loop() {
   }
 }
 
-bool BL0939::validate_checksum(const DataPacket *data) {
-  uint8_t checksum = BL0939_READ_COMMAND;
+bool BL0939::validate_checksum_(const DataPacket *data) const {
+  uint8_t checksum = BL0939_READ_COMMAND | (this->address_ & 0xF);
   // Whole package but checksum
   for (uint32_t i = 0; i < sizeof(data->raw) - 1; i++) {
     checksum += data->raw[i];
@@ -66,12 +66,15 @@ bool BL0939::validate_checksum(const DataPacket *data) {
 
 void BL0939::update() {
   this->flush();
-  this->write_byte(BL0939_READ_COMMAND);
+  this->write_byte(BL0939_READ_COMMAND | (this->address_ & 0xF));
   this->write_byte(BL0939_FULL_PACKET);
 }
 
 void BL0939::setup() {
-  for (auto *i : BL0939_INIT) {
+  memcpy(this->bl0939_init_, BL0939_INIT_DEFAULT, sizeof(BL0939_INIT_DEFAULT));
+
+  for (uint8_t *i : this->bl0939_init_) {
+    i[0] = i[0] | (this->address_ & 0xF);  // Replace Default Address of the IC
     this->write_array(i, 6);
     delay(1);
   }
@@ -136,6 +139,7 @@ void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Energy 1", this->energy_sensor_1_);
   LOG_SENSOR("", "Energy 2", this->energy_sensor_2_);
   LOG_SENSOR("", "Energy sum", this->energy_sensor_sum_);
+  ESP_LOGCONFIG(TAG, "Device Address: %d", this->address_);
 }
 
 uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
