@@ -251,12 +251,14 @@ void MR60FDA2Component::process_frame_() {
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
     case RESULT_PARAMETERS:
+      float install_height_float = 0;
+      float height_threshold_float = 0;
 
       if (this->install_height_select_ != nullptr) {
         this->current_install_height_int_ =
             encode_uint32(current_data_buf_[3], current_data_buf_[2], current_data_buf_[1], current_data_buf_[0]);
 
-        float install_height_float = bit_cast<float>(current_install_height_int_);
+        install_height_float = bit_cast<float>(current_install_height_int_);
         select_index_ = find_nearest_index(install_height_float, INSTALL_HEIGHT, 7);
         this->install_height_select_->publish_state(this->install_height_select_->at(select_index_).value());
       }
@@ -265,7 +267,7 @@ void MR60FDA2Component::process_frame_() {
         this->current_height_threshold_int_ =
             encode_uint32(current_data_buf_[7], current_data_buf_[6], current_data_buf_[5], current_data_buf_[4]);
 
-        float height_threshold_float = bit_cast<float>(current_height_threshold_int_);
+        height_threshold_float = bit_cast<float>(current_height_threshold_int_);
         select_index_ = find_nearest_index(height_threshold_float, HEIGHT_THRESHOLD, 7);
         this->height_threshold_select_->publish_state(this->height_threshold_select_->at(select_index_).value());
       }
