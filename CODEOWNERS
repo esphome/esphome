@@ -40,6 +40,7 @@ esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/apds9306/* @aodrenah
 esphome/components/api/* @OttoWinter
+esphome/components/argo_ulisse/* @yoziru
 esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
