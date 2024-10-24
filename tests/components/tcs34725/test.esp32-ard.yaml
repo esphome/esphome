@@ -5,14 +5,20 @@ i2c:
 
 sensor:
   - platform: tcs34725
-    red_channel:
-      name: Red Channel
-    green_channel:
-      name: Green Channel
-    blue_channel:
-      name: Blue Channel
-    clear_channel:
-      name: Clear Channel
+    cie1931_x:
+      name: CIE1931 X
+    cie1931_y:
+      name: CIE1931 Y
+    cie1931_z:
+      name: CIE1931 Z
+    red_channel_irradiance:
+      name: Red Channel Irradiance
+    green_channel_irradiance:
+      name: Green Channel Irradiance
+    blue_channel_irradiance:
+      name: Blue Channel Irradiance
+    sensor_saturation:
+      name: Sensor Saturation
     illuminance:
       name: Illuminance
     color_temperature:
