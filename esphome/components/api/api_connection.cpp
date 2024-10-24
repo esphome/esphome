@@ -1011,6 +1011,13 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
   resp.state = static_cast<enums::MediaPlayerState>(report_state);
   resp.volume = media_player->volume;
   resp.muted = media_player->is_muted();
+  resp.repeat = media_player->repeat();
+  resp.shuffle = media_player->is_shuffle();
+  resp.artist = media_player->artist();
+  resp.album = media_player->album();
+  resp.title = media_player->title();
+  resp.duration = media_player->duration();
+  resp.position = media_player->position();
   return this->send_media_player_state_response(resp);
 }
 bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
@@ -1026,6 +1033,9 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
 
   auto traits = media_player->get_traits();
   msg.supports_pause = traits.get_supports_pause();
+  msg.supports_next_previous_track = traits.get_supports_next_previous_track();
+  msg.supports_turn_off_on = traits.get_supports_turn_off_on();
+  msg.supports_grouping = traits.get_supports_grouping();
 
   for (auto &supported_format : traits.get_supported_formats()) {
     MediaPlayerSupportedFormat media_format;
@@ -1056,6 +1066,12 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   }
   if (msg.has_announcement) {
     call.set_announcement(msg.announcement);
+  }
+  if (msg.has_enqueue) {
+    call.set_enqueue(msg.enqueue);
+  }
+  if (msg.has_group_members) {
+    call.set_group_members(msg.group_members);
   }
   call.perform();
 }
