@@ -1,5 +1,4 @@
 #pragma once
-#define USE_ESP_IDF 1
 #ifdef USE_ESP_IDF
 
 #include "esphome/components/web_server/list_entities.h"

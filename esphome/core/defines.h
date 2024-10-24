@@ -14,8 +14,6 @@
 #define ESPHOME_PROJECT_VERSION_30 "v2"
 #define ESPHOME_VARIANT "ESP32"
 
-#define USE_ESP_IDF
-
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
 #define USE_API
