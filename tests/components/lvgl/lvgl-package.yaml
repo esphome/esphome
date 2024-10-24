@@ -458,6 +458,18 @@ lvgl:
 
     - id: page2
       widgets:
+        - qrcode:
+            id: lv_qr
+            align: left_mid
+            size: 100
+            light_color: whitesmoke
+            dark_color: steelblue
+            text: esphome.io
+            on_click:
+              lvgl.qrcode.update:
+                id: lv_qr
+                text: homeassistant.io
+
         - slider:
             min_value: 0
             max_value: 255
