@@ -120,12 +120,8 @@ def _is_framework_spi_polling_mode_supported():
         return False
     if CORE.using_arduino:
         return framework_version >= cv.Version(3, 0, 0)
-    # Postel's law
-    LOGGER.warning(
-        "`ethernet` component is not compatible with framework '%s' (expecting esp-idf or arduino)",
-        CORE.target_framework,
-    )
-    return True
+    # fail safe: Unknown framework
+    return False
 
 
 def _validate(config):
