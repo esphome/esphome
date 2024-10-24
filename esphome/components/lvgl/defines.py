@@ -189,14 +189,14 @@ LV_ANIM = LvConstant(
 LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
 
-LOG_LEVELS = (
-    "TRACE",
-    "INFO",
-    "WARN",
-    "ERROR",
-    "USER",
-    "NONE",
-)
+LV_LOG_LEVELS = {
+    "VERBOSE": "TRACE",
+    "DEBUG": "TRACE",
+    "INFO": "INFO",
+    "WARN": "WARN",
+    "ERROR": "ERROR",
+    "NONE": "NONE",
+}
 
 LV_LONG_MODES = LvConstant(
     "LV_LABEL_LONG_",
@@ -408,6 +408,7 @@ CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"
 CONF_DISPLAYS = "displays"
+CONF_DRAW_ROUNDING = "draw_rounding"
 CONF_EDITING = "editing"
 CONF_ENCODERS = "encoders"
 CONF_END_ANGLE = "end_angle"
@@ -451,6 +452,8 @@ CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
+CONF_ON_PAUSE = "on_pause"
+CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
@@ -466,6 +469,7 @@ CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_REPEAT_COUNT = "repeat_count"
 CONF_RECOLOR = "recolor"
+CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
@@ -473,6 +477,7 @@ CONF_ROWS = "rows"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SELECTED_INDEX = "selected_index"
+CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
