@@ -28,8 +28,38 @@ namespace api {
 static const char *const TAG = "api.connection";
 static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
+// helper for allowing only unique entries in the queue
+void DeferredMessageQueue::dmq_push_back_with_dedup_(void *source, send_message_t *send_message) {
+  DeferredMessage item(source, send_message);
+
+  auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
+                           [&item](const DeferredMessage &test) -> bool { return test == item; });
+
+  if (iter != this->deferred_queue_.end()) {
+    (*iter) = item;
+  } else {
+    this->deferred_queue_.push_back(item);
+  }
+}
+
+void DeferredMessageQueue::process_queue() {
+  while (!deferred_queue_.empty()) {
+    DeferredMessage &de = deferred_queue_.front();
+    if (de.send_message_(this->api_connection_, de.source_)) {
+      // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
+      deferred_queue_.erase(deferred_queue_.begin());
+    } else {
+      break;
+    }
+  }
+}
+
+void DeferredMessageQueue::defer(void *source, send_message_t *send_message) {
+  this->dmq_push_back_with_dedup_(source, send_message);
+}
+
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
+    : parent_(parent), deferred_message_queue_(this), initial_state_iterator_(this), list_entities_iterator_(this) {
   this->proto_write_buffer_.reserve(64);
 
 #if defined(USE_API_PLAINTEXT)
@@ -116,8 +146,12 @@ void APIConnection::loop() {
       return;
   }
 
-  this->list_entities_iterator_.advance();
-  this->initial_state_iterator_.advance();
+  this->deferred_message_queue_.process_queue();
+
+  if (!this->list_entities_iterator_.completed())
+    this->list_entities_iterator_.advance();
+  if (!this->initial_state_iterator_.completed() && this->list_entities_iterator_.completed())
+    this->initial_state_iterator_.advance();
 
   static uint32_t keepalive = 60000;
   static uint8_t max_ping_retries = 60;
@@ -210,13 +244,31 @@ bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_binary_sensor_state(this, binary_sensor, state)) {
+    this->deferred_message_queue_.defer(binary_sensor, try_send_binary_sensor_state);
+  }
+
+  return true;
+}
+void APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_sensor) {
+  if (!APIConnection::try_send_binary_sensor_info(this, binary_sensor)) {
+    this->deferred_message_queue_.defer(binary_sensor, try_send_binary_sensor_info);
+  }
+}
+bool APIConnection::try_send_binary_sensor_state(APIConnection *api, void *v_binary_sensor) {
+  binary_sensor::BinarySensor *binary_sensor = reinterpret_cast<binary_sensor::BinarySensor *>(v_binary_sensor);
+  return APIConnection::try_send_binary_sensor_state(api, binary_sensor, binary_sensor->state);
+}
+bool APIConnection::try_send_binary_sensor_state(APIConnection *api, binary_sensor::BinarySensor *binary_sensor,
+                                                 bool state) {
   BinarySensorStateResponse resp;
   resp.key = binary_sensor->get_object_id_hash();
   resp.state = state;
   resp.missing_state = !binary_sensor->has_state();
-  return this->send_binary_sensor_state_response(resp);
+  return api->send_binary_sensor_state_response(resp);
 }
-bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_sensor) {
+bool APIConnection::try_send_binary_sensor_info(APIConnection *api, void *v_binary_sensor) {
+  binary_sensor::BinarySensor *binary_sensor = reinterpret_cast<binary_sensor::BinarySensor *>(v_binary_sensor);
   ListEntitiesBinarySensorResponse msg;
   msg.object_id = binary_sensor->get_object_id();
   msg.key = binary_sensor->get_object_id_hash();
@@ -228,7 +280,7 @@ bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_
   msg.disabled_by_default = binary_sensor->is_disabled_by_default();
   msg.icon = binary_sensor->get_icon();
   msg.entity_category = static_cast<enums::EntityCategory>(binary_sensor->get_entity_category());
-  return this->send_list_entities_binary_sensor_response(msg);
+  return api->send_list_entities_binary_sensor_response(msg);
 }
 #endif
 
@@ -237,6 +289,19 @@ bool APIConnection::send_cover_state(cover::Cover *cover) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_cover_state(this, cover)) {
+    this->deferred_message_queue_.defer(cover, try_send_cover_state);
+  }
+
+  return true;
+}
+void APIConnection::send_cover_info(cover::Cover *cover) {
+  if (!APIConnection::try_send_cover_info(this, cover)) {
+    this->deferred_message_queue_.defer(cover, try_send_cover_info);
+  }
+}
+bool APIConnection::try_send_cover_state(APIConnection *api, void *v_cover) {
+  cover::Cover *cover = reinterpret_cast<cover::Cover *>(v_cover);
   auto traits = cover->get_traits();
   CoverStateResponse resp{};
   resp.key = cover->get_object_id_hash();
@@ -246,9 +311,10 @@ bool APIConnection::send_cover_state(cover::Cover *cover) {
   if (traits.get_supports_tilt())
     resp.tilt = cover->tilt;
   resp.current_operation = static_cast<enums::CoverOperation>(cover->current_operation);
-  return this->send_cover_state_response(resp);
+  return api->send_cover_state_response(resp);
 }
-bool APIConnection::send_cover_info(cover::Cover *cover) {
+bool APIConnection::try_send_cover_info(APIConnection *api, void *v_cover) {
+  cover::Cover *cover = reinterpret_cast<cover::Cover *>(v_cover);
   auto traits = cover->get_traits();
   ListEntitiesCoverResponse msg;
   msg.key = cover->get_object_id_hash();
@@ -264,7 +330,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.disabled_by_default = cover->is_disabled_by_default();
   msg.icon = cover->get_icon();
   msg.entity_category = static_cast<enums::EntityCategory>(cover->get_entity_category());
-  return this->send_list_entities_cover_response(msg);
+  return api->send_list_entities_cover_response(msg);
 }
 void APIConnection::cover_command(const CoverCommandRequest &msg) {
   cover::Cover *cover = App.get_cover_by_key(msg.key);
@@ -300,6 +366,19 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_fan_state(this, fan)) {
+    this->deferred_message_queue_.defer(fan, try_send_fan_state);
+  }
+
+  return true;
+}
+void APIConnection::send_fan_info(fan::Fan *fan) {
+  if (!APIConnection::try_send_fan_info(this, fan)) {
+    this->deferred_message_queue_.defer(fan, try_send_fan_info);
+  }
+}
+bool APIConnection::try_send_fan_state(APIConnection *api, void *v_fan) {
+  fan::Fan *fan = reinterpret_cast<fan::Fan *>(v_fan);
   auto traits = fan->get_traits();
   FanStateResponse resp{};
   resp.key = fan->get_object_id_hash();
@@ -313,9 +392,10 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
   if (traits.supports_preset_modes())
     resp.preset_mode = fan->preset_mode;
-  return this->send_fan_state_response(resp);
+  return api->send_fan_state_response(resp);
 }
-bool APIConnection::send_fan_info(fan::Fan *fan) {
+bool APIConnection::try_send_fan_info(APIConnection *api, void *v_fan) {
+  fan::Fan *fan = reinterpret_cast<fan::Fan *>(v_fan);
   auto traits = fan->get_traits();
   ListEntitiesFanResponse msg;
   msg.key = fan->get_object_id_hash();
@@ -332,7 +412,7 @@ bool APIConnection::send_fan_info(fan::Fan *fan) {
   msg.disabled_by_default = fan->is_disabled_by_default();
   msg.icon = fan->get_icon();
   msg.entity_category = static_cast<enums::EntityCategory>(fan->get_entity_category());
-  return this->send_list_entities_fan_response(msg);
+  return api->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
   fan::Fan *fan = App.get_fan_by_key(msg.key);
@@ -361,6 +441,19 @@ bool APIConnection::send_light_state(light::LightState *light) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_light_state(this, light)) {
+    this->deferred_message_queue_.defer(light, try_send_light_state);
+  }
+
+  return true;
+}
+void APIConnection::send_light_info(light::LightState *light) {
+  if (!APIConnection::try_send_light_info(this, light)) {
+    this->deferred_message_queue_.defer(light, try_send_light_info);
+  }
+}
+bool APIConnection::try_send_light_state(APIConnection *api, void *v_light) {
+  light::LightState *light = reinterpret_cast<light::LightState *>(v_light);
   auto traits = light->get_traits();
   auto values = light->remote_values;
   auto color_mode = values.get_color_mode();
@@ -380,9 +473,10 @@ bool APIConnection::send_light_state(light::LightState *light) {
   resp.warm_white = values.get_warm_white();
   if (light->supports_effects())
     resp.effect = light->get_effect_name();
-  return this->send_light_state_response(resp);
+  return api->send_light_state_response(resp);
 }
-bool APIConnection::send_light_info(light::LightState *light) {
+bool APIConnection::try_send_light_info(APIConnection *api, void *v_light) {
+  light::LightState *light = reinterpret_cast<light::LightState *>(v_light);
   auto traits = light->get_traits();
   ListEntitiesLightResponse msg;
   msg.key = light->get_object_id_hash();
@@ -415,7 +509,7 @@ bool APIConnection::send_light_info(light::LightState *light) {
     for (auto *effect : light->get_effects())
       msg.effects.push_back(effect->get_name());
   }
-  return this->send_list_entities_light_response(msg);
+  return api->send_list_entities_light_response(msg);
 }
 void APIConnection::light_command(const LightCommandRequest &msg) {
   light::LightState *light = App.get_light_by_key(msg.key);
@@ -459,13 +553,30 @@ bool APIConnection::send_sensor_state(sensor::Sensor *sensor, float state) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_sensor_state(this, sensor, state)) {
+    this->deferred_message_queue_.defer(sensor, try_send_sensor_state);
+  }
+
+  return true;
+}
+void APIConnection::send_sensor_info(sensor::Sensor *sensor) {
+  if (!APIConnection::try_send_sensor_info(this, sensor)) {
+    this->deferred_message_queue_.defer(sensor, try_send_sensor_info);
+  }
+}
+bool APIConnection::try_send_sensor_state(APIConnection *api, void *v_sensor) {
+  sensor::Sensor *sensor = reinterpret_cast<sensor::Sensor *>(v_sensor);
+  return APIConnection::try_send_sensor_state(api, sensor, sensor->state);
+}
+bool APIConnection::try_send_sensor_state(APIConnection *api, sensor::Sensor *sensor, float state) {
   SensorStateResponse resp{};
   resp.key = sensor->get_object_id_hash();
   resp.state = state;
   resp.missing_state = !sensor->has_state();
-  return this->send_sensor_state_response(resp);
+  return api->send_sensor_state_response(resp);
 }
-bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
+bool APIConnection::try_send_sensor_info(APIConnection *api, void *v_sensor) {
+  sensor::Sensor *sensor = reinterpret_cast<sensor::Sensor *>(v_sensor);
   ListEntitiesSensorResponse msg;
   msg.key = sensor->get_object_id_hash();
   msg.object_id = sensor->get_object_id();
@@ -482,7 +593,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->get_state_class());
   msg.disabled_by_default = sensor->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(sensor->get_entity_category());
-  return this->send_list_entities_sensor_response(msg);
+  return api->send_list_entities_sensor_response(msg);
 }
 #endif
 
@@ -491,12 +602,29 @@ bool APIConnection::send_switch_state(switch_::Switch *a_switch, bool state) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_switch_state(this, a_switch, state)) {
+    this->deferred_message_queue_.defer(a_switch, try_send_switch_state);
+  }
+
+  return true;
+}
+void APIConnection::send_switch_info(switch_::Switch *a_switch) {
+  if (!APIConnection::try_send_switch_info(this, a_switch)) {
+    this->deferred_message_queue_.defer(a_switch, try_send_switch_info);
+  }
+}
+bool APIConnection::try_send_switch_state(APIConnection *api, void *v_a_switch) {
+  switch_::Switch *a_switch = reinterpret_cast<switch_::Switch *>(v_a_switch);
+  return APIConnection::try_send_switch_state(api, a_switch, a_switch->state);
+}
+bool APIConnection::try_send_switch_state(APIConnection *api, switch_::Switch *a_switch, bool state) {
   SwitchStateResponse resp{};
   resp.key = a_switch->get_object_id_hash();
   resp.state = state;
-  return this->send_switch_state_response(resp);
+  return api->send_switch_state_response(resp);
 }
-bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
+bool APIConnection::try_send_switch_info(APIConnection *api, void *v_a_switch) {
+  switch_::Switch *a_switch = reinterpret_cast<switch_::Switch *>(v_a_switch);
   ListEntitiesSwitchResponse msg;
   msg.key = a_switch->get_object_id_hash();
   msg.object_id = a_switch->get_object_id();
@@ -508,7 +636,7 @@ bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
   msg.disabled_by_default = a_switch->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(a_switch->get_entity_category());
   msg.device_class = a_switch->get_device_class();
-  return this->send_list_entities_switch_response(msg);
+  return api->send_list_entities_switch_response(msg);
 }
 void APIConnection::switch_command(const SwitchCommandRequest &msg) {
   switch_::Switch *a_switch = App.get_switch_by_key(msg.key);
@@ -528,13 +656,31 @@ bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor,
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_text_sensor_state(this, text_sensor, std::move(state))) {
+    this->deferred_message_queue_.defer(text_sensor, try_send_text_sensor_state);
+  }
+
+  return true;
+}
+void APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) {
+  if (!APIConnection::try_send_text_sensor_info(this, text_sensor)) {
+    this->deferred_message_queue_.defer(text_sensor, try_send_text_sensor_info);
+  }
+}
+bool APIConnection::try_send_text_sensor_state(APIConnection *api, void *v_text_sensor) {
+  text_sensor::TextSensor *text_sensor = reinterpret_cast<text_sensor::TextSensor *>(v_text_sensor);
+  return APIConnection::try_send_text_sensor_state(api, text_sensor, text_sensor->state);
+}
+bool APIConnection::try_send_text_sensor_state(APIConnection *api, text_sensor::TextSensor *text_sensor,
+                                               std::string state) {
   TextSensorStateResponse resp{};
   resp.key = text_sensor->get_object_id_hash();
   resp.state = std::move(state);
   resp.missing_state = !text_sensor->has_state();
-  return this->send_text_sensor_state_response(resp);
+  return api->send_text_sensor_state_response(resp);
 }
-bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) {
+bool APIConnection::try_send_text_sensor_info(APIConnection *api, void *v_text_sensor) {
+  text_sensor::TextSensor *text_sensor = reinterpret_cast<text_sensor::TextSensor *>(v_text_sensor);
   ListEntitiesTextSensorResponse msg;
   msg.key = text_sensor->get_object_id_hash();
   msg.object_id = text_sensor->get_object_id();
@@ -546,7 +692,7 @@ bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) 
   msg.disabled_by_default = text_sensor->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(text_sensor->get_entity_category());
   msg.device_class = text_sensor->get_device_class();
-  return this->send_list_entities_text_sensor_response(msg);
+  return api->send_list_entities_text_sensor_response(msg);
 }
 #endif
 
@@ -555,6 +701,19 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_climate_state(this, climate)) {
+    this->deferred_message_queue_.defer(climate, try_send_climate_state);
+  }
+
+  return true;
+}
+void APIConnection::send_climate_info(climate::Climate *climate) {
+  if (!APIConnection::try_send_climate_info(this, climate)) {
+    this->deferred_message_queue_.defer(climate, try_send_climate_info);
+  }
+}
+bool APIConnection::try_send_climate_state(APIConnection *api, void *v_climate) {
+  climate::Climate *climate = reinterpret_cast<climate::Climate *>(v_climate);
   auto traits = climate->get_traits();
   ClimateStateResponse resp{};
   resp.key = climate->get_object_id_hash();
@@ -583,9 +742,10 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
     resp.current_humidity = climate->current_humidity;
   if (traits.get_supports_target_humidity())
     resp.target_humidity = climate->target_humidity;
-  return this->send_climate_state_response(resp);
+  return api->send_climate_state_response(resp);
 }
-bool APIConnection::send_climate_info(climate::Climate *climate) {
+bool APIConnection::try_send_climate_info(APIConnection *api, void *v_climate) {
+  climate::Climate *climate = reinterpret_cast<climate::Climate *>(v_climate);
   auto traits = climate->get_traits();
   ListEntitiesClimateResponse msg;
   msg.key = climate->get_object_id_hash();
@@ -626,7 +786,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
     msg.supported_custom_presets.push_back(custom_preset);
   for (auto swing_mode : traits.get_supported_swing_modes())
     msg.supported_swing_modes.push_back(static_cast<enums::ClimateSwingMode>(swing_mode));
-  return this->send_list_entities_climate_response(msg);
+  return api->send_list_entities_climate_response(msg);
 }
 void APIConnection::climate_command(const ClimateCommandRequest &msg) {
   climate::Climate *climate = App.get_climate_by_key(msg.key);
@@ -663,13 +823,30 @@ bool APIConnection::send_number_state(number::Number *number, float state) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_number_state(this, number, state)) {
+    this->deferred_message_queue_.defer(number, try_send_number_state);
+  }
+
+  return true;
+}
+void APIConnection::send_number_info(number::Number *number) {
+  if (!APIConnection::try_send_number_info(this, number)) {
+    this->deferred_message_queue_.defer(number, try_send_number_info);
+  }
+}
+bool APIConnection::try_send_number_state(APIConnection *api, void *v_number) {
+  number::Number *number = reinterpret_cast<number::Number *>(v_number);
+  return APIConnection::try_send_number_state(api, number, number->state);
+}
+bool APIConnection::try_send_number_state(APIConnection *api, number::Number *number, float state) {
   NumberStateResponse resp{};
   resp.key = number->get_object_id_hash();
   resp.state = state;
   resp.missing_state = !number->has_state();
-  return this->send_number_state_response(resp);
+  return api->send_number_state_response(resp);
 }
-bool APIConnection::send_number_info(number::Number *number) {
+bool APIConnection::try_send_number_info(APIConnection *api, void *v_number) {
+  number::Number *number = reinterpret_cast<number::Number *>(v_number);
   ListEntitiesNumberResponse msg;
   msg.key = number->get_object_id_hash();
   msg.object_id = number->get_object_id();
@@ -687,7 +864,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.max_value = number->traits.get_max_value();
   msg.step = number->traits.get_step();
 
-  return this->send_list_entities_number_response(msg);
+  return api->send_list_entities_number_response(msg);
 }
 void APIConnection::number_command(const NumberCommandRequest &msg) {
   number::Number *number = App.get_number_by_key(msg.key);
@@ -705,15 +882,29 @@ bool APIConnection::send_date_state(datetime::DateEntity *date) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_date_state(this, date)) {
+    this->deferred_message_queue_.defer(date, try_send_date_state);
+  }
+
+  return true;
+}
+void APIConnection::send_date_info(datetime::DateEntity *date) {
+  if (!APIConnection::try_send_date_info(this, date)) {
+    this->deferred_message_queue_.defer(date, try_send_date_info);
+  }
+}
+bool APIConnection::try_send_date_state(APIConnection *api, void *v_date) {
+  datetime::DateEntity *date = reinterpret_cast<datetime::DateEntity *>(v_date);
   DateStateResponse resp{};
   resp.key = date->get_object_id_hash();
   resp.missing_state = !date->has_state();
   resp.year = date->year;
   resp.month = date->month;
   resp.day = date->day;
-  return this->send_date_state_response(resp);
+  return api->send_date_state_response(resp);
 }
-bool APIConnection::send_date_info(datetime::DateEntity *date) {
+bool APIConnection::try_send_date_info(APIConnection *api, void *v_date) {
+  datetime::DateEntity *date = reinterpret_cast<datetime::DateEntity *>(v_date);
   ListEntitiesDateResponse msg;
   msg.key = date->get_object_id_hash();
   msg.object_id = date->get_object_id();
@@ -724,7 +915,7 @@ bool APIConnection::send_date_info(datetime::DateEntity *date) {
   msg.disabled_by_default = date->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(date->get_entity_category());
 
-  return this->send_list_entities_date_response(msg);
+  return api->send_list_entities_date_response(msg);
 }
 void APIConnection::date_command(const DateCommandRequest &msg) {
   datetime::DateEntity *date = App.get_date_by_key(msg.key);
@@ -742,15 +933,29 @@ bool APIConnection::send_time_state(datetime::TimeEntity *time) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_time_state(this, time)) {
+    this->deferred_message_queue_.defer(time, try_send_time_state);
+  }
+
+  return true;
+}
+void APIConnection::send_time_info(datetime::TimeEntity *time) {
+  if (!APIConnection::try_send_time_info(this, time)) {
+    this->deferred_message_queue_.defer(time, try_send_time_info);
+  }
+}
+bool APIConnection::try_send_time_state(APIConnection *api, void *v_time) {
+  datetime::TimeEntity *time = reinterpret_cast<datetime::TimeEntity *>(v_time);
   TimeStateResponse resp{};
   resp.key = time->get_object_id_hash();
   resp.missing_state = !time->has_state();
   resp.hour = time->hour;
   resp.minute = time->minute;
   resp.second = time->second;
-  return this->send_time_state_response(resp);
+  return api->send_time_state_response(resp);
 }
-bool APIConnection::send_time_info(datetime::TimeEntity *time) {
+bool APIConnection::try_send_time_info(APIConnection *api, void *v_time) {
+  datetime::TimeEntity *time = reinterpret_cast<datetime::TimeEntity *>(v_time);
   ListEntitiesTimeResponse msg;
   msg.key = time->get_object_id_hash();
   msg.object_id = time->get_object_id();
@@ -761,7 +966,7 @@ bool APIConnection::send_time_info(datetime::TimeEntity *time) {
   msg.disabled_by_default = time->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(time->get_entity_category());
 
-  return this->send_list_entities_time_response(msg);
+  return api->send_list_entities_time_response(msg);
 }
 void APIConnection::time_command(const TimeCommandRequest &msg) {
   datetime::TimeEntity *time = App.get_time_by_key(msg.key);
@@ -779,6 +984,19 @@ bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_datetime_state(this, datetime)) {
+    this->deferred_message_queue_.defer(datetime, try_send_datetime_state);
+  }
+
+  return true;
+}
+void APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
+  if (!APIConnection::try_send_datetime_info(this, datetime)) {
+    this->deferred_message_queue_.defer(datetime, try_send_datetime_info);
+  }
+}
+bool APIConnection::try_send_datetime_state(APIConnection *api, void *v_datetime) {
+  datetime::DateTimeEntity *datetime = reinterpret_cast<datetime::DateTimeEntity *>(v_datetime);
   DateTimeStateResponse resp{};
   resp.key = datetime->get_object_id_hash();
   resp.missing_state = !datetime->has_state();
@@ -786,9 +1004,10 @@ bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
     ESPTime state = datetime->state_as_esptime();
     resp.epoch_seconds = state.timestamp;
   }
-  return this->send_date_time_state_response(resp);
+  return api->send_date_time_state_response(resp);
 }
-bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
+bool APIConnection::try_send_datetime_info(APIConnection *api, void *v_datetime) {
+  datetime::DateTimeEntity *datetime = reinterpret_cast<datetime::DateTimeEntity *>(v_datetime);
   ListEntitiesDateTimeResponse msg;
   msg.key = datetime->get_object_id_hash();
   msg.object_id = datetime->get_object_id();
@@ -799,7 +1018,7 @@ bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
   msg.disabled_by_default = datetime->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(datetime->get_entity_category());
 
-  return this->send_list_entities_date_time_response(msg);
+  return api->send_list_entities_date_time_response(msg);
 }
 void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
   datetime::DateTimeEntity *datetime = App.get_datetime_by_key(msg.key);
@@ -817,13 +1036,30 @@ bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_text_state(this, text, std::move(state))) {
+    this->deferred_message_queue_.defer(text, try_send_text_state);
+  }
+
+  return true;
+}
+void APIConnection::send_text_info(text::Text *text) {
+  if (!APIConnection::try_send_text_info(this, text)) {
+    this->deferred_message_queue_.defer(text, try_send_text_info);
+  }
+}
+bool APIConnection::try_send_text_state(APIConnection *api, void *v_text) {
+  text::Text *text = reinterpret_cast<text::Text *>(v_text);
+  return APIConnection::try_send_text_state(api, text, text->state);
+}
+bool APIConnection::try_send_text_state(APIConnection *api, text::Text *text, std::string state) {
   TextStateResponse resp{};
   resp.key = text->get_object_id_hash();
   resp.state = std::move(state);
   resp.missing_state = !text->has_state();
-  return this->send_text_state_response(resp);
+  return api->send_text_state_response(resp);
 }
-bool APIConnection::send_text_info(text::Text *text) {
+bool APIConnection::try_send_text_info(APIConnection *api, void *v_text) {
+  text::Text *text = reinterpret_cast<text::Text *>(v_text);
   ListEntitiesTextResponse msg;
   msg.key = text->get_object_id_hash();
   msg.object_id = text->get_object_id();
@@ -837,7 +1073,7 @@ bool APIConnection::send_text_info(text::Text *text) {
   msg.max_length = text->traits.get_max_length();
   msg.pattern = text->traits.get_pattern();
 
-  return this->send_list_entities_text_response(msg);
+  return api->send_list_entities_text_response(msg);
 }
 void APIConnection::text_command(const TextCommandRequest &msg) {
   text::Text *text = App.get_text_by_key(msg.key);
@@ -855,13 +1091,30 @@ bool APIConnection::send_select_state(select::Select *select, std::string state)
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_select_state(this, select, std::move(state))) {
+    this->deferred_message_queue_.defer(select, try_send_select_state);
+  }
+
+  return true;
+}
+void APIConnection::send_select_info(select::Select *select) {
+  if (!APIConnection::try_send_select_info(this, select)) {
+    this->deferred_message_queue_.defer(select, try_send_select_info);
+  }
+}
+bool APIConnection::try_send_select_state(APIConnection *api, void *v_select) {
+  select::Select *select = reinterpret_cast<select::Select *>(v_select);
+  return APIConnection::try_send_select_state(api, select, select->state);
+}
+bool APIConnection::try_send_select_state(APIConnection *api, select::Select *select, std::string state) {
   SelectStateResponse resp{};
   resp.key = select->get_object_id_hash();
   resp.state = std::move(state);
   resp.missing_state = !select->has_state();
-  return this->send_select_state_response(resp);
+  return api->send_select_state_response(resp);
 }
-bool APIConnection::send_select_info(select::Select *select) {
+bool APIConnection::try_send_select_info(APIConnection *api, void *v_select) {
+  select::Select *select = reinterpret_cast<select::Select *>(v_select);
   ListEntitiesSelectResponse msg;
   msg.key = select->get_object_id_hash();
   msg.object_id = select->get_object_id();
@@ -875,7 +1128,7 @@ bool APIConnection::send_select_info(select::Select *select) {
   for (const auto &option : select->traits.get_options())
     msg.options.push_back(option);
 
-  return this->send_list_entities_select_response(msg);
+  return api->send_list_entities_select_response(msg);
 }
 void APIConnection::select_command(const SelectCommandRequest &msg) {
   select::Select *select = App.get_select_by_key(msg.key);
@@ -889,7 +1142,13 @@ void APIConnection::select_command(const SelectCommandRequest &msg) {
 #endif
 
 #ifdef USE_BUTTON
-bool APIConnection::send_button_info(button::Button *button) {
+void APIConnection::send_button_info(button::Button *button) {
+  if (!APIConnection::try_send_button_info(this, button)) {
+    this->deferred_message_queue_.defer(button, try_send_button_info);
+  }
+}
+bool APIConnection::try_send_button_info(APIConnection *api, void *v_button) {
+  button::Button *button = reinterpret_cast<button::Button *>(v_button);
   ListEntitiesButtonResponse msg;
   msg.key = button->get_object_id_hash();
   msg.object_id = button->get_object_id();
@@ -900,7 +1159,7 @@ bool APIConnection::send_button_info(button::Button *button) {
   msg.disabled_by_default = button->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(button->get_entity_category());
   msg.device_class = button->get_device_class();
-  return this->send_list_entities_button_response(msg);
+  return api->send_list_entities_button_response(msg);
 }
 void APIConnection::button_command(const ButtonCommandRequest &msg) {
   button::Button *button = App.get_button_by_key(msg.key);
@@ -916,12 +1175,29 @@ bool APIConnection::send_lock_state(lock::Lock *a_lock, lock::LockState state) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_lock_state(this, a_lock, state)) {
+    this->deferred_message_queue_.defer(a_lock, try_send_lock_state);
+  }
+
+  return true;
+}
+void APIConnection::send_lock_info(lock::Lock *a_lock) {
+  if (!APIConnection::try_send_lock_info(this, a_lock)) {
+    this->deferred_message_queue_.defer(a_lock, try_send_lock_info);
+  }
+}
+bool APIConnection::try_send_lock_state(APIConnection *api, void *v_a_lock) {
+  lock::Lock *a_lock = reinterpret_cast<lock::Lock *>(v_a_lock);
+  return APIConnection::try_send_lock_state(api, a_lock, a_lock->state);
+}
+bool APIConnection::try_send_lock_state(APIConnection *api, lock::Lock *a_lock, lock::LockState state) {
   LockStateResponse resp{};
   resp.key = a_lock->get_object_id_hash();
   resp.state = static_cast<enums::LockState>(state);
-  return this->send_lock_state_response(resp);
+  return api->send_lock_state_response(resp);
 }
-bool APIConnection::send_lock_info(lock::Lock *a_lock) {
+bool APIConnection::try_send_lock_info(APIConnection *api, void *v_a_lock) {
+  lock::Lock *a_lock = reinterpret_cast<lock::Lock *>(v_a_lock);
   ListEntitiesLockResponse msg;
   msg.key = a_lock->get_object_id_hash();
   msg.object_id = a_lock->get_object_id();
@@ -934,7 +1210,7 @@ bool APIConnection::send_lock_info(lock::Lock *a_lock) {
   msg.entity_category = static_cast<enums::EntityCategory>(a_lock->get_entity_category());
   msg.supports_open = a_lock->traits.get_supports_open();
   msg.requires_code = a_lock->traits.get_requires_code();
-  return this->send_list_entities_lock_response(msg);
+  return api->send_list_entities_lock_response(msg);
 }
 void APIConnection::lock_command(const LockCommandRequest &msg) {
   lock::Lock *a_lock = App.get_lock_by_key(msg.key);
@@ -960,13 +1236,27 @@ bool APIConnection::send_valve_state(valve::Valve *valve) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_valve_state(this, valve)) {
+    this->deferred_message_queue_.defer(valve, try_send_valve_state);
+  }
+
+  return true;
+}
+void APIConnection::send_valve_info(valve::Valve *valve) {
+  if (!APIConnection::try_send_valve_info(this, valve)) {
+    this->deferred_message_queue_.defer(valve, try_send_valve_info);
+  }
+}
+bool APIConnection::try_send_valve_state(APIConnection *api, void *v_valve) {
+  valve::Valve *valve = reinterpret_cast<valve::Valve *>(v_valve);
   ValveStateResponse resp{};
   resp.key = valve->get_object_id_hash();
   resp.position = valve->position;
   resp.current_operation = static_cast<enums::ValveOperation>(valve->current_operation);
-  return this->send_valve_state_response(resp);
+  return api->send_valve_state_response(resp);
 }
-bool APIConnection::send_valve_info(valve::Valve *valve) {
+bool APIConnection::try_send_valve_info(APIConnection *api, void *v_valve) {
+  valve::Valve *valve = reinterpret_cast<valve::Valve *>(v_valve);
   auto traits = valve->get_traits();
   ListEntitiesValveResponse msg;
   msg.key = valve->get_object_id_hash();
@@ -981,7 +1271,7 @@ bool APIConnection::send_valve_info(valve::Valve *valve) {
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_stop = traits.get_supports_stop();
-  return this->send_list_entities_valve_response(msg);
+  return api->send_list_entities_valve_response(msg);
 }
 void APIConnection::valve_command(const ValveCommandRequest &msg) {
   valve::Valve *valve = App.get_valve_by_key(msg.key);
@@ -1002,6 +1292,19 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_media_player_state(this, media_player)) {
+    this->deferred_message_queue_.defer(media_player, try_send_media_player_state);
+  }
+
+  return true;
+}
+void APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
+  if (!APIConnection::try_send_media_player_info(this, media_player)) {
+    this->deferred_message_queue_.defer(media_player, try_send_media_player_info);
+  }
+}
+bool APIConnection::try_send_media_player_state(APIConnection *api, void *v_media_player) {
+  media_player::MediaPlayer *media_player = reinterpret_cast<media_player::MediaPlayer *>(v_media_player);
   MediaPlayerStateResponse resp{};
   resp.key = media_player->get_object_id_hash();
 
@@ -1011,9 +1314,10 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
   resp.state = static_cast<enums::MediaPlayerState>(report_state);
   resp.volume = media_player->volume;
   resp.muted = media_player->is_muted();
-  return this->send_media_player_state_response(resp);
+  return api->send_media_player_state_response(resp);
 }
-bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
+bool APIConnection::try_send_media_player_info(APIConnection *api, void *v_media_player) {
+  media_player::MediaPlayer *media_player = reinterpret_cast<media_player::MediaPlayer *>(v_media_player);
   ListEntitiesMediaPlayerResponse msg;
   msg.key = media_player->get_object_id_hash();
   msg.object_id = media_player->get_object_id();
@@ -1037,7 +1341,7 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
     msg.supported_formats.push_back(media_format);
   }
 
-  return this->send_list_entities_media_player_response(msg);
+  return api->send_list_entities_media_player_response(msg);
 }
 void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   media_player::MediaPlayer *media_player = App.get_media_player_by_key(msg.key);
@@ -1062,7 +1366,7 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
 #endif
 
 #ifdef USE_ESP32_CAMERA
-void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
+void APIConnection::set_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)
     return;
   if (this->image_reader_.available())
@@ -1071,7 +1375,13 @@ void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage>
       image->was_requested_by(esphome::esp32_camera::IDLE))
     this->image_reader_.set_image(std::move(image));
 }
-bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
+void APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
+  if (!APIConnection::try_send_camera_info(this, camera)) {
+    this->deferred_message_queue_.defer(camera, try_send_camera_info);
+  }
+}
+bool APIConnection::try_send_camera_info(APIConnection *api, void *v_camera) {
+  esp32_camera::ESP32Camera *camera = reinterpret_cast<esp32_camera::ESP32Camera *>(v_camera);
   ListEntitiesCameraResponse msg;
   msg.key = camera->get_object_id_hash();
   msg.object_id = camera->get_object_id();
@@ -1081,7 +1391,7 @@ bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   msg.disabled_by_default = camera->is_disabled_by_default();
   msg.icon = camera->get_icon();
   msg.entity_category = static_cast<enums::EntityCategory>(camera->get_entity_category());
-  return this->send_list_entities_camera_response(msg);
+  return api->send_list_entities_camera_response(msg);
 }
 void APIConnection::camera_image(const CameraImageRequest &msg) {
   if (esp32_camera::global_esp32_camera == nullptr)
@@ -1268,12 +1578,28 @@ bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmCon
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_alarm_control_panel_state(this, a_alarm_control_panel)) {
+    this->deferred_message_queue_.defer(a_alarm_control_panel, try_send_alarm_control_panel_state);
+  }
+
+  return true;
+}
+void APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  if (!APIConnection::try_send_alarm_control_panel_info(this, a_alarm_control_panel)) {
+    this->deferred_message_queue_.defer(a_alarm_control_panel, try_send_alarm_control_panel_info);
+  }
+}
+bool APIConnection::try_send_alarm_control_panel_state(APIConnection *api, void *v_a_alarm_control_panel) {
+  alarm_control_panel::AlarmControlPanel *a_alarm_control_panel =
+      reinterpret_cast<alarm_control_panel::AlarmControlPanel *>(v_a_alarm_control_panel);
   AlarmControlPanelStateResponse resp{};
   resp.key = a_alarm_control_panel->get_object_id_hash();
   resp.state = static_cast<enums::AlarmControlPanelState>(a_alarm_control_panel->get_state());
-  return this->send_alarm_control_panel_state_response(resp);
+  return api->send_alarm_control_panel_state_response(resp);
 }
-bool APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+bool APIConnection::try_send_alarm_control_panel_info(APIConnection *api, void *v_a_alarm_control_panel) {
+  alarm_control_panel::AlarmControlPanel *a_alarm_control_panel =
+      reinterpret_cast<alarm_control_panel::AlarmControlPanel *>(v_a_alarm_control_panel);
   ListEntitiesAlarmControlPanelResponse msg;
   msg.key = a_alarm_control_panel->get_object_id_hash();
   msg.object_id = a_alarm_control_panel->get_object_id();
@@ -1285,7 +1611,7 @@ bool APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmCont
   msg.supported_features = a_alarm_control_panel->get_supported_features();
   msg.requires_code = a_alarm_control_panel->get_requires_code();
   msg.requires_code_to_arm = a_alarm_control_panel->get_requires_code_to_arm();
-  return this->send_list_entities_alarm_control_panel_response(msg);
+  return api->send_list_entities_alarm_control_panel_response(msg);
 }
 void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) {
   alarm_control_panel::AlarmControlPanel *a_alarm_control_panel = App.get_alarm_control_panel_by_key(msg.key);
@@ -1322,13 +1648,28 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 #endif
 
 #ifdef USE_EVENT
-bool APIConnection::send_event(event::Event *event, std::string event_type) {
+void APIConnection::send_event(event::Event *event, std::string event_type) {
+  if (!APIConnection::try_send_event(this, event, std::move(event_type))) {
+    this->deferred_message_queue_.defer(event, try_send_event);
+  }
+}
+void APIConnection::send_event_info(event::Event *event) {
+  if (!APIConnection::try_send_event_info(this, event)) {
+    this->deferred_message_queue_.defer(event, try_send_event_info);
+  }
+}
+bool APIConnection::try_send_event(APIConnection *api, void *v_event) {
+  event::Event *event = reinterpret_cast<event::Event *>(v_event);
+  return APIConnection::try_send_event(api, event, *(event->last_event_type));
+}
+bool APIConnection::try_send_event(APIConnection *api, event::Event *event, std::string event_type) {
   EventResponse resp{};
   resp.key = event->get_object_id_hash();
   resp.event_type = std::move(event_type);
-  return this->send_event_response(resp);
+  return api->send_event_response(resp);
 }
-bool APIConnection::send_event_info(event::Event *event) {
+bool APIConnection::try_send_event_info(APIConnection *api, void *v_event) {
+  event::Event *event = reinterpret_cast<event::Event *>(v_event);
   ListEntitiesEventResponse msg;
   msg.key = event->get_object_id_hash();
   msg.object_id = event->get_object_id();
@@ -1341,7 +1682,7 @@ bool APIConnection::send_event_info(event::Event *event) {
   msg.device_class = event->get_device_class();
   for (const auto &event_type : event->get_event_types())
     msg.event_types.push_back(event_type);
-  return this->send_list_entities_event_response(msg);
+  return api->send_list_entities_event_response(msg);
 }
 #endif
 
@@ -1350,6 +1691,19 @@ bool APIConnection::send_update_state(update::UpdateEntity *update) {
   if (!this->state_subscription_)
     return false;
 
+  if (!APIConnection::try_send_update_state(this, update)) {
+    this->deferred_message_queue_.defer(update, try_send_update_state);
+  }
+
+  return true;
+}
+void APIConnection::send_update_info(update::UpdateEntity *update) {
+  if (!APIConnection::try_send_update_info(this, update)) {
+    this->deferred_message_queue_.defer(update, try_send_update_info);
+  }
+}
+bool APIConnection::try_send_update_state(APIConnection *api, void *v_update) {
+  update::UpdateEntity *update = reinterpret_cast<update::UpdateEntity *>(v_update);
   UpdateStateResponse resp{};
   resp.key = update->get_object_id_hash();
   resp.missing_state = !update->has_state();
@@ -1366,9 +1720,10 @@ bool APIConnection::send_update_state(update::UpdateEntity *update) {
     resp.release_url = update->update_info.release_url;
   }
 
-  return this->send_update_state_response(resp);
+  return api->send_update_state_response(resp);
 }
-bool APIConnection::send_update_info(update::UpdateEntity *update) {
+bool APIConnection::try_send_update_info(APIConnection *api, void *v_update) {
+  update::UpdateEntity *update = reinterpret_cast<update::UpdateEntity *>(v_update);
   ListEntitiesUpdateResponse msg;
   msg.key = update->get_object_id_hash();
   msg.object_id = update->get_object_id();
@@ -1379,7 +1734,7 @@ bool APIConnection::send_update_info(update::UpdateEntity *update) {
   msg.disabled_by_default = update->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(update->get_entity_category());
   msg.device_class = update->get_device_class();
-  return this->send_list_entities_update_response(msg);
+  return api->send_list_entities_update_response(msg);
 }
 void APIConnection::update_command(const UpdateCommandRequest &msg) {
   update::UpdateEntity *update = App.get_update_by_key(msg.key);
@@ -1403,7 +1758,7 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
 }
 #endif
 
-bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
+bool APIConnection::try_send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
 

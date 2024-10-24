@@ -80,6 +80,7 @@ class ListEntitiesIterator : public ComponentIterator {
   bool on_update(update::UpdateEntity *update) override;
 #endif
   bool on_end() override;
+  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   APIConnection *client_;
