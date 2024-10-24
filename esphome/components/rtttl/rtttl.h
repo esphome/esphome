@@ -39,6 +39,7 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
+  float get_gain() { return gain_; }
   void set_gain(float gain) {
     if (gain < 0.1f)
       gain = 0.1f;

@@ -91,7 +91,7 @@ STYLE_PROPS = {
     "arc_opa": lvalid.opacity,
     "arc_color": lvalid.lv_color,
     "arc_rounded": lvalid.lv_bool,
-    "arc_width": cv.positive_int,
+    "arc_width": lvalid.lv_positive_int,
     "anim_time": lvalid.lv_milliseconds,
     "bg_color": lvalid.lv_color,
     "bg_grad": lv_gradient,
@@ -111,7 +111,7 @@ STYLE_PROPS = {
     "border_side": df.LvConstant(
         "LV_BORDER_SIDE_", "NONE", "TOP", "BOTTOM", "LEFT", "RIGHT", "INTERNAL"
     ).several_of,
-    "border_width": cv.positive_int,
+    "border_width": lvalid.lv_positive_int,
     "clip_corner": lvalid.lv_bool,
     "color_filter_opa": lvalid.opacity,
     "height": lvalid.size,
@@ -134,11 +134,11 @@ STYLE_PROPS = {
     "pad_right": lvalid.pixels,
     "pad_top": lvalid.pixels,
     "shadow_color": lvalid.lv_color,
-    "shadow_ofs_x": cv.int_,
-    "shadow_ofs_y": cv.int_,
+    "shadow_ofs_x": lvalid.lv_int,
+    "shadow_ofs_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
-    "shadow_spread": cv.int_,
-    "shadow_width": cv.positive_int,
+    "shadow_spread": lvalid.lv_int,
+    "shadow_width": lvalid.lv_positive_int,
     "text_align": df.LvConstant(
         "LV_TEXT_ALIGN_", "LEFT", "CENTER", "RIGHT", "AUTO"
     ).one_of,
@@ -150,7 +150,7 @@ STYLE_PROPS = {
     "text_letter_space": cv.positive_int,
     "text_line_space": cv.positive_int,
     "text_opa": lvalid.opacity,
-    "transform_angle": lvalid.angle,
+    "transform_angle": lvalid.lv_angle,
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
@@ -216,7 +216,7 @@ def automation_schema(typ: LvType):
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
     else:
         events = df.LV_EVENT_TRIGGERS
-    args = [typ.get_arg_type()] if isinstance(typ, LvType) else []
+    args = typ.get_arg_type() if isinstance(typ, LvType) else []
     args.append(lv_event_t_ptr)
     return {
         cv.Optional(event): validate_automation(
