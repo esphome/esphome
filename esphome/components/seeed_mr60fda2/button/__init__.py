@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
 )
+from const import CONF_FACTORY_RESET
 
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns
 
@@ -16,7 +17,6 @@ GetRadarParametersButton = mr60fda2_ns.class_("GetRadarParametersButton", button
 ResetRadarButton = mr60fda2_ns.class_("ResetRadarButton", button.Button)
 
 CONF_GET_RADAR_PARAMETERS = "get_radar_parameters"
-CONF_FACTORY_RESET = "factory_reset"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR60FDA2_ID): cv.use_id(MR60FDA2Component),
