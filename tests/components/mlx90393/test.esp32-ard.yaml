@@ -7,14 +7,17 @@ sensor:
   - platform: mlx90393
     oversampling: 1
     filter: 0
-    gain: 3X
+    gain: 1X
+    temperature_compensation: true
     x_axis:
       name: mlxxaxis
+      resolution: DIV_2
     y_axis:
       name: mlxyaxis
+      resolution: DIV_1
     z_axis:
       name: mlxzaxis
-      resolution: 17BIT
+      resolution: DIV_2
     temperature:
       name: mlxtemp
       oversampling: 2

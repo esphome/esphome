@@ -859,6 +859,7 @@ CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC = "target_temperature_low_command_topi
 CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC = "target_temperature_low_state_topic"
 CONF_TARGET_TEMPERATURE_STATE_TOPIC = "target_temperature_state_topic"
 CONF_TEMPERATURE = "temperature"
+CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
 CONF_TEMPERATURE_OFFSET = "temperature_offset"
 CONF_TEMPERATURE_SOURCE = "temperature_source"
 CONF_TEMPERATURE_STEP = "temperature_step"

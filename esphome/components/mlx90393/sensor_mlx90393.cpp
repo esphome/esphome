@@ -43,6 +43,10 @@ void MLX90393Cls::setup() {
   this->mlx_.setDigitalFiltering(this->filter_);
 
   this->mlx_.setTemperatureOverSampling(this->temperature_oversampling_);
+
+  this->mlx_.setTemperatureCompensation(this->temperature_compensation_);
+
+  this->mlx_.setHallConf(this->hallconf_);
 }
 
 void MLX90393Cls::dump_config() {
