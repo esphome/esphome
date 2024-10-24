@@ -1,5 +1,6 @@
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <esp_netif.h>
@@ -33,6 +34,11 @@ static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non
 static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void WiFiComponent::wifi_pre_setup_() {
+  uint8_t mac[6];
+  if (has_custom_mac_address()) {
+    get_mac_address_raw(mac);
+    set_mac_address(mac);
+  }
   auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
   WiFi.onEvent(f);
   WiFi.persistent(false);
@@ -82,8 +88,8 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   // WiFiClass::mode above calls esp_netif_create_default_wifi_sta() and
   // esp_netif_create_default_wifi_ap(), which creates the interfaces.
-  if (set_sta)
-    s_sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+  // s_sta_netif handle is set during ESPHOME_EVENT_ID_WIFI_STA_START event
+
 #ifdef USE_WIFI_AP
   if (set_ap)
     s_ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
@@ -495,6 +501,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     case ESPHOME_EVENT_ID_WIFI_STA_START: {
       ESP_LOGV(TAG, "Event: WiFi STA start");
       // apply hostname
+      s_sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
       esp_err_t err = esp_netif_set_hostname(s_sta_netif, App.get_name().c_str());
       if (err != ERR_OK) {
         ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
@@ -801,3 +808,4 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddr
 }  // namespace esphome
 
 #endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif

@@ -12,6 +12,9 @@ from esphome.const import (
     CONF_CO2,
     UNIT_BECQUEREL_PER_CUBIC_METER,
     UNIT_PARTS_PER_MILLION,
+    CONF_ILLUMINANCE,
+    UNIT_LUX,
+    DEVICE_CLASS_ILLUMINANCE,
 )
 
 DEPENDENCIES = airthings_wave_base.DEPENDENCIES
@@ -45,6 +48,12 @@ CONFIG_SCHEMA = airthings_wave_base.BASE_SCHEMA.extend(
             device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_LUX,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_ILLUMINANCE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 )
 
@@ -62,3 +71,6 @@ async def to_code(config):
     if config_co2 := config.get(CONF_CO2):
         sens = await sensor.new_sensor(config_co2)
         cg.add(var.set_co2(sens))
+    if config_illuminance := config.get(CONF_ILLUMINANCE):
+        sens = await sensor.new_sensor(config_illuminance)
+        cg.add(var.set_illuminance(sens))

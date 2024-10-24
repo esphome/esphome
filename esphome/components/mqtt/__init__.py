@@ -1,33 +1,35 @@
 import re
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+import esphome.codegen as cg
 from esphome.components import logger
+from esphome.components.esp32 import add_idf_sdkconfig_option
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLEAN_SESSION,
     CONF_CLIENT_CERTIFICATE,
     CONF_CLIENT_CERTIFICATE_KEY,
     CONF_CLIENT_ID,
-    CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
+    CONF_COMMAND_TOPIC,
     CONF_DISCOVERY,
+    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
-    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
-    CONF_ON_JSON_MESSAGE,
-    CONF_ON_MESSAGE,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_ON_JSON_MESSAGE,
+    CONF_ON_MESSAGE,
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
@@ -39,18 +41,18 @@ from esphome.const import (
     CONF_SHUTDOWN_MESSAGE,
     CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
+    CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_TRIGGER_ID,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
 )
-from esphome.core import coroutine_with_priority, CORE
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ["network"]
 
@@ -61,6 +63,7 @@ def AUTO_LOAD():
     return ["json"]
 
 
+CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 
@@ -109,6 +112,9 @@ MQTTDisconnectTrigger = mqtt_ns.class_(
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
 
+MQTTAlarmControlPanelComponent = mqtt_ns.class_(
+    "MQTTAlarmControlPanelComponent", MQTTComponent
+)
 MQTTBinarySensorComponent = mqtt_ns.class_("MQTTBinarySensorComponent", MQTTComponent)
 MQTTClimateComponent = mqtt_ns.class_("MQTTClimateComponent", MQTTComponent)
 MQTTCoverComponent = mqtt_ns.class_("MQTTCoverComponent", MQTTComponent)
@@ -205,6 +211,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
+            cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
@@ -225,6 +232,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
+            cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
@@ -320,6 +328,7 @@ async def to_code(config):
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
+    cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
     if CONF_CLIENT_ID in config:
         cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
 
@@ -328,8 +337,12 @@ async def to_code(config):
     discovery_prefix = config[CONF_DISCOVERY_PREFIX]
     discovery_unique_id_generator = config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
     discovery_object_id_generator = config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
+    discover_ip = config[CONF_DISCOVER_IP]
 
     if not discovery:
+        discovery_prefix = ""
+
+    if not discovery and not discover_ip:
         cg.add(var.disable_discovery())
     elif discovery == "CLEAN":
         cg.add(
@@ -338,6 +351,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
                 True,
             )
         )
@@ -348,6 +362,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
             )
         )
 
@@ -504,6 +519,8 @@ async def register_mqtt_component(var, config):
         cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
+    if CONF_SUBSCRIBE_QOS in config:
+        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:

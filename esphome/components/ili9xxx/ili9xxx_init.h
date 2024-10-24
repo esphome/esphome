@@ -101,7 +101,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481[] = {
   ILI9XXX_MADCTL  , 1, MADCTL_MV | MADCTL_BGR,       // Memory Access Control
   ILI9XXX_CSCON , 1, 0x01,
   ILI9XXX_PIXFMT, 1, 0x55,  // 16 bit mode
-  ILI9XXX_INVON, 0,
   ILI9XXX_DISPON, 0x80,     // Set display on
   0x00 // end
 };
@@ -121,7 +120,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     ILI9XXX_MADCTL  , 1, MADCTL_MX| MADCTL_BGR,       // Memory Access Control
     ILI9XXX_CSCON , 1, 0x01,
     ILI9XXX_PIXFMT, 1, 0x66,  // 18 bit mode
-    ILI9XXX_INVON, 0,
     ILI9XXX_DISPON, 0x80,     // Set display on
     0x00 // end
 };
@@ -204,7 +202,6 @@ static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
 
 
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  //ILI9XXX_INVON  , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
 };
@@ -372,9 +369,9 @@ static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
 
 static const uint8_t PROGMEM INITCMD_ST7735[] = {
     ILI9XXX_SWRESET, 0,         // Soft reset, then delay 10ms
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     ILI9XXX_SLPOUT  , 0,                // Exit Sleep, delay
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     ILI9XXX_PIXFMT  , 1, 0x05,
     ILI9XXX_FRMCTR1, 3, //  4: Frame rate control, 3 args + delay:
     0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
@@ -415,9 +412,9 @@ static const uint8_t PROGMEM INITCMD_ST7735[] = {
     0x00, 0x00, 0x02, 0x10,
     ILI9XXX_MADCTL  , 1, 0x00,             // Memory Access Control, BGR
     ILI9XXX_NORON  , 0,
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     ILI9XXX_DISPON  , 0,                // Display on
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     00,   // endo of list
 };
 

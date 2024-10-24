@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_CAPTIVE_PORTAL
 #include <memory>
 #ifdef USE_ARDUINO
 #include <DNSServer.h>
@@ -71,3 +72,4 @@ extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-
 
 }  // namespace captive_portal
 }  // namespace esphome
+#endif

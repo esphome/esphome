@@ -1,10 +1,6 @@
 import json
 import logging
-from os.path import (
-    dirname,
-    isfile,
-    join,
-)
+from os.path import dirname, isfile, join
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -50,7 +46,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
-AUTO_LOAD = []
+AUTO_LOAD = ["preferences"]
 
 
 def _detect_variant(value):
@@ -174,12 +170,11 @@ def _notify_old_style(config):
     return config
 
 
-# NOTE: Keep this in mind when updating the recommended version:
-#  * For all constants below, update platformio.ini (in this repo)
+# The dev and latest branches will be at *least* this version, which is what matters.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(0, 0, 0), "https://github.com/libretiny-eu/libretiny.git"),
-    "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 5, 1), None),
+    "dev": (cv.Version(1, 7, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "latest": (cv.Version(1, 7, 0), "libretiny"),
+    "recommended": (cv.Version(1, 7, 0), None),
 }
 
 
@@ -282,10 +277,10 @@ async def component_to_code(config):
     # if platform version is a valid version constraint, prefix the default package
     framework = config[CONF_FRAMEWORK]
     cv.platformio_version_constraint(framework[CONF_VERSION])
-    if str(framework[CONF_VERSION]) != "0.0.0":
-        cg.add_platformio_option("platform", f"libretiny @ {framework[CONF_VERSION]}")
-    elif framework[CONF_SOURCE]:
+    if framework[CONF_SOURCE]:
         cg.add_platformio_option("platform", framework[CONF_SOURCE])
+    elif str(framework[CONF_VERSION]) != "0.0.0":
+        cg.add_platformio_option("platform", f"libretiny @ {framework[CONF_VERSION]}")
     else:
         cg.add_platformio_option("platform", "libretiny")
 

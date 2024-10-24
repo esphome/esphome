@@ -9,6 +9,7 @@ on:
     paths:
       - "**"
       - "!.github/workflows/*.yml"
+      - "!.github/actions/build-image/*"
       - ".github/workflows/ci.yml"
       - "!.yamllint"
       - "!.github/dependabot.yml"
@@ -40,12 +41,12 @@ jobs:
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.1.0
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.0.2
+        uses: actions/cache@v4.1.2
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -248,72 +249,6 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
-  compile-tests-list:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-      - name: Find all YAML test files
-        id: set-matrix
-        run: echo "matrix=$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
-
-  validate-tests:
-    name: Validate YAML test ${{ matrix.file }}
-    runs-on: ubuntu-latest
-    needs:
-      - common
-      - compile-tests-list
-    strategy:
-      fail-fast: false
-      matrix:
-        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run esphome config ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          esphome config ${{ matrix.file }}
-
-  compile-tests:
-    name: Run YAML test ${{ matrix.file }}
-    runs-on: ubuntu-latest
-    needs:
-      - common
-      - black
-      - ci-custom
-      - clang-format
-      - flake8
-      - pylint
-      - pytest
-      - pyupgrade
-      - compile-tests-list
-      - validate-tests
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run esphome compile ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          esphome compile ${{ matrix.file }}
-
   clang-tidy:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
@@ -367,20 +302,22 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@v4.0.2
+        uses: actions/cache@v4.1.2
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@v4.0.2
+        uses: actions/cache/restore@v4.1.2
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
 
       - name: Install clang-tidy
-        run: sudo apt-get install clang-tidy-14
+        run: |
+          sudo apt-get update
+          sudo apt-get install clang-tidy-14
 
       - name: Register problem matchers
         run: |
@@ -462,7 +399,9 @@ jobs:
         file: ${{ fromJson(needs.list-components.outputs.components) }}
     steps:
       - name: Install dependencies
-        run: sudo apt-get install libsodium-dev libsdl2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsdl2-dev
 
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.7
@@ -516,7 +455,9 @@ jobs:
         run: echo ${{ matrix.components }}
 
       - name: Install dependencies
-        run: sudo apt-get install libsodium-dev libsdl2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsdl2-dev
 
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.7
@@ -534,6 +475,8 @@ jobs:
       - name: Compile config
         run: |
           . venv/bin/activate
+          mkdir build_cache
+          export PLATFORMIO_BUILD_CACHE_DIR=$PWD/build_cache
           for component in ${{ matrix.components }}; do
             ./script/test_build_components -e compile -c $component
           done
@@ -550,7 +493,6 @@ jobs:
       - pylint
       - pytest
       - pyupgrade
-      - compile-tests
       - clang-tidy
       - list-components
       - test-build-components

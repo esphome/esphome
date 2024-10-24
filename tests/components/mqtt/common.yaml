@@ -10,6 +10,7 @@ mqtt:
   port: 1883
   username: debug
   password: debug
+  clean_session: True
   client_id: someclient
   use_abbreviations: false
   discovery: true
@@ -226,6 +227,7 @@ datetime:
     type: date
     state_topic: some/topic/date
     qos: 2
+    subscribe_qos: 2
     set_action:
       - logger.log: "set_value"
     on_value:
@@ -426,3 +428,9 @@ valve:
       } else {
         return VALVE_CLOSED;
       }
+
+alarm_control_panel:
+  - platform: template
+    name: Alarm Control Panel
+    binary_sensors:
+      - input: some_binary_sensor

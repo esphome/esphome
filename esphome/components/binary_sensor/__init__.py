@@ -1,10 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
     CONF_DEVICE_CLASS,
@@ -16,6 +14,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_MAX_LENGTH,
     CONF_MIN_LENGTH,
+    CONF_MQTT_ID,
     CONF_ON_CLICK,
     CONF_ON_DOUBLE_CLICK,
     CONF_ON_MULTI_CLICK,
@@ -26,8 +25,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_TIMING,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
+    CONF_WEB_SERVER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
     DEVICE_CLASS_CARBON_MONOXIDE,
@@ -59,6 +57,8 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
+from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -543,9 +543,8 @@ async def setup_binary_sensor_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_binary_sensor(var, config):

@@ -1,24 +1,25 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
+    CONF_EVENT_TYPE,
     CONF_ICON,
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_EVENT,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
-    CONF_EVENT_TYPE,
+    CONF_WEB_SERVER,
     DEVICE_CLASS_BUTTON,
     DEVICE_CLASS_DOORBELL,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@nohat"]
 IS_PLATFORM_COMPONENT = True
@@ -40,17 +41,21 @@ EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-EVENT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
-        cv.GenerateID(): cv.declare_id(Event),
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-        cv.Optional(CONF_ON_EVENT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EventTrigger),
-            }
-        ),
-    }
+EVENT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
+            cv.GenerateID(): cv.declare_id(Event),
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(CONF_ON_EVENT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EventTrigger),
+                }
+            ),
+        }
+    )
 )
 
 _UNDEF = object()
@@ -96,6 +101,9 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_event(var, config, *, event_types: list[str]):

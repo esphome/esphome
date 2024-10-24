@@ -16,6 +16,8 @@ static const char *const TAG = "mqtt.component";
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
 
+void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }
+
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
@@ -76,6 +78,10 @@ bool MQTTComponent::send_discovery_() {
         config.command_topic = true;
 
         this->send_discovery(root, config);
+        // Set subscription QoS (default is 0)
+        if (this->subscribe_qos_ != 0) {
+          root[MQTT_QOS] = this->subscribe_qos_;
+        }
 
         // Fields from EntityBase
         if (this->get_entity()->has_own_name()) {
@@ -150,12 +156,40 @@ bool MQTTComponent::send_discovery_() {
         const std::string &node_area = App.get_area();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
-        device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
+        const auto mac = get_mac_address();
+        device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
-        device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
+#ifdef ESPHOME_PROJECT_NAME
+        device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_PROJECT_VERSION " (ESPHome " ESPHOME_VERSION ")";
+        const char *model = std::strchr(ESPHOME_PROJECT_NAME, '.');
+        if (model == nullptr) {  // must never happen but check anyway
+          device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
+          device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
+        } else {
+          device_info[MQTT_DEVICE_MODEL] = model + 1;
+          device_info[MQTT_DEVICE_MANUFACTURER] = std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
+        }
+#else
+        device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_VERSION " (" + App.get_compilation_time() + ")";
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
-        device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
-        device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Espressif";
+#elif defined(USE_RP2040)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Beken";
+#elif defined(USE_RTL87XX)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Realtek";
+#elif defined(USE_HOST)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Host";
+#endif
+#endif
+        if (!node_area.empty()) {
+          device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
+        }
+
+        device_info[MQTT_DEVICE_CONNECTIONS][0][0] = "mac";
+        device_info[MQTT_DEVICE_CONNECTIONS][0][1] = mac;
       },
       this->qos_, discovery_info.retain);
 }

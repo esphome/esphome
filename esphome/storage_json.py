@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import binascii
 import codecs
+from datetime import datetime
 import json
 import logging
 import os
-from datetime import datetime
 
 from esphome import const
 from esphome.const import CONF_DISABLED, CONF_MDNS
@@ -27,6 +28,10 @@ def esphome_storage_path() -> str:
     return os.path.join(CORE.data_dir, "esphome.json")
 
 
+def ignored_devices_storage_path() -> str:
+    return os.path.join(CORE.data_dir, "ignored-devices.json")
+
+
 def trash_storage_path() -> str:
     return CORE.relative_config_path("trash")
 
@@ -47,6 +52,8 @@ class StorageJSON:
         firmware_bin_path: str,
         loaded_integrations: set[str],
         no_mdns: bool,
+        framework: str | None = None,
+        core_platform: str | None = None,
     ) -> None:
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
@@ -77,6 +84,10 @@ class StorageJSON:
         self.loaded_integrations = loaded_integrations
         # Is mDNS disabled
         self.no_mdns = no_mdns
+        # The framework used to compile the firmware
+        self.framework = framework
+        # The core platform of this firmware. Like "esp32", "rp2040", "host" etc.
+        self.core_platform = core_platform
 
     def as_dict(self):
         return {
@@ -93,6 +104,8 @@ class StorageJSON:
             "firmware_bin_path": self.firmware_bin_path,
             "loaded_integrations": sorted(self.loaded_integrations),
             "no_mdns": self.no_mdns,
+            "framework": self.framework,
+            "core_platform": self.core_platform,
         }
 
     def to_json(self):
@@ -126,6 +139,8 @@ class StorageJSON:
                 and CONF_DISABLED in esph.config[CONF_MDNS]
                 and esph.config[CONF_MDNS][CONF_DISABLED] is True
             ),
+            framework=esph.target_framework,
+            core_platform=esph.target_platform,
         )
 
     @staticmethod
@@ -146,6 +161,8 @@ class StorageJSON:
             firmware_bin_path=None,
             loaded_integrations=set(),
             no_mdns=False,
+            framework=None,
+            core_platform=platform.lower(),
         )
 
     @staticmethod
@@ -167,6 +184,8 @@ class StorageJSON:
         firmware_bin_path = storage.get("firmware_bin_path")
         loaded_integrations = set(storage.get("loaded_integrations", []))
         no_mdns = storage.get("no_mdns", False)
+        framework = storage.get("framework")
+        core_platform = storage.get("core_platform")
         return StorageJSON(
             storage_version,
             name,
@@ -181,6 +200,8 @@ class StorageJSON:
             firmware_bin_path,
             loaded_integrations,
             no_mdns,
+            framework,
+            core_platform,
         )
 
     @staticmethod

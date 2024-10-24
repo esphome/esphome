@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from collections.abc import Iterable
 import datetime
 import functools
 import gzip
@@ -9,13 +10,12 @@ import hashlib
 import json
 import logging
 import os
+from pathlib import Path
 import secrets
 import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Iterable
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from urllib.parse import urlparse
 
@@ -26,13 +26,13 @@ import tornado.httpserver
 import tornado.httputil
 import tornado.ioloop
 import tornado.iostream
+from tornado.log import access_log
 import tornado.netutil
 import tornado.process
 import tornado.queues
 import tornado.web
 import tornado.websocket
 import yaml
-from tornado.log import access_log
 from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
@@ -541,6 +541,46 @@ class ImportRequestHandler(BaseHandler):
         self.finish()
 
 
+class IgnoreDeviceRequestHandler(BaseHandler):
+    @authenticated
+    def post(self) -> None:
+        dashboard = DASHBOARD
+        try:
+            args = json.loads(self.request.body.decode())
+            device_name = args["name"]
+            ignore = args["ignore"]
+        except (json.JSONDecodeError, KeyError):
+            self.set_status(400)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Invalid payload"}))
+            return
+
+        ignored_device = next(
+            (
+                res
+                for res in dashboard.import_result.values()
+                if res.device_name == device_name
+            ),
+            None,
+        )
+
+        if ignored_device is None:
+            self.set_status(404)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Device not found"}))
+            return
+
+        if ignore:
+            dashboard.ignored_devices.add(ignored_device.device_name)
+        else:
+            dashboard.ignored_devices.discard(ignored_device.device_name)
+
+        dashboard.save_ignored_devices()
+
+        self.set_status(204)
+        self.finish()
+
+
 class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -688,6 +728,7 @@ class ListDevicesHandler(BaseHandler):
                             "project_name": res.project_name,
                             "project_version": res.project_version,
                             "network": res.network,
+                            "ignored": res.device_name in dashboard.ignored_devices,
                         }
                         for res in dashboard.import_result.values()
                         if res.device_name not in configured
@@ -1156,6 +1197,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
             (f"{rel}version", EsphomeVersionHandler),
+            (f"{rel}ignore-device", IgnoreDeviceRequestHandler),
         ],
         **app_settings,
     )

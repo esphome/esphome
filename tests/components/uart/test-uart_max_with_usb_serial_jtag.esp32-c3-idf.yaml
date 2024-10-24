@@ -1,0 +1,30 @@
+<<: !include ../logger/common-usb_serial_jtag.yaml
+
+esphome:
+  on_boot:
+    then:
+      - uart.write:
+          id: uart_1
+          data: 'Hello World'
+      - uart.write:
+          id: uart_1
+          data: [0x00, 0x20, 0x42]
+
+uart:
+  - id: uart_1
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+    data_bits: 8
+    rx_buffer_size: 512
+    parity: EVEN
+    stop_bits: 2
+
+  - id: uart_2
+    tx_pin: 6
+    rx_pin: 7
+    baud_rate: 9600
+    data_bits: 8
+    rx_buffer_size: 512
+    parity: EVEN
+    stop_bits: 2

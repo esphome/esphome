@@ -155,7 +155,7 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 }
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
-uint8_t crc8(uint8_t *data, uint8_t len);
+uint8_t crc8(const uint8_t *data, uint8_t len);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
@@ -635,6 +635,14 @@ std::string get_mac_address_pretty();
 void set_mac_address(uint8_t *mac);
 #endif
 
+/// Check if a custom MAC address is set (ESP32 & variants)
+/// @return True if a custom MAC address is set (ESP32 & variants), else false
+bool has_custom_mac_address();
+
+/// Check if the MAC address is not all zeros or all ones
+/// @return True if MAC is valid, else false
+bool mac_address_is_valid(const uint8_t *mac);
+
 /// Delay for the given amount of microseconds, possibly yielding to other processes during the wait.
 void delay_microseconds_safe(uint32_t us);
 
@@ -643,35 +651,45 @@ void delay_microseconds_safe(uint32_t us);
 /// @name Memory management
 ///@{
 
-/** An STL allocator that uses SPI RAM.
+/** An STL allocator that uses SPI or internal RAM.
+ * Returns `nullptr` in case no memory is available.
  *
- * By setting flags, it can be configured to don't try main memory if SPI RAM is full or unavailable, and to return
- * `nulllptr` instead of aborting when no memory is available.
+ * By setting flags, it can be configured to:
+ * - perform external allocation falling back to main memory if SPI RAM is full or unavailable
+ * - perform external allocation only
+ * - perform internal allocation only
  */
-template<class T> class ExternalRAMAllocator {
+template<class T> class RAMAllocator {
  public:
   using value_type = T;
 
   enum Flags {
-    NONE = 0,
-    REFUSE_INTERNAL = 1 << 0,  ///< Refuse falling back to internal memory when external RAM is full or unavailable.
-    ALLOW_FAILURE = 1 << 1,    ///< Don't abort when memory allocation fails.
+    NONE = 0,                 // Perform external allocation and fall back to internal memory
+    ALLOC_EXTERNAL = 1 << 0,  // Perform external allocation only.
+    ALLOC_INTERNAL = 1 << 1,  // Perform internal allocation only.
+    ALLOW_FAILURE = 1 << 2,   // Does nothing. Kept for compatibility.
   };
 
-  ExternalRAMAllocator() = default;
-  ExternalRAMAllocator(Flags flags) : flags_{flags} {}
-  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags_} {}
+  RAMAllocator() = default;
+  RAMAllocator(uint8_t flags) : flags_{flags} {}
+  template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
     size_t size = n * sizeof(T);
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-#endif
-    if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
+    // External allocation by default or if explicitely requested
+    if ((this->flags_ & Flags::ALLOC_EXTERNAL) || ((this->flags_ & Flags::ALLOC_INTERNAL) == 0)) {
+      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    }
+    // Fallback to internal allocation if explicitely requested or no flag is specified
+    if (ptr == nullptr && ((this->flags_ & Flags::ALLOC_INTERNAL) || (this->flags_ & Flags::ALLOC_EXTERNAL) == 0)) {
       ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
-    if (ptr == nullptr && (this->flags_ & Flags::ALLOW_FAILURE) == 0)
-      abort();
+    }
+#else
+    // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
+    ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
+#endif
     return ptr;
   }
 
@@ -680,8 +698,10 @@ template<class T> class ExternalRAMAllocator {
   }
 
  private:
-  Flags flags_{Flags::NONE};
+  uint8_t flags_{Flags::ALLOW_FAILURE};
 };
+
+template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
 /// @}
 

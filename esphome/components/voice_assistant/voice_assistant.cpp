@@ -23,6 +23,8 @@ static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
 
+VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
+
 float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 bool VoiceAssistant::start_udp_socket_() {
@@ -66,12 +68,6 @@ bool VoiceAssistant::start_udp_socket_() {
 #endif
   this->udp_socket_running_ = true;
   return true;
-}
-
-void VoiceAssistant::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Voice Assistant...");
-
-  global_voice_assistant = this;
 }
 
 bool VoiceAssistant::allocate_buffers_() {
@@ -169,6 +165,11 @@ void VoiceAssistant::deallocate_buffers_() {
     this->speaker_buffer_ = nullptr;
   }
 #endif
+}
+
+void VoiceAssistant::reset_conversation_id() {
+  this->conversation_id_ = "";
+  ESP_LOGD(TAG, "reset conversation ID");
 }
 
 int VoiceAssistant::read_microphone_() {
@@ -299,7 +300,8 @@ void VoiceAssistant::loop() {
         break;
       }
       this->set_state_(State::STARTING_PIPELINE);
-      this->set_timeout("reset-conversation_id", 5 * 60 * 1000, [this]() { this->conversation_id_ = ""; });
+      this->set_timeout("reset-conversation_id", this->conversation_timeout_,
+                        [this]() { this->reset_conversation_id(); });
       break;
     }
     case State::STARTING_PIPELINE: {
@@ -390,6 +392,10 @@ void VoiceAssistant::loop() {
         this->set_timeout("playing", 2000, [this]() {
           this->cancel_timeout("speaker-timeout");
           this->set_state_(State::IDLE, State::IDLE);
+
+          api::VoiceAssistantAnnounceFinished msg;
+          msg.success = true;
+          this->api_client_->send_voice_assistant_announce_finished(msg);
         });
       }
       break;
@@ -427,16 +433,18 @@ void VoiceAssistant::loop() {
 
 #ifdef USE_SPEAKER
 void VoiceAssistant::write_speaker_() {
-  if (this->speaker_buffer_size_ > 0) {
-    size_t write_chunk = std::min<size_t>(this->speaker_buffer_size_, 4 * 1024);
-    size_t written = this->speaker_->play(this->speaker_buffer_, write_chunk);
-    if (written > 0) {
-      memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
-      this->speaker_buffer_size_ -= written;
-      this->speaker_buffer_index_ -= written;
-      this->set_timeout("speaker-timeout", 5000, [this]() { this->speaker_->stop(); });
-    } else {
-      ESP_LOGV(TAG, "Speaker buffer full, trying again next loop");
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
+    if (this->speaker_buffer_size_ > 0) {
+      size_t write_chunk = std::min<size_t>(this->speaker_buffer_size_, 4 * 1024);
+      size_t written = this->speaker_->play(this->speaker_buffer_, write_chunk);
+      if (written > 0) {
+        memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
+        this->speaker_buffer_size_ -= written;
+        this->speaker_buffer_index_ -= written;
+        this->set_timeout("speaker-timeout", 5000, [this]() { this->speaker_->stop(); });
+      } else {
+        ESP_LOGV(TAG, "Speaker buffer full, trying again next loop");
+      }
     }
   }
 }
@@ -684,7 +692,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this, text]() {
         this->tts_start_trigger_->trigger(text);
 #ifdef USE_SPEAKER
-        this->speaker_->start();
+        if (this->speaker_ != nullptr) {
+          this->speaker_->start();
+        }
 #endif
       });
       break;
@@ -743,7 +753,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           message = std::move(arg.value);
         }
       }
-      if (code == "wake-word-timeout" || code == "wake_word_detection_aborted") {
+      if (code == "wake-word-timeout" || code == "wake_word_detection_aborted" || code == "no_wake_word") {
         // Don't change state here since either the "tts-end" or "run-end" events will do it.
         return;
       } else if (code == "wake-provider-missing" || code == "wake-engine-missing") {
@@ -764,16 +774,20 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_START: {
 #ifdef USE_SPEAKER
-      this->wait_for_stream_end_ = true;
-      ESP_LOGD(TAG, "TTS stream start");
-      this->defer([this] { this->tts_stream_start_trigger_->trigger(); });
+      if (this->speaker_ != nullptr) {
+        this->wait_for_stream_end_ = true;
+        ESP_LOGD(TAG, "TTS stream start");
+        this->defer([this] { this->tts_stream_start_trigger_->trigger(); });
+      }
 #endif
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_END: {
 #ifdef USE_SPEAKER
-      this->stream_ended_ = true;
-      ESP_LOGD(TAG, "TTS stream end");
+      if (this->speaker_ != nullptr) {
+        this->stream_ended_ = true;
+        ESP_LOGD(TAG, "TTS stream end");
+      }
 #endif
       break;
     }
@@ -794,14 +808,16 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 
 void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 #ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
-  if (this->speaker_buffer_index_ + msg.data.length() < SPEAKER_BUFFER_SIZE) {
-    memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data.data(), msg.data.length());
-    this->speaker_buffer_index_ += msg.data.length();
-    this->speaker_buffer_size_ += msg.data.length();
-    this->speaker_bytes_received_ += msg.data.length();
-    ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data.length());
-  } else {
-    ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
+    if (this->speaker_buffer_index_ + msg.data.length() < SPEAKER_BUFFER_SIZE) {
+      memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data.data(), msg.data.length());
+      this->speaker_buffer_index_ += msg.data.length();
+      this->speaker_buffer_size_ += msg.data.length();
+      this->speaker_bytes_received_ += msg.data.length();
+      ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data.length());
+    } else {
+      ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
+    }
   }
 #endif
 }
@@ -856,6 +872,18 @@ void VoiceAssistant::timer_tick_() {
     res.push_back(timer);
   }
   this->timer_tick_trigger_->trigger(res);
+}
+
+void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) {
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr) {
+    this->tts_start_trigger_->trigger(msg.text);
+    this->media_player_->make_call().set_media_url(msg.media_id).set_announcement(true).perform();
+    this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+    this->tts_end_trigger_->trigger(msg.media_id);
+    this->end_trigger_->trigger();
+  }
+#endif
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

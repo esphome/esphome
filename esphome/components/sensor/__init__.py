@@ -1,22 +1,28 @@
 import math
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DEVICE_CLASS,
     CONF_ABOVE,
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
+    CONF_FORCE_UPDATE,
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
     CONF_IGNORE_OUT_OF_RANGE,
+    CONF_MAX_VALUE,
+    CONF_METHOD,
+    CONF_MIN_VALUE,
+    CONF_MQTT_ID,
+    CONF_MULTIPLE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -29,20 +35,16 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_WINDOW_SIZE,
-    CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
-    CONF_FORCE_UPDATE,
     CONF_VALUE,
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-    CONF_METHOD,
+    CONF_WEB_SERVER,
+    CONF_WINDOW_SIZE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -103,6 +105,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -247,6 +250,7 @@ CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
+RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -732,6 +736,23 @@ async def round_filter_to_code(config, filter_id):
     )
 
 
+@FILTER_REGISTRY.register(
+    "round_to_multiple_of",
+    RoundMultipleFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_MULTIPLE): cv.positive_not_null_float,
+        },
+        key=CONF_MULTIPLE,
+    ),
+)
+async def round_multiple_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_MULTIPLE],
+    )
+
+
 async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
@@ -779,9 +800,8 @@ async def setup_sensor_core_(var, config):
             else:
                 cg.add(mqtt_.set_expire_after(expire_after))
 
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_sensor(var, config):

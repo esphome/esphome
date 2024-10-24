@@ -1,18 +1,18 @@
-import esphome.config_validation as cv
-import esphome.codegen as cg
-
-from esphome.const import (
-    CONF_ID,
-    CONF_MICROPHONE,
-    CONF_SPEAKER,
-    CONF_MEDIA_PLAYER,
-    CONF_ON_CLIENT_CONNECTED,
-    CONF_ON_CLIENT_DISCONNECTED,
-    CONF_ON_IDLE,
-)
 from esphome import automation
 from esphome.automation import register_action, register_condition
-from esphome.components import microphone, speaker, media_player
+import esphome.codegen as cg
+from esphome.components import media_player, microphone, speaker
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID,
+    CONF_MEDIA_PLAYER,
+    CONF_MICROPHONE,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
+    CONF_ON_ERROR,
+    CONF_ON_IDLE,
+    CONF_SPEAKER,
+)
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["api", "microphone"]
@@ -20,7 +20,6 @@ DEPENDENCIES = ["api", "microphone"]
 CODEOWNERS = ["@jesserockz"]
 
 CONF_ON_END = "on_end"
-CONF_ON_ERROR = "on_error"
 CONF_ON_INTENT_END = "on_intent_end"
 CONF_ON_INTENT_START = "on_intent_start"
 CONF_ON_LISTENING = "on_listening"
@@ -43,6 +42,8 @@ CONF_NOISE_SUPPRESSION_LEVEL = "noise_suppression_level"
 CONF_VOLUME_MULTIPLIER = "volume_multiplier"
 
 CONF_WAKE_WORD = "wake_word"
+
+CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
 
 CONF_ON_TIMER_STARTED = "on_timer_started"
 CONF_ON_TIMER_UPDATED = "on_timer_updated"
@@ -101,6 +102,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.float_with_unit("decibel full scale", "(dBFS|dbfs|DBFS)"),
                 cv.int_range(0, 31),
             ),
+            cv.Optional(
+                CONF_CONVERSATION_TIMEOUT, default="300s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
                 min=0.0, min_included=False
             ),
@@ -183,6 +187,7 @@ async def to_code(config):
     cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
     cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
     cg.add(var.set_volume_multiplier(config[CONF_VOLUME_MULTIPLIER]))
+    cg.add(var.set_conversation_timeout(config[CONF_CONVERSATION_TIMEOUT]))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(
