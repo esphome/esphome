@@ -7,7 +7,9 @@ from esphome.const import CONF_NAME, CONF_PORT
 wled_ns = cg.esphome_ns.namespace("wled")
 WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
 
-CONFIG_SCHEMA = cv.All(cv.Schema({}), cv.only_with_arduino)
+AUTO_LOAD = ["socket"]
+CONFIG_SCHEMA = cv.Schema({})
+
 CONF_SYNC_GROUP_MASK = "sync_group_mask"
 CONF_BLANK_ON_START = "blank_on_start"
 
