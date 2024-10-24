@@ -308,7 +308,7 @@ void AsyncEventSource::deferrable_send_state(void *source, const char *event_typ
 AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request,
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
-    : server_(server), web_server_(ws) {
+    : server_(server), web_server_(ws), entities_iterator_(ws, server) {
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
