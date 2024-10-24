@@ -14,8 +14,7 @@ ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEv
     : web_server_(ws), events_(es) {}
 #endif
 #ifdef USE_ESP_IDF
-ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es)
-    : web_server_(ws), events_(es) {}
+ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es) : web_server_(ws), events_(es) {}
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -167,8 +166,7 @@ bool ListEntitiesIterator::on_select(select::Select *obj) {
 bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *obj) {
   if (this->events_->count() == 0)
     return true;
-  this->events_->deferrable_send_state(obj, "state_detail_all",
-                                             WebServer::alarm_control_panel_all_json_generator);
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::alarm_control_panel_all_json_generator);
   return true;
 }
 #endif

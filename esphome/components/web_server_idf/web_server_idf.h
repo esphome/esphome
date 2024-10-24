@@ -181,7 +181,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port) {};
+  AsyncWebServer(uint16_t port) : port_(port){};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -261,7 +261,8 @@ class AsyncEventSourceResponse {
   void process_deferred_queue_();
 
  protected:
-  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server, esphome::web_server::WebServer *ws);
+  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server, 
+                           esphome::web_server::WebServer *ws);
 
   static void destroy(void *p);
   AsyncEventSource *server_;

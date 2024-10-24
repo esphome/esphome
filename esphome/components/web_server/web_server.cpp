@@ -120,7 +120,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
   if (message_generator == nullptr)
     return;
 
-  if(0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
+  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
     ESP_LOGE(TAG, "Can't defer non-state event");
   }
 
@@ -168,9 +168,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   this->push_back(es);
 
   es->onConnect([this, ws, es](AsyncEventSourceClient *client) {
-    ws->defer([this, ws, es]() {
-      this->on_client_connect_(ws, es);
-    });
+    ws->defer([this, ws, es]() { this->on_client_connect_(ws, es); });
   });
 
   es->onDisconnect([this, ws](AsyncEventSource *source, AsyncEventSourceClient *client) {
@@ -206,7 +204,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, DeferredUp
 }
 
 void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
-  // This method was called via WebServer->defer() and is no longer executing in the 
+  // This method was called via WebServer->defer() and is no longer executing in the
   // context of the network callback. The object is now dead and can be safely deleted.
   this->remove(source);
   delete source;  // NOLINT

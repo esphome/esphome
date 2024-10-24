@@ -1,4 +1,3 @@
-#define USE_ESP_IDF 1
 #ifdef USE_ESP_IDF
 
 #include <cstdarg>
@@ -280,7 +279,8 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);  // NOLINT(cppcoreguidelines-owning-memory)
+  auto *rsp = 
+      new AsyncEventSourceResponse(request, this, this->web_server_);  // NOLINT(cppcoreguidelines-owning-memory)
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
@@ -299,13 +299,16 @@ void AsyncEventSource::try_send_nodefer(const char *message, const char *event, 
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) {
+void AsyncEventSource::deferrable_send_state(void *source, const char *event_type, 
+                                             message_generator_t *message_generator) {
   for (auto *ses : this->sessions_) {
     ses->deferrable_send_state(source, event_type, message_generator);
   }
 }
 
-AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server, esphome::web_server::WebServer *ws)
+AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request, 
+                                                   esphome::web_server_idf::AsyncEventSource *server, 
+                                                   esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws) {
   httpd_req_t *req = *request;
 
@@ -441,8 +444,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
   std::memcpy(&ev[0], chunk_len_str, 8);
 
   int bytes_sent = httpd_socket_send(this->hd_, this->fd_, ev.c_str(), ev.size(), 0);
-  if(bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || 
-  bytes_sent == HTTPD_SOCK_ERR_FAIL) {
+  if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || bytes_sent == HTTPD_SOCK_ERR_FAIL) {
     return false;
   }
 
@@ -463,7 +465,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
   if (message_generator == nullptr)
     return;
 
-  if(0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
+  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
     ESP_LOGE(TAG, "Can't defer non-state event");
   }
 

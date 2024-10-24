@@ -58,11 +58,11 @@ struct SortingGroup {
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
-/* 
-  In order to defer updates in arduino mode, we need to create one AsyncEventSource per incoming request to /events. 
-  This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred 
-  update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with 
-  multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's 
+/*
+  In order to defer updates in arduino mode, we need to create one AsyncEventSource per incoming request to /events.
+  This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred
+  update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with
+  multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's
   implemented in a more straightforward way for ESP-IDF. Arudino platform will eventually go away and this workaround
   can be forgotten.
 */
@@ -78,7 +78,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
     that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
     the same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a
     std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per
-    entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing 
+    entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
     because of dedup) would take up only 0.8 kB.
   */
   struct DeferredEvent {
