@@ -4,6 +4,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif  // USE_BINARY_SENSOR
+#ifdef USE_LVGL_IMAGE
+#include "esphome/components/image/image.h"
+#endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER
@@ -18,11 +21,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include <lvgl.h>
-#include <vector>
 #include <map>
-#ifdef USE_LVGL_IMAGE
-#include "esphome/components/image/image.h"
-#endif  // USE_LVGL_IMAGE
+#include <utility>
+#include <vector>
 
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
@@ -41,7 +42,6 @@ namespace lvgl {
 extern lv_event_code_t lv_api_event;     // NOLINT
 extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(uint8_t event_code);
-extern bool lv_is_pre_initialise();
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -49,6 +49,14 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 #else   // LV_COLOR_DEPTH
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
 #endif  // LV_COLOR_DEPTH
+
+#ifdef USE_LVGL_IMAGE
+// Shortcut / overload, so that the source of an image can easily be updated
+// from within a lambda.
+inline void lv_img_set_src(lv_obj_t *obj, esphome::image::Image *image) {
+  lv_img_set_src(obj, image->get_lv_img_dsc());
+}
+#endif  // USE_LVGL_IMAGE
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
@@ -110,6 +118,8 @@ class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
+  LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
+                bool resume_on_input);
   static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -120,13 +130,10 @@ class LvglComponent : public PollingComponent {
     this->idle_callbacks_.add(std::move(callback));
   }
   void add_on_pause_callback(std::function<void(bool)> &&callback) { this->pause_callbacks_.add(std::move(callback)); }
-  void add_display(display::Display *display) { this->displays_.push_back(display); }
-  void add_init_lambda(const std::function<void(LvglComponent *)> &lamb) { this->init_lambdas_.push_back(lamb); }
   void dump_config() override;
-  void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
-  void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
+  lv_obj_t *get_scr_act() { return lv_disp_get_scr_act(this->disp_); }
   // Pause or resume the display.
   // @param paused If true, pause the display. If false, resume the display.
   // @param show_snow If true, show the snow effect when paused.
@@ -157,17 +164,19 @@ class LvglComponent : public PollingComponent {
   }
   // rounding factor to align bounds of update area when drawing
   size_t draw_rounding{2};
-  void set_draw_rounding(size_t rounding) { this->draw_rounding = rounding; }
-  void set_resume_on_input(bool resume_on_input) { this->resume_on_input_ = resume_on_input; }
 
-  // if set to true, the bounds of the update area will always start at 0,0
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
 
  protected:
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
+
   std::vector<display::Display *> displays_{};
+  size_t buffer_frac_{1};
+  bool full_refresh_{};
+  bool resume_on_input_{};
+
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};
   lv_disp_t *disp_{};
@@ -176,14 +185,10 @@ class LvglComponent : public PollingComponent {
   size_t current_page_{0};
   bool show_snow_{};
   bool page_wrap_{true};
-  bool resume_on_input_{};
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
-  std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};
   CallbackManager<void(bool)> pause_callbacks_{};
-  size_t buffer_frac_{1};
-  bool full_refresh_{};
   lv_color_t *rotate_buf_{};
 };
 
@@ -246,6 +251,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
 
+#ifdef USE_BINARY_SENSOR
   void set_left_button(binary_sensor::BinarySensor *left_button) {
     left_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_LEFT, state); });
   }
@@ -256,6 +262,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
   void set_enter_button(binary_sensor::BinarySensor *enter_button) {
     enter_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_ENTER, state); });
   }
+#endif
 
 #ifdef USE_LVGL_ROTARY_ENCODER
   void set_sensor(rotary_encoder::RotaryEncoderSensor *sensor) {
@@ -291,6 +298,48 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int key_{};
 };
 #endif  //  USE_LVGL_KEY_LISTENER
+
+#if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
+class LvSelectable : public LvCompound {
+ public:
+  virtual size_t get_selected_index() = 0;
+  virtual void set_selected_index(size_t index, lv_anim_enable_t anim) = 0;
+  void set_selected_text(const std::string &text, lv_anim_enable_t anim);
+  std::string get_selected_text();
+  std::vector<std::string> get_options() { return this->options_; }
+  void set_options(std::vector<std::string> options);
+
+ protected:
+  virtual void set_option_string(const char *options) = 0;
+  std::vector<std::string> options_{};
+};
+
+#ifdef USE_LVGL_DROPDOWN
+class LvDropdownType : public LvSelectable {
+ public:
+  size_t get_selected_index() override { return lv_dropdown_get_selected(this->obj); }
+  void set_selected_index(size_t index, lv_anim_enable_t anim) override { lv_dropdown_set_selected(this->obj, index); }
+
+ protected:
+  void set_option_string(const char *options) override { lv_dropdown_set_options(this->obj, options); }
+};
+#endif  // USE_LVGL_DROPDOWN
+
+#ifdef USE_LVGL_ROLLER
+class LvRollerType : public LvSelectable {
+ public:
+  size_t get_selected_index() override { return lv_roller_get_selected(this->obj); }
+  void set_selected_index(size_t index, lv_anim_enable_t anim) override {
+    lv_roller_set_selected(this->obj, index, anim);
+  }
+  void set_mode(lv_roller_mode_t mode) { this->mode_ = mode; }
+
+ protected:
+  void set_option_string(const char *options) override { lv_roller_set_options(this->obj, options, this->mode_); }
+  lv_roller_mode_t mode_{LV_ROLLER_MODE_NORMAL};
+};
+#endif
+#endif  // defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 
 #ifdef USE_LVGL_BUTTONMATRIX
 class LvButtonMatrixType : public key_provider::KeyProvider, public LvCompound {

@@ -189,14 +189,14 @@ LV_ANIM = LvConstant(
 LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
 
-LOG_LEVELS = (
-    "TRACE",
-    "INFO",
-    "WARN",
-    "ERROR",
-    "USER",
-    "NONE",
-)
+LV_LOG_LEVELS = {
+    "VERBOSE": "TRACE",
+    "DEBUG": "TRACE",
+    "INFO": "INFO",
+    "WARN": "WARN",
+    "ERROR": "ERROR",
+    "NONE": "NONE",
+}
 
 LV_LONG_MODES = LvConstant(
     "LV_LABEL_LONG_",
@@ -477,6 +477,7 @@ CONF_ROWS = "rows"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SELECTED_INDEX = "selected_index"
+CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
