@@ -19,12 +19,12 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_INSTALL_HEIGHT): select.select_schema(
         InstallHeightSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        icon="mdi:axis-z-arrow",
+        icon="ICON_ACCELERATION_Z",
     ),
     cv.Optional(CONF_HEIGHT_THRESHOLD): select.select_schema(
         HeightThresholdSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        icon="mdi:axis-z-arrow",
+        icon="ICON_ACCELERATION_Z",
     ),
     cv.Optional(CONF_SENSITIVITY): select.select_schema(
         SensitivitySelect,
