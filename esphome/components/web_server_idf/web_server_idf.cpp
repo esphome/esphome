@@ -387,7 +387,7 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
 }
 
 void AsyncEventSourceResponse::process_buffer_() {
-  if (event_buffer_.size() == 0) {
+  if (event_buffer_.empty()) {
     return;
   }
   if (event_bytes_sent_ == event_buffer_.size()) {
@@ -423,7 +423,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
   }
 
   process_buffer_();
-  if (event_buffer_.size() > 0) {
+  if (!event_buffer_.empty()) {
     // there is still pending event data to send first
     return false;
   }
