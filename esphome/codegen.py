@@ -57,6 +57,7 @@ from esphome.cpp_types import (  # noqa: F401
     ComponentPtr,
     Controller,
     EntityBase,
+    EntityBase_State,
     EntityCategory,
     ESPTime,
     GPIOPin,
