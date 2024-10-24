@@ -37,6 +37,10 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "UNMUTE";
     case MEDIA_PLAYER_COMMAND_TOGGLE:
       return "TOGGLE";
+    case MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      return "VOLUME_UP";
+    case MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      return "VOLUME_DOWN";
     default:
       return "UNKNOWN";
   }
