@@ -584,7 +584,7 @@ class IgnoreDeviceRequestHandler(BaseHandler):
             ignored_devices_storage_path(), json.dumps(list(dashboard.ignored_devices))
         )
 
-        self.set_status(200)
+        self.set_status(204)
         self.finish()
 
 
