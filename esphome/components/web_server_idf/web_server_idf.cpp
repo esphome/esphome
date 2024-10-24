@@ -387,21 +387,25 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
 }
 
 void AsyncEventSourceResponse::process_buffer_() {
-  if (event_bytes_sent == event_buffer.size()) {
-    event_buffer.resize(0);
-    event_bytes_sent = 0;
+  if (event_buffer_.size() == 0) {
+    return;
+  }
+  if (event_bytes_sent_ == event_buffer_.size()) {
+    event_buffer_.resize(0);
+    event_bytes_sent_ = 0;
+    return;
   }
 
-  int bytes_sent = httpd_socket_send(this->hd_, this->fd_, event_buffer.c_str() + event_bytes_sent,
-                                     event_buffer.size() - event_bytes_sent, 0);
+  int bytes_sent = httpd_socket_send(this->hd_, this->fd_, event_buffer_.c_str() + event_bytes_sent_,
+                                     event_buffer_.size() - event_bytes_sent_, 0);
   if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || bytes_sent == HTTPD_SOCK_ERR_FAIL) {
     return;
   }
-  event_bytes_sent += bytes_sent;
+  event_bytes_sent_ += bytes_sent;
 
-  if (event_bytes_sent == event_buffer.size()) {
-    event_buffer.resize(0);
-    event_bytes_sent = 0;
+  if (event_bytes_sent_ == event_buffer_.size()) {
+    event_buffer_.resize(0);
+    event_bytes_sent_ = 0;
   }
 }
 
@@ -419,7 +423,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
   }
 
   process_buffer_();
-  if (event_buffer.size() > 0) {
+  if (event_buffer_.size() > 0) {
     // there is still pending event data to send first
     return false;
   }
@@ -428,46 +432,46 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
   const char chunk_len_header[] = "        " CRLF_STR;
   const int chunk_len_header_len = sizeof(chunk_len_header) - 1;
 
-  event_buffer.append(chunk_len_header);
+  event_buffer_.append(chunk_len_header);
 
   if (reconnect) {
-    event_buffer.append("retry: ", sizeof("retry: ") - 1);
-    event_buffer.append(to_string(reconnect));
-    event_buffer.append(CRLF_STR, CRLF_LEN);
+    event_buffer_.append("retry: ", sizeof("retry: ") - 1);
+    event_buffer_.append(to_string(reconnect));
+    event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
   if (id) {
-    event_buffer.append("id: ", sizeof("id: ") - 1);
-    event_buffer.append(to_string(id));
-    event_buffer.append(CRLF_STR, CRLF_LEN);
+    event_buffer_.append("id: ", sizeof("id: ") - 1);
+    event_buffer_.append(to_string(id));
+    event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
   if (event && *event) {
-    event_buffer.append("event: ", sizeof("event: ") - 1);
-    event_buffer.append(event);
-    event_buffer.append(CRLF_STR, CRLF_LEN);
+    event_buffer_.append("event: ", sizeof("event: ") - 1);
+    event_buffer_.append(event);
+    event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
   if (message && *message) {
-    event_buffer.append("data: ", sizeof("data: ") - 1);
-    event_buffer.append(message);
-    event_buffer.append(CRLF_STR, CRLF_LEN);
+    event_buffer_.append("data: ", sizeof("data: ") - 1);
+    event_buffer_.append(message);
+    event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
-  if (event_buffer.empty()) {
+  if (event_buffer_.empty()) {
     return true;
   }
 
-  event_buffer.append(CRLF_STR, CRLF_LEN);
-  event_buffer.append(CRLF_STR, CRLF_LEN);
+  event_buffer_.append(CRLF_STR, CRLF_LEN);
+  event_buffer_.append(CRLF_STR, CRLF_LEN);
 
   // chunk length header itself and the final chunk terminating CRLF are not counted as part of the chunk
-  int chunk_len = event_buffer.size() - CRLF_LEN - chunk_len_header_len;
+  int chunk_len = event_buffer_.size() - CRLF_LEN - chunk_len_header_len;
   char chunk_len_str[9];
   snprintf(chunk_len_str, 9, "%08x", chunk_len);
-  std::memcpy(&event_buffer[0], chunk_len_str, 8);
+  std::memcpy(&event_buffer_[0], chunk_len_str, 8);
 
-  event_bytes_sent = 0;
+  event_bytes_sent_ = 0;
   process_buffer_();
 
   return true;
