@@ -36,6 +36,7 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
 
  protected:
   bool wait_until_idle_();
+  void wait_until_idle_async_(const std::function<void()> &&f);
 
   void setup_pins_();
 
@@ -152,6 +153,31 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   uint32_t idle_timeout_() override;
 
   bool deep_sleep_between_updates_{false};
+};
+
+class WaveshareEPaper4P26In : public WaveshareEPaper {
+ public:
+  WaveshareEPaper4P26In();
+
+  void initialize() override;
+  void display() override;
+  void deep_sleep() override;
+
+  void dump_config() override;
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  void init_display_async_(bool fast_update, const std::function<void()> &&f);
+
+  int get_width_internal() override;
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+ private:
+  bool is_busy_ = false;
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
 };
 
 enum WaveshareEPaperTypeBModel {
