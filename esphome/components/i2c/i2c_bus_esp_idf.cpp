@@ -50,13 +50,14 @@ void IDFI2CBus::setup() {
       ESP_LOGW(TAG, "i2c timeout of %" PRIu32 "us greater than max of 13ms on esp-idf, setting to max", timeout_);
       timeout_ = 13000;
     }
-    err = i2c_set_timeout(port_, timeout_ * 80);  // unit: APB 80MHz clock cycle
+    uint32_t timeout_ticks = timeout_ / (APB_CLK_FREQ / 1000000);
+    err = i2c_set_timeout(port_, timeout_ticks);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "i2c_set_timeout failed: %s", esp_err_to_name(err));
       this->mark_failed();
       return;
     } else {
-      ESP_LOGV(TAG, "i2c_timeout set to %" PRIu32 " ticks (%" PRIu32 " us)", timeout_ * 80, timeout_);
+      ESP_LOGV(TAG, "i2c_timeout set to %" PRIu32 " ticks (%" PRIu32 " us)", timeout_ticks, timeout_);
     }
   }
   err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
