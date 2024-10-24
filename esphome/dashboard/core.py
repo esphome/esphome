@@ -5,9 +5,12 @@ from collections.abc import Coroutine
 import contextlib
 from dataclasses import dataclass
 from functools import partial
+import json
 import logging
 import threading
 from typing import TYPE_CHECKING, Any, Callable
+
+from esphome.storage_json import ignored_devices_storage_path
 
 from ..zeroconf import DiscoveredImport
 from .dns import DNSCache
@@ -19,6 +22,8 @@ if TYPE_CHECKING:
 
 
 _LOGGER = logging.getLogger(__name__)
+
+IGNORED_DEVICES_STORAGE_PATH = "ignored-devices.json"
 
 
 @dataclass
@@ -74,6 +79,7 @@ class ESPHomeDashboard:
         "settings",
         "dns_cache",
         "_background_tasks",
+        "ignored_devices",
     )
 
     def __init__(self) -> None:
@@ -89,12 +95,19 @@ class ESPHomeDashboard:
         self.settings = DashboardSettings()
         self.dns_cache = DNSCache()
         self._background_tasks: set[asyncio.Task] = set()
+        self.ignored_devices: set[str] = set()
 
     async def async_setup(self) -> None:
         """Setup the dashboard."""
         self.loop = asyncio.get_running_loop()
         self.ping_request = asyncio.Event()
         self.entries = DashboardEntries(self)
+
+        try:
+            with open(ignored_devices_storage_path(), encoding="utf-8") as f_handle:
+                self.ignored_devices = set(json.load(f_handle))
+        except FileNotFoundError:
+            pass
 
     async def async_run(self) -> None:
         """Run the dashboard."""

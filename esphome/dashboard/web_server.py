@@ -36,8 +36,13 @@ import yaml
 from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
-from esphome.helpers import get_bool_env, mkdir_p
-from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_path
+from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
+from esphome.storage_json import (
+    StorageJSON,
+    ext_storage_path,
+    ignored_devices_storage_path,
+    trash_storage_path,
+)
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
@@ -541,6 +546,48 @@ class ImportRequestHandler(BaseHandler):
         self.finish()
 
 
+class IgnoreDeviceRequestHandler(BaseHandler):
+    @authenticated
+    def post(self) -> None:
+        dashboard = DASHBOARD
+        try:
+            args = json.loads(self.request.body.decode())
+            device_name = args["name"]
+            ignore = args["ignore"]
+        except (json.JSONDecodeError, KeyError):
+            self.set_status(400)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Invalid payload"}))
+            return
+
+        ignored_device = next(
+            (
+                res
+                for res in dashboard.import_result.values()
+                if res.device_name == device_name
+            ),
+            None,
+        )
+
+        if ignored_device is None:
+            self.set_status(404)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Device not found"}))
+            return
+
+        if ignore:
+            dashboard.ignored_devices.add(ignored_device.device_name)
+        else:
+            dashboard.ignored_devices.discard(ignored_device.device_name)
+
+        write_file_if_changed(
+            ignored_devices_storage_path(), json.dumps(list(dashboard.ignored_devices))
+        )
+
+        self.set_status(200)
+        self.finish()
+
+
 class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -688,6 +735,7 @@ class ListDevicesHandler(BaseHandler):
                             "project_name": res.project_name,
                             "project_version": res.project_version,
                             "network": res.network,
+                            "ignored": res.device_name in dashboard.ignored_devices,
                         }
                         for res in dashboard.import_result.values()
                         if res.device_name not in configured
@@ -1156,6 +1204,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
             (f"{rel}version", EsphomeVersionHandler),
+            (f"{rel}ignore-device", IgnoreDeviceRequestHandler),
         ],
         **app_settings,
     )
