@@ -52,7 +52,8 @@ static const uint8_t BORDER_PART[] = {0x3C, 0x80};  // border waveform
 static const uint8_t BORDER_FULL[] = {0x3C, 0x05};  // border waveform
 static const uint8_t CMD1[] = {0x3F, 0x22};
 static const uint8_t RAM_X_START[] = {0x44, 0x00, 121 / 8};           // set ram_x_address_start_end
-static const uint8_t RAM_Y_START[] = {0x45, 0x00, 0x00, 250 - 1, 0};  // set ram_y_address_start_end
+// static const uint8_t RAM_Y_START[] = {0x45, 0x00, 0x00, 250 - 1, 0};  // set ram_y_address_start_end
+static const uint8_t RAM_Y_START[] = {0x45, 0x00, 0x00, uint8_t(296-1), (296 - 1)>>8};  // set ram_y_address_start_end
 static const uint8_t RAM_X_POS[] = {0x4E, 0x00};                      // set ram_x_address_counter
 // static const uint8_t RAM_Y_POS[] = {0x4F, 0x00, 0x00};        // set ram_y_address_counter
 #define SEND(x) this->cmd_data(x, sizeof(x))
@@ -164,13 +165,13 @@ void WaveshareEPaper2P13InV3::display() {
 
 int WaveshareEPaper2P13InV3::get_width_internal() { return 128; }
 
-int WaveshareEPaper2P13InV3::get_height_internal() { return 250; }
+int WaveshareEPaper2P13InV3::get_height_internal() { return 296; }
 
 uint32_t WaveshareEPaper2P13InV3::idle_timeout_() { return 5000; }
 
 void WaveshareEPaper2P13InV3::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this)
-  ESP_LOGCONFIG(TAG, "  Model: 2.13inV3");
+  ESP_LOGCONFIG(TAG, "  Model: 2.9inV3");
   LOG_PIN("  CS Pin: ", this->cs_)
   LOG_PIN("  Reset Pin: ", this->reset_pin_)
   LOG_PIN("  DC Pin: ", this->dc_pin_)
