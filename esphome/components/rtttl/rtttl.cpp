@@ -18,6 +18,14 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
 
 static const uint16_t SAMPLE_RATE = 1600;
 
+#ifdef USE_SPEAKER
+static const size_t SAMPLE_BUFFER_SIZE = 2048;
+struct SpeakerSample {
+  int8_t left{0};
+  int8_t right{0};
+};
+#endif
+
 #undef HALF_PI
 static const double HALF_PI = 1.5707963267948966192313216916398;
 
@@ -164,7 +172,7 @@ void Rtttl::loop() {
         audio_stream_info.sample_rate = SAMPLE_RATE;
 
         this->speaker_->set_audio_stream_info(audio_stream_info);
-        this->speaker_->set_volume(this->gain_);
+        // this->speaker_->set_volume(this->gain_);
         this->speaker_->start();
         this->set_state_(State::STATE_STARTING);
       }
@@ -177,7 +185,7 @@ void Rtttl::loop() {
       return;
     }
     if (this->samples_sent_ != this->samples_count_) {
-      uint8_t sample[SAMPLE_BUFFER_SIZE + 2];
+      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
       int x = 0;
       double rem = 0.0;
 
@@ -189,11 +197,12 @@ void Rtttl::loop() {
 
           int16_t val = 127 * sin(deg2rad(rem));  // 16bit = 49152
 
-          sample[x] = val;
+          sample[x].right = val;
 
         } else {
-          sample[x] = 0;
+          sample[x].right = 0;
         }
+        sample[x].left = sample[x].right;
 
         if (x >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
           break;
@@ -202,9 +211,10 @@ void Rtttl::loop() {
         x++;
       }
       if (x > 0) {
-        int send = this->speaker_->play((uint8_t *) (&sample), x);
-        if (send != x) {
-          this->samples_sent_ -= (x - send);
+        ESP_LOGV(TAG, "Play (samples: %d | %d | %d)", x, this->samples_sent_, this->samples_count_);
+        int send = this->speaker_->play((uint8_t *) (&sample), x * 2);
+        if (send != x * 2) {
+          this->samples_sent_ -= (x - (send / 2));
         }
         return;
       }
