@@ -42,4 +42,4 @@ async def to_code(config):
     if reset_radar_config := config.get(CONF_FACTORY_RESET):
         b = await button.new_button(reset_radar_config)
         await cg.register_parented(b, config[CONF_MR60FDA2_ID])
-        cg.add(mr60fda2_component.set_reset_radar_button(b))
+        cg.add(mr60fda2_component.set_factory_reset_button(b))

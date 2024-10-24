@@ -21,7 +21,7 @@ button:
   - platform: seeed_mr60fda2
     get_radar_parameters:
       name: "Get Radar Parameters"
-    reset_radar:
+    factory_reset:
       name: "Reset"
 
 select:
