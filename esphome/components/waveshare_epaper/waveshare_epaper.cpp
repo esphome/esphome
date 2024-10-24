@@ -2692,19 +2692,31 @@ void HOT WaveshareEPaper7P5InBC::display() {
   this->command(0x10);
   this->start_data_();
 
-  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
+
+  for (size_t i = 0; i < buf_half_len; i++) {
     // A line of eight source pixels (each a bit in this byte)
-    uint8_t eight_pixels = this->buffer_[i];
+    // logic for black is flipped.
+    uint8_t eight_black_pixels = ~(this->buffer_[i]);
+    uint8_t eight_red_pixels = this->buffer_[i + buf_half_len];
 
     for (uint8_t j = 0; j < 8; j += 2) {
       /* For bichromatic displays, each byte represents two pixels. Each nibble encodes a pixel: 0=white, 3=black,
-      4=color. Therefore, e.g. 0x44 = two adjacent color pixels, 0x33 is two adjacent black pixels, etc. If you want
-      to draw using the color pixels, change '0x30' with '0x40' and '0x03' with '0x04' below. */
-      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
-      eight_pixels <<= 1;
-      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
-      eight_pixels <<= 1;
-      this->write_byte(left_nibble | right_nibble);
+      4=color. Therefore, e.g. 0x44 = two adjacent color pixels, 0x33 is two adjacent black pixels, etc. */
+      uint8_t data = 0x00;
+      if (eight_red_pixels & 0x80) {
+        data |= 0x40;
+      } else if (eight_black_pixels & 0x80) {
+        data |= 0x30;
+      }
+      if (eight_red_pixels & 0x40) {
+        data |= 0x04;
+      } else if (eight_black_pixels & 0x40) {
+        data |= 0x03;
+      }
+      eight_black_pixels <<= 2;
+      eight_red_pixels <<= 2;
+      this->write_byte(data);
     }
     App.feed_wdt();
   }
