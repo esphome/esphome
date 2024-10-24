@@ -17,7 +17,7 @@ from .. import (
 )
 
 AUTO_LOAD = ["audio"]
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
 
 I2SAudioSpeaker = i2s_audio_ns.class_(
