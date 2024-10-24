@@ -272,8 +272,8 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer{""};
-  int event_bytes_sent;
+  std::string event_buffer_{""};
+  int event_bytes_sent_;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
