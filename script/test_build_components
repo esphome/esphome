@@ -67,6 +67,10 @@ for f in ./tests/components/$target_component/*.*.yaml; do
 
   IFS='.' read -r -a file_name <<< "${folder_name[4]}"
   test_name="${file_name[0]}"
+  if [ "$test_name" = "exclude" ]; then
+    # this is not a test file. we need to skip it.
+    continue
+  fi
   target_platform="${file_name[1]}"
   file_name_parts=${#file_name[@]}
 
@@ -77,6 +81,11 @@ for f in ./tests/components/$target_component/*.*.yaml; do
       IFS='/' read -r -a folder_name <<< "$target_platform_file"
       IFS='.' read -r -a file_name <<< "${folder_name[3]}"
       target_platform="${file_name[1]}"
+
+      if [ -f "./tests/components/$target_component/exclude.$test_name.$target_platform" ]; then
+        echo "Component $target_component is excluded from testing on $target_platform"
+        continue
+      fi
 
       start_esphome
     done
