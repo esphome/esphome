@@ -253,15 +253,16 @@ class AsyncEventSourceResponse {
   friend class AsyncEventSource;
 
  public:
-  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   bool try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   void loop();
-  void process_deferred_queue_();
 
  protected:
   AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
+
+  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
+  void process_deferred_queue_();
 
   static void destroy(void *p);
   AsyncEventSource *server_;

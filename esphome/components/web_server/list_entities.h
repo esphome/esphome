@@ -5,9 +5,11 @@
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 namespace esphome {
+#ifdef USE_ESP_IDF
 namespace web_server_idf {
 class AsyncEventSource;
 }
+#endif
 namespace web_server {
 
 class DeferredUpdateEventSource;
