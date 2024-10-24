@@ -34,6 +34,11 @@ static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non
 static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void WiFiComponent::wifi_pre_setup_() {
+  uint8_t mac[6];
+  if (has_custom_mac_address()) {
+    get_mac_address_raw(mac);
+    set_mac_address(mac);
+  }
   auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
   WiFi.onEvent(f);
   WiFi.persistent(false);
