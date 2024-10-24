@@ -377,7 +377,7 @@ void MR60FDA2Component::get_radar_parameters() {
   ESP_LOGV(TAG, "SEND GET PARAMETERS: %s", format_hex_pretty(send_data, 8).c_str());
 }
 
-void MR60FDA2Component::reset_radar() {
+void MR60FDA2Component::factory_reset() {
   uint8_t send_data[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x21, 0x10, 0xCF};
   this->send_query_(send_data, 8);
   ESP_LOGV(TAG, "SEND RESET: %s", format_hex_pretty(send_data, 8).c_str());

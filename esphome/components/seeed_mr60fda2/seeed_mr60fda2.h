@@ -101,7 +101,7 @@ class MR60FDA2Component : public Component,
   void set_height_threshold(uint8_t index);
   void set_sensitivity(uint8_t index);
   void get_radar_parameters();
-  void reset_radar();
+  void factory_reset();
 };
 
 }  // namespace seeed_mr60fda2

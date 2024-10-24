@@ -16,7 +16,7 @@ GetRadarParametersButton = mr60fda2_ns.class_("GetRadarParametersButton", button
 ResetRadarButton = mr60fda2_ns.class_("ResetRadarButton", button.Button)
 
 CONF_GET_RADAR_PARAMETERS = "get_radar_parameters"
-CONF_FACTORY_RESET = "reset_radar"
+CONF_FACTORY_RESET = "factory_reset"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR60FDA2_ID): cv.use_id(MR60FDA2Component),
@@ -39,7 +39,7 @@ async def to_code(config):
         b = await button.new_button(get_radar_parameters_config)
         await cg.register_parented(b, config[CONF_MR60FDA2_ID])
         cg.add(mr60fda2_component.set_get_radar_parameters_button(b))
-    if reset_radar_config := config.get(CONF_FACTORY_RESET):
-        b = await button.new_button(reset_radar_config)
+    if factory_reset_config := config.get(CONF_FACTORY_RESET):
+        b = await button.new_button(factory_reset_config)
         await cg.register_parented(b, config[CONF_MR60FDA2_ID])
         cg.add(mr60fda2_component.set_factory_reset_button(b))
