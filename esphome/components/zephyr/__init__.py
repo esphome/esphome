@@ -135,7 +135,6 @@ def zephyr_add_cdc_acm(config, id):
     )
 
 
-# Called by writer.py
 def copy_files():
     want_opts = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF]
 

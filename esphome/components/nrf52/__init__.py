@@ -1,5 +1,9 @@
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_set_core_data, zephyr_to_code
+from esphome.components.zephyr import (
+    copy_files as zephyr_copy_files,
+    zephyr_set_core_data,
+    zephyr_to_code,
+)
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
@@ -100,3 +104,7 @@ async def to_code(config):
         cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
 
     zephyr_to_code(conf)
+
+
+def copy_files():
+    zephyr_copy_files()
