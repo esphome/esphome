@@ -3,27 +3,39 @@ import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BLUE,
+    CONF_BRIGHTNESS,
+    CONF_COLD_WHITE,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
+    CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_CORRECT,
+    CONF_COLOR_MODE,
+    CONF_COLOR_TEMPERATURE,
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_EFFECTS,
     CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
+    CONF_GREEN,
     CONF_ID,
+    CONF_INITIAL_STATE,
     CONF_MQTT_ID,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_POWER_SUPPLY,
+    CONF_RED,
     CONF_RESTORE_MODE,
+    CONF_STATE,
     CONF_TRIGGER_ID,
+    CONF_WARM_WHITE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
+    CONF_WHITE,
 )
 from esphome.core import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
-from .automation import light_control_to_code  # noqa
+from .automation import LIGHT_STATE_SCHEMA
 from .effects import (
     ADDRESSABLE_EFFECTS,
     BINARY_EFFECTS,
@@ -35,8 +47,10 @@ from .effects import (
 from .types import (  # noqa
     AddressableLight,
     AddressableLightState,
+    ColorMode,
     LightOutput,
     LightState,
+    LightStateRTCState,
     LightStateTrigger,
     LightTurnOffTrigger,
     LightTurnOnTrigger,
@@ -85,6 +99,7 @@ LIGHT_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
                 }
             ),
+            cv.Optional(CONF_INITIAL_STATE): LIGHT_STATE_SCHEMA,
         }
     )
 )
@@ -144,6 +159,22 @@ async def setup_light_core_(light_var, output_var, config):
     await setup_entity(light_var, config)
 
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
+
+    if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
+        initial_state = LightStateRTCState(
+            initial_state_config.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
+            initial_state_config.get(CONF_STATE, False),
+            initial_state_config.get(CONF_BRIGHTNESS, 1.0),
+            initial_state_config.get(CONF_COLOR_BRIGHTNESS, 1.0),
+            initial_state_config.get(CONF_RED, 1.0),
+            initial_state_config.get(CONF_GREEN, 1.0),
+            initial_state_config.get(CONF_BLUE, 1.0),
+            initial_state_config.get(CONF_WHITE, 1.0),
+            initial_state_config.get(CONF_COLOR_TEMPERATURE, 1.0),
+            initial_state_config.get(CONF_COLD_WHITE, 1.0),
+            initial_state_config.get(CONF_WARM_WHITE, 1.0),
+        )
+        cg.add(light_var.set_initial_state(initial_state))
 
     if (
         default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)

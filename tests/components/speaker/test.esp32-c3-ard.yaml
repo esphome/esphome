@@ -1,10 +1,13 @@
 esphome:
   on_boot:
     then:
+      - speaker.mute_on:
+      - speaker.mute_off:
       - if:
           condition: speaker.is_stopped
           then:
             - speaker.play: [0, 1, 2, 3]
+      - speaker.volume_set: 0.9
       - if:
           condition: speaker.is_playing
           then:

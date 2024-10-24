@@ -1,0 +1,20 @@
+i2c:
+  - id: i2c_axs15231
+    scl: 3
+    sda: 21
+
+display:
+  - platform: ssd1306_i2c
+    id: ssd1306_display
+    model: SSD1306_128X64
+    reset_pin: 19
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: axs15231
+    display: ssd1306_display
+    interrupt_pin: 20
+    reset_pin: 18

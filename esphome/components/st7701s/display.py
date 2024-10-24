@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_HSYNC_PIN,
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
+    CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
     CONF_MIRROR_X,
@@ -35,7 +36,6 @@ from esphome.core import TimePeriod
 
 from .init_sequences import ST7701S_INITS, cmd
 
-CONF_INIT_SEQUENCE = "init_sequence"
 CONF_DE_PIN = "de_pin"
 CONF_PCLK_PIN = "pclk_pin"
 

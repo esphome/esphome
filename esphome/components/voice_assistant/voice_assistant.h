@@ -91,7 +91,8 @@ struct Configuration {
 
 class VoiceAssistant : public Component {
  public:
-  void setup() override;
+  VoiceAssistant();
+
   void loop() override;
   float get_setup_priority() const override;
   void start_streaming();
@@ -249,7 +250,7 @@ class VoiceAssistant : public Component {
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
-  uint8_t *speaker_buffer_;
+  uint8_t *speaker_buffer_{nullptr};
   size_t speaker_buffer_index_{0};
   size_t speaker_buffer_size_{0};
   size_t speaker_bytes_received_{0};
@@ -281,8 +282,8 @@ class VoiceAssistant : public Component {
   float volume_multiplier_;
   uint32_t conversation_timeout_;
 
-  uint8_t *send_buffer_;
-  int16_t *input_buffer_;
+  uint8_t *send_buffer_{nullptr};
+  int16_t *input_buffer_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;

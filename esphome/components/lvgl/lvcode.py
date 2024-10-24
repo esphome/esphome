@@ -183,17 +183,11 @@ class LvContext(LambdaContext):
         super().__init__(parameters=self.args)
         self.lv_component = lv_component
 
-    async def add_init_lambda(self):
-        if self.code_list:
-            cg.add(self.lv_component.add_init_lambda(await self.get_lambda()))
-            LvContext.added_lambda_count += 1
-
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await super().__aexit__(exc_type, exc_val, exc_tb)
-        await self.add_init_lambda()
 
     def add(self, expression: Union[Expression, Statement]):
-        self.code_list.append(self.indented_statement(expression))
+        cg.add(expression)
         return expression
 
     def __call__(self, *args):

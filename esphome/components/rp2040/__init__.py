@@ -17,7 +17,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, mkdir_p, write_file
+from esphome.helpers import copy_file_if_changed, mkdir_p, write_file, read_file
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
@@ -26,7 +26,7 @@ from .gpio import rp2040_pin_to_code  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = []
+AUTO_LOAD = ["preferences"]
 
 
 def set_core_data(config):
@@ -230,11 +230,14 @@ def generate_pio_files() -> bool:
 
 
 # Called by writer.py
-def copy_files() -> bool:
+def copy_files():
     dir = os.path.dirname(__file__)
     post_build_file = os.path.join(dir, "post_build.py.script")
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
     )
-    return generate_pio_files()
+    if generate_pio_files():
+        path = CORE.relative_src_path("esphome.h")
+        content = read_file(path).rstrip("\n")
+        write_file(path, content + '\n#include "pio_includes.h"\n')
