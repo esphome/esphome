@@ -80,15 +80,14 @@ void APIServer::setup() {
 
   this->last_connected_ = millis();
 
-#ifdef USE_ESP32_CAMERA
-  if (esp32_camera::global_esp32_camera != nullptr && !esp32_camera::global_esp32_camera->is_internal()) {
-    esp32_camera::global_esp32_camera->add_image_callback(
-        [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
-          for (auto &c : this->clients_) {
-            if (!c->remove_)
-              c->send_camera_state(image);
-          }
-        });
+#ifdef USE_CAMERA
+  if (camera::Camera::global_camera != nullptr && !camera::Camera::global_camera->is_internal()) {
+    camera::Camera::global_camera->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
+      for (auto &c : this->clients_) {
+        if (!c->remove_)
+          c->send_camera_state(image);
+      }
+    });
   }
 #endif
 }

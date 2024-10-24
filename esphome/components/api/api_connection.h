@@ -58,9 +58,9 @@ class APIConnection : public APIServerConnection {
   bool send_text_sensor_state(text_sensor::TextSensor *text_sensor, std::string state);
   bool send_text_sensor_info(text_sensor::TextSensor *text_sensor);
 #endif
-#ifdef USE_ESP32_CAMERA
-  void send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image);
-  bool send_camera_info(esp32_camera::ESP32Camera *camera);
+#ifdef USE_CAMERA
+  void send_camera_state(std::shared_ptr<camera::CameraImage> image);
+  bool send_camera_info(camera::Camera *camera);
   void camera_image(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE
@@ -249,8 +249,8 @@ class APIConnection : public APIServerConnection {
   std::string client_combined_info_;
   uint32_t client_api_version_major_{0};
   uint32_t client_api_version_minor_{0};
-#ifdef USE_ESP32_CAMERA
-  esp32_camera::CameraImageReader image_reader_;
+#ifdef USE_CAMERA
+  std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
 
   bool state_subscription_{false};
