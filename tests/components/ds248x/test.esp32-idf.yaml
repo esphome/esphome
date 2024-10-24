@@ -1,0 +1,27 @@
+i2c:
+  sda: GPIO13
+  scl: GPIO16
+  id: bus_a
+  frequency: 400kHz
+
+ds248x:
+  i2c_id: bus_a
+  type: ds2482-800
+  address: 0x1f
+  active_pullup: true
+  strong_pullup: false
+  bus_sleep: false
+  update_interval: 10s
+
+sensor:
+
+  - platform: ds248x
+    address: 0x80000002a5fea828
+    channel: 0
+    name: "Temp-01"
+    resolution: 12
+  - platform: ds248x
+    address: 0xf10000051c169828
+    channel: 1
+    name: "Temp-02"
+    resolution: 12
