@@ -1,4 +1,5 @@
 #include "bytebuffer.h"
+
 #include <cassert>
 #include "esphome/core/helpers.h"
 
@@ -7,9 +8,9 @@
 
 namespace esphome {
 
-ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len, Endian endianness) {
+ByteBuffer ByteBuffer::wrap(const uint8_t *value, size_t length, Endian endianness) {
   // there is a double copy happening here, could be optimized but at cost of clarity.
-  std::vector<uint8_t> data(ptr, ptr + len);
+  std::vector<uint8_t> data(value, value + length);
   ByteBuffer buffer = {data};
   buffer.endianness_ = endianness;
   return buffer;
@@ -74,16 +75,31 @@ void ByteBuffer::set_position(size_t position) {
 void ByteBuffer::clear() {
   this->limit_ = this->get_capacity();
   this->position_ = 0;
+  this->used_space_ = 0;
 }
 void ByteBuffer::flip() {
-  this->limit_ = this->position_;
+  this->limit_ = this->used_space_;
   this->position_ = 0;
+}
+
+bool ByteBuffer::is_changed() {
+  bool changed = this->is_changed_;
+  this->is_changed_ = false;
+  return changed;
+}
+
+void ByteBuffer::update_used_space_() HOT {
+  if (this->used_space_ < this->position_) {
+    this->set_used_space();
+  }
 }
 
 /// Getters
 uint8_t ByteBuffer::get_uint8() {
   assert(this->get_remaining() >= 1);
-  return this->data_[this->position_++];
+  this->position_++;
+  this->update_used_space_();
+  return this->data_[this->position_ - 1];
 }
 uint64_t ByteBuffer::get_uint(size_t length) {
   assert(this->get_remaining() >= length);
@@ -101,9 +117,9 @@ uint64_t ByteBuffer::get_uint(size_t length) {
       value |= this->data_[this->position_++];
     }
   }
+  this->update_used_space_();
   return value;
 }
-
 uint32_t ByteBuffer::get_int24() {
   auto value = this->get_uint24();
   uint32_t mask = (~static_cast<uint32_t>(0)) << 23;
@@ -119,20 +135,29 @@ double ByteBuffer::get_double() {
   assert(this->get_remaining() >= sizeof(double));
   return bit_cast<double>(this->get_uint64());
 }
-
 std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
   assert(this->get_remaining() >= length);
   auto start = this->data_.begin() + this->position_;
   this->position_ += length;
+  this->update_used_space_();
   return {start, start + length};
+}
+void ByteBuffer::get_bytes(uint8_t *value, size_t length) {
+  size_t index = 0;
+  assert(this->get_remaining() >= length);
+  while (length-- != 0) {
+    *(value + index++) = this->data_[this->position_++];
+  }
+  this->update_used_space_();
 }
 
 /// Putters
 void ByteBuffer::put_uint8(uint8_t value) {
   assert(this->get_remaining() >= 1);
   this->data_[this->position_++] = value;
+  this->update_used_space_();
+  this->is_changed_ = true;
 }
-
 void ByteBuffer::put_uint(uint64_t value, size_t length) {
   assert(this->get_remaining() >= length);
   if (this->endianness_ == LITTLE) {
@@ -148,6 +173,8 @@ void ByteBuffer::put_uint(uint64_t value, size_t length) {
       value >>= 8;
     }
   }
+  this->update_used_space_();
+  this->is_changed_ = true;
 }
 void ByteBuffer::put_float(float value) {
   static_assert(sizeof(float) == sizeof(uint32_t), "Float sizes other than 32 bit not supported");
@@ -163,5 +190,17 @@ void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   assert(this->get_remaining() >= value.size());
   std::copy(value.begin(), value.end(), this->data_.begin() + this->position_);
   this->position_ += value.size();
+  this->update_used_space_();
+  this->is_changed_ = true;
 }
+void ByteBuffer::put_bytes(const uint8_t *value, size_t length) {
+  assert(this->get_remaining() >= length);
+  auto index = 0;
+  while (length-- != 0) {
+    this->data_[this->position_++] = static_cast<uint8_t>(*(value + index++));
+  }
+  this->update_used_space_();
+  this->is_changed_ = true;
+}
+
 }  // namespace esphome
