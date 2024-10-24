@@ -283,11 +283,12 @@ void NabuMediaPlayer::watch_media_commands_() {
 void NabuMediaPlayer::watch_mixer_() {
   TaskEvent event;
   if (this->audio_mixer_ != nullptr) {
-    while (this->audio_mixer_->read_event(&event))
+    while (this->audio_mixer_->read_event(&event)) {
       if (event.type == EventType::WARNING) {
         ESP_LOGD(TAG, "Mixer encountered an error: %s", esp_err_to_name(event.err));
         this->status_set_error();
       }
+    }
   }
 }
 
