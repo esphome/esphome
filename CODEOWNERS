@@ -323,6 +323,7 @@ esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
+esphome/components/pulse_counter_ulp/* @brisk0
 esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
