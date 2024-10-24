@@ -120,6 +120,10 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
   if (message_generator == nullptr)
     return;
 
+  if(0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
+    ESP_LOGE(TAG, "Can't defer non-state event");
+  }
+
   if (!deferred_queue_.empty())
     process_deferred_queue_();
   if (!deferred_queue_.empty()) {
@@ -159,15 +163,13 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const 
   }
 }
 
-void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request,
-                                                   const std::function<std::string()> &generate_config_json,
-                                                   const bool include_internal) {
+void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
   this->push_back(es);
 
-  es->onConnect([this, ws, es, generate_config_json, include_internal](AsyncEventSourceClient *client) {
-    ws->defer([this, ws, es, generate_config_json, include_internal]() {
-      this->on_client_connect_(ws, es, generate_config_json, include_internal);
+  es->onConnect([this, ws, es](AsyncEventSourceClient *client) {
+    ws->defer([this, ws, es]() {
+      this->on_client_connect_(ws, es);
     });
   });
 
@@ -178,12 +180,10 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   es->handleRequest(request);
 }
 
-void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source,
-                                                       const std::function<std::string()> &generate_config_json,
-                                                       const bool include_internal) {
+void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source) {
   // Configure reconnect timeout and send config
   // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-  std::string message = generate_config_json();
+  std::string message = ws->get_config_json();
   source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
   for (auto &group : ws->sorting_groups_) {
@@ -196,7 +196,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, DeferredUp
     source->try_send_nodefer(message.c_str(), "sorting_group");
   }
 
-  source->entities_iterator_.begin(include_internal);
+  source->entities_iterator_.begin(ws->include_internal_);
 
   // just dump them all up-front and take advantage of the deferred queue
   //     on second thought that takes too long, but leaving the commented code here for debug purposes
@@ -206,6 +206,8 @@ void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, DeferredUp
 }
 
 void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
+  // This method was called via WebServer->defer() and is no longer executing in the 
+  // context of the network callback. The object is now dead and can be safely deleted.
   this->remove(source);
   delete source;  // NOLINT
 }
@@ -249,6 +251,9 @@ void WebServer::setup() {
   }
 #endif
 
+#ifdef USE_ESP_IDF
+  this->base_->add_handler(&this->events_);
+#endif
   this->base_->add_handler(this);
 
   if (this->allow_ota_)
@@ -1814,9 +1819,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
+#ifdef USE_ARDUINO
   if (request->url() == "/events") {
     return true;
   }
+#endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css")
@@ -1951,11 +1958,12 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 
+#ifdef USE_ARDUINO
   if (request->url() == "/events") {
-    this->events_.add_new_client(
-        this, request, [this]() -> std::string { return this->get_config_json(); }, this->include_internal_);
+    this->events_.add_new_client(this, request);
     return;
   }
+#endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css") {

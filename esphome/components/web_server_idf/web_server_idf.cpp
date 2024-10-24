@@ -11,6 +11,9 @@
 #include "utils.h"
 #include "web_server_idf.h"
 
+//#include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/components/web_server/web_server.h"
+
 namespace esphome {
 namespace web_server_idf {
 
@@ -277,21 +280,33 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  auto *rsp = new AsyncEventSourceResponse(request, this);  // NOLINT(cppcoreguidelines-owning-memory)
+  auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);  // NOLINT(cppcoreguidelines-owning-memory)
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
   this->sessions_.insert(rsp);
 }
 
-void AsyncEventSource::send(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+void AsyncEventSource::loop() {
   for (auto *ses : this->sessions_) {
-    ses->send(message, event, id, reconnect);
+    ses->loop();
   }
 }
 
-AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request, AsyncEventSource *server)
-    : server_(server) {
+void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+  for (auto *ses : this->sessions_) {
+    ses->try_send_nodefer(message, event, id, reconnect);
+  }
+}
+
+void AsyncEventSource::deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) {
+  for (auto *ses : this->sessions_) {
+    ses->deferrable_send_state(source, event_type, message_generator);
+  }
+}
+
+AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server, esphome::web_server::WebServer *ws)
+    : server_(server), web_server_(ws) {
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -310,6 +325,30 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
   this->hd_ = req->handle;
   this->fd_ = httpd_req_to_sockfd(req);
+
+  // Configure reconnect timeout and send config
+  // this should always go through since the tcp send buffer is empty on connect
+  std::string message = ws->get_config_json();
+  this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+
+  for (auto &group : ws->sorting_groups_) {
+    message = json::build_json([group](JsonObject root) {
+      root["name"] = group.second.name;
+      root["sorting_weight"] = group.second.weight;
+    });
+
+    // a (very) large number of these should be able to be queued initially without defer
+    // since the only thing in the send buffer at this point is the initial ping/config
+    this->try_send_nodefer(message.c_str(), "sorting_group");
+  }
+
+  this->entities_iterator_.begin(ws->include_internal_);
+
+  // just dump them all up-front and take advantage of the deferred queue
+  //     on second thought that takes too long, but leaving the commented code here for debug purposes
+  // while(!this->entities_iterator_.completed()) {
+  //  this->entities_iterator_.advance();
+  //}
 }
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
@@ -318,12 +357,51 @@ void AsyncEventSourceResponse::destroy(void *ptr) {
   delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
-void AsyncEventSourceResponse::send(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+// helper for allowing only unique entries in the queue
+void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
+  DeferredEvent item(source, message_generator);
+
+  auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
+                           [&item](const DeferredEvent &test) -> bool { return test == item; });
+
+  if (iter != this->deferred_queue_.end()) {
+    (*iter) = item;
+  } else {
+    this->deferred_queue_.push_back(item);
+  }
+}
+
+void AsyncEventSourceResponse::process_deferred_queue_() {
+  while (!deferred_queue_.empty()) {
+    DeferredEvent &de = deferred_queue_.front();
+    std::string message = de.message_generator_(web_server_, de.source_);
+    if (this->try_send_nodefer(message.c_str(), "state")) {
+      // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
+      deferred_queue_.erase(deferred_queue_.begin());
+    } else {
+      break;
+    }
+  }
+}
+
+void AsyncEventSourceResponse::loop() {
+  process_deferred_queue_();
+  if (!this->entities_iterator_.completed())
+    this->entities_iterator_.advance();
+}
+
+bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
   if (this->fd_ == 0) {
-    return;
+    return false;
   }
 
+  // 8 spaces are standing in for the hexidecimal chunk length to print later
+  const char chunk_len_header[] = "        " CRLF_STR;
+  const int chunk_len_header_len = sizeof(chunk_len_header) - 1;
+
   std::string ev;
+
+  ev.append(chunk_len_header);
 
   if (reconnect) {
     ev.append("retry: ", sizeof("retry: ") - 1);
@@ -350,20 +428,56 @@ void AsyncEventSourceResponse::send(const char *message, const char *event, uint
   }
 
   if (ev.empty()) {
-    return;
+    return true;
   }
 
   ev.append(CRLF_STR, CRLF_LEN);
+  ev.append(CRLF_STR, CRLF_LEN);
 
-  // Sending chunked content prelude
-  auto cs = str_snprintf("%x" CRLF_STR, 4 * sizeof(ev.size()) + CRLF_LEN, ev.size());
-  httpd_socket_send(this->hd_, this->fd_, cs.c_str(), cs.size(), 0);
+  // chunk length header itself and the final chunk terminating CRLF are not counted as part of the chunk
+  int chunk_len = ev.size() - CRLF_LEN - chunk_len_header_len;
+  char chunk_len_str[9];
+  snprintf(chunk_len_str, 9, "%08x", chunk_len);
+  std::memcpy(&ev[0], chunk_len_str, 8);
 
-  // Sendiing content chunk
-  httpd_socket_send(this->hd_, this->fd_, ev.c_str(), ev.size(), 0);
+  int bytes_sent = httpd_socket_send(this->hd_, this->fd_, ev.c_str(), ev.size(), 0);
+  if(bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || 
+  bytes_sent == HTTPD_SOCK_ERR_FAIL) {
+    return false;
+  }
 
-  // Indicate end of chunk
-  httpd_socket_send(this->hd_, this->fd_, CRLF_STR, CRLF_LEN, 0);
+  return true;
+}
+
+void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
+                                                     message_generator_t *message_generator) {
+  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
+  // up in the web GUI and reduces event load during initial connect
+  if (!entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
+    return;
+
+  if (source == nullptr)
+    return;
+  if (event_type == nullptr)
+    return;
+  if (message_generator == nullptr)
+    return;
+
+  if(0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
+    ESP_LOGE(TAG, "Can't defer non-state event");
+  }
+
+  if (!deferred_queue_.empty())
+    process_deferred_queue_();
+  if (!deferred_queue_.empty()) {
+    // deferred queue still not empty which means downstream tcp send buffer full, no point trying to send first
+    deq_push_back_with_dedup_(source, message_generator);
+  } else {
+    std::string message = message_generator(web_server_, source);
+    if (!this->try_send_nodefer(message.c_str(), "state")) {
+      deq_push_back_with_dedup_(source, message_generator);
+    }
+  }
 }
 
 }  // namespace web_server_idf

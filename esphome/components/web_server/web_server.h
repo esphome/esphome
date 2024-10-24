@@ -11,6 +11,7 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <string>
 #include <utility>
 #include <vector>
 #ifdef USE_ESP32
@@ -62,7 +63,8 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred 
   update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with 
   multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's 
-  implemented differently for ESP-IDF. 
+  implemented in a more straightforward way for ESP-IDF. Arudino platform will eventually go away and this workaround
+  can be forgotten.
 */
 #ifdef USE_ARDUINO
 using message_generator_t = std::string(WebServer *, void *);
@@ -76,8 +78,8 @@ class DeferredUpdateEventSource : public AsyncEventSource {
     that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
     the same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a
     std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per
-    entry.  Even 100 backed up events (you'd have to have at least 100 sensors publishing because of dedup) would take
-    up only 0.8 kB.
+    entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing 
+    because of dedup) would take up only 0.8 kB.
   */
   struct DeferredEvent {
     friend class DeferredUpdateEventSource;
@@ -122,8 +124,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  protected:
-  void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source,
-                          const std::function<std::string()> &generate_config_json, bool include_internal);
+  void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
@@ -132,8 +133,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 
-  void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
-                      const std::function<std::string()> &generate_config_json, bool include_internal);
+  void add_new_client(WebServer *ws, AsyncWebServerRequest *request);
 };
 #endif
 
@@ -477,6 +477,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void add_entity_config(EntityBase *entity, float weight, uint64_t group);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
+  std::map<EntityBase *, SortingComponents> sorting_entitys_;
+  std::map<uint64_t, SortingGroup> sorting_groups_;
+  bool include_internal_{false};
+
  protected:
   void schedule_(std::function<void()> &&f);
   web_server_base::WebServerBase *base_;
@@ -484,10 +488,8 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   DeferredUpdateEventSourceList events_;
 #endif
 #ifdef USE_ESP_IDF
-  AsyncEventSource events_{"/events"};
+  AsyncEventSource events_{"/events", this};
 #endif
-  std::map<EntityBase *, SortingComponents> sorting_entitys_;
-  std::map<uint64_t, SortingGroup> sorting_groups_;
 
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
@@ -499,7 +501,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool include_internal_{false};
   bool allow_ota_{true};
   bool expose_log_{true};
 #ifdef USE_ESP32

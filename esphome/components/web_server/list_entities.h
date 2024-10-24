@@ -2,9 +2,13 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_WEBSERVER
+//#include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 namespace esphome {
+namespace web_server_idf {
+class AsyncEventSource;
+}
 namespace web_server {
 
 class DeferredUpdateEventSource;
@@ -12,7 +16,12 @@ class WebServer;
 
 class ListEntitiesIterator : public ComponentIterator {
  public:
+#ifdef USE_ARDUINO
   ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es);
+#endif
+#ifdef USE_ESP_IDF
+  ListEntitiesIterator(const WebServer *ws, esphome::web_server_idf::AsyncEventSource *es);
+#endif
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *obj) override;
 #endif
@@ -78,10 +87,10 @@ class ListEntitiesIterator : public ComponentIterator {
  protected:
   const WebServer *web_server_;
 #ifdef USE_ARDUINO
-  DeferredUpdateEventSourceList events_;
+  DeferredUpdateEventSource* events_;
 #endif
 #ifdef USE_ESP_IDF
-  AsyncEventSource events_{"/events"};
+  esphome::web_server_idf::AsyncEventSource* events_;
 #endif
 };
 
