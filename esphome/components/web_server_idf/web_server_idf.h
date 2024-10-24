@@ -263,6 +263,7 @@ class AsyncEventSourceResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
+  void process_buffer_();
 
   static void destroy(void *p);
   AsyncEventSource *server_;
@@ -271,6 +272,8 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
+  std::string event_buffer{""};
+  int event_bytes_sent;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
