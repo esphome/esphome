@@ -17,6 +17,13 @@ namespace text {
     } \
   }
 
+#define SUB_TEXT(name) \
+ protected: \
+  text::Text *name##_text_{nullptr}; \
+\
+ public: \
+  void set_##name##_text(text::Text *text) { this->name##_text_ = text; }
+
 /** Base-class for all text inputs.
  *
  * A text input can use publish_state to send out a new value.

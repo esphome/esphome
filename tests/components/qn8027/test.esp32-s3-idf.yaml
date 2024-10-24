@@ -1,0 +1,96 @@
+i2c:
+  sda: 10
+  scl: 9
+  scan: True
+
+qn8027:
+  id: fm_transmitter
+  frequency: 87.50
+  deviation: 74.82
+  mute: False
+  mono: False
+  tx_enable: True
+  tx_pilot: 9
+  t1m_sel: 60s
+  priv_en: False
+  pre_emphasis: 75us
+  input_impedance: 20kOhm
+  input_gain: 3
+  digital_gain: 0
+  power_target: 117.5
+  xtal:
+    source: crystal
+    current: 100
+    frequency: 24MHz
+  rds:
+    enable: True
+    deviation: 2.1
+    station: qn8027
+    text: sample text
+  sensor:
+    fsm:
+      name: FSM Status
+    aud_pk:
+      name: Audio Peek
+    chip_id:
+      name: Chip ID
+    reg30:
+      name: Reg30
+
+number:
+  - platform: qn8027
+    frequency:
+      id: qn8027_frequency
+      name: Frequency
+    deviation:
+      name: Deviation
+    tx_pilot:
+      name: Tx Pilot
+    input_gain:
+      name: Input Gain
+    digital_gain:
+      name: Digital Gain
+    power_target:
+      name: Power Target
+    xtal:
+      current:
+        name: Xtal Current
+    rds:
+      deviation:
+        name: RDS Deviation
+
+switch:
+  - platform: qn8027
+    mute:
+      name: Mute
+    mono:
+      name: Mono
+    tx_enable:
+      name: Tx Enable
+    priv_en:
+      name: Privacy Enable
+    rds:
+      enable:
+        name: RDS Enable
+
+select:
+  - platform: qn8027
+    t1m_sel:
+      name: PA off delay
+    pre_emphasis:
+      name: Pre-emphasis
+    input_impedance:
+      name: Input Impedance
+    xtal:
+      source:
+        name: Xtal Source
+      frequency:
+        name: Xtal Frequency
+
+text:
+  - platform: qn8027
+    rds:
+      station:
+        name: RDS Station
+      text:
+        name: RDS Text
