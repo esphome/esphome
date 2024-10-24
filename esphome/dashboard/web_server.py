@@ -7,6 +7,7 @@ import datetime
 import functools
 import gzip
 import hashlib
+import importlib
 import json
 import logging
 import os
@@ -562,9 +563,8 @@ class DownloadListRequestHandler(BaseHandler):
             platform = "libretiny"
 
         try:
-            get_download_types = __import__(
-                "esphome.components." + platform, fromlist=["get_download_types"]
-            ).get_download_types
+            module = importlib.import_module(f"esphome.components.{platform}")
+            get_download_types = getattr(module, "get_download_types")
         except AttributeError as exc:
             raise ValueError(f"Unknown platform {platform}") from exc
         downloads = get_download_types(storage_json)
