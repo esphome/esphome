@@ -10,7 +10,6 @@
 #include "utils.h"
 #include "web_server_idf.h"
 
-//#include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/components/web_server/web_server.h"
 
 namespace esphome {
@@ -279,7 +278,7 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  auto *rsp = 
+  auto *rsp =
       new AsyncEventSourceResponse(request, this, this->web_server_);  // NOLINT(cppcoreguidelines-owning-memory)
   if (this->on_connect_) {
     this->on_connect_(rsp);
@@ -299,15 +298,15 @@ void AsyncEventSource::try_send_nodefer(const char *message, const char *event, 
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, const char *event_type, 
+void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
                                              message_generator_t *message_generator) {
   for (auto *ses : this->sessions_) {
     ses->deferrable_send_state(source, event_type, message_generator);
   }
 }
 
-AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request, 
-                                                   esphome::web_server_idf::AsyncEventSource *server, 
+AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request,
+                                                   esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws) {
   httpd_req_t *req = *request;
@@ -393,7 +392,8 @@ void AsyncEventSourceResponse::loop() {
     this->entities_iterator_.advance();
 }
 
-bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
+                                                uint32_t reconnect) {
   if (this->fd_ == 0) {
     return false;
   }

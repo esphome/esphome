@@ -86,10 +86,10 @@ class ListEntitiesIterator : public ComponentIterator {
  protected:
   const WebServer *web_server_;
 #ifdef USE_ARDUINO
-  DeferredUpdateEventSource* events_;
+  DeferredUpdateEventSource *events_;
 #endif
 #ifdef USE_ESP_IDF
-  esphome::web_server_idf::AsyncEventSource* events_;
+  esphome::web_server_idf::AsyncEventSource *events_;
 #endif
 };
 

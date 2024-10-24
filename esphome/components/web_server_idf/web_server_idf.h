@@ -260,7 +260,7 @@ class AsyncEventSourceResponse {
   void process_deferred_queue_();
 
  protected:
-  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server, 
+  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
 
   static void destroy(void *p);
