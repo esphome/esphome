@@ -59,6 +59,8 @@ void MDNSComponent::compile_records_() {
     service.txt_records.push_back({"network", "wifi"});
 #elif defined(USE_ETHERNET)
     service.txt_records.push_back({"network", "ethernet"});
+#elif defined(USE_OPENTHREAD)
+    service.txt_records.push_back({"network", "thread"});
 #endif
 
 #ifdef USE_API_NOISE
@@ -123,6 +125,8 @@ void MDNSComponent::dump_config() {
     }
   }
 }
+
+std::vector<MDNSService> MDNSComponent::get_services() { return this->services_; }
 
 }  // namespace mdns
 }  // namespace esphome
