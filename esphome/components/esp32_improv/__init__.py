@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32_ble_server, output
+from esphome.components import binary_sensor, output
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
 
@@ -24,9 +24,7 @@ Error = improv_ns.enum("Error")
 State = improv_ns.enum("State")
 
 esp32_improv_ns = cg.esphome_ns.namespace("esp32_improv")
-ESP32ImprovComponent = esp32_improv_ns.class_(
-    "ESP32ImprovComponent", cg.Component, esp32_ble_server.BLEServiceComponent
-)
+ESP32ImprovComponent = esp32_improv_ns.class_("ESP32ImprovComponent", cg.Component)
 ESP32ImprovProvisionedTrigger = esp32_improv_ns.class_(
     "ESP32ImprovProvisionedTrigger", automation.Trigger.template()
 )
@@ -47,7 +45,6 @@ ESP32ImprovStoppedTrigger = esp32_improv_ns.class_(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32ImprovComponent),
-        cv.GenerateID(CONF_BLE_SERVER_ID): cv.use_id(esp32_ble_server.BLEServer),
         cv.Required(CONF_AUTHORIZER): cv.Any(
             cv.none, cv.use_id(binary_sensor.BinarySensor)
         ),
@@ -99,9 +96,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    ble_server = await cg.get_variable(config[CONF_BLE_SERVER_ID])
-    cg.add(ble_server.register_service_component(var))
 
     cg.add_define("USE_IMPROV")
     cg.add_library("improv/Improv", "1.2.4")
