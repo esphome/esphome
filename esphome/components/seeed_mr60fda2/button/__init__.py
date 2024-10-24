@@ -6,8 +6,8 @@ from esphome.const import (
     DEVICE_CLASS_UPDATE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
+    CONF_FACTORY_RESET,
 )
-from const import CONF_FACTORY_RESET
 
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns
 
