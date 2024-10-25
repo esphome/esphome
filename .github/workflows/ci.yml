@@ -290,6 +290,10 @@ jobs:
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
+          - id: clang-tidy
+            name: Run script/clang-tidy for ZEPHYR
+            options: --environment nrf52-tidy --grep USE_ZEPHYR
+            pio_cache_key: tidy-zephyr
 
     steps:
       - name: Check out code from GitHub
@@ -420,7 +424,7 @@ jobs:
           ./script/test_build_components -e compile -c ${{ matrix.file }}
 
   test-build-components-splitter:
-    name: Split components for testing into 20 groups maximum
+    name: Split components for testing into 15 groups maximum
     runs-on: ubuntu-latest
     needs:
       - common
@@ -431,10 +435,10 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.7
-      - name: Split components into 20 groups
+      - name: Split components into 15 groups
         id: split
         run: |
-          components=$(echo '${{ needs.list-components.outputs.components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
+          components=$(echo '${{ needs.list-components.outputs.components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(15) | join(" ")]')
           echo "components=$components" >> $GITHUB_OUTPUT
 
   test-build-components-split:

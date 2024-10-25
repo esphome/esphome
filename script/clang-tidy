@@ -39,12 +39,36 @@ def clang_options(idedata):
     else:
         cmd.append(f"--target={triplet}")
 
+    omit_flags = (
+        "-free",
+        "-fipa-pta",
+        "-fstrict-volatile-bitfields",
+        "-mlongcalls",
+        "-mtext-section-literals",
+        "-mfix-esp32-psram-cache-issue",
+        "-mfix-esp32-psram-cache-strategy=memw",
+        "-fno-tree-switch-conversion",
+    )
+
+    if "zephyr" in triplet:
+        omit_flags += (
+            "-fno-reorder-functions",
+            "-mfp16-format=ieee",
+            "--param=min-pagesize=0",
+        )
+    else:
+        cmd.extend(
+            [
+                # disable built-in include directories from the host
+                "-nostdinc++",
+            ]
+        )
+
     # set flags
     cmd.extend(
         [
             # disable built-in include directories from the host
             "-nostdinc",
-            "-nostdinc++",
             # replace pgmspace.h, as it uses GNU extensions clang doesn't support
             # https://github.com/earlephilhower/newlib-xtensa/pull/18
             "-D_PGMSPACE_H_",
@@ -71,21 +95,7 @@ def clang_options(idedata):
     )
 
     # copy compiler flags, except those clang doesn't understand.
-    cmd.extend(
-        flag
-        for flag in idedata["cxx_flags"]
-        if flag
-        not in (
-            "-free",
-            "-fipa-pta",
-            "-fstrict-volatile-bitfields",
-            "-mlongcalls",
-            "-mtext-section-literals",
-            "-mfix-esp32-psram-cache-issue",
-            "-mfix-esp32-psram-cache-strategy=memw",
-            "-fno-tree-switch-conversion",
-        )
-    )
+    cmd.extend(flag for flag in idedata["cxx_flags"] if flag not in omit_flags)
 
     # defines
     cmd.extend(f"-D{define}" for define in idedata["defines"])
@@ -102,7 +112,7 @@ def clang_options(idedata):
         # skip our own directories, we add those later
         if (
             not directory.startswith(f"{root_path}/")
-            or directory.startswith(f"{root_path}/.pio/")
+            or (directory.startswith(f"{root_path}") and "/.pio/" in directory)
             or directory.startswith(f"{root_path}/managed_components/")
         ):
             cmd.extend(["-isystem", directory])

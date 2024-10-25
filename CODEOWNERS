@@ -297,6 +297,7 @@ esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/npi19/* @bakerkj
+esphome/components/nrf52/* @tomaszduda23
 esphome/components/number/* @esphome/core
 esphome/components/one_wire/* @ssieb
 esphome/components/online_image/* @guillempages
@@ -487,5 +488,6 @@ esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
 esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
+esphome/components/zephyr/* @tomaszduda23
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zio_ultrasonic/* @kahrendt
