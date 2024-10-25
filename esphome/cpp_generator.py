@@ -619,6 +619,16 @@ def add_define(name: str, value: SafeExpType = None):
         CORE.add_define(Define(name, safe_exp(value)))
 
 
+def register_entity(class_, var):
+    """Add an entity to the codegen section."""
+    add(MockObj(f"App.register_entity<{class_}>")(var))
+
+
+def define_entity(class_):
+    """Add a entity to std::tuple inside the auto-generated entities.h file."""
+    CORE.define_entity(str(class_))
+
+
 def add_platformio_option(key: str, value: Union[str, list[str]]):
     CORE.add_platformio_option(key, value)
 

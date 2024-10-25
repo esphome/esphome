@@ -263,7 +263,7 @@ async def register_number(
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_number(var))
+    cg.register_entity(Number, var)
     await setup_number_core_(
         var, config, min_value=min_value, max_value=max_value, step=step
     )
@@ -306,6 +306,7 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_NUMBER")
     cg.add_global(number_ns.using)
+    cg.define_entity(Number)
 
 
 OPERATION_BASE_SCHEMA = cv.Schema(

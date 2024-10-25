@@ -109,7 +109,7 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
 async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_event(var))
+    cg.register_entity(Event, var)
     await setup_event_core_(var, config, event_types=event_types)
 
 
@@ -140,3 +140,4 @@ async def event_fire_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_EVENT")
     cg.add_global(event_ns.using)
+    cg.define_entity(Event)

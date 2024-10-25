@@ -73,7 +73,7 @@ async def setup_lock_core_(var, config):
 async def register_lock(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_lock(var))
+    cg.register_entity(Lock, var)
     await setup_lock_core_(var, config)
 
 
@@ -108,3 +108,4 @@ async def lock_is_off_to_code(config, condition_id, template_arg, args):
 async def to_code(config):
     cg.add_global(lock_ns.using)
     cg.add_define("USE_LOCK")
+    cg.define_entity(Lock)
