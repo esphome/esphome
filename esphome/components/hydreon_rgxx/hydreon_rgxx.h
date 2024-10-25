@@ -56,6 +56,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   float get_setup_priority() const override;
 
   void set_disable_led(bool disable_led) { this->disable_led_ = disable_led; }
+  bool get_disable_led(return this->disabled_led_);
 
  protected:
   void process_line_();
