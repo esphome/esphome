@@ -1,25 +1,63 @@
 from esphome import automation, codegen as cg, config_validation as cv
-from esphome.components.lvgl.defines import (
+from esphome.components.lvgl.lvcode import LambdaContext, LvglComponent
+from esphome.components.lvgl.schemas import STYLE_PROPS
+from esphome.components.lvgl.types import LvAnimation, LvglAction, lv_color_t, lv_obj_t
+from esphome.config_validation import COMPONENT_SCHEMA
+from esphome.const import (
+    CONF_DURATION,
+    CONF_FROM,
+    CONF_ID,
+    CONF_TIMING,
+    CONF_TO,
+    CONF_TYPE,
+    CONF_WEIGHT,
+)
+from esphome.cpp_generator import TemplateArguments
+
+from .defines import (
     CONF_ANIMATIONS,
+    CONF_LVGL_ID,
     CONF_WIDGETS,
     LValidator,
     add_define,
     literal,
 )
-from esphome.components.lvgl.lvcode import LambdaContext, LvglComponent
-from esphome.components.lvgl.schemas import STYLE_PROPS
-from esphome.components.lvgl.types import LvAnimation, LvglAction, lv_color_t, lv_obj_t
-from esphome.config_validation import COMPONENT_SCHEMA
-from esphome.const import CONF_DURATION, CONF_FROM, CONF_ID, CONF_TO
-from esphome.cpp_generator import TemplateArguments
-
-from .defines import CONF_LVGL_ID
 from .lv_validation import color, get_component_colors, lv_color
 from .lvcode import LVGL_COMP_ARG
+from .types import lvgl_ns
 from .widgets import get_widgets
 
-CONF_START_DELAY = "start_delay"
+LvAnimationTimingRoundTrip = lvgl_ns.class_("LvAnimationTimingRoundTrip")
+LvAnimationTimingEaseInOut = lvgl_ns.class_("LvAnimationTimingEaseInOut")
 
+
+def timing_class(name, extras=None):
+    # Convert config option to camel case
+    cls_name = "LvAnimationTiming" + "".join([w.capitalize() for w in name.split("_")])
+    cls = lvgl_ns.class_(cls_name)
+    schema = cv.Schema({cv.GenerateID(): cv.declare_id(cls)})
+    if extras:
+        schema = schema.extend(extras)
+    return name, schema
+
+
+TIMING_SCHEMA = cv.maybe_simple_value(
+    cv.typed_schema(
+        dict(
+            [
+                timing_class(
+                    "ease_in_out",
+                    {cv.Optional(CONF_WEIGHT, default=0.5): cv.zero_to_one_float},
+                ),
+                timing_class("round_trip"),
+            ]
+        ),
+        default_type="ease_in_out",
+    ),
+    key=CONF_TYPE,
+)
+
+CONF_START_DELAY = "start_delay"
 
 literal_color = LValidator(
     color, lv_color_t, retmapper=get_component_colors, animatable=True
@@ -52,6 +90,7 @@ ANIMATION_CONFIG = cv.Schema(
     {
         cv.Optional(CONF_DURATION): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_START_DELAY): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIMING, default={}): cv.ensure_list(TIMING_SCHEMA),
     }
 )
 ANIMATION_SCHEMA = ANIMATION_CONFIG.extend(
@@ -88,7 +127,6 @@ async def animations_to_code(config):
     for animation in config.get(CONF_ANIMATIONS, []):
         add_define("USE_LVGL_ANIMATION")
         widgets = animation[CONF_WIDGETS]
-        # property_count = sum([len([k for k in widget if k in ANIMABLE_STYLES.keys()]) for widget in widgets])
         async with LambdaContext(
             [(cg.uint32.operator("const").operator("ptr"), "values")]
         ) as ctx:
@@ -114,6 +152,12 @@ async def animations_to_code(config):
             froms,
             tos,
         )
+        for timing in animation[CONF_TIMING]:
+            timing_id = timing[CONF_ID]
+            args = [v for k, v in timing.items() if k not in [CONF_ID, CONF_TYPE]]
+            print(timing, args)
+            timing_var = cg.new_Pvariable(timing_id, *args)
+            cg.add(var.add_timing(timing_var))
         if CONF_DURATION in animation:
             cg.add(var.set_duration(animation[CONF_DURATION]))
         if CONF_START_DELAY in animation:

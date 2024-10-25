@@ -17,6 +17,37 @@ enum class AnimationState {
   RUNNING,
 };
 
+class LvAnimationTiming {
+ public:
+  /**
+   * Map progress in the range [0, 1]
+   */
+  virtual float map_progress(float value) = 0;
+};
+
+class LvAnimationTimingRoundTrip : public LvAnimationTiming {
+ public:
+  float map_progress(float value) override {
+    value *= 2.0f;
+    if (value > 1.0f)
+      return 2.0f - value;
+    return value;
+  }
+};
+
+class LvAnimationTimingEaseInOut : public LvAnimationTiming {
+ public:
+  LvAnimationTimingEaseInOut(float slope) : slope_(slope) {}
+  float map_progress(float value) override {
+    float sqr = value * value;
+    sqr = sqr / (2.0f * (sqr - value) + 1.0f);
+    return this->slope_ * sqr + (1.0 - this->slope_) * value;
+  }
+
+ protected:
+  float slope_;
+};
+
 template<size_t DATA_SIZE> class LvAnimation : public Component {
  public:
   LvAnimation(std::function<void(const uint32_t *data)> update_callback, std::vector<TemplatableValue<uint32_t>> from,
@@ -66,6 +97,9 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
         return;
     }
 
+    for (auto timing : this->timings_) {
+      progress = timing->map_progress(progress);
+    }
     uint32_t data[DATA_SIZE];
     for (size_t i = 0; i < DATA_SIZE; i++) {
       data[i] =
@@ -76,6 +110,7 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
 
   void set_duration(uint32_t duration) { this->duration_ = duration; }
   void set_start_delay(uint32_t start_delay) { this->start_delay_ = start_delay; }
+  void add_timing(LvAnimationTiming *timing) { this->timings_.push_back(timing); }
 
  protected:
   std::function<void(const uint32_t *)> update_callback_;
@@ -87,6 +122,7 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
   uint32_t data_from_[DATA_SIZE]{0};
   uint32_t data_to_[DATA_SIZE]{0};
   AnimationState state_{AnimationState::STOPPED};
+  std::vector<LvAnimationTiming *> timings_{};
 };
 
 }  // namespace esphome::lvgl
