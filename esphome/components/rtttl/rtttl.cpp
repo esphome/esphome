@@ -16,7 +16,15 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
-static const uint16_t I2S_SPEED = 1000;
+static const uint16_t SAMPLE_RATE = 1600;
+
+#ifdef USE_SPEAKER
+static const size_t SAMPLE_BUFFER_SIZE = 2048;
+struct SpeakerSample {
+  int8_t left{0};
+  int8_t right{0};
+};
+#endif
 
 #undef HALF_PI
 static const double HALF_PI = 1.5707963267948966192313216916398;
@@ -140,17 +148,31 @@ void Rtttl::stop() {
 }
 
 void Rtttl::loop() {
-  if (this->note_duration_ == 0 || this->state_ == State::STATE_STOPPED)
-    return;
-
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     if (this->state_ == State::STATE_STOPPING) {
       if (this->speaker_->is_stopped()) {
         this->set_state_(State::STATE_STOPPED);
       }
-    } else if (this->state_ == State::STATE_INIT) {
+      return;
+    }
+  }
+#endif
+
+  if (this->note_duration_ == 0 || this->state_ == State::STATE_STOPPED)
+    return;
+
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    if (this->state_ == State::STATE_INIT) {
       if (this->speaker_->is_stopped()) {
+        audio::AudioStreamInfo audio_stream_info;
+        audio_stream_info.channels = 1;
+        audio_stream_info.bits_per_sample = 16;
+        audio_stream_info.sample_rate = SAMPLE_RATE;
+
+        this->speaker_->set_audio_stream_info(audio_stream_info);
+        // this->speaker_->set_volume(this->gain_);
         this->speaker_->start();
         this->set_state_(State::STATE_STARTING);
       }
@@ -173,15 +195,14 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = (127 * this->gain_) * sin(deg2rad(rem));  // 16bit = 49152
+          int16_t val = 127 * sin(deg2rad(rem));  // 16bit = 49152
 
-          sample[x].left = val;
           sample[x].right = val;
 
         } else {
-          sample[x].left = 0;
           sample[x].right = 0;
         }
+        sample[x].left = sample[x].right;
 
         if (x >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
           break;
@@ -190,8 +211,9 @@ void Rtttl::loop() {
         x++;
       }
       if (x > 0) {
+        ESP_LOGV(TAG, "Play (samples: %d | %d | %d)", x, this->samples_sent_, this->samples_count_);
         int send = this->speaker_->play((uint8_t *) (&sample), x * 2);
-        if (send != x * 4) {
+        if (send != x * 2) {
           this->samples_sent_ -= (x - (send / 2));
         }
         return;
@@ -203,7 +225,7 @@ void Rtttl::loop() {
   if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_)
     return;
 #endif
-  if (!this->rtttl_[position_]) {
+  if (!this->rtttl_[this->position_]) {
     this->finish_();
     return;
   }
@@ -292,9 +314,9 @@ void Rtttl::loop() {
     // Add small silence gap between same note
     this->output_freq_ = freq;
 
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note, this->note_duration_);
+    ESP_LOGV(TAG, "playing note: %d for %dms", note, this->note_duration_);
   } else {
-    ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
+    ESP_LOGV(TAG, "waiting: %dms", this->note_duration_);
     this->output_freq_ = 0;
   }
 
@@ -318,9 +340,9 @@ void Rtttl::loop() {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
     this->samples_per_wave_ = 0;
-    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  //(ms);
+    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / SAMPLE_RATE;  //(ms);
     if (need_note_gap) {
-      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  //(ms);
+      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / SAMPLE_RATE;  //(ms);
     }
     if (this->output_freq_ != 0) {
       // make sure there is enough samples to add a full last sinus.
@@ -351,13 +373,6 @@ void Rtttl::finish_() {
 #endif
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
-    SpeakerSample sample[2];
-    sample[0].left = 0;
-    sample[0].right = 0;
-    sample[1].left = 0;
-    sample[1].right = 0;
-    this->speaker_->play((uint8_t *) (&sample), 8);
-
     this->speaker_->finish();
     this->set_state_(State::STATE_STOPPING);
   }
