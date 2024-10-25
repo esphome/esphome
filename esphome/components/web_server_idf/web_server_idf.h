@@ -1,8 +1,6 @@
 #pragma once
 #ifdef USE_ESP_IDF
 
-#include "esphome/components/web_server/list_entities.h"
-
 #include <esp_http_server.h>
 
 #include <functional>
@@ -16,6 +14,7 @@
 namespace esphome {
 namespace web_server {
 class WebServer;
+class ListEntitiesIterator;
 };
 namespace web_server_idf {
 
@@ -260,6 +259,7 @@ class AsyncEventSourceResponse {
  protected:
   AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
+  ~AsyncEventSourceResponse();
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
@@ -271,7 +271,7 @@ class AsyncEventSourceResponse {
   int fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
-  esphome::web_server::ListEntitiesIterator entities_iterator_;
+  esphome::web_server::ListEntitiesIterator *entities_iterator_;
   std::string event_buffer_{""};
   int event_bytes_sent_;
 };

@@ -16,6 +16,7 @@ ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEv
 #ifdef USE_ESP_IDF
 ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es) : web_server_(ws), events_(es) {}
 #endif
+ListEntitiesIterator::~ListEntitiesIterator() {}
 
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *obj) {

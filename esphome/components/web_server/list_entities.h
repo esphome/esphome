@@ -23,6 +23,7 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_ESP_IDF
   ListEntitiesIterator(const WebServer *ws, esphome::web_server_idf::AsyncEventSource *es);
 #endif
+  virtual ~ListEntitiesIterator();
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *obj) override;
 #endif
