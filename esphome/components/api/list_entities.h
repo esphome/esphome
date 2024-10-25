@@ -3,13 +3,14 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "esphome/core/component.h"
-#include "esphome/core/component_iterator.h"
+#include "esphome/components/component_iterator/component_iterator.h"
+
 namespace esphome {
 namespace api {
 
 class APIConnection;
 
-class ListEntitiesIterator : public ComponentIterator {
+class ListEntitiesIterator : public component_iterator::ComponentIterator {
  public:
   ListEntitiesIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
