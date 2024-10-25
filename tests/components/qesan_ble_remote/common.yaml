@@ -1,0 +1,21 @@
+esp32_ble_tracker:
+
+qesan_ble_remote:
+  - id: remote_1
+    mac_address: 51:45:53:AA:BB:CC
+  - id: remote_2
+    address: 0x1234
+
+binary_sensor:
+  - platform: qesan_ble_remote
+    id: remote_1_button_cw_onoff
+    remote_id: remote_1
+    code: 0x7e
+  - platform: qesan_ble_remote
+    id: remote_1_button_rgb_onoff
+    remote_id: remote_1
+    code: 0x74
+  - platform: qesan_ble_remote
+    id: remote_2_button_cw_onoff
+    remote_id: remote_2
+    code: 0x7e
