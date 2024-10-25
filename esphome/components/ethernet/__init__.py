@@ -1,3 +1,4 @@
+import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
@@ -23,6 +24,7 @@ from esphome.const import (
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
     CONF_PAGE_ID,
+    CONF_POLLING_INTERVAL,
     CONF_RESET_PIN,
     CONF_SPI,
     CONF_STATIC_IP,
@@ -30,13 +32,16 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_ADDRESS,
     CONF_VALUE,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, TimePeriodMilliseconds, coroutine_with_priority
 import esphome.final_validate as fv
 
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
+LOGGER = logging.getLogger(__name__)
 
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
 PHYRegister = ethernet_ns.struct("PHYRegister")
@@ -63,6 +68,7 @@ ETHERNET_TYPES = {
 }
 
 SPI_ETHERNET_TYPES = ["W5500"]
+SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
@@ -100,6 +106,24 @@ EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
+def _is_framework_spi_polling_mode_supported():
+    # SPI Ethernet without IRQ feature is added in
+    # esp-idf >= (5.3+ ,5.2.1+, 5.1.4) and arduino-esp32 >= 3.0.0
+    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if CORE.using_esp_idf:
+        if framework_version >= cv.Version(5, 3, 0):
+            return True
+        if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
+            return True
+        if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):
+            return True
+        return False
+    if CORE.using_arduino:
+        return framework_version >= cv.Version(3, 0, 0)
+    # fail safe: Unknown framework
+    return False
+
+
 def _validate(config):
     if CONF_USE_ADDRESS not in config:
         if CONF_MANUAL_IP in config:
@@ -107,6 +131,27 @@ def _validate(config):
         else:
             use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
+    if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
+        if _is_framework_spi_polling_mode_supported():
+            if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
+                raise cv.Invalid(
+                    f"Cannot specify more than one of {CONF_INTERRUPT_PIN}, {CONF_POLLING_INTERVAL}"
+                )
+            if CONF_POLLING_INTERVAL not in config and CONF_INTERRUPT_PIN not in config:
+                config[CONF_POLLING_INTERVAL] = SPI_ETHERNET_DEFAULT_POLLING_INTERVAL
+        else:
+            if CONF_POLLING_INTERVAL in config:
+                raise cv.Invalid(
+                    "In this version of the framework "
+                    f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                    f"'{CONF_POLLING_INTERVAL}' is not supported."
+                )
+            if CONF_INTERRUPT_PIN not in config:
+                raise cv.Invalid(
+                    "In this version of the framework "
+                    f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                    f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
+                )
     return config
 
 
@@ -156,6 +201,11 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
                 cv.frequency, cv.int_range(int(8e6), int(80e6))
+            ),
+            # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
+            cv.Optional(CONF_POLLING_INTERVAL): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
             ),
         }
     ),
@@ -234,6 +284,10 @@ async def to_code(config):
         cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
         if CONF_INTERRUPT_PIN in config:
             cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
+        else:
+            cg.add(var.set_polling_interval(config[CONF_POLLING_INTERVAL]))
+        if _is_framework_spi_polling_mode_supported():
+            cg.add_define("USE_ETHERNET_SPI_POLLING_SUPPORT")
         if CONF_RESET_PIN in config:
             cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))

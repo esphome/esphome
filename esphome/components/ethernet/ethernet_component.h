@@ -67,6 +67,9 @@ class EthernetComponent : public Component {
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
   void set_clock_speed(int clock_speed);
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  void set_polling_interval(uint32_t polling_interval);
+#endif
 #else
   void set_phy_addr(uint8_t phy_addr);
   void set_power_pin(int power_pin);
@@ -108,10 +111,13 @@ class EthernetComponent : public Component {
   uint8_t miso_pin_;
   uint8_t mosi_pin_;
   uint8_t cs_pin_;
-  uint8_t interrupt_pin_;
+  int interrupt_pin_{-1};
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  uint32_t polling_interval_{0};
+#endif
 #else
   uint8_t phy_addr_{0};
   int power_pin_{-1};
