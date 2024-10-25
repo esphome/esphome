@@ -1,0 +1,9 @@
+modem:
+  type: SIM800
+  power_pin: 23
+  pwrkey_pin: 4
+  tx_pin: 27
+  rx_pin: 26
+
+logger:
+  level: DEBUG

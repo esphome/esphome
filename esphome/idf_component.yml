@@ -11,3 +11,6 @@ dependencies:
     path: components/mdns
     rules:
       - if: "idf_version >=5.0"
+  esp_modem:
+    git: https://github.com/espressif/esp-protocols.git
+    path: components/esp_modem
