@@ -10,10 +10,16 @@ namespace slow_pwm {
 class SlowPWMOutput : public output::FloatOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; };
-  void set_period(unsigned int period) { period_ = period; };
+  void set_period(unsigned int period) {
+    period_ = period;
+    current_period_ = period;
+  };
   void set_restart_cycle_on_state_change(bool restart_cycle_on_state_change) {
     restart_cycle_on_state_change_ = restart_cycle_on_state_change;
   }
+  void set_min_time_on(unsigned int min_time_on) { min_time_on_ = min_time_on; }
+  void set_min_time_off(unsigned int min_time_off) { min_time_off_ = min_time_off; }
+  void set_max_period(unsigned int max_period) { max_period_ = max_period; }
   void restart_cycle() { this->period_start_time_ = millis(); }
 
   /// Initialize pin
@@ -55,6 +61,11 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
   unsigned int period_start_time_{0};
   unsigned int period_;
   bool restart_cycle_on_state_change_;
+  unsigned int min_time_on_;
+  unsigned int min_time_off_;
+  unsigned int max_period_;
+
+  unsigned int current_period_;
 };
 
 }  // namespace slow_pwm
