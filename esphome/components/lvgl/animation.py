@@ -4,6 +4,7 @@ from esphome.components.lvgl.schemas import STYLE_PROPS
 from esphome.components.lvgl.types import LvAnimation, LvglAction, lv_color_t, lv_obj_t
 from esphome.config_validation import COMPONENT_SCHEMA
 from esphome.const import (
+    CONF_ACCELERATION,
     CONF_DURATION,
     CONF_FROM,
     CONF_ID,
@@ -30,6 +31,8 @@ from .widgets import get_widgets
 LvAnimationTimingRoundTrip = lvgl_ns.class_("LvAnimationTimingRoundTrip")
 LvAnimationTimingEaseInOut = lvgl_ns.class_("LvAnimationTimingEaseInOut")
 
+CONF_BOUNCE = "bounce"
+
 
 def timing_class(name, extras=None):
     # Convert config option to camel case
@@ -45,11 +48,20 @@ TIMING_SCHEMA = cv.maybe_simple_value(
     cv.typed_schema(
         dict(
             [
+                timing_class("round_trip"),
                 timing_class(
                     "ease_in_out",
                     {cv.Optional(CONF_WEIGHT, default=0.5): cv.zero_to_one_float},
                 ),
-                timing_class("round_trip"),
+                timing_class(
+                    "gravity",
+                    {
+                        cv.Optional(CONF_BOUNCE, default=0.5): cv.zero_to_one_float,
+                        cv.Optional(
+                            CONF_ACCELERATION, default=0.5
+                        ): cv.zero_to_one_float,
+                    },
+                ),
             ]
         ),
         default_type="ease_in_out",
@@ -154,8 +166,9 @@ async def animations_to_code(config):
         )
         for timing in animation[CONF_TIMING]:
             timing_id = timing[CONF_ID]
-            args = [v for k, v in timing.items() if k not in [CONF_ID, CONF_TYPE]]
-            print(timing, args)
+            args = sorted(
+                [v for k, v in timing.items() if k not in [CONF_ID, CONF_TYPE]]
+            )
             timing_var = cg.new_Pvariable(timing_id, *args)
             cg.add(var.add_timing(timing_var))
         if CONF_DURATION in animation:

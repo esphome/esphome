@@ -35,6 +35,17 @@ class LvAnimationTimingRoundTrip : public LvAnimationTiming {
   }
 };
 
+class LVAnimationTimingBounce : public LvAnimationTiming {
+ public:
+  LVAnimationTimingBounce(float acceleration, bool bounce) : acceleration_(acceleration), bounce_(bounce) {}
+  float map_progress(float value) override { return value; }
+
+ protected:
+  float acceleration_;
+  float speed_{0.0f};
+  bool bounce_;
+};
+
 class LvAnimationTimingEaseInOut : public LvAnimationTiming {
  public:
   LvAnimationTimingEaseInOut(float slope) : slope_(slope) {}
