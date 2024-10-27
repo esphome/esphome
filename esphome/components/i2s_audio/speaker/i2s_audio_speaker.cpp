@@ -32,6 +32,7 @@ enum SpeakerEventGroupBits : uint32_t {
   STATE_RUNNING = (1 << 11),
   STATE_STOPPING = (1 << 12),
   STATE_STOPPED = (1 << 13),
+  ERR_INVALID_FORMAT = (1 << 14),
   ERR_TASK_FAILED_TO_START = (1 << 15),
   ERR_ESP_INVALID_STATE = (1 << 16),
   ERR_ESP_INVALID_ARG = (1 << 17),
@@ -104,16 +105,6 @@ void I2SAudioSpeaker::setup() {
 void I2SAudioSpeaker::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
-  if (event_group_bits & SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START) {
-    this->status_set_error("Failed to start speaker task");
-  }
-
-  if (event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS) {
-    uint32_t error_bits = event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS;
-    ESP_LOGW(TAG, "Error writing to I2S: %s", esp_err_to_name(err_bit_to_esp_err(error_bits)));
-    this->status_set_warning();
-  }
-
   if (event_group_bits & SpeakerEventGroupBits::STATE_STARTING) {
     ESP_LOGD(TAG, "Starting Speaker");
     this->state_ = speaker::STATE_STARTING;
@@ -139,12 +130,64 @@ void I2SAudioSpeaker::loop() {
       this->speaker_task_handle_ = nullptr;
     }
   }
+
+  if (event_group_bits & SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START) {
+    this->status_set_error("Failed to start speaker task");
+    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_TASK_FAILED_TO_START);
+  }
+
+  if (event_group_bits & SpeakerEventGroupBits::ERR_INVALID_FORMAT) {
+    this->status_set_error("Failed to adjust I2S bus to match the incoming audio");
+    ESP_LOGE(TAG,
+             "Incompatible audio format: sample rate = %" PRIu32 ", channels = %" PRIu8 ", bits per sample = %" PRIu8,
+             this->audio_stream_info_.sample_rate, this->audio_stream_info_.channels,
+             this->audio_stream_info_.bits_per_sample);
+  }
+
+  if (event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS) {
+    uint32_t error_bits = event_group_bits & SpeakerEventGroupBits::ALL_ERR_ESP_BITS;
+    ESP_LOGW(TAG, "Error writing to I2S: %s", esp_err_to_name(err_bit_to_esp_err(error_bits)));
+    this->status_set_warning();
+  }
 }
 
 void I2SAudioSpeaker::set_volume(float volume) {
   this->volume_ = volume;
-  ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
-  this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+#ifdef USE_AUDIO_DAC
+  if (this->audio_dac_ != nullptr) {
+    if (volume > 0.0) {
+      this->audio_dac_->set_mute_off();
+    }
+    this->audio_dac_->set_volume(volume);
+  } else
+#endif
+  {
+    // Fallback to software volume control by using a Q15 fixed point scaling factor
+    ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
+    this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+  }
+}
+
+void I2SAudioSpeaker::set_mute_state(bool mute_state) {
+  this->mute_state_ = mute_state;
+#ifdef USE_AUDIO_DAC
+  if (this->audio_dac_) {
+    if (mute_state) {
+      this->audio_dac_->set_mute_on();
+    } else {
+      this->audio_dac_->set_mute_off();
+    }
+  } else
+#endif
+  {
+    if (mute_state) {
+      // Fallback to software volume control and scale by 0
+      this->q15_volume_factor_ = 0;
+    } else {
+      // Revert to previous volume when unmuting
+      this->set_volume(this->volume_);
+    }
+  }
 }
 
 size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
@@ -275,6 +318,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         i2s_zero_dma_buffer(this_speaker->parent_->get_port());
       }
     }
+  } else {
+    // Couldn't configure the I2S port to be compatible with the incoming audio
+    xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::ERR_INVALID_FORMAT);
   }
   i2s_zero_dma_buffer(this_speaker->parent_->get_port());
 
@@ -288,7 +334,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 }
 
 void I2SAudioSpeaker::start() {
-  if (this->is_failed())
+  if (this->is_failed() || this->status_has_error())
     return;
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
     return;

@@ -13,41 +13,4 @@ display:
     reset_pin: 16
     invert_colors: true
 
-image:
-  - id: binary_image
-    file: ../../pnglogo.png
-    type: BINARY
-    dither: FloydSteinberg
-  - id: transparent_transparent_image
-    file: ../../pnglogo.png
-    type: TRANSPARENT_BINARY
-  - id: rgba_image
-    file: ../../pnglogo.png
-    type: RGBA
-    resize: 50x50
-  - id: rgb24_image
-    file: ../../pnglogo.png
-    type: RGB24
-    use_transparency: yes
-  - id: rgb565_image
-    file: ../../pnglogo.png
-    type: RGB565
-    use_transparency: no
-  - id: web_svg_image
-    file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
-    resize: 256x48
-    type: TRANSPARENT_BINARY
-  - id: web_tiff_image
-    file: https://upload.wikimedia.org/wikipedia/commons/b/b6/SIPI_Jelly_Beans_4.1.07.tiff
-    type: RGB24
-    resize: 48x48
-  - id: web_redirect_image
-    file: https://avatars.githubusercontent.com/u/3060199?s=48&v=4
-    type: RGB24
-    resize: 48x48
-  - id: mdi_alert
-    file: mdi:alert-circle-outline
-    resize: 50x50
-  - id: another_alert_icon
-    file: mdi:alert-outline
-    type: BINARY
+<<: !include common.yaml

@@ -27,6 +27,10 @@ media_player:
           media_player.is_idle:
       - wait_until:
           media_player.is_playing:
+      - wait_until:
+          media_player.is_announcing:
+      - wait_until:
+          media_player.is_paused:
       - media_player.volume_up:
       - media_player.volume_down:
       - media_player.volume_set: 50%

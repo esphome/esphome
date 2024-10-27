@@ -1,0 +1,8 @@
+i2c:
+  - id: i2c_i2c
+    scl: 16
+    sda: 17
+
+i2c_device:
+  id: i2cdev
+  address: 0x2C

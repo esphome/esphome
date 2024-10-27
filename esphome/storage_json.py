@@ -28,6 +28,10 @@ def esphome_storage_path() -> str:
     return os.path.join(CORE.data_dir, "esphome.json")
 
 
+def ignored_devices_storage_path() -> str:
+    return os.path.join(CORE.data_dir, "ignored-devices.json")
+
+
 def trash_storage_path() -> str:
     return CORE.relative_config_path("trash")
 

@@ -7,6 +7,7 @@ import datetime
 import functools
 import gzip
 import hashlib
+import importlib
 import json
 import logging
 import os
@@ -541,6 +542,46 @@ class ImportRequestHandler(BaseHandler):
         self.finish()
 
 
+class IgnoreDeviceRequestHandler(BaseHandler):
+    @authenticated
+    def post(self) -> None:
+        dashboard = DASHBOARD
+        try:
+            args = json.loads(self.request.body.decode())
+            device_name = args["name"]
+            ignore = args["ignore"]
+        except (json.JSONDecodeError, KeyError):
+            self.set_status(400)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Invalid payload"}))
+            return
+
+        ignored_device = next(
+            (
+                res
+                for res in dashboard.import_result.values()
+                if res.device_name == device_name
+            ),
+            None,
+        )
+
+        if ignored_device is None:
+            self.set_status(404)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Device not found"}))
+            return
+
+        if ignore:
+            dashboard.ignored_devices.add(ignored_device.device_name)
+        else:
+            dashboard.ignored_devices.discard(ignored_device.device_name)
+
+        dashboard.save_ignored_devices()
+
+        self.set_status(204)
+        self.finish()
+
+
 class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -555,26 +596,18 @@ class DownloadListRequestHandler(BaseHandler):
 
         downloads = []
         platform: str = storage_json.target_platform.lower()
-        if platform == const.PLATFORM_RP2040:
-            from esphome.components.rp2040 import get_download_types as rp2040_types
 
-            downloads = rp2040_types(storage_json)
-        elif platform == const.PLATFORM_ESP8266:
-            from esphome.components.esp8266 import get_download_types as esp8266_types
-
-            downloads = esp8266_types(storage_json)
-        elif platform.upper() in ESP32_VARIANTS:
-            from esphome.components.esp32 import get_download_types as esp32_types
-
-            downloads = esp32_types(storage_json)
+        if platform.upper() in ESP32_VARIANTS:
+            platform = "esp32"
         elif platform in (const.PLATFORM_RTL87XX, const.PLATFORM_BK72XX):
-            from esphome.components.libretiny import (
-                get_download_types as libretiny_types,
-            )
+            platform = "libretiny"
 
-            downloads = libretiny_types(storage_json)
-        else:
-            raise ValueError(f"Unknown platform {platform}")
+        try:
+            module = importlib.import_module(f"esphome.components.{platform}")
+            get_download_types = getattr(module, "get_download_types")
+        except AttributeError as exc:
+            raise ValueError(f"Unknown platform {platform}") from exc
+        downloads = get_download_types(storage_json)
 
         self.set_status(200)
         self.set_header("content-type", "application/json")
@@ -688,6 +721,7 @@ class ListDevicesHandler(BaseHandler):
                             "project_name": res.project_name,
                             "project_version": res.project_version,
                             "network": res.network,
+                            "ignored": res.device_name in dashboard.ignored_devices,
                         }
                         for res in dashboard.import_result.values()
                         if res.device_name not in configured
@@ -1156,6 +1190,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
             (f"{rel}version", EsphomeVersionHandler),
+            (f"{rel}ignore-device", IgnoreDeviceRequestHandler),
         ],
         **app_settings,
     )

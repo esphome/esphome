@@ -88,7 +88,7 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
     this->dsc_.header.reserved = 0;
     this->dsc_.header.w = this->width_;
     this->dsc_.header.h = this->height_;
-    this->dsc_.data_size = image_type_to_width_stride(this->dsc_.header.w * this->dsc_.header.h, this->get_type());
+    this->dsc_.data_size = this->get_width_stride() * this->get_height();
     switch (this->get_type()) {
       case IMAGE_TYPE_BINARY:
         this->dsc_.header.cf = LV_IMG_CF_ALPHA_1BIT;
@@ -104,17 +104,17 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
 
       case IMAGE_TYPE_RGB565:
 #if LV_COLOR_DEPTH == 16
-        this->dsc_.header.cf = this->has_transparency() ? LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED : LV_IMG_CF_TRUE_COLOR;
+        this->dsc_.header.cf = this->has_transparency() ? LV_IMG_CF_TRUE_COLOR_ALPHA : LV_IMG_CF_TRUE_COLOR;
 #else
         this->dsc_.header.cf = LV_IMG_CF_RGB565;
 #endif
         break;
 
-      case image::IMAGE_TYPE_RGBA:
+      case IMAGE_TYPE_RGBA:
 #if LV_COLOR_DEPTH == 32
         this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR;
 #else
-        this->dsc_.header.cf = LV_IMG_CF_RGBA8888;
+        this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
 #endif
         break;
     }
@@ -147,21 +147,21 @@ Color Image::get_rgb24_pixel_(int x, int y) const {
   return color;
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
-  const uint32_t pos = (x + y * this->width_) * 2;
-  uint16_t rgb565 =
-      progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
+  const uint8_t *pos = this->data_start_;
+  if (this->transparent_) {
+    pos += (x + y * this->width_) * 3;
+  } else {
+    pos += (x + y * this->width_) * 2;
+  }
+  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos), progmem_read_byte(pos + 1));
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
-  Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
-  if (rgb565 == 0x0020 && transparent_) {
-    // darkest green has been defined as transparent color for transparent RGB565 images.
-    color.w = 0;
-  } else {
-    color.w = 0xFF;
-  }
+  auto a = this->transparent_ ? progmem_read_byte(pos + 2) : 0xFF;
+  Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2), a);
   return color;
 }
+
 Color Image::get_grayscale_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);

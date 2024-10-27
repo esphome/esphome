@@ -1,6 +1,8 @@
 esphome:
   on_boot:
     then:
+      - speaker.mute_on:
+      - speaker.mute_off:
       - if:
           condition: speaker.is_stopped
           then:

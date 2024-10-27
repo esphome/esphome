@@ -84,6 +84,26 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
 }
 
+int RpiDpiRgb::get_width() {
+  switch (this->rotation_) {
+    case display::DISPLAY_ROTATION_90_DEGREES:
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      return this->get_height_internal();
+    default:
+      return this->get_width_internal();
+  }
+}
+
+int RpiDpiRgb::get_height() {
+  switch (this->rotation_) {
+    case display::DISPLAY_ROTATION_90_DEGREES:
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      return this->get_width_internal();
+    default:
+      return this->get_height_internal();
+  }
+}
+
 void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
   if (!this->get_clipping().inside(x, y))
     return;  // NOLINT
