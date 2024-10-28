@@ -1,5 +1,4 @@
 #pragma once
-
 #include "esphome/core/defines.h"
 
 #ifdef USE_LVGL_ANIMATION
@@ -35,15 +34,52 @@ class LvAnimationTimingRoundTrip : public LvAnimationTiming {
   }
 };
 
-class LVAnimationTimingBounce : public LvAnimationTiming {
+class LvAnimationTimingGravity : public LvAnimationTiming {
  public:
-  LVAnimationTimingBounce(float acceleration, bool bounce) : acceleration_(acceleration), bounce_(bounce) {}
-  float map_progress(float value) override { return value; }
+  LvAnimationTimingGravity(float acceleration, float bounce) : acceleration_(acceleration), bounce_(bounce) {}
+  float map_progress(float value) override {
+    if (value == 0.0f) {
+      this->initial_position_ = 0.0f;
+      this->initial_speed_ = 0.0f;
+      this->initial_time_ = 0.0f;
+    }
+    auto position = this->calc_pos_(value);
+    if (position > 1.0f) {
+      auto initial_time = this->calc_end_time_();
+      this->initial_speed_ = -this->calc_speed_(initial_time) * this->bounce_;
+      this->initial_position_ = 1.0f;
+      this->initial_time_ = initial_time;
+      position = calc_pos_(value);
+      if (position > 1.0f) {
+        position = 1.0f;
+      }
+    }
+    return position;
+  }
 
  protected:
+  float calc_pos_(float value) {
+    value -= this->initial_time_;
+    return (0.5 * value * this->acceleration_ + this->initial_speed_) * value + this->initial_position_;
+  }
+
+  float calc_speed_(float value) {
+    value -= this->initial_time_;
+    return this->acceleration_ * value + this->initial_speed_;
+  }
+
+  float calc_end_time_() {
+    return (-this->initial_speed_ + std::sqrt(this->initial_speed_ * this->initial_speed_ -
+                                              4.0f * this->acceleration_ / 2.0 * (this->initial_position_ - 1.0f))) /
+               this->acceleration_ +
+           this->initial_time_;
+  }
+
   float acceleration_;
-  float speed_{0.0f};
-  bool bounce_;
+  float bounce_;
+  float initial_position_{0.0f};
+  float initial_time_{0.0f};
+  float initial_speed_{0.0f};
 };
 
 class LvAnimationTimingEaseInOut : public LvAnimationTiming {

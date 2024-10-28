@@ -51,15 +51,13 @@ TIMING_SCHEMA = cv.maybe_simple_value(
                 timing_class("round_trip"),
                 timing_class(
                     "ease_in_out",
-                    {cv.Optional(CONF_WEIGHT, default=0.5): cv.zero_to_one_float},
+                    {cv.Optional(CONF_WEIGHT, default=2.0): cv.zero_to_one_float},
                 ),
                 timing_class(
                     "gravity",
                     {
                         cv.Optional(CONF_BOUNCE, default=0.5): cv.zero_to_one_float,
-                        cv.Optional(
-                            CONF_ACCELERATION, default=0.5
-                        ): cv.zero_to_one_float,
+                        cv.Optional(CONF_ACCELERATION, default=0.5): cv.positive_float,
                     },
                 ),
             ]
@@ -167,8 +165,9 @@ async def animations_to_code(config):
         for timing in animation[CONF_TIMING]:
             timing_id = timing[CONF_ID]
             args = sorted(
-                [v for k, v in timing.items() if k not in [CONF_ID, CONF_TYPE]]
+                [(k, v) for k, v in timing.items() if k not in [CONF_ID, CONF_TYPE]]
             )
+            args = [v for k, v in args]
             timing_var = cg.new_Pvariable(timing_id, *args)
             cg.add(var.add_timing(timing_var))
         if CONF_DURATION in animation:
