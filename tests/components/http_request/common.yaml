@@ -12,6 +12,8 @@ esphome:
           url: https://esphome.io
           headers:
             Content-Type: application/json
+          on_error:
+            logger.log: "Request failed"
           on_response:
             then:
               - logger.log:

@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import core, pins
+import esphome.codegen as cg
 from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_DC_PIN,
@@ -185,6 +185,10 @@ CONFIG_SCHEMA = cv.All(
     validate_full_update_every_only_types_ac,
     validate_reset_pin_required,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+)
+
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "waveshare_epaper", require_miso=False, require_mosi=True
 )
 
 

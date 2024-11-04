@@ -67,8 +67,10 @@ def _translate_pin(value):
             "This variable only supports pin numbers, not full pin schemas "
             "(with inverted and mode)."
         )
-    if isinstance(value, int):
+    if isinstance(value, int) and not isinstance(value, bool):
         return value
+    if not isinstance(value, str):
+        raise cv.Invalid(f"Invalid pin number: {value}")
     try:
         return int(value)
     except ValueError:

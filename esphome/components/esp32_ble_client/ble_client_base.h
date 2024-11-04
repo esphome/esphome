@@ -35,7 +35,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
   esp_err_t pair();
-  void disconnect();
+  void disconnect() override;
   void release_services();
 
   bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }

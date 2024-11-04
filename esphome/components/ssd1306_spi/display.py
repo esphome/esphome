@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import spi, ssd1306_base
 from esphome.components.ssd1306_base import _validate
+import esphome.config_validation as cv
 from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
 
 AUTO_LOAD = ["ssd1306_base"]
@@ -22,6 +22,10 @@ CONFIG_SCHEMA = cv.All(
     .extend(spi.spi_device_schema()),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate,
+)
+
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "ssd1306_spi", require_miso=False, require_mosi=True
 )
 
 

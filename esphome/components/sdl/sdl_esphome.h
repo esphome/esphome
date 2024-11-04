@@ -38,6 +38,7 @@ class Sdl : public display::Display {
  protected:
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
+  void redraw_(SDL_Rect &rect);
   int width_{};
   int height_{};
   SDL_Renderer *renderer_{};

@@ -40,25 +40,6 @@ RUN \
         libcairo2=1.16.0-7 \
         libmagic1=1:5.44-3 \
         patch=2.7.6-7 \
-    && ( \
-        ( \
-            [ "$TARGETARCH$TARGETVARIANT" = "armv7" ] && \
-                apt-get install -y --no-install-recommends \
-                build-essential=12.9 \
-                python3-dev=3.11.2-1+b1 \
-                zlib1g-dev=1:1.2.13.dfsg-1 \
-                libjpeg-dev=1:2.1.5-2 \
-                libfreetype-dev=2.12.1+dfsg-5+deb12u3 \
-                libssl-dev=3.0.14-1~deb12u2 \
-                libffi-dev=3.4.4-1 \
-                libopenjp2-7=2.5.0-2 \
-                libtiff6=4.5.0-6+deb12u1 \
-                cargo=0.66.0+ds1-1 \
-                pkg-config=1.8.1-1 \
-                gcc-arm-linux-gnueabihf=4:12.2.0-3 \
-        ) \
-        || [ "$TARGETARCH$TARGETVARIANT" != "armv7" ] \
-    ) \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -97,15 +78,48 @@ RUN \
 # tmpfs is for https://github.com/rust-lang/cargo/issues/8719
 
 COPY requirements.txt requirements_optional.txt /
-RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        curl -L https://www.piwheels.org/cp311/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl -o /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
-        && pip3 install --break-system-packages --no-cache-dir /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
-        && rm /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
-        && export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
-    fi; \
-    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
-    pip3 install \
-    --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt
+RUN --mount=type=tmpfs,target=/root/.cargo <<END-OF-RUN
+# Fail on any non-zero status
+set -e
+
+if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]
+then
+    curl -L https://www.piwheels.org/cp311/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl -o /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl
+    pip3 install --break-system-packages --no-cache-dir /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl
+    rm /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl
+    export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple";
+fi
+
+# install build tools in case wheels are not available
+BUILD_DEPS="
+    build-essential=12.9
+    python3-dev=3.11.2-1+b1
+    zlib1g-dev=1:1.2.13.dfsg-1
+    libjpeg-dev=1:2.1.5-2
+    libfreetype-dev=2.12.1+dfsg-5+deb12u3
+    libssl-dev=3.0.14-1~deb12u2
+    libffi-dev=3.4.4-1
+    libopenjp2-7=2.5.0-2
+    libtiff6=4.5.0-6+deb12u1
+    cargo=0.66.0+ds1-1
+    pkg-config=1.8.1-1
+"
+if [ "$TARGETARCH$TARGETVARIANT" = "arm64" ] || [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]
+then
+    apt-get update
+    apt-get install -y --no-install-recommends $BUILD_DEPS
+fi
+
+CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo
+pip3 install --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt
+
+if [ "$TARGETARCH$TARGETVARIANT" = "arm64" ] || [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]
+then
+    apt-get remove -y --purge --auto-remove $BUILD_DEPS
+    rm -rf /tmp/* /var/{cache,log}/* /var/lib/apt/lists/*
+fi
+END-OF-RUN
+
 
 COPY script/platformio_install_deps.py platformio.ini /
 RUN /platformio_install_deps.py /platformio.ini --libraries

@@ -8,7 +8,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 
@@ -25,13 +25,11 @@ CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 
-CONF_BITS_PER_SAMPLE = "bits_per_sample"
 CONF_I2S_MODE = "i2s_mode"
 CONF_PRIMARY = "primary"
 CONF_SECONDARY = "secondary"
 
 CONF_USE_APLL = "use_apll"
-CONF_BITS_PER_SAMPLE = "bits_per_sample"
 CONF_BITS_PER_CHANNEL = "bits_per_channel"
 CONF_MONO = "mono"
 CONF_LEFT = "left"

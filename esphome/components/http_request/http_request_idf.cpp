@@ -6,7 +6,6 @@
 #include "esphome/components/watchdog/watchdog.h"
 
 #include "esphome/core/application.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
@@ -118,20 +117,14 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     return nullptr;
   }
 
-  auto is_ok = [](int code) { return code >= HttpStatus_Ok && code < HttpStatus_MultipleChoices; };
-
   container->content_length = esp_http_client_fetch_headers(client);
   container->status_code = esp_http_client_get_status_code(client);
-  if (is_ok(container->status_code)) {
+  if (is_success(container->status_code)) {
     container->duration_ms = millis() - start;
     return container;
   }
 
   if (this->follow_redirects_) {
-    auto is_redirect = [](int code) {
-      return code == HttpStatus_MovedPermanently || code == HttpStatus_Found || code == HttpStatus_SeeOther ||
-             code == HttpStatus_TemporaryRedirect || code == HttpStatus_PermanentRedirect;
-    };
     auto num_redirects = this->redirect_limit_;
     while (is_redirect(container->status_code) && num_redirects > 0) {
       err = esp_http_client_set_redirection(client);
@@ -142,9 +135,9 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
         return nullptr;
       }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char url[256]{};
-      if (esp_http_client_get_url(client, url, sizeof(url) - 1) == ESP_OK) {
-        ESP_LOGV(TAG, "redirecting to url: %s", url);
+      char redirect_url[256]{};
+      if (esp_http_client_get_url(client, redirect_url, sizeof(redirect_url) - 1) == ESP_OK) {
+        ESP_LOGV(TAG, "redirecting to url: %s", redirect_url);
       }
 #endif
       err = esp_http_client_open(client, 0);
@@ -157,7 +150,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
 
       container->content_length = esp_http_client_fetch_headers(client);
       container->status_code = esp_http_client_get_status_code(client);
-      if (is_ok(container->status_code)) {
+      if (is_success(container->status_code)) {
         container->duration_ms = millis() - start;
         return container;
       }
@@ -172,8 +165,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
 
   ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
   this->status_momentary_error("failed", 1000);
-  esp_http_client_cleanup(client);
-  return nullptr;
+  return container;
 }
 
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {

@@ -1,5 +1,8 @@
 import logging
 
+from esphome import pins
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
@@ -11,9 +14,6 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-from esphome import pins
-import esphome.config_validation as cv
-import esphome.codegen as cg
 
 from .const import host_ns
 
@@ -28,8 +28,10 @@ def _translate_pin(value):
             "This variable only supports pin numbers, not full pin schemas "
             "(with inverted and mode)."
         )
-    if isinstance(value, int):
+    if isinstance(value, int) and not isinstance(value, bool):
         return value
+    if not isinstance(value, str):
+        raise cv.Invalid(f"Invalid pin number: {value}")
     try:
         return int(value)
     except ValueError:

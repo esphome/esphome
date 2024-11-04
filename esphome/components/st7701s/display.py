@@ -167,6 +167,10 @@ CONFIG_SCHEMA = cv.All(
     cv.only_with_esp_idf,
 )
 
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "st7701s", require_miso=False, require_mosi=True
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

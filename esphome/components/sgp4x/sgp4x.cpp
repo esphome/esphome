@@ -111,7 +111,7 @@ void SGP4xComponent::setup() {
   number of records reported from being overwhelming.
   */
   ESP_LOGD(TAG, "Component requires sampling of 1Hz, setting up background sampler");
-  this->set_interval(1000, [this]() { this->update_gas_indices(); });
+  this->set_interval(1000, [this]() { this->take_sample(); });
 }
 
 void SGP4xComponent::self_test_() {
@@ -146,31 +146,15 @@ void SGP4xComponent::self_test_() {
   });
 }
 
-/**
- * @brief Combined the measured gasses, temperature, and humidity
- * to calculate the VOC Index
- *
- * @param temperature The measured temperature in degrees C
- * @param humidity The measured relative humidity in % rH
- * @return int32_t The VOC Index
- */
-bool SGP4xComponent::measure_gas_indices_(int32_t &voc, int32_t &nox) {
-  uint16_t voc_sraw;
-  uint16_t nox_sraw;
-  if (!measure_raw_(voc_sraw, nox_sraw))
-    return false;
-
-  this->status_clear_warning();
-
-  voc = voc_algorithm_.process(voc_sraw);
-  if (nox_sensor_) {
-    nox = nox_algorithm_.process(nox_sraw);
-  }
-  ESP_LOGV(TAG, "VOC = %" PRId32 ", NOx = %" PRId32, voc, nox);
+void SGP4xComponent::update_gas_indices_() {
+  this->voc_index_ = this->voc_algorithm_.process(this->voc_sraw_);
+  if (this->nox_sensor_ != nullptr)
+    this->nox_index_ = this->nox_algorithm_.process(this->nox_sraw_);
+  ESP_LOGV(TAG, "VOC = %" PRId32 ", NOx = %" PRId32, this->voc_index_, this->nox_index_);
   // Store baselines after defined interval or if the difference between current and stored baseline becomes too
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
-    voc_algorithm_.get_states(this->voc_state0_, this->voc_state1_);
+    this->voc_algorithm_.get_states(this->voc_state0_, this->voc_state1_);
     if (std::abs(this->voc_baselines_storage_.state0 - this->voc_state0_) > MAXIMUM_STORAGE_DIFF ||
         std::abs(this->voc_baselines_storage_.state1 - this->voc_state1_) > MAXIMUM_STORAGE_DIFF) {
       this->seconds_since_last_store_ = 0;
@@ -179,29 +163,27 @@ bool SGP4xComponent::measure_gas_indices_(int32_t &voc, int32_t &nox) {
 
       if (this->pref_.save(&this->voc_baselines_storage_)) {
         ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
-                 this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
+                 this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
       } else {
         ESP_LOGW(TAG, "Could not store VOC baselines");
       }
     }
   }
 
-  return true;
+  if (this->samples_read_ < this->samples_to_stabilize_) {
+    this->samples_read_++;
+    ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %" PRIu32, this->samples_read_,
+             this->samples_to_stabilize_, this->voc_index_);
+  }
 }
-/**
- * @brief Return the raw gas measurement
- *
- * @param temperature The measured temperature in degrees C
- * @param humidity The measured relative humidity in % rH
- * @return uint16_t The current raw gas measurement
- */
-bool SGP4xComponent::measure_raw_(uint16_t &voc_raw, uint16_t &nox_raw) {
+
+void SGP4xComponent::measure_raw_() {
   float humidity = NAN;
   static uint32_t nox_conditioning_start = millis();
 
   if (!this->self_test_complete_) {
     ESP_LOGD(TAG, "Self-test not yet complete");
-    return false;
+    return;
   }
   if (this->humidity_sensor_ != nullptr) {
     humidity = this->humidity_sensor_->state;
@@ -243,61 +225,45 @@ bool SGP4xComponent::measure_raw_(uint16_t &voc_raw, uint16_t &nox_raw) {
   data[1] = tempticks;
 
   if (!this->write_command(command, data, 2)) {
-    this->status_set_warning();
     ESP_LOGD(TAG, "write error (%d)", this->last_error_);
-    return false;
+    this->status_set_warning("measurement request failed");
+    return;
   }
-  delay(measure_time_);
-  uint16_t raw_data[2];
-  raw_data[1] = 0;
-  if (!this->read_data(raw_data, response_words)) {
-    this->status_set_warning();
-    ESP_LOGD(TAG, "read error (%d)", this->last_error_);
-    return false;
-  }
-  voc_raw = raw_data[0];
-  nox_raw = raw_data[1];  // either 0 or the measured NOx ticks
-  return true;
+
+  this->set_timeout(this->measure_time_, [this, response_words]() {
+    uint16_t raw_data[2];
+    raw_data[1] = 0;
+    if (!this->read_data(raw_data, response_words)) {
+      ESP_LOGD(TAG, "read error (%d)", this->last_error_);
+      this->status_set_warning("measurement read failed");
+      this->voc_index_ = this->nox_index_ = UINT16_MAX;
+      return;
+    }
+    this->voc_sraw_ = raw_data[0];
+    this->nox_sraw_ = raw_data[1];  // either 0 or the measured NOx ticks
+    this->status_clear_warning();
+    this->update_gas_indices_();
+  });
 }
 
-void SGP4xComponent::update_gas_indices() {
+void SGP4xComponent::take_sample() {
   if (!this->self_test_complete_)
     return;
-
   this->seconds_since_last_store_ += 1;
-  if (!this->measure_gas_indices_(this->voc_index_, this->nox_index_)) {
-    // Set values to UINT16_MAX to indicate failure
-    this->voc_index_ = this->nox_index_ = UINT16_MAX;
-    ESP_LOGE(TAG, "measure gas indices failed");
-    return;
-  }
-  if (this->samples_read_ < this->samples_to_stabilize_) {
-    this->samples_read_++;
-    ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %" PRIu32, this->samples_read_,
-             this->samples_to_stabilize_, this->voc_index_);
-    return;
-  }
+  this->measure_raw_();
 }
 
 void SGP4xComponent::update() {
   if (this->samples_read_ < this->samples_to_stabilize_) {
     return;
   }
-  if (this->voc_sensor_) {
-    if (this->voc_index_ != UINT16_MAX) {
-      this->status_clear_warning();
+  if (this->voc_sensor_ != nullptr) {
+    if (this->voc_index_ != UINT16_MAX)
       this->voc_sensor_->publish_state(this->voc_index_);
-    } else {
-      this->status_set_warning();
-    }
   }
-  if (this->nox_sensor_) {
-    if (this->nox_index_ != UINT16_MAX) {
-      this->status_clear_warning();
+  if (this->nox_sensor_ != nullptr) {
+    if (this->nox_index_ != UINT16_MAX)
       this->nox_sensor_->publish_state(this->nox_index_);
-    } else {
-      this->status_set_warning();
-    }
   }
 }
 
@@ -329,7 +295,7 @@ void SGP4xComponent::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
 
-  if (this->humidity_sensor_ != nullptr && this->temperature_sensor_ != nullptr) {
+  if (this->humidity_sensor_ != nullptr || this->temperature_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Compensation:");
     LOG_SENSOR("    ", "Temperature Source:", this->temperature_sensor_);
     LOG_SENSOR("    ", "Humidity Source:", this->humidity_sensor_);

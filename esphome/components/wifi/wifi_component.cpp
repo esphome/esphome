@@ -297,8 +297,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};
-  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
-  strncpy(save.password, password.c_str(), sizeof(save.password));
+  snprintf(save.ssid, sizeof(save.ssid), "%s", ssid.c_str());
+  snprintf(save.password, sizeof(save.password), "%s", password.c_str());
   this->pref_.save(&save);
   // ensure it's written immediately
   global_preferences->sync();

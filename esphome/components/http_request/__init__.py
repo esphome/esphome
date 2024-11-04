@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_ID,
     CONF_METHOD,
+    CONF_ON_ERROR,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_URL,
@@ -185,6 +186,13 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpRequestResponseTrigger)}
         ),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    automation.Trigger.template()
+                )
+            }
+        ),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
     }
 )
@@ -272,5 +280,9 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             ],
             conf,
         )
+    for conf in config.get(CONF_ON_ERROR, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        cg.add(var.register_error_trigger(trigger))
+        await automation.build_automation(trigger, [], conf)
 
     return var

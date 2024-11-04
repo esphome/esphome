@@ -70,8 +70,6 @@ def _validate_time_present(config):
 
 
 _DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
-    web_server.WEBSERVER_SORTING_SCHEMA,
-    cv.MQTT_COMMAND_COMPONENT_SCHEMA,
     cv.Schema(
         {
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(
@@ -81,7 +79,9 @@ _DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
             ),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         }
-    ),
+    )
+    .extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
 ).add_extra(_validate_time_present)
 
 

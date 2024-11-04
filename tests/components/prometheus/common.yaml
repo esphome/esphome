@@ -1,3 +1,8 @@
+esphome:
+  name: livingroomdevice
+  friendly_name: Living Room Device
+  area: Living Room
+
 wifi:
   ssid: MySSID
   password: password1
@@ -13,9 +18,72 @@ sensor:
       }
     update_interval: 60s
 
+text_sensor:
+  - platform: version
+    name: "ESPHome Version"
+    hide_timestamp: true
+  - platform: template
+    id: template_text_sensor1
+    lambda: |-
+      if (millis() > 10000) {
+        return {"Hello World"};
+      } else {
+        return {"Goodbye (cruel) World"};
+      }
+    update_interval: 60s
+
+binary_sensor:
+  - platform: template
+    id: template_binary_sensor1
+    lambda: |-
+      if (millis() > 10000) {
+        return true;
+      } else {
+        return false;
+      }
+
+switch:
+  - platform: template
+    id: template_switch1
+    lambda: |-
+      if (millis() > 10000) {
+        return true;
+      } else {
+        return false;
+      }
+    optimistic: true
+
+fan:
+  - platform: template
+    id: template_fan1
+
+cover:
+  - platform: template
+    id: template_cover1
+    lambda: |-
+      if (millis() > 10000) {
+        return COVER_OPEN;
+      } else {
+        return COVER_CLOSED;
+      }
+
+lock:
+  - platform: template
+    id: template_lock1
+    lambda: |-
+      if (millis() > 10000) {
+        return LOCK_STATE_LOCKED;
+      } else {
+        return LOCK_STATE_UNLOCKED;
+      }
+    optimistic: true
+
 prometheus:
   include_internal: true
   relabel:
     template_sensor1:
       id: hellow_world
       name: Hello World
+    template_text_sensor1:
+      id: hello_text
+      name: Text Substitution

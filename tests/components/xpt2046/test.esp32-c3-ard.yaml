@@ -25,7 +25,7 @@ touchscreen:
     update_interval: 50ms
     threshold: 400
     calibration:
-      x_min: 3860
+      x_min: 28
       x_max: 280
       y_min: 340
       y_max: 3860

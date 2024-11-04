@@ -15,22 +15,32 @@ void Modbus::setup() {
 void Modbus::loop() {
   const uint32_t now = millis();
 
-  if (now - this->last_modbus_byte_ > 50) {
-    this->rx_buffer_.clear();
-    this->last_modbus_byte_ = now;
-  }
-  // stop blocking new send commands after send_wait_time_ ms regardless if a response has been received since then
-  if (now - this->last_send_ > send_wait_time_) {
-    waiting_for_response = 0;
-  }
-
   while (this->available()) {
     uint8_t byte;
     this->read_byte(&byte);
     if (this->parse_modbus_byte_(byte)) {
       this->last_modbus_byte_ = now;
     } else {
+      size_t at = this->rx_buffer_.size();
+      if (at > 0) {
+        ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse failed", at);
+        this->rx_buffer_.clear();
+      }
+    }
+  }
+
+  if (now - this->last_modbus_byte_ > 50) {
+    size_t at = this->rx_buffer_.size();
+    if (at > 0) {
+      ESP_LOGV(TAG, "Clearing buffer of %d bytes - timeout", at);
       this->rx_buffer_.clear();
+    }
+
+    // stop blocking new send commands after sent_wait_time_ ms after response received
+    if (now - this->last_send_ > send_wait_time_) {
+      if (waiting_for_response > 0)
+        ESP_LOGV(TAG, "Stop waiting for response from %d", waiting_for_response);
+      waiting_for_response = 0;
     }
   }
 }
@@ -39,7 +49,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
   const uint8_t *raw = &this->rx_buffer_[0];
-  ESP_LOGV(TAG, "Modbus received Byte  %d (0X%x)", byte, byte);
+  ESP_LOGVV(TAG, "Modbus received Byte  %d (0X%x)", byte, byte);
   // Byte 0: modbus address (match all)
   if (at == 0)
     return true;
@@ -144,8 +154,10 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     ESP_LOGW(TAG, "Got Modbus frame from unknown address 0x%02X! ", address);
   }
 
-  // return false to reset buffer
-  return false;
+  // reset buffer
+  ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse succeeded", at);
+  this->rx_buffer_.clear();
+  return true;
 }
 
 void Modbus::dump_config() {

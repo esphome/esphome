@@ -196,6 +196,10 @@ CONFIG_SCHEMA = cv.All(
     _validate,
 )
 
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "ili9xxx", require_miso=False, require_mosi=True
+)
+
 
 async def to_code(config):
     rhs = MODELS[config[CONF_MODEL]].new()

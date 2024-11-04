@@ -11,9 +11,9 @@
 
 #ifdef USE_ESP32
 
+#include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
-#include <esp_bt_defs.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -172,6 +172,7 @@ class ESPBTClient : public ESPBTDeviceListener {
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
+  virtual void disconnect() = 0;
   virtual void set_state(ClientState st) { this->state_ = st; }
   ClientState state() const { return state_; }
   int app_id;

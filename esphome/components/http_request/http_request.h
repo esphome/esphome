@@ -22,6 +22,63 @@ struct Header {
   const char *value;
 };
 
+// Some common HTTP status codes
+enum HttpStatus {
+  HTTP_STATUS_OK = 200,
+  HTTP_STATUS_NO_CONTENT = 204,
+  HTTP_STATUS_PARTIAL_CONTENT = 206,
+
+  /* 3xx - Redirection */
+  HTTP_STATUS_MULTIPLE_CHOICES = 300,
+  HTTP_STATUS_MOVED_PERMANENTLY = 301,
+  HTTP_STATUS_FOUND = 302,
+  HTTP_STATUS_SEE_OTHER = 303,
+  HTTP_STATUS_NOT_MODIFIED = 304,
+  HTTP_STATUS_TEMPORARY_REDIRECT = 307,
+  HTTP_STATUS_PERMANENT_REDIRECT = 308,
+
+  /* 4XX - CLIENT ERROR */
+  HTTP_STATUS_BAD_REQUEST = 400,
+  HTTP_STATUS_UNAUTHORIZED = 401,
+  HTTP_STATUS_FORBIDDEN = 403,
+  HTTP_STATUS_NOT_FOUND = 404,
+  HTTP_STATUS_METHOD_NOT_ALLOWED = 405,
+  HTTP_STATUS_NOT_ACCEPTABLE = 406,
+  HTTP_STATUS_LENGTH_REQUIRED = 411,
+
+  /* 5xx - Server Error */
+  HTTP_STATUS_INTERNAL_ERROR = 500
+};
+
+/**
+ * @brief Returns true if the HTTP status code is a redirect.
+ *
+ * @param status the HTTP status code to check
+ * @return true if the status code is a redirect, false otherwise
+ */
+inline bool is_redirect(int const status) {
+  switch (status) {
+    case HTTP_STATUS_MOVED_PERMANENTLY:
+    case HTTP_STATUS_FOUND:
+    case HTTP_STATUS_SEE_OTHER:
+    case HTTP_STATUS_TEMPORARY_REDIRECT:
+    case HTTP_STATUS_PERMANENT_REDIRECT:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * @brief Checks if the given HTTP status code indicates a successful request.
+ *
+ * A successful request is one where the status code is in the range 200-299
+ *
+ * @param status the HTTP status code to check
+ * @return true if the status code indicates a successful request, false otherwise
+ */
+inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && status < HTTP_STATUS_MULTIPLE_CHOICES; }
+
 class HttpRequestComponent;
 
 class HttpContainer : public Parented<HttpRequestComponent> {
@@ -78,8 +135,8 @@ class HttpRequestComponent : public Component {
 
  protected:
   const char *useragent_{nullptr};
-  bool follow_redirects_;
-  uint16_t redirect_limit_;
+  bool follow_redirects_{};
+  uint16_t redirect_limit_{};
   uint16_t timeout_{4500};
   uint32_t watchdog_timeout_{0};
 };
@@ -99,6 +156,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
 
   void register_response_trigger(HttpRequestResponseTrigger *trigger) { this->response_triggers_.push_back(trigger); }
+
+  void register_error_trigger(Trigger<> *trigger) { this->error_triggers_.push_back(trigger); }
 
   void set_max_response_buffer_size(size_t max_response_buffer_size) {
     this->max_response_buffer_size_ = max_response_buffer_size;
@@ -129,6 +188,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     auto container = this->parent_->start(this->url_.value(x...), this->method_.value(x...), body, headers);
 
     if (container == nullptr) {
+      for (auto *trigger : this->error_triggers_)
+        trigger->trigger(x...);
       return;
     }
 
@@ -180,7 +241,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
-  std::vector<HttpRequestResponseTrigger *> response_triggers_;
+  std::vector<HttpRequestResponseTrigger *> response_triggers_{};
+  std::vector<Trigger<> *> error_triggers_{};
 
   size_t max_response_buffer_size_{SIZE_MAX};
 };
