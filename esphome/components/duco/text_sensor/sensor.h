@@ -1,14 +1,14 @@
 #pragma once
 
 #include "esphome/core/log.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "../duco.h"
 
 namespace esphome {
 namespace duco {
 
-class DucoSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
+class DucoSensor : public DucoDevice, public PollingComponent, public text_sensor::TextSensor {
  public:
   void setup() override;
   void update() override;

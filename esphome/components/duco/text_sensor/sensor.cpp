@@ -26,6 +26,8 @@ void DucoSensor::receive_response(std::vector<uint8_t> message) {
     std::string serial(message.begin() + 5, message.end());
     ESP_LOGD(TAG, "Box Serial: %s", serial.c_str());
 
+    publish_state(serial);
+
     // do not wait for new messages with the same ID
     this->parent_->stop_waiting(message[2]);
   }
