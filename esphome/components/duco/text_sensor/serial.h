@@ -8,7 +8,7 @@
 namespace esphome {
 namespace duco {
 
-class DucoSensor : public DucoDevice, public PollingComponent, public text_sensor::TextSensor {
+class DucoSerial : public DucoDevice, public PollingComponent, public text_sensor::TextSensor {
  public:
   void setup() override;
   void update() override;

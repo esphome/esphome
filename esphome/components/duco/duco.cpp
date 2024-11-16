@@ -1,5 +1,4 @@
 #include "duco.h"
-#include "text_sensor/sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <vector>

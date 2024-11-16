@@ -9,14 +9,14 @@ DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
 
 duco_ns = cg.esphome_ns.namespace("duco")
-DucoSensor = duco_ns.class_("DucoSensor", cg.PollingComponent, text_sensor.TextSensor)
+DucoSerial = duco_ns.class_("DucoSerial", cg.PollingComponent, text_sensor.TextSensor)
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.text_sensor_schema(DucoSensor)
+    text_sensor.text_sensor_schema(DucoSerial)
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("300s"))
     .extend(DUCO_COMPONENT_SCHEMA)
-    .extend({cv.GenerateID(): cv.declare_id(DucoSensor)})
+    .extend({cv.GenerateID(): cv.declare_id(DucoSerial)})
 )
 
 
