@@ -8,7 +8,22 @@ from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
 
-DUCO_MODE_OPTIONS = ["AUTO", "MAN1", "MAN2", "MAN3", "EMPT", "CNT1", "CNT2", "CNT3"]
+DUCO_MODE_OPTIONS = [
+    "AUTO",
+    "MAN1",
+    "MAN2",
+    "MAN3",
+    "EMPT",
+    "CNT1",
+    "CNT2",
+    "CNT3",
+    "MAN1x2",
+    "MAN2x2",
+    "MAN3x2",
+    "MAN1x3",
+    "MAN2x3",
+    "MAN3x3",
+]
 
 duco_ns = cg.esphome_ns.namespace("duco")
 DucoSelect = duco_ns.class_("DucoSelect", cg.PollingComponent, select.Select)

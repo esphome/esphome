@@ -18,6 +18,12 @@ class DucoSelect : public DucoDevice, public PollingComponent, public select::Se
   static const std::string MODE_CNT1;
   static const std::string MODE_CNT2;
   static const std::string MODE_CNT3;
+  static const std::string MODE_MAN1x2;
+  static const std::string MODE_MAN2x2;
+  static const std::string MODE_MAN3x2;
+  static const std::string MODE_MAN1x3;
+  static const std::string MODE_MAN2x3;
+  static const std::string MODE_MAN3x3;
 
   static const uint8_t MODE_CODE_AUTO;
   static const uint8_t MODE_CODE_MAN1;
@@ -27,6 +33,12 @@ class DucoSelect : public DucoDevice, public PollingComponent, public select::Se
   static const uint8_t MODE_CODE_CNT1;
   static const uint8_t MODE_CODE_CNT2;
   static const uint8_t MODE_CODE_CNT3;
+  static const uint8_t MODE_CODE_MAN1x2;
+  static const uint8_t MODE_CODE_MAN2x2;
+  static const uint8_t MODE_CODE_MAN3x2;
+  static const uint8_t MODE_CODE_MAN1x3;
+  static const uint8_t MODE_CODE_MAN2x3;
+  static const uint8_t MODE_CODE_MAN3x3;
 
   void setup() override;
   void update() override;
