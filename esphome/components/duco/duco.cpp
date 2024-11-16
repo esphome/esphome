@@ -189,5 +189,73 @@ void Duco::debug_hex(std::vector<uint8_t> bytes, uint8_t separator) {
   delay(10);
 }
 
+const std::string DucoDiscovery::NODE_TYPE_UCBAT = "UCBAT";
+const std::string DucoDiscovery::NODE_TYPE_UC = "UC";
+const std::string DucoDiscovery::NODE_TYPE_UCCO2 = "UCCO2";
+const std::string DucoDiscovery::NODE_TYPE_BOX = "BOX";
+const std::string DucoDiscovery::NODE_TYPE_SWITCH = "SWITCH";
+const std::string DucoDiscovery::NODE_TYPE_UNKNOWN = "UNKNOWN";
+
+const std::string friendly_node_type(uint8_t type_code) {
+  switch (type_code) {
+    case DucoDiscovery::NODE_TYPE_CODE_UCBAT:
+      return DucoDiscovery::NODE_TYPE_UCBAT;
+    case DucoDiscovery::NODE_TYPE_CODE_UC:
+      return DucoDiscovery::NODE_TYPE_UC;
+    case DucoDiscovery::NODE_TYPE_CODE_UCCO2:
+      return DucoDiscovery::NODE_TYPE_UCCO2;
+    case DucoDiscovery::NODE_TYPE_CODE_BOX:
+      return DucoDiscovery::NODE_TYPE_BOX;
+    case DucoDiscovery::NODE_TYPE_CODE_SWITCH:
+      return DucoDiscovery::NODE_TYPE_SWITCH;
+    default:
+      return DucoDiscovery::NODE_TYPE_UNKNOWN;
+  }
+}
+
+void DucoDiscovery::update() {
+  // display all found nodes
+  for (auto &node : nodes_) {
+    ESP_LOGW(TAG, "Node %d: type %d (%s)", std::get<0>(node), std::get<1>(node),
+             friendly_node_type(std::get<1>(node)).c_str());
+  }
+}
+
+void DucoDiscovery::loop() {
+  if (delay_ > 0) {
+    delay_--;
+    return;
+  }
+  if (next_node_ > 0x44) {
+    // discovery is finished
+    return;
+  }
+  if (!waiting_for_response_) {
+    ESP_LOGD(TAG, "Discover next node (%d = 0x%02x)", next_node_, next_node_);
+    // request the next node
+    std::vector<uint8_t> message = {0x01, next_node_};
+    this->parent_->send(0x0c, message, this);
+
+    waiting_for_response_ = true;
+  }
+}
+
+void DucoDiscovery::receive_response(std::vector<uint8_t> message) {
+  if (message[1] == 0x0e) {
+    ESP_LOGV(TAG, "Discovery response message: %s", format_hex_pretty(message).c_str());
+    this->parent_->stop_waiting(message[2]);
+
+    if (message[3] != 0x00) {
+      // node was found, store its information
+      nodes_.push_back(std::make_tuple(next_node_, message[3]));
+    }
+
+    next_node_++;
+    waiting_for_response_ = false;
+    // delay execution for 100 loops
+    delay_ = 100;
+  }
+}
+
 }  // namespace duco
 }  // namespace esphome

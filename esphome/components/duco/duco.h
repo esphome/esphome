@@ -53,5 +53,34 @@ class DucoDevice : public Parented<Duco> {
   virtual void receive_response(std::vector<uint8_t> message) {}
 };
 
+class DucoDiscovery : public DucoDevice, public PollingComponent {
+ public:
+  void loop() override;
+  void update() override;
+
+  void receive_response(std::vector<uint8_t> message) override;
+
+  static const std::string NODE_TYPE_UCBAT;
+  static const std::string NODE_TYPE_UC;
+  static const std::string NODE_TYPE_UCCO2;
+  static const std::string NODE_TYPE_BOX;
+  static const std::string NODE_TYPE_SWITCH;
+  static const std::string NODE_TYPE_UNKNOWN;
+
+  static const uint8_t NODE_TYPE_CODE_UCBAT = 8;
+  static const uint8_t NODE_TYPE_CODE_UC = 9;
+  static const uint8_t NODE_TYPE_CODE_UCCO2 = 12;
+  static const uint8_t NODE_TYPE_CODE_BOX = 17;
+  static const uint8_t NODE_TYPE_CODE_SWITCH = 18;
+
+ protected:
+  // start with a delay of 1000 loops
+  uint32_t delay_{1000};
+  uint8_t next_node_{0};
+  bool waiting_for_response_ = false;
+
+  std::vector<std::tuple<uint8_t, uint8_t>> nodes_;
+};
+
 }  // namespace duco
 }  // namespace esphome
