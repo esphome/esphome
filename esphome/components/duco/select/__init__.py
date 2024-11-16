@@ -31,7 +31,7 @@ DucoSelect = duco_ns.class_("DucoSelect", cg.PollingComponent, select.Select)
 CONFIG_SCHEMA = cv.All(
     select.select_schema(DucoSelect)
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(cv.polling_component_schema("5s"))
+    .extend(cv.polling_component_schema("3s"))
     .extend(DUCO_COMPONENT_SCHEMA)
     .extend({cv.GenerateID(): cv.declare_id(DucoSelect)})
 )
