@@ -44,4 +44,4 @@ async def to_code(config):
     await select.register_select(var, config, options=DUCO_MODE_OPTIONS)
 
     parent = await cg.get_variable(config[CONF_DUCO_ID])
-    cg.add(parent.add_sensor_item(var))
+    cg.add(var.set_parent(parent))

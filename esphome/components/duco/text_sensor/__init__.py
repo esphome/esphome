@@ -27,4 +27,4 @@ async def to_code(config):
     await text_sensor.register_text_sensor(var, config)
 
     parent = await cg.get_variable(config[CONF_DUCO_ID])
-    cg.add(parent.add_sensor_item(var))
+    cg.add(var.set_parent(parent))

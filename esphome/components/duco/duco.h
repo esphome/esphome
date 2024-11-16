@@ -29,8 +29,6 @@ class Duco : public uart::UARTDevice, public Component {
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
   void set_disable_crc(bool disable_crc) { disable_crc_ = disable_crc; }
 
-  void add_sensor_item(DucoDevice *sensor);
-
   std::map<uint8_t, DucoDevice *> waiting_for_response;
   void stop_waiting(uint8_t message_id);
 

@@ -189,7 +189,5 @@ void Duco::debug_hex(std::vector<uint8_t> bytes, uint8_t separator) {
   delay(10);
 }
 
-void Duco::add_sensor_item(DucoDevice *sensor) { sensor->set_parent(this); }
-
 }  // namespace duco
 }  // namespace esphome
