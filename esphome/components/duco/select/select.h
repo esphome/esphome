@@ -48,9 +48,6 @@ class DucoSelect : public DucoDevice, public PollingComponent, public select::Se
   void receive_response(std::vector<uint8_t> message) override;
 
   void control(const std::string &value) override;
-
- protected:
-  uint8_t attempts = 0;
 };
 
 }  // namespace duco
