@@ -23,5 +23,15 @@ class DucoCo2Sensor : public DucoDevice, public PollingComponent, public sensor:
   uint8_t address_;
 };
 
+class DucoFilterRemainingSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
+ public:
+  void setup() override;
+  void update() override;
+
+  float get_setup_priority() const override;
+
+  void receive_response(std::vector<uint8_t> message) override;
+};
+
 }  // namespace duco
 }  // namespace esphome

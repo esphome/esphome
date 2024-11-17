@@ -33,5 +33,29 @@ void DucoCo2Sensor::receive_response(std::vector<uint8_t> message) {
 
 void DucoCo2Sensor::set_address(uint8_t address) { this->address_ = address; }
 
+void DucoFilterRemainingSensor::setup() {}
+
+void DucoFilterRemainingSensor::update() {
+  // ask for current mode
+  ESP_LOGD(TAG, "Filter time remaining: Get sensor information");
+
+  std::vector<uint8_t> message = {0x00, 0x30, 0x09};
+  this->parent_->send(0x24, message, this);
+}
+
+float DucoFilterRemainingSensor::get_setup_priority() const {
+  // After DUCO
+  return setup_priority::BUS - 2.0f;
+}
+
+void DucoFilterRemainingSensor::receive_response(std::vector<uint8_t> message) {
+  if (message[1] == 0x26) {
+    uint8_t filter_remaining = message[6];
+    publish_state(filter_remaining);
+
+    this->parent_->stop_waiting(message[2]);
+  }
+}
+
 }  // namespace duco
 }  // namespace esphome
