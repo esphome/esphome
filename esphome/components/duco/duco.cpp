@@ -216,7 +216,7 @@ const std::string friendly_node_type(uint8_t type_code) {
 void DucoDiscovery::update() {
   // display all found nodes
   for (auto &node : nodes_) {
-    ESP_LOGW(TAG, "Node %d: type %d (%s)", std::get<0>(node), std::get<1>(node),
+    ESP_LOGI(TAG, "Node %d: type %d (%s)", std::get<0>(node), std::get<1>(node),
              friendly_node_type(std::get<1>(node)).c_str());
   }
 }
