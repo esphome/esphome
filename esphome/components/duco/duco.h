@@ -12,6 +12,59 @@ namespace duco {
 
 class DucoDevice;
 
+class DucoMessage {
+ public:
+  DucoMessage() {}
+
+  uint8_t function;
+  uint8_t id;
+  std::vector<uint8_t> data;
+  uint16_t crc;
+
+  std::vector<uint8_t> get_message() {
+    std::vector<uint8_t> message;
+    message.push_back(data.size() + 2);
+    message.push_back(function);
+    message.push_back(id);
+    message.insert(message.end(), data.begin(), data.end());
+
+    auto crc = crc16(message.data(), message.size());
+
+    message.push_back(crc & 0xFF);
+    message.push_back((crc >> 8) & 0xFF);
+
+    return message;
+  }
+
+  std::string to_string() {
+    std::string res;
+
+    char buf[5];
+
+    size_t len = data.size();
+
+    sprintf(buf, "%02X", len + 2);
+    res += buf;
+    res += "  ";
+
+    sprintf(buf, "%02X", function);
+    res += buf;
+    res += " ";
+
+    sprintf(buf, "%02X", id);
+    res += buf;
+    res += " ";
+
+    for (size_t i = 0; i < len; i++) {
+      res += " ";
+      sprintf(buf, "%02X", data[i]);
+      res += buf;
+    }
+
+    return res;
+  }
+};
+
 class Duco : public uart::UARTDevice, public Component {
  public:
   Duco() { this->last_id_ = 10; };
@@ -24,8 +77,7 @@ class Duco : public uart::UARTDevice, public Component {
 
   float get_setup_priority() const override;
 
-  void send(uint8_t function, std::vector<uint8_t> message, DucoDevice *device);
-  void send_raw(const std::vector<uint8_t> &payload);
+  void send(DucoMessage message, DucoDevice *device);
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
   void set_disable_crc(bool disable_crc) { disable_crc_ = disable_crc; }
 

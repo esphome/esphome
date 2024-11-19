@@ -10,11 +10,10 @@ static const char *const TAG = "duco sensor";
 void DucoCo2Sensor::setup() {}
 
 void DucoCo2Sensor::update() {
-  // ask for current mode
-  ESP_LOGD(TAG, "CO2: Get sensor information");
-
-  std::vector<uint8_t> message = {0x01, address_, 0x00, 0x49, 0x04};
-  this->parent_->send(0x10, message, this);
+  DucoMessage message;
+  message.function = 0x10;
+  message.data = {0x01, address_, 0x00, 0x49, 0x04};
+  this->parent_->send(message, this);
 }
 
 float DucoCo2Sensor::get_setup_priority() const {
@@ -36,8 +35,10 @@ void DucoCo2Sensor::set_address(uint8_t address) { this->address_ = address; }
 void DucoFilterRemainingSensor::setup() {}
 
 void DucoFilterRemainingSensor::update() {
-  std::vector<uint8_t> message = {0x00, 0x30, 0x09};
-  this->parent_->send(0x24, message, this);
+  DucoMessage message;
+  message.function = 0x24;
+  message.data = {0x00, 0x30, 0x09};
+  this->parent_->send(message, this);
 }
 
 float DucoFilterRemainingSensor::get_setup_priority() const {
@@ -57,8 +58,10 @@ void DucoFilterRemainingSensor::receive_response(std::vector<uint8_t> message) {
 void DucoFlowLevelSensor::setup() {}
 
 void DucoFlowLevelSensor::update() {
-  std::vector<uint8_t> message = {0x02, 0x01};
-  this->parent_->send(0x0c, message, this);
+  DucoMessage message;
+  message.function = 0x0c;
+  message.data = {0x02, 0x01};
+  this->parent_->send(message, this);
 }
 
 float DucoFlowLevelSensor::get_setup_priority() const {
@@ -78,8 +81,10 @@ void DucoFlowLevelSensor::receive_response(std::vector<uint8_t> message) {
 void DucoStateTimeRemainingSensor::setup() {}
 
 void DucoStateTimeRemainingSensor::update() {
-  std::vector<uint8_t> message = {0x02, 0x01};
-  this->parent_->send(0x0c, message, this);
+  DucoMessage message;
+  message.function = 0x0c;
+  message.data = {0x02, 0x01};
+  this->parent_->send(message, this);
 }
 
 float DucoStateTimeRemainingSensor::get_setup_priority() const {

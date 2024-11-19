@@ -10,8 +10,10 @@ static const char *const TAG = "duco number";
 void DucoComfortTemperature::setup() {}
 
 void DucoComfortTemperature::update() {
-  std::vector<uint8_t> message = {0x00, 0x12, 0x0a};
-  this->parent_->send(0x24, message, this);
+  DucoMessage message;
+  message.function = 0x24;
+  message.data = {0x00, 0x12, 0x0a};
+  this->parent_->send(message, this);
 }
 
 float DucoComfortTemperature::get_setup_priority() const {
@@ -31,8 +33,10 @@ void DucoComfortTemperature::receive_response(std::vector<uint8_t> message) {
 void DucoComfortTemperature::control(float number) {
   uint8_t temperature = number * 10;
 
-  std::vector<uint8_t> message = {0x01, 0x12, 0x0a, temperature, 0x00, 0x00, 0x00};
-  this->parent_->send(0x24, message, this);
+  DucoMessage message;
+  message.function = 0x24;
+  message.data = {0x01, 0x12, 0x0a, temperature, 0x00, 0x00, 0x00};
+  this->parent_->send(message, this);
 }
 
 }  // namespace duco

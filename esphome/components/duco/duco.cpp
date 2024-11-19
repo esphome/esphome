@@ -136,38 +136,16 @@ void Duco::stop_waiting(uint8_t message_id) {
   }
 }
 
-void Duco::send(uint8_t function, std::vector<uint8_t> message, DucoDevice *device) {
-  std::vector<uint8_t> data;
-  uint8_t message_id = this->next_id_();
-
-  data.push_back(message.size() + 2);
-  data.push_back(function);
-  data.push_back(message_id);
-  data.insert(data.end(), message.begin(), message.end());
-
-  send_raw(data);
-
-  this->waiting_for_response[message_id] = device;
-}
-
-// Helper function for lambdas
-// Send raw command. Except CRC everything must be contained in payload
-void Duco::send_raw(const std::vector<uint8_t> &payload) {
-  if (payload.empty()) {
-    return;
-  }
-
-  auto crc = crc16(payload.data(), payload.size());
+void Duco::send(DucoMessage message, DucoDevice *device) {
+  message.id = this->next_id_();
 
   this->write_byte(0xAA);
   this->write_byte(0x55);
-  this->write_array(payload);
-  this->write_byte(crc & 0xFF);
-  this->write_byte((crc >> 8) & 0xFF);
+  this->write_array(message.get_message());
   this->flush();
 
-  ESP_LOGD(TAG, "DUCO write: %s", format_hex_pretty(payload).c_str());
-  last_send_ = millis();
+  this->waiting_for_response[message.id] = device;
+  ESP_LOGD(TAG, "Duco message sent: %s", message.to_string().c_str());
 }
 
 void Duco::debug_hex(std::vector<uint8_t> bytes, uint8_t separator) {
@@ -233,8 +211,10 @@ void DucoDiscovery::loop() {
   if (!waiting_for_response_) {
     ESP_LOGD(TAG, "Discover next node (%d = 0x%02x)", next_node_, next_node_);
     // request the next node
-    std::vector<uint8_t> message = {0x01, next_node_};
-    this->parent_->send(0x0c, message, this);
+    DucoMessage message;
+    message.function = 0x0c;
+    message.data = {0x01, next_node_};
+    this->parent_->send(message, this);
 
     waiting_for_response_ = true;
   }

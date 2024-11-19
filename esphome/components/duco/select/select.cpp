@@ -40,12 +40,10 @@ const uint8_t DucoSelect::MODE_CODE_MAN3x3 = 0xc6;
 void DucoSelect::setup() {}
 
 void DucoSelect::update() {
-  // ask for current mode
-  ESP_LOGD(TAG, "Ask for current mode");
-
-  // ask for information from node 1
-  std::vector<uint8_t> message = {0x02, 0x01};
-  this->parent_->send(0x0c, message, this);
+  DucoMessage message;
+  message.function = 0x0c;
+  message.data = {0x02, 0x01};
+  this->parent_->send(message, this);
 }
 
 float DucoSelect::get_setup_priority() const {
@@ -152,10 +150,10 @@ void DucoSelect::receive_response(std::vector<uint8_t> message) {
 }
 
 void DucoSelect::control(const std::string &value) {
-  ESP_LOGD(TAG, "TODO: Set value %s", value.c_str());
-  std::vector<uint8_t> message = {0x04, 0x01, string_to_code(value)};
-
-  this->parent_->send(0x0c, message, this);
+  DucoMessage message;
+  message.function = 0x0c;
+  message.data = {0x04, 0x01, string_to_code(value)};
+  this->parent_->send(message, this);
 }
 
 }  // namespace duco
