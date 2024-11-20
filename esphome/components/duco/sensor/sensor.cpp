@@ -21,12 +21,12 @@ float DucoCo2Sensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoCo2Sensor::receive_response(std::vector<uint8_t> message) {
-  if (message[1] == 0x12) {
-    uint16_t co2_value = (message[8] << 8) + message[7];
+void DucoCo2Sensor::receive_response(DucoMessage message) {
+  if (message.function == 0x12) {
+    uint16_t co2_value = (message.data[5] << 8) + message.data[4];
     publish_state(co2_value);
 
-    this->parent_->stop_waiting(message[2]);
+    this->parent_->stop_waiting(message.id);
   }
 }
 
@@ -46,12 +46,12 @@ float DucoFilterRemainingSensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoFilterRemainingSensor::receive_response(std::vector<uint8_t> message) {
-  if (message[1] == 0x26) {
-    uint8_t filter_remaining = message[6];
+void DucoFilterRemainingSensor::receive_response(DucoMessage message) {
+  if (message.function == 0x26) {
+    uint8_t filter_remaining = message.data[3];
     publish_state(filter_remaining);
 
-    this->parent_->stop_waiting(message[2]);
+    this->parent_->stop_waiting(message.id);
   }
 }
 
@@ -69,12 +69,12 @@ float DucoFlowLevelSensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoFlowLevelSensor::receive_response(std::vector<uint8_t> message) {
-  if (message[1] == 0x0e) {
-    uint8_t flow_level = message[5];
+void DucoFlowLevelSensor::receive_response(DucoMessage message) {
+  if (message.function == 0x0e) {
+    uint8_t flow_level = message.data[2];
     publish_state(flow_level);
 
-    this->parent_->stop_waiting(message[2]);
+    this->parent_->stop_waiting(message.id);
   }
 }
 
@@ -92,12 +92,12 @@ float DucoStateTimeRemainingSensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoStateTimeRemainingSensor::receive_response(std::vector<uint8_t> message) {
-  if (message[1] == 0x0e) {
-    uint16_t time_remaining = (message[16] << 8) + message[15];
+void DucoStateTimeRemainingSensor::receive_response(DucoMessage message) {
+  if (message.function == 0x0e) {
+    uint16_t time_remaining = (message.data[13] << 8) + message.data[12];
     publish_state(time_remaining);
 
-    this->parent_->stop_waiting(message[2]);
+    this->parent_->stop_waiting(message.id);
   }
 }
 

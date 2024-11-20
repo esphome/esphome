@@ -100,12 +100,16 @@ void Duco::finalize_message_() {
       return;
     }
   }
-  std::vector<uint8_t> data(this->rx_buffer_.begin(), this->rx_buffer_.begin() + data_len + 1);
 
-  // see if the response exists for waiting
-  auto it = waiting_for_response.find(data[2]);
+  DucoMessage message;
+  message.function = this->rx_buffer_[1];
+  message.id = this->rx_buffer_[2];
+  message.data.insert(message.data.end(), this->rx_buffer_.begin() + 3, this->rx_buffer_.begin() + data_len + 1);
+
+  // see if a component is waiting for a response
+  auto it = waiting_for_response.find(message.id);
   if (it != waiting_for_response.end()) {
-    waiting_for_response[data[2]]->receive_response(data);
+    waiting_for_response[message.id]->receive_response(message);
   }
 }
 
@@ -220,14 +224,14 @@ void DucoDiscovery::loop() {
   }
 }
 
-void DucoDiscovery::receive_response(std::vector<uint8_t> message) {
-  if (message[1] == 0x0e) {
+void DucoDiscovery::receive_response(DucoMessage message) {
+  if (message.id == 0x0e) {
     ESP_LOGV(TAG, "Discovery response message: %s", format_hex_pretty(message).c_str());
-    this->parent_->stop_waiting(message[2]);
+    this->parent_->stop_waiting(message.id);
 
-    if (message[3] != 0x00) {
+    if (message.data[0] != 0x00) {
       // node was found, store its information
-      nodes_.push_back(std::make_tuple(next_node_, message[3]));
+      nodes_.push_back(std::make_tuple(next_node_, message.data[0]));
     }
 
     next_node_++;

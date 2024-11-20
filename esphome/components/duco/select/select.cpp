@@ -132,20 +132,20 @@ uint8_t string_to_code(std::string mode) {
   return DucoSelect::MODE_CODE_AUTO;
 }
 
-void DucoSelect::receive_response(std::vector<uint8_t> message) {
-  if (message[1] == 0x0e && message[3] != 0x01) {
+void DucoSelect::receive_response(DucoMessage message) {
+  if (message.function == 0x0e && message.data[0] != 0x01) {
     // mode response received, parse it
-    auto mode = code_to_string(message[3]);
+    auto mode = code_to_string(message.data[0]);
 
     publish_state(mode);
 
     ESP_LOGD(TAG, "Current mode: %s", mode.c_str());
 
     // do not wait for new messages with the same ID
-    this->parent_->stop_waiting(message[2]);
+    this->parent_->stop_waiting(message.id);
   }
-  if (message[1] == 0x0e && message[3] == 0x01) {
-    this->parent_->stop_waiting(message[2]);
+  if (message.function == 0x0e && message.data[0] == 0x01) {
+    this->parent_->stop_waiting(message.id);
   }
 }
 

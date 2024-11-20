@@ -21,16 +21,16 @@ float DucoSerial::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoSerial::receive_response(std::vector<uint8_t> message) {
-  if (message[1] == 0x12) {
+void DucoSerial::receive_response(DucoMessage message) {
+  if (message.function == 0x12) {
     // Serial response received, parse it
-    std::string serial(message.begin() + 5, message.end());
+    std::string serial(message.data.begin() + 2, message.data.end());
     ESP_LOGD(TAG, "Box Serial: %s", serial.c_str());
 
     publish_state(serial);
 
     // do not wait for new messages with the same ID
-    this->parent_->stop_waiting(message[2]);
+    this->parent_->stop_waiting(message.id);
   }
 }
 

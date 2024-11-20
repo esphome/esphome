@@ -102,7 +102,7 @@ class Duco : public uart::UARTDevice, public Component {
 
 class DucoDevice : public Parented<Duco> {
  public:
-  virtual void receive_response(std::vector<uint8_t> message) {}
+  virtual void receive_response(DucoMessage message) {}
 };
 
 class DucoDiscovery : public DucoDevice, public PollingComponent {
@@ -110,7 +110,7 @@ class DucoDiscovery : public DucoDevice, public PollingComponent {
   void loop() override;
   void update() override;
 
-  void receive_response(std::vector<uint8_t> message) override;
+  void receive_response(DucoMessage message) override;
 
   static const std::string NODE_TYPE_UCBAT;
   static const std::string NODE_TYPE_UC;
