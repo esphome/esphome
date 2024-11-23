@@ -330,6 +330,7 @@ async def to_code(configs):
             await add_pages(lv_component, config)
             await add_top_layer(lv_component, config)
             await msgboxes_to_code(lv_component, config)
+            await animations_to_code(config)
             await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
     Widget.widgets_completed = True
