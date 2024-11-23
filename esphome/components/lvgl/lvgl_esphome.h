@@ -148,10 +148,14 @@ class LvglComponent : public PollingComponent {
     }
   }
 
-  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
-  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
-  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
-                    lv_event_code_t event3);
+  /**
+   * Initialize the LVGL library and register custom events.
+   */
+  static void esphome_lvgl_init();
+  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
+  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
+  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
+                           lv_event_code_t event3);
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
@@ -233,7 +237,7 @@ template<typename... Ts> class LvglCondition : public Condition<Ts...>, public P
 #ifdef USE_LVGL_TOUCHSCREEN
 class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglComponent> {
  public:
-  LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time);
+  LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time, LvglComponent *parent);
   void update(const touchscreen::TouchPoints_t &tpoints) override;
   void release() override {
     touch_pressed_ = false;
@@ -254,15 +258,8 @@ class LVEncoderListener : public Parented<LvglComponent> {
   LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
 
 #ifdef USE_BINARY_SENSOR
-  void set_left_button(binary_sensor::BinarySensor *left_button) {
-    left_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_LEFT, state); });
-  }
-  void set_right_button(binary_sensor::BinarySensor *right_button) {
-    right_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_RIGHT, state); });
-  }
-
-  void set_enter_button(binary_sensor::BinarySensor *enter_button) {
-    enter_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_ENTER, state); });
+  void add_button(binary_sensor::BinarySensor *button, lv_key_t key) {
+    button->add_on_state_callback([this, key](bool state) { this->event(key, state); });
   }
 #endif
 

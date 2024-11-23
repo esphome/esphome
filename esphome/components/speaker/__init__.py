@@ -7,6 +7,7 @@ from esphome.const import CONF_DATA, CONF_ID, CONF_VOLUME
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
 
+AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 
 IS_PLATFORM_COMPONENT = True

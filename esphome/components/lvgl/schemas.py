@@ -391,7 +391,9 @@ def container_validator(schema, widget_type: WidgetType):
             add_lv_use(ltype)
         if value == SCHEMA_EXTRACT:
             return result
-        result = result.extend(LAYOUT_SCHEMAS[ltype.lower()])
+        result = result.extend(
+            LAYOUT_SCHEMAS.get(ltype.lower(), LAYOUT_SCHEMAS[df.TYPE_NONE])
+        )
         return result(value)
 
     return validator

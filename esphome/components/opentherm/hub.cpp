@@ -29,6 +29,8 @@ uint8_t parse_u8_hb(OpenthermData &data) { return data.valueHB; }
 int8_t parse_s8_lb(OpenthermData &data) { return (int8_t) data.valueLB; }
 int8_t parse_s8_hb(OpenthermData &data) { return (int8_t) data.valueHB; }
 uint16_t parse_u16(OpenthermData &data) { return data.u16(); }
+uint16_t parse_u8_lb_60(OpenthermData &data) { return data.valueLB * 60; }
+uint16_t parse_u8_hb_60(OpenthermData &data) { return data.valueHB * 60; }
 int16_t parse_s16(OpenthermData &data) { return data.s16(); }
 float parse_f88(OpenthermData &data) { return data.f88(); }
 
@@ -87,13 +89,40 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
     return data;
   }
 
+  // Another special case is OpenTherm version number which is configured at hub level as a constant
+  if (request_id == MessageId::OT_VERSION_CONTROLLER) {
+    data.type = MessageType::WRITE_DATA;
+    data.id = MessageId::OT_VERSION_CONTROLLER;
+    data.f88(this->opentherm_version_);
+
+    return data;
+  }
+
 // Disable incomplete switch statement warnings, because the cases in each
 // switch are generated based on the configured sensors and inputs.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch"
 
-  switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , ) }
+  // Next, we start with the write requests from switches and other inputs,
+  // because we would want to write that data if it is available, rather than
+  // request a read for that type (in the case that both read and write are
+  // supported).
+  switch (request_id) {
+    OPENTHERM_SWITCH_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
+                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
+    OPENTHERM_NUMBER_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
+                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
+    OPENTHERM_OUTPUT_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
+                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
+    OPENTHERM_INPUT_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
+                                            OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
+  }
 
+  // Finally, handle the simple read requests, which only change with the message id.
+  switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , ) }
+  switch (request_id) {
+    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , )
+  }
 #pragma GCC diagnostic pop
 
   // And if we get here, a message was requested which somehow wasn't handled.
@@ -115,6 +144,10 @@ void OpenthermHub::process_response(OpenthermData &data) {
     OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
                                       OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
   }
+  switch (data.id) {
+    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
+                                             OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
+  }
 }
 
 void OpenthermHub::setup() {
@@ -130,6 +163,13 @@ void OpenthermHub::setup() {
   // communicate at least once every second. Sending the status request is
   // good practice anyway.
   this->add_repeating_message(MessageId::STATUS);
+
+  // Also ensure that we start communication with the STATUS message
+  this->initial_messages_.insert(this->initial_messages_.begin(), MessageId::STATUS);
+
+  if (this->opentherm_version_ > 0.0f) {
+    this->initial_messages_.insert(this->initial_messages_.begin(), MessageId::OT_VERSION_CONTROLLER);
+  }
 
   this->current_message_iterator_ = this->initial_messages_.begin();
 }
@@ -331,11 +371,11 @@ void OpenthermHub::dump_config() {
   ESP_LOGCONFIG(TAG, "  Numbers: %s", SHOW(OPENTHERM_NUMBER_LIST(ID, )));
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : this->initial_messages_) {
-    ESP_LOGCONFIG(TAG, "  - %d", type);
+    ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str((type)));
   }
   ESP_LOGCONFIG(TAG, "  Repeating requests:");
   for (auto type : this->repeating_messages_) {
-    ESP_LOGCONFIG(TAG, "  - %d", type);
+    ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str((type)));
   }
 }
 

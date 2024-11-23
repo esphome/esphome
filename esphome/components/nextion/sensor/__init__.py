@@ -1,12 +1,11 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 
-from esphome.const import (
-    CONF_ID,
-    CONF_COMPONENT_ID,
-)
-from .. import nextion_ns, CONF_NEXTION_ID
+from esphome.const import CONF_ID, CONF_COMPONENT_ID, CONF_STATE
+
+from .. import nextion_ns, CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION
 
 from ..base_component import (
     setup_component_core_,
@@ -24,6 +23,10 @@ from ..base_component import (
 CODEOWNERS = ["@senexcrenshaw"]
 
 NextionSensor = nextion_ns.class_("NextionSensor", sensor.Sensor, cg.PollingComponent)
+
+NextionPublishFloatAction = nextion_ns.class_(
+    "NextionPublishFloatAction", automation.Action
+)
 
 
 def CheckWaveID(value):
@@ -95,3 +98,33 @@ async def to_code(config):
 
     if CONF_WAVE_MAX_LENGTH in config:
         cg.add(var.set_wave_max_length(config[CONF_WAVE_MAX_LENGTH]))
+
+
+@automation.register_action(
+    "sensor.nextion.publish",
+    NextionPublishFloatAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(NextionSensor),
+            cv.Required(CONF_STATE): cv.templatable(cv.float_),
+            cv.Optional(CONF_PUBLISH_STATE, default="true"): cv.templatable(cv.boolean),
+            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(
+                cv.boolean
+            ),
+        }
+    ),
+)
+async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_STATE], args, float)
+    cg.add(var.set_state(template_))
+
+    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, bool)
+    cg.add(var.set_publish_state(template_))
+
+    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, bool)
+    cg.add(var.set_send_to_nextion(template_))
+
+    return var

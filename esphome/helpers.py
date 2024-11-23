@@ -1,5 +1,6 @@
 import codecs
 from contextlib import suppress
+import ipaddress
 import logging
 import os
 from pathlib import Path
@@ -91,12 +92,8 @@ def mkdir_p(path):
 
 
 def is_ip_address(host):
-    parts = host.split(".")
-    if len(parts) != 4:
-        return False
     try:
-        for p in parts:
-            int(p)
+        ipaddress.ip_address(host)
         return True
     except ValueError:
         return False
@@ -127,25 +124,80 @@ def _resolve_with_zeroconf(host):
     return info
 
 
-def resolve_ip_address(host):
+def addr_preference_(res):
+    # Trivial alternative to RFC6724 sorting. Put sane IPv6 first, then
+    # Legacy IP, then IPv6 link-local addresses without an actual link.
+    sa = res[4]
+    ip = ipaddress.ip_address(sa[0])
+    if ip.version == 4:
+        return 2
+    if ip.is_link_local and sa[3] == 0:
+        return 3
+    return 1
+
+
+def resolve_ip_address(host, port):
     import socket
 
     from esphome.core import EsphomeError
 
+    # There are five cases here. The host argument could be one of:
+    #  • a *list* of IP addresses discovered by MQTT,
+    #  • a single IP address specified by the user,
+    #  • a .local hostname to be resolved by mDNS,
+    #  • a normal hostname to be resolved in DNS, or
+    #  • A URL from which we should extract the hostname.
+    #
+    # In each of the first three cases, we end up with IP addresses in
+    # string form which need to be converted to a 5-tuple to be used
+    # for the socket connection attempt. The easiest way to construct
+    # those is to pass the IP address string to getaddrinfo(). Which,
+    # coincidentally, is how we do hostname lookups in the other cases
+    # too. So first build a list which contains either IP addresses or
+    # a single hostname, then call getaddrinfo() on each element of
+    # that list.
+
     errs = []
+    if isinstance(host, list):
+        addr_list = host
+    elif is_ip_address(host):
+        addr_list = [host]
+    else:
+        url = urlparse(host)
+        if url.scheme != "":
+            host = url.hostname
 
-    if host.endswith(".local"):
+        addr_list = []
+        if host.endswith(".local"):
+            try:
+                _LOGGER.info("Resolving IP address of %s in mDNS", host)
+                addr_list = _resolve_with_zeroconf(host)
+            except EsphomeError as err:
+                errs.append(str(err))
+
+        # If not mDNS, or if mDNS failed, use normal DNS
+        if not addr_list:
+            addr_list = [host]
+
+    # Now we have a list containing either IP addresses or a hostname
+    res = []
+    for addr in addr_list:
+        if not is_ip_address(addr):
+            _LOGGER.info("Resolving IP address of %s", host)
         try:
-            return _resolve_with_zeroconf(host)
-        except EsphomeError as err:
+            r = socket.getaddrinfo(addr, port, proto=socket.IPPROTO_TCP)
+        except OSError as err:
             errs.append(str(err))
+            raise EsphomeError(
+                f"Error resolving IP address: {', '.join(errs)}"
+            ) from err
 
-    try:
-        host_url = host if (urlparse(host).scheme != "") else "http://" + host
-        return socket.gethostbyname(urlparse(host_url).hostname)
-    except OSError as err:
-        errs.append(str(err))
-        raise EsphomeError(f"Error resolving IP address: {', '.join(errs)}") from err
+        res = res + r
+
+    # Zeroconf tends to give us link-local IPv6 addresses without specifying
+    # the link. Put those last in the list to be attempted.
+    res.sort(key=addr_preference_)
+    return res
 
 
 def get_bool_env(var, default=False):

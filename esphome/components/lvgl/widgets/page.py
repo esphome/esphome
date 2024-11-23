@@ -20,6 +20,7 @@ from ..lvcode import (
     add_line_marks,
     lv_add,
     lvgl_comp,
+    lvgl_static,
 )
 from ..schemas import LVGL_SCHEMA
 from ..types import LvglAction, lv_page_t
@@ -139,7 +140,7 @@ async def add_pages(lv_component, config):
         await add_widgets(page, pconf)
 
 
-async def generate_page_triggers(lv_component, config):
+async def generate_page_triggers(config):
     for pconf in config.get(CONF_PAGES, ()):
         page = (await get_widgets(pconf))[0]
         for ev in (CONF_ON_LOAD, CONF_ON_UNLOAD):
@@ -149,7 +150,7 @@ async def generate_page_triggers(lv_component, config):
                 async with LambdaContext(EVENT_ARG, where=id) as context:
                     lv_add(trigger.trigger())
                 lv_add(
-                    lv_component.add_event_cb(
+                    lvgl_static.add_event_cb(
                         page.obj,
                         await context.get_lambda(),
                         literal(f"LV_EVENT_SCREEN_{ev[3:].upper()}_START"),

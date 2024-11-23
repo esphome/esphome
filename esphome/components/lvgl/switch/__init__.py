@@ -3,7 +3,7 @@ from esphome.components.switch import Switch, new_switch, switch_schema
 import esphome.config_validation as cv
 from esphome.cpp_generator import MockObj
 
-from ..defines import CONF_LVGL_ID, CONF_WIDGET, literal
+from ..defines import CONF_WIDGET, literal
 from ..lvcode import (
     API_EVENT,
     EVENT_ARG,
@@ -13,26 +13,21 @@ from ..lvcode import (
     LvContext,
     lv,
     lv_add,
+    lvgl_static,
 )
-from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
 from ..widgets import get_widgets, wait_for_widgets
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch)
-CONFIG_SCHEMA = (
-    switch_schema(LVGLSwitch)
-    .extend(LVGL_SCHEMA)
-    .extend(
-        {
-            cv.Required(CONF_WIDGET): cv.use_id(lv_pseudo_button_t),
-        }
-    )
+CONFIG_SCHEMA = switch_schema(LVGLSwitch).extend(
+    {
+        cv.Required(CONF_WIDGET): cv.use_id(lv_pseudo_button_t),
+    }
 )
 
 
 async def to_code(config):
     switch = await new_switch(config)
-    paren = await cg.get_variable(config[CONF_LVGL_ID])
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
     await wait_for_widgets()
@@ -45,10 +40,10 @@ async def to_code(config):
             widget.clear_state(LV_STATE.CHECKED)
         lv.event_send(widget.obj, API_EVENT, cg.nullptr)
         control.add(switch.publish_state(literal("v")))
-    async with LvContext(paren) as ctx:
+    async with LvContext() as ctx:
         lv_add(switch.set_control_lambda(await control.get_lambda()))
         ctx.add(
-            paren.add_event_cb(
+            lvgl_static.add_event_cb(
                 widget.obj,
                 await checked_ctx.get_lambda(),
                 LV_EVENT.VALUE_CHANGED,

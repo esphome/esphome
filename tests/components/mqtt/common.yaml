@@ -10,6 +10,7 @@ mqtt:
   port: 1883
   username: debug
   password: debug
+  enable_on_boot: false
   clean_session: True
   client_id: someclient
   use_abbreviations: false
@@ -87,6 +88,8 @@ button:
     state_topic: some/topic/button
     qos: 2
     on_press:
+      - mqtt.disable
+      - mqtt.enable
       - mqtt.publish:
           topic: some/topic/button
           payload: Hello

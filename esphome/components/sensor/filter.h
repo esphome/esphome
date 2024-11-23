@@ -5,6 +5,7 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 
 namespace esphome {
 namespace sensor {
@@ -273,34 +274,33 @@ class LambdaFilter : public Filter {
 /// A simple filter that adds `offset` to each value it receives.
 class OffsetFilter : public Filter {
  public:
-  explicit OffsetFilter(float offset);
+  explicit OffsetFilter(TemplatableValue<float> offset);
 
   optional<float> new_value(float value) override;
 
  protected:
-  float offset_;
+  TemplatableValue<float> offset_;
 };
 
 /// A simple filter that multiplies to each value it receives by `multiplier`.
 class MultiplyFilter : public Filter {
  public:
-  explicit MultiplyFilter(float multiplier);
-
+  explicit MultiplyFilter(TemplatableValue<float> multiplier);
   optional<float> new_value(float value) override;
 
  protected:
-  float multiplier_;
+  TemplatableValue<float> multiplier_;
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
 class FilterOutValueFilter : public Filter {
  public:
-  explicit FilterOutValueFilter(float value_to_filter_out);
+  explicit FilterOutValueFilter(std::vector<TemplatableValue<float>> values_to_filter_out);
 
   optional<float> new_value(float value) override;
 
  protected:
-  float value_to_filter_out_;
+  std::vector<TemplatableValue<float>> values_to_filter_out_;
 };
 
 class ThrottleFilter : public Filter {
@@ -316,8 +316,7 @@ class ThrottleFilter : public Filter {
 
 class TimeoutFilter : public Filter, public Component {
  public:
-  explicit TimeoutFilter(uint32_t time_period, float new_value);
-  void set_value(float new_value) { this->value_ = new_value; }
+  explicit TimeoutFilter(uint32_t time_period, TemplatableValue<float> new_value);
 
   optional<float> new_value(float value) override;
 
@@ -325,7 +324,7 @@ class TimeoutFilter : public Filter, public Component {
 
  protected:
   uint32_t time_period_;
-  float value_;
+  TemplatableValue<float> value_;
 };
 
 class DebounceFilter : public Filter, public Component {

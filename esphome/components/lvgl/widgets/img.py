@@ -1,3 +1,4 @@
+import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ANGLE, CONF_MODE
 
@@ -64,6 +65,7 @@ class ImgType(WidgetType):
 
     async def to_code(self, w: Widget, config):
         if src := config.get(CONF_SRC):
+            src = await cg.get_variable(src)
             lv.img_set_src(w.obj, await lv_image.process(src))
         if (cf_angle := config.get(CONF_ANGLE)) is not None:
             pivot_x = config[CONF_PIVOT_X]

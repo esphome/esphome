@@ -1,0 +1,293 @@
+esphome:
+  on_boot:
+    # Binary sensor publish action tests
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: True
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: True
+        publish_state: True
+        send_to_nextion: True
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: True
+        publish_state: False
+        send_to_nextion: True
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: True
+        publish_state: True
+        send_to_nextion: False
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: True
+        publish_state: False
+        send_to_nextion: False
+
+    # Templated
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: !lambda 'return true;'
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return true;'
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return true;'
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return false;'
+
+    - binary_sensor.nextion.publish:
+        id: r0_sensor
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return false;'
+
+    # Sensor publish action tests
+    - sensor.nextion.publish:
+        id: testnumber
+        state: 42.0
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: 42.0
+        publish_state: True
+        send_to_nextion: True
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: 42.0
+        publish_state: False
+        send_to_nextion: True
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: 42.0
+        publish_state: True
+        send_to_nextion: False
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: 42.0
+        publish_state: False
+        send_to_nextion: False
+
+    # Templated
+    - sensor.nextion.publish:
+        id: testnumber
+        state: !lambda 'return 42.0;'
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: !lambda 'return 42.0;'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return true;'
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: !lambda 'return 42.0;'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return true;'
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: !lambda 'return 42.0;'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return false;'
+
+    - sensor.nextion.publish:
+        id: testnumber
+        state: !lambda 'return 42.0;'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return false;'
+
+    # Switch publish action tests
+    - switch.nextion.publish:
+        id: r0
+        state: True
+
+    - switch.nextion.publish:
+        id: r0
+        state: True
+        publish_state: true
+        send_to_nextion: true
+
+    - switch.nextion.publish:
+        id: r0
+        state: True
+        publish_state: false
+        send_to_nextion: true
+
+    - switch.nextion.publish:
+        id: r0
+        state: True
+        publish_state: true
+        send_to_nextion: false
+
+    - switch.nextion.publish:
+        id: r0
+        state: True
+        publish_state: false
+        send_to_nextion: false
+
+    # Templated
+    - switch.nextion.publish:
+        id: r0
+        state: !lambda 'return true;'
+
+    - switch.nextion.publish:
+        id: r0
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return true;'
+
+    - switch.nextion.publish:
+        id: r0
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return true;'
+
+    - switch.nextion.publish:
+        id: r0
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return false;'
+
+    - switch.nextion.publish:
+        id: r0
+        state: !lambda 'return true;'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return false;'
+
+    # Test sensor publish action tests
+    - text_sensor.nextion.publish:
+        id: text0
+        state: 'Test'
+        publish_state: true
+        send_to_nextion: true
+
+    - text_sensor.nextion.publish:
+        id: text0
+        state: 'Test'
+        publish_state: false
+        send_to_nextion: true
+
+    - text_sensor.nextion.publish:
+        id: text0
+        state: 'Test'
+        publish_state: true
+        send_to_nextion: false
+
+    - text_sensor.nextion.publish:
+        id: text0
+        state: 'Test'
+        publish_state: false
+        send_to_nextion: false
+
+    # Templated
+    - text_sensor.nextion.publish:
+        id: text0
+        state: !lambda 'return "Test";'
+
+    - text_sensor.nextion.publish:
+        id: text0
+        state: !lambda 'return "Test";'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return true;'
+
+    - text_sensor.nextion.publish:
+        id: text0
+        state: !lambda 'return "Test";'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return true;'
+
+    - text_sensor.nextion.publish:
+        id: text0
+        state: !lambda 'return "Test";'
+        publish_state: !lambda 'return true;'
+        send_to_nextion: !lambda 'return false;'
+
+    - text_sensor.nextion.publish:
+        id: text0
+        state: !lambda 'return "Test";'
+        publish_state: !lambda 'return false;'
+        send_to_nextion: !lambda 'return false;'
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart:
+  - id: uart_nextion
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 115200
+
+binary_sensor:
+  - platform: nextion
+    page_id: 0
+    component_id: 2
+    name: Nextion Touch Component
+  - platform: nextion
+    id: r0_sensor
+    name: R0 Sensor
+    component_name: page0.r0
+
+sensor:
+  - platform: nextion
+    id: testnumber
+    name: testnumber
+    variable_name: testnumber
+  - platform: nextion
+    id: testwave
+    name: testwave
+    component_id: 2
+    wave_channel_id: 1
+
+switch:
+  - platform: nextion
+    id: r0
+    name: R0 Switch
+    component_name: page0.r0
+
+text_sensor:
+  - platform: nextion
+    name: text0
+    id: text0
+    update_interval: 4s
+    component_name: text0
+
+display:
+  - platform: nextion
+    id: main_lcd
+    update_interval: 5s
+    on_sleep:
+      then:
+        lambda: 'ESP_LOGD("display","Display went to sleep");'
+    on_wake:
+      then:
+        lambda: 'ESP_LOGD("display","Display woke up");'
+    on_setup:
+      then:
+        lambda: 'ESP_LOGD("display","Display setup completed");'
+    on_page:
+      then:
+        lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
+    on_buffer_overflow:
+      then:
+        logger.log: "Nextion reported a buffer overflow!"

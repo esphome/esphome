@@ -9,6 +9,25 @@ sensor:
         return 0.0;
       }
     update_interval: 60s
+    filters:
+      - offset: 10
+      - multiply: 1
+      - offset: !lambda return 10;
+      - multiply: !lambda return 2;
+      - filter_out:
+          - 10
+          - 20
+          - !lambda return 10;
+      - filter_out: 10
+      - filter_out: !lambda return NAN;
+      - timeout:
+          timeout: 10s
+          value: !lambda return 10;
+      - timeout:
+          timeout: 1h
+          value: 20.0
+      - timeout:
+          timeout: 1d
 
 esphome:
   on_boot:

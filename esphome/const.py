@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.11.0-dev"
+__version__ = "2024.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1095,7 +1095,7 @@ UNIT_STEPS = "steps"
 UNIT_VOLT = "V"
 UNIT_VOLT_AMPS = "VA"
 UNIT_VOLT_AMPS_HOURS = "VAh"
-UNIT_VOLT_AMPS_REACTIVE = "VAR"
+UNIT_VOLT_AMPS_REACTIVE = "var"
 UNIT_VOLT_AMPS_REACTIVE_HOURS = "VARh"
 UNIT_WATT = "W"
 UNIT_WATT_HOURS = "Wh"

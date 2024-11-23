@@ -12,9 +12,40 @@ opentherm:
   cooling_enable: false
   otc_active: false
   ch2_active: true
+  t_room: boiler_sensor
   summer_mode_active: true
   dhw_block: true
   sync_mode: true
+
+output:
+  - platform: opentherm
+    t_set:
+      id: t_set
+      min_value: 20
+      auto_max_value: true
+      zero_means_zero: true
+    t_set_ch2:
+      id: t_set_ch2
+      min_value: 20
+      max_value: 40
+      zero_means_zero: true
+
+number:
+  - platform: opentherm
+    cooling_control:
+      name: "Boiler Cooling control signal"
+    t_dhw_set:
+      name: "Boiler DHW Setpoint"
+    max_t_set:
+      name: "Boiler Max Setpoint"
+    t_room_set:
+      name: "Boiler Room Setpoint"
+    t_room_set_ch2:
+      name: "Boiler Room Setpoint CH2"
+    max_rel_mod_level:
+      name: "Maximum relative modulation level"
+    otc_hc_ratio:
+      name: "OTC heat curve ratio"
 
 sensor:
   - platform: opentherm
@@ -25,6 +56,7 @@ sensor:
     dhw_flow_rate:
       name: "Boiler Water flow rate in DHW circuit"
     t_boiler:
+      id: "boiler_sensor"
       name: "Boiler water temperature"
     t_dhw:
       name: "Boiler DHW temperature"
@@ -74,3 +106,55 @@ sensor:
       name: "OTC heat curve ratio upper bound"
     otc_hc_ratio_lb:
       name: "OTC heat curve ratio lower bound"
+
+binary_sensor:
+  - platform: opentherm
+    fault_indication:
+      name: "Boiler Fault indication"
+    ch_active:
+      name: "Boiler Central Heating active"
+    dhw_active:
+      name: "Boiler Domestic Hot Water active"
+    flame_on:
+      name: "Boiler Flame on"
+    cooling_active:
+      name: "Boiler Cooling active"
+    ch2_active:
+      name: "Boiler Central Heating 2 active"
+    diagnostic_indication:
+      name: "Boiler Diagnostic event"
+    dhw_present:
+      name: "Boiler DHW present"
+    control_type_on_off:
+      name: "Boiler Control type is on/off"
+    cooling_supported:
+      name: "Boiler Cooling supported"
+    dhw_storage_tank:
+      name: "Boiler DHW storage tank"
+    controller_pump_control_allowed:
+      name: "Boiler Controller pump control allowed"
+    ch2_present:
+      name: "Boiler CH2 present"
+    dhw_setpoint_transfer_enabled:
+      name: "Boiler DHW setpoint transfer enabled"
+    max_ch_setpoint_transfer_enabled:
+      name: "Boiler CH maximum setpoint transfer enabled"
+    dhw_setpoint_rw:
+      name: "Boiler DHW setpoint read/write"
+    max_ch_setpoint_rw:
+      name: "Boiler CH maximum setpoint read/write"
+
+switch:
+  - platform: opentherm
+    ch_enable:
+      name: "Boiler Central Heating enabled"
+      restore_mode: RESTORE_DEFAULT_ON
+    dhw_enable:
+      name: "Boiler Domestic Hot Water enabled"
+    cooling_enable:
+      name: "Boiler Cooling enabled"
+      restore_mode: ALWAYS_OFF
+    otc_active:
+      name: "Boiler Outside temperature compensation active"
+    ch2_active:
+      name: "Boiler Central Heating 2 active"

@@ -103,7 +103,7 @@ class ESPHomeDashboard:
         self.loop = asyncio.get_running_loop()
         self.ping_request = asyncio.Event()
         self.entries = DashboardEntries(self)
-        self.load_ignored_devices()
+        await self.loop.run_in_executor(None, self.load_ignored_devices)
 
     def load_ignored_devices(self) -> None:
         storage_path = Path(ignored_devices_storage_path())

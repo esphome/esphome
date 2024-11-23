@@ -13,21 +13,22 @@
 namespace esphome {
 namespace i2s_audio {
 
-static const size_t DMA_BUFFER_SIZE = 512;
+static const uint8_t DMA_BUFFER_DURATION_MS = 15;
 static const size_t DMA_BUFFERS_COUNT = 4;
-static const size_t FRAMES_IN_ALL_DMA_BUFFERS = DMA_BUFFER_SIZE * DMA_BUFFERS_COUNT;
-static const size_t RING_BUFFER_SAMPLES = 8192;
-static const size_t TASK_DELAY_MS = 10;
+
+static const size_t TASK_DELAY_MS = DMA_BUFFER_DURATION_MS * DMA_BUFFERS_COUNT / 2;
+
 static const size_t TASK_STACK_SIZE = 4096;
 static const ssize_t TASK_PRIORITY = 23;
+
+static const size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT + 1;
 
 static const char *const TAG = "i2s_audio.speaker";
 
 enum SpeakerEventGroupBits : uint32_t {
-  COMMAND_START = (1 << 0),                           // Starts the main task purpose
-  COMMAND_STOP = (1 << 1),                            // stops the main task
-  COMMAND_STOP_GRACEFULLY = (1 << 2),                 // Stops the task once all data has been written
-  MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE = (1 << 5),  // Locks the ring buffer when not set
+  COMMAND_START = (1 << 0),            // starts the speaker task
+  COMMAND_STOP = (1 << 1),             // stops the speaker task
+  COMMAND_STOP_GRACEFULLY = (1 << 2),  // Stops the speaker task once all data has been written
   STATE_STARTING = (1 << 10),
   STATE_RUNNING = (1 << 11),
   STATE_STOPPING = (1 << 12),
@@ -91,9 +92,7 @@ static const std::vector<int16_t> Q15_VOLUME_SCALING_FACTORS = {
 void I2SAudioSpeaker::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2S Audio Speaker...");
 
-  if (this->event_group_ == nullptr) {
-    this->event_group_ = xEventGroupCreate();
-  }
+  this->event_group_ = xEventGroupCreate();
 
   if (this->event_group_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create event group");
@@ -199,23 +198,17 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t tick
     this->start();
   }
 
-  // Wait for the ring buffer to be available
-  uint32_t event_bits =
-      xEventGroupWaitBits(this->event_group_, SpeakerEventGroupBits::MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE, pdFALSE,
-                          pdFALSE, pdMS_TO_TICKS(TASK_DELAY_MS));
+  size_t bytes_written = 0;
+  if ((this->state_ == speaker::STATE_RUNNING) && (this->audio_ring_buffer_.use_count() == 1)) {
+    // Only one owner of the ring buffer (the speaker task), so the ring buffer is allocated and no other components are
+    // attempting to write to it.
 
-  if (event_bits & SpeakerEventGroupBits::MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE) {
-    // Ring buffer is available to write
-
-    // Lock the ring buffer, write to it, then unlock it
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE);
-    size_t bytes_written = this->audio_ring_buffer_->write_without_replacement((void *) data, length, ticks_to_wait);
-    xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE);
-
-    return bytes_written;
+    // Temporarily share ownership of the ring buffer so it won't be deallocated while writing
+    std::shared_ptr<RingBuffer> temp_ring_buffer = this->audio_ring_buffer_;
+    bytes_written = temp_ring_buffer->write_without_replacement((void *) data, length, ticks_to_wait);
   }
 
-  return 0;
+  return bytes_written;
 }
 
 bool I2SAudioSpeaker::has_buffered_data() const {
@@ -246,10 +239,12 @@ void I2SAudioSpeaker::speaker_task(void *params) {
   const ssize_t bytes_per_sample = audio_stream_info.get_bytes_per_sample();
   const uint8_t number_of_channels = audio_stream_info.channels;
 
-  const size_t dma_buffers_size = FRAMES_IN_ALL_DMA_BUFFERS * bytes_per_sample * number_of_channels;
+  const size_t dma_buffers_size = DMA_BUFFERS_COUNT * DMA_BUFFER_DURATION_MS * this_speaker->sample_rate_ / 1000 *
+                                  bytes_per_sample * number_of_channels;
+  const size_t ring_buffer_size =
+      this_speaker->buffer_duration_ms_ * this_speaker->sample_rate_ / 1000 * bytes_per_sample * number_of_channels;
 
-  if (this_speaker->send_esp_err_to_event_group_(
-          this_speaker->allocate_buffers_(dma_buffers_size, RING_BUFFER_SAMPLES * bytes_per_sample))) {
+  if (this_speaker->send_esp_err_to_event_group_(this_speaker->allocate_buffers_(dma_buffers_size, ring_buffer_size))) {
     // Failed to allocate buffers
     xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
     this_speaker->delete_task_(dma_buffers_size);
@@ -258,9 +253,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
   if (this_speaker->send_esp_err_to_event_group_(this_speaker->start_i2s_driver_())) {
     // Failed to start I2S driver
     this_speaker->delete_task_(dma_buffers_size);
-  } else {
-    // Ring buffer is allocated, so indicate its can be written to
-    xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE);
   }
 
   if (!this_speaker->send_esp_err_to_event_group_(this_speaker->reconfigure_i2s_stream_info_(audio_stream_info))) {
@@ -270,8 +262,10 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
     bool stop_gracefully = false;
     uint32_t last_data_received_time = millis();
+    bool tx_dma_underflow = false;
 
-    while ((millis() - last_data_received_time) <= this_speaker->timeout_) {
+    while (!this_speaker->timeout_.has_value() ||
+           (millis() - last_data_received_time) <= this_speaker->timeout_.value()) {
       event_group_bits = xEventGroupGetBits(this_speaker->event_group_);
 
       if (event_group_bits & SpeakerEventGroupBits::COMMAND_STOP) {
@@ -281,12 +275,18 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         stop_gracefully = true;
       }
 
+      i2s_event_t i2s_event;
+      while (xQueueReceive(this_speaker->i2s_event_queue_, &i2s_event, 0)) {
+        if (i2s_event.type == I2S_EVENT_TX_Q_OVF) {
+          tx_dma_underflow = true;
+        }
+      }
+
       size_t bytes_to_read = dma_buffers_size;
       size_t bytes_read = this_speaker->audio_ring_buffer_->read((void *) this_speaker->data_buffer_, bytes_to_read,
                                                                  pdMS_TO_TICKS(TASK_DELAY_MS));
 
       if (bytes_read > 0) {
-        last_data_received_time = millis();
         size_t bytes_written = 0;
 
         if ((audio_stream_info.bits_per_sample == 16) && (this_speaker->q15_volume_factor_ < INT16_MAX)) {
@@ -307,15 +307,13 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         if (bytes_written != bytes_read) {
           xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::ERR_ESP_INVALID_SIZE);
         }
-
+        tx_dma_underflow = false;
+        last_data_received_time = millis();
       } else {
         // No data received
-
-        if (stop_gracefully) {
+        if (stop_gracefully && tx_dma_underflow) {
           break;
         }
-
-        i2s_zero_dma_buffer(this_speaker->parent_->get_port());
       }
     }
   } else {
@@ -326,7 +324,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
   xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::STATE_STOPPING);
 
-  i2s_stop(this_speaker->parent_->get_port());
   i2s_driver_uninstall(this_speaker->parent_->get_port());
 
   this_speaker->parent_->unlock();
@@ -334,7 +331,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 }
 
 void I2SAudioSpeaker::start() {
-  if (this->is_failed() || this->status_has_error())
+  if (!this->is_ready() || this->is_failed() || this->status_has_error())
     return;
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
     return;
@@ -402,8 +399,8 @@ esp_err_t I2SAudioSpeaker::allocate_buffers_(size_t data_buffer_size, size_t rin
     return ESP_ERR_NO_MEM;
   }
 
-  if (this->audio_ring_buffer_ == nullptr) {
-    // Allocate ring buffer
+  if (this->audio_ring_buffer_.use_count() == 0) {
+    // Allocate ring buffer. Uses a shared_ptr to ensure it isn't improperly deallocated.
     this->audio_ring_buffer_ = RingBuffer::create(ring_buffer_size);
   }
 
@@ -419,6 +416,8 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_() {
     return ESP_ERR_INVALID_STATE;
   }
 
+  int dma_buffer_length = DMA_BUFFER_DURATION_MS * this->sample_rate_ / 1000;
+
   i2s_driver_config_t config = {
     .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_TX),
     .sample_rate = this->sample_rate_,
@@ -427,7 +426,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_() {
     .communication_format = this->i2s_comm_fmt_,
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count = DMA_BUFFERS_COUNT,
-    .dma_buf_len = DMA_BUFFER_SIZE,
+    .dma_buf_len = dma_buffer_length,
     .use_apll = this->use_apll_,
     .tx_desc_auto_clear = true,
     .fixed_mclk = I2S_PIN_NO_CHANGE,
@@ -448,7 +447,8 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_() {
   }
 #endif
 
-  esp_err_t err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
+  esp_err_t err =
+      i2s_driver_install(this->parent_->get_port(), &config, I2S_EVENT_QUEUE_COUNT, &this->i2s_event_queue_);
   if (err != ESP_OK) {
     // Failed to install the driver, so unlock the I2S port
     this->parent_->unlock();
@@ -502,16 +502,7 @@ esp_err_t I2SAudioSpeaker::reconfigure_i2s_stream_info_(audio::AudioStreamInfo &
 }
 
 void I2SAudioSpeaker::delete_task_(size_t buffer_size) {
-  if (this->audio_ring_buffer_ != nullptr) {
-    xEventGroupWaitBits(this->event_group_,
-                        MESSAGE_RING_BUFFER_AVAILABLE_TO_WRITE,  // Bit message to read
-                        pdFALSE,                                 // Don't clear the bits on exit
-                        pdTRUE,                                  // Don't wait for all the bits,
-                        portMAX_DELAY);                          // Block indefinitely until a command bit is set
-
-    this->audio_ring_buffer_.reset();  // Deallocates the ring buffer stored in the unique_ptr
-    this->audio_ring_buffer_ = nullptr;
-  }
+  this->audio_ring_buffer_.reset();  // Releases onwership of the shared_ptr
 
   if (this->data_buffer_ != nullptr) {
     ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);

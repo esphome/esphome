@@ -98,19 +98,24 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->pause_callbacks_.call(paused);
 }
 
+void LvglComponent::esphome_lvgl_init() {
+  lv_init();
+  lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
+  lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
+}
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
-  lv_obj_add_event_cb(obj, callback, event, this);
+  lv_obj_add_event_cb(obj, callback, event, nullptr);
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2) {
-  this->add_event_cb(obj, callback, event1);
-  this->add_event_cb(obj, callback, event2);
+  add_event_cb(obj, callback, event1);
+  add_event_cb(obj, callback, event2);
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2, lv_event_code_t event3) {
-  this->add_event_cb(obj, callback, event1);
-  this->add_event_cb(obj, callback, event2);
-  this->add_event_cb(obj, callback, event3);
+  add_event_cb(obj, callback, event1);
+  add_event_cb(obj, callback, event2);
+  add_event_cb(obj, callback, event3);
 }
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
@@ -218,8 +223,10 @@ PauseTrigger::PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused)
 }
 
 #ifdef USE_LVGL_TOUCHSCREEN
-LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time) {
+LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time, LvglComponent *parent) {
+  this->set_parent(parent);
   lv_indev_drv_init(&this->drv_);
+  this->drv_.disp = parent->get_disp();
   this->drv_.long_press_repeat_time = long_press_repeat_time;
   this->drv_.long_press_time = long_press_time;
   this->drv_.type = LV_INDEV_TYPE_POINTER;
@@ -235,6 +242,7 @@ LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_r
     }
   };
 }
+
 void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
   this->touch_pressed_ = !this->parent_->is_paused() && !tpoints.empty();
   if (this->touch_pressed_)
@@ -405,9 +413,6 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
       resume_on_input_(resume_on_input) {
-  lv_init();
-  lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
-  lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
   auto *display = this->displays_[0];
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;

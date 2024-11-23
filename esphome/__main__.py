@@ -20,6 +20,8 @@ from esphome.const import (
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
     CONF_ESPHOME,
+    CONF_LEVEL,
+    CONF_LOG_TOPIC,
     CONF_LOGGER,
     CONF_MDNS,
     CONF_MQTT,
@@ -30,6 +32,7 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PORT,
     CONF_SUBSTITUTIONS,
+    CONF_TOPIC,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -38,7 +41,7 @@ from esphome.const import (
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent, is_ip_address, get_bool_env
+from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import Fore, color, setup_log
 from esphome.util import (
     get_serial_ports,
@@ -95,8 +98,12 @@ def choose_upload_log_host(
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
             return CORE.address
-    if show_mqtt and CONF_MQTT in CORE.config:
-        options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
+    if (
+        show_mqtt
+        and (mqtt_config := CORE.config.get(CONF_MQTT))
+        and mqtt_logging_enabled(mqtt_config)
+    ):
+        options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
     if default is not None:
@@ -104,6 +111,17 @@ def choose_upload_log_host(
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return check_default
     return choose_prompt(options, purpose=purpose)
+
+
+def mqtt_logging_enabled(mqtt_config):
+    log_topic = mqtt_config[CONF_LOG_TOPIC]
+    if log_topic is None:
+        return False
+    if CONF_TOPIC not in log_topic:
+        return False
+    if log_topic.get(CONF_LEVEL, None) == "NONE":
+        return False
+    return True
 
 
 def get_port_type(port):
@@ -378,7 +396,7 @@ def show_logs(config, args, port):
 
             port = mqtt.get_esphome_device_ip(
                 config, args.username, args.password, args.client_id
-            )
+            )[0]
 
         from esphome.components.api.client import run_logs
 

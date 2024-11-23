@@ -92,6 +92,7 @@ async def to_code(config):
 
 
 async def ota_to_code(var, config):
+    await cg.past_safe_mode()
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

@@ -11,6 +11,12 @@ substitutions:
   check: "\U000F012C"
   arrow_down: "\U000F004B"
 
+binary_sensor:
+  - id: enter_sensor
+    platform: template
+  - id: left_sensor
+    platform: template
+
 lvgl:
   log_level: debug
   resume_on_input: true
@@ -93,6 +99,10 @@ lvgl:
     - touchscreen_id: tft_touch
       long_press_repeat_time: 200ms
       long_press_time: 500ms
+  keypads:
+    - initial_focus: button_button
+      enter: enter_sensor
+      next: left_sensor
 
   msgboxes:
     - id: message_box

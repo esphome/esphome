@@ -38,7 +38,7 @@ void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
 
     ESP_LOGD(
         TAG,
-        "SDMMeter Phase %c: V=%.3f V, I=%.3f A, Active P=%.3f W, Apparent P=%.3f VA, Reactive P=%.3f VAR, PF=%.3f, "
+        "SDMMeter Phase %c: V=%.3f V, I=%.3f A, Active P=%.3f W, Apparent P=%.3f VA, Reactive P=%.3f var, PF=%.3f, "
         "PA=%.3f °",
         i + 'A', voltage, current, active_power, apparent_power, reactive_power, power_factor, phase_angle);
     if (phase.voltage_sensor_ != nullptr)

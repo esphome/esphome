@@ -180,7 +180,7 @@ void LD2420Component::apply_config_action() {
 }
 
 void LD2420Component::factory_reset_action() {
-  ESP_LOGCONFIG(TAG, "Setiing factory defaults...");
+  ESP_LOGCONFIG(TAG, "Setting factory defaults...");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
     this->mark_failed();

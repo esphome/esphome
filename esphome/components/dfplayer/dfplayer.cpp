@@ -6,7 +6,104 @@ namespace dfplayer {
 
 static const char *const TAG = "dfplayer";
 
+void DFPlayer::next() {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Playing next track");
+  this->send_cmd_(0x01);
+}
+
+void DFPlayer::previous() {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Playing previous track");
+  this->send_cmd_(0x02);
+}
+void DFPlayer::play_mp3(uint16_t file) {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Playing file %d in mp3 folder", file);
+  this->send_cmd_(0x12, file);
+}
+
+void DFPlayer::play_file(uint16_t file) {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Playing file %d", file);
+  this->send_cmd_(0x03, file);
+}
+
+void DFPlayer::play_file_loop(uint16_t file) {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Playing file %d in loop", file);
+  this->send_cmd_(0x08, file);
+}
+
+void DFPlayer::play_folder_loop(uint16_t folder) {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Playing folder %d in loop", folder);
+  this->send_cmd_(0x17, folder);
+}
+
+void DFPlayer::volume_up() {
+  ESP_LOGD(TAG, "Increasing volume");
+  this->send_cmd_(0x04);
+}
+
+void DFPlayer::volume_down() {
+  ESP_LOGD(TAG, "Decreasing volume");
+  this->send_cmd_(0x05);
+}
+
+void DFPlayer::set_device(Device device) {
+  ESP_LOGD(TAG, "Setting device to %d", device);
+  this->send_cmd_(0x09, device);
+}
+
+void DFPlayer::set_volume(uint8_t volume) {
+  ESP_LOGD(TAG, "Setting volume to %d", volume);
+  this->send_cmd_(0x06, volume);
+}
+
+void DFPlayer::set_eq(EqPreset preset) {
+  ESP_LOGD(TAG, "Setting EQ to %d", preset);
+  this->send_cmd_(0x07, preset);
+}
+
+void DFPlayer::sleep() {
+  this->ack_reset_is_playing_ = true;
+  ESP_LOGD(TAG, "Putting DFPlayer to sleep");
+  this->send_cmd_(0x0A);
+}
+
+void DFPlayer::reset() {
+  this->ack_reset_is_playing_ = true;
+  ESP_LOGD(TAG, "Resetting DFPlayer");
+  this->send_cmd_(0x0C);
+}
+
+void DFPlayer::start() {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Starting playback");
+  this->send_cmd_(0x0D);
+}
+
+void DFPlayer::pause() {
+  this->ack_reset_is_playing_ = true;
+  ESP_LOGD(TAG, "Pausing playback");
+  this->send_cmd_(0x0E);
+}
+
+void DFPlayer::stop() {
+  this->ack_reset_is_playing_ = true;
+  ESP_LOGD(TAG, "Stopping playback");
+  this->send_cmd_(0x16);
+}
+
+void DFPlayer::random() {
+  this->ack_set_is_playing_ = true;
+  ESP_LOGD(TAG, "Playing random file");
+  this->send_cmd_(0x18);
+}
+
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
+  ESP_LOGD(TAG, "Playing file %d in folder %d", file, folder);
   if (folder < 100 && file < 256) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x0F, (uint8_t) folder, (uint8_t) file);
@@ -29,7 +126,7 @@ void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
 
   this->sent_cmd_ = cmd;
 
-  ESP_LOGD(TAG, "Send Command %#02x arg %#04x", cmd, argument);
+  ESP_LOGV(TAG, "Send Command %#02x arg %#04x", cmd, argument);
   this->write_array(buffer, 10);
 }
 
@@ -101,9 +198,37 @@ void DFPlayer::loop() {
             ESP_LOGV(TAG, "Nack");
             this->ack_set_is_playing_ = false;
             this->ack_reset_is_playing_ = false;
-            if (argument == 6) {
-              ESP_LOGV(TAG, "File not found");
-              this->is_playing_ = false;
+            switch (argument) {
+              case 0x01:
+                ESP_LOGE(TAG, "Module is busy or uninitialized");
+                break;
+              case 0x02:
+                ESP_LOGE(TAG, "Module is in sleep mode");
+                break;
+              case 0x03:
+                ESP_LOGE(TAG, "Serial receive error");
+                break;
+              case 0x04:
+                ESP_LOGE(TAG, "Checksum incorrect");
+                break;
+              case 0x05:
+                ESP_LOGE(TAG, "Specified track is out of current track scope");
+                this->is_playing_ = false;
+                break;
+              case 0x06:
+                ESP_LOGE(TAG, "Specified track is not found");
+                this->is_playing_ = false;
+                break;
+              case 0x07:
+                ESP_LOGE(TAG, "Insertion error (an inserting operation only can be done when a track is being played)");
+                break;
+              case 0x08:
+                ESP_LOGE(TAG, "SD card reading failed (SD card pulled out or damaged)");
+                break;
+              case 0x09:
+                ESP_LOGE(TAG, "Entered into sleep mode");
+                this->is_playing_ = false;
+                break;
             }
             break;
           case 0x41:
@@ -113,12 +238,13 @@ void DFPlayer::loop() {
             this->ack_set_is_playing_ = false;
             this->ack_reset_is_playing_ = false;
             break;
-          case 0x3D:  // Playback finished
+          case 0x3D:
+            ESP_LOGV(TAG, "Playback finished");
             this->is_playing_ = false;
             this->on_finished_playback_callback_.call();
             break;
           default:
-            ESP_LOGD(TAG, "Command %#02x arg %#04x", cmd, argument);
+            ESP_LOGV(TAG, "Received unknown cmd %#02x arg %#04x", cmd, argument);
         }
         this->sent_cmd_ = 0;
         this->read_pos_ = 0;

@@ -189,7 +189,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
     if (container == nullptr) {
       for (auto *trigger : this->error_triggers_)
-        trigger->trigger(x...);
+        trigger->trigger();
       return;
     }
 

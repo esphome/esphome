@@ -130,6 +130,8 @@ async def component_to_code(
         id = conf[CONF_ID]
         if id and id.type == type:
             entity = await create(conf, key, hub)
+            if const.CONF_DATA_TYPE in conf:
+                schemas[key].message_data = conf[const.CONF_DATA_TYPE]
             cg.add(getattr(hub, f"set_{key}_{component_type.lower()}")(entity))
             keys.append(key)
 

@@ -98,6 +98,7 @@ CONFIG_SCHEMA = cv.Schema(
             # esp8266_arduino=cv.Version(2, 7, 0),
             esp32_arduino=cv.Version(0, 0, 0),
             esp_idf=cv.Version(4, 0, 0),
+            rp2040_arduino=cv.Version(0, 0, 0),
         ),
     )
 )

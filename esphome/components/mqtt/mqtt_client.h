@@ -87,7 +87,8 @@ struct MQTTDiscoveryInfo {
 };
 
 enum MQTTClientState {
-  MQTT_CLIENT_DISCONNECTED = 0,
+  MQTT_CLIENT_DISABLED = 0,
+  MQTT_CLIENT_DISCONNECTED,
   MQTT_CLIENT_RESOLVING_ADDRESS,
   MQTT_CLIENT_CONNECTING,
   MQTT_CLIENT_CONNECTED,
@@ -247,6 +248,9 @@ class MQTTClientComponent : public Component {
   void register_mqtt_component(MQTTComponent *component);
 
   bool is_connected();
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void enable();
+  void disable();
 
   void on_shutdown() override;
 
@@ -314,10 +318,11 @@ class MQTTClientComponent : public Component {
   MQTTBackendLibreTiny mqtt_backend_;
 #endif
 
-  MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
+  MQTTClientState state_{MQTT_CLIENT_DISABLED};
   network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
+  bool enable_on_boot_{true};
   std::vector<MQTTComponent *> children_;
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
@@ -409,6 +414,26 @@ template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> 
  public:
   MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
   bool check(Ts... x) override { return this->parent_->is_connected(); }
+
+ protected:
+  MQTTClientComponent *parent_;
+};
+
+template<typename... Ts> class MQTTEnableAction : public Action<Ts...> {
+ public:
+  MQTTEnableAction(MQTTClientComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) override { this->parent_->enable(); }
+
+ protected:
+  MQTTClientComponent *parent_;
+};
+
+template<typename... Ts> class MQTTDisableAction : public Action<Ts...> {
+ public:
+  MQTTDisableAction(MQTTClientComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) override { this->parent_->disable(); }
 
  protected:
   MQTTClientComponent *parent_;

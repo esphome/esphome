@@ -40,13 +40,7 @@ class Rtttl : public Component {
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
   float get_gain() { return gain_; }
-  void set_gain(float gain) {
-    if (gain < 0.1f)
-      gain = 0.1f;
-    if (gain > 1.0f)
-      gain = 1.0f;
-    this->gain_ = gain;
-  }
+  void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
   void play(std::string rtttl);
   void stop();
   void dump_config() override;

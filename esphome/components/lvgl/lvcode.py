@@ -178,10 +178,9 @@ class LvContext(LambdaContext):
 
     added_lambda_count = 0
 
-    def __init__(self, lv_component, args=None):
+    def __init__(self, args=None):
         self.args = args or LVGL_COMP_ARG
         super().__init__(parameters=self.args)
-        self.lv_component = lv_component
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await super().__aexit__(exc_type, exc_val, exc_tb)
@@ -298,6 +297,7 @@ lv_expr = LvExpr("lv_")
 lv_obj = MockLv("lv_obj_")
 # Operations on the LVGL component
 lvgl_comp = MockObj(LVGL_COMP, "->")
+lvgl_static = MockObj("LvglComponent", "::")
 
 
 # equivalent to cg.add() for the current code context

@@ -219,7 +219,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native tests
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 

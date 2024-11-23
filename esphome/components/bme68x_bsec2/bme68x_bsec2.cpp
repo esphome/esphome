@@ -204,11 +204,11 @@ void BME68xBSEC2Component::update_subscription_() {
 }
 
 void BME68xBSEC2Component::run_() {
+  this->op_mode_ = this->bsec_settings_.op_mode;
   int64_t curr_time_ns = this->get_time_ns_();
-  if (curr_time_ns < this->next_call_ns_) {
+  if (curr_time_ns < this->bsec_settings_.next_call) {
     return;
   }
-  this->op_mode_ = this->bsec_settings_.op_mode;
   uint8_t status;
 
   ESP_LOGV(TAG, "Performing sensor run");
@@ -219,57 +219,60 @@ void BME68xBSEC2Component::run_() {
     ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC2 error code %d)", this->bsec_status_);
     return;
   }
-  this->next_call_ns_ = this->bsec_settings_.next_call;
 
-  if (this->bsec_settings_.trigger_measurement) {
-    bme68x_get_conf(&bme68x_conf, &this->bme68x_);
+  switch (this->bsec_settings_.op_mode) {
+    case BME68X_FORCED_MODE:
+      bme68x_get_conf(&bme68x_conf, &this->bme68x_);
 
-    bme68x_conf.os_hum = this->bsec_settings_.humidity_oversampling;
-    bme68x_conf.os_temp = this->bsec_settings_.temperature_oversampling;
-    bme68x_conf.os_pres = this->bsec_settings_.pressure_oversampling;
-    bme68x_set_conf(&bme68x_conf, &this->bme68x_);
+      bme68x_conf.os_hum = this->bsec_settings_.humidity_oversampling;
+      bme68x_conf.os_temp = this->bsec_settings_.temperature_oversampling;
+      bme68x_conf.os_pres = this->bsec_settings_.pressure_oversampling;
+      bme68x_set_conf(&bme68x_conf, &this->bme68x_);
+      this->bme68x_heatr_conf_.enable = BME68X_ENABLE;
+      this->bme68x_heatr_conf_.heatr_temp = this->bsec_settings_.heater_temperature;
+      this->bme68x_heatr_conf_.heatr_dur = this->bsec_settings_.heater_duration;
 
-    switch (this->bsec_settings_.op_mode) {
-      case BME68X_FORCED_MODE:
+      // status = bme68x_set_op_mode(this->bsec_settings_.op_mode, &this->bme68x_);
+      status = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &this->bme68x_heatr_conf_, &this->bme68x_);
+      status = bme68x_set_op_mode(BME68X_FORCED_MODE, &this->bme68x_);
+      this->op_mode_ = BME68X_FORCED_MODE;
+      ESP_LOGV(TAG, "Using forced mode");
+
+      break;
+    case BME68X_PARALLEL_MODE:
+      if (this->op_mode_ != this->bsec_settings_.op_mode) {
+        bme68x_get_conf(&bme68x_conf, &this->bme68x_);
+
+        bme68x_conf.os_hum = this->bsec_settings_.humidity_oversampling;
+        bme68x_conf.os_temp = this->bsec_settings_.temperature_oversampling;
+        bme68x_conf.os_pres = this->bsec_settings_.pressure_oversampling;
+        bme68x_set_conf(&bme68x_conf, &this->bme68x_);
+
         this->bme68x_heatr_conf_.enable = BME68X_ENABLE;
-        this->bme68x_heatr_conf_.heatr_temp = this->bsec_settings_.heater_temperature;
-        this->bme68x_heatr_conf_.heatr_dur = this->bsec_settings_.heater_duration;
+        this->bme68x_heatr_conf_.heatr_temp_prof = this->bsec_settings_.heater_temperature_profile;
+        this->bme68x_heatr_conf_.heatr_dur_prof = this->bsec_settings_.heater_duration_profile;
+        this->bme68x_heatr_conf_.profile_len = this->bsec_settings_.heater_profile_len;
+        this->bme68x_heatr_conf_.shared_heatr_dur =
+            BSEC_TOTAL_HEAT_DUR -
+            (bme68x_get_meas_dur(BME68X_PARALLEL_MODE, &bme68x_conf, &this->bme68x_) / INT64_C(1000));
 
-        status = bme68x_set_op_mode(this->bsec_settings_.op_mode, &this->bme68x_);
-        status = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &this->bme68x_heatr_conf_, &this->bme68x_);
-        status = bme68x_set_op_mode(BME68X_FORCED_MODE, &this->bme68x_);
-        this->op_mode_ = BME68X_FORCED_MODE;
-        this->sleep_mode_ = false;
-        ESP_LOGV(TAG, "Using forced mode");
+        status = bme68x_set_heatr_conf(BME68X_PARALLEL_MODE, &this->bme68x_heatr_conf_, &this->bme68x_);
 
-        break;
-      case BME68X_PARALLEL_MODE:
-        if (this->op_mode_ != this->bsec_settings_.op_mode) {
-          this->bme68x_heatr_conf_.enable = BME68X_ENABLE;
-          this->bme68x_heatr_conf_.heatr_temp_prof = this->bsec_settings_.heater_temperature_profile;
-          this->bme68x_heatr_conf_.heatr_dur_prof = this->bsec_settings_.heater_duration_profile;
-          this->bme68x_heatr_conf_.profile_len = this->bsec_settings_.heater_profile_len;
-          this->bme68x_heatr_conf_.shared_heatr_dur =
-              BSEC_TOTAL_HEAT_DUR -
-              (bme68x_get_meas_dur(BME68X_PARALLEL_MODE, &bme68x_conf, &this->bme68x_) / INT64_C(1000));
+        status = bme68x_set_op_mode(BME68X_PARALLEL_MODE, &this->bme68x_);
+        this->op_mode_ = BME68X_PARALLEL_MODE;
+        ESP_LOGV(TAG, "Using parallel mode");
+      }
+      break;
+    case BME68X_SLEEP_MODE:
+      if (this->op_mode_ != this->bsec_settings_.op_mode) {
+        bme68x_set_op_mode(BME68X_SLEEP_MODE, &this->bme68x_);
+        this->op_mode_ = BME68X_SLEEP_MODE;
+        ESP_LOGV(TAG, "Using sleep mode");
+      }
+      break;
+  }
 
-          status = bme68x_set_heatr_conf(BME68X_PARALLEL_MODE, &this->bme68x_heatr_conf_, &this->bme68x_);
-
-          status = bme68x_set_op_mode(BME68X_PARALLEL_MODE, &this->bme68x_);
-          this->op_mode_ = BME68X_PARALLEL_MODE;
-          this->sleep_mode_ = false;
-          ESP_LOGV(TAG, "Using parallel mode");
-        }
-        break;
-      case BME68X_SLEEP_MODE:
-        if (!this->sleep_mode_) {
-          bme68x_set_op_mode(BME68X_SLEEP_MODE, &this->bme68x_);
-          this->sleep_mode_ = true;
-          ESP_LOGV(TAG, "Using sleep mode");
-        }
-        break;
-    }
-
+  if (this->bsec_settings_.trigger_measurement && this->bsec_settings_.op_mode != BME68X_SLEEP_MODE) {
     uint32_t meas_dur = 0;
     meas_dur = bme68x_get_meas_dur(this->op_mode_, &bme68x_conf, &this->bme68x_);
     ESP_LOGV(TAG, "Queueing read in %uus", meas_dur);

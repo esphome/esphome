@@ -39,6 +39,14 @@ http_request:
   timeout: 10s
   verify_ssl: ${verify_ssl}
 
+script:
+  - id: does_not_compile
+    parameters:
+      api_url: string
+    then:
+      - http_request.get:
+          url: "http://google.com"
+
 ota:
   - platform: http_request
     on_begin:

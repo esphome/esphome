@@ -26,7 +26,7 @@ class MDNSStatus:
         self.host_mdns_state: dict[str, bool | None] = {}
         self._loop = asyncio.get_running_loop()
 
-    async def async_resolve_host(self, host_name: str) -> str | None:
+    async def async_resolve_host(self, host_name: str) -> list[str] | None:
         """Resolve a host name to an address in a thread-safe manner."""
         if aiozc := self.aiozc:
             return await aiozc.async_resolve_host(host_name)
@@ -50,13 +50,12 @@ class MDNSStatus:
                 poll_names.setdefault(entry.name, set()).add(entry)
             elif (online := host_mdns_state.get(entry.name, SENTINEL)) != SENTINEL:
                 entries.async_set_state(entry, bool_to_entry_state(online))
-
         if poll_names and self.aiozc:
             results = await asyncio.gather(
                 *(self.aiozc.async_resolve_host(name) for name in poll_names)
             )
-            for name, address in zip(poll_names, results):
-                result = bool(address)
+            for name, address_list in zip(poll_names, results):
+                result = bool(address_list)
                 host_mdns_state[name] = result
                 for entry in poll_names[name]:
                     entries.async_set_state(entry, bool_to_entry_state(result))

@@ -60,9 +60,10 @@ class AnimimgType(WidgetType):
         lvgl_components_required.add(CONF_IMAGE)
         lvgl_components_required.add(CONF_ANIMIMG)
         if CONF_SRC in config:
-            for x in config[CONF_SRC]:
-                await cg.get_variable(x)
-            srcs = [await lv_image.process(x) for x in config[CONF_SRC]]
+            srcs = [
+                await lv_image.process(await cg.get_variable(x))
+                for x in config[CONF_SRC]
+            ]
             src_id = cg.static_const_array(config[CONF_SRC_LIST_ID], srcs)
             count = len(config[CONF_SRC])
             lv.animimg_set_src(w.obj, src_id, count)

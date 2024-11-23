@@ -104,7 +104,9 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
   static const size_t HEADER_COUNT = sizeof(header_keys) / sizeof(header_keys[0]);
   container->client_.collectHeaders(header_keys, HEADER_COUNT);
 
+  App.feed_wdt();
   container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
+  App.feed_wdt();
   if (container->status_code < 0) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url.c_str(),
              HTTPClient::errorToString(container->status_code).c_str());

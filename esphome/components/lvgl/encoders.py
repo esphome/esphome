@@ -17,7 +17,7 @@ from .defines import (
 from .helpers import lvgl_components_required, requires_component
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
-from .types import lv_group_t, lv_indev_type_t
+from .types import lv_group_t, lv_indev_type_t, lv_key_t
 
 ENCODERS_CONFIG = cv.ensure_list(
     ENCODER_SCHEMA.extend(
@@ -39,10 +39,13 @@ ENCODERS_CONFIG = cv.ensure_list(
 )
 
 
-async def encoders_to_code(var, config):
-    default_group = lv_Pvariable(lv_group_t, config[CONF_DEFAULT_GROUP])
-    lv_assign(default_group, lv_expr.group_create())
-    lv.group_set_default(default_group)
+def get_default_group(config):
+    default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
+    cg.add(lv.group_set_default(default_group))
+    return default_group
+
+
+async def encoders_to_code(var, config, default_group):
     for enc_conf in config[CONF_ENCODERS]:
         lvgl_components_required.add("KEY_LISTENER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
@@ -54,14 +57,14 @@ async def encoders_to_code(var, config):
         if sensor_config := enc_conf.get(CONF_SENSOR):
             if isinstance(sensor_config, dict):
                 b_sensor = await cg.get_variable(sensor_config[CONF_LEFT_BUTTON])
-                cg.add(listener.set_left_button(b_sensor))
+                cg.add(listener.add_button(b_sensor, lv_key_t.LV_KEY_LEFT))
                 b_sensor = await cg.get_variable(sensor_config[CONF_RIGHT_BUTTON])
-                cg.add(listener.set_right_button(b_sensor))
+                cg.add(listener.add_button(b_sensor, lv_key_t.LV_KEY_RIGHT))
             else:
                 sensor_config = await cg.get_variable(sensor_config)
                 lv_add(listener.set_sensor(sensor_config))
         b_sensor = await cg.get_variable(enc_conf[CONF_ENTER_BUTTON])
-        cg.add(listener.set_enter_button(b_sensor))
+        cg.add(listener.add_button(b_sensor, lv_key_t.LV_KEY_ENTER))
         if group := enc_conf.get(CONF_GROUP):
             group = lv_Pvariable(lv_group_t, group)
             lv_assign(group, lv_expr.group_create())
