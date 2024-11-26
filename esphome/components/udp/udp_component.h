@@ -49,7 +49,6 @@ class UDPComponent : public Component {
   std::vector<struct sockaddr> sockaddrs_{};
 #endif
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
-  std::vector<struct sockaddr_in6> sockaddrs_{};
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   std::vector<IPAddress> ipaddrs_{};

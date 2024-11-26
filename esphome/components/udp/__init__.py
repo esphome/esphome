@@ -34,6 +34,55 @@ CONF_BROADCAST_PORT = "broadcast_port"
 
 UDP_SCHEMA = cv.Schema(
     {
+        cv.Required(CONF_NAME): cv.valid_name,
+    }
+).extend(ENCRYPTION_SCHEMA)
+
+
+def validate_(config):
+    if CONF_ENCRYPTION in config:
+        if CONF_SENSORS not in config and CONF_BINARY_SENSORS not in config:
+            raise cv.Invalid("No sensors or binary sensors to encrypt")
+    elif config[CONF_ROLLING_CODE_ENABLE]:
+        raise cv.Invalid("Rolling code requires an encryption key")
+    if config[CONF_PING_PONG_ENABLE]:
+        if not any(CONF_ENCRYPTION in p for p in config.get(CONF_PROVIDERS) or ()):
+            raise cv.Invalid("Ping-pong requires at least one encrypted provider")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.polling_component_schema("15s")
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(UDPComponent),
+            cv.Optional(CONF_PORT, default=18511): cv.port,
+            cv.Optional(
+                CONF_LISTEN_ADDRESS, default="255.255.255.255"
+            ): cv.ipv4address_multi_broadcast,
+            cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
+                cv.ipaddress,
+            ),
+            cv.Optional(CONF_ROLLING_CODE_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_PING_PONG_ENABLE, default=False): cv.boolean,
+            cv.Optional(
+                CONF_PING_PONG_RECYCLE_TIME, default="600s"
+            ): cv.positive_time_period_seconds,
+            cv.Optional(CONF_SENSORS): cv.ensure_list(sensor_validation(Sensor)),
+            cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
+                sensor_validation(BinarySensor)
+            ),
+            cv.Optional(CONF_PROVIDERS): cv.ensure_list(PROVIDER_SCHEMA),
+        },
+    )
+    .extend(ENCRYPTION_SCHEMA),
+    validate_,
+)
+
+SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_REMOTE_ID): cv.string_strict,
+        cv.Required(CONF_PROVIDER): cv.valid_name,
         cv.GenerateID(CONF_UDP_ID): cv.use_id(UDPComponent),
     }
 )
