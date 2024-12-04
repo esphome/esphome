@@ -197,8 +197,9 @@ const std::string friendly_node_type(uint8_t type_code) {
 
 void DucoDiscovery::update() {
   // display all found nodes
+  ESP_LOGI(TAG, "Discovered nodes:");
   for (auto &node : nodes_) {
-    ESP_LOGI(TAG, "Node %d: type %d (%s)", std::get<0>(node), std::get<1>(node),
+    ESP_LOGI(TAG, "  Node %d: type %d (%s)", std::get<0>(node), std::get<1>(node),
              friendly_node_type(std::get<1>(node)).c_str());
   }
 }
@@ -225,7 +226,7 @@ void DucoDiscovery::loop() {
 }
 
 void DucoDiscovery::receive_response(DucoMessage message) {
-  if (message.id == 0x0e) {
+  if (message.function == 0x0e) {
     ESP_LOGV(TAG, "Discovery response message: %s", format_hex_pretty(message).c_str());
     this->parent_->stop_waiting(message.id);
 

@@ -22,6 +22,16 @@ CONF_DISCOVERY = "discovery"
 # A schema for components like sensors
 DUCO_COMPONENT_SCHEMA = cv.Schema({cv.GenerateID(CONF_DUCO_ID): cv.use_id(Duco)})
 
+DISCOVERY_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(DucoDiscovery),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(DUCO_COMPONENT_SCHEMA)
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -30,13 +40,7 @@ CONFIG_SCHEMA = (
                 CONF_SEND_WAIT_TIME, default="250ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DISABLE_CRC, default=False): cv.boolean,
-            cv.Optional(CONF_DISCOVERY): cv.Schema(
-                {
-                    cv.GenerateID(): cv.declare_id(DucoDiscovery),
-                }
-            )
-            .extend(cv.polling_component_schema("60s"))
-            .extend(DUCO_COMPONENT_SCHEMA),
+            cv.Optional(CONF_DISCOVERY): DISCOVERY_SCHEMA,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
