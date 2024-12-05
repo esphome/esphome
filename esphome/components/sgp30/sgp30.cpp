@@ -78,7 +78,7 @@ void SGP30Component::setup() {
   uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(this->serial_number_));
   this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
-  if (this->pref_.load(&this->baselines_storage_)) {
+  if (this->store_baseline_ && this->pref_.load(&this->baselines_storage_)) {
     ESP_LOGI(TAG, "Loaded eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
              baselines_storage_.tvoc);
     this->eco2_baseline_ = this->baselines_storage_.eco2;
