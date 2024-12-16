@@ -1,5 +1,7 @@
 esphome:
   on_boot:
+    - lambda: 'ESP_LOGD("display","is_connected(): %s", YESNO(id(main_lcd).is_connected()));'
+
     # Binary sensor publish action tests
     - binary_sensor.nextion.publish:
         id: r0_sensor

@@ -40,7 +40,7 @@ bool Nextion::send_command_(const std::string &command) {
 }
 
 bool Nextion::check_connect_() {
-  if (this->get_is_connected_())
+  if (this->is_connected_)
     return true;
 
   // Check if the handshake should be skipped for the Nextion connection
@@ -278,14 +278,6 @@ void Nextion::loop() {
     // Check if a startup page has been set and send the command
     if (this->start_up_page_ != -1) {
       this->goto_page(this->start_up_page_);
-    }
-
-    // This could probably be removed from the loop area, as those are redundant.
-    this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
-    this->set_exit_reparse_on_start(this->exit_reparse_on_start_);
-
-    if (this->touch_sleep_timeout_ != 0) {
-      this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
     }
 
     if (this->wake_up_page_ != -1) {
