@@ -108,6 +108,12 @@ def is_authenticated(handler: BaseHandler) -> bool:
             return True
 
     if settings.using_auth:
+        if auth_header := handler.request.headers.get("Authorization"):
+            assert isinstance(auth_header, str)
+            if auth_header.startswith("Basic "):
+                auth_decoded = base64.b64decode(auth_header[6:]).decode()
+                username, password = auth_decoded.split(":", 1)
+                return settings.check_password(username, password)
         return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
 
     return True
