@@ -10,7 +10,9 @@
 #include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
-#include "esphome/components/deep_sleep/deep_sleep_component.h"
+namespace esphome::deep_sleep {
+extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+}
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
