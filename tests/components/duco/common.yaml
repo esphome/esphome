@@ -1,0 +1,42 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart:
+  - id: duco_uart
+    baud_rate: 57600
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+
+duco:
+  uart_id: duco_uart
+  discovery: {}
+
+text_sensor:
+  - platform: duco
+    name: "Serial Number"
+
+select:
+  - platform: duco
+    name: "Mode"
+
+sensor:
+  - platform: duco
+    co2:
+      - address: 3
+        name: "CO2 Bedroom"
+      - address: 4
+        name: "CO2 Livingroom"
+    filter_remaining:
+      name: "Filter Time Remaining"
+    flow_level:
+      name: "Flow Level"
+      update_interval: "5s"
+    time_remaining:
+      name: "Mode Time Remaining"
+      update_interval: "5s"
+
+number:
+  - platform: duco
+    name: "Comfort Temperature"
+    update_interval: "10s"
