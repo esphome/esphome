@@ -163,7 +163,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_OFFLINE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOnlineTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOfflineTrigger),
                 }
             ),
         }

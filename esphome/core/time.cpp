@@ -5,20 +5,18 @@
 
 namespace esphome {
 
-bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
-
 uint8_t days_in_month(uint8_t month, uint16_t year) {
   static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  uint8_t days = DAYS_IN_MONTH[month];
-  if (month == 2 && is_leap_year(year))
+  if (month == 2 && (year % 4 == 0))
     return 29;
-  return days;
+  return DAYS_IN_MONTH[month];
 }
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
   return ::strftime(buffer, buffer_len, format, &c_tm);
 }
+
 ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
   ESPTime res{};
   res.second = uint8_t(c_tm->tm_sec);
@@ -33,6 +31,7 @@ ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
   res.timestamp = c_time;
   return res;
 }
+
 struct tm ESPTime::to_c_tm() {
   struct tm c_tm {};
   c_tm.tm_sec = this->second;
@@ -46,6 +45,7 @@ struct tm ESPTime::to_c_tm() {
   c_tm.tm_isdst = this->is_dst;
   return c_tm;
 }
+
 std::string ESPTime::strftime(const std::string &format) {
   std::string timestr;
   timestr.resize(format.size() * 4);
@@ -142,6 +142,7 @@ void ESPTime::increment_second() {
     this->year++;
   }
 }
+
 void ESPTime::increment_day() {
   this->timestamp += 86400;
 
@@ -159,23 +160,22 @@ void ESPTime::increment_day() {
     this->year++;
   }
 }
+
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   time_t res = 0;
-
   if (!this->fields_in_range()) {
     this->timestamp = -1;
     return;
   }
 
   for (int i = 1970; i < this->year; i++)
-    res += is_leap_year(i) ? 366 : 365;
+    res += (i % 4 == 0) ? 366 : 365;
 
   if (use_day_of_year) {
     res += this->day_of_year - 1;
   } else {
     for (int i = 1; i < this->month; i++)
       res += days_in_month(i, this->year);
-
     res += this->day_of_month - 1;
   }
 
@@ -188,13 +188,17 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   this->timestamp = res;
 }
 
-void ESPTime::recalc_timestamp_local(bool use_day_of_year) {
-  this->recalc_timestamp_utc(use_day_of_year);
-  this->timestamp -= ESPTime::timezone_offset();
-  ESPTime temp = ESPTime::from_epoch_local(this->timestamp);
-  if (temp.is_dst) {
-    this->timestamp -= 3600;
-  }
+void ESPTime::recalc_timestamp_local() {
+  struct tm tm;
+
+  tm.tm_year = this->year - 1900;
+  tm.tm_mon = this->month - 1;
+  tm.tm_mday = this->day_of_month;
+  tm.tm_hour = this->hour;
+  tm.tm_min = this->minute;
+  tm.tm_sec = this->second;
+
+  this->timestamp = mktime(&tm);
 }
 
 int32_t ESPTime::timezone_offset() {

@@ -24,7 +24,7 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .animation import ANIMATION_SCHEMA, animations_to_code
 from .automation import disp_update, focused_widgets, update_to_code
-from .defines import add_define
+from .defines import CONF_DRAW_ROUNDING, add_define
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -206,6 +206,10 @@ def final_validation(configs):
                 raise cv.Invalid(
                     "Using auto_clear_enabled: true in display config not compatible with LVGL"
                 )
+            if draw_rounding := display.get(CONF_DRAW_ROUNDING):
+                config[CONF_DRAW_ROUNDING] = max(
+                    draw_rounding, config[CONF_DRAW_ROUNDING]
+                )
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
             LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
@@ -323,8 +327,8 @@ async def to_code(configs):
             await encoders_to_code(lv_component, config, default_group)
             await keypads_to_code(lv_component, config, default_group)
             await theme_to_code(config)
-            await styles_to_code(config)
             await gradients_to_code(config)
+            await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
             await add_pages(lv_component, config)

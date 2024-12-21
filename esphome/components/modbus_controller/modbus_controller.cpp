@@ -152,11 +152,11 @@ void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t 
 }
 
 SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
-  auto reg_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
-    return (r.start_address == start_address && r.register_type == register_type);
-  });
+  auto reg_it = std::find_if(
+      std::begin(this->register_ranges_), std::end(this->register_ranges_),
+      [=](RegisterRange const &r) { return (r.start_address == start_address && r.register_type == register_type); });
 
-  if (reg_it == register_ranges_.end()) {
+  if (reg_it == this->register_ranges_.end()) {
     ESP_LOGE(TAG, "No matching range for sensor found - start_address : 0x%X", start_address);
   } else {
     return reg_it->sensors;
@@ -240,18 +240,18 @@ void ModbusController::update() {
 
 // walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
-  register_ranges_.clear();
-  if (this->parent_->role == modbus::ModbusRole::CLIENT && sensorset_.empty()) {
+  this->register_ranges_.clear();
+  if (this->parent_->role == modbus::ModbusRole::CLIENT && this->sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
     return 0;
   }
 
   // iterator is sorted see SensorItemsComparator for details
-  auto ix = sensorset_.begin();
+  auto ix = this->sensorset_.begin();
   RegisterRange r = {};
   uint8_t buffer_offset = 0;
   SensorItem *prev = nullptr;
-  while (ix != sensorset_.end()) {
+  while (ix != this->sensorset_.end()) {
     SensorItem *curr = *ix;
 
     ESP_LOGV(TAG, "Register: 0x%X %d %d %d offset=%u skip=%u addr=%p", curr->start_address, curr->register_count,
@@ -278,12 +278,12 @@ size_t ModbusController::create_register_ranges_() {
           // this register can re-use the data from the previous register
 
           // remove this sensore because start_address is changed (sort-order)
-          ix = sensorset_.erase(ix);
+          ix = this->sensorset_.erase(ix);
 
           curr->start_address = r.start_address;
           curr->offset += prev->offset;
 
-          sensorset_.insert(curr);
+          this->sensorset_.insert(curr);
           // move iterator backwards because it will be incremented later
           ix--;
 
@@ -293,14 +293,14 @@ size_t ModbusController::create_register_ranges_() {
           // this register can extend the current range
 
           // remove this sensore because start_address is changed (sort-order)
-          ix = sensorset_.erase(ix);
+          ix = this->sensorset_.erase(ix);
 
           curr->start_address = r.start_address;
           curr->offset += buffer_offset;
           buffer_offset += curr->get_register_size();
           r.register_count += curr->register_count;
 
-          sensorset_.insert(curr);
+          this->sensorset_.insert(curr);
           // move iterator backwards because it will be incremented later
           ix--;
 
@@ -327,7 +327,7 @@ size_t ModbusController::create_register_ranges_() {
       ix++;
     } else {
       ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
-      register_ranges_.push_back(r);
+      this->register_ranges_.push_back(r);
       r = {};
       buffer_offset = 0;
       // do not increment the iterator here because the current sensor has to be re-evaluated
@@ -339,10 +339,10 @@ size_t ModbusController::create_register_ranges_() {
   if (r.register_count > 0) {
     // Add the last range
     ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
-    register_ranges_.push_back(r);
+    this->register_ranges_.push_back(r);
   }
 
-  return register_ranges_.size();
+  return this->register_ranges_.size();
 }
 
 void ModbusController::dump_config() {
@@ -352,18 +352,18 @@ void ModbusController::dump_config() {
   ESP_LOGCONFIG(TAG, "  Offline Skip Updates: %d", this->offline_skip_updates_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
-  for (auto &it : sensorset_) {
+  for (auto &it : this->sensorset_) {
     ESP_LOGCONFIG(TAG, " Sensor type=%zu start=0x%X offset=0x%X count=%d size=%d",
                   static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->register_count,
                   it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");
-  for (auto &it : register_ranges_) {
+  for (auto &it : this->register_ranges_) {
     ESP_LOGCONFIG(TAG, "  Range type=%zu start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
                   it.start_address, it.register_count, it.skip_updates);
   }
   ESP_LOGCONFIG(TAG, "server registers");
-  for (auto &r : server_registers_) {
+  for (auto &r : this->server_registers_) {
     ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%zu register_count=%u", r->address,
                   static_cast<uint8_t>(r->value_type), r->register_count);
   }
@@ -372,15 +372,15 @@ void ModbusController::dump_config() {
 
 void ModbusController::loop() {
   // Incoming data to process?
-  if (!incoming_queue_.empty()) {
-    auto &message = incoming_queue_.front();
+  if (!this->incoming_queue_.empty()) {
+    auto &message = this->incoming_queue_.front();
     if (message != nullptr)
-      process_modbus_data_(message.get());
-    incoming_queue_.pop();
+      this->process_modbus_data_(message.get());
+    this->incoming_queue_.pop();
 
   } else {
     // all messages processed send pending commands
-    send_next_command_();
+    this->send_next_command_();
   }
 }
 
@@ -391,7 +391,7 @@ void ModbusController::on_write_register_response(ModbusRegisterType register_ty
 
 void ModbusController::dump_sensors_() {
   ESP_LOGV(TAG, "sensors");
-  for (auto &it : sensorset_) {
+  for (auto &it : this->sensorset_) {
     ESP_LOGV(TAG, "  Sensor start=0x%X count=%d size=%d offset=%d", it->start_address, it->register_count,
              it->get_register_size(), it->offset);
   }
@@ -622,51 +622,87 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
                           uint32_t bitmask) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
 
+  size_t size = data.size() - offset;
+  bool error = false;
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
-      value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
+      if (size >= 2) {
+        value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
+      } else {
+        error = true;
+      }
       break;
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
-      value = get_data<uint32_t>(data, offset);
-      value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
+      if (size >= 4) {
+        value = get_data<uint32_t>(data, offset);
+        value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
+      } else {
+        error = true;
+      }
       break;
     case SensorValueType::U_DWORD_R:
     case SensorValueType::FP32_R:
-      value = get_data<uint32_t>(data, offset);
-      value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
-      value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
+      if (size >= 4) {
+        value = get_data<uint32_t>(data, offset);
+        value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
+        value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
+      } else {
+        error = true;
+      }
       break;
     case SensorValueType::S_WORD:
-      value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset),
-                                         bitmask);  // default is 0xFFFF ;
+      if (size >= 2) {
+        value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset),
+                                           bitmask);  // default is 0xFFFF ;
+      } else {
+        error = true;
+      }
       break;
     case SensorValueType::S_DWORD:
-      value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
+      if (size >= 4) {
+        value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
+      } else {
+        error = true;
+      }
       break;
     case SensorValueType::S_DWORD_R: {
-      value = get_data<uint32_t>(data, offset);
-      // Currently the high word is at the low position
-      // the sign bit is therefore at low before the switch
-      uint32_t sign_bit = (value & 0x8000) << 16;
-      value = mask_and_shift_by_rightbit(
-          static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
+      if (size >= 4) {
+        value = get_data<uint32_t>(data, offset);
+        // Currently the high word is at the low position
+        // the sign bit is therefore at low before the switch
+        uint32_t sign_bit = (value & 0x8000) << 16;
+        value = mask_and_shift_by_rightbit(
+            static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
+      } else {
+        error = true;
+      }
     } break;
     case SensorValueType::U_QWORD:
     case SensorValueType::S_QWORD:
       // Ignore bitmask for QWORD
-      value = get_data<uint64_t>(data, offset);
+      if (size >= 8) {
+        value = get_data<uint64_t>(data, offset);
+      } else {
+        error = true;
+      }
       break;
     case SensorValueType::U_QWORD_R:
     case SensorValueType::S_QWORD_R: {
       // Ignore bitmask for QWORD
-      uint64_t tmp = get_data<uint64_t>(data, offset);
-      value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
+      if (size >= 8) {
+        uint64_t tmp = get_data<uint64_t>(data, offset);
+        value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
+      } else {
+        error = true;
+      }
     } break;
     case SensorValueType::RAW:
     default:
       break;
   }
+  if (error)
+    ESP_LOGE(TAG, "not enough data for value");
   return value;
 }
 

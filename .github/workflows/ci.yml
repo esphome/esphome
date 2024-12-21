@@ -13,6 +13,7 @@ on:
       - ".github/workflows/ci.yml"
       - "!.yamllint"
       - "!.github/dependabot.yml"
+      - "!docker/**"
   merge_group:
 
 permissions:
@@ -30,7 +31,7 @@ concurrency:
 jobs:
   common:
     name: Create common environment
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
@@ -46,7 +47,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.1.2
+        uses: actions/cache@v4.2.0
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -62,7 +63,7 @@ jobs:
 
   black:
     name: Check black
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     steps:
@@ -83,7 +84,7 @@ jobs:
 
   flake8:
     name: Check flake8
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     steps:
@@ -104,7 +105,7 @@ jobs:
 
   pylint:
     name: Check pylint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     steps:
@@ -125,7 +126,7 @@ jobs:
 
   pyupgrade:
     name: Check pyupgrade
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     steps:
@@ -146,7 +147,7 @@ jobs:
 
   ci-custom:
     name: Run script/ci-custom
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     steps:
@@ -225,7 +226,7 @@ jobs:
 
   clang-format:
     name: Check clang-format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     steps:
@@ -251,7 +252,7 @@ jobs:
 
   clang-tidy:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
       - black
@@ -302,22 +303,17 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@v4.1.2
+        uses: actions/cache@v4.2.0
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@v4.1.2
+        uses: actions/cache/restore@v4.2.0
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
-
-      - name: Install clang-tidy
-        run: |
-          sudo apt-get update
-          sudo apt-get install clang-tidy-14
 
       - name: Register problem matchers
         run: |
@@ -345,7 +341,7 @@ jobs:
         if: always()
 
   list-components:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
     if: github.event_name == 'pull_request'
@@ -387,7 +383,7 @@ jobs:
 
   test-build-components:
     name: Component test ${{ matrix.file }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
       - list-components
@@ -421,7 +417,7 @@ jobs:
 
   test-build-components-splitter:
     name: Split components for testing into 20 groups maximum
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
       - list-components
@@ -439,7 +435,7 @@ jobs:
 
   test-build-components-split:
     name: Test split components
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
       - list-components
@@ -483,7 +479,7 @@ jobs:
 
   ci-status:
     name: CI Status
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - common
       - black

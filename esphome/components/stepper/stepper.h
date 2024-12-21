@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/components/stepper/stepper.h"
 
 namespace esphome {
 namespace stepper {

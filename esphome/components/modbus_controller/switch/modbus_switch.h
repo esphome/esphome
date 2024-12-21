@@ -40,8 +40,8 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
-  ModbusController *parent_;
-  bool use_write_multiple_;
+  ModbusController *parent_{nullptr};
+  bool use_write_multiple_{false};
   optional<transform_func_t> publish_transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
 };

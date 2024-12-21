@@ -69,6 +69,8 @@ bool MQTTSensorComponent::send_initial_state() {
   }
 }
 bool MQTTSensorComponent::publish_state(float value) {
+  if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
+    return this->publish(this->get_state_topic_(), "None");
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
 }

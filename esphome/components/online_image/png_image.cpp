@@ -49,6 +49,10 @@ void PngDecoder::prepare(uint32_t download_size) {
 }
 
 int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
+  if (!this->pngle_) {
+    ESP_LOGE(TAG, "PNG decoder engine not initialized!");
+    return -1;
+  }
   if (size < 256 && size < this->download_size_ - this->decoded_bytes_) {
     ESP_LOGD(TAG, "Waiting for data");
     return 0;

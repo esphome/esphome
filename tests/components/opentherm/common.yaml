@@ -16,6 +16,19 @@ opentherm:
   summer_mode_active: true
   dhw_block: true
   sync_mode: true
+  controller_product_type: 63
+  controller_product_version: 1
+  opentherm_version_controller: 2.2
+  controller_id: 1
+  controller_configuration: 1
+  before_send:
+    then:
+      - lambda: |-
+          ESP_LOGW("OT", ">> Sending message %d", x.id);
+  before_process_response:
+    then:
+      - lambda: |-
+          ESP_LOGW("OT", "<< Processing response %d", x.id);
 
 output:
   - platform: opentherm

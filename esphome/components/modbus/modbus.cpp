@@ -38,8 +38,9 @@ void Modbus::loop() {
 
     // stop blocking new send commands after sent_wait_time_ ms after response received
     if (now - this->last_send_ > send_wait_time_) {
-      if (waiting_for_response > 0)
+      if (waiting_for_response > 0) {
         ESP_LOGV(TAG, "Stop waiting for response from %d", waiting_for_response);
+      }
       waiting_for_response = 0;
     }
   }

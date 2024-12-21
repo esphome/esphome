@@ -47,7 +47,7 @@ void Logger::write_header_(int level, const char *tag, int line) {
   if (current_task == main_task_) {
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
   } else {
-    const char *thread_name = "";
+    const char *thread_name = "";  // NOLINT(clang-analyzer-deadcode.DeadStores)
 #if defined(USE_ESP32)
     thread_name = pcTaskGetName(current_task);
 #elif defined(USE_LIBRETINY)

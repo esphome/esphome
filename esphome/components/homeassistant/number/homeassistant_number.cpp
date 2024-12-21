@@ -27,6 +27,7 @@ void HomeassistantNumber::min_retrieved_(const std::string &min) {
   auto min_value = parse_number<float>(min);
   if (!min_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'min' value '%s' to number!", this->entity_id_.c_str(), min.c_str());
+    return;
   }
   ESP_LOGD(TAG, "'%s': Min retrieved: %s", get_name().c_str(), min.c_str());
   this->traits.set_min_value(min_value.value());
@@ -36,6 +37,7 @@ void HomeassistantNumber::max_retrieved_(const std::string &max) {
   auto max_value = parse_number<float>(max);
   if (!max_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'max' value '%s' to number!", this->entity_id_.c_str(), max.c_str());
+    return;
   }
   ESP_LOGD(TAG, "'%s': Max retrieved: %s", get_name().c_str(), max.c_str());
   this->traits.set_max_value(max_value.value());
@@ -45,6 +47,7 @@ void HomeassistantNumber::step_retrieved_(const std::string &step) {
   auto step_value = parse_number<float>(step);
   if (!step_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'step' value '%s' to number!", this->entity_id_.c_str(), step.c_str());
+    return;
   }
   ESP_LOGD(TAG, "'%s': Step Retrieved %s", get_name().c_str(), step.c_str());
   this->traits.set_step(step_value.value());

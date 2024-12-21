@@ -8,10 +8,9 @@
 #pragma once
 
 #include <string>
-#include <sstream>
-#include <iomanip>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #if defined(ESP32) || defined(USE_ESP_IDF)
 #include "driver/timer.h"
@@ -37,11 +36,12 @@ enum OperationMode {
   READ = 2,      // reading 32-bit data frame
   RECEIVED = 3,  // data frame received with valid start and stop bit
 
-  WRITE = 4,  // writing data with timer_
+  WRITE = 4,  // writing data to output
   SENT = 5,   // all data written to output
 
-  ERROR_PROTOCOL = 8,  // manchester protocol data transfer error
-  ERROR_TIMEOUT = 9    // read timeout
+  ERROR_PROTOCOL = 8,  // protocol error, can happed only during READ
+  ERROR_TIMEOUT = 9,   // timeout while waiting for response from device, only during LISTEN
+  ERROR_TIMER = 10     // error operating the ESP32 timer
 };
 
 enum ProtocolErrorType {
@@ -50,6 +50,14 @@ enum ProtocolErrorType {
   INVALID_STOP_BIT = 2,    // Stop bit wasn't present when expected
   PARITY_ERROR = 3,        // Parity check didn't pass
   NO_CHANGE_TOO_LONG = 4,  // No level change for too much timer ticks
+};
+
+enum TimerErrorType {
+  NO_TIMER_ERROR = 0,           // No error
+  SET_ALARM_VALUE_ERROR = 1,    // No transition in the middle of the bit
+  TIMER_START_ERROR = 2,        // Stop bit wasn't present when expected
+  TIMER_PAUSE_ERROR = 3,        // Parity check didn't pass
+  SET_COUNTER_VALUE_ERROR = 4,  // No level change for too much timer ticks
 };
 
 enum MessageType {
@@ -300,7 +308,9 @@ class OpenTherm {
    *
    * @return true if last listen() or send() operation ends up with an error.
    */
-  bool is_error() { return mode_ == OperationMode::ERROR_TIMEOUT || mode_ == OperationMode::ERROR_PROTOCOL; }
+  bool is_error() {
+    return mode_ == OperationMode::ERROR_TIMEOUT || mode_ == OperationMode::ERROR_PROTOCOL || mode_ == ERROR_TIMER;
+  }
 
   /**
    * Indicates whether last listen() or send() operation ends up with a *timeout* error
@@ -314,14 +324,22 @@ class OpenTherm {
    */
   bool is_protocol_error() { return mode_ == OperationMode::ERROR_PROTOCOL; }
 
+  /**
+   * Indicates whether start_esp32_timer_() or stop_timer_() had an error. Only relevant when used on ESP32.
+   * @return true if there was an error.
+   */
+  bool is_timer_error() { return mode_ == OperationMode::ERROR_TIMER; }
+
   bool is_active() { return mode_ == LISTEN || mode_ == READ || mode_ == WRITE; }
 
   OperationMode get_mode() { return mode_; }
 
-  std::string debug_data(OpenthermData &data);
-  std::string debug_error(OpenThermError &error);
+  void debug_data(OpenthermData &data);
+  void debug_error(OpenThermError &error) const;
+  void report_and_reset_timer_error();
 
-  const char *protocol_error_to_to_str(ProtocolErrorType error_type);
+  const char *protocol_error_to_str(ProtocolErrorType error_type);
+  const char *timer_error_to_str(TimerErrorType error_type);
   const char *message_type_to_str(MessageType message_type);
   const char *operation_mode_to_str(OperationMode mode);
   const char *message_id_to_str(MessageId id);
@@ -350,10 +368,12 @@ class OpenTherm {
   uint32_t data_;
   uint8_t bit_pos_;
   int32_t timeout_counter_;  // <0 no timeout
-
   int32_t device_timeout_;
 
 #if defined(ESP32) || defined(USE_ESP_IDF)
+  esp_err_t timer_error_ = ESP_OK;
+  TimerErrorType timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
+
   bool init_esp32_timer_();
   void start_esp32_timer_(uint64_t alarm_value);
 #endif
@@ -371,7 +391,7 @@ class OpenTherm {
 
 #ifdef ESP8266
   // ESP8266 timer can accept callback with no parameters, so we have this hack to save a static instance of OpenTherm
-  static OpenTherm *instance_;
+  static OpenTherm *instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 };
 

@@ -109,6 +109,10 @@ lvgl:
       close_button: true
       title: Messagebox
       bg_color: 0xffff
+      widgets:
+        - label:
+            text: Hello Msgbox
+            id: msgbox_label
       body:
         text: This is a sample messagebox
         bg_color: 0x808080
@@ -137,6 +141,9 @@ lvgl:
         - lvgl.widget.focus: mark
         - lvgl.widget.redraw: hello_label
         - lvgl.widget.redraw:
+        - lvgl.label.update:
+            id: msgbox_label
+            text: Unloaded
       on_all_events:
         logger.log:
           format: "Event %s"
@@ -158,6 +165,11 @@ lvgl:
               - Nov
               - Dec
             selected_index: 1
+            on_change:
+              then:
+                - logger.log:
+                    format: "Roller changed = %d: %s"
+                    args: [x, text.c_str()]
             on_value:
               then:
                 - logger.log:
@@ -171,9 +183,13 @@ lvgl:
             duration: 1s
             auto_start: true
             on_all_events:
-              logger.log:
-                format: "Event %s"
-                args: ['lv_event_code_name_for(event->code).c_str()']
+              - logger.log:
+                  format: "Event %s"
+                  args: ['lv_event_code_name_for(event->code).c_str()']
+              - lvgl.animimg.update:
+                  id: anim_img
+                  src: !lambda "return {dog_image, cat_image};"
+                  duration: 2s
         - label:
             id: hello_label
             text: Hello world
@@ -333,7 +349,7 @@ lvgl:
             id: button_button
             width: 20%
             height: 10%
-            transform_angle: !lambda return 180*100;
+            transform_angle: !lambda return(180*100);
             arc_width: !lambda return 4;
             border_width: !lambda return 6;
             shadow_ofs_x: !lambda return 6;
@@ -440,6 +456,7 @@ lvgl:
             src: cat_image
             align: top_left
             y: "50"
+            mode: real
         - tileview:
             id: tileview_id
             scrollbar_mode: active
@@ -577,7 +594,7 @@ lvgl:
               - 180, 60
               - 240, 10
             on_click:
-              - lvgl.widget.update:
+              - lvgl.line.update:
                   id: lv_line_id
                   line_color: 0xFFFF
               - lvgl.page.next:
@@ -635,7 +652,8 @@ lvgl:
                   - image:
                       grid_cell_row_pos: 0
                       grid_cell_column_pos: 0
-                      src: dog_image
+                      src: !lambda return dog_image;
+                      mode: virtual
                       on_click:
                         then:
                           - lvgl.tabview.select:

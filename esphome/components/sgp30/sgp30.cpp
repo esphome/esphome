@@ -1,8 +1,8 @@
 #include "sgp30.h"
+#include <cinttypes>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include <cinttypes>
 
 namespace esphome {
 namespace sgp30 {
@@ -294,10 +294,6 @@ void SGP30Component::update() {
       this->eco2_sensor_->publish_state(eco2);
     if (this->tvoc_sensor_ != nullptr)
       this->tvoc_sensor_->publish_state(tvoc);
-
-    if (this->get_update_interval() != 1000) {
-      ESP_LOGW(TAG, "Update interval for SGP30 sensor must be set to 1s for optimized readout");
-    }
 
     this->status_clear_warning();
     this->send_env_data_();

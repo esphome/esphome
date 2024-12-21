@@ -2,7 +2,6 @@ import logging
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import font
 import esphome.components.image as espImage
 from esphome.components.image import (
     CONF_USE_TRANSPARENCY,
@@ -131,7 +130,7 @@ ANIMATION_SCHEMA = cv.Schema(
     )
 )
 
-CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, ANIMATION_SCHEMA)
+CONFIG_SCHEMA = ANIMATION_SCHEMA
 
 NEXT_FRAME_SCHEMA = automation.maybe_simple_id(
     {

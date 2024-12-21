@@ -90,6 +90,7 @@ class ESP32BLE : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
+  void set_name(const std::string &name) { this->name_ = name; }
 
   void advertising_start();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
@@ -131,6 +132,7 @@ class ESP32BLE : public Component {
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
   uint32_t advertising_cycle_time_;
   bool enable_on_boot_;
+  optional<std::string> name_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

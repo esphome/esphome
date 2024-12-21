@@ -63,8 +63,6 @@ def clang_options(idedata):
             "-Ddeprecated(x)=",
             # allow to condition code on the presence of clang-tidy
             "-DCLANG_TIDY",
-            # (esp-idf) Disable this header because they use asm with registers clang-tidy doesn't know
-            "-D__XTENSA_API_H__",
             # (esp-idf) Fix __once_callable in some libstdc++ headers
             "-D_GLIBCXX_HAVE_TLS",
         ]
@@ -100,10 +98,13 @@ def clang_options(idedata):
     # add library include directories using -isystem to suppress their errors
     for directory in list(idedata["includes"]["build"]):
         # skip our own directories, we add those later
-        if (
-            not directory.startswith(f"{root_path}/")
-            or directory.startswith(f"{root_path}/.pio/")
-            or directory.startswith(f"{root_path}/managed_components/")
+        if not directory.startswith(f"{root_path}") or directory.startswith(
+            (
+                f"{root_path}/.pio",
+                f"{root_path}/.platformio",
+                f"{root_path}/.temp",
+                f"{root_path}/managed_components",
+            )
         ):
             cmd.extend(["-isystem", directory])
 
@@ -235,7 +236,7 @@ def main():
 
     failed_files = []
     try:
-        executable = get_binary("clang-tidy", 14)
+        executable = get_binary("clang-tidy", 18)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
@@ -280,12 +281,12 @@ def main():
         print("Applying fixes ...")
         try:
             try:
-                subprocess.call(["clang-apply-replacements-14", tmpdir])
+                subprocess.call(["clang-apply-replacements-18", tmpdir])
             except FileNotFoundError:
                 subprocess.call(["clang-apply-replacements", tmpdir])
         except FileNotFoundError:
             print(
-                "Error please install clang-apply-replacements-14 or clang-apply-replacements.\n",
+                "Error please install clang-apply-replacements-18 or clang-apply-replacements.\n",
                 file=sys.stderr,
             )
         except:

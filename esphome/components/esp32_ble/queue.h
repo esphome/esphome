@@ -26,10 +26,10 @@ template<class T> class Queue {
   void push(T *element) {
     if (element == nullptr)
       return;
-    if (xSemaphoreTake(m_, 5L / portTICK_PERIOD_MS)) {
-      q_.push(element);
-      xSemaphoreGive(m_);
-    }
+    // It is not called from main loop. Thus it won't block main thread.
+    xSemaphoreTake(m_, portMAX_DELAY);
+    q_.push(element);
+    xSemaphoreGive(m_);
   }
 
   T *pop() {

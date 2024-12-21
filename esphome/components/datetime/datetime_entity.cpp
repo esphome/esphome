@@ -60,9 +60,7 @@ ESPTime DateTimeEntity::state_as_esptime() const {
   obj.hour = this->hour_;
   obj.minute = this->minute_;
   obj.second = this->second_;
-  obj.day_of_week = 1;  // Required to be valid for recalc_timestamp_local but not used.
-  obj.day_of_year = 1;  // Required to be valid for recalc_timestamp_local but not used.
-  obj.recalc_timestamp_local(false);
+  obj.recalc_timestamp_local();
   return obj;
 }
 

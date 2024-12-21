@@ -1,0 +1,11 @@
+binary_sensor:
+  - platform: switch
+    id: some_binary_sensor
+    name: "Template Switch State"
+    source_id: the_switch
+
+switch:
+  - platform: template
+    name: "Template Switch"
+    id: the_switch
+    optimistic: true

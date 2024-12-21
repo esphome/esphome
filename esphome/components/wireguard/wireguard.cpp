@@ -37,7 +37,7 @@ void Wireguard::setup() {
   this->wg_config_.netmask = this->netmask_.c_str();
   this->wg_config_.persistent_keepalive = this->keepalive_;
 
-  if (this->preshared_key_.length() > 0)
+  if (!this->preshared_key_.empty())
     this->wg_config_.preshared_key = this->preshared_key_.c_str();
 
   this->publish_enabled_state();
@@ -137,7 +137,7 @@ void Wireguard::dump_config() {
   ESP_LOGCONFIG(TAG, "  Peer Port: " LOG_SECRET("%d"), this->peer_port_);
   ESP_LOGCONFIG(TAG, "  Peer Public Key: " LOG_SECRET("%s"), this->peer_public_key_.c_str());
   ESP_LOGCONFIG(TAG, "  Peer Pre-shared Key: " LOG_SECRET("%s"),
-                (this->preshared_key_.length() > 0 ? mask_key(this->preshared_key_).c_str() : "NOT IN USE"));
+                (!this->preshared_key_.empty() ? mask_key(this->preshared_key_).c_str() : "NOT IN USE"));
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
   for (auto &allowed_ip : this->allowed_ips_) {
     ESP_LOGCONFIG(TAG, "    - %s/%s", std::get<0>(allowed_ip).c_str(), std::get<1>(allowed_ip).c_str());

@@ -17,7 +17,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, mkdir_p, write_file, read_file
+from esphome.helpers import copy_file_if_changed, mkdir_p, read_file, write_file
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 

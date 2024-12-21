@@ -1,6 +1,6 @@
 #include "display.h"
-#include "display_color_utils.h"
 #include <utility>
+#include "display_color_utils.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -662,20 +662,24 @@ void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
 }
-void Display::strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ESPTime time) {
+void Display::strftime(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                       ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
-    this->print(x, y, font, color, align, buffer);
+    this->print(x, y, font, color, align, buffer, background);
+}
+void Display::strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ESPTime time) {
+  this->strftime(x, y, font, color, COLOR_OFF, align, format, time);
 }
 void Display::strftime(int x, int y, BaseFont *font, Color color, const char *format, ESPTime time) {
-  this->strftime(x, y, font, color, TextAlign::TOP_LEFT, format, time);
+  this->strftime(x, y, font, color, COLOR_OFF, TextAlign::TOP_LEFT, format, time);
 }
 void Display::strftime(int x, int y, BaseFont *font, TextAlign align, const char *format, ESPTime time) {
-  this->strftime(x, y, font, COLOR_ON, align, format, time);
+  this->strftime(x, y, font, COLOR_ON, COLOR_OFF, align, format, time);
 }
 void Display::strftime(int x, int y, BaseFont *font, const char *format, ESPTime time) {
-  this->strftime(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, time);
+  this->strftime(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, time);
 }
 
 void Display::start_clipping(Rect rect) {

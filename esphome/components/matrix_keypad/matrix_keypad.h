@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/key_provider/key_provider.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -18,6 +19,8 @@ class MatrixKeypadListener {
   virtual void key_released(uint8_t key){};
 };
 
+class MatrixKeyTrigger : public Trigger<uint8_t> {};
+
 class MatrixKeypad : public key_provider::KeyProvider, public Component {
  public:
   void setup() override;
@@ -31,6 +34,7 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
   void set_has_pulldowns(int has_pulldowns) { has_pulldowns_ = has_pulldowns; };
 
   void register_listener(MatrixKeypadListener *listener);
+  void register_key_trigger(MatrixKeyTrigger *trig);
 
  protected:
   std::vector<GPIOPin *> rows_;
@@ -42,6 +46,7 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
   int pressed_key_ = -1;
 
   std::vector<MatrixKeypadListener *> listeners_{};
+  std::vector<MatrixKeyTrigger *> key_triggers_;
 };
 
 }  // namespace matrix_keypad

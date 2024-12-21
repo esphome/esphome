@@ -1,0 +1,4 @@
+sensor:
+  - platform: adc
+    pin: P23
+    name: Basic ADC Test

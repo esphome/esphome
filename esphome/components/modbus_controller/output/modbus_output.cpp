@@ -27,7 +27,7 @@ void ModbusFloatOutput::write_state(float value) {
       return;
     }
   } else {
-    value = multiply_by_ * value;
+    value = this->multiply_by_ * value;
   }
   // lambda didn't set payload
   if (data.empty()) {
@@ -40,12 +40,13 @@ void ModbusFloatOutput::write_state(float value) {
   // Create and send the write command
   ModbusCommandItem write_cmd;
   if (this->register_count == 1 && !this->use_write_multiple_) {
-    write_cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset, data[0]);
+    write_cmd =
+        ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]);
   } else {
-    write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset,
+    write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset,
                                                                  this->register_count, data);
   }
-  parent_->queue_command(write_cmd);
+  this->parent_->queue_command(write_cmd);
 }
 
 void ModbusFloatOutput::dump_config() {
@@ -90,9 +91,9 @@ void ModbusBinaryOutput::write_state(bool state) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
       std::vector<bool> states{state};
-      cmd = ModbusCommandItem::create_write_multiple_coils(parent_, this->start_address + this->offset, states);
+      cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
     } else {
-      cmd = ModbusCommandItem::create_write_single_coil(parent_, this->start_address + this->offset, state);
+      cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
     }
   }
   this->parent_->queue_command(cmd);

@@ -80,24 +80,24 @@ void ModbusSwitch::write_state(bool state) {
       // offset for coil and discrete inputs is the coil/register number not bytes
       if (this->use_write_multiple_) {
         std::vector<bool> states{state};
-        cmd = ModbusCommandItem::create_write_multiple_coils(parent_, this->start_address + this->offset, states);
+        cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
       } else {
-        cmd = ModbusCommandItem::create_write_single_coil(parent_, this->start_address + this->offset, state);
+        cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
       }
     } else {
       // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
       if (this->use_write_multiple_) {
         std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
-        cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset / 2, 1,
+        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset / 2, 1,
                                                                bool_states);
       } else {
-        cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset / 2,
+        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
                                                              state ? 0xFFFF & this->bitmask : 0u);
       }
     }
   }
   this->parent_->queue_command(cmd);
-  publish_state(state);
+  this->publish_state(state);
 }
 // ModbusSwitch end
 }  // namespace modbus_controller

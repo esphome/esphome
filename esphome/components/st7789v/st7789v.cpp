@@ -252,7 +252,7 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
   }
 
   this->dc_pin_->digital_write(true);
-  return write_array(byte, size * 2);
+  write_array(byte, size * 2);
 }
 
 size_t ST7789V::get_buffer_length_() {

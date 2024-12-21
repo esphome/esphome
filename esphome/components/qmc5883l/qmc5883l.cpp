@@ -81,16 +81,39 @@ void QMC5883LComponent::dump_config() {
 }
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void QMC5883LComponent::update() {
+  i2c::ErrorCode err;
   uint8_t status = false;
-  this->read_byte(QMC5883L_REGISTER_STATUS, &status);
+  // Status byte gets cleared when data is read, so we have to read this first.
+  // If status and two axes are desired, it's possible to save one byte of traffic by enabling
+  // ROL_PNT in setup and reading 7 bytes starting at the status register.
+  // If status and all three axes are desired, using ROL_PNT saves you 3 bytes.
+  // But simply not reading status saves you 4 bytes always and is much simpler.
+  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG) {
+    err = this->read_register(QMC5883L_REGISTER_STATUS, &status, 1);
+    if (err != i2c::ERROR_OK) {
+      this->status_set_warning(str_sprintf("status read failed (%d)", err).c_str());
+      return;
+    }
+  }
 
-  // Always request X,Y,Z regardless if there are sensors for them
-  // to avoid https://github.com/esphome/issues/issues/5731
-  uint16_t raw_x, raw_y, raw_z;
-  if (!this->read_byte_16_(QMC5883L_REGISTER_DATA_X_LSB, &raw_x) ||
-      !this->read_byte_16_(QMC5883L_REGISTER_DATA_Y_LSB, &raw_y) ||
-      !this->read_byte_16_(QMC5883L_REGISTER_DATA_Z_LSB, &raw_z)) {
-    this->status_set_warning();
+  uint16_t raw[3] = {0};
+  // Z must always be requested, otherwise the data registers will remain locked against updates.
+  // Skipping the Y axis if X and Z are needed actually requires an additional byte of comms.
+  // Starting partway through the axes does save you traffic.
+  uint8_t start, dest;
+  if (this->heading_sensor_ != nullptr || this->x_sensor_ != nullptr) {
+    start = QMC5883L_REGISTER_DATA_X_LSB;
+    dest = 0;
+  } else if (this->y_sensor_ != nullptr) {
+    start = QMC5883L_REGISTER_DATA_Y_LSB;
+    dest = 1;
+  } else {
+    start = QMC5883L_REGISTER_DATA_Z_LSB;
+    dest = 2;
+  }
+  err = this->read_bytes_16_le_(start, &raw[dest], 3 - dest);
+  if (err != i2c::ERROR_OK) {
+    this->status_set_warning(str_sprintf("mag read failed (%d)", err).c_str());
     return;
   }
 
@@ -107,17 +130,18 @@ void QMC5883LComponent::update() {
   }
 
   // in µT
-  const float x = int16_t(raw_x) * mg_per_bit * 0.1f;
-  const float y = int16_t(raw_y) * mg_per_bit * 0.1f;
-  const float z = int16_t(raw_z) * mg_per_bit * 0.1f;
+  const float x = int16_t(raw[0]) * mg_per_bit * 0.1f;
+  const float y = int16_t(raw[1]) * mg_per_bit * 0.1f;
+  const float z = int16_t(raw[2]) * mg_per_bit * 0.1f;
 
   float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
 
   float temp = NAN;
   if (this->temperature_sensor_ != nullptr) {
     uint16_t raw_temp;
-    if (!this->read_byte_16_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp)) {
-      this->status_set_warning();
+    err = this->read_bytes_16_le_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp);
+    if (err != i2c::ERROR_OK) {
+      this->status_set_warning(str_sprintf("temp read failed (%d)", err).c_str());
       return;
     }
     temp = int16_t(raw_temp) * 0.01f;
@@ -138,11 +162,13 @@ void QMC5883LComponent::update() {
     this->temperature_sensor_->publish_state(temp);
 }
 
-bool QMC5883LComponent::read_byte_16_(uint8_t a_register, uint16_t *data) {
-  if (!this->read_byte_16(a_register, data))
-    return false;
-  *data = (*data & 0x00FF) << 8 | (*data & 0xFF00) >> 8;  // Flip Byte order, LSB first;
-  return true;
+i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t *data, uint8_t len) {
+  i2c::ErrorCode err = this->read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2);
+  if (err != i2c::ERROR_OK)
+    return err;
+  for (size_t i = 0; i < len; i++)
+    data[i] = convert_little_endian(data[i]);
+  return err;
 }
 
 }  // namespace qmc5883l

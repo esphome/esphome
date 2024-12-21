@@ -466,7 +466,7 @@ bool ShellyDimmer::handle_frame_() {
     }
     case SHELLY_DIMMER_PROTO_CMD_SWITCH:
     case SHELLY_DIMMER_PROTO_CMD_SETTINGS: {
-      return !(payload_len < 1 || payload[0] != 0x01);
+      return payload_len >= 1 && payload[0] == 0x01;
     }
     default: {
       return false;

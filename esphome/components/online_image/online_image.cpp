@@ -80,15 +80,7 @@ bool OnlineImage::resize_(int width_in, int height_in) {
     this->width_ = width;
     ESP_LOGD(TAG, "New size: (%d, %d)", width, height);
   } else {
-#if defined(USE_ESP8266)
-    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    int max_block = ESP.getMaxFreeBlockSize();
-#elif defined(USE_ESP32)
-    int max_block = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-#else
-    int max_block = -1;
-#endif
-    ESP_LOGE(TAG, "allocation failed. Biggest block in heap: %d Bytes", max_block);
+    ESP_LOGE(TAG, "allocation failed. Biggest block in heap: %zu Bytes", this->allocator_.get_max_free_block_size());
     this->end_connection_();
     return false;
   }

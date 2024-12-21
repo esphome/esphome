@@ -52,11 +52,11 @@ void DeepSleepComponent::dump_config_platform_() {
 
 bool DeepSleepComponent::prepare_to_sleep_() {
   if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_KEEP_AWAKE && this->wakeup_pin_ != nullptr &&
-      !this->sleep_duration_.has_value() && this->wakeup_pin_->digital_read()) {
+      this->wakeup_pin_->digital_read()) {
     // Defer deep sleep until inactive
     if (!this->next_enter_deep_sleep_) {
       this->status_set_warning();
-      ESP_LOGW(TAG, "Waiting for pin_ to switch state to enter deep sleep...");
+      ESP_LOGW(TAG, "Waiting wakeup pin state change to enter deep sleep...");
     }
     this->next_enter_deep_sleep_ = true;
     return false;

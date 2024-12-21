@@ -24,6 +24,7 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 
+from . import CONF_DRAW_FROM_ORIGIN, CONF_DRAW_ROUNDING
 from .models import DriverChip
 
 DEPENDENCIES = ["spi"]
@@ -41,7 +42,6 @@ COLOR_ORDERS = {
 }
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
-CONF_DRAW_FROM_ORIGIN = "draw_from_origin"
 DELAY_FLAG = 0xFF
 
 
@@ -78,56 +78,81 @@ def _validate(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(
-    display.FULL_DISPLAY_SCHEMA.extend(
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(QSPI_DBI),
-                cv.Required(CONF_MODEL): cv.one_of(
-                    *DriverChip.chips.keys(), upper=True
-                ),
-                cv.Optional(CONF_INIT_SEQUENCE): cv.ensure_list(map_sequence),
-                cv.Required(CONF_DIMENSIONS): cv.Any(
-                    cv.dimensions,
-                    cv.Schema(
-                        {
-                            cv.Required(CONF_WIDTH): validate_dimension,
-                            cv.Required(CONF_HEIGHT): validate_dimension,
-                            cv.Optional(
-                                CONF_OFFSET_HEIGHT, default=0
-                            ): validate_dimension,
-                            cv.Optional(
-                                CONF_OFFSET_WIDTH, default=0
-                            ): validate_dimension,
-                        }
-                    ),
-                ),
-                cv.Optional(CONF_TRANSFORM): cv.Schema(
+def power_of_two(value):
+    value = cv.int_range(1, 128)(value)
+    if value & (value - 1) != 0:
+        raise cv.Invalid("value must be a power of two")
+    return value
+
+
+BASE_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(QSPI_DBI),
+            cv.Optional(CONF_INIT_SEQUENCE): cv.ensure_list(map_sequence),
+            cv.Required(CONF_DIMENSIONS): cv.Any(
+                cv.dimensions,
+                cv.Schema(
                     {
-                        cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                        cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                        cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                        cv.Required(CONF_WIDTH): validate_dimension,
+                        cv.Required(CONF_HEIGHT): validate_dimension,
+                        cv.Optional(CONF_OFFSET_HEIGHT, default=0): validate_dimension,
+                        cv.Optional(CONF_OFFSET_WIDTH, default=0): validate_dimension,
                     }
                 ),
-                cv.Optional(CONF_COLOR_ORDER, default="RGB"): cv.enum(
-                    COLOR_ORDERS, upper=True
-                ),
-                cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
-                cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(CONF_BRIGHTNESS, default=0xD0): cv.int_range(
-                    0, 0xFF, min_included=True, max_included=True
-                ),
-                cv.Optional(CONF_DRAW_FROM_ORIGIN, default=False): cv.boolean,
-            }
-        ).extend(
-            spi.spi_device_schema(
-                cs_pin_required=False,
-                default_mode="MODE0",
-                default_data_rate=10e6,
-                quad=True,
-            )
+            ),
+            cv.Optional(CONF_DRAW_FROM_ORIGIN, default=False): cv.boolean,
+            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_BRIGHTNESS, default=0xD0): cv.int_range(
+                0, 0xFF, min_included=True, max_included=True
+            ),
+        }
+    ).extend(
+        spi.spi_device_schema(
+            cs_pin_required=False,
+            default_mode="MODE0",
+            default_data_rate=10e6,
+            quad=True,
         )
+    )
+)
+
+
+def model_property(name, defaults, fallback):
+    return cv.Optional(name, default=defaults.get(name, fallback))
+
+
+def model_schema(defaults):
+    transform = cv.Schema(
+        {
+            cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+            cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+        }
+    )
+    if defaults.get(CONF_SWAP_XY, True):
+        transform = transform.extend(
+            {
+                cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+            }
+        )
+    return BASE_SCHEMA.extend(
+        {
+            model_property(CONF_INVERT_COLORS, defaults, False): cv.boolean,
+            model_property(CONF_COLOR_ORDER, defaults, "RGB"): cv.enum(
+                COLOR_ORDERS, upper=True
+            ),
+            model_property(CONF_DRAW_ROUNDING, defaults, 2): power_of_two,
+            cv.Optional(CONF_TRANSFORM): transform,
+        }
+    )
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {k.upper(): model_schema(v.defaults) for k, v in DriverChip.chips.items()},
+        upper=True,
+        key=CONF_MODEL,
     ),
     cv.only_with_esp_idf,
 )
@@ -152,6 +177,7 @@ async def to_code(config):
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_draw_from_origin(config[CONF_DRAW_FROM_ORIGIN]))
+    cg.add(var.set_draw_rounding(config[CONF_DRAW_ROUNDING]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = await cg.gpio_pin_expression(enable_pin)
         cg.add(var.set_enable_pin(enable))
@@ -163,7 +189,8 @@ async def to_code(config):
     if transform := config.get(CONF_TRANSFORM):
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
         cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
-        cg.add(var.set_swap_xy(transform[CONF_SWAP_XY]))
+        # swap_xy is not implemented for some chips
+        cg.add(var.set_swap_xy(transform.get(CONF_SWAP_XY, False)))
 
     if CONF_DIMENSIONS in config:
         dimensions = config[CONF_DIMENSIONS]

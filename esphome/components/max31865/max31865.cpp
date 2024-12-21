@@ -106,7 +106,8 @@ void MAX31865Sensor::read_data_() {
 
   // Check faults
   const uint8_t faults = this->read_register_(FAULT_STATUS_REG);
-  if ((has_fault_ = faults & 0b00111100)) {
+  has_fault_ = faults & 0b00111100;
+  if (has_fault_) {
     if (faults & (1 << 2)) {
       ESP_LOGE(TAG, "Overvoltage/undervoltage fault");
     }
@@ -125,7 +126,8 @@ void MAX31865Sensor::read_data_() {
   } else {
     this->status_clear_error();
   }
-  if ((has_warn_ = faults & 0b11000000)) {
+  has_warn_ = faults & 0b11000000;
+  if (has_warn_) {
     if (faults & (1 << 6)) {
       ESP_LOGW(TAG, "RTD Low Threshold");
     }

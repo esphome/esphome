@@ -1,19 +1,19 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
 from esphome import automation
 from esphome.automation import maybe_simple_id
-
+import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_OFFSET,
     CONF_PM_1_0,
-    CONF_PM_10_0,
     CONF_PM_2_5,
     CONF_PM_4_0,
+    CONF_PM_10_0,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
@@ -51,7 +51,6 @@ CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
 CONF_NORMALIZED_OFFSET_SLOPE = "normalized_offset_slope"
 CONF_NOX = "nox"
 CONF_STD_INITIAL = "std_initial"
-CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
 CONF_TIME_CONSTANT = "time_constant"
 CONF_VOC = "voc"
 CONF_VOC_BASELINE = "voc_baseline"

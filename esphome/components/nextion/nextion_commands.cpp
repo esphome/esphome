@@ -10,19 +10,19 @@ static const char *const TAG = "nextion";
 // Sleep safe commands
 void Nextion::soft_reset() { this->send_command_("rest"); }
 
-void Nextion::set_wake_up_page(uint8_t page_id) {
-  this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", page_id, true);
+void Nextion::set_wake_up_page(uint8_t wake_up_page) {
+  this->wake_up_page_ = wake_up_page;
+  this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", wake_up_page, true);
 }
 
-void Nextion::set_start_up_page(uint8_t page_id) { this->start_up_page_ = page_id; }
-
-void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
-  if (timeout < 3) {
+void Nextion::set_touch_sleep_timeout(uint32_t touch_sleep_timeout) {
+  if (touch_sleep_timeout < 3) {
     ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
     return;
   }
 
-  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", timeout, true);
+  this->touch_sleep_timeout_ = touch_sleep_timeout;
+  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", touch_sleep_timeout, true);
 }
 
 void Nextion::sleep(bool sleep) {
@@ -54,7 +54,6 @@ bool Nextion::set_protocol_reparse_mode(bool active_mode) {
   this->ignore_is_setup_ = false;
   return all_commands_sent;
 }
-void Nextion::set_exit_reparse_on_start(bool exit_reparse) { this->exit_reparse_on_start_ = exit_reparse; }
 
 // Set Colors - Background
 void Nextion::set_component_background_color(const char *component, uint16_t color) {
@@ -191,8 +190,9 @@ void Nextion::set_backlight_brightness(float brightness) {
   this->add_no_result_to_queue_with_printf_("backlight_brightness", "dim=%d", static_cast<int>(brightness * 100));
 }
 
-void Nextion::set_auto_wake_on_touch(bool auto_wake) {
-  this->add_no_result_to_queue_with_set("auto_wake_on_touch", "thup", auto_wake ? 1 : 0);
+void Nextion::set_auto_wake_on_touch(bool auto_wake_on_touch) {
+  this->auto_wake_on_touch_ = auto_wake_on_touch;
+  this->add_no_result_to_queue_with_set("auto_wake_on_touch", "thup", auto_wake_on_touch ? 1 : 0);
 }
 
 // General Component

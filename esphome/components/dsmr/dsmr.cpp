@@ -296,7 +296,7 @@ void Dsmr::dump_config() {
 }
 
 void Dsmr::set_decryption_key(const std::string &decryption_key) {
-  if (decryption_key.length() == 0) {
+  if (decryption_key.empty()) {
     ESP_LOGI(TAG, "Disabling decryption");
     this->decryption_key_.clear();
     if (this->crypt_telegram_ != nullptr) {

@@ -1,6 +1,6 @@
 from esphome import core, pins
 import esphome.codegen as cg
-from esphome.components import display, font, spi
+from esphome.components import display, spi
 from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
 from esphome.const import (
@@ -147,7 +147,6 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),

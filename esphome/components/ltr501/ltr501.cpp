@@ -23,7 +23,7 @@ bool operator==(const GainTimePair &lhs, const GainTimePair &rhs) {
 }
 
 bool operator!=(const GainTimePair &lhs, const GainTimePair &rhs) {
-  return !(lhs.gain == rhs.gain && lhs.time == rhs.time);
+  return lhs.gain != rhs.gain || lhs.time != rhs.time;
 }
 
 template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {

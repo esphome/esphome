@@ -363,7 +363,7 @@ def upload_program(config, args, host):
 
     from esphome import espota2
 
-    remote_port = ota_conf[CONF_PORT]
+    remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (

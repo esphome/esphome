@@ -179,6 +179,7 @@ esphome/components/haier/text_sensor/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
+esphome/components/hbridge/switch/* @dwmw2
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
@@ -354,6 +355,8 @@ esphome/components/sdl/* @clydebarrow
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
 esphome/components/seeed_mr24hpc1/* @limengdu
+esphome/components/seeed_mr60bha2/* @limengdu
+esphome/components/seeed_mr60fda2/* @limengdu
 esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
@@ -408,6 +411,7 @@ esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
+esphome/components/switch/binary_sensor/* @ssieb
 esphome/components/t6615/* @tylermenezes
 esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984

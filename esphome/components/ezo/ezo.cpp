@@ -111,11 +111,11 @@ void EZOSensor::loop() {
   if (buf[0] == 1) {
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
+      auto start_location = payload.find(',');
       switch (to_run->command_type) {
         case EzoCommandType::EZO_READ: {
           // some sensors return multiple comma-separated values, terminate string after first one
-          int start_location = 0;
-          if ((start_location = payload.find(',')) != std::string::npos) {
+          if (start_location != std::string::npos) {
             payload.erase(start_location);
           }
           auto val = parse_number<float>(payload);
@@ -126,49 +126,37 @@ void EZOSensor::loop() {
           }
           break;
         }
-        case EzoCommandType::EZO_LED: {
+        case EzoCommandType::EZO_LED:
           this->led_callback_.call(payload.back() == '1');
           break;
-        }
-        case EzoCommandType::EZO_DEVICE_INFORMATION: {
-          int start_location = 0;
-          if ((start_location = payload.find(',')) != std::string::npos) {
+        case EzoCommandType::EZO_DEVICE_INFORMATION:
+          if (start_location != std::string::npos) {
             this->device_infomation_callback_.call(payload.substr(start_location + 1));
           }
           break;
-        }
-        case EzoCommandType::EZO_SLOPE: {
-          int start_location = 0;
-          if ((start_location = payload.find(',')) != std::string::npos) {
+        case EzoCommandType::EZO_SLOPE:
+          if (start_location != std::string::npos) {
             this->slope_callback_.call(payload.substr(start_location + 1));
           }
           break;
-        }
-        case EzoCommandType::EZO_CALIBRATION: {
-          int start_location = 0;
-          if ((start_location = payload.find(',')) != std::string::npos) {
+        case EzoCommandType::EZO_CALIBRATION:
+          if (start_location != std::string::npos) {
             this->calibration_callback_.call(payload.substr(start_location + 1));
           }
           break;
-        }
-        case EzoCommandType::EZO_T: {
-          int start_location = 0;
-          if ((start_location = payload.find(',')) != std::string::npos) {
+        case EzoCommandType::EZO_T:
+          if (start_location != std::string::npos) {
             this->t_callback_.call(payload.substr(start_location + 1));
           }
           break;
-        }
-        case EzoCommandType::EZO_CUSTOM: {
+        case EzoCommandType::EZO_CUSTOM:
           this->custom_callback_.call(payload);
           break;
-        }
-        default: {
+        default:
           break;
-        }
       }
     }
   }
-
   this->commands_.pop_front();
 }
 
@@ -178,7 +166,7 @@ void EZOSensor::add_command_(const std::string &command, EzoCommandType command_
   ezo_command->command_type = command_type;
   ezo_command->delay_ms = delay_ms;
   this->commands_.push_back(std::move(ezo_command));
-};
+}
 
 void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
   std::string payload = str_sprintf("Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);

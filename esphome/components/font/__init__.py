@@ -1,4 +1,3 @@
-from collections.abc import Iterable
 import functools
 import hashlib
 import logging
@@ -8,7 +7,6 @@ import re
 
 import freetype
 import glyphsets
-from packaging import version
 import requests
 
 from esphome import core, external_files
@@ -53,8 +51,11 @@ CONF_IGNORE_MISSING_GLYPHS = "ignore_missing_glyphs"
 # Cache loaded freetype fonts
 class FontCache(dict):
     def __missing__(self, key):
-        res = self[key] = freetype.Face(key)
-        return res
+        try:
+            res = self[key] = freetype.Face(key)
+            return res
+        except freetype.FT_Exception as e:
+            raise cv.Invalid(f"Could not load Font file {key}: {e}") from e
 
 
 FONT_CACHE = FontCache()
@@ -88,7 +89,7 @@ def flatten(lists) -> list:
     return list(chain.from_iterable(lists))
 
 
-def check_missing_glyphs(file, codepoints: Iterable, warning: bool = False):
+def check_missing_glyphs(file, codepoints, warning: bool = False):
     """
     Check that the given font file actually contains the requested glyphs
     :param file: A Truetype font file
@@ -175,24 +176,6 @@ def validate_glyphs(config):
             ]
 
     return config
-
-
-def validate_pillow_installed(value):
-    try:
-        import PIL
-    except ImportError as err:
-        raise cv.Invalid(
-            "Please install the pillow python package to use this feature. "
-            '(pip install "pillow==10.4.0")'
-        ) from err
-
-    if version.parse(PIL.__version__) != version.parse("10.4.0"):
-        raise cv.Invalid(
-            "Please update your pillow installation to 10.4.0. "
-            '(pip install "pillow==10.4.0")'
-        )
-
-    return value
 
 
 FONT_EXTENSIONS = (".ttf", ".woff", ".otf")
@@ -393,7 +376,9 @@ def font_file_schema(value):
 # Default if no glyphs or glyphsets are provided
 DEFAULT_GLYPHSET = "GF_Latin_Kernel"
 # default for bitmap fonts
-DEFAULT_GLYPHS = ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz<C2><B0>'
+DEFAULT_GLYPHS = (
+    ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+)
 
 CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
@@ -421,7 +406,7 @@ FONT_SCHEMA = cv.Schema(
     },
 )
 
-CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA, validate_glyphs)
+CONFIG_SCHEMA = cv.All(FONT_SCHEMA, validate_glyphs)
 
 
 # PIL doesn't provide a consistent interface for both TrueType and bitmap

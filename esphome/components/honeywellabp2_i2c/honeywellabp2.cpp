@@ -15,7 +15,7 @@ static const char *const TAG = "honeywellabp2";
 void HONEYWELLABP2Sensor::read_sensor_data() {
   if (this->read(raw_data_, 7) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with ABP2 failed!");
-    this->mark_failed();
+    this->status_set_warning("couldn't read sensor data");
     return;
   }
   float press_counts = encode_uint24(raw_data_[1], raw_data_[2], raw_data_[3]);  // calculate digital pressure counts
@@ -25,12 +25,13 @@ void HONEYWELLABP2Sensor::read_sensor_data() {
                           (this->max_pressure_ - this->min_pressure_)) +
                          this->min_pressure_;
   this->last_temperature_ = (temp_counts * 200 / 16777215) - 50;
+  this->status_clear_warning();
 }
 
 void HONEYWELLABP2Sensor::start_measurement() {
   if (this->write(i2c_cmd_, 3) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with ABP2 failed!");
-    this->mark_failed();
+    this->status_set_warning("couldn't start measurement");
     return;
   }
   this->measurement_running_ = true;
@@ -39,7 +40,7 @@ void HONEYWELLABP2Sensor::start_measurement() {
 bool HONEYWELLABP2Sensor::is_measurement_ready() {
   if (this->read(raw_data_, 1) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with ABP2 failed!");
-    this->mark_failed();
+    this->status_set_warning("couldn't check measurement");
     return false;
   }
   if ((raw_data_[0] & (0x1 << STATUS_BIT_BUSY)) > 0) {
@@ -52,7 +53,7 @@ bool HONEYWELLABP2Sensor::is_measurement_ready() {
 void HONEYWELLABP2Sensor::measurement_timeout() {
   ESP_LOGE(TAG, "Timeout!");
   this->measurement_running_ = false;
-  this->mark_failed();
+  this->status_set_warning("measurement timed out");
 }
 
 float HONEYWELLABP2Sensor::get_pressure() { return this->last_pressure_; }
@@ -79,7 +80,7 @@ void HONEYWELLABP2Sensor::update() {
   ESP_LOGV(TAG, "Update Honeywell ABP2 Sensor");
 
   this->start_measurement();
-  this->set_timeout("meas_timeout", 50, [this] { this->measurement_timeout(); });
+  this->set_timeout("meas_timeout", 100, [this] { this->measurement_timeout(); });
 }
 
 void HONEYWELLABP2Sensor::dump_config() {

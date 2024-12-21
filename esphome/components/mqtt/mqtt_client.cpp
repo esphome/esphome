@@ -608,6 +608,10 @@ void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
 void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) { this->topic_prefix_ = topic_prefix; }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
+void MQTTClientComponent::set_publish_nan_as_none(bool publish_nan_as_none) {
+  this->publish_nan_as_none_ = publish_nan_as_none;
+}
+bool MQTTClientComponent::is_publish_nan_as_none() const { return this->publish_nan_as_none_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
   this->recalculate_availability_();

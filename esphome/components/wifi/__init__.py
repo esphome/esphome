@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_NETWORKS,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_ON_ERROR,
     CONF_PASSWORD,
     CONF_POWER_SAVE_MODE,
     CONF_PRIORITY,
@@ -34,6 +35,7 @@ from esphome.const import (
     CONF_SSID,
     CONF_STATIC_IP,
     CONF_SUBNET,
+    CONF_TIMEOUT,
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
@@ -46,6 +48,7 @@ from . import wpa2_eap
 AUTO_LOAD = ["network"]
 
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2]
+CONF_SAVE = "save"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -63,6 +66,9 @@ WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
+WiFiConfigureAction = wifi_ns.class_(
+    "WiFiConfigureAction", automation.Action, cg.Component
+)
 
 
 def validate_password(value):
@@ -483,3 +489,39 @@ async def wifi_enable_to_code(config, action_id, template_arg, args):
 @automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
 async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action(
+    "wifi.configure",
+    WiFiConfigureAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_SSID): cv.templatable(cv.ssid),
+            cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
+            cv.Optional(CONF_SAVE, default=True): cv.templatable(cv.boolean),
+            cv.Optional(CONF_TIMEOUT, default="30000ms"): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+        }
+    ),
+)
+async def wifi_set_sta_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    ssid = await cg.templatable(config[CONF_SSID], args, cg.std_string)
+    password = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)
+    save = await cg.templatable(config[CONF_SAVE], args, cg.bool_)
+    timeout = await cg.templatable(config.get(CONF_TIMEOUT), args, cg.uint32)
+    cg.add(var.set_ssid(ssid))
+    cg.add(var.set_password(password))
+    cg.add(var.set_save(save))
+    cg.add(var.set_connection_timeout(timeout))
+    if on_connect_config := config.get(CONF_ON_CONNECT):
+        await automation.build_automation(
+            var.get_connect_trigger(), [], on_connect_config
+        )
+    if on_error_config := config.get(CONF_ON_ERROR):
+        await automation.build_automation(var.get_error_trigger(), [], on_error_config)
+    await cg.register_component(var, config)
+    return var

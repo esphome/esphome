@@ -49,6 +49,7 @@ from esphome.const import (
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
+    CONF_PUBLISH_NAN_AS_NONE,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -296,6 +297,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                 }
             ),
+            cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
         }
     ),
     validate_config,
@@ -448,6 +450,8 @@ async def to_code(config):
     for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(

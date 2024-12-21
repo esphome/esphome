@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name        = "esphome"
 license     = {text = "MIT"}
-description = "Make creating custom firmwares for ESP32/ESP8266 super easy."
+description = "ESPHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems."
 readme      = "README.md"
 authors     = [
   {name = "The ESPHome Authors", email = "esphome@nabucasa.com"}

@@ -8,7 +8,7 @@ namespace modbus_controller {
 static const char *const TAG = "modbus.number";
 
 void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
-  float result = payload_to_float(data, *this) / multiply_by_;
+  float result = payload_to_float(data, *this) / this->multiply_by_;
 
   // Is there a lambda registered
   // call it with the pre converted value and the raw data array
@@ -43,7 +43,7 @@ void ModbusNumber::control(float value) {
       return;
     }
   } else {
-    write_value = multiply_by_ * write_value;
+    write_value = this->multiply_by_ * write_value;
   }
 
   if (!data.empty()) {
@@ -63,21 +63,21 @@ void ModbusNumber::control(float value) {
     // Create and send the write command
     if (this->register_count == 1 && !this->use_write_multiple_) {
       // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
-      write_cmd =
-          ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset / 2, data[0]);
+      write_cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
+                                                                 data[0]);
     } else {
-      write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset / 2,
-                                                                   this->register_count, data);
+      write_cmd = ModbusCommandItem::create_write_multiple_command(
+          this->parent_, this->start_address + this->offset / 2, this->register_count, data);
     }
     // publish new value
     write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
                                                       const std::vector<uint8_t> &data) {
       // gets called when the write command is ack'd from the device
-      parent_->on_write_register_response(write_cmd.register_type, start_address, data);
+      this->parent_->on_write_register_response(write_cmd.register_type, start_address, data);
       this->publish_state(value);
     };
   }
-  parent_->queue_command(write_cmd);
+  this->parent_->queue_command(write_cmd);
   this->publish_state(value);
 }
 void ModbusNumber::dump_config() { LOG_NUMBER(TAG, "Modbus Number", this); }

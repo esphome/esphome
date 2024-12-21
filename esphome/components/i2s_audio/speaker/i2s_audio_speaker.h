@@ -91,24 +91,15 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   esp_err_t allocate_buffers_(size_t data_buffer_size, size_t ring_buffer_size);
 
   /// @brief Starts the ESP32 I2S driver.
-  /// Attempts to lock the I2S port, starts the I2S driver, and sets the data out pin. If it fails, it will unlock
-  /// the I2S port and uninstall the driver, if necessary.
-  /// @return ESP_ERR_INVALID_STATE if the I2S port is already locked.
-  ///         ESP_ERR_INVALID_ARG if installing the driver or setting the data out pin fails due to a parameter error.
+  /// Attempts to lock the I2S port, starts the I2S driver using the passed in stream information, and sets the data out
+  /// pin. If it fails, it will unlock the I2S port and uninstall the driver, if necessary.
+  /// @param audio_stream_info Stream information for the I2S driver.
+  /// @return ESP_ERR_NOT_ALLOWED if the I2S port can't play the incoming audio stream.
+  ///         ESP_ERR_INVALID_STATE if the I2S port is already locked.
+  ///         ESP_ERR_INVALID_ARG if nstalling the driver or setting the data outpin fails due to a parameter error.
   ///         ESP_ERR_NO_MEM if the driver fails to install due to a memory allocation error.
-  ///         ESP_FAIL if setting the data out pin fails due to an IO error
-  ///         ESP_OK if successful
-  esp_err_t start_i2s_driver_();
-
-  /// @brief Adjusts the I2S driver configuration to match the incoming audio stream.
-  /// Modifies I2S driver's sample rate, bits per sample, and number of channel settings. If the I2S is in secondary
-  /// mode, it only modifies the number of channels.
-  /// @param audio_stream_info  Describes the incoming audio stream
-  /// @return ESP_ERR_INVALID_ARG if there is a parameter error, if there is more than 2 channels in the stream, or if
-  ///           the audio settings are incompatible with the configuration.
-  ///         ESP_ERR_NO_MEM if the driver fails to reconfigure due to a memory allocation error.
-  ///         ESP_OK if successful.
-  esp_err_t reconfigure_i2s_stream_info_(audio::AudioStreamInfo &audio_stream_info);
+  ///         ESP_FAIL if setting the data out pin fails due to an IO error ESP_OK if successful
+  esp_err_t start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info);
 
   /// @brief Deletes the speaker's task.
   /// Deallocates the data_buffer_ and audio_ring_buffer_, if necessary, and deletes the task. Should only be called by

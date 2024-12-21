@@ -419,7 +419,7 @@ void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControll
   SprinklerValve *new_valve = &this->valve_[new_valve_number];
 
   new_valve->controller_switch = valve_sw;
-  new_valve->controller_switch->set_state_lambda([=]() -> optional<bool> {
+  new_valve->controller_switch->set_state_lambda([this, new_valve_number]() -> optional<bool> {
     if (this->valve_pump_switch(new_valve_number) != nullptr) {
       return this->valve_switch(new_valve_number)->state() && this->valve_pump_switch(new_valve_number)->state();
     }
@@ -445,7 +445,7 @@ void Sprinkler::add_controller(Sprinkler *other_controller) { this->other_contro
 
 void Sprinkler::set_controller_main_switch(SprinklerControllerSwitch *controller_switch) {
   this->controller_sw_ = controller_switch;
-  controller_switch->set_state_lambda([=]() -> optional<bool> {
+  controller_switch->set_state_lambda([this]() -> optional<bool> {
     for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
       if (this->valve_[valve_number].controller_switch->state) {
         return true;

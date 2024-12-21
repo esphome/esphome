@@ -68,8 +68,6 @@ IsActiveCondition = display_menu_base_ns.class_(
     "IsActiveCondition", automation.Condition
 )
 
-MULTI_CONF = True
-
 MenuItemType = display_menu_base_ns.enum("MenuItemType")
 
 MENU_ITEM_TYPES = {

@@ -105,3 +105,19 @@ display:
     model: 1.54in-m5coreink-m09
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: 4
+    dc_pin:
+      allow_other_uses: true
+      number: 4
+    busy_pin:
+      allow_other_uses: true
+      number: 4
+    reset_pin:
+      allow_other_uses: true
+      number: 4
+    model: 7.50in-bv3-bwr
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());

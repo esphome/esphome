@@ -80,8 +80,7 @@ const EntityBase *MQTTAlarmControlPanelComponent::get_entity() const { return th
 
 bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTAlarmControlPanelComponent::publish_state() {
-  bool success = true;
-  const char *state_s = "";
+  const char *state_s;
   switch (this->alarm_control_panel_->get_state()) {
     case ACP_STATE_DISARMED:
       state_s = "disarmed";
@@ -116,9 +115,7 @@ bool MQTTAlarmControlPanelComponent::publish_state() {
     default:
       state_s = "unknown";
   }
-  if (!this->publish(this->get_state_topic_(), state_s))
-    success = false;
-  return success;
+  return this->publish(this->get_state_topic_(), state_s);
 }
 
 }  // namespace mqtt

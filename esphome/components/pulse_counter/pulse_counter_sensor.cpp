@@ -13,9 +13,9 @@ PulseCounterStorageBase *get_storage(bool hw_pcnt) {
   return (hw_pcnt ? (PulseCounterStorageBase *) (new HwPulseCounterStorage)
                   : (PulseCounterStorageBase *) (new BasicPulseCounterStorage));
 }
-#else
+#else   // HAS_PCNT
 PulseCounterStorageBase *get_storage(bool) { return new BasicPulseCounterStorage; }
-#endif
+#endif  // HAS_PCNT
 
 void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg) {
   const uint32_t now = micros();
@@ -28,14 +28,17 @@ void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg
   switch (mode) {
     case PULSE_COUNTER_DISABLE:
       break;
-    case PULSE_COUNTER_INCREMENT:
-      arg->counter++;
-      break;
-    case PULSE_COUNTER_DECREMENT:
-      arg->counter--;
-      break;
+    case PULSE_COUNTER_INCREMENT: {
+      auto x = arg->counter + 1;
+      arg->counter = x;
+    } break;
+    case PULSE_COUNTER_DECREMENT: {
+      auto x = arg->counter - 1;
+      arg->counter = x;
+    } break;
   }
 }
+
 bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
@@ -43,6 +46,7 @@ bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
   return true;
 }
+
 pulse_counter_t BasicPulseCounterStorage::read_raw_value() {
   pulse_counter_t counter = this->counter;
   pulse_counter_t ret = counter - this->last_value;
@@ -141,6 +145,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
   return true;
 }
+
 pulse_counter_t HwPulseCounterStorage::read_raw_value() {
   pulse_counter_t counter;
   pcnt_get_counter_value(this->pcnt_unit, &counter);
@@ -148,7 +153,7 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
   this->last_value = counter;
   return ret;
 }
-#endif
+#endif  // HAS_PCNT
 
 void PulseCounterSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());

@@ -1,23 +1,22 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
-
 from esphome.const import (
-    CONF_COMPENSATION,
-    CONF_ID,
     CONF_BASELINE,
+    CONF_COMPENSATION,
     CONF_ECO2,
+    CONF_ID,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
     CONF_TVOC,
-    ICON_RADIATOR,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PARTS_PER_BILLION,
-    ICON_MOLECULE_CO2,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_MOLECULE_CO2,
+    ICON_RADIATOR,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -77,7 +76,7 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("1s"))
+    .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x58))
 )
 

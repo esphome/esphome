@@ -279,7 +279,7 @@ std::string LvSelectable::get_selected_text() {
 static std::string join_string(std::vector<std::string> options) {
   return std::accumulate(
       options.begin(), options.end(), std::string(),
-      [](const std::string &a, const std::string &b) -> std::string { return a + (a.length() > 0 ? "\n" : "") + b; });
+      [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
 }
 
 void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {

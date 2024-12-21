@@ -1,33 +1,16 @@
-output:
-  - platform: rp2040_pwm
-    pin: 4
-    id: gpio_output1
-  - platform: rp2040_pwm
-    pin: 5
-    id: gpio_output2
-  - platform: rp2040_pwm
-    pin: 6
-    id: gpio_output3
-  - platform: rp2040_pwm
-    pin: 7
-    id: gpio_output4
+substitutions:
+  pwm_platform: "rp2040_pwm"
+  output1_pin: "4"
+  output2_pin: "5"
+  output3_pin: "6"
+  output4_pin: "7"
+  hbridge_on_pin: "2"
+  hbridge_off_pin: "3"
 
-light:
-  - platform: hbridge
-    name: Icicle Lights
-    pin_a: gpio_output3
-    pin_b: gpio_output4
+packages:
+  common: !include common.yaml
 
-fan:
-  - platform: hbridge
-    id: fan_hbridge
-    speed_count: 4
-    name: H-bridge Fan with Presets
-    pin_a: gpio_output1
-    pin_b: gpio_output2
-    preset_modes:
-      - Preset 1
-      - Preset 2
-    on_preset_set:
-      then:
-        - logger.log: Preset mode was changed!
+switch:
+  - id: !extend switch_hbridge
+    wait_time: 10ms
+    optimistic: true

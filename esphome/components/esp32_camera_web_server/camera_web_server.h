@@ -11,7 +11,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-struct httpd_req;
+struct httpd_req;  // NOLINT(readability-identifier-naming)
 
 namespace esphome {
 namespace esp32_camera_web_server {

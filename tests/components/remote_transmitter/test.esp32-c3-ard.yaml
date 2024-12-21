@@ -3,4 +3,4 @@ substitutions:
   rmt_channel: "1"
 
 packages:
-  common: !include esp32-common.yaml
+  common: !include esp32-common-ard.yaml

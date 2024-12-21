@@ -2,8 +2,10 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
+from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ESPHOME, CONF_ID, CONF_NAME
 from esphome.core import CORE
+from esphome.core.config import CONF_NAME_ADD_MAC_SUFFIX
+import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito"]
@@ -50,6 +52,7 @@ TX_POWER_LEVELS = {
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32BLE),
+        cv.Optional(CONF_NAME): cv.All(cv.string, cv.Length(max=20)),
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
@@ -67,7 +70,22 @@ def validate_variant(_):
         raise cv.Invalid(f"{variant} does not support Bluetooth")
 
 
-FINAL_VALIDATE_SCHEMA = validate_variant
+def final_validation(config):
+    validate_variant(config)
+    if (name := config.get(CONF_NAME)) is not None:
+        full_config = fv.full_config.get()
+        max_length = 20
+        if full_config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
+            max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
+        if len(name) > max_length:
+            raise cv.Invalid(
+                f"Name '{name}' is too long, maximum length is {max_length} characters"
+            )
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = final_validation
 
 
 async def to_code(config):
@@ -75,6 +93,8 @@ async def to_code(config):
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
+    if (name := config.get(CONF_NAME)) is not None:
+        cg.add(var.set_name(name))
     await cg.register_component(var, config)
 
     if CORE.using_esp_idf:

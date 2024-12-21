@@ -36,8 +36,8 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   ESP_LOGV(TAG, "Requesting range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Opening HTTP connetion");
-  esp_err_t err;
-  if ((err = esp_http_client_open(http_client, 0)) != ESP_OK) {
+  esp_err_t err = esp_http_client_open(http_client, 0);
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
     return -1;
   }

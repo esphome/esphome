@@ -34,7 +34,7 @@ void PCA6416AComponent::setup() {
   }
 
   // Test to see if the device supports pull-up resistors
-  if (this->read_register(PCAL6416A_PULL_EN0, &value, 1, true) == esphome::i2c::ERROR_OK) {
+  if (this->read_register(PCAL6416A_PULL_EN0, &value, 1, true) == i2c::ERROR_OK) {
     this->has_pullup_ = true;
   }
 
@@ -106,7 +106,8 @@ bool PCA6416AComponent::read_register_(uint8_t reg, uint8_t *value) {
     return false;
   }
 
-  if ((this->last_error_ = this->read_register(reg, value, 1, true)) != esphome::i2c::ERROR_OK) {
+  this->last_error_ = this->read_register(reg, value, 1, true);
+  if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
@@ -122,7 +123,8 @@ bool PCA6416AComponent::write_register_(uint8_t reg, uint8_t value) {
     return false;
   }
 
-  if ((this->last_error_ = this->write_register(reg, &value, 1, true)) != esphome::i2c::ERROR_OK) {
+  this->last_error_ = this->write_register(reg, &value, 1, true);
+  if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;

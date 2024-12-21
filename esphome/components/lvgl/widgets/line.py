@@ -35,11 +35,20 @@ LINE_SCHEMA = {
     cv.GenerateID(CONF_POINT_LIST_ID): cv.declare_id(lv_point_t),
 }
 
+LINE_MODIFY_SCHEMA = {
+    cv.Optional(CONF_POINTS): cv_point_list,
+    cv.GenerateID(CONF_POINT_LIST_ID): cv.declare_id(lv_point_t),
+}
+
 
 class LineType(WidgetType):
     def __init__(self):
         super().__init__(
-            CONF_LINE, LvType("lv_line_t"), (CONF_MAIN,), LINE_SCHEMA, modify_schema={}
+            CONF_LINE,
+            LvType("lv_line_t"),
+            (CONF_MAIN,),
+            LINE_SCHEMA,
+            modify_schema=LINE_MODIFY_SCHEMA,
         )
 
     async def to_code(self, w: Widget, config):

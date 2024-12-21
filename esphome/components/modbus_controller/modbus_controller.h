@@ -240,14 +240,14 @@ class SensorItem {
   }
   // Override register size for modbus devices not using 1 register for one dword
   void set_register_size(uint8_t register_size) { response_bytes = register_size; }
-  ModbusRegisterType register_type;
-  SensorValueType sensor_value_type;
-  uint16_t start_address;
-  uint32_t bitmask;
-  uint8_t offset;
-  uint8_t register_count;
+  ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
+  SensorValueType sensor_value_type{SensorValueType::RAW};
+  uint16_t start_address{0};
+  uint32_t bitmask{0};
+  uint8_t offset{0};
+  uint8_t register_count{0};
   uint8_t response_bytes{0};
-  uint16_t skip_updates;
+  uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
 };
@@ -261,9 +261,9 @@ class ServerRegister {
     this->register_count = register_count;
     this->read_lambda = std::move(read_lambda);
   }
-  uint16_t address;
-  SensorValueType value_type;
-  uint8_t register_count;
+  uint16_t address{0};
+  SensorValueType value_type{SensorValueType::RAW};
+  uint8_t register_count{0};
   std::function<float()> read_lambda;
 };
 
@@ -312,11 +312,11 @@ struct RegisterRange {
 class ModbusCommandItem {
  public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
-  ModbusController *modbusdevice;
-  uint16_t register_address;
-  uint16_t register_count;
-  ModbusFunctionCode function_code;
-  ModbusRegisterType register_type;
+  ModbusController *modbusdevice{nullptr};
+  uint16_t register_address{0};
+  uint16_t register_count{0};
+  ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
+  ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
   std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
       on_data_func;
   std::vector<uint8_t> payload = {};
@@ -493,23 +493,23 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// Collection of all sensors for this component
   SensorSet sensorset_;
   /// Collection of all server registers for this component
-  std::vector<ServerRegister *> server_registers_;
+  std::vector<ServerRegister *> server_registers_{};
   /// Continuous range of modbus registers
-  std::vector<RegisterRange> register_ranges_;
+  std::vector<RegisterRange> register_ranges_{};
   /// Hold the pending requests to be sent
   std::list<std::unique_ptr<ModbusCommandItem>> command_queue_;
   /// modbus response data waiting to get processed
   std::queue<std::unique_ptr<ModbusCommandItem>> incoming_queue_;
   /// if duplicate commands can be sent
-  bool allow_duplicate_commands_;
+  bool allow_duplicate_commands_{false};
   /// when was the last send operation
-  uint32_t last_command_timestamp_;
+  uint32_t last_command_timestamp_{0};
   /// min time in ms between sending modbus commands
-  uint16_t command_throttle_;
+  uint16_t command_throttle_{0};
   /// if module didn't respond the last command
-  bool module_offline_;
+  bool module_offline_{false};
   /// how many updates to skip if module is offline
-  uint16_t offline_skip_updates_;
+  uint16_t offline_skip_updates_{0};
   /// How many times we will retry a command if we get no response
   uint8_t max_cmd_retries_{4};
   /// Command sent callback

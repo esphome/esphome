@@ -8,7 +8,7 @@ import logging
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
-from esphome.core import Lambda
+from esphome.core import ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
@@ -37,7 +37,7 @@ def literal(arg):
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
-        return expr[7:][:-1]
+        return expr[6:][:-1].strip()
     return f"{lamb}()"
 
 
@@ -73,6 +73,12 @@ class LValidator:
             return cg.RawExpression(call_lambda(lamb))
         if self.retmapper is not None:
             return self.retmapper(value)
+        if isinstance(value, ID):
+            return await cg.get_variable(value)
+        if isinstance(value, list):
+            value = [
+                await cg.get_variable(x) if isinstance(x, ID) else x for x in value
+            ]
         return cg.safe_exp(value)
 
 
@@ -163,6 +169,7 @@ LV_EVENT_MAP = {
     "READY": "READY",
     "CANCEL": "CANCEL",
     "ALL_EVENTS": "ALL",
+    "CHANGE": "VALUE_CHANGED",
 }
 
 LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)

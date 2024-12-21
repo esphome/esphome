@@ -1,9 +1,9 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#include "uart_component_esp32_arduino.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "uart_component_esp32_arduino.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -118,7 +118,7 @@ void ESP32ArduinoUARTComponent::setup() {
     }
 #endif  // USE_LOGGER
 
-    if (next_uart_num >= UART_NUM_MAX) {
+    if (next_uart_num >= SOC_UART_NUM) {
       ESP_LOGW(TAG, "Maximum number of UART components created already.");
       this->mark_failed();
       return;

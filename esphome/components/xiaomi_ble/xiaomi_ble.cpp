@@ -249,7 +249,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 }
 
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address) {
-  if (!((raw.size() == 19) || ((raw.size() >= 22) && (raw.size() <= 24)))) {
+  if ((raw.size() != 19) && ((raw.size() < 22) || (raw.size() > 24))) {
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): data packet has wrong size (%d)!", raw.size());
     ESP_LOGVV(TAG, "  Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
     return false;

@@ -432,7 +432,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   ESP_LOGVV(TAG, "Parse Result:");
-  const char *address_type = "";
+  const char *address_type;
   switch (this->address_type_) {
     case BLE_ADDR_TYPE_PUBLIC:
       address_type = "PUBLIC";
@@ -445,6 +445,9 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
       break;
     case BLE_ADDR_TYPE_RPA_RANDOM:
       address_type = "RPA_RANDOM";
+      break;
+    default:
+      address_type = "UNKNOWN";
       break;
   }
   ESP_LOGVV(TAG, "  Address: %02X:%02X:%02X:%02X:%02X:%02X (%s)", this->address_[0], this->address_[1],

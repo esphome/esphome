@@ -1,7 +1,7 @@
 #include "st7920.h"
-#include "esphome/core/log.h"
-#include "esphome/core/application.h"
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace st7920 {
@@ -118,7 +118,6 @@ size_t ST7920::get_buffer_length_() {
 
 void HOT ST7920::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
-    ESP_LOGW(TAG, "Position out of area: %dx%d", x, y);
     return;
   }
   int width = this->get_width_internal() / 8u;

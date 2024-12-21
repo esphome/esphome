@@ -122,7 +122,8 @@ void APDS9306::update() {
 
   this->status_clear_warning();
 
-  if (!(status &= 0b00001000)) {  // No new data
+  status &= 0b00001000;
+  if (!status) {  // No new data
     return;
   }
 

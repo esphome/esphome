@@ -85,7 +85,6 @@
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
-#define USE_CAPTIVE_PORTAL
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
 #endif
@@ -98,6 +97,7 @@
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_BLUETOOTH_PROXY
+#define USE_CAPTIVE_PORTAL
 #define USE_ESP32_BLE
 #define USE_ESP32_BLE_CLIENT
 #define USE_ESP32_BLE_SERVER
@@ -136,6 +136,7 @@
 #ifdef USE_ESP8266
 #define USE_ADC_SENSOR_VCC
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 1, 2)
+#define USE_CAPTIVE_PORTAL
 #define USE_ESP8266_PREFERENCES_FLASH
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP
@@ -160,6 +161,7 @@
 #endif
 
 #ifdef USE_LIBRETINY
+#define USE_CAPTIVE_PORTAL
 #define USE_SOCKET_IMPL_LWIP_SOCKETS
 #define USE_WEBSERVER
 #define USE_WEBSERVER_PORT 80  // NOLINT

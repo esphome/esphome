@@ -236,8 +236,16 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  snprintf(reinterpret_cast<char *>(conf.ssid), sizeof(conf.ssid), "%s", ap.get_ssid().c_str());
-  snprintf(reinterpret_cast<char *>(conf.password), sizeof(conf.password), "%s", ap.get_password().c_str());
+  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+    ESP_LOGE(TAG, "SSID is too long");
+    return false;
+  }
+  if (ap.get_password().size() > sizeof(conf.password)) {
+    ESP_LOGE(TAG, "password is too long");
+    return false;
+  }
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
+  memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -775,7 +783,11 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  snprintf(reinterpret_cast<char *>(conf.ssid), sizeof(conf.ssid), "%s", ap.get_ssid().c_str());
+  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+    ESP_LOGE(TAG, "AP SSID is too long");
+    return false;
+  }
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
   conf.ssid_hidden = ap.get_hidden();
@@ -787,7 +799,11 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    snprintf(reinterpret_cast<char *>(conf.password), sizeof(conf.password), "%s", ap.get_password().c_str());
+    if (ap.get_password().size() > sizeof(conf.password)) {
+      ESP_LOGE(TAG, "AP password is too long");
+      return false;
+    }
+    memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
   }
 
   ETS_UART_INTR_DISABLE();
@@ -825,7 +841,7 @@ bssid_t WiFiComponent::wifi_bssid() {
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
-int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
+int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }

@@ -60,6 +60,7 @@ mqtt:
     - mqtt.publish:
         topic: some/topic
         payload: Good-bye
+  publish_nan_as_none: false
 
 binary_sensor:
   - platform: template

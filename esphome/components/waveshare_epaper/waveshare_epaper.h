@@ -166,6 +166,24 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_13_3_IN_K,
 };
 
+class WaveshareEPaper1P54InBV2 : public WaveshareEPaperBWR {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    this->command(0x10);
+    this->data(0x01);
+  }
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+};
+
 class WaveshareEPaper2P7In : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -582,6 +600,44 @@ class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
 };
 
 class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
+ public:
+  bool wait_until_idle_();
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    this->command(0x02);  // Power off
+    this->wait_until_idle_();
+    this->command(0x07);  // Deep sleep
+    this->data(0xA5);
+  }
+
+  void clear_screen();
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(5);
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+    }
+  };
+
+  void init_display_();
+};
+
+class WaveshareEPaper7P5InBV3BWR : public WaveshareEPaperBWR {
  public:
   bool wait_until_idle_();
 
