@@ -129,6 +129,11 @@ esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/ds2484/* @mrk-its
 esphome/components/dsmr/* @glmnet @zuidwijk
+esphome/components/duco/* @kokx
+esphome/components/duco/number/* @kokx
+esphome/components/duco/select/* @kokx
+esphome/components/duco/sensor/* @kokx
+esphome/components/duco/text_sensor/* @kokx
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/touchscreen/* @jesserockz

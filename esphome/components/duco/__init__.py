@@ -5,6 +5,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_DISABLE_CRC, CONF_ID
 
+CODEOWNERS = ["@kokx"]
 DEPENDENCIES = ["uart"]
 
 duco_ns = cg.esphome_ns.namespace("duco")
