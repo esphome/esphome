@@ -3,7 +3,7 @@ from __future__ import annotations
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_DISABLE_CRC, CONF_ID
+from esphome.const import CONF_DISABLE_CRC, CONF_DISCOVERY, CONF_ID
 
 CODEOWNERS = ["@kokx"]
 DEPENDENCIES = ["uart"]
@@ -17,8 +17,6 @@ MULTI_CONF = True
 
 CONF_DUCO_ID = "duco_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
-
-CONF_DISCOVERY = "discovery"
 
 # A schema for components like sensors
 DUCO_COMPONENT_SCHEMA = cv.Schema({cv.GenerateID(CONF_DUCO_ID): cv.use_id(Duco)})
