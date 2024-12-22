@@ -15,12 +15,12 @@ const std::string DucoSelect::MODE_EMPT = "EMPT";
 const std::string DucoSelect::MODE_CNT1 = "CNT1";
 const std::string DucoSelect::MODE_CNT2 = "CNT2";
 const std::string DucoSelect::MODE_CNT3 = "CNT3";
-const std::string DucoSelect::MODE_MAN1x2 = "MAN1x2";
-const std::string DucoSelect::MODE_MAN2x2 = "MAN2x2";
-const std::string DucoSelect::MODE_MAN3x2 = "MAN3x2";
-const std::string DucoSelect::MODE_MAN1x3 = "MAN1x3";
-const std::string DucoSelect::MODE_MAN2x3 = "MAN2x3";
-const std::string DucoSelect::MODE_MAN3x3 = "MAN3x3";
+const std::string DucoSelect::MODE_MAN1X2 = "MAN1x2";
+const std::string DucoSelect::MODE_MAN2X2 = "MAN2x2";
+const std::string DucoSelect::MODE_MAN3X2 = "MAN3x2";
+const std::string DucoSelect::MODE_MAN1X3 = "MAN1x3";
+const std::string DucoSelect::MODE_MAN2X3 = "MAN2x3";
+const std::string DucoSelect::MODE_MAN3X3 = "MAN3x3";
 
 const uint8_t DucoSelect::MODE_CODE_AUTO = 0x00;
 const uint8_t DucoSelect::MODE_CODE_MAN1 = 0x04;
@@ -30,12 +30,12 @@ const uint8_t DucoSelect::MODE_CODE_EMPT = 0x07;
 const uint8_t DucoSelect::MODE_CODE_CNT1 = 0x08;
 const uint8_t DucoSelect::MODE_CODE_CNT2 = 0x09;
 const uint8_t DucoSelect::MODE_CODE_CNT3 = 0x0a;
-const uint8_t DucoSelect::MODE_CODE_MAN1x2 = 0x84;
-const uint8_t DucoSelect::MODE_CODE_MAN2x2 = 0x85;
-const uint8_t DucoSelect::MODE_CODE_MAN3x2 = 0x86;
-const uint8_t DucoSelect::MODE_CODE_MAN1x3 = 0xc4;
-const uint8_t DucoSelect::MODE_CODE_MAN2x3 = 0xc5;
-const uint8_t DucoSelect::MODE_CODE_MAN3x3 = 0xc6;
+const uint8_t DucoSelect::MODE_CODE_MAN1X2 = 0x84;
+const uint8_t DucoSelect::MODE_CODE_MAN2X2 = 0x85;
+const uint8_t DucoSelect::MODE_CODE_MAN3X2 = 0x86;
+const uint8_t DucoSelect::MODE_CODE_MAN1X3 = 0xc4;
+const uint8_t DucoSelect::MODE_CODE_MAN2X3 = 0xc5;
+const uint8_t DucoSelect::MODE_CODE_MAN3X3 = 0xc6;
 
 void DucoSelect::setup() {}
 
@@ -67,18 +67,18 @@ const std::string code_to_string(uint8_t mode) {
       return DucoSelect::MODE_CNT2;
     case DucoSelect::MODE_CODE_CNT3:
       return DucoSelect::MODE_CNT3;
-    case DucoSelect::MODE_CODE_MAN1x2:
-      return DucoSelect::MODE_MAN1x2;
-    case DucoSelect::MODE_CODE_MAN2x2:
-      return DucoSelect::MODE_MAN2x2;
-    case DucoSelect::MODE_CODE_MAN3x2:
-      return DucoSelect::MODE_MAN3x2;
-    case DucoSelect::MODE_CODE_MAN1x3:
-      return DucoSelect::MODE_MAN1x3;
-    case DucoSelect::MODE_CODE_MAN2x3:
-      return DucoSelect::MODE_MAN2x3;
-    case DucoSelect::MODE_CODE_MAN3x3:
-      return DucoSelect::MODE_MAN3x3;
+    case DucoSelect::MODE_CODE_MAN1X2:
+      return DucoSelect::MODE_MAN1X2;
+    case DucoSelect::MODE_CODE_MAN2X2:
+      return DucoSelect::MODE_MAN2X2;
+    case DucoSelect::MODE_CODE_MAN3X2:
+      return DucoSelect::MODE_MAN3X2;
+    case DucoSelect::MODE_CODE_MAN1X3:
+      return DucoSelect::MODE_MAN1X3;
+    case DucoSelect::MODE_CODE_MAN2X3:
+      return DucoSelect::MODE_MAN2X3;
+    case DucoSelect::MODE_CODE_MAN3X3:
+      return DucoSelect::MODE_MAN3X3;
     case DucoSelect::MODE_CODE_AUTO:
     default:
       return DucoSelect::MODE_AUTO;
@@ -108,23 +108,23 @@ uint8_t string_to_code(std::string mode) {
   if (mode == DucoSelect::MODE_CNT3) {
     return DucoSelect::MODE_CODE_CNT3;
   }
-  if (mode == DucoSelect::MODE_MAN1x2) {
-    return DucoSelect::MODE_CODE_MAN1x2;
+  if (mode == DucoSelect::MODE_MAN1X2) {
+    return DucoSelect::MODE_CODE_MAN1X2;
   }
-  if (mode == DucoSelect::MODE_MAN2x2) {
-    return DucoSelect::MODE_CODE_MAN2x2;
+  if (mode == DucoSelect::MODE_MAN2X2) {
+    return DucoSelect::MODE_CODE_MAN2X2;
   }
-  if (mode == DucoSelect::MODE_MAN3x2) {
-    return DucoSelect::MODE_CODE_MAN3x2;
+  if (mode == DucoSelect::MODE_MAN3X2) {
+    return DucoSelect::MODE_CODE_MAN3X2;
   }
-  if (mode == DucoSelect::MODE_MAN1x3) {
-    return DucoSelect::MODE_CODE_MAN1x3;
+  if (mode == DucoSelect::MODE_MAN1X3) {
+    return DucoSelect::MODE_CODE_MAN1X3;
   }
-  if (mode == DucoSelect::MODE_MAN2x3) {
-    return DucoSelect::MODE_CODE_MAN2x3;
+  if (mode == DucoSelect::MODE_MAN2X3) {
+    return DucoSelect::MODE_CODE_MAN2X3;
   }
-  if (mode == DucoSelect::MODE_MAN3x3) {
-    return DucoSelect::MODE_CODE_MAN3x3;
+  if (mode == DucoSelect::MODE_MAN3X3) {
+    return DucoSelect::MODE_CODE_MAN3X3;
   }
   if (mode == DucoSelect::MODE_AUTO) {
     return DucoSelect::MODE_CODE_AUTO;
