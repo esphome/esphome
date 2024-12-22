@@ -152,7 +152,7 @@ void Duco::send(DucoMessage message, DucoDevice *device) {
   ESP_LOGD(TAG, "Duco message sent: %s", message.to_string().c_str());
 }
 
-void Duco::debug_hex(std::vector<uint8_t> bytes, uint8_t separator) {
+void Duco::debug_hex_(std::vector<uint8_t> bytes, uint8_t separator) {
   std::string res;
   res += "DUCO msg: ";
 

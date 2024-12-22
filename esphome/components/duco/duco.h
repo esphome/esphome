@@ -97,7 +97,7 @@ class Duco : public uart::UARTDevice, public Component {
   uint32_t last_send_{0};
   bool removed_last_ = false;
 
-  void debug_hex(std::vector<uint8_t> bytes, uint8_t separator);
+  void debug_hex_(std::vector<uint8_t> bytes, uint8_t separator);
 };
 
 class DucoDevice : public Parented<Duco> {
