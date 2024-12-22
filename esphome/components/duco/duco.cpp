@@ -227,7 +227,7 @@ void DucoDiscovery::loop() {
 
 void DucoDiscovery::receive_response(DucoMessage message) {
   if (message.function == 0x0e) {
-    ESP_LOGV(TAG, "Discovery response message: %s", format_hex_pretty(message).c_str());
+    ESP_LOGV(TAG, "Discovery response message: %s", format_hex_pretty(message.get_message()).c_str());
     this->parent_->stop_waiting(message.id);
 
     if (message.data[0] != 0x00) {
