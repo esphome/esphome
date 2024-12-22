@@ -83,7 +83,7 @@ bool Duco::parse_byte_(uint8_t byte) {
 }
 
 void Duco::finalize_message_() {
-  if (this->rx_buffer_.size() == 0)
+  if (this->rx_buffer_.empty())
     return;
   const uint8_t *raw = &this->rx_buffer_[0];
 
@@ -178,7 +178,7 @@ const std::string DucoDiscovery::NODE_TYPE_BOX = "BOX";
 const std::string DucoDiscovery::NODE_TYPE_SWITCH = "SWITCH";
 const std::string DucoDiscovery::NODE_TYPE_UNKNOWN = "UNKNOWN";
 
-const std::string friendly_node_type(uint8_t type_code) {
+std::string friendly_node_type(uint8_t type_code) {
   switch (type_code) {
     case DucoDiscovery::NODE_TYPE_CODE_UCBAT:
       return DucoDiscovery::NODE_TYPE_UCBAT;

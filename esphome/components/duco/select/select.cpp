@@ -51,7 +51,7 @@ float DucoSelect::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-const std::string code_to_string(uint8_t mode) {
+std::string code_to_string(uint8_t mode) {
   switch (mode) {
     case DucoSelect::MODE_CODE_MAN1:
       return DucoSelect::MODE_MAN1;
@@ -86,7 +86,7 @@ const std::string code_to_string(uint8_t mode) {
   return DucoSelect::MODE_AUTO;
 }
 
-uint8_t string_to_code(std::string mode) {
+uint8_t string_to_code(const std::string &mode) {
   if (mode == DucoSelect::MODE_MAN1) {
     return DucoSelect::MODE_CODE_MAN1;
   }
