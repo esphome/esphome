@@ -21,7 +21,7 @@ float DucoSerial::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoSerial::receive_response(DucoMessage message) {
+void DucoSerial::receive_response(const DucoMessage &message) {
   if (message.function == 0x12) {
     // Serial response received, parse it
     std::string serial(message.data.begin() + 2, message.data.end());

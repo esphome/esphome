@@ -132,7 +132,7 @@ uint8_t string_to_code(const std::string &mode) {
   return DucoSelect::MODE_CODE_AUTO;
 }
 
-void DucoSelect::receive_response(DucoMessage message) {
+void DucoSelect::receive_response(const DucoMessage &message) {
   if (message.function == 0x0e && message.data[0] != 0x01) {
     // mode response received, parse it
     auto mode = code_to_string(message.data[0]);

@@ -15,7 +15,7 @@ class DucoComfortTemperature : public DucoDevice, public PollingComponent, publi
 
   float get_setup_priority() const override;
 
-  void receive_response(DucoMessage message) override;
+  void receive_response(const DucoMessage &message) override;
 
   void control(float number) override;
 };

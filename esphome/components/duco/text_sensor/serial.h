@@ -15,7 +15,7 @@ class DucoSerial : public DucoDevice, public PollingComponent, public text_senso
 
   float get_setup_priority() const override;
 
-  void receive_response(DucoMessage message) override;
+  void receive_response(const DucoMessage &message) override;
 };
 
 }  // namespace duco

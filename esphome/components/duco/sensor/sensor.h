@@ -15,7 +15,7 @@ class DucoCo2Sensor : public DucoDevice, public PollingComponent, public sensor:
 
   float get_setup_priority() const override;
 
-  void receive_response(DucoMessage message) override;
+  void receive_response(const DucoMessage &message) override;
 
   void set_address(uint8_t address);
 
@@ -30,7 +30,7 @@ class DucoFilterRemainingSensor : public DucoDevice, public PollingComponent, pu
 
   float get_setup_priority() const override;
 
-  void receive_response(DucoMessage message) override;
+  void receive_response(const DucoMessage &message) override;
 };
 
 class DucoFlowLevelSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
@@ -40,7 +40,7 @@ class DucoFlowLevelSensor : public DucoDevice, public PollingComponent, public s
 
   float get_setup_priority() const override;
 
-  void receive_response(DucoMessage message) override;
+  void receive_response(const DucoMessage &message) override;
 };
 
 class DucoStateTimeRemainingSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
@@ -50,7 +50,7 @@ class DucoStateTimeRemainingSensor : public DucoDevice, public PollingComponent,
 
   float get_setup_priority() const override;
 
-  void receive_response(DucoMessage message) override;
+  void receive_response(const DucoMessage &message) override;
 };
 
 }  // namespace duco

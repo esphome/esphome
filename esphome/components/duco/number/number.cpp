@@ -21,7 +21,7 @@ float DucoComfortTemperature::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoComfortTemperature::receive_response(DucoMessage message) {
+void DucoComfortTemperature::receive_response(const DucoMessage &message) {
   // the DUCO box responds with the same message, both for reading and setting the comfort temperature
   if (message.function == 0x26) {
     publish_state(message.data[3] / 10.0);

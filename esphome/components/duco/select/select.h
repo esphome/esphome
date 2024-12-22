@@ -45,7 +45,7 @@ class DucoSelect : public DucoDevice, public PollingComponent, public select::Se
 
   float get_setup_priority() const override;
 
-  void receive_response(DucoMessage message) override;
+  void receive_response(const DucoMessage &message) override;
 
   void control(const std::string &value) override;
 };

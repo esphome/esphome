@@ -21,7 +21,7 @@ float DucoCo2Sensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoCo2Sensor::receive_response(DucoMessage message) {
+void DucoCo2Sensor::receive_response(const DucoMessage &message) {
   if (message.function == 0x12) {
     uint16_t co2_value = (message.data[5] << 8) + message.data[4];
     publish_state(co2_value);
@@ -46,7 +46,7 @@ float DucoFilterRemainingSensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoFilterRemainingSensor::receive_response(DucoMessage message) {
+void DucoFilterRemainingSensor::receive_response(const DucoMessage &message) {
   if (message.function == 0x26) {
     uint8_t filter_remaining = message.data[3];
     publish_state(filter_remaining);
@@ -69,7 +69,7 @@ float DucoFlowLevelSensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoFlowLevelSensor::receive_response(DucoMessage message) {
+void DucoFlowLevelSensor::receive_response(const DucoMessage &message) {
   if (message.function == 0x0e) {
     uint8_t flow_level = message.data[2];
     publish_state(flow_level);
@@ -92,7 +92,7 @@ float DucoStateTimeRemainingSensor::get_setup_priority() const {
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoStateTimeRemainingSensor::receive_response(DucoMessage message) {
+void DucoStateTimeRemainingSensor::receive_response(const DucoMessage &message) {
   if (message.function == 0x0e) {
     uint16_t time_remaining = (message.data[13] << 8) + message.data[12];
     publish_state(time_remaining);
