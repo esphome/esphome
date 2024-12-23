@@ -231,7 +231,7 @@ void DucoDiscovery::receive_response(const DucoMessage &message) {
 
     if (message.data[0] != 0x00) {
       // node was found, store its information
-      nodes_.emplace_back(std::make_tuple(next_node_, message.data[0]));
+      nodes_.emplace_back(next_node_, message.data[0]);
     }
 
     next_node_++;
