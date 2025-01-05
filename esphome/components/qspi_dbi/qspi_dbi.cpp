@@ -33,19 +33,12 @@ void QspiDbi::update() {
   this->do_update_();
   if (this->buffer_ == nullptr || this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_)
     return;
-  // Start addresses and widths/heights must be divisible by 2 (CASET/RASET restriction in datasheet)
-  if (this->x_low_ % 2 == 1) {
-    this->x_low_--;
-  }
-  if (this->x_high_ % 2 == 0) {
-    this->x_high_++;
-  }
-  if (this->y_low_ % 2 == 1) {
-    this->y_low_--;
-  }
-  if (this->y_high_ % 2 == 0) {
-    this->y_high_++;
-  }
+  // Some chips require that the drawing window be aligned on certain boundaries
+  auto dr = this->draw_rounding_;
+  this->x_low_ = this->x_low_ / dr * dr;
+  this->y_low_ = this->y_low_ / dr * dr;
+  this->x_high_ = (this->x_high_ + dr) / dr * dr - 1;
+  this->y_high_ = (this->y_high_ + dr) / dr * dr - 1;
   if (this->draw_from_origin_) {
     this->x_low_ = 0;
     this->y_low_ = 0;
@@ -175,10 +168,9 @@ void QspiDbi::write_to_display_(int x_start, int y_start, int w, int h, const ui
     this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, ptr, w * h * 2, 4);
   } else {
     auto stride = x_offset + w + x_pad;
-    uint16_t cmd = 0x2C00;
+    this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, nullptr, 0, 4);
     for (int y = 0; y != h; y++) {
-      this->write_cmd_addr_data(8, 0x32, 24, cmd, ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2, 4);
-      cmd = 0x3C00;
+      this->write_cmd_addr_data(0, 0, 0, 0, ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2, 4);
     }
   }
   this->disable();
@@ -220,6 +212,7 @@ void QspiDbi::dump_config() {
   ESP_LOGCONFIG("", "Model: %s", this->model_);
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
   ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
+  ESP_LOGCONFIG(TAG, "  Draw rounding: %u", this->draw_rounding_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));

@@ -1,0 +1,8 @@
+remote_transmitter:
+  - id: xmitr
+    pin: ${pin}
+    rmt_channel: ${rmt_channel}
+    carrier_duty_percent: 50%
+
+packages:
+  buttons: !include common-buttons.yaml

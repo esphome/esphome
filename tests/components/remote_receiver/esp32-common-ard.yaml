@@ -1,8 +1,10 @@
 remote_receiver:
-  id: rcvr
-  pin: GPIO5
-  dump: all
-  <<: !include common-actions.yaml
+  - id: rcvr
+    pin: ${pin}
+    rmt_channel: ${rmt_channel}
+    dump: all
+    tolerance: 25%
+    <<: !include common-actions.yaml
 
 binary_sensor:
   - platform: remote_receiver

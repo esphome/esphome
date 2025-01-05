@@ -4,12 +4,10 @@
 #pragma once
 
 #ifdef USE_ESP_IDF
-#include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/display/display_color_utils.h"
-#include "esp_lcd_panel_ops.h"
 
 #include "esp_lcd_panel_rgb.h"
 
@@ -105,6 +103,7 @@ class QspiDbi : public display::DisplayBuffer,
   int get_height_internal() override { return this->height_; }
   bool can_proceed() override { return this->setup_complete_; }
   void add_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequences_.push_back(sequence); }
+  void set_draw_rounding(unsigned rounding) { this->draw_rounding_ = rounding; }
 
  protected:
   void check_buffer_() {
@@ -161,6 +160,7 @@ class QspiDbi : public display::DisplayBuffer,
   bool mirror_x_{};
   bool mirror_y_{};
   bool draw_from_origin_{false};
+  unsigned draw_rounding_{2};
   uint8_t brightness_{0xD0};
   const char *model_{"Unknown"};
   std::vector<std::vector<uint8_t>> init_sequences_{};

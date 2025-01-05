@@ -11,6 +11,14 @@
 
 #include "esphome/core/optional.h"
 
+#ifdef USE_ESP8266
+#include <Esp.h>
+#endif
+
+#ifdef USE_RP2040
+#include <Arduino.h>
+#endif
+
 #ifdef USE_ESP32
 #include <esp_heap_caps.h>
 #endif
@@ -684,20 +692,23 @@ template<class T> class RAMAllocator {
   };
 
   RAMAllocator() = default;
-  RAMAllocator(uint8_t flags) : flags_{flags} {}
+  RAMAllocator(uint8_t flags) {
+    // default is both external and internal
+    flags &= ALLOC_INTERNAL | ALLOC_EXTERNAL;
+    if (flags != 0)
+      this->flags_ = flags;
+  }
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
     size_t size = n * sizeof(T);
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    // External allocation by default or if explicitely requested
-    if ((this->flags_ & Flags::ALLOC_EXTERNAL) || ((this->flags_ & Flags::ALLOC_INTERNAL) == 0)) {
+    if (this->flags_ & Flags::ALLOC_EXTERNAL) {
       ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     }
-    // Fallback to internal allocation if explicitely requested or no flag is specified
-    if (ptr == nullptr && ((this->flags_ & Flags::ALLOC_INTERNAL) || (this->flags_ & Flags::ALLOC_EXTERNAL) == 0)) {
-      ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
+    if (ptr == nullptr && this->flags_ & Flags::ALLOC_INTERNAL) {
+      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     }
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
@@ -710,8 +721,46 @@ template<class T> class RAMAllocator {
     free(p);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
   }
 
+  /**
+   * Return the total heap space available via this allocator
+   */
+  size_t get_free_heap_size() const {
+#ifdef USE_ESP8266
+    return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP32)
+    auto max_internal =
+        this->flags_ & ALLOC_INTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL) : 0;
+    auto max_external =
+        this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
+    return max_internal + max_external;
+#elif defined(USE_RP2040)
+    return ::rp2040.getFreeHeap();
+#elif defined(USE_LIBRETINY)
+    return lt_heap_get_free();
+#else
+    return 100000;
+#endif
+  }
+
+  /**
+   * Return the maximum size block this allocator could allocate. This may be an approximation on some platforms
+   */
+  size_t get_max_free_block_size() const {
+#ifdef USE_ESP8266
+    return ESP.getMaxFreeBlockSize();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP32)
+    auto max_internal =
+        this->flags_ & ALLOC_INTERNAL ? heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL) : 0;
+    auto max_external =
+        this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
+    return std::max(max_internal, max_external);
+#else
+    return this->get_free_heap_size();
+#endif
+  }
+
  private:
-  uint8_t flags_{Flags::ALLOW_FAILURE};
+  uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;

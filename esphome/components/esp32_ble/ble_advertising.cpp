@@ -83,7 +83,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   esp_err_t err;
 
   this->advertising_data_.set_scan_rsp = false;
-  this->advertising_data_.include_name = true;
+  this->advertising_data_.include_name = !this->scan_response_;
   this->advertising_data_.include_txpower = !this->scan_response_;
   err = esp_ble_gap_config_adv_data(&this->advertising_data_);
   if (err != ESP_OK) {

@@ -1660,6 +1660,12 @@ class SplitDefault(Optional):
         esp32_c3=vol.UNDEFINED,
         esp32_c3_arduino=vol.UNDEFINED,
         esp32_c3_idf=vol.UNDEFINED,
+        esp32_c6=vol.UNDEFINED,
+        esp32_c6_arduino=vol.UNDEFINED,
+        esp32_c6_idf=vol.UNDEFINED,
+        esp32_h2=vol.UNDEFINED,
+        esp32_h2_arduino=vol.UNDEFINED,
+        esp32_h2_idf=vol.UNDEFINED,
         rp2040=vol.UNDEFINED,
         bk72xx=vol.UNDEFINED,
         rtl87xx=vol.UNDEFINED,
@@ -1691,6 +1697,18 @@ class SplitDefault(Optional):
         self._esp32_c3_idf_default = vol.default_factory(
             _get_priority_default(esp32_c3_idf, esp32_c3, esp32_idf, esp32)
         )
+        self._esp32_c6_arduino_default = vol.default_factory(
+            _get_priority_default(esp32_c6_arduino, esp32_c6, esp32_arduino, esp32)
+        )
+        self._esp32_c6_idf_default = vol.default_factory(
+            _get_priority_default(esp32_c6_idf, esp32_c6, esp32_idf, esp32)
+        )
+        self._esp32_h2_arduino_default = vol.default_factory(
+            _get_priority_default(esp32_h2_arduino, esp32_h2, esp32_arduino, esp32)
+        )
+        self._esp32_h2_idf_default = vol.default_factory(
+            _get_priority_default(esp32_h2_idf, esp32_h2, esp32_idf, esp32)
+        )
         self._rp2040_default = vol.default_factory(rp2040)
         self._bk72xx_default = vol.default_factory(bk72xx)
         self._rtl87xx_default = vol.default_factory(rtl87xx)
@@ -1704,6 +1722,8 @@ class SplitDefault(Optional):
             from esphome.components.esp32 import get_esp32_variant
             from esphome.components.esp32.const import (
                 VARIANT_ESP32C3,
+                VARIANT_ESP32C6,
+                VARIANT_ESP32H2,
                 VARIANT_ESP32S2,
                 VARIANT_ESP32S3,
             )
@@ -1724,6 +1744,16 @@ class SplitDefault(Optional):
                     return self._esp32_c3_arduino_default
                 if CORE.using_esp_idf:
                     return self._esp32_c3_idf_default
+            elif variant == VARIANT_ESP32C6:
+                if CORE.using_arduino:
+                    return self._esp32_c6_arduino_default
+                if CORE.using_esp_idf:
+                    return self._esp32_c6_idf_default
+            elif variant == VARIANT_ESP32H2:
+                if CORE.using_arduino:
+                    return self._esp32_h2_arduino_default
+                if CORE.using_esp_idf:
+                    return self._esp32_h2_idf_default
             else:
                 if CORE.using_arduino:
                     return self._esp32_arduino_default

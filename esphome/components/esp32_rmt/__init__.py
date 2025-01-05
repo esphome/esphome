@@ -1,7 +1,8 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-
 from esphome.components import esp32
+import esphome.config_validation as cv
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.core import CORE
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -36,8 +37,32 @@ RMT_CHANNEL_ENUMS = {
 }
 
 
-def validate_rmt_channel(*, tx: bool):
+def use_new_rmt_driver():
+    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if CORE.using_esp_idf and framework_version >= cv.Version(5, 0, 0):
+        return True
+    return False
 
+
+def validate_clock_resolution():
+    def _validator(value):
+        cv.only_on_esp32(value)
+        value = cv.int_(value)
+        variant = esp32.get_esp32_variant()
+        if variant == esp32.const.VARIANT_ESP32H2 and value > 32000000:
+            raise cv.Invalid(
+                f"ESP32 variant {variant} has a max clock_resolution of 32000000."
+            )
+        if value > 80000000:
+            raise cv.Invalid(
+                f"ESP32 variant {variant} has a max clock_resolution of 80000000."
+            )
+        return value
+
+    return _validator
+
+
+def validate_rmt_channel(*, tx: bool):
     rmt_channels = RMT_TX_CHANNELS if tx else RMT_RX_CHANNELS
 
     def _validator(value):

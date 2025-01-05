@@ -32,7 +32,7 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   /* ### ACTIONS ### */
   /* ############### */
 
-  void do_follow_me(float temperature, bool beeper = false);
+  void do_follow_me(float temperature, bool use_fahrenheit, bool beeper = false);
   void do_display_toggle();
   void do_swing_step();
   void do_beeper_on() { this->set_beeper_feedback(true); }

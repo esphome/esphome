@@ -602,6 +602,9 @@ async def to_code(config):
         cg.add_platformio_option(
             "platform_packages", ["espressif/toolchain-esp32ulp@2.35.0-20220830"]
         )
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
+        )
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
         add_idf_sdkconfig_option(

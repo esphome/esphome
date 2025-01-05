@@ -1,6 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "air_conditioner.h"
 #include "ac_adapter.h"
 #include <cmath>
@@ -121,7 +122,7 @@ void AirConditioner::dump_config() {
 
 /* ACTIONS */
 
-void AirConditioner::do_follow_me(float temperature, bool beeper) {
+void AirConditioner::do_follow_me(float temperature, bool use_fahrenheit, bool beeper) {
 #ifdef USE_REMOTE_TRANSMITTER
   // Check if temperature is finite (not NaN or infinite)
   if (!std::isfinite(temperature)) {
@@ -131,13 +132,14 @@ void AirConditioner::do_follow_me(float temperature, bool beeper) {
 
   // Round and convert temperature to long, then clamp and convert it to uint8_t
   uint8_t temp_uint8 =
-      static_cast<uint8_t>(std::max(0L, std::min(static_cast<long>(UINT8_MAX), std::lroundf(temperature))));
+      static_cast<uint8_t>(esphome::clamp<long>(std::lroundf(temperature), 0L, static_cast<long>(UINT8_MAX)));
 
-  ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %f °C, rounded to: %u °C", temperature,
-           temp_uint8);
+  char temp_symbol = use_fahrenheit ? 'F' : 'C';
+  ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %.5f °%c, rounded to: %u °%c", temperature,
+           temp_symbol, temp_uint8, temp_symbol);
 
   // Create and transmit the data
-  IrFollowMeData data(temp_uint8, beeper);
+  IrFollowMeData data(temp_uint8, use_fahrenheit, beeper);
   this->transmitter_.transmit(data);
 #else
   ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
