@@ -38,11 +38,11 @@ void HlkFm22xComponent::enroll_face(const std::string &name, const HlkFm22xFaceD
   ESP_LOGI(TAG, "Starting enrollment for %s", name.c_str());
   std::vector<uint8_t> data;
   data.reserve(35);
-  data.push_back(0); // admin
+  data.push_back(0);  // admin
   std::copy(name.begin(), name.end(), std::back_inserter(data));
   data.insert(data.end(), 32 - name.length(), 0);
   data.push_back((uint8_t) direction);
-  data.push_back(10); // timeout
+  data.push_back(10);  // timeout
   this->send_command_(HlkFm22xCommand::ENROLL, data);
   if (this->enrolling_binary_sensor_ != nullptr) {
     this->enrolling_binary_sensor_->publish_state(true);
@@ -56,7 +56,7 @@ void HlkFm22xComponent::scan_face() {
 
 void HlkFm22xComponent::delete_face(const uint16_t face_id) {
   ESP_LOGI(TAG, "Deleting face in slot %d", face_id);
-  std::vector<uint8_t> data {(uint8_t) (face_id >> 8), (uint8_t) (face_id & 0xFF)};
+  std::vector<uint8_t> data{(uint8_t) (face_id >> 8), (uint8_t) (face_id & 0xFF)};
   this->send_command_(HlkFm22xCommand::DELETE_FACE, data);
 }
 
@@ -122,7 +122,7 @@ void HlkFm22xComponent::recv_command_() {
   }
   this->wait_cycles_ = 0;
 
-  if ((this->read() != (uint8_t)(START_CODE >> 8)) || (this->read() != (uint8_t) (START_CODE & 0xFF))) {
+  if ((this->read() != (uint8_t) (START_CODE >> 8)) || (this->read() != (uint8_t) (START_CODE & 0xFF))) {
     ESP_LOGE(TAG, "Invalid start code");
     return;
   }
@@ -140,7 +140,7 @@ void HlkFm22xComponent::recv_command_() {
 
   std::vector<uint8_t> data;
   data.reserve(length);
-  for (uint16_t idx = 0; idx < length ; ++idx) {
+  for (uint16_t idx = 0; idx < length; ++idx) {
     byte = this->read();
     checksum ^= byte;
     data.push_back(byte);
@@ -216,8 +216,7 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
     return;
   }
   switch (expected) {
-    case HlkFm22xCommand::VERIFY:
-    {
+    case HlkFm22xCommand::VERIFY: {
       uint16_t face_id = ((uint16_t) data[2] << 8) | data[3];
       ESP_LOGD(TAG, "Face verified. ID: %d", face_id);
       if (this->last_face_id_sensor_ != nullptr) {
@@ -226,8 +225,7 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
       this->face_scan_matched_callback_.call(face_id);
       break;
     }
-    case HlkFm22xCommand::ENROLL:
-    {
+    case HlkFm22xCommand::ENROLL: {
       uint16_t face_id = ((uint16_t) data[2] << 8) | data[3];
       HlkFm22xFaceDirection direction = (HlkFm22xFaceDirection) data[4];
       ESP_LOGI(TAG, "Face enrolled. ID: %d, Direction: 0x%.2X", face_id, direction);
@@ -246,7 +244,7 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
       break;
     case HlkFm22xCommand::GET_VERSION:
       if (this->version_text_sensor_ != nullptr) {
-        std::string version(data.begin()+2, data.end());
+        std::string version(data.begin() + 2, data.end());
         this->version_text_sensor_->publish_state(version);
       }
       this->defer([this]() { this->get_face_count_(); });

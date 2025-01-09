@@ -17,6 +17,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(
     }
 )
 
+
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_HLK_FM22X_ID])
     sens = await text_sensor.new_text_sensor(config)

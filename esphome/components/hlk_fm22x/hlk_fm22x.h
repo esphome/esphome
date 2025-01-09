@@ -13,8 +13,6 @@ namespace esphome {
 namespace hlk_fm22x {
 
 static const uint16_t START_CODE = 0xEFAA;
-
-
 enum HlkFm22xCommand {
   NONE = 0x00,
   RESET = 0x10,
@@ -76,9 +74,7 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void dump_config() override;
 
-  void set_face_count_sensor(sensor::Sensor *face_count_sensor) {
-    this->face_count_sensor_ = face_count_sensor;
-  }
+  void set_face_count_sensor(sensor::Sensor *face_count_sensor) { this->face_count_sensor_ = face_count_sensor; }
   void set_status_sensor(sensor::Sensor *status_sensor) { this->status_sensor_ = status_sensor; }
   void set_last_face_id_sensor(sensor::Sensor *last_face_id_sensor) {
     this->last_face_id_sensor_ = last_face_id_sensor;
@@ -139,8 +135,7 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
 class FaceScanMatchedTrigger : public Trigger<uint16_t> {
  public:
   explicit FaceScanMatchedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_matched_callback(
-        [this](uint16_t face_id) { this->trigger(face_id); });
+    parent->add_on_face_scan_matched_callback([this](uint16_t face_id) { this->trigger(face_id); });
   }
 };
 
@@ -161,8 +156,7 @@ class FaceScanInvalidTrigger : public Trigger<> {
 class FaceInfoTrigger : public Trigger<uint8_t> {
  public:
   explicit FaceInfoTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_info_callback(
-        [this](uint8_t status) { this->trigger(status); });
+    parent->add_on_face_info_callback([this](uint8_t status) { this->trigger(status); });
   }
 };
 

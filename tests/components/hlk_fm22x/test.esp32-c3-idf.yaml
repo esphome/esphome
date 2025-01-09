@@ -8,8 +8,8 @@ esphome:
 
 uart:
   - id: uart_hlk_fm22x
-    tx_pin: 17
-    rx_pin: 16
+    tx_pin: 4
+    rx_pin: 5
     baud_rate: 115200
 
 hlk_fm22x:
