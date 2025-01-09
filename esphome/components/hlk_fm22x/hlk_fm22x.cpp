@@ -30,7 +30,7 @@ void HlkFm22xComponent::update() {
   this->recv_command_();
 }
 
-void HlkFm22xComponent::enroll_face(const std::string &name, const HlkFm22xFaceDirection direction) {
+void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirection direction) {
   if (name.length() > 31) {
     ESP_LOGE(TAG, "enroll_face(): name too long '%s'", name.c_str());
     return;
@@ -54,7 +54,7 @@ void HlkFm22xComponent::scan_face() {
   this->send_command_(HlkFm22xCommand::VERIFY, {0, 0});
 }
 
-void HlkFm22xComponent::delete_face(const uint16_t face_id) {
+void HlkFm22xComponent::delete_face(uint16_t face_id) {
   ESP_LOGI(TAG, "Deleting face in slot %d", face_id);
   std::vector<uint8_t> data{(uint8_t) (face_id >> 8), (uint8_t) (face_id & 0xFF)};
   this->send_command_(HlkFm22xCommand::DELETE_FACE, data);
@@ -80,7 +80,7 @@ void HlkFm22xComponent::reset() {
   this->send_command_(HlkFm22xCommand::RESET);
 }
 
-void HlkFm22xComponent::send_command_(const HlkFm22xCommand command, const std::vector<uint8_t> &data) {
+void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Send command: 0x%.2X", command);
   ESP_LOGV(TAG, "Data: %s", format_hex_pretty(data).c_str());
   if (this->active_command_ != HlkFm22xCommand::NONE) {

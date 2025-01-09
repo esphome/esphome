@@ -104,15 +104,15 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
     this->enrollment_failed_callback_.add(std::move(callback));
   }
 
-  void enroll_face(const std::string &name, const HlkFm22xFaceDirection direction);
+  void enroll_face(const std::string &name, HlkFm22xFaceDirection direction);
   void scan_face();
-  void delete_face(const uint16_t face_id);
+  void delete_face(uint16_t face_id);
   void delete_all_faces();
   void reset();
 
  protected:
   void get_face_count_();
-  void send_command_(const HlkFm22xCommand command, const std::vector<uint8_t> &data = {});
+  void send_command_(HlkFm22xCommand command, const std::vector<uint8_t> &data = {});
   void recv_command_();
   void handle_note_(const std::vector<uint8_t> &data);
   void handle_reply_(const std::vector<uint8_t> &data);
