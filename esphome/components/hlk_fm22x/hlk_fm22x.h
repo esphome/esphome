@@ -118,7 +118,7 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   void handle_reply_(const std::vector<uint8_t> &data);
 
   HlkFm22xCommand active_command_ = HlkFm22xCommand::NONE;
-  uint8_t wait_cycles_ = 0;
+  uint16_t wait_cycles_ = 0;
   sensor::Sensor *face_count_sensor_{nullptr};
   sensor::Sensor *status_sensor_{nullptr};
   sensor::Sensor *last_face_id_sensor_{nullptr};
