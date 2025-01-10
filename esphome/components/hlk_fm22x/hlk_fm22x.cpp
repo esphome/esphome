@@ -44,9 +44,7 @@ void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirecti
   data.push_back((uint8_t) direction);
   data.push_back(10);  // timeout
   this->send_command_(HlkFm22xCommand::ENROLL, data);
-  if (this->enrolling_binary_sensor_ != nullptr) {
-    this->enrolling_binary_sensor_->publish_state(true);
-  }
+  this->set_enrolling_(true);
 }
 
 void HlkFm22xComponent::scan_face() {
@@ -74,9 +72,7 @@ void HlkFm22xComponent::reset() {
   ESP_LOGI(TAG, "Resetting module");
   this->active_command_ = HlkFm22xCommand::NONE;
   this->wait_cycles_ = 0;
-  if (this->enrolling_binary_sensor_ != nullptr) {
-    this->enrolling_binary_sensor_->publish_state(false);
-  }
+  this->set_enrolling_(false);
   this->send_command_(HlkFm22xCommand::RESET);
 }
 
@@ -176,8 +172,9 @@ void HlkFm22xComponent::handle_note_(const std::vector<uint8_t> &data) {
       ESP_LOGE(TAG, "Command 0x%.2X timed out", this->active_command_);
       this->active_command_ = HlkFm22xCommand::NONE;
       this->wait_cycles_ = 0;
-      if (this->enrolling_binary_sensor_ != nullptr) {
-        this->enrolling_binary_sensor_->publish_state(false);
+      if (this->enrolling_) {
+        this->set_enrolling_(false);
+        this->enrollment_failed_callback_.call();
       }
       break;
     default:
@@ -196,11 +193,9 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
 
   if (data[1] != HlkFm22xResult::SUCCESS) {
     ESP_LOGE(TAG, "Command <0x%.2X> failed. Error: 0x%.2X", data[0], data[1]);
-    switch (this->active_command_) {
+    switch (expected) {
       case HlkFm22xCommand::ENROLL:
-        if (this->enrolling_binary_sensor_ != nullptr) {
-          this->enrolling_binary_sensor_->publish_state(false);
-        }
+        this->set_enrolling_(false);
         this->enrollment_failed_callback_.call();
         break;
       case HlkFm22xCommand::VERIFY:
@@ -230,9 +225,7 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
       HlkFm22xFaceDirection direction = (HlkFm22xFaceDirection) data[4];
       ESP_LOGI(TAG, "Face enrolled. ID: %d, Direction: 0x%.2X", face_id, direction);
       this->enrollment_done_callback_.call(face_id);
-      if (this->enrolling_binary_sensor_ != nullptr) {
-        this->enrolling_binary_sensor_->publish_state(false);
-      }
+      this->set_enrolling_(false);
       this->defer([this]() { this->get_face_count_(); });
       break;
     }
@@ -270,12 +263,19 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
   }
 }
 
+void HlkFm22xComponent::set_enrolling_(bool enrolling) {
+  this->enrolling_ = enrolling;
+  if (this->enrolling_binary_sensor_ != nullptr) {
+    this->enrolling_binary_sensor_->publish_state(enrolling);
+  }
+}
+
 void HlkFm22xComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HLK_FM22X:");
   LOG_UPDATE_INTERVAL(this);
   if (this->version_text_sensor_) {
     LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %s", this->version_text_sensor_->state.c_str());
+    ESP_LOGCONFIG(TAG, "    Current Value: %s", this->version_text_sensor_->get_state().c_str());
   }
   if (this->enrolling_binary_sensor_) {
     LOG_BINARY_SENSOR("  ", "Enrolling", this->enrolling_binary_sensor_);
