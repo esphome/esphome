@@ -170,12 +170,19 @@ void HlkFm22xComponent::handle_note_(const std::vector<uint8_t> &data) {
       break;
     case HlkFm22xNoteType::READY:
       ESP_LOGE(TAG, "Command 0x%.2X timed out", this->active_command_);
+      switch (this->active_command_) {
+        case HlkFm22xCommand::ENROLL:
+          this->set_enrolling_(false);
+          this->enrollment_failed_callback_.call();
+          break;
+        case HlkFm22xCommand::VERIFY:
+          this->face_scan_invalid_callback_.call();
+          break;
+        default:
+          break;
+      }
       this->active_command_ = HlkFm22xCommand::NONE;
       this->wait_cycles_ = 0;
-      if (this->enrolling_) {
-        this->set_enrolling_(false);
-        this->enrollment_failed_callback_.call();
-      }
       break;
     default:
       ESP_LOGW(TAG, "Unhandled note: 0x%.2X", data[0]);
@@ -264,7 +271,6 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
 }
 
 void HlkFm22xComponent::set_enrolling_(bool enrolling) {
-  this->enrolling_ = enrolling;
   if (this->enrolling_binary_sensor_ != nullptr) {
     this->enrolling_binary_sensor_->publish_state(enrolling);
   }

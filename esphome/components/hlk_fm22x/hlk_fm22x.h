@@ -120,7 +120,6 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
 
   HlkFm22xCommand active_command_ = HlkFm22xCommand::NONE;
   uint16_t wait_cycles_ = 0;
-  bool enrolling_ = false;
   sensor::Sensor *face_count_sensor_{nullptr};
   sensor::Sensor *status_sensor_{nullptr};
   sensor::Sensor *last_face_id_sensor_{nullptr};
