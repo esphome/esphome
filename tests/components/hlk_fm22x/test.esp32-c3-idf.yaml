@@ -41,4 +41,7 @@ binary_sensor:
 
 text_sensor:
   - platform: hlk_fm22x
-    name: "HLK Version"
+    version:
+      name: "HLK Version"
+    last_face_name:
+      name: "Last Face Name"

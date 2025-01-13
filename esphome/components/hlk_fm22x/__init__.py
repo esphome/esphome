@@ -29,7 +29,7 @@ HlkFm22xComponent = hlk_fm22x_ns.class_(
 )
 
 FaceScanMatchedTrigger = hlk_fm22x_ns.class_(
-    "FaceScanMatchedTrigger", automation.Trigger.template(cg.uint16)
+    "FaceScanMatchedTrigger", automation.Trigger.template(cg.int16, cg.std_string)
 )
 
 FaceScanUnmatchedTrigger = hlk_fm22x_ns.class_(
@@ -37,19 +37,22 @@ FaceScanUnmatchedTrigger = hlk_fm22x_ns.class_(
 )
 
 FaceScanInvalidTrigger = hlk_fm22x_ns.class_(
-    "FaceScanInvalidTrigger", automation.Trigger.template()
+    "FaceScanInvalidTrigger", automation.Trigger.template(cg.uint8)
 )
 
 FaceInfoTrigger = hlk_fm22x_ns.class_(
-    "FaceInfoTrigger", automation.Trigger.template(cg.uint8)
+    "FaceInfoTrigger",
+    automation.Trigger.template(
+        cg.int16, cg.int16, cg.int16, cg.int16, cg.int16, cg.int16, cg.int16, cg.int16
+    ),
 )
 
 EnrollmentDoneTrigger = hlk_fm22x_ns.class_(
-    "EnrollmentDoneTrigger", automation.Trigger.template(cg.uint16)
+    "EnrollmentDoneTrigger", automation.Trigger.template(cg.int16)
 )
 
 EnrollmentFailedTrigger = hlk_fm22x_ns.class_(
-    "EnrollmentFailedTrigger", automation.Trigger.template()
+    "EnrollmentFailedTrigger", automation.Trigger.template(cg.uint8)
 )
 
 EnrollmentAction = hlk_fm22x_ns.class_("EnrollmentAction", automation.Action)
@@ -116,7 +119,9 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_FACE_SCAN_MATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint16, "face_id")], conf)
+        await automation.build_automation(
+            trigger, [(cg.int16, "face_id"), (cg.std_string, "name")], conf
+        )
 
     for conf in config.get(CONF_ON_FACE_SCAN_UNMATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -124,19 +129,32 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_FACE_SCAN_INVALID, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(cg.uint8, "error")], conf)
 
     for conf in config.get(CONF_ON_FACE_INFO, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint8, "status")], conf)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.int16, "status"),
+                (cg.int16, "left"),
+                (cg.int16, "top"),
+                (cg.int16, "right"),
+                (cg.int16, "bottom"),
+                (cg.int16, "yaw"),
+                (cg.int16, "pitch"),
+                (cg.int16, "roll"),
+            ],
+            conf,
+        )
 
     for conf in config.get(CONF_ON_ENROLLMENT_DONE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint16, "face_id")], conf)
+        await automation.build_automation(trigger, [(cg.int16, "face_id")], conf)
 
     for conf in config.get(CONF_ON_ENROLLMENT_FAILED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(cg.uint8, "error")], conf)
 
 
 @automation.register_action(
@@ -177,7 +195,7 @@ async def hlk_fm22x_delete_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    template_ = await cg.templatable(config[CONF_FACE_ID], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_FACE_ID], args, cg.int16)
     cg.add(var.set_face_id(template_))
     return var
 

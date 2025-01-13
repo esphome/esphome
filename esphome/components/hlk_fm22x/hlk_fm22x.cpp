@@ -10,10 +10,11 @@ static const char *const TAG = "hlk_fm22x";
 
 void HlkFm22xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-FM22X...");
+  this->set_enrolling_(false);
+  while (this->available()) {
+    this->read();
+  }
   this->defer([this]() { this->send_command_(HlkFm22xCommand::GET_STATUS); });
-  // while (this->available()) {
-  //   this->read();
-  // }
 }
 
 void HlkFm22xComponent::update() {
@@ -52,7 +53,7 @@ void HlkFm22xComponent::scan_face() {
   this->send_command_(HlkFm22xCommand::VERIFY, {0, 0});
 }
 
-void HlkFm22xComponent::delete_face(uint16_t face_id) {
+void HlkFm22xComponent::delete_face(int16_t face_id) {
   ESP_LOGI(TAG, "Deleting face in slot %d", face_id);
   std::vector<uint8_t> data{(uint8_t) (face_id >> 8), (uint8_t) (face_id & 0xFF)};
   this->send_command_(HlkFm22xCommand::DELETE_FACE, data);
@@ -165,18 +166,31 @@ void HlkFm22xComponent::recv_command_() {
 void HlkFm22xComponent::handle_note_(const std::vector<uint8_t> &data) {
   switch (data[0]) {
     case HlkFm22xNoteType::FACE_STATE:
-      ESP_LOGD(TAG, "Face note. Status: 0x%.2X", data[1]);
-      this->face_info_callback_.call(data[1]);
+      if (data.size() < 17) {
+        ESP_LOGE(TAG, "Invalid face note data size: %u", data.size());
+        break;
+      }
+      {
+        int16_t info[8];
+        uint8_t offset = 1;
+        for (int16_t &i : info) {
+          i = ((int16_t) data[offset + 1] << 8) | data[offset];
+          offset += 2;
+        }
+        ESP_LOGV(TAG, "Face state: status: %d, left: %d, top: %d, right: %d, bottom: %d, yaw: %d, pitch: %d, roll: %d",
+                 info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
+        this->face_info_callback_.call(info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
+      }
       break;
     case HlkFm22xNoteType::READY:
       ESP_LOGE(TAG, "Command 0x%.2X timed out", this->active_command_);
       switch (this->active_command_) {
         case HlkFm22xCommand::ENROLL:
           this->set_enrolling_(false);
-          this->enrollment_failed_callback_.call();
+          this->enrollment_failed_callback_.call(HlkFm22xResult::FAILED4_TIMEOUT);
           break;
         case HlkFm22xCommand::VERIFY:
-          this->face_scan_invalid_callback_.call();
+          this->face_scan_invalid_callback_.call(HlkFm22xResult::FAILED4_TIMEOUT);
           break;
         default:
           break;
@@ -203,13 +217,13 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
     switch (expected) {
       case HlkFm22xCommand::ENROLL:
         this->set_enrolling_(false);
-        this->enrollment_failed_callback_.call();
+        this->enrollment_failed_callback_.call(data[1]);
         break;
       case HlkFm22xCommand::VERIFY:
         if (data[1] == HlkFm22xResult::REJECTED) {
           this->face_scan_unmatched_callback_.call();
         } else {
-          this->face_scan_invalid_callback_.call();
+          this->face_scan_invalid_callback_.call(data[1]);
         }
         break;
       default:
@@ -219,16 +233,20 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
   }
   switch (expected) {
     case HlkFm22xCommand::VERIFY: {
-      uint16_t face_id = ((uint16_t) data[2] << 8) | data[3];
-      ESP_LOGD(TAG, "Face verified. ID: %d", face_id);
+      int16_t face_id = ((int16_t) data[2] << 8) | data[3];
+      std::string name(data.begin() + 4, data.begin() + 36);
+      ESP_LOGD(TAG, "Face verified. ID: %d, name: %s", face_id, name.c_str());
       if (this->last_face_id_sensor_ != nullptr) {
         this->last_face_id_sensor_->publish_state(face_id);
       }
-      this->face_scan_matched_callback_.call(face_id);
+      if (this->last_face_name_text_sensor_ != nullptr) {
+        this->last_face_name_text_sensor_->publish_state(name);
+      }
+      this->face_scan_matched_callback_.call(face_id, name);
       break;
     }
     case HlkFm22xCommand::ENROLL: {
-      uint16_t face_id = ((uint16_t) data[2] << 8) | data[3];
+      int16_t face_id = ((int16_t) data[2] << 8) | data[3];
       HlkFm22xFaceDirection direction = (HlkFm22xFaceDirection) data[4];
       ESP_LOGI(TAG, "Face enrolled. ID: %d, Direction: 0x%.2X", face_id, direction);
       this->enrollment_done_callback_.call(face_id);
@@ -297,7 +315,11 @@ void HlkFm22xComponent::dump_config() {
   }
   if (this->last_face_id_sensor_) {
     LOG_SENSOR("  ", "Last Face ID", this->last_face_id_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint32_t) this->last_face_id_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (int16_t) this->last_face_id_sensor_->get_state());
+  }
+  if (this->last_face_name_text_sensor_) {
+    LOG_TEXT_SENSOR("  ", "Last Face Name", this->last_face_name_text_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %s", this->last_face_name_text_sensor_->get_state().c_str());
   }
 }
 

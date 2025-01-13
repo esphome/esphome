@@ -7,6 +7,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
 
+#include <utility>
 #include <vector>
 
 namespace esphome {
@@ -79,34 +80,38 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   void set_last_face_id_sensor(sensor::Sensor *last_face_id_sensor) {
     this->last_face_id_sensor_ = last_face_id_sensor;
   }
+  void set_last_face_name_text_sensor(text_sensor::TextSensor *last_face_name_text_sensor) {
+    this->last_face_name_text_sensor_ = last_face_name_text_sensor;
+  }
   void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
     this->enrolling_binary_sensor_ = enrolling_binary_sensor;
   }
   void set_version_text_sensor(text_sensor::TextSensor *version_text_sensor) {
     this->version_text_sensor_ = version_text_sensor;
   }
-  void add_on_face_scan_matched_callback(std::function<void(uint16_t)> callback) {
+  void add_on_face_scan_matched_callback(std::function<void(int16_t, std::string)> callback) {
     this->face_scan_matched_callback_.add(std::move(callback));
   }
   void add_on_face_scan_unmatched_callback(std::function<void()> callback) {
     this->face_scan_unmatched_callback_.add(std::move(callback));
   }
-  void add_on_face_scan_invalid_callback(std::function<void()> callback) {
+  void add_on_face_scan_invalid_callback(std::function<void(uint8_t)> callback) {
     this->face_scan_invalid_callback_.add(std::move(callback));
   }
-  void add_on_face_info_callback(std::function<void(uint8_t)> callback) {
+  void add_on_face_info_callback(
+      std::function<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> callback) {
     this->face_info_callback_.add(std::move(callback));
   }
-  void add_on_enrollment_done_callback(std::function<void(uint16_t)> callback) {
+  void add_on_enrollment_done_callback(std::function<void(int16_t)> callback) {
     this->enrollment_done_callback_.add(std::move(callback));
   }
-  void add_on_enrollment_failed_callback(std::function<void()> callback) {
+  void add_on_enrollment_failed_callback(std::function<void(uint8_t)> callback) {
     this->enrollment_failed_callback_.add(std::move(callback));
   }
 
   void enroll_face(const std::string &name, HlkFm22xFaceDirection direction);
   void scan_face();
-  void delete_face(uint16_t face_id);
+  void delete_face(int16_t face_id);
   void delete_all_faces();
   void reset();
 
@@ -124,19 +129,21 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *status_sensor_{nullptr};
   sensor::Sensor *last_face_id_sensor_{nullptr};
   binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
+  text_sensor::TextSensor *last_face_name_text_sensor_{nullptr};
   text_sensor::TextSensor *version_text_sensor_{nullptr};
-  CallbackManager<void()> face_scan_invalid_callback_;
-  CallbackManager<void(uint16_t)> face_scan_matched_callback_;
+  CallbackManager<void(uint8_t)> face_scan_invalid_callback_;
+  CallbackManager<void(int16_t, std::string)> face_scan_matched_callback_;
   CallbackManager<void()> face_scan_unmatched_callback_;
-  CallbackManager<void(uint8_t)> face_info_callback_;
-  CallbackManager<void(uint16_t)> enrollment_done_callback_;
-  CallbackManager<void()> enrollment_failed_callback_;
+  CallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
+  CallbackManager<void(int16_t)> enrollment_done_callback_;
+  CallbackManager<void(uint8_t)> enrollment_failed_callback_;
 };
 
-class FaceScanMatchedTrigger : public Trigger<uint16_t> {
+class FaceScanMatchedTrigger : public Trigger<int16_t, std::string> {
  public:
   explicit FaceScanMatchedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_matched_callback([this](uint16_t face_id) { this->trigger(face_id); });
+    parent->add_on_face_scan_matched_callback(
+        [this](int16_t face_id, std::string name) { this->trigger(face_id, std::move(name)); });
   }
 };
 
@@ -147,31 +154,33 @@ class FaceScanUnmatchedTrigger : public Trigger<> {
   }
 };
 
-class FaceScanInvalidTrigger : public Trigger<> {
+class FaceScanInvalidTrigger : public Trigger<uint8_t> {
  public:
   explicit FaceScanInvalidTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_invalid_callback([this]() { this->trigger(); });
+    parent->add_on_face_scan_invalid_callback([this](uint8_t error) { this->trigger(error); });
   }
 };
 
-class FaceInfoTrigger : public Trigger<uint8_t> {
+class FaceInfoTrigger : public Trigger<int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t> {
  public:
   explicit FaceInfoTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_info_callback([this](uint8_t status) { this->trigger(status); });
+    parent->add_on_face_info_callback(
+        [this](int16_t status, int16_t left, int16_t top, int16_t right, int16_t bottom, int16_t yaw, int16_t pitch,
+               int16_t roll) { this->trigger(status, left, top, right, bottom, yaw, pitch, roll); });
   }
 };
 
-class EnrollmentDoneTrigger : public Trigger<uint16_t> {
+class EnrollmentDoneTrigger : public Trigger<int16_t> {
  public:
   explicit EnrollmentDoneTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_enrollment_done_callback([this](uint16_t face_id) { this->trigger(face_id); });
+    parent->add_on_enrollment_done_callback([this](int16_t face_id) { this->trigger(face_id); });
   }
 };
 
-class EnrollmentFailedTrigger : public Trigger<> {
+class EnrollmentFailedTrigger : public Trigger<uint8_t> {
  public:
   explicit EnrollmentFailedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_enrollment_failed_callback([this]() { this->trigger(); });
+    parent->add_on_enrollment_failed_callback([this](uint8_t error) { this->trigger(error); });
   }
 };
 
@@ -189,7 +198,7 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
 
 template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
-  TEMPLATABLE_VALUE(uint16_t, face_id)
+  TEMPLATABLE_VALUE(int16_t, face_id)
 
   void play(Ts... x) override {
     auto face_id = this->face_id_.value(x...);
