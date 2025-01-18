@@ -85,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(UDPComponent),
             cv.Optional(CONF_PORT, default=18511): cv.port,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-                cv.ipv4
+                cv.ipv4address,
             ),
             cv.Optional(CONF_ROLLING_CODE_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_PING_PONG_ENABLE, default=False): cv.boolean,

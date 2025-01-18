@@ -1,6 +1,7 @@
 #pragma once
 
 #include "image_decoder.h"
+#include "esphome/core/defines.h"
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 #include <pngle.h>
 

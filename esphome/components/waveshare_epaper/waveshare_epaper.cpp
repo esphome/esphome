@@ -2425,28 +2425,21 @@ void WaveshareEPaper7P5InBV3BWR::init_display_() {
   this->command(0x01);
 
   // 1-0=11: internal power
-  this->data(0x07);
-  this->data(0x17);  // VGH&VGL
-  this->data(0x3F);  // VSH
-  this->data(0x26);  // VSL
-  this->data(0x11);  // VSHR
+  this->data(0x07);  // VRS_EN=1, VS_EN=1, VG_EN=1
+  this->data(0x17);  // VGH&VGL ??? VCOM_SLEW=1 but this is fixed, VG_LVL[2:0]=111 => VGH=20V VGL=-20V, it could be 0x07
+  this->data(0x3F);  // VSH=15V?
+  this->data(0x26);  // VSL=-9.4V?
+  this->data(0x11);  // VSHR=5.8V?
 
   // VCOM DC Setting
   this->command(0x82);
-  this->data(0x24);  // VCOM
-
-  // Booster Setting
-  this->command(0x06);
-  this->data(0x27);
-  this->data(0x27);
-  this->data(0x2F);
-  this->data(0x17);
+  this->data(0x24);  // VCOM=-1.9V
 
   // POWER ON
   this->command(0x04);
-
   delay(100);  // NOLINT
   this->wait_until_idle_();
+
   // COMMAND PANEL SETTING
   this->command(0x00);
   this->data(0x0F);  // KW-3f   KWR-2F BWROTP 0f BWOTP 1f
@@ -2457,16 +2450,16 @@ void WaveshareEPaper7P5InBV3BWR::init_display_() {
   this->data(0x20);
   this->data(0x01);  // gate 480
   this->data(0xE0);
-  // COMMAND ...?
-  this->command(0x15);
-  this->data(0x00);
+
   // COMMAND VCOM AND DATA INTERVAL SETTING
   this->command(0x50);
   this->data(0x20);
   this->data(0x00);
+
   // COMMAND TCON SETTING
   this->command(0x60);
   this->data(0x22);
+
   // Resolution setting
   this->command(0x65);
   this->data(0x00);

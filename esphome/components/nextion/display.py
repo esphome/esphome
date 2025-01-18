@@ -1,30 +1,30 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import display, uart
-from esphome.components import esp32
+import esphome.codegen as cg
+from esphome.components import display, esp32, uart
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BRIGHTNESS,
     CONF_ID,
     CONF_LAMBDA,
-    CONF_BRIGHTNESS,
-    CONF_TRIGGER_ID,
     CONF_ON_TOUCH,
+    CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
+
 from . import Nextion, nextion_ns, nextion_ref
 from .base_component import (
+    CONF_AUTO_WAKE_ON_TOUCH,
+    CONF_EXIT_REPARSE_ON_START,
     CONF_ON_BUFFER_OVERFLOW,
+    CONF_ON_PAGE,
+    CONF_ON_SETUP,
     CONF_ON_SLEEP,
     CONF_ON_WAKE,
-    CONF_ON_SETUP,
-    CONF_ON_PAGE,
+    CONF_SKIP_CONNECTION_HANDSHAKE,
+    CONF_START_UP_PAGE,
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
-    CONF_START_UP_PAGE,
-    CONF_AUTO_WAKE_ON_TOUCH,
-    CONF_EXIT_REPARSE_ON_START,
-    CONF_SKIP_CONNECTION_HANDSHAKE,
 )
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
@@ -32,6 +32,9 @@ CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
 
+NextionSetBrightnessAction = nextion_ns.class_(
+    "NextionSetBrightnessAction", automation.Action
+)
 SetupTrigger = nextion_ns.class_("SetupTrigger", automation.Trigger.template())
 SleepTrigger = nextion_ns.class_("SleepTrigger", automation.Trigger.template())
 WakeTrigger = nextion_ns.class_("WakeTrigger", automation.Trigger.template())
@@ -46,7 +49,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Nextion),
             cv.Optional(CONF_TFT_URL): cv.url,
-            cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+            cv.Optional(CONF_BRIGHTNESS): cv.percentage,
             cv.Optional(CONF_ON_SETUP): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SetupTrigger),
@@ -92,12 +95,34 @@ CONFIG_SCHEMA = (
 )
 
 
+@automation.register_action(
+    "display.nextion.set_brightness",
+    NextionSetBrightnessAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(Nextion),
+            cv.Required(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
+        },
+        key=CONF_BRIGHTNESS,
+    ),
+)
+async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
+    cg.add(var.set_brightness(template_))
+
+    return var
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
 
     if CONF_BRIGHTNESS in config:
         cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
+
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(nextion_ref, "it")], return_type=cg.void

@@ -20,6 +20,7 @@ display:
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
     invert_colors: false
+    color_palette: 8bit
     dimensions:
       width: 320
       height: 240

@@ -165,7 +165,7 @@ class MQTTClientComponent : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(const std::string &topic_prefix);
+  void set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 

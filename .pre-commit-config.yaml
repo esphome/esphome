@@ -11,14 +11,6 @@ repos:
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.4.2
-    hooks:
-      - id: black
-        args:
-          - --safe
-          - --quiet
-        files: ^((esphome|script|tests)/.+)?[^/]+\.py$
   - repo: https://github.com/PyCQA/flake8
     rev: 6.1.0
     hooks:
@@ -53,6 +45,6 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: script/run-in-env.sh pylint
-        language: script
+        entry: python script/run-in-env pylint
+        language: system
         types: [python]

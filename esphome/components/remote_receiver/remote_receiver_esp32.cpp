@@ -154,16 +154,16 @@ void RemoteReceiverComponent::setup() {
 void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Receiver:");
   LOG_PIN("  Pin: ", this->pin_);
-  if (this->pin_->digital_read()) {
-    ESP_LOGW(TAG, "Remote Receiver Signal starts with a HIGH value. Usually this means you have to "
-                  "invert the signal using 'inverted: True' in the pin schema!");
-  }
 #if ESP_IDF_VERSION_MAJOR >= 5
   ESP_LOGCONFIG(TAG, "  Clock resolution: %" PRIu32 " hz", this->clock_resolution_);
   ESP_LOGCONFIG(TAG, "  RMT symbols: %" PRIu32, this->rmt_symbols_);
   ESP_LOGCONFIG(TAG, "  Filter symbols: %" PRIu32, this->filter_symbols_);
   ESP_LOGCONFIG(TAG, "  Receive symbols: %" PRIu32, this->receive_symbols_);
 #else
+  if (this->pin_->digital_read()) {
+    ESP_LOGW(TAG, "Remote Receiver Signal starts with a HIGH value. Usually this means you have to "
+                  "invert the signal using 'inverted: True' in the pin schema!");
+  }
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
   ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);

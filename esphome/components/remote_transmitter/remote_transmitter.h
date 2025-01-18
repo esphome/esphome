@@ -41,6 +41,8 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 #if defined(USE_ESP32) && ESP_IDF_VERSION_MAJOR >= 5
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_one_wire(bool one_wire) { this->one_wire_ = one_wire; }
+  void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
+  void digital_write(bool value);
 #endif
 
   Trigger<> *get_transmit_trigger() const { return this->transmit_trigger_; };
@@ -68,6 +70,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   std::vector<rmt_symbol_word_t> rmt_temp_;
   bool with_dma_{false};
   bool one_wire_{false};
+  bool eot_level_{false};
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
 #else

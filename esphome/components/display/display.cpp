@@ -266,8 +266,9 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
         if (dymax < float(-dxmax) * tan_a) {
           upd_dxmax = ceil(float(dymax) / tan_a);
           hline_width = -dxmax - upd_dxmax + 1;
-        } else
+        } else {
           hline_width = 0;
+        }
       }
       if (hline_width > 0)
         this->horizontal_line(center_x + dxmax, center_y - dymax, hline_width, color);

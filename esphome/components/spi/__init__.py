@@ -97,11 +97,7 @@ RP_SPI_PINSETS = [
 
 
 def get_target_platform():
-    return (
-        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
-        if KEY_TARGET_PLATFORM in CORE.data[KEY_CORE]
-        else ""
-    )
+    return CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
 
 
 def get_target_variant():

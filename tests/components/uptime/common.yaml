@@ -13,3 +13,7 @@ sensor:
   - platform: uptime
     name: Uptime Sensor Timestamp
     type: timestamp
+
+text_sensor:
+  - platform: uptime
+    name: Uptime Text

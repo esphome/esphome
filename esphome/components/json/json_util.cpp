@@ -17,11 +17,11 @@ std::string build_json(const json_build_t &f) {
   auto free_heap = ALLOCATOR.get_max_free_block_size();
   size_t request_size = std::min(free_heap, (size_t) 512);
   while (true) {
-    ESP_LOGV(TAG, "Attempting to allocate %u bytes for JSON serialization", request_size);
+    ESP_LOGV(TAG, "Attempting to allocate %zu bytes for JSON serialization", request_size);
     DynamicJsonDocument json_document(request_size);
     if (json_document.capacity() == 0) {
       ESP_LOGE(TAG,
-               "Could not allocate memory for JSON document! Requested %u bytes, largest free heap block: %u bytes",
+               "Could not allocate memory for JSON document! Requested %zu bytes, largest free heap block: %zu bytes",
                request_size, free_heap);
       return "{}";
     }
@@ -29,7 +29,7 @@ std::string build_json(const json_build_t &f) {
     f(root);
     if (json_document.overflowed()) {
       if (request_size == free_heap) {
-        ESP_LOGE(TAG, "Could not allocate memory for JSON document! Overflowed largest free heap block: %u bytes",
+        ESP_LOGE(TAG, "Could not allocate memory for JSON document! Overflowed largest free heap block: %zu bytes",
                  free_heap);
         return "{}";
       }
@@ -37,7 +37,7 @@ std::string build_json(const json_build_t &f) {
       continue;
     }
     json_document.shrinkToFit();
-    ESP_LOGV(TAG, "Size after shrink %u bytes", json_document.capacity());
+    ESP_LOGV(TAG, "Size after shrink %zu bytes", json_document.capacity());
     std::string output;
     serializeJson(json_document, output);
     return output;

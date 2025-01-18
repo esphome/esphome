@@ -98,7 +98,8 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
  protected:
   inline bool check_buffer_() {
     if (this->buffer_ == nullptr) {
-      this->alloc_buffer_();
+      if (!this->is_failed())
+        this->alloc_buffer_();
       return !this->is_failed();
     }
     return true;

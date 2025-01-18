@@ -197,11 +197,11 @@ def final_validation(configs):
         for display_id in config[df.CONF_DISPLAYS]:
             path = global_config.get_path_for_id(display_id)[:-1]
             display = global_config.get_config_for_path(path)
-            if CONF_LAMBDA in display:
+            if CONF_LAMBDA in display or CONF_PAGES in display:
                 raise cv.Invalid(
-                    "Using lambda: in display config not compatible with LVGL"
+                    "Using lambda: or pages: in display config is not compatible with LVGL"
                 )
-            if display[CONF_AUTO_CLEAR_ENABLED]:
+            if display.get(CONF_AUTO_CLEAR_ENABLED) is True:
                 raise cv.Invalid(
                     "Using auto_clear_enabled: true in display config not compatible with LVGL"
                 )

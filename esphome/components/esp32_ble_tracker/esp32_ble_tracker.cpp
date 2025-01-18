@@ -58,7 +58,6 @@ void ESP32BLETracker::setup() {
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
   this->scan_end_lock_ = xSemaphoreCreateMutex();
-  this->scanner_idle_ = true;
 
 #ifdef USE_OTA
   ota::get_global_ota_callback()->add_on_state_callback(
@@ -106,6 +105,15 @@ void ESP32BLETracker::loop() {
       default:
         break;
     }
+  }
+  if (connecting != connecting_ || discovered != discovered_ || searching != searching_ ||
+      disconnecting != disconnecting_) {
+    connecting_ = connecting;
+    discovered_ = discovered;
+    searching_ = searching;
+    disconnecting_ = disconnecting;
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, searching: %d, disconnecting: %d", connecting_, discovered_,
+             searching_, disconnecting_);
   }
   bool promote_to_connecting = discovered && !searching && !connecting;
 
@@ -183,8 +191,9 @@ void ESP32BLETracker::loop() {
     }
 
     if (this->scan_start_failed_ || this->scan_set_param_failed_) {
-      if (this->scan_start_fail_count_ == 255) {
-        ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after 255 attempts, rebooting to restore BLE stack...");
+      if (this->scan_start_fail_count_ == std::numeric_limits<uint8_t>::max()) {
+        ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after %d attempts, rebooting to restore BLE stack...",
+                 std::numeric_limits<uint8_t>::max());
         App.reboot();
       }
       if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
@@ -282,6 +291,12 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_params_.scan_interval = this->scan_interval_;
   this->scan_params_.scan_window = this->scan_window_;
 
+  // Start timeout before scan is started. Otherwise scan never starts if any error.
+  this->set_timeout("scan", this->scan_duration_ * 2000, []() {
+    ESP_LOGE(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
+    App.reboot();
+  });
+
   esp_err_t err = esp_ble_gap_set_scan_params(&this->scan_params_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_scan_params failed: %d", err);
@@ -293,11 +308,6 @@ void ESP32BLETracker::start_scan_(bool first) {
     return;
   }
   this->scanner_idle_ = false;
-
-  this->set_timeout("scan", this->scan_duration_ * 2000, []() {
-    ESP_LOGE(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
-    App.reboot();
-  });
 }
 
 void ESP32BLETracker::end_of_scan_() {
@@ -371,6 +381,7 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
 }
 
 void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
+  ESP_LOGV(TAG, "gap_scan_set_param_complete - status %d", param.status);
   if (param.status == ESP_BT_STATUS_DONE) {
     this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
   } else {
@@ -379,20 +390,25 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 }
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
+  ESP_LOGV(TAG, "gap_scan_start_complete - status %d", param.status);
   this->scan_start_failed_ = param.status;
   if (param.status == ESP_BT_STATUS_SUCCESS) {
     this->scan_start_fail_count_ = 0;
   } else {
-    this->scan_start_fail_count_++;
+    if (this->scan_start_fail_count_ != std::numeric_limits<uint8_t>::max()) {
+      this->scan_start_fail_count_++;
+    }
     xSemaphoreGive(this->scan_end_lock_);
   }
 }
 
 void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
+  ESP_LOGV(TAG, "gap_scan_stop_complete - status %d", param.status);
   xSemaphoreGive(this->scan_end_lock_);
 }
 
 void ESP32BLETracker::gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
+  ESP_LOGV(TAG, "gap_scan_result - event %d", param.search_evt);
   if (param.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     if (xSemaphoreTake(this->scan_result_lock_, 0L)) {
       if (this->scan_result_index_ < ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
@@ -663,7 +679,14 @@ void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
-  ESP_LOGCONFIG(TAG, "  Continuous Scanning: %s", this->scan_continuous_ ? "True" : "False");
+  ESP_LOGCONFIG(TAG, "  Continuous Scanning: %s", YESNO(this->scan_continuous_));
+  ESP_LOGCONFIG(TAG, "  Scanner Idle: %s", YESNO(this->scanner_idle_));
+  ESP_LOGCONFIG(TAG, "  Scan End: %s", YESNO(xSemaphoreGetMutexHolder(this->scan_end_lock_) == nullptr));
+  ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, searching: %d, disconnecting: %d", connecting_, discovered_,
+                searching_, disconnecting_);
+  if (this->scan_start_fail_count_) {
+    ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
+  }
 }
 
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {

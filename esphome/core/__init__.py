@@ -54,16 +54,6 @@ class HexInt(int):
         return f"{sign}0x{value:X}"
 
 
-class IPAddress:
-    def __init__(self, *args):
-        if len(args) != 4:
-            raise ValueError("IPAddress must consist of 4 items")
-        self.args = args
-
-    def __str__(self):
-        return ".".join(str(x) for x in self.args)
-
-
 class MACAddress:
     def __init__(self, *parts):
         if len(parts) != 6:

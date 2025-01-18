@@ -36,7 +36,7 @@ inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roun
  *   range as set in the traits, so the output needs to do this.
  *
  * For COLD_WARM_WHITE capability:
- * - cold_white, warm_white: The brightness of the cald and warm white channels of the light.
+ * - cold_white, warm_white: The brightness of the light's cold and warm white channels.
  *
  * All values (except color temperature) are represented using floats in the range 0.0 (off) to 1.0 (on), and are
  * automatically clamped to this range. Properties not used in the current color mode can still have (invalid) values

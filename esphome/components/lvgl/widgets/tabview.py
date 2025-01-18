@@ -38,7 +38,7 @@ TABVIEW_SCHEMA = cv.Schema(
                 },
             )
         ),
-        cv.Optional(CONF_TAB_STYLE): part_schema(buttonmatrix_spec),
+        cv.Optional(CONF_TAB_STYLE): part_schema(buttonmatrix_spec.parts),
         cv.Optional(CONF_POSITION, default="top"): DIRECTIONS.one_of,
         cv.Optional(CONF_SIZE, default="10%"): size,
     }

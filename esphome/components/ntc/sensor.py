@@ -2,7 +2,7 @@ from math import log
 
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components import sensor, resistance_sampler
+from esphome.components import sensor
 from esphome.const import (
     CONF_CALIBRATION,
     CONF_REFERENCE_RESISTANCE,
@@ -14,8 +14,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
-
-AUTO_LOAD = ["resistance_sampler"]
 
 ntc_ns = cg.esphome_ns.namespace("ntc")
 NTC = ntc_ns.class_("NTC", cg.Component, sensor.Sensor)
@@ -126,7 +124,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Required(CONF_SENSOR): cv.use_id(resistance_sampler.ResistanceSampler),
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_CALIBRATION): process_calibration,
         }
     )

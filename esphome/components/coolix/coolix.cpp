@@ -131,8 +131,9 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
       } else {
         parent->mode = climate::CLIMATE_MODE_FAN_ONLY;
       }
-    } else
+    } else {
       parent->mode = climate::CLIMATE_MODE_COOL;
+    }
 
     // Fan Speed
     if ((remote_state & COOLIX_FAN_AUTO) == COOLIX_FAN_AUTO || parent->mode == climate::CLIMATE_MODE_HEAT_COOL ||

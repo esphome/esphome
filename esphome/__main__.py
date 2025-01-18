@@ -759,6 +759,14 @@ def parse_args(argv):
         "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
     )
     options_parser.add_argument(
+        "-l",
+        "--log-level",
+        help="Set the log level.",
+        default=os.getenv("ESPHOME_LOG_LEVEL", "INFO"),
+        action="store",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    )
+    options_parser.add_argument(
         "--dashboard", help=argparse.SUPPRESS, action="store_true"
     )
     options_parser.add_argument(
@@ -987,11 +995,16 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
+    # Override log level if verbose is set
+    if args.verbose:
+        args.log_level = "DEBUG"
+    elif args.quiet:
+        args.log_level = "CRITICAL"
+
     setup_log(
-        args.verbose,
-        args.quiet,
+        log_level=args.log_level,
         # Show timestamp for dashboard access logs
-        args.command == "dashboard",
+        include_timestamp=args.command == "dashboard",
     )
 
     if args.command in PRE_CONFIG_ACTIONS:

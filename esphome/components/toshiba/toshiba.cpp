@@ -106,8 +106,9 @@ void ToshibaClimate::setup() {
       this->publish_state();
     });
     this->current_temperature = this->sensor_->state;
-  } else
+  } else {
     this->current_temperature = NAN;
+  }
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {

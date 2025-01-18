@@ -87,8 +87,9 @@ void HeatpumpIRClimate::setup() {
       this->publish_state();
     });
     this->current_temperature = this->sensor_->state;
-  } else
+  } else {
     this->current_temperature = NAN;
+  }
 }
 
 void HeatpumpIRClimate::transmit_state() {

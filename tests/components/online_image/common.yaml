@@ -13,33 +13,32 @@ online_image:
     resize: 50x50
   - id: online_binary_transparent_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
-    type: TRANSPARENT_BINARY
+    type: BINARY
+    use_transparency: chroma_key
     format: png
   - id: online_rgba_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
     format: PNG
-    type: RGBA
+    type: RGB
+    use_transparency: alpha_channel
   - id: online_rgb24_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
     format: PNG
-    type: RGB24
-    use_transparency: true
+    type: RGB
+    use_transparency: chroma_key
 
 # Check the set_url action
-time:
-  - platform: sntp
-    on_time:
-      - at: "13:37:42"
-        then:
-          - online_image.set_url:
-              id: online_rgba_image
-              url: http://www.example.org/example.png
-          - online_image.set_url:
-              id: online_rgba_image
-              url: !lambda |-
-                return "http://www.example.org/example.png";
-          - online_image.set_url:
-              id: online_rgba_image
-              url: !lambda |-
-                return str_sprintf("http://homeassistant.local:8123");
-
+esphome:
+  on_boot:
+    then:
+      - online_image.set_url:
+          id: online_rgba_image
+          url: http://www.example.org/example.png
+      - online_image.set_url:
+          id: online_rgba_image
+          url: !lambda |-
+            return "http://www.example.org/example.png";
+      - online_image.set_url:
+          id: online_rgba_image
+          url: !lambda |-
+            return str_sprintf("http://homeassistant.local:8123");

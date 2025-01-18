@@ -44,6 +44,50 @@ void BLEClientBase::loop() {
 
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
+void BLEClientBase::dump_config() {
+  ESP_LOGCONFIG(TAG, "  Address: %s", this->address_str().c_str());
+  ESP_LOGCONFIG(TAG, "  Auto-Connect: %s", TRUEFALSE(this->auto_connect_));
+  std::string state_name;
+  switch (this->state()) {
+    case espbt::ClientState::INIT:
+      state_name = "INIT";
+      break;
+    case espbt::ClientState::DISCONNECTING:
+      state_name = "DISCONNECTING";
+      break;
+    case espbt::ClientState::IDLE:
+      state_name = "IDLE";
+      break;
+    case espbt::ClientState::SEARCHING:
+      state_name = "SEARCHING";
+      break;
+    case espbt::ClientState::DISCOVERED:
+      state_name = "DISCOVERED";
+      break;
+    case espbt::ClientState::READY_TO_CONNECT:
+      state_name = "READY_TO_CONNECT";
+      break;
+    case espbt::ClientState::CONNECTING:
+      state_name = "CONNECTING";
+      break;
+    case espbt::ClientState::CONNECTED:
+      state_name = "CONNECTED";
+      break;
+    case espbt::ClientState::ESTABLISHED:
+      state_name = "ESTABLISHED";
+      break;
+    default:
+      state_name = "UNKNOWN_STATE";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  State: %s", state_name.c_str());
+  if (this->status_ == ESP_GATT_NO_RESOURCES) {
+    ESP_LOGE(TAG, "  Failed due to no resources. Try to reduce number of BLE clients in config.");
+  } else if (this->status_ != ESP_GATT_OK) {
+    ESP_LOGW(TAG, "  Failed due to error code %d", this->status_);
+  }
+}
+
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   if (!this->auto_connect_)
     return false;
@@ -129,6 +173,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       } else {
         ESP_LOGE(TAG, "[%d] [%s] gattc app registration failed id=%d code=%d", this->connection_index_,
                  this->address_str_.c_str(), param->reg.app_id, param->reg.status);
+        this->status_ = param->reg.status;
+        this->mark_failed();
       }
       break;
     }

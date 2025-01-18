@@ -58,7 +58,19 @@ file_types = (
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
 py_include = ("*.py",)
-ignore_types = (".ico", ".png", ".woff", ".woff2", "", ".ttf", ".otf", ".pcf")
+ignore_types = (
+    ".ico",
+    ".png",
+    ".woff",
+    ".woff2",
+    "",
+    ".ttf",
+    ".otf",
+    ".pcf",
+    ".apng",
+    ".gif",
+    ".webp",
+)
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
@@ -669,8 +681,7 @@ def main():
     )
     args = parser.parse_args()
 
-    global EXECUTABLE_BIT
-    EXECUTABLE_BIT = git_ls_files()
+    EXECUTABLE_BIT.update(git_ls_files())
     files = list(EXECUTABLE_BIT.keys())
     # Match against re
     file_name_re = re.compile("|".join(args.files))

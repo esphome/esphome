@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 
 from esphome import pins
 import esphome.codegen as cg
@@ -15,6 +16,9 @@ from esphome.const import (
     CONF_RMT_CHANNEL,
     CONF_RMT_SYMBOLS,
 )
+from esphome.core import CORE
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
@@ -64,12 +68,52 @@ CONF_RESET_HIGH = "reset_high"
 CONF_RESET_LOW = "reset_low"
 
 
+class OptionalForIDF5(cv.SplitDefault):
+    @property
+    def default(self):
+        if not esp32_rmt.use_new_rmt_driver():
+            return cv.UNDEFINED
+        return super().default
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from vol.Optional
+        pass
+
+
+def only_with_new_rmt_driver(obj):
+    if not esp32_rmt.use_new_rmt_driver():
+        raise cv.Invalid(
+            "This feature is only available for the IDF framework version 5."
+        )
+    return obj
+
+
+def not_with_new_rmt_driver(obj):
+    if esp32_rmt.use_new_rmt_driver():
+        raise cv.Invalid(
+            "This feature is not available for the IDF framework version 5."
+        )
+    return obj
+
+
 def final_validation(config):
-    if not esp32_rmt.use_new_rmt_driver() and CONF_RMT_CHANNEL not in config:
-        raise cv.Invalid("rmt_channel is a required option.")
+    if not esp32_rmt.use_new_rmt_driver():
+        if CONF_RMT_CHANNEL not in config:
+            if CORE.using_esp_idf:
+                raise cv.Invalid(
+                    "rmt_channel is a required option for IDF version < 5."
+                )
+            raise cv.Invalid(
+                "rmt_channel is a required option for the Arduino framework."
+            )
+        _LOGGER.warning(
+            "RMT_LED_STRIP support for IDF version < 5 is deprecated and will be removed soon."
+        )
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
+
 
 CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
@@ -79,9 +123,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
             cv.Optional(CONF_RMT_CHANNEL): cv.All(
-                cv.only_with_arduino, esp32_rmt.validate_rmt_channel(tx=True)
+                not_with_new_rmt_driver, esp32_rmt.validate_rmt_channel(tx=True)
             ),
-            cv.SplitDefault(
+            OptionalForIDF5(
                 CONF_RMT_SYMBOLS,
                 esp32_idf=64,
                 esp32_s2_idf=64,
@@ -89,7 +133,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32_c3_idf=48,
                 esp32_c6_idf=48,
                 esp32_h2_idf=48,
-            ): cv.All(cv.only_with_esp_idf, cv.int_range(min=2)),
+            ): cv.All(only_with_new_rmt_driver, cv.int_range(min=2)),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,

@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_EXTERNAL_COMPONENTS,
     CONF_ID,
+    CONF_MIN_VERSION,
     CONF_PACKAGES,
     CONF_PLATFORM,
     CONF_SUBSTITUTIONS,
@@ -838,6 +839,10 @@ def validate_config(
         return result
     # Remove temporary esphome config path again, it will be reloaded later
     result.remove_output_path([CONF_ESPHOME], CONF_ESPHOME)
+
+    # Check version number now to avoid loading components that are not supported
+    if min_version := config[CONF_ESPHOME].get(CONF_MIN_VERSION):
+        cv.All(cv.version_number, cv.validate_esphome_version)(min_version)
 
     # First run platform validation steps
     for key in TARGET_PLATFORMS:

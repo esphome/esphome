@@ -25,11 +25,13 @@ void I2SAudioMicrophone::setup() {
     }
   } else
 #endif
-      if (this->pdm_) {
-    if (this->parent_->get_port() != I2S_NUM_0) {
-      ESP_LOGE(TAG, "PDM only works on I2S0!");
-      this->mark_failed();
-      return;
+  {
+    if (this->pdm_) {
+      if (this->parent_->get_port() != I2S_NUM_0) {
+        ESP_LOGE(TAG, "PDM only works on I2S0!");
+        this->mark_failed();
+        return;
+      }
     }
   }
 }

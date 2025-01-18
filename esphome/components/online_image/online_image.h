@@ -48,12 +48,13 @@ class OnlineImage : public PollingComponent,
    * @param buffer_size Size of the buffer used to download the image.
    */
   OnlineImage(const std::string &url, int width, int height, ImageFormat format, image::ImageType type,
-              uint32_t buffer_size);
+              image::Transparency transparency, uint32_t buffer_size);
 
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
   void update() override;
   void loop() override;
+  void map_chroma_key(Color &color);
 
   /** Set the URL to download the image from. */
   void set_url(const std::string &url) {

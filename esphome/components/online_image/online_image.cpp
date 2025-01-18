@@ -25,8 +25,8 @@ inline bool is_color_on(const Color &color) {
 }
 
 OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFormat format, ImageType type,
-                         uint32_t download_buffer_size)
-    : Image(nullptr, 0, 0, type),
+                         image::Transparency transparency, uint32_t download_buffer_size)
+    : Image(nullptr, 0, 0, type, transparency),
       buffer_(nullptr),
       download_buffer_(download_buffer_size),
       format_(format),
@@ -45,7 +45,7 @@ void OnlineImage::draw(int x, int y, display::Display *display, Color color_on, 
 
 void OnlineImage::release() {
   if (this->buffer_) {
-    ESP_LOGD(TAG, "Deallocating old buffer...");
+    ESP_LOGV(TAG, "Deallocating old buffer...");
     this->allocator_.deallocate(this->buffer_, this->get_buffer_size_());
     this->data_start_ = nullptr;
     this->buffer_ = nullptr;
@@ -70,20 +70,19 @@ bool OnlineImage::resize_(int width_in, int height_in) {
   if (this->buffer_) {
     return false;
   }
-  auto new_size = this->get_buffer_size_(width, height);
-  ESP_LOGD(TAG, "Allocating new buffer of %d Bytes...", new_size);
-  delay_microseconds_safe(2000);
+  size_t new_size = this->get_buffer_size_(width, height);
+  ESP_LOGD(TAG, "Allocating new buffer of %zu bytes", new_size);
   this->buffer_ = this->allocator_.allocate(new_size);
-  if (this->buffer_) {
-    this->buffer_width_ = width;
-    this->buffer_height_ = height;
-    this->width_ = width;
-    ESP_LOGD(TAG, "New size: (%d, %d)", width, height);
-  } else {
-    ESP_LOGE(TAG, "allocation failed. Biggest block in heap: %zu Bytes", this->allocator_.get_max_free_block_size());
+  if (this->buffer_ == nullptr) {
+    ESP_LOGE(TAG, "allocation of %zu bytes failed. Biggest block in heap: %zu Bytes", new_size,
+             this->allocator_.get_max_free_block_size());
     this->end_connection_();
     return false;
   }
+  this->buffer_width_ = width;
+  this->buffer_height_ = height;
+  this->width_ = width;
+  ESP_LOGV(TAG, "New size: (%d, %d)", width, height);
   return true;
 }
 
@@ -91,9 +90,8 @@ void OnlineImage::update() {
   if (this->decoder_) {
     ESP_LOGW(TAG, "Image already being updated.");
     return;
-  } else {
-    ESP_LOGI(TAG, "Updating image");
   }
+  ESP_LOGI(TAG, "Updating image %s", this->url_.c_str());
 
   this->downloader_ = this->parent_->get(this->url_);
 
@@ -142,10 +140,11 @@ void OnlineImage::loop() {
     return;
   }
   if (!this->downloader_ || this->decoder_->is_finished()) {
-    ESP_LOGD(TAG, "Image fully downloaded");
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
+    ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d", this->downloader_->get_bytes_read(),
+             this->width_, this->height_);
     this->end_connection_();
     this->download_finished_callback_.call();
     return;
@@ -171,6 +170,19 @@ void OnlineImage::loop() {
   }
 }
 
+void OnlineImage::map_chroma_key(Color &color) {
+  if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
+    if (color.g == 1 && color.r == 0 && color.b == 0) {
+      color.g = 0;
+    }
+    if (color.w < 0x80) {
+      color.r = 0;
+      color.g = this->type_ == ImageType::IMAGE_TYPE_RGB565 ? 4 : 1;
+      color.b = 0;
+    }
+  }
+}
+
 void OnlineImage::draw_pixel_(int x, int y, Color color) {
   if (!this->buffer_) {
     ESP_LOGE(TAG, "Buffer not allocated!");
@@ -184,57 +196,53 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
   switch (this->type_) {
     case ImageType::IMAGE_TYPE_BINARY: {
       const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
-      const uint32_t pos = x + y * width_8;
-      if ((this->has_transparency() && color.w > 127) || is_color_on(color)) {
-        this->buffer_[pos / 8u] |= (0x80 >> (pos % 8u));
+      pos = x + y * width_8;
+      auto bitno = 0x80 >> (pos % 8u);
+      pos /= 8u;
+      auto on = is_color_on(color);
+      if (this->has_transparency() && color.w < 0x80)
+        on = false;
+      if (on) {
+        this->buffer_[pos] |= bitno;
       } else {
-        this->buffer_[pos / 8u] &= ~(0x80 >> (pos % 8u));
+        this->buffer_[pos] &= ~bitno;
       }
       break;
     }
     case ImageType::IMAGE_TYPE_GRAYSCALE: {
       uint8_t gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
-      if (this->has_transparency()) {
+      if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
         if (gray == 1) {
           gray = 0;
         }
         if (color.w < 0x80) {
           gray = 1;
         }
+      } else if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
+        if (color.w != 0xFF)
+          gray = color.w;
       }
       this->buffer_[pos] = gray;
       break;
     }
     case ImageType::IMAGE_TYPE_RGB565: {
+      this->map_chroma_key(color);
       uint16_t col565 = display::ColorUtil::color_to_565(color);
       this->buffer_[pos + 0] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
       this->buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
-      if (this->has_transparency())
+      if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
         this->buffer_[pos + 2] = color.w;
-      break;
-    }
-    case ImageType::IMAGE_TYPE_RGBA: {
-      this->buffer_[pos + 0] = color.r;
-      this->buffer_[pos + 1] = color.g;
-      this->buffer_[pos + 2] = color.b;
-      this->buffer_[pos + 3] = color.w;
-      break;
-    }
-    case ImageType::IMAGE_TYPE_RGB24:
-    default: {
-      if (this->has_transparency()) {
-        if (color.b == 1 && color.r == 0 && color.g == 0) {
-          color.b = 0;
-        }
-        if (color.w < 0x80) {
-          color.r = 0;
-          color.g = 0;
-          color.b = 1;
-        }
       }
+      break;
+    }
+    case ImageType::IMAGE_TYPE_RGB: {
+      this->map_chroma_key(color);
       this->buffer_[pos + 0] = color.r;
       this->buffer_[pos + 1] = color.g;
       this->buffer_[pos + 2] = color.b;
+      if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
+        this->buffer_[pos + 3] = color.w;
+      }
       break;
     }
   }

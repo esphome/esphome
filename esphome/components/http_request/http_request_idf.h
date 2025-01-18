@@ -18,6 +18,9 @@ class HttpContainerIDF : public HttpContainer {
   int read(uint8_t *buf, size_t max_len) override;
   void end() override;
 
+  /// @brief Feeds the watchdog timer if the executing task has one attached
+  void feed_wdt();
+
  protected:
   esp_http_client_handle_t client_;
 };

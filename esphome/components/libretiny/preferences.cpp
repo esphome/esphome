@@ -147,7 +147,7 @@ class LibreTinyPreferences : public ESPPreferences {
       ESP_LOGV(TAG, "fdb_kv_get_obj('%s'): nullptr - the key might not be set yet", to_save.key.c_str());
       return true;
     }
-    stored_data.data.reserve(kv.value_len);
+    stored_data.data.resize(kv.value_len);
     fdb_blob_make(&blob, stored_data.data.data(), kv.value_len);
     size_t actual_len = fdb_kv_get_blob(db, to_save.key.c_str(), &blob);
     if (actual_len != kv.value_len) {

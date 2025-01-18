@@ -97,8 +97,9 @@ void GCJA5Component::parse_data_() {
   if (this->rx_message_[0] != 0x02 || this->rx_message_[31] != 0x03 || !this->calculate_checksum_()) {
     ESP_LOGVV(TAG, "Discarding bad packet - failed checks.");
     return;
-  } else
+  } else {
     ESP_LOGVV(TAG, "Good packet found.");
+  }
 
   this->have_good_data_ = true;
   uint8_t status = this->rx_message_[29];

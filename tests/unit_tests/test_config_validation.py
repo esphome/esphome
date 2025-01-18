@@ -1,12 +1,12 @@
-import pytest
 import string
 
-from hypothesis import given, example
-from hypothesis.strategies import one_of, text, integers, builds
+from hypothesis import example, given
+from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
+import pytest
 
 from esphome import config_validation
 from esphome.config_validation import Invalid
-from esphome.core import CORE, Lambda, HexInt
+from esphome.core import CORE, HexInt, Lambda
 
 
 def test_check_not_templatable__invalid():
@@ -143,6 +143,28 @@ def test_boolean__valid_false(value):
 def test_boolean__invalid(value):
     with pytest.raises(Invalid, match="Expected boolean value"):
         config_validation.boolean(value)
+
+
+@given(value=ip_addresses(v=4).map(str))
+def test_ipv4__valid(value):
+    config_validation.ipv4address(value)
+
+
+@pytest.mark.parametrize("value", ("127.0.0", "localhost", ""))
+def test_ipv4__invalid(value):
+    with pytest.raises(Invalid, match="is not a valid IPv4 address"):
+        config_validation.ipv4address(value)
+
+
+@given(value=ip_addresses(v=6).map(str))
+def test_ipv6__valid(value):
+    config_validation.ipaddress(value)
+
+
+@pytest.mark.parametrize("value", ("127.0.0", "localhost", "", "2001:db8::2::3"))
+def test_ipv6__invalid(value):
+    with pytest.raises(Invalid, match="is not a valid IP address"):
+        config_validation.ipaddress(value)
 
 
 # TODO: ensure_list

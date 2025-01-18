@@ -1339,7 +1339,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void()> buffer_overflow_callback_{};
 
   optional<nextion_writer_t> writer_;
-  float brightness_{1.0};
+  optional<float> brightness_;
 
   std::string device_model_;
   std::string firmware_version_;

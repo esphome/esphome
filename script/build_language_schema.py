@@ -85,12 +85,12 @@ def load_components():
 
 
 # pylint: disable=wrong-import-position
-from esphome.const import CONF_TYPE, KEY_CORE
+from esphome.const import CONF_TYPE, KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 
 # pylint: enable=wrong-import-position
 
-CORE.data[KEY_CORE] = {}
+CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: None}
 load_components()
 
 # Import esphome after loading components (so schema is tracked)

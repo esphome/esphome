@@ -5,4 +5,44 @@ display:
       width: 480
       height: 480
 
-<<: !include common.yaml
+image:
+  binary:
+    - id: binary_image
+      file: ../../pnglogo.png
+      dither: FloydSteinberg
+    - id: transparent_transparent_image
+      file: ../../pnglogo.png
+      use_transparency: chroma_key
+  rgb:
+    alpha_channel:
+      - id: rgba_image
+        file: ../../pnglogo.png
+        resize: 50x50
+    chroma_key:
+      - id: rgb24_image
+        file: ../../pnglogo.png
+        type: RGB
+    opaque:
+      - id: rgb_image
+        file: ../../pnglogo.png
+  rgb565:
+    - id: rgb565_image
+      file: ../../pnglogo.png
+      use_transparency: opaque
+    - id: rgb565_ck_image
+      file: ../../pnglogo.png
+      use_transparency: chroma_key
+    - id: rgb565_alpha_image
+      file: ../../pnglogo.png
+      use_transparency: alpha_channel
+  grayscale:
+    - id: grayscale_alpha_image
+      file: ../../pnglogo.png
+      use_transparency: alpha_channel
+      resize: 50x50
+    - id: grayscale_ck_image
+      file: ../../pnglogo.png
+      use_transparency: chroma_key
+    - id: grayscale_image
+      file: ../../pnglogo.png
+      use_transparency: opaque

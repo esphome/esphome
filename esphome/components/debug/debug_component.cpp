@@ -50,6 +50,10 @@ void DebugComponent::dump_config() {
     this->reset_reason_->publish_state(get_reset_reason_());
   }
 #endif  // USE_TEXT_SENSOR
+
+#ifdef USE_ESP32
+  this->log_partition_info_();  // Log partition information for ESP32
+#endif                          // USE_ESP32
 }
 
 void DebugComponent::loop() {

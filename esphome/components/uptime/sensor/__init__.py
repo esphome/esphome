@@ -1,14 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, time
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_TIME_ID,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_TIMESTAMP,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_TIMER,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_SECOND,
-    ICON_TIMER,
-    DEVICE_CLASS_DURATION,
 )
 
 uptime_ns = cg.esphome_ns.namespace("uptime")

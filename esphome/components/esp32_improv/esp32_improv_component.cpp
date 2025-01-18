@@ -112,7 +112,7 @@ void ESP32ImprovComponent::loop() {
         this->set_state_(improv::STATE_AUTHORIZED);
       } else
 #else
-      this->set_state_(improv::STATE_AUTHORIZED);
+      { this->set_state_(improv::STATE_AUTHORIZED); }
 #endif
       {
         if (!this->check_identify_())

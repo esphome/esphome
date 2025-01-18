@@ -606,7 +606,13 @@ void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) { this->topic_prefix_ = topic_prefix; }
+void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
+  if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
+    this->topic_prefix_ = str_sanitize(App.get_name());
+  } else {
+    this->topic_prefix_ = topic_prefix;
+  }
+}
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::set_publish_nan_as_none(bool publish_nan_as_none) {
   this->publish_nan_as_none_ = publish_nan_as_none;

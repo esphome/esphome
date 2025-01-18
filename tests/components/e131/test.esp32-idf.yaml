@@ -12,7 +12,6 @@ light:
     rgb_order: GRB
     num_leds: 256
     pin: 2
-    rmt_channel: 0
     effects:
       - e131:
           universe: 1

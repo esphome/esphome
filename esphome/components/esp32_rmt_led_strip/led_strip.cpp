@@ -33,6 +33,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
     this->mark_failed();
     return;
   }
+  memset(this->buf_, 0, buffer_size);
 
   this->effect_data_ = allocator.allocate(this->num_leds_);
   if (this->effect_data_ == nullptr) {

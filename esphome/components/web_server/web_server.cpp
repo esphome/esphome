@@ -455,8 +455,9 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     } else if (match.method == "toggle") {
       this->schedule_([obj]() { obj->toggle().perform(); });
       request->send(200);
-    } else if (match.method == "turn_on") {
-      auto call = obj->turn_on();
+    } else if (match.method == "turn_on" || match.method == "turn_off") {
+      auto call = match.method == "turn_on" ? obj->turn_on() : obj->turn_off();
+
       if (request->hasParam("speed_level")) {
         auto speed_level = request->getParam("speed_level")->value();
         auto val = parse_number<int>(speed_level.c_str());
@@ -485,9 +486,6 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
         }
       }
       this->schedule_([call]() mutable { call.perform(); });
-      request->send(200);
-    } else if (match.method == "turn_off") {
-      this->schedule_([obj]() { obj->turn_off().perform(); });
       request->send(200);
     } else {
       request->send(404);
@@ -1415,6 +1413,30 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
       request->send(200, "application/json", data.c_str());
       return;
     }
+
+    auto call = obj->make_call();
+    if (request->hasParam("code")) {
+      call.set_code(request->getParam("code")->value().c_str());
+    }
+
+    if (match.method == "disarm") {
+      call.disarm();
+    } else if (match.method == "arm_away") {
+      call.arm_away();
+    } else if (match.method == "arm_home") {
+      call.arm_home();
+    } else if (match.method == "arm_night") {
+      call.arm_night();
+    } else if (match.method == "arm_vacation") {
+      call.arm_vacation();
+    } else {
+      request->send(404);
+      return;
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
   }
   request->send(404);
 }
@@ -1664,7 +1686,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  if (request->method() == HTTP_GET && match.domain == "alarm_control_panel")
+  if ((request->method() == HTTP_GET || request->method() == HTTP_POST) && match.domain == "alarm_control_panel")
     return true;
 #endif
 

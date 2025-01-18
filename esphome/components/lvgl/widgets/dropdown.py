@@ -37,7 +37,7 @@ DROPDOWN_BASE_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_SELECTED_INDEX, CONF_SELECTED_TEXT): lv_int,
         cv.Exclusive(CONF_SELECTED_TEXT, CONF_SELECTED_TEXT): lv_text,
         cv.Optional(CONF_DIR, default="BOTTOM"): DIRECTIONS.one_of,
-        cv.Optional(CONF_DROPDOWN_LIST): part_schema(dropdown_list_spec),
+        cv.Optional(CONF_DROPDOWN_LIST): part_schema(dropdown_list_spec.parts),
     }
 )
 

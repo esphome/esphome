@@ -29,7 +29,7 @@ RUN \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
         python3-pip=23.0.1+dfsg-1 \
-        python3-setuptools=66.1.1-1 \
+        python3-setuptools=66.1.1-1+deb12u1 \
         python3-venv=3.11.2-1+b1 \
         python3-wheel=0.38.4-2 \
         iputils-ping=3:20221126-1+deb12u1 \

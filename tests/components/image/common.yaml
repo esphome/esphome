@@ -5,32 +5,65 @@ image:
     dither: FloydSteinberg
   - id: transparent_transparent_image
     file: ../../pnglogo.png
-    type: TRANSPARENT_BINARY
+    type: BINARY
+    use_transparency: chroma_key
+
   - id: rgba_image
     file: ../../pnglogo.png
-    type: RGBA
+    type: RGB
+    use_transparency: alpha_channel
     resize: 50x50
   - id: rgb24_image
     file: ../../pnglogo.png
-    type: RGB24
-    use_transparency: yes
+    type: RGB
+    use_transparency: chroma_key
+  - id: rgb_image
+    file: ../../pnglogo.png
+    type: RGB
+    use_transparency: opaque
+
   - id: rgb565_image
     file: ../../pnglogo.png
     type: RGB565
-    use_transparency: no
+    use_transparency: opaque
+  - id: rgb565_ck_image
+    file: ../../pnglogo.png
+    type: RGB565
+    use_transparency: chroma_key
+  - id: rgb565_alpha_image
+    file: ../../pnglogo.png
+    type: RGB565
+    use_transparency: alpha_channel
+
+  - id: grayscale_alpha_image
+    file: ../../pnglogo.png
+    type: grayscale
+    use_transparency: alpha_channel
+    resize: 50x50
+  - id: grayscale_ck_image
+    file: ../../pnglogo.png
+    type: grayscale
+    use_transparency: chroma_key
+  - id: grayscale_image
+    file: ../../pnglogo.png
+    type: grayscale
+    use_transparency: opaque
+
   - id: web_svg_image
     file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
     resize: 256x48
-    type: TRANSPARENT_BINARY
+    type: BINARY
+    use_transparency: chroma_key
   - id: web_tiff_image
     file: https://upload.wikimedia.org/wikipedia/commons/b/b6/SIPI_Jelly_Beans_4.1.07.tiff
-    type: RGB24
+    type: RGB
     resize: 48x48
   - id: web_redirect_image
     file: https://avatars.githubusercontent.com/u/3060199?s=48&v=4
-    type: RGB24
+    type: RGB
     resize: 48x48
   - id: mdi_alert
+    type: BINARY
     file: mdi:alert-circle-outline
     resize: 50x50
   - id: another_alert_icon

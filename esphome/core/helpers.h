@@ -163,7 +163,7 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
-/// Calculate a CRC-8 checksum of \p data with size \p len.
+/// Calculate a CRC-8 checksum of \p data with size \p len using the CRC-8-Dallas/Maxim polynomial.
 uint8_t crc8(const uint8_t *data, uint8_t len);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.

@@ -215,7 +215,7 @@ LV_LONG_MODES = LvConstant(
 )
 
 STATES = (
-    "default",
+    # default state not included here
     "checked",
     "focused",
     "focus_key",
@@ -403,6 +403,7 @@ CONF_COLUMN = "column"
 CONF_DIGITS = "digits"
 CONF_DISP_BG_COLOR = "disp_bg_color"
 CONF_DISP_BG_IMAGE = "disp_bg_image"
+CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
 CONF_BUTTONS = "buttons"
 CONF_BYTE_ORDER = "byte_order"

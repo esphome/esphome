@@ -78,6 +78,26 @@ lock:
       }
     optimistic: true
 
+select:
+  - platform: template
+    id: template_select1
+    name: "Template select"
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+number:
+  - platform: template
+    id: template_number1
+    name: "Template number"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
 prometheus:
   include_internal: true
   relabel:

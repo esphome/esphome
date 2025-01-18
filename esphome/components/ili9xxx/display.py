@@ -1,9 +1,12 @@
+import logging
+
 from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_COLOR_ORDER,
     CONF_COLOR_PALETTE,
     CONF_DC_PIN,
@@ -27,17 +30,12 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import CORE, HexInt
+from esphome.final_validate import full_config
 
 DEPENDENCIES = ["spi"]
 
-
-def AUTO_LOAD():
-    if CORE.is_esp32:
-        return ["psram"]
-    return []
-
-
 CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
+LOGGER = logging.getLogger(__name__)
 
 ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
 ILI9XXXDisplay = ili9xxx_ns.class_(
@@ -84,7 +82,7 @@ COLOR_ORDERS = {
     "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
 
-COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
+COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE", "8BIT", upper=True)
 
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
@@ -195,9 +193,27 @@ CONFIG_SCHEMA = cv.All(
     _validate,
 )
 
-FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
-    "ili9xxx", require_miso=False, require_mosi=True
-)
+
+def final_validate(config):
+    global_config = full_config.get()
+    # Ideally would calculate buffer size here, but that info is not available on the Python side
+    needs_buffer = (
+        CONF_LAMBDA in config or CONF_PAGES in config or config[CONF_AUTO_CLEAR_ENABLED]
+    )
+    if (
+        CORE.is_esp32
+        and config[CONF_COLOR_PALETTE] == "NONE"
+        and "psram" not in global_config
+        and needs_buffer
+    ):
+        LOGGER.info("Consider enabling PSRAM if available for the display buffer")
+
+    return spi.final_validate_device_schema(
+        "ili9xxx", require_miso=False, require_mosi=True
+    )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):
@@ -283,6 +299,8 @@ async def to_code(config):
         palette = converted.getpalette()
         assert len(palette) == 256 * 3
         rhs = palette
+    elif config[CONF_COLOR_PALETTE] == "8BIT":
+        cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8))
     else:
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_16))
 

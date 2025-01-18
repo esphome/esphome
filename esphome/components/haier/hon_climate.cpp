@@ -710,8 +710,9 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
             alarm_code++;
           }
           active_alarms_[i] = packet[2 + i];
-        } else
+        } else {
           alarm_code += 8;
+        }
       }
     } else {
       float alarm_count = 0.0f;

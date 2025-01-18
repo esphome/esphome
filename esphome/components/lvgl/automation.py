@@ -4,24 +4,27 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
-from esphome.cpp_generator import get_variable
+from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
     CONF_DISP_BG_COLOR,
     CONF_DISP_BG_IMAGE,
+    CONF_DISP_BG_OPA,
     CONF_EDITING,
     CONF_FREEZE,
     CONF_LVGL_ID,
     CONF_SHOW_SNOW,
+    PARTS,
     literal,
 )
-from .lv_validation import lv_bool, lv_color, lv_image
+from .lv_validation import lv_bool, lv_color, lv_image, opacity
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
+    LvglComponent,
     ReturnStatement,
     add_line_marks,
     lv,
@@ -31,7 +34,7 @@ from .lvcode import (
     lvgl_comp,
     static_cast,
 )
-from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
+from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA, base_update_schema
 from .types import (
     LV_STATE,
     LvglAction,
@@ -39,6 +42,7 @@ from .types import (
     ObjUpdateAction,
     lv_disp_t,
     lv_group_t,
+    lv_obj_base_t,
     lv_obj_t,
     lv_pseudo_button_t,
 )
@@ -92,7 +96,11 @@ async def lvgl_is_paused(config, condition_id, template_arg, args):
     lvgl = config[CONF_LVGL_ID]
     async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
         lv_add(ReturnStatement(lvgl_comp.is_paused()))
-    var = cg.new_Pvariable(condition_id, template_arg, await context.get_lambda())
+    var = cg.new_Pvariable(
+        condition_id,
+        TemplateArguments(LvglComponent, *template_arg),
+        await context.get_lambda(),
+    )
     await cg.register_parented(var, lvgl)
     return var
 
@@ -113,19 +121,32 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     timeout = await cg.templatable(config[CONF_TIMEOUT], [], cg.uint32)
     async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
         lv_add(ReturnStatement(lvgl_comp.is_idle(timeout)))
-    var = cg.new_Pvariable(condition_id, template_arg, await context.get_lambda())
+    var = cg.new_Pvariable(
+        condition_id,
+        TemplateArguments(LvglComponent, *template_arg),
+        await context.get_lambda(),
+    )
     await cg.register_parented(var, lvgl)
     return var
 
 
 async def disp_update(disp, config: dict):
-    if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
+    if (
+        CONF_DISP_BG_COLOR not in config
+        and CONF_DISP_BG_IMAGE not in config
+        and CONF_DISP_BG_OPA not in config
+    ):
         return
     with LocalVariable("lv_disp_tmp", lv_disp_t, disp) as disp_temp:
         if (bg_color := config.get(CONF_DISP_BG_COLOR)) is not None:
             lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):
-            lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
+            if bg_image == "none":
+                lv.disp_set_bg_image(disp_temp, static_cast("void *", "nullptr"))
+            else:
+                lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
+        if (bg_opa := config.get(CONF_DISP_BG_OPA)) is not None:
+            lv.disp_set_bg_opa(disp_temp, await opacity.process(bg_opa))
 
 
 @automation.register_action(
@@ -317,3 +338,14 @@ async def widget_focus(config, action_id, template_arg, args):
             lv.group_focus_freeze(group, True)
         var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
         return var
+
+
+@automation.register_action(
+    "lvgl.widget.update", ObjUpdateAction, base_update_schema(lv_obj_base_t, PARTS)
+)
+async def obj_update_to_code(config, action_id, template_arg, args):
+    async def do_update(widget: Widget):
+        await set_obj_properties(widget, config)
+
+    widgets = await get_widgets(config[CONF_ID])
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)

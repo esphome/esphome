@@ -273,7 +273,9 @@ void Nextion::loop() {
     this->sent_setup_commands_ = true;
     this->send_command_("bkcmd=3");  // Always, returns 0x00 to 0x23 result of serial command.
 
-    this->set_backlight_brightness(this->brightness_);
+    if (this->brightness_.has_value()) {
+      this->set_backlight_brightness(this->brightness_.value());
+    }
 
     // Check if a startup page has been set and send the command
     if (this->start_up_page_ != -1) {

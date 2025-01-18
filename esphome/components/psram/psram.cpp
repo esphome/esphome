@@ -21,7 +21,14 @@ void PsramComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Available: %s", YESNO(available));
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)
   if (available) {
-    ESP_LOGCONFIG(TAG, "  Size: %d KB", heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / 1024);
+    const size_t psram_total_size_bytes = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
+    const float psram_total_size_kb = psram_total_size_bytes / 1024.0f;
+
+    if (abs(std::round(psram_total_size_kb) - psram_total_size_kb) < 0.05f) {
+      ESP_LOGCONFIG(TAG, "  Size: %.0f KB", psram_total_size_kb);
+    } else {
+      ESP_LOGCONFIG(TAG, "  Size: %zu bytes", psram_total_size_bytes);
+    }
   }
 #endif
 }

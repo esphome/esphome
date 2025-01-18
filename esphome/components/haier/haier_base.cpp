@@ -342,8 +342,9 @@ bool HaierClimateBase::prepare_pending_action() {
         this->action_request_.reset();
         return false;
     }
-  } else
+  } else {
     return false;
+  }
 }
 
 ClimateTraits HaierClimateBase::traits() { return traits_; }

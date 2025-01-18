@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 from esphome.config import get_component, get_platform
-from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 
@@ -39,7 +39,7 @@ parts = [BASE]
 
 # Fake some directory so that get_component works
 CORE.config_path = str(root)
-CORE.data[KEY_CORE] = {KEY_TARGET_FRAMEWORK: None}
+CORE.data[KEY_CORE] = {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None}
 
 codeowners = defaultdict(list)
 

@@ -45,7 +45,9 @@
 #endif
 #ifdef USE_ESP32
 #include "esp32/rom/crc.h"
-
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 2)
+#include "esp_mac.h"
+#endif
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 #endif
@@ -126,19 +128,21 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
     }
   } else
 #endif
-      if (reverse_poly == 0xa001) {
-    while (len--) {
-      uint8_t combo = crc ^ (uint8_t) *data++;
-      crc = (crc >> 8) ^ CRC16_A001_LE_LUT_L[combo & 0x0F] ^ CRC16_A001_LE_LUT_H[combo >> 4];
-    }
-  } else {
-    while (len--) {
-      crc ^= *data++;
-      for (uint8_t i = 0; i < 8; i++) {
-        if (crc & 0x0001) {
-          crc = (crc >> 1) ^ reverse_poly;
-        } else {
-          crc >>= 1;
+  {
+    if (reverse_poly == 0xa001) {
+      while (len--) {
+        uint8_t combo = crc ^ (uint8_t) *data++;
+        crc = (crc >> 8) ^ CRC16_A001_LE_LUT_L[combo & 0x0F] ^ CRC16_A001_LE_LUT_H[combo >> 4];
+      }
+    } else {
+      while (len--) {
+        crc ^= *data++;
+        for (uint8_t i = 0; i < 8; i++) {
+          if (crc & 0x0001) {
+            crc = (crc >> 1) ^ reverse_poly;
+          } else {
+            crc >>= 1;
+          }
         }
       }
     }
@@ -259,7 +263,7 @@ bool random_bytes(uint8_t *data, size_t len) {
 bool str_equals_case_insensitive(const std::string &a, const std::string &b) {
   return strcasecmp(a.c_str(), b.c_str()) == 0;
 }
-#if ESP_IDF_VERSION_MAJOR >= 5
+#if __cplusplus >= 202002L
 bool str_startswith(const std::string &str, const std::string &start) { return str.starts_with(start); }
 bool str_endswith(const std::string &str, const std::string &end) { return str.ends_with(end); }
 #else

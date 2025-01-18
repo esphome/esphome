@@ -131,6 +131,7 @@ esphome/components/ens160_base/* @latonita @vincentscode
 esphome/components/ens160_i2c/* @latonita
 esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
+esphome/components/es7210/* @kahrendt
 esphome/components/es8311/* @kahrendt @kroimon
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @Rapsssito @jesserockz
@@ -302,7 +303,7 @@ esphome/components/noblex/* @AGalfra
 esphome/components/npi19/* @bakerkj
 esphome/components/number/* @esphome/core
 esphome/components/one_wire/* @ssieb
-esphome/components/online_image/* @guillempages
+esphome/components/online_image/* @clydebarrow @guillempages
 esphome/components/opentherm/* @olegtarasov
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
@@ -338,7 +339,6 @@ esphome/components/radon_eye_rd200/* @jeffeb3
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
-esphome/components/resistance_sampler/* @jesserockz
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz

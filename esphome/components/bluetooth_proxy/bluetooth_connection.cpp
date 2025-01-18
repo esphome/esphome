@@ -13,6 +13,11 @@ namespace bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy.connection";
 
+void BluetoothConnection::dump_config() {
+  ESP_LOGCONFIG(TAG, "BLE Connection:");
+  BLEClientBase::dump_config();
+}
+
 bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                               esp_ble_gattc_cb_param_t *param) {
   if (!BLEClientBase::gattc_event_handler(event, gattc_if, param))

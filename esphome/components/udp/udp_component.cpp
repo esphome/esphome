@@ -245,13 +245,9 @@ void UDPComponent::setup() {
     }
     struct sockaddr_in server {};
 
-    socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
-    if (sl == 0) {
-      ESP_LOGE(TAG, "Socket unable to set sockaddr: errno %d", errno);
-      this->mark_failed();
-      this->status_set_error("Unable to set sockaddr");
-      return;
-    }
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
+    server.sin_port = htons(this->port_);
 
     err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
     if (err != 0) {

@@ -90,8 +90,9 @@ void Rect::info(const std::string &prefix) {
   if (this->is_set()) {
     ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2(),
              this->y2());
-  } else
+  } else {
     ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
+  }
 }
 
 }  // namespace display

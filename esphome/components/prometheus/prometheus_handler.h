@@ -128,6 +128,30 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
                         std::string &friendly_name);
 #endif
 
+#ifdef USE_NUMBER
+  /// Return the type for prometheus
+  void number_type_(AsyncResponseStream *stream);
+  /// Return the sensor state as prometheus data point
+  void number_row_(AsyncResponseStream *stream, number::Number *obj, std::string &area, std::string &node,
+                   std::string &friendly_name);
+#endif
+
+#ifdef USE_SELECT
+  /// Return the type for prometheus
+  void select_type_(AsyncResponseStream *stream);
+  /// Return the select state as prometheus data point
+  void select_row_(AsyncResponseStream *stream, select::Select *obj, std::string &area, std::string &node,
+                   std::string &friendly_name);
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  /// Return the type for prometheus
+  void media_player_type_(AsyncResponseStream *stream);
+  /// Return the select state as prometheus data point
+  void media_player_row_(AsyncResponseStream *stream, media_player::MediaPlayer *obj, std::string &area,
+                         std::string &node, std::string &friendly_name);
+#endif
+
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
   std::map<EntityBase *, std::string> relabel_map_id_;

@@ -4,14 +4,18 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import (
+    CONF_INVERT_ALPHA,
     CONF_USE_TRANSPARENCY,
-    IMAGE_TYPE,
+    IMAGE_SCHEMA,
     Image_,
-    validate_cross_dependencies,
+    get_image_type_enum,
+    get_transparency_enum,
 )
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_DITHER,
+    CONF_FILE,
     CONF_FORMAT,
     CONF_ID,
     CONF_ON_ERROR,
@@ -23,7 +27,7 @@ from esphome.const import (
 
 AUTO_LOAD = ["image"]
 DEPENDENCIES = ["display", "http_request"]
-CODEOWNERS = ["@guillempages"]
+CODEOWNERS = ["@guillempages", "@clydebarrow"]
 MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
@@ -35,9 +39,30 @@ online_image_ns = cg.esphome_ns.namespace("online_image")
 
 ImageFormat = online_image_ns.enum("ImageFormat")
 
-FORMAT_PNG = "PNG"
 
-IMAGE_FORMAT = {FORMAT_PNG: ImageFormat.PNG}  # Add new supported formats here
+class Format:
+    def __init__(self, image_type):
+        self.image_type = image_type
+
+    @property
+    def enum(self):
+        return getattr(ImageFormat, self.image_type)
+
+    def actions(self):
+        pass
+
+
+class PNGFormat(Format):
+    def __init__(self):
+        super().__init__("PNG")
+
+    def actions(self):
+        cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
+        cg.add_library("pngle", "1.0.2")
+
+
+# New formats can be added here.
+IMAGE_FORMATS = {x.image_type: x for x in (PNGFormat(),)}
 
 OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
 
@@ -57,48 +82,54 @@ DownloadErrorTrigger = online_image_ns.class_(
     "DownloadErrorTrigger", automation.Trigger.template()
 )
 
-ONLINE_IMAGE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(OnlineImage),
-        cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
-        #
-        # Common image options
-        #
-        cv.Optional(CONF_RESIZE): cv.dimensions,
-        cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
-        # Not setting default here on purpose; the default depends on the image type,
-        # and thus will be set in the "validate_cross_dependencies" validator.
-        cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
-        #
-        # Online Image specific options
-        #
-        cv.Required(CONF_URL): cv.url,
-        cv.Required(CONF_FORMAT): cv.enum(IMAGE_FORMAT, upper=True),
-        cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
-        cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
-        cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadFinishedTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadErrorTrigger),
-            }
-        ),
+
+def remove_options(*options):
+    return {
+        cv.Optional(option): cv.invalid(
+            f"{option} is an invalid option for online_image"
+        )
+        for option in options
     }
-).extend(cv.polling_component_schema("never"))
+
+
+ONLINE_IMAGE_SCHEMA = (
+    IMAGE_SCHEMA.extend(remove_options(CONF_FILE, CONF_INVERT_ALPHA, CONF_DITHER))
+    .extend(
+        {
+            cv.Required(CONF_ID): cv.declare_id(OnlineImage),
+            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
+            # Online Image specific options
+            cv.Required(CONF_URL): cv.url,
+            cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
+            cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
+            cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
+            cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        DownloadFinishedTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadErrorTrigger),
+                }
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("never"))
+)
 
 CONFIG_SCHEMA = cv.Schema(
     cv.All(
         ONLINE_IMAGE_SCHEMA,
-        validate_cross_dependencies,
         cv.require_framework_version(
             # esp8266 not supported yet; if enabled in the future, minimum version of 2.7.0 is needed
             # esp8266_arduino=cv.Version(2, 7, 0),
             esp32_arduino=cv.Version(0, 0, 0),
             esp_idf=cv.Version(4, 0, 0),
             rp2040_arduino=cv.Version(0, 0, 0),
+            host=cv.Version(0, 0, 0),
         ),
     )
 )
@@ -132,28 +163,25 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
-    format = config[CONF_FORMAT]
-    if format in [FORMAT_PNG]:
-        cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
-        cg.add_library("pngle", "1.0.2")
+    image_format = IMAGE_FORMATS[config[CONF_FORMAT]]
+    image_format.actions()
 
     url = config[CONF_URL]
     width, height = config.get(CONF_RESIZE, (0, 0))
-    transparent = config[CONF_USE_TRANSPARENCY]
+    transparent = get_transparency_enum(config[CONF_USE_TRANSPARENCY])
 
     var = cg.new_Pvariable(
         config[CONF_ID],
         url,
         width,
         height,
-        format,
-        config[CONF_TYPE],
+        image_format.enum,
+        get_image_type_enum(config[CONF_TYPE]),
+        transparent,
         config[CONF_BUFFER_SIZE],
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
-
-    cg.add(var.set_transparency(transparent))
 
     if placeholder_id := config.get(CONF_PLACEHOLDER):
         placeholder = await cg.get_variable(placeholder_id)
