@@ -91,7 +91,7 @@ async def to_code(config):
         add_idf_component(
             name="mdns",
             repo="https://github.com/espressif/esp-protocols.git",
-            ref="mdns-v1.3.2",
+            ref="mdns-v1.5.1",
             path="components/mdns",
         )
 
