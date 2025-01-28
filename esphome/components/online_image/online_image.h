@@ -23,7 +23,7 @@ using t_http_codes = enum {
 enum ImageFormat {
   /** Automatically detect from MIME type. Not supported yet. */
   AUTO,
-  /** JPEG format. Not supported yet. */
+  /** JPEG format. */
   JPEG,
   /** PNG format. */
   PNG,
@@ -79,6 +79,13 @@ class OnlineImage : public PollingComponent,
    */
   void release();
 
+  /**
+   * Resize the download buffer
+   *
+   * @param size The new size for the download buffer.
+   */
+  size_t resize_download_buffer(size_t size) { return this->download_buffer_.resize(size); }
+
   void add_on_finished_callback(std::function<void()> &&callback);
   void add_on_error_callback(std::function<void()> &&callback);
 
@@ -119,6 +126,12 @@ class OnlineImage : public PollingComponent,
 
   uint8_t *buffer_;
   DownloadBuffer download_buffer_;
+  /**
+   * This is the *initial* size of the download buffer, not the current size.
+   * The download buffer can be resized at runtime; the download_buffer_initial_size_
+   * will *not* change even if the download buffer has been resized.
+   */
+  size_t download_buffer_initial_size_;
 
   const ImageFormat format_;
   image::Image *placeholder_{nullptr};
@@ -147,6 +160,8 @@ class OnlineImage : public PollingComponent,
    * decoded images).
    */
   int buffer_height_;
+
+  time_t start_time_;
 
   friend bool ImageDecoder::set_size(int width, int height);
   friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);

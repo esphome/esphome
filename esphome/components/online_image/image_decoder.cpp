@@ -41,5 +41,20 @@ size_t DownloadBuffer::read(size_t len) {
   return this->unread_;
 }
 
+size_t DownloadBuffer::resize(size_t size) {
+  if (this->size_ == size) {
+    return size;
+  }
+  this->allocator_.deallocate(this->buffer_, this->size_);
+  this->size_ = size;
+  this->buffer_ = this->allocator_.allocate(size);
+  this->reset();
+  if (this->buffer_) {
+    return size;
+  } else {
+    return 0;
+  }
+}
+
 }  // namespace online_image
 }  // namespace esphome

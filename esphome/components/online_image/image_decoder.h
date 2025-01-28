@@ -106,6 +106,8 @@ class DownloadBuffer {
 
   void reset() { this->unread_ = 0; }
 
+  size_t resize(size_t size);
+
  protected:
   RAMAllocator<uint8_t> allocator_{};
   uint8_t *buffer_;
