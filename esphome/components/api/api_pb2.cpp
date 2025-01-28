@@ -6430,6 +6430,10 @@ bool BluetoothConnectionsFreeResponse::decode_varint(uint32_t field_id, ProtoVar
       this->limit = value.as_uint32();
       return true;
     }
+    case 3: {
+      this->allocated.push_back(value.as_uint64());
+      return true;
+    }
     default:
       return false;
   }
@@ -6437,6 +6441,9 @@ bool BluetoothConnectionsFreeResponse::decode_varint(uint32_t field_id, ProtoVar
 void BluetoothConnectionsFreeResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->free);
   buffer.encode_uint32(2, this->limit);
+  for (auto &it : this->allocated) {
+    buffer.encode_uint64(3, it, true);
+  }
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothConnectionsFreeResponse::dump_to(std::string &out) const {
@@ -6451,6 +6458,13 @@ void BluetoothConnectionsFreeResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%" PRIu32, this->limit);
   out.append(buffer);
   out.append("\n");
+
+  for (const auto &it : this->allocated) {
+    out.append("  allocated: ");
+    sprintf(buffer, "%llu", it);
+    out.append(buffer);
+    out.append("\n");
+  }
   out.append("}");
 }
 #endif

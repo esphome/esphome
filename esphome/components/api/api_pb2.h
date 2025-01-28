@@ -1624,6 +1624,7 @@ class BluetoothConnectionsFreeResponse : public ProtoMessage {
  public:
   uint32_t free{0};
   uint32_t limit{0};
+  std::vector<uint64_t> allocated{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

@@ -1381,6 +1381,7 @@ message BluetoothConnectionsFreeResponse {
 
   uint32 free = 1;
   uint32 limit = 2;
+  repeated uint64 allocated = 3;
 }
 
 message BluetoothGATTErrorResponse {
