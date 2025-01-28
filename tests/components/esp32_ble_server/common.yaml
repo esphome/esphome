@@ -1,3 +1,66 @@
 esp32_ble_server:
-  id: ble
+  id: ble_server
   manufacturer_data: [0x72, 0x4, 0x00, 0x23]
+  manufacturer: ESPHome
+  model: Test
+  on_connect:
+    - lambda: |-
+        ESP_LOGD("BLE", "Connection from %d", id);
+  on_disconnect:
+    - lambda: |-
+        ESP_LOGD("BLE", "Disconnection from %d", id);
+  services:
+    - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc12d
+      advertise: false
+      characteristics:
+        - id: test_notify_characteristic
+          description: "Notify characteristic"
+          uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
+          read: true
+          notify: true
+          value: [1, 2, 3, 4]
+          descriptors:
+            - uuid: cad48e28-7fbe-41cf-bae9-d77a6c111111
+              on_write:
+                logger.log:
+                  format: "Descriptor write id %u, data %s"
+                  args: [id, 'format_hex_pretty(x.data(), x.size()).c_str()']
+              value:
+                data: "123.1"
+                type: float
+                endianness: BIG
+    - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc42d
+      advertise: false
+      characteristics:
+        - id: test_change_characteristic
+          uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc11c
+          read: true
+          value:
+            data: "Initial"
+            string_encoding: utf-8
+          description: Change characteristic
+          descriptors:
+            - uuid: 0x4414
+              id: test_change_descriptor
+              value: "Initial descriptor value"
+            - uuid: 0x2312
+              value:
+                data: 0x12
+                type: uint16_t
+              on_write:
+                - lambda: |-
+                    ESP_LOGD("BLE", "Descriptor received: %s from %d", std::string(x.begin(), x.end()).c_str(), id);
+        - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc99a
+          write: true
+          on_write:
+            then:
+              - lambda: |-
+                  ESP_LOGD("BLE", "Characteristic received: %s from %d", std::string(x.begin(), x.end()).c_str(), id);
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value: !lambda 'return bytebuffer::ByteBuffer::wrap({0x00, 0x01, 0x02}).get_data();'
+              - ble_server.characteristic.notify:
+                  id: test_notify_characteristic
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value: !lambda return bytebuffer::ByteBuffer::wrap({0x03, 0x04, 0x05}).get_data();
