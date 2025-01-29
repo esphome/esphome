@@ -101,7 +101,7 @@ async def setup_display_core_(var, config):
     if CONF_ROTATION in config:
         cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
 
-    if auto_clear := config.get(CONF_AUTO_CLEAR_ENABLED):
+    if (auto_clear := config.get(CONF_AUTO_CLEAR_ENABLED)) is not None:
         # Default to true if pages or lambda is specified. Ideally this would be done during validation, but
         # the possible schemas are too complex to do this easily.
         if auto_clear == CONF_UNSPECIFIED:
