@@ -65,7 +65,7 @@ jobs:
           pip3 install build
           python3 -m build
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@v1.12.3
+        uses: pypa/gh-action-pypi-publish@v1.12.4
 
   deploy-docker:
     name: Build ESPHome ${{ matrix.platform }}
