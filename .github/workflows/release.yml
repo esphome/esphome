@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.1.7
       - name: Set up Python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: "3.x"
       - name: Set up python environment
@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.1.7
       - name: Set up Python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: "3.9"
 
