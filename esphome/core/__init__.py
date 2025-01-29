@@ -582,7 +582,7 @@ class EsphomeCore:
 
     @property
     def config_dir(self):
-        return os.path.dirname(self.config_path)
+        return os.path.dirname(os.path.abspath(self.config_path))
 
     @property
     def data_dir(self):
