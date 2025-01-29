@@ -273,11 +273,9 @@ IMAGE_TYPE = {
     "GRAYSCALE": ImageGrayscale,
     "RGB565": ImageRGB565,
     "RGB": ImageRGB,
-    "TRANSPARENT_BINARY": ReplaceWith(
-        "'type: BINARY' and 'use_transparency: chroma_key'"
-    ),
+    "TRANSPARENT_BINARY": ReplaceWith("'type: BINARY' and 'transparency: chroma_key'"),
     "RGB24": ReplaceWith("'type: RGB'"),
-    "RGBA": ReplaceWith("'type: RGB' and 'use_transparency: alpha_channel'"),
+    "RGBA": ReplaceWith("'type: RGB' and 'transparency: alpha_channel'"),
 }
 
 TransparencyType = image_ns.enum("TransparencyType")

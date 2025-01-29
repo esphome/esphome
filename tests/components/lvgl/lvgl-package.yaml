@@ -834,12 +834,12 @@ image:
     resize: 256x48
     file: $component_dir/logo-text.svg
     type: RGB565
-    use_transparency: alpha_channel
+    transparency: alpha_channel
   - id: dog_image
     file: $component_dir/logo-text.svg
     resize: 256x48
     type: BINARY
-    use_transparency: chroma_key
+    transparency: chroma_key
 
 color:
   - id: light_blue
