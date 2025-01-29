@@ -7,6 +7,7 @@ udp:
   encryption: "our key goes here"
   rolling_code_enable: true
   ping_pong_enable: true
+  listen_address: 239.0.60.53
   binary_sensors:
     - binary_sensor_id1
     - id: binary_sensor_id1

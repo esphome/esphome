@@ -249,6 +249,21 @@ void UDPComponent::setup() {
     server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
     server.sin_port = htons(this->port_);
 
+    if (this->listen_address_.has_value()) {
+      struct ip_mreq imreq = {};
+      imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
+      inet_aton(this->listen_address_.value().str().c_str(), &imreq.imr_multiaddr);
+      server.sin_addr.s_addr = imreq.imr_multiaddr.s_addr;
+      ESP_LOGV(TAG, "Join multicast %s", this->listen_address_.value().str().c_str());
+      err = this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq));
+      if (err < 0) {
+        ESP_LOGE(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
+        this->mark_failed();
+        this->status_set_error("Failed to set IP_ADD_MEMBERSHIP");
+        return;
+      }
+    }
+
     err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
     if (err != 0) {
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
@@ -565,6 +580,9 @@ void UDPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Ping-pong: %s", YESNO(this->ping_pong_enable_));
   for (const auto &address : this->addresses_)
     ESP_LOGCONFIG(TAG, "  Address: %s", address.c_str());
+  if (this->listen_address_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str().c_str());
+  }
 #ifdef USE_SENSOR
   for (auto sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);

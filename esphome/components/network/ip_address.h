@@ -49,6 +49,7 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
@@ -119,6 +120,7 @@ struct IPAddress {
   bool is_set() { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
   bool is_ip4() { return IP_IS_V4(&ip_addr_); }
   bool is_ip6() { return IP_IS_V6(&ip_addr_); }
+  bool is_multicast() { return ip_addr_ismulticast(&ip_addr_); }
   std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
