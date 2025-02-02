@@ -2,7 +2,14 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, speaker
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_MODE, CONF_TIMEOUT
+from esphome.const import (
+    CONF_BUFFER_DURATION,
+    CONF_CHANNEL,
+    CONF_ID,
+    CONF_MODE,
+    CONF_NEVER,
+    CONF_TIMEOUT,
+)
 
 from .. import (
     CONF_I2S_DOUT_PIN,
@@ -24,10 +31,8 @@ I2SAudioSpeaker = i2s_audio_ns.class_(
     "I2SAudioSpeaker", cg.Component, speaker.Speaker, I2SAudioOut
 )
 
-CONF_BUFFER_DURATION = "buffer_duration"
 CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
-CONF_NEVER = "never"
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 INTERNAL_DAC_OPTIONS = {
