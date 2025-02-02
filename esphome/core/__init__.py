@@ -689,7 +689,7 @@ class EsphomeCore:
         _LOGGER.debug("Adding: %s", expression)
         return expression
 
-    def add_global(self, expression):
+    def add_global(self, expression, prepend=False):
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -698,7 +698,10 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
-        self.global_statements.append(expression)
+        if prepend:
+            self.global_statements.insert(0, expression)
+        else:
+            self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
         return expression
 

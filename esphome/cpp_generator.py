@@ -588,9 +588,9 @@ def add(expression: Union[Expression, Statement]):
     CORE.add(expression)
 
 
-def add_global(expression: Union[SafeExpType, Statement]):
+def add_global(expression: Union[SafeExpType, Statement], prepend: bool = False):
     """Add an expression to the codegen global storage (above setup())."""
-    CORE.add_global(expression)
+    CORE.add_global(expression, prepend)
 
 
 def add_library(name: str, version: Optional[str], repository: Optional[str] = None):
