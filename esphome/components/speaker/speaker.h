@@ -9,6 +9,7 @@
 #endif
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/audio/audio.h"
 #ifdef USE_AUDIO_DAC
@@ -56,6 +57,10 @@ class Speaker {
   // When finish() is not implemented on the platform component it should just do a normal stop.
   virtual void finish() { this->stop(); }
 
+  // Pauses processing incoming audio. Needs to be implemented specifically per speaker component
+  virtual void set_pause_state(bool pause_state) {}
+  virtual bool get_pause_state() const { return false; }
+
   virtual bool has_buffered_data() const = 0;
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
@@ -95,6 +100,19 @@ class Speaker {
     this->audio_stream_info_ = audio_stream_info;
   }
 
+  audio::AudioStreamInfo &get_audio_stream_info() { return this->audio_stream_info_; }
+
+  /// Callback function for sending the duration of the audio written to the speaker since the last callback.
+  /// Parameters:
+  ///   - Duration in milliseconds. Never rounded and should always be less than or equal to the actual duration.
+  ///   - Remainder duration in microseconds. Rounded duration after subtracting the previous parameter from the actual
+  ///     duration.
+  ///   - Duration of remaining, unwritten audio buffered in the speaker in milliseconds.
+  ///   - System time in microseconds when the last write was completed.
+  void add_audio_output_callback(std::function<void(uint32_t, uint32_t, uint32_t, uint32_t)> &&callback) {
+    this->audio_output_callback_.add(std::move(callback));
+  }
+
  protected:
   State state_{STATE_STOPPED};
   audio::AudioStreamInfo audio_stream_info_;
@@ -104,6 +122,8 @@ class Speaker {
 #ifdef USE_AUDIO_DAC
   audio_dac::AudioDac *audio_dac_{nullptr};
 #endif
+
+  CallbackManager<void(uint32_t, uint32_t, uint32_t, uint32_t)> audio_output_callback_{};
 };
 
 }  // namespace speaker
