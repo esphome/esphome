@@ -54,6 +54,8 @@ class PCF8574GPIOPin : public GPIOPin {
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
 
+  gpio::Flags get_flags() const override { return this->flags_; }
+
  protected:
   PCF8574Component *parent_;
   uint8_t pin_;

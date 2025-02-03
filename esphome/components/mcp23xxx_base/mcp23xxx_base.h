@@ -43,6 +43,8 @@ class MCP23XXXGPIOPin : public GPIOPin {
   void set_flags(gpio::Flags flags) { flags_ = flags; }
   void set_interrupt_mode(MCP23XXXInterruptMode interrupt_mode) { interrupt_mode_ = interrupt_mode; }
 
+  gpio::Flags get_flags() const override { return this->flags_; }
+
  protected:
   MCP23XXXBase *parent_;
   uint8_t pin_;
