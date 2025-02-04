@@ -1,16 +1,5 @@
-light:
-  - platform: esp32_rmt_led_strip
-    id: led_strip
-    pin: 4
-    num_leds: 60
-    rgb_order: GRB
-    chipset: ws2812
-  - platform: esp32_rmt_led_strip
-    id: led_strip2
-    pin: 5
-    num_leds: 60
-    rgb_order: RGB
-    bit0_high: 100µs
-    bit0_low: 100µs
-    bit1_high: 100µs
-    bit1_low: 100µs
+substitutions:
+  pin1: GPIO3
+  pin2: GPIO4
+
+<<: !include common-idf.yaml
