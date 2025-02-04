@@ -1,0 +1,35 @@
+uart:
+  - id: uart_modbus_client
+    tx_pin: ${client_tx_pin}
+    rx_pin: ${client_rx_pin}
+    baud_rate: 9600
+  - id: uart_modbus_server
+    tx_pin: ${server_tx_pin}
+    rx_pin: ${server_rx_pin}
+    baud_rate: 9600
+
+modbus:
+  - id: mod_bus1
+    uart_id: uart_modbus_client
+    flow_control_pin: ${flow_control_pin}
+  - id: mod_bus2
+    uart_id: uart_modbus_server
+    role: server
+
+modbus_controller:
+  - id: modbus_controller1
+    address: 0x2
+    modbus_id: mod_bus1
+    allow_duplicate_commands: false
+    on_online:
+      then:
+        logger.log: "Module Online"
+  - id: modbus_controller2
+    address: 0x2
+    modbus_id: mod_bus2
+    server_registers:
+      - address: 0x0000
+        value_type: S_DWORD_R
+        read_lambda: |-
+          return 42.3;
+    max_cmd_retries: 0
