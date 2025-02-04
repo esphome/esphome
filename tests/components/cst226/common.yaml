@@ -1,25 +1,25 @@
+i2c:
+  - id: i2c_cst226
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
 spi:
-  - id: spi_id_1
-    clk_pin: GPIO7
-    mosi_pin: GPIO6
-    interface: any
+  - id: spi_ili9xxx
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
 
 display:
-  - platform: ili9xxx
-    id: displ8
+  - id: my_display
+    platform: ili9xxx
     model: ili9342
-    cs_pin: GPIO5
-    dc_pin: GPIO4
-    reset_pin:
-      number: GPIO21
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${disp_reset_pin}
     invert_colors: false
 
-i2c:
-  scl: GPIO18
-  sda: GPIO8
-
 touchscreen:
-  - platform: cst226
-    interrupt_pin: GPIO3
-    reset_pin: GPIO20
+  - id: ts_cst226
+    platform: cst226
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
 
