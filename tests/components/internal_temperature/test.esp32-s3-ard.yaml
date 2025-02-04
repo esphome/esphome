@@ -1,6 +1,4 @@
-sensor:
-  - platform: internal_temperature
-    name: Internal Temperature
+<<: !include common.yaml
 
 esp32:
   framework:
