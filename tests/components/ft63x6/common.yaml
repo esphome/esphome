@@ -1,0 +1,36 @@
+spi:
+  - id: spi_ft63x6
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+
+i2c:
+  - id: i2c_ft63x6
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+display:
+  - platform: ssd1306_i2c
+    id: ssd1306_display
+    model: SSD1306_128X64
+    reset_pin: ${reset_pin}
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: ft63x6
+    interrupt_pin: ${interrupt_pin}
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: true
+    on_touch:
+      - logger.log:
+          format: tp touched
+    on_update:
+      - logger.log:
+          format: to updated
+    on_release:
+      - logger.log:
+          format: to released
