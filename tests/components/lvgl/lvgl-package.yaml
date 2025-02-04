@@ -133,6 +133,18 @@ lvgl:
 
   pages:
     - id: page1
+      on_swipe_top:
+        logger.log: "swiped up"
+      on_swipe_bottom:
+        logger.log: "swiped down"
+      on_swipe_up:
+        logger.log: "swiped up"
+      on_swipe_down:
+        logger.log: "swiped down"
+      on_swipe_left:
+        logger.log: "swiped left"
+      on_swipe_right:
+        logger.log: "swiped right"
       bg_image_src: cat_image
       on_load:
         - logger.log: page loaded
