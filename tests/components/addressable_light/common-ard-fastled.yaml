@@ -1,11 +1,13 @@
 light:
-  - platform: esp32_rmt_led_strip
+  - platform: fastled_clockless
     id: led_matrix_32x8
-    default_transition_length: 500ms
-    chipset: ws2812
-    rgb_order: GRB
+    name: led_matrix_32x8
+    chipset: WS2812B
+    pin: ${pin}
     num_leds: 256
-    pin: 2
+    rgb_order: GRB
+    default_transition_length: 0s
+    color_correct: [50%, 50%, 50%]
 
 display:
   - platform: addressable_light

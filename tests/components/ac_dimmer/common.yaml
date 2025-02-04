@@ -1,0 +1,5 @@
+output:
+  - platform: ac_dimmer
+    id: ac_dimmer_1
+    gate_pin: ${gate_pin}
+    zero_cross_pin: ${zero_cross_pin}

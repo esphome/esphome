@@ -5,7 +5,8 @@ light:
     chipset: ws2812
     rgb_order: GRB
     num_leds: 256
-    pin: 2
+    pin: ${pin}
+    rmt_channel: 0
 
 display:
   - platform: addressable_light

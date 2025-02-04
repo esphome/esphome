@@ -1,14 +1,5 @@
-i2c:
-  - id: i2c_ads1115
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-ads1115:
-  address: 0x48
-
-sensor:
-  - platform: ads1115
-    multiplexer: A0_A1
-    gain: 1.024
-    sample_rate: 128
-    id: ads1115_sensor
+<<: !include common.yaml
