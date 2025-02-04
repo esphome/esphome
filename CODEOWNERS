@@ -499,5 +499,6 @@ esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
 esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
+esphome/components/xxtea/* @clydebarrow
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zio_ultrasonic/* @kahrendt
