@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, armv7, aarch64]
+        arch: [amd64, aarch64]
         build_type: ["ha-addon", "docker", "lint"]
     steps:
       - uses: actions/checkout@v4.1.7

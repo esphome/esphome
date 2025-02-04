@@ -51,19 +51,7 @@ ENV \
   # Store globally installed pio libs in /piolibs
   PLATFORMIO_GLOBALLIB_DIR=/piolibs
 
-# Support legacy binaries on Debian multiarch system. There is no "correct" way
-# to do this, other than using properly built toolchains...
-# See: https://unix.stackexchange.com/questions/553743/correct-way-to-add-lib-ld-linux-so-3-in-debian
 RUN \
-    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        ln -s /lib/arm-linux-gnueabihf/ld-linux-armhf.so.3 /lib/ld-linux.so.3; \
-    fi
-
-RUN \
-    # Ubuntu python3-pip is missing wheel
-    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
-    fi; \
     pip3 install \
     --break-system-packages --no-cache-dir \
     # Keep platformio version in sync with requirements.txt
@@ -82,14 +70,6 @@ RUN --mount=type=tmpfs,target=/root/.cargo <<END-OF-RUN
 # Fail on any non-zero status
 set -e
 
-if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]
-then
-    curl -L https://www.piwheels.org/cp311/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl -o /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl
-    pip3 install --break-system-packages --no-cache-dir /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl
-    rm /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl
-    export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple";
-fi
-
 # install build tools in case wheels are not available
 BUILD_DEPS="
     build-essential=12.9
@@ -106,7 +86,7 @@ LIB_DEPS="
     libtiff6=4.5.0-6+deb12u1
     libopenjp2-7=2.5.0-2
 "
-if [ "$TARGETARCH$TARGETVARIANT" = "arm64" ] || [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]
+if [ "$TARGETARCH$TARGETVARIANT" = "arm64" ]
 then
     apt-get update
     apt-get install -y --no-install-recommends $BUILD_DEPS $LIB_DEPS
@@ -115,7 +95,7 @@ fi
 CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo
 pip3 install --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt
 
-if [ "$TARGETARCH$TARGETVARIANT" = "arm64" ] || [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]
+if [ "$TARGETARCH$TARGETVARIANT" = "arm64" ]
 then
     apt-get remove -y --purge --auto-remove $BUILD_DEPS
     rm -rf /tmp/* /var/{cache,log}/* /var/lib/apt/lists/*
@@ -135,11 +115,7 @@ FROM base AS docker
 
 # Copy esphome and install
 COPY . /esphome
-RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
-  fi; \
-  pip3 install \
-  --break-system-packages --no-cache-dir -e /esphome
+RUN pip3 install --break-system-packages --no-cache-dir -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -197,11 +173,7 @@ COPY docker/ha-addon-rootfs/ /
 
 # Copy esphome and install
 COPY . /esphome
-RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
-  fi; \
-  pip3 install \
-  --break-system-packages --no-cache-dir -e /esphome
+RUN pip3 install --break-system-packages --no-cache-dir -e /esphome
 
 # Labels
 LABEL \
@@ -232,21 +204,14 @@ RUN \
         nano=7.2-1+deb12u1 \
         build-essential=12.9 \
         python3-dev=3.11.2-1+b1 \
-    && if [ "$TARGETARCH$TARGETVARIANT" != "armv7" ]; then \
-    # move this up after armv7 is retired
-    apt-get install -y --no-install-recommends clang-tidy-18=1:18.1.8~++20240731024826+3b5b5c1ec4a3-1~exp1~20240731144843.145 ; \
-    fi; \
-    rm -rf \
+        clang-tidy-18=1:18.1.8~++20240731024826+3b5b5c1ec4a3-1~exp1~20240731144843.145 \
+    && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /
-RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
-  fi; \
-  pip3 install \
-  --break-system-packages --no-cache-dir -r /requirements_test.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome
