@@ -16,6 +16,8 @@
 
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
+#define USE_AUDIO_FLAC_SUPPORT
+#define USE_AUDIO_MP3_SUPPORT
 #define USE_API
 #define USE_API_NOISE
 #define USE_API_PLAINTEXT
