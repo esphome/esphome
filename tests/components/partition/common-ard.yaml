@@ -1,0 +1,22 @@
+light:
+  - platform: ${light_platform}
+    id: part_leds
+    default_transition_length: 500ms
+    chipset: ws2812
+    num_leds: 256
+    rgb_order: GRB
+    rmt_channel: 1
+    pin: ${pin}
+  - platform: partition
+    name: Partition Light
+    segments:
+      - id: part_leds
+        from: 0
+        to: 0
+      - id: part_leds
+        from: 1
+        to: 10
+      - id: part_leds
+        from: 20
+        to: 25
+      - single_light_id: part_leds
