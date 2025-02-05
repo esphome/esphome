@@ -357,7 +357,7 @@ esphome/components/rtttl/* @glmnet
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
-esphome/components/sdl/* @clydebarrow
+esphome/components/sdl/* @bdm310 @clydebarrow
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
 esphome/components/seeed_mr24hpc1/* @limengdu

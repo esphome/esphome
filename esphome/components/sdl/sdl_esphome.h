@@ -7,6 +7,7 @@
 #include "esphome/components/display/display.h"
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
+#include <map>
 
 namespace esphome {
 namespace sdl {
@@ -22,6 +23,7 @@ class Sdl : public display::Display {
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void draw_pixel_at(int x, int y, Color color) override;
+  void process_key(uint32_t keycode, bool down);
   void set_dimensions(uint16_t width, uint16_t height) {
     this->width_ = width;
     this->height_ = height;
@@ -30,6 +32,12 @@ class Sdl : public display::Display {
   int get_height() override { return this->height_; }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
+  void add_key_listener(int32_t keycode, std::function<void(bool)> &&callback) {
+    if (!this->key_callbacks_.count(keycode)) {
+      this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
+    }
+    this->key_callbacks_[keycode].add(std::move(callback));
+  }
 
   int mouse_x{};
   int mouse_y{};
@@ -48,6 +56,7 @@ class Sdl : public display::Display {
   uint16_t y_low_{0};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
+  std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
 };
 }  // namespace sdl
 }  // namespace esphome
