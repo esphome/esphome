@@ -396,75 +396,87 @@ def add_hello_world(config):
 
 FINAL_VALIDATE_SCHEMA = final_validation
 
-LVGL_SCHEMA = (
-    cv.polling_component_schema("1s")
-    .extend(obj_schema(LvScrActType()))
-    .extend(
-        {
-            cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
-            cv.GenerateID(df.CONF_DISPLAYS): display_schema,
-            cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
-            cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
-            cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
-            cv.Optional(df.CONF_DRAW_ROUNDING, default=2): cv.positive_int,
-            cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
-            cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
-                *df.LV_LOG_LEVELS, upper=True
-            ),
-            cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
-                "big_endian", "little_endian"
-            ),
-            cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
-                cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
-                .extend(STYLE_SCHEMA)
-                .extend(
+LVGL_SCHEMA = cv.All(
+    container_schema(
+        obj_spec,
+        cv.polling_component_schema("1s")
+        .extend(
+            {
+                cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
+                cv.GenerateID(df.CONF_DISPLAYS): display_schema,
+                cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
+                cv.Optional(
+                    df.CONF_DEFAULT_FONT, default="montserrat_14"
+                ): lvalid.lv_font,
+                cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+                cv.Optional(df.CONF_DRAW_ROUNDING, default=2): cv.positive_int,
+                cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
+                cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
+                    *df.LV_LOG_LEVELS, upper=True
+                ),
+                cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
+                    "big_endian", "little_endian"
+                ),
+                cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
+                    cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
+                    .extend(STYLE_SCHEMA)
+                    .extend(
+                        {
+                            cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+                            cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                            cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                            cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+                        }
+                    )
+                ),
+                cv.Optional(CONF_ON_IDLE): validate_automation(
                     {
-                        cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
-                        cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
-                        cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                        cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
+                        cv.Required(CONF_TIMEOUT): cv.templatable(
+                            cv.positive_time_period_milliseconds
+                        ),
                     }
-                )
-            ),
-            cv.Optional(CONF_ON_IDLE): validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
-                    cv.Required(CONF_TIMEOUT): cv.templatable(
-                        cv.positive_time_period_milliseconds
-                    ),
-                }
-            ),
-            cv.Optional(df.CONF_ON_PAUSE): validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
-                }
-            ),
-            cv.Optional(df.CONF_ON_RESUME): validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
-                }
-            ),
-            cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(WIDGET_SCHEMA),
-            cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
-                container_schema(page_spec)
-            ),
-            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
-            cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
-            cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
-            cv.Optional(df.CONF_THEME): cv.Schema(
-                {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
-            ),
-            cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
-            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
-            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
-            cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
-            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
-            cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
-        }
-    )
-    .extend(DISP_BG_SCHEMA)
-    .add_extra(add_hello_world)
+                ),
+                cv.Optional(df.CONF_ON_PAUSE): validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
+                    }
+                ),
+                cv.Optional(df.CONF_ON_RESUME): validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
+                    }
+                ),
+                cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(
+                    WIDGET_SCHEMA
+                ),
+                cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
+                    container_schema(page_spec)
+                ),
+                cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+                cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
+                cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
+                cv.Optional(
+                    df.CONF_TRANSPARENCY_KEY, default=0x000400
+                ): lvalid.lv_color,
+                cv.Optional(df.CONF_THEME): cv.Schema(
+                    {
+                        cv.Optional(name): obj_schema(w)
+                        for name, w in WIDGET_TYPES.items()
+                    }
+                ),
+                cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
+                cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+                cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+                cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
+                cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
+                cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
+            }
+        )
+        .extend(DISP_BG_SCHEMA),
+    ),
+    cv.has_at_most_one_key(CONF_PAGES, df.CONF_LAYOUT),
+    add_hello_world,
 )
 
 
