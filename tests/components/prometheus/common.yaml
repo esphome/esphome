@@ -1,11 +1,34 @@
+substitutions:
+  verify_ssl: "false"
+
 esphome:
   name: livingroomdevice
   friendly_name: Living Room Device
   area: Living Room
+  on_boot:
+    then:
+      - if:
+          condition:
+            update.is_available:
+          then:
+            - logger.log: "Update available"
+      - update.perform:
+          force_update: true
 
 wifi:
   ssid: MySSID
   password: password1
+
+http_request:
+  verify_ssl: ${verify_ssl}
+
+ota:
+  - platform: http_request
+
+update:
+  - platform: http_request
+    name: Firmware Update
+    source: http://example.com/manifest.json
 
 sensor:
   - platform: template

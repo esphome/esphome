@@ -77,6 +77,12 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
     this->media_player_row_(stream, obj, area, node, friendly_name);
 #endif
 
+#ifdef USE_UPDATE
+  this->update_entity_type_(stream);
+  for (auto *obj : App.get_updates())
+    this->update_entity_row_(stream, obj, area, node, friendly_name);
+#endif
+
   req->send(stream);
 }
 
@@ -676,6 +682,91 @@ void PrometheusHandler::media_player_row_(AsyncResponseStream *stream, media_pla
     stream->print(F("0.0"));
   }
   stream->print(F("\n"));
+}
+#endif
+
+#ifdef USE_UPDATE
+void PrometheusHandler::update_entity_type_(AsyncResponseStream *stream) {
+  stream->print(F("#TYPE esphome_update_entity_state gauge\n"));
+  stream->print(F("#TYPE esphome_update_entity_info gauge\n"));
+  stream->print(F("#TYPE esphome_update_entity_failed gauge\n"));
+}
+
+void PrometheusHandler::handle_update_state_(AsyncResponseStream *stream, update::UpdateState state) {
+  switch (state) {
+    case update::UpdateState::UPDATE_STATE_UNKNOWN:
+      stream->print("unknown");
+      break;
+    case update::UpdateState::UPDATE_STATE_NO_UPDATE:
+      stream->print("none");
+      break;
+    case update::UpdateState::UPDATE_STATE_AVAILABLE:
+      stream->print("available");
+      break;
+    case update::UpdateState::UPDATE_STATE_INSTALLING:
+      stream->print("installing");
+      break;
+    default:
+      stream->print("invalid");
+      break;
+  }
+}
+
+void PrometheusHandler::update_entity_row_(AsyncResponseStream *stream, update::UpdateEntity *obj, std::string &area,
+                                           std::string &node, std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  if (obj->has_state()) {
+    // We have a valid value, output this value
+    stream->print(F("esphome_update_entity_failed{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(F("\"} 0\n"));
+    // First update state
+    stream->print(F("esphome_update_entity_state{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(F("\",value=\""));
+    handle_update_state_(stream, obj->state);
+    stream->print(F("\"} "));
+    stream->print(F("1.0"));
+    stream->print(F("\n"));
+    // Next update info
+    stream->print(F("esphome_update_entity_info{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(F("\",current_version=\""));
+    stream->print(obj->update_info.current_version.c_str());
+    stream->print(F("\",latest_version=\""));
+    stream->print(obj->update_info.latest_version.c_str());
+    stream->print(F("\",title=\""));
+    stream->print(obj->update_info.title.c_str());
+    stream->print(F("\"} "));
+    stream->print(F("1.0"));
+    stream->print(F("\n"));
+  } else {
+    // Invalid state
+    stream->print(F("esphome_update_entity_failed{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(F("\"} 1\n"));
+  }
 }
 #endif
 
