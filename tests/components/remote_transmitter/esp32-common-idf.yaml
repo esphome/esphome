@@ -3,7 +3,6 @@ remote_transmitter:
     pin: ${pin}
     carrier_duty_percent: 50%
     clock_resolution: ${clock_resolution}
-    one_wire: ${one_wire}
     rmt_symbols: ${rmt_symbols}
     use_dma: ${use_dma}
 

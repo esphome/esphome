@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#include <driver/gpio.h>
 
 namespace esphome {
 namespace remote_receiver {
@@ -61,6 +62,11 @@ void RemoteReceiverComponent::setup() {
     }
     this->mark_failed();
     return;
+  }
+  if (this->pin_->get_flags() & gpio::FLAG_PULLUP) {
+    gpio_pullup_en(gpio_num_t(this->pin_->get_pin()));
+  } else {
+    gpio_pullup_dis(gpio_num_t(this->pin_->get_pin()));
   }
   error = rmt_enable(this->channel_);
   if (error != ESP_OK) {

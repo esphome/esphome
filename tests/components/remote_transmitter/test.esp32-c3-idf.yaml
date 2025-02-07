@@ -1,7 +1,6 @@
 substitutions:
   pin: GPIO2
   clock_resolution: "2000000"
-  one_wire: "true"
   rmt_symbols: "64"
   use_dma: "true"
 
