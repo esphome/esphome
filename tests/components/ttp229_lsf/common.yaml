@@ -1,0 +1,11 @@
+i2c:
+  - id: i2c_ttp229_lsf
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+ttp229_lsf:
+
+binary_sensor:
+  - platform: ttp229_lsf
+    name: TTP229 Channel 0
+    channel: 0
