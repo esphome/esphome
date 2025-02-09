@@ -9,8 +9,8 @@ spi:
     interface: hardware
   - id: quad_spi
     type: quad
-    clk_pin: 47
     interface: spi3
+    clk_pin: 47
     data_pins:
       - number: 40
         allow_other_uses: false
@@ -18,7 +18,7 @@ spi:
       - 42
       - 43
   - id: spi_id_3
+    interface: any
     clk_pin: 8
     mosi_pin: 9
-    interface: any
 

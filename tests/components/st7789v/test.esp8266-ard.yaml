@@ -1,25 +1,9 @@
-spi:
-  - id: spi_st7789v
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
+  cs_pin: GPIO5
+  dc_pin: GPIO15
+  reset_pin: GPIO16
 
-display:
-  - platform: st7789v
-    model: TTGO TDisplay 135x240
-    cs_pin: 15
-    dc_pin: 16
-    reset_pin: 5
-    pages:
-      - id: page1
-        lambda: |-
-          it.rectangle(0, 0, it.get_width(), it.get_height());
-      - id: page2
-        lambda: |-
-          it.rectangle(0, 0, it.get_width(), it.get_height());
-    on_page_change:
-      from: page1
-      to: page2
-      then:
-        lambda: |-
-          ESP_LOGD("display", "1 -> 2");
+<<: !include common.yaml

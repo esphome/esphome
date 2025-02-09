@@ -1,31 +1,5 @@
-uart:
-  - id: uart_sml
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-sml:
-  id: mysml
-  on_data:
-    - logger.log: "SML on_data"
-
-sensor:
-  - platform: sml
-    name: Total energy
-    sml_id: mysml
-    server_id: 0123456789abcdef
-    obis_code: "1-0:1.8.0"
-    unit_of_measurement: kWh
-    accuracy_decimals: 1
-    device_class: energy
-    state_class: total_increasing
-    filters:
-      - multiply: 0.0001
-
-text_sensor:
-  - platform: sml
-    name: Manufacturer
-    sml_id: mysml
-    server_id: 0123456789abcdef
-    obis_code: "129-129:199.130.3"
-    format: text
+<<: !include common.yaml

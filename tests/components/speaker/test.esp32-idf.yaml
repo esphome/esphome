@@ -1,35 +1,9 @@
-esphome:
-  on_boot:
-    then:
-      - speaker.mute_on:
-      - speaker.mute_off:
-      - if:
-          condition: speaker.is_stopped
-          then:
-            - speaker.play: [0, 1, 2, 3]
-      - speaker.volume_set: 0.9
-      - if:
-          condition: speaker.is_playing
-          then:
-            - speaker.finish:
-      - speaker.stop:
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
+  i2s_bclk_pin: GPIO27
+  i2s_lrclk_pin: GPIO26
+  i2s_mclk_pin: GPIO25
+  i2s_dout_pin: GPIO23
 
-i2s_audio:
-  i2s_lrclk_pin: 16
-  i2s_bclk_pin: 17
-  i2s_mclk_pin: 15
-
-i2c:
-  scl: 12
-  sda: 10
-
-audio_dac:
-  - platform: aic3204
-    id: internal_dac
-
-speaker:
-  - platform: i2s_audio
-    id: speaker_with_audio_dac_id
-    audio_dac: internal_dac
-    dac_type: external
-    i2s_dout_pin: 14
+<<: !include common.yaml
