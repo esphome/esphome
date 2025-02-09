@@ -1,0 +1,190 @@
+spi:
+  - id: spi_waveshare_epaper
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+
+display:
+  - platform: waveshare_epaper
+    model: 2.13in-ttgo-b1
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.13in-ttgo-b74
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.90in
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    full_update_every: 30
+    reset_duration: 200ms
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.90inv2
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.90in-dke
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    full_update_every: 1
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.70in-b
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.70in-bv2
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 1.54in-m5coreink-m09
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.13inv3
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.13inv2
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 7.50in-bv3-bwr
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
