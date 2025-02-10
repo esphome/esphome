@@ -66,7 +66,7 @@ class JPEGFormat(Format):
 
     def actions(self):
         cg.add_define("USE_ONLINE_IMAGE_JPEG_SUPPORT")
-        cg.add_library("JPEGDEC", "1.6.2", "https://github.com/bitbank2/JPEGDEC")
+        cg.add_library("JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2")
 
 
 class PNGFormat(Format):
