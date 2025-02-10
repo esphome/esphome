@@ -1596,15 +1596,108 @@ void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every)
 // Datasheet:
 //  - https://v4.cecdn.yun300.cn/100001_1909185148/SSD1680.pdf
 //  - https://github.com/adafruit/Adafruit_EPD/blob/master/src/panels/ThinkInk_290_Grayscale4_T5.h
+//  - https://github.com/ZinggJM/GxEPD2/blob/master/src/epd/GxEPD2_290_T5.cpp
+//  - http://www.e-paper-display.com/GDEW029T5%20V3.1%20Specification5c22.pdf?
 // ========================================================
 
-void GDEW029T5::initialize() {
-  // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
-  // EPD hardware init start
-  this->reset_();
+// full screen update LUT
+static const uint8_t LUT_20_VCOMDC_29_5[] = {
+    0x00, 0x08, 0x00, 0x00, 0x00, 0x02, 0x60, 0x28, 0x28, 0x00, 0x00, 0x01, 0x00, 0x14, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x12, 0x12, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_21_WW_29_5[] = {
+    0x40, 0x08, 0x00, 0x00, 0x00, 0x02, 0x90, 0x28, 0x28, 0x00, 0x00, 0x01, 0x40, 0x14,
+    0x00, 0x00, 0x00, 0x01, 0xA0, 0x12, 0x12, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_22_BW_29_5[] = {
+    0x40, 0x08, 0x00, 0x00, 0x00, 0x02, 0x90, 0x28, 0x28, 0x00, 0x00, 0x01, 0x40, 0x14,
+    0x00, 0x00, 0x00, 0x01, 0xA0, 0x12, 0x12, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_23_WB_29_5[] = {
+    0x80, 0x08, 0x00, 0x00, 0x00, 0x02, 0x90, 0x28, 0x28, 0x00, 0x00, 0x01, 0x80, 0x14,
+    0x00, 0x00, 0x00, 0x01, 0x50, 0x12, 0x12, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_24_BB_29_5[] = {
+    0x80, 0x08, 0x00, 0x00, 0x00, 0x02, 0x90, 0x28, 0x28, 0x00, 0x00, 0x01, 0x80, 0x14,
+    0x00, 0x00, 0x00, 0x01, 0x50, 0x12, 0x12, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+// partial screen update LUT
+static const uint8_t LUT_20_VCOMDC_PARTIAL_29_5[] = {
+    0x00, 0x20, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_21_WW_PARTIAL_29_5[] = {
+    0x00, 0x20, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_22_BW_PARTIAL_29_5[] = {
+    0x80, 0x20, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_23_WB_PARTIAL_29_5[] = {
+    0x40, 0x20, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t LUT_24_BB_PARTIAL_29_5[] = {
+    0x00, 0x20, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+void GDEW029T5::power_on_() {
+  if (!this->power_is_on_) {
+    this->command(0x04);
+    this->wait_until_idle_();
+  }
+  this->power_is_on_ = true;
+}
+
+void GDEW029T5::power_off_() {
+  this->command(0x02);
+  this->wait_until_idle_();
+  this->power_is_on_ = false;
+}
+
+void GDEW029T5::deep_sleep() {
+  this->power_off_();
+  if (this->deep_sleep_between_updates_) {
+    this->command(0x07);  // deep sleep
+    this->data(0xA5);     // check code
+    ESP_LOGD(TAG, "go to deep sleep");
+    this->is_deep_sleep_ = true;
+  }
+}
+
+void GDEW029T5::init_display_() {
+  // from https://github.com/ZinggJM/GxEPD2/blob/master/src/epd/GxEPD2_290_T5.cpp
+
+  // Hardware Initialization
+  if (this->deep_sleep_between_updates_ && this->is_deep_sleep_) {
+    ESP_LOGI(TAG, "wake up from deep sleep");
+    this->reset_();
+    this->is_deep_sleep_ = false;
+  }
 
   // COMMAND POWER SETTINGS
-  this->command(0x00);
+  this->command(0x01);
   this->data(0x03);
   this->data(0x00);
   this->data(0x2b);
@@ -1617,40 +1710,122 @@ void GDEW029T5::initialize() {
   this->data(0x17);
   this->data(0x17);
 
-  // COMMAND POWER ON
-  this->command(0x04);
-  this->wait_until_idle_();
-
-  // Not sure what this does but it's in the Adafruit EPD library
-  this->command(0xFF);
-  this->wait_until_idle_();
+  this->power_on_();
 
   // COMMAND PANEL SETTING
   this->command(0x00);
   // 128x296 resolution:        10
-  // LUT from OTP:              0
+  // LUT from register:         1
   // B/W mode (doesn't work):   1
   // scan-up:                   1
   // shift-right:               1
   // booster ON:                1
   // no soft reset:             1
-  this->data(0b10011111);
+  this->data(0b10111111);
+  this->data(0x0d);     // VCOM to 0V fast
+  this->command(0x30);  // PLL setting
+  this->data(0x3a);     // 3a 100HZ   29 150Hz 39 200HZ 31 171HZ
+  this->command(0x61);  // resolution setting
+  this->data(this->get_width_internal());
+  this->data(this->get_height_internal() >> 8);
+  this->data(this->get_height_internal() & 0xFF);
 
-  // COMMAND RESOLUTION SETTING
-  // set to 128x296 by COMMAND PANEL SETTING
-
-  // COMMAND VCOM AND DATA INTERVAL SETTING
-  // use defaults for white border and ESPHome image polarity
-
-  // EPD hardware init end
+  ESP_LOGD(TAG, "panel setting done");
 }
+
+void GDEW029T5::initialize() {
+  // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
+  if (this->reset_pin_ != nullptr)
+    this->deep_sleep_between_updates_ = true;
+
+  // old buffer for partial update
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  this->old_buffer_ = allocator.allocate(this->get_buffer_length_());
+  if (this->old_buffer_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate old buffer for display!");
+    return;
+  }
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->old_buffer_[i] = 0xFF;
+  }
+}
+
+// initialize for full(normal) update
+void GDEW029T5::init_full_() {
+  this->init_display_();
+  this->command(0x82);  // vcom_DC setting
+  this->data(0x08);
+  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->data(0x97);     // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+  this->command(0x20);
+  this->write_lut_(LUT_20_VCOMDC_29_5, sizeof(LUT_20_VCOMDC_29_5));
+  this->command(0x21);
+  this->write_lut_(LUT_21_WW_29_5, sizeof(LUT_21_WW_29_5));
+  this->command(0x22);
+  this->write_lut_(LUT_22_BW_29_5, sizeof(LUT_22_BW_29_5));
+  this->command(0x23);
+  this->write_lut_(LUT_23_WB_29_5, sizeof(LUT_23_WB_29_5));
+  this->command(0x24);
+  this->write_lut_(LUT_24_BB_29_5, sizeof(LUT_24_BB_29_5));
+  ESP_LOGD(TAG, "initialized full update");
+}
+
+// initialzie for partial update
+void GDEW029T5::init_partial_() {
+  this->init_display_();
+  this->command(0x82);  // vcom_DC setting
+  this->data(0x08);
+  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->data(0x17);     // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+  this->command(0x20);
+  this->write_lut_(LUT_20_VCOMDC_PARTIAL_29_5, sizeof(LUT_20_VCOMDC_PARTIAL_29_5));
+  this->command(0x21);
+  this->write_lut_(LUT_21_WW_PARTIAL_29_5, sizeof(LUT_21_WW_PARTIAL_29_5));
+  this->command(0x22);
+  this->write_lut_(LUT_22_BW_PARTIAL_29_5, sizeof(LUT_22_BW_PARTIAL_29_5));
+  this->command(0x23);
+  this->write_lut_(LUT_23_WB_PARTIAL_29_5, sizeof(LUT_23_WB_PARTIAL_29_5));
+  this->command(0x24);
+  this->write_lut_(LUT_24_BB_PARTIAL_29_5, sizeof(LUT_24_BB_PARTIAL_29_5));
+  ESP_LOGD(TAG, "initialized partial update");
+}
+
 void HOT GDEW029T5::display() {
+  bool full_update = this->at_update_ == 0;
+  if (full_update) {
+    this->init_full_();
+  } else {
+    this->init_partial_();
+    this->command(0x91);  // partial in
+    // set partial window
+    this->command(0x90);
+    // this->data(0);
+    this->data(0);
+    // this->data(0);
+    this->data((this->get_width_internal() - 1) % 256);
+    this->data(0);
+    this->data(0);
+    this->data(((this->get_height_internal() - 1)) / 256);
+    this->data(((this->get_height_internal() - 1)) % 256);
+    this->data(0x01);
+  }
+  // input old buffer data
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->write_byte(this->old_buffer_[i]);
+  }
+  this->end_data_();
+  delay(2);
+
   // COMMAND DATA START TRANSMISSION 2 (B/W only)
   this->command(0x13);
   delay(2);
   this->start_data_();
   for (size_t i = 0; i < this->get_buffer_length_(); i++) {
     this->write_byte(this->buffer_[i]);
+    this->old_buffer_[i] = this->buffer_[i];
   }
   this->end_data_();
   delay(2);
@@ -1660,10 +1835,28 @@ void HOT GDEW029T5::display() {
   delay(2);
   this->wait_until_idle_();
 
-  // COMMAND POWER OFF
-  // NOTE: power off < deep sleep
-  this->command(0x02);
+  if (full_update) {
+    ESP_LOGD(TAG, "full update done");
+  } else {
+    this->command(0x92);  // partial out
+    ESP_LOGD(TAG, "partial update done");
+  }
+
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+  // COMMAND deep sleep
+  this->deep_sleep();
 }
+
+void GDEW029T5::write_lut_(const uint8_t *lut, const uint8_t size) {
+  // COMMAND WRITE LUT REGISTER
+  this->start_data_();
+  for (uint8_t i = 0; i < size; i++)
+    this->write_byte(lut[i]);
+  this->end_data_();
+}
+
+void GDEW029T5::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+
 int GDEW029T5::get_width_internal() { return 128; }
 int GDEW029T5::get_height_internal() { return 296; }
 void GDEW029T5::dump_config() {
@@ -1672,6 +1865,7 @@ void GDEW029T5::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
   LOG_UPDATE_INTERVAL(this);
 }
 
