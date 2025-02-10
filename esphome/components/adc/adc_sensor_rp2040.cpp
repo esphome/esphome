@@ -34,24 +34,28 @@ void ADCSensor::dump_config() {
 #endif  // USE_ADC_SENSOR_VCC
   }
   ESP_LOGCONFIG(TAG, "  Samples: %i", this->sample_count_);
+  ESP_LOGCONFIG(TAG, "  Sampling mode: %s", LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
   LOG_UPDATE_INTERVAL(this);
 }
 
 float ADCSensor::sample() {
+  uint32_t raw = 0;
+  auto aggr = Aggregator(this->sampling_mode_);
+
   if (this->is_temperature_) {
     adc_set_temp_sensor_enabled(true);
     delay(1);
     adc_select_input(4);
-    uint32_t raw = 0;
+
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
-      raw += adc_read();
+      raw = adc_read();
+      aggr.add_sample(raw);
     }
-    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
     adc_set_temp_sensor_enabled(false);
     if (this->output_raw_) {
-      return raw;
+      return aggr.aggregate();
     }
-    return raw * 3.3f / 4096.0f;
+    return aggr.aggregate() * 3.3f / 4096.0f;
   }
 
   uint8_t pin = this->pin_->get_pin();
@@ -68,11 +72,10 @@ float ADCSensor::sample() {
   adc_gpio_init(pin);
   adc_select_input(pin - 26);
 
-  uint32_t raw = 0;
   for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
-    raw += adc_read();
+    raw = adc_read();
+    aggr.add_sample(raw);
   }
-  raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
 
 #ifdef CYW43_USES_VSYS_PIN
   if (pin == PICO_VSYS_PIN) {
@@ -81,10 +84,10 @@ float ADCSensor::sample() {
 #endif  // CYW43_USES_VSYS_PIN
 
   if (this->output_raw_) {
-    return raw;
+    return aggr.aggregate();
   }
   float coeff = pin == PICO_VSYS_PIN ? 3.0f : 1.0f;
-  return raw * 3.3f / 4096.0f * coeff;
+  return aggr.aggregate() * 3.3f / 4096.0f * coeff;
 }
 
 }  // namespace adc

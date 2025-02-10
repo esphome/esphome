@@ -28,6 +28,21 @@ static const adc_atten_t ADC_ATTEN_DB_12_COMPAT = ADC_ATTEN_DB_11;
 #endif
 #endif  // USE_ESP32
 
+enum class SamplingMode : uint8_t { AVG = 0, MIN = 1, MAX = 2 };
+const LogString *sampling_mode_to_str(SamplingMode mode);
+
+class Aggregator {
+ public:
+  void add_sample(uint32_t value);
+  uint32_t aggregate();
+  Aggregator(SamplingMode mode);
+
+ protected:
+  SamplingMode mode_{SamplingMode::AVG};
+  uint32_t aggr_{0};
+  uint32_t samples_{0};
+};
+
 class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
 #ifdef USE_ESP32
@@ -54,6 +69,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_output_raw(bool output_raw) { this->output_raw_ = output_raw; }
   void set_sample_count(uint8_t sample_count);
+  void set_sampling_mode(SamplingMode sampling_mode);
   float sample() override;
 
 #ifdef USE_ESP8266
@@ -68,6 +84,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   InternalGPIOPin *pin_;
   bool output_raw_{false};
   uint8_t sample_count_{1};
+  SamplingMode sampling_mode_{SamplingMode::AVG};
 
 #ifdef USE_RP2040
   bool is_temperature_{false};
