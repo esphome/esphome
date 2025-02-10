@@ -2,8 +2,8 @@ substitutions:
   clk_pin: GPIO2
   mosi_pin: GPIO3
   cs_pin: GPIO5
-  dc_pin: GPIO4
-  busy_pin: GPIO0
-  reset_pin: GPIO1
+  dc_pin: GPIO6
+  busy_pin: GPIO7
+  reset_pin: GPIO8
 
 <<: !include common.yaml
