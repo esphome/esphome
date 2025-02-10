@@ -105,12 +105,9 @@ int HOT Logger::level_for(const char *tag) {
   // Uses std::vector<> for low memory footprint, though the vector
   // could be sorted to minimize lookup times. This feature isn't used that
   // much anyway so it doesn't matter too much.
-  for (auto &it : this->log_levels_) {
-    if (it.tag == tag) {
-      return it.level;
-    }
-  }
-  return ESPHOME_LOG_LEVEL;
+  if (this->log_levels_.count(tag) != 0)
+    return this->log_levels_[tag];
+  return this->current_level_;
 }
 
 void HOT Logger::log_message_(int level, const char *tag, int offset) {
@@ -167,9 +164,7 @@ void Logger::loop() {
 #endif
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
-void Logger::set_log_level(const std::string &tag, int log_level) {
-  this->log_levels_.push_back(LogLevelOverride{tag, log_level});
-}
+void Logger::set_log_level(const std::string &tag, int log_level) { this->log_levels_[tag] = log_level; }
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 UARTSelection Logger::get_uart() const { return this->uart_; }
@@ -183,17 +178,27 @@ const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DE
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
-  ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
+  ESP_LOGCONFIG(TAG, "  Max Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
+  ESP_LOGCONFIG(TAG, "  Initial Level: %s", LOG_LEVELS[this->current_level_]);
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", get_uart_selection_());
 #endif
 
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first.c_str(), LOG_LEVELS[it.second]);
   }
 }
 void Logger::write_footer_() { this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR)); }
+
+void Logger::set_log_level(int level) {
+  if (level > ESPHOME_LOG_LEVEL) {
+    level = ESPHOME_LOG_LEVEL;
+    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
+  }
+  this->current_level_ = level;
+  this->level_callback_.call(level);
+}
 
 Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
