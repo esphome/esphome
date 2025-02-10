@@ -100,7 +100,35 @@ void OnlineImage::update() {
   }
   ESP_LOGI(TAG, "Updating image %s", this->url_.c_str());
 
-  this->downloader_ = this->parent_->get(this->url_);
+  std::list<http_request::Header> headers = {};
+
+  http_request::Header accept_header;
+  accept_header.name = "Accept";
+  std::string accept_mime_type;
+  switch (this->format_) {
+#ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
+    case ImageFormat::BMP:
+      accept_mime_type = "image/bmp";
+      break;
+#endif  // ONLINE_IMAGE_BMP_SUPPORT
+#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
+    case ImageFormat::JPEG:
+      accept_mime_type = "image/jpeg";
+      break;
+#endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
+#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
+    case ImageFormat::PNG:
+      accept_mime_type = "image/png";
+      break;
+#endif  // ONLINE_IMAGE_PNG_SUPPORT
+    default:
+      accept_mime_type = "image/*";
+  }
+  accept_header.value = (accept_mime_type + ",*/*;q=0.8").c_str();
+
+  headers.push_back(accept_header);
+
+  this->downloader_ = this->parent_->get(this->url_, headers);
 
   if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
