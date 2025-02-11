@@ -84,7 +84,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   container->set_secure(secure);
 
   for (const auto &header : headers) {
-    esp_http_client_set_header(client, header.name, header.value);
+    esp_http_client_set_header(client, header.name.c_str(), header.value.c_str());
   }
 
   const int body_len = body.length();

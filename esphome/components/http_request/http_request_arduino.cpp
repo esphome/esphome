@@ -96,7 +96,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
     container->client_.setUserAgent(this->useragent_);
   }
   for (const auto &header : headers) {
-    container->client_.addHeader(header.name, header.value, false, true);
+    container->client_.addHeader(header.name.c_str(), header.value.c_str(), false, true);
   }
 
   // returned needed headers must be collected before the requests

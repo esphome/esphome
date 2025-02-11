@@ -124,7 +124,7 @@ void OnlineImage::update() {
     default:
       accept_mime_type = "image/*";
   }
-  accept_header.value = (accept_mime_type + ",*/*;q=0.8").c_str();
+  accept_header.value = accept_mime_type + ",*/*;q=0.8";
 
   headers.push_back(accept_header);
 
