@@ -1677,9 +1677,82 @@ int WaveshareEPaper2P9InV2R2::get_width_controller() { return this->get_width_in
 void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
 }
+// ========================================================
+//     Good Display 2.9in black/white
+// Datasheet:
+//  - https://files.seeedstudio.com/wiki/Other_Display/29-epaper/GDEY029T94.pdf
+//  -
+//  https://github.com/Allen-Kuang/e-ink_Demo/blob/main/2.9%20inch%20E-paper%20-%20monocolor%20128x296/example/Display_EPD_W21.cpp
+// ========================================================
+
+void GDEY029T94::initialize() {
+  // EPD hardware init start
+  this->reset_();
+
+  this->wait_until_idle_();
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  this->command(0x01);  // Driver output control
+  this->data((this->get_height_internal() - 1) % 256);
+  this->data((this->get_height_internal() - 1) / 256);
+  this->data(0x00);
+
+  this->command(0x11);  // data entry mode
+  this->data(0x03);
+
+  this->command(0x44);  // set Ram-X address start/end position
+  this->data(0x00);
+  this->data(this->get_width_internal() / 8 - 1);
+
+  this->command(0x45);  // set Ram-Y address start/end position
+  this->data(0x00);
+  this->data(0x00);
+  this->data((this->get_height_internal() - 1) % 256);
+  this->data((this->get_height_internal() - 1) / 256);
+
+  this->command(0x3C);  // BorderWavefrom
+  this->data(0x05);
+
+  this->command(0x21);  //  Display update control
+  this->data(0x00);
+  this->data(0x80);
+
+  this->command(0x18);  // Read built-in temperature sensor
+  this->data(0x80);
+
+  this->command(0x4E);  // set RAM x address count to 0;
+  this->data(0x00);
+  this->command(0x4F);  // set RAM y address count to 0X199;
+  this->command(0x00);
+  this->command(0x00);
+  this->wait_until_idle_();
+}
+void HOT GDEY029T94::display() {
+  this->command(0x24);  // write RAM for black(0)/white (1)
+  this->start_data_();
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->write_byte(this->buffer_[i]);
+  }
+  this->end_data_();
+  this->command(0x22);  // Display Update Control
+  this->data(0xF7);
+  this->command(0x20);  // Activate Display Update Sequence
+  this->wait_until_idle_();
+}
+int GDEY029T94::get_width_internal() { return 128; }
+int GDEY029T94::get_height_internal() { return 296; }
+void GDEY029T94::dump_config() {
+  LOG_DISPLAY("", "E-Paper (Good Display)", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in GDEY029T94");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 // ========================================================
-//     Good Display 2.9in black/white/grey
+//     Good Display 2.9in black/white
 // Datasheet:
 //  - https://v4.cecdn.yun300.cn/100001_1909185148/SSD1680.pdf
 //  - https://github.com/adafruit/Adafruit_EPD/blob/master/src/panels/ThinkInk_290_Grayscale4_T5.h
