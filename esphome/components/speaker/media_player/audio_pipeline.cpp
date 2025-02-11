@@ -182,13 +182,21 @@ AudioPipelineState AudioPipeline::process_state() {
     if (event_bits & EventGroupBits::PIPELINE_COMMAND_STOP) {
       // Stop command is fully processed, so clear the command bit
       xEventGroupClearBits(this->event_group_, EventGroupBits::PIPELINE_COMMAND_STOP);
+      this->hard_stop_ = true;
     }
 
     if (!this->is_playing_) {
       // The tasks have been stopped for two ``process_state`` calls in a row, so delete the tasks
       if ((this->read_task_handle_ != nullptr) || (this->decode_task_handle_ != nullptr)) {
         this->delete_tasks_();
-        this->speaker_->stop();
+        if (this->hard_stop_) {
+          // Stop command was sent, so immediately end of the playback
+          this->speaker_->stop();
+          this->hard_stop_ = false;
+        } else {
+          // Decoded all the audio, so let the speaker finish playing before stopping
+          this->speaker_->finish();
+        }
       }
     }
     this->is_playing_ = false;
