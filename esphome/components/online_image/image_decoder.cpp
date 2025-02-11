@@ -25,6 +25,15 @@ void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   }
 }
 
+DownloadBuffer::DownloadBuffer(size_t size) : size_(size) {
+  this->buffer_ = this->allocator_.allocate(size);
+  this->reset();
+  if (!this->buffer_) {
+    ESP_LOGE(TAG, "Initial allocation of download buffer failed!");
+    this->size_ = 0;
+  }
+}
+
 uint8_t *DownloadBuffer::data(size_t offset) {
   if (offset > this->size_) {
     ESP_LOGE(TAG, "Tried to access beyond download buffer bounds!!!");
@@ -46,12 +55,13 @@ size_t DownloadBuffer::resize(size_t size) {
     return size;
   }
   this->allocator_.deallocate(this->buffer_, this->size_);
-  this->size_ = size;
   this->buffer_ = this->allocator_.allocate(size);
   this->reset();
   if (this->buffer_) {
+    this->size_ = size;
     return size;
   } else {
+    this->size_ = 0;
     return 0;
   }
 }

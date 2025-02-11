@@ -40,11 +40,16 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
   decoder->draw(x, y, w, h, color);
 }
 
-void PngDecoder::prepare(size_t download_size) {
+int PngDecoder::prepare(size_t download_size) {
   ImageDecoder::prepare(download_size);
+  if (!this->pngle_) {
+    ESP_LOGE(TAG, "PNG decoder engine not initialized!");
+    return DECODE_ERROR_OUT_OF_MEMORY;
+  }
   pngle_set_user_data(this->pngle_, this);
   pngle_set_init_callback(this->pngle_, init_callback);
   pngle_set_draw_callback(this->pngle_, draw_callback);
+  return 0;
 }
 
 int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
