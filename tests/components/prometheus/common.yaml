@@ -121,6 +121,14 @@ number:
     max_value: 100
     step: 1
 
+valve:
+  - platform: template
+    name: "Template Valve"
+    lambda: |-
+      return VALVE_OPEN;
+    optimistic: true
+    has_position: true
+
 prometheus:
   include_internal: true
   relabel:

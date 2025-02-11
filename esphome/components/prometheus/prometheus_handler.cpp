@@ -83,6 +83,12 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
     this->update_entity_row_(stream, obj, area, node, friendly_name);
 #endif
 
+#ifdef USE_VALVE
+  this->valve_type_(stream);
+  for (auto *obj : App.get_valves())
+    this->valve_row_(stream, obj, area, node, friendly_name);
+#endif
+
   req->send(stream);
 }
 
@@ -766,6 +772,54 @@ void PrometheusHandler::update_entity_row_(AsyncResponseStream *stream, update::
     stream->print(F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} 1\n"));
+  }
+}
+#endif
+
+#ifdef USE_VALVE
+void PrometheusHandler::valve_type_(AsyncResponseStream *stream) {
+  stream->print(F("#TYPE esphome_valve_operation gauge\n"));
+  stream->print(F("#TYPE esphome_valve_failed gauge\n"));
+  stream->print(F("#TYPE esphome_valve_position gauge\n"));
+}
+
+void PrometheusHandler::valve_row_(AsyncResponseStream *stream, valve::Valve *obj, std::string &area, std::string &node,
+                                   std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  stream->print(F("esphome_valve_failed{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(F("\"} 0\n"));
+  // Data itself
+  stream->print(F("esphome_valve_operation{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(F("\",operation=\""));
+  stream->print(valve::valve_operation_to_str(obj->current_operation));
+  stream->print(F("\"} "));
+  stream->print(F("1.0"));
+  stream->print(F("\n"));
+  // Now see if position is supported
+  if (obj->get_traits().get_supports_position()) {
+    stream->print(F("esphome_valve_position{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(F("\"} "));
+    stream->print(obj->position);
+    stream->print(F("\n"));
   }
 }
 #endif

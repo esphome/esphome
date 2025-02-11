@@ -161,6 +161,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void handle_update_state_(AsyncResponseStream *stream, update::UpdateState state);
 #endif
 
+#ifdef USE_VALVE
+  /// Return the type for prometheus
+  void valve_type_(AsyncResponseStream *stream);
+  /// Return the valve state as prometheus data point
+  void valve_row_(AsyncResponseStream *stream, valve::Valve *obj, std::string &area, std::string &node,
+                  std::string &friendly_name);
+#endif
+
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
   std::map<EntityBase *, std::string> relabel_map_id_;
