@@ -2169,6 +2169,206 @@ void GDEW0154M09::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//     Good Display 4.2in black/white GDEY042T81 (SSD1683)
+// Product page:
+//  - https://www.good-display.com/product/386.html
+// Datasheet:
+//  - https://v4.cecdn.yun300.cn/100001_1909185148/GDEY042T81.pdf
+//  - https://v4.cecdn.yun300.cn/100001_1909185148/SSD1683.PDF
+// Reference code from GoodDisplay:
+//  - https://www.good-display.com/companyfile/1572.html (2024-08-01 15:40:41)
+// Other reference code:
+//  - https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp
+// ========================================================
+
+void GDEY042T81::initialize() {
+  this->init_display_();
+  ESP_LOGD(TAG, "Initialization complete, set the display to deep sleep");
+  this->deep_sleep();
+}
+
+// conflicting documentation / examples regarding reset timings
+//   https://v4.cecdn.yun300.cn/100001_1909185148/SSD1683.PDF -> 10ms
+//   GD sample code (Display_EPD_W21.cpp, see above) -> 10 ms
+//   https://v4.cecdn.yun300.cn/100001_1909185148/GDEY042T81.pdf (section 14.2) -> 0.2ms (200us)
+//   https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L351
+//   -> 10ms
+//  10 ms seems to work, so we use this
+GDEY042T81::GDEY042T81() { this->reset_duration_ = 10; }
+
+void GDEY042T81::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(reset_duration_);  // NOLINT
+    this->reset_pin_->digital_write(true);
+    delay(reset_duration_);  // NOLINT
+  }
+}
+
+void GDEY042T81::init_display_() {
+  this->reset_();
+
+  this->wait_until_idle_();
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  // Specify number of lines for the driver: 300 (MUX 300)
+  // https://v4.cecdn.yun300.cn/100001_1909185148/SSD1683.PDF (section 8.1)
+  // https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L354
+  this->command(0x01);  //  driver output control
+  this->data(0x2B);     // (height - 1) % 256
+  this->data(0x01);     // (height - 1) / 256
+  this->data(0x00);
+
+  // https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L360
+  this->command(0x3C);  // BorderWaveform
+  this->data(0x01);
+  this->command(0x18);  // Read built-in temperature sensor
+  this->data(0x80);
+
+  // GD sample code (Display_EPD_W21.cpp@90ff)
+  this->command(0x11);  // data entry mode
+  this->data(0x03);
+  // set windows (0,0,400,300)
+  this->command(0x44);  // set Ram-X address start/end position
+  this->data(0);
+  this->data(0x31);  // (width / 8 -1)
+
+  this->command(0x45);  //  set Ram-y address start/end position
+  this->data(0);
+  this->data(0);
+  this->data(0x2B);  // (height - 1) % 256
+  this->data(0x01);  // (height - 1) / 256
+
+  // set cursor (0,0)
+  this->command(0x4E);  // set RAM x address count to 0;
+  this->data(0);
+  this->command(0x4F);  // set RAM y address count to 0;
+  this->data(0);
+  this->data(0);
+
+  this->wait_until_idle_();
+}
+
+// https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L366
+void GDEY042T81::update_full_() {
+  this->command(0x21);  // display update control
+  this->data(0x40);     // bypass RED as 0
+  this->data(0x00);     // single chip application
+
+  // only ever do a fast update because slow updates are only relevant
+  // for lower operating temperatures
+  // see
+  // https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_290_GDEY029T94.h#L30
+  //
+  // Should slow/fast updates be made configurable similar to how GxEPD2 does it? No idea if anyone would need it...
+  this->command(0x1A);  // Write to temperature register
+  this->data(0x6E);
+  this->command(0x22);
+  this->data(0xd7);
+
+  this->command(0x20);
+  this->wait_until_idle_();
+}
+
+// https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L389
+void GDEY042T81::update_part_() {
+  this->command(0x21);  // display update control
+  this->data(0x00);     // RED normal
+  this->data(0x00);     // single chip application
+
+  this->command(0x22);
+  this->data(0xfc);
+
+  this->command(0x20);
+  this->wait_until_idle_();
+}
+
+void HOT GDEY042T81::display() {
+  ESP_LOGD(TAG, "Wake up the display");
+  this->init_display_();
+
+  if (!this->wait_until_idle_()) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "Failed to perform update, display is busy");
+    return;
+  }
+
+  // basic code structure copied from WaveshareEPaper2P9InV2R2
+  if (this->full_update_every_ == 1) {
+    ESP_LOGD(TAG, "Full update");
+    // do single full update
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    // TurnOnDisplay
+    this->update_full_();
+    return;
+  }
+
+  // if (this->full_update_every_ == 1 ||
+  if (this->at_update_ == 0) {
+    ESP_LOGD(TAG, "Update");
+    // do base update
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    this->command(0x26);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    // TurnOnDisplay;
+    this->update_full_();
+  } else {
+    // do partial update (full screen)
+    // no need to load a LUT for GoodDisplays as they seem to have the LUT onboard
+    // GD example code (Display_EPD_W21.cpp@283ff)
+    //
+    // not setting the BorderWaveform here again (contrary to the GD example) because according to
+    // https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L358
+    // it seems to be enough to set it during display initialization
+    ESP_LOGD(TAG, "Partial update");
+    this->reset_();
+    if (!this->wait_until_idle_()) {
+      this->status_set_warning();
+      ESP_LOGE(TAG, "Failed to perform partial update, display is busy");
+      return;
+    }
+
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    // TurnOnDisplay
+    this->update_part_();
+  }
+
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+  this->wait_until_idle_();
+  ESP_LOGD(TAG, "Set the display back to deep sleep");
+  this->deep_sleep();
+}
+void GDEY042T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+int GDEY042T81::get_width_internal() { return 400; }
+int GDEY042T81::get_height_internal() { return 300; }
+uint32_t GDEY042T81::idle_timeout_() { return 5000; }
+void GDEY042T81::dump_config() {
+  LOG_DISPLAY("", "GoodDisplay E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 4.2in B/W GDEY042T81");
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_VCOM_DC_4_2[] = {
     0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x17, 0x00, 0x00, 0x02, 0x00, 0x0A, 0x01,
     0x00, 0x00, 0x01, 0x00, 0x0E, 0x0E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
