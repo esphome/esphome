@@ -2274,6 +2274,64 @@ void WaveshareEPaper4P2InBV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//    4.20in Type B With Red colour support (LUT from OTP)
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/2/20/4.2inch-e-paper-module-user-manual-en.pdf
+//  - https://github.com/waveshare/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2b_V2.c
+// The implementation is an adaptation of WaveshareEPaper4P2InBV2 class
+// ========================================================
+void WaveshareEPaper4P2InBV2BWR::initialize() {
+  // these exact timings are required for a proper reset/init
+  this->reset_pin_->digital_write(false);
+  delay(2);
+  this->reset_pin_->digital_write(true);
+  delay(200);  // NOLINT
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x0f);  // LUT from OTP
+}
+
+void HOT WaveshareEPaper4P2InBV2BWR::display() {
+  const uint32_t buf_len = this->get_buffer_length_() / 2u;
+
+  this->command(0x10);  // Send BW data Transmission
+  delay(2);             // Delay to prevent Watchdog error
+  for (uint32_t i = 0; i < buf_len; ++i) {
+    this->data(this->buffer_[i]);
+  }
+
+  this->command(0x13);  // Send red data Transmission
+  delay(2);             // Delay to prevent Watchdog error
+  for (uint32_t i = 0; i < buf_len; ++i) {
+    // Red color need to flip bit from the buffer. Otherwise, red will conqure the screen!
+    this->data(~this->buffer_[buf_len + i]);
+  }
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int WaveshareEPaper4P2InBV2BWR::get_width_internal() { return 400; }
+int WaveshareEPaper4P2InBV2BWR::get_height_internal() { return 300; }
+void WaveshareEPaper4P2InBV2BWR::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 4.2in (B V2) BWR-Mode");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 void WaveshareEPaper5P8In::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
