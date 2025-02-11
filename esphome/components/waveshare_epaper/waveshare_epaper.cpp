@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include <cinttypes>
+#include <bitset>
 
 namespace esphome {
 namespace waveshare_epaper {
@@ -110,8 +111,14 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
 };
 // clang-format on
 
-void WaveshareEPaperBase::setup_pins_() {
+void WaveshareEPaperBase::setup() {
   this->init_internal_(this->get_buffer_length_());
+  this->setup_pins_();
+  this->spi_setup();
+  this->reset_();
+  this->initialize();
+}
+void WaveshareEPaperBase::setup_pins_() {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
   if (this->reset_pin_ != nullptr) {
@@ -121,9 +128,6 @@ void WaveshareEPaperBase::setup_pins_() {
   if (this->busy_pin_ != nullptr) {
     this->busy_pin_->setup();  // INPUT
   }
-  this->spi_setup();
-
-  this->reset_();
 }
 float WaveshareEPaperBase::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void WaveshareEPaperBase::command(uint8_t value) {
@@ -173,6 +177,87 @@ void WaveshareEPaper::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
+void WaveshareEPaper7C::setup() {
+  this->init_internal_7c_(this->get_buffer_length_());
+  this->setup_pins_();
+  this->spi_setup();
+  this->reset_();
+  this->initialize();
+}
+void WaveshareEPaper7C::init_internal_7c_(uint32_t buffer_length) {
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
+
+  for (int i = 0; i < NUM_BUFFERS; i++) {
+    this->buffers_[i] = allocator.allocate(small_buffer_length);
+    if (this->buffers_[i] == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate buffer %d for display!", i);
+      for (auto &buffer : this->buffers_) {
+        allocator.deallocate(buffer, small_buffer_length);
+        buffer = nullptr;
+      }
+      return;
+    }
+  }
+  this->clear();
+}
+uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
+  uint8_t hex_code;
+  if (color.red > 127) {
+    if (color.green > 170) {
+      if (color.blue > 127) {
+        hex_code = 0x1;  // White
+      } else {
+        hex_code = 0x5;  // Yellow
+      }
+    } else if (color.green > 85) {
+      hex_code = 0x6;  // Orange
+    } else {
+      hex_code = 0x4;  // Red (or Magenta)
+    }
+  } else {
+    if (color.green > 127) {
+      if (color.blue > 127) {
+        hex_code = 0x3;  // Cyan -> Blue
+      } else {
+        hex_code = 0x2;  // Green
+      }
+    } else {
+      if (color.blue > 127) {
+        hex_code = 0x3;  // Blue
+      } else {
+        hex_code = 0x0;  // Black
+      }
+    }
+  }
+
+  return hex_code;
+}
+void WaveshareEPaper7C::fill(Color color) {
+  uint8_t pixel_color;
+  if (color.is_on()) {
+    pixel_color = this->color_to_hex(color);
+  } else {
+    pixel_color = 0x1;
+  }
+
+  if (this->buffers_[0] == nullptr) {
+    ESP_LOGE(TAG, "Buffer unavailable!");
+  } else {
+    uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
+    for (auto &buffer : this->buffers_) {
+      for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
+        // We store 8 bitset<3> in 3 bytes
+        // | byte 1 | byte 2 | byte 3 |
+        // |aaabbbaa|abbbaaab|bbaaabbb|
+        buffer[buffer_pos + 0] = pixel_color << 5 | pixel_color << 2 | pixel_color >> 1;
+        buffer[buffer_pos + 1] = pixel_color << 7 | pixel_color << 4 | pixel_color << 1 | pixel_color >> 2;
+        buffer[buffer_pos + 2] = pixel_color << 6 | pixel_color << 3 | pixel_color << 0;
+      }
+      App.feed_wdt();
+    }
+  }
+}
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
@@ -193,6 +278,9 @@ uint32_t WaveshareEPaper::get_buffer_length_() {
 uint32_t WaveshareEPaperBWR::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 4u;
 }  // black and red buffer
+uint32_t WaveshareEPaper7C::get_buffer_length_() {
+  return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
+}  // 7 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
 
 void WaveshareEPaperBWR::fill(Color color) {
   this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color);
@@ -219,7 +307,33 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
     this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
   }
 }
+void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
 
+  uint8_t pixel_bits = this->color_to_hex(color);
+  uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
+  uint32_t pixel_position = x + y * this->get_width_controller();
+  uint32_t first_bit_position = pixel_position * 3;
+  uint32_t byte_position = first_bit_position / 8u;
+  uint32_t byte_subposition = first_bit_position % 8u;
+  uint32_t buffer_position = byte_position / small_buffer_length;
+  uint32_t buffer_subposition = byte_position % small_buffer_length;
+
+  if (byte_subposition <= 5) {
+    this->buffers_[buffer_position][buffer_subposition] =
+        (this->buffers_[buffer_position][buffer_subposition] & (0xFF ^ (0b111 << (5 - byte_subposition)))) |
+        (pixel_bits << (5 - byte_subposition));
+  } else {
+    this->buffers_[buffer_position][buffer_subposition + 0] =
+        (this->buffers_[buffer_position][buffer_subposition + 0] & (0xFF ^ (0b111 >> (byte_subposition - 5)))) |
+        (pixel_bits >> (byte_subposition - 5));
+
+    this->buffers_[buffer_position][buffer_subposition + 1] = (this->buffers_[buffer_position][buffer_subposition + 1] &
+                                                               (0xFF ^ (0xFF & (0b111 << (13 - byte_subposition))))) |
+                                                              (pixel_bits << (13 - byte_subposition));
+  }
+}
 void WaveshareEPaperBase::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -3192,6 +3306,195 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
+}
+void WaveshareEPaper7P3InF::initialize() {
+  if (this->buffers_[0] == nullptr) {
+    ESP_LOGE(TAG, "Buffer unavailable!");
+    return;
+  }
+
+  this->reset_();
+  delay(20);
+  this->wait_until_idle_();
+
+  // COMMAND CMDH
+  this->command(0xAA);
+  this->data(0x49);
+  this->data(0x55);
+  this->data(0x20);
+  this->data(0x08);
+  this->data(0x09);
+  this->data(0x18);
+
+  this->command(0x01);
+  this->data(0x3F);
+  this->data(0x00);
+  this->data(0x32);
+  this->data(0x2A);
+  this->data(0x0E);
+  this->data(0x2A);
+
+  this->command(0x00);
+  this->data(0x5F);
+  this->data(0x69);
+
+  this->command(0x03);
+  this->data(0x00);
+  this->data(0x54);
+  this->data(0x00);
+  this->data(0x44);
+
+  this->command(0x05);
+  this->data(0x40);
+  this->data(0x1F);
+  this->data(0x1F);
+  this->data(0x2C);
+
+  this->command(0x06);
+  this->data(0x6F);
+  this->data(0x1F);
+  this->data(0x1F);
+  this->data(0x22);
+
+  this->command(0x08);
+  this->data(0x6F);
+  this->data(0x1F);
+  this->data(0x1F);
+  this->data(0x22);
+
+  // COMMAND IPC
+  this->command(0x13);
+  this->data(0x00);
+  this->data(0x04);
+
+  this->command(0x30);
+  this->data(0x3C);
+
+  // COMMAND TSE
+  this->command(0x41);
+  this->data(0x00);
+
+  this->command(0x50);
+  this->data(0x3F);
+
+  this->command(0x60);
+  this->data(0x02);
+  this->data(0x00);
+
+  this->command(0x61);
+  this->data(0x03);
+  this->data(0x20);
+  this->data(0x01);
+  this->data(0xE0);
+
+  this->command(0x82);
+  this->data(0x1E);
+
+  this->command(0x84);
+  this->data(0x00);
+
+  // COMMAND AGID
+  this->command(0x86);
+  this->data(0x00);
+
+  this->command(0xE3);
+  this->data(0x2F);
+
+  // COMMAND CCSET
+  this->command(0xE0);
+  this->data(0x00);
+
+  // COMMAND TSSET
+  this->command(0xE6);
+  this->data(0x00);
+
+  ESP_LOGI(TAG, "Display initialized successfully");
+}
+void HOT WaveshareEPaper7P3InF::display() {
+  if (this->buffers_[0] == nullptr) {
+    ESP_LOGE(TAG, "Buffer unavailable!");
+    return;
+  }
+
+  // INITIALIZATION
+  ESP_LOGI(TAG, "Initialise the display");
+  this->initialize();
+
+  // COMMAND DATA START TRANSMISSION
+  ESP_LOGI(TAG, "Sending data to the display");
+  this->command(0x10);
+  uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
+  uint8_t byte_to_send;
+  for (auto &buffer : this->buffers_) {
+    for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
+      std::bitset<24> triplet =
+          buffer[buffer_pos + 0] << 16 | buffer[buffer_pos + 1] << 8 | buffer[buffer_pos + 2] << 0;
+      // 8 bitset<3> are stored in 3 bytes
+      // |aaabbbaa|abbbaaab|bbaaabbb|
+      // | byte 1 | byte 2 | byte 3 |
+      byte_to_send = ((triplet >> 17).to_ulong() & 0b01110000) | ((triplet >> 18).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+
+      byte_to_send = ((triplet >> 11).to_ulong() & 0b01110000) | ((triplet >> 12).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+
+      byte_to_send = ((triplet >> 5).to_ulong() & 0b01110000) | ((triplet >> 6).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+
+      byte_to_send = ((triplet << 1).to_ulong() & 0b01110000) | ((triplet << 0).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+    }
+    App.feed_wdt();
+  }
+
+  // COMMAND POWER ON
+  ESP_LOGI(TAG, "Power on the display");
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND REFRESH SCREEN
+  ESP_LOGI(TAG, "Refresh the display");
+  this->command(0x12);
+  this->data(0x00);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  ESP_LOGI(TAG, "Power off the display");
+  this->command(0x02);
+  this->data(0x00);
+  this->wait_until_idle_();
+
+  ESP_LOGI(TAG, "Set the display to deep sleep");
+  this->command(0x07);
+  this->data(0xA5);
+}
+int WaveshareEPaper7P3InF::get_width_internal() { return 800; }
+int WaveshareEPaper7P3InF::get_height_internal() { return 480; }
+uint32_t WaveshareEPaper7P3InF::idle_timeout_() { return 35000; }
+void WaveshareEPaper7P3InF::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.3in-F");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+bool WaveshareEPaper7P3InF::wait_until_idle_() {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+  const uint32_t start = millis();
+  while (this->busy_pin_->digital_read()) {
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+  delay(200);  // NOLINT
+  return true;
 }
 bool WaveshareEPaper7P5InV2::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
