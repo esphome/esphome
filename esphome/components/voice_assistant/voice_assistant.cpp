@@ -1,4 +1,5 @@
 #include "voice_assistant.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_VOICE_ASSISTANT
 
@@ -127,7 +128,7 @@ void VoiceAssistant::clear_buffers_() {
   }
 
 #ifdef USE_SPEAKER
-  if (this->speaker_buffer_ != nullptr) {
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
     memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
 
     this->speaker_buffer_size_ = 0;
@@ -159,7 +160,7 @@ void VoiceAssistant::deallocate_buffers_() {
   this->input_buffer_ = nullptr;
 
 #ifdef USE_SPEAKER
-  if (this->speaker_buffer_ != nullptr) {
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
     ExternalRAMAllocator<uint8_t> speaker_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
     speaker_deallocator.deallocate(this->speaker_buffer_, SPEAKER_BUFFER_SIZE);
     this->speaker_buffer_ = nullptr;
@@ -389,14 +390,7 @@ void VoiceAssistant::loop() {
       }
 #endif
       if (playing) {
-        this->set_timeout("playing", 2000, [this]() {
-          this->cancel_timeout("speaker-timeout");
-          this->set_state_(State::IDLE, State::IDLE);
-
-          api::VoiceAssistantAnnounceFinished msg;
-          msg.success = true;
-          this->api_client_->send_voice_assistant_announce_finished(msg);
-        });
+        this->start_playback_timeout_();
       }
       break;
     }
@@ -614,6 +608,8 @@ void VoiceAssistant::request_stop() {
       this->desired_state_ = State::IDLE;
       break;
     case State::AWAITING_RESPONSE:
+      this->signal_stop_();
+      break;
     case State::STREAMING_RESPONSE:
     case State::RESPONSE_FINISHED:
       break;  // Let the incoming audio stream finish then it will go to idle.
@@ -629,6 +625,17 @@ void VoiceAssistant::signal_stop_() {
   api::VoiceAssistantRequest msg;
   msg.start = false;
   this->api_client_->send_voice_assistant_request(msg);
+}
+
+void VoiceAssistant::start_playback_timeout_() {
+  this->set_timeout("playing", 100, [this]() {
+    this->cancel_timeout("speaker-timeout");
+    this->set_state_(State::IDLE, State::IDLE);
+
+    api::VoiceAssistantAnnounceFinished msg;
+    msg.success = true;
+    this->api_client_->send_voice_assistant_announce_finished(msg);
+  });
 }
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
@@ -715,6 +722,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 #ifdef USE_MEDIA_PLAYER
         if (this->media_player_ != nullptr) {
           this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
+          // Start the playback timeout, as the media player state isn't immediately updated
+          this->start_playback_timeout_();
         }
 #endif
         this->tts_end_trigger_->trigger(url);
@@ -725,7 +734,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
-      if (this->state_ == State::STREAMING_MICROPHONE) {
+      if ((this->state_ == State::STARTING_PIPELINE) || (this->state_ == State::AWAITING_RESPONSE)) {
+        // Pipeline ended before starting microphone
+        // Or there wasn't a TTS start event ("nevermind")
+        this->set_state_(State::IDLE, State::IDLE);
+      } else if (this->state_ == State::STREAMING_MICROPHONE) {
         this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
         if (this->use_wake_word_) {
@@ -736,9 +749,6 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         {
           this->set_state_(State::IDLE, State::IDLE);
         }
-      } else if (this->state_ == State::AWAITING_RESPONSE) {
-        // No TTS start event ("nevermind")
-        this->set_state_(State::IDLE, State::IDLE);
       }
       this->defer([this]() { this->end_trigger_->trigger(); });
       break;
