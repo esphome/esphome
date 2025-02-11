@@ -427,6 +427,26 @@ class WaveshareEPaper2P9InDKE : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper2P9InD : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
 class WaveshareEPaper4P2In : public WaveshareEPaper {
  public:
   void initialize() override;

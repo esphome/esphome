@@ -1211,6 +1211,93 @@ void WaveshareEPaper2P9InB::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//  Waveshare 2.9-inch E-Paper (Type D)
+//  Waveshare WIKI: https://www.waveshare.com/wiki/Pico-ePaper-2.9-D
+//  Datasheet: https://www.waveshare.com/w/upload/b/b5/2.9inch_e-Paper_(D)_Specification.pdf
+// ========================================================
+
+void WaveshareEPaper2P9InD::initialize() {
+  // EPD hardware init start
+  this->reset_();
+
+  // Booster Soft Start
+  this->command(0x06);  // Command: BTST
+  this->data(0x17);     // Soft start configuration Phase A
+  this->data(0x17);     // Soft start configuration Phase B
+  this->data(0x17);     // Soft start configuration Phase C
+
+  // Power Setting
+  this->command(0x01);  // Command: PWR
+  this->data(0x03);     // Intern DC/DC for VDH/VDL and VGH/VGL
+  this->data(0x00);     // Default configuration VCOM_HV and VGHL_LV
+  this->data(0x2b);     // VDH = 10.8 V
+  this->data(0x2b);     // VDL = -10.8 V
+
+  // Power ON
+  this->command(0x04);  // Command: PON
+  this->wait_until_idle_();
+
+  // Panel settings
+  this->command(0x00);  // Command: PSR
+  this->data(0x1F);     // LUT from OTP, black and white mode, default scan
+
+  // PLL Control
+  this->command(0x30);  // Command: PLL
+  this->data(0x3A);     // Default PLL frequency
+
+  // Resolution settings
+  this->command(0x61);  // Command: TRES
+  this->data(0x80);     // Width: 128
+  this->data(0x01);     // Height MSB: 296
+  this->data(0x28);     // Height LSB: 296
+
+  // VCOM and data interval settings
+  this->command(0x50);  // Command: CDI
+  this->data(0x77);
+
+  // VCOM_DC settings
+  this->command(0x82);  // Command: VDCS
+  this->data(0x12);     // Dafault VCOM_DC
+}
+
+void WaveshareEPaper2P9InD::display() {
+  // Start transmitting old data (clearing buffer)
+  this->command(0x10);  // Command: DTM1 (OLD frame data)
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // Start transmitting new data (updated content)
+  this->command(0x13);  // Command: DTM2 (NEW frame data)
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // Refresh Display
+  this->command(0x12);  // Command: DRF
+  this->wait_until_idle_();
+
+  // Enter Power Off
+  this->command(0x02);  // Command: POF
+  this->wait_until_idle_();
+
+  // Enter Deep Sleep
+  this->command(0x07);  // Command: DSLP
+  this->data(0xA5);
+}
+
+int WaveshareEPaper2P9InD::get_width_internal() { return 128; }
+int WaveshareEPaper2P9InD::get_height_internal() { return 296; }
+void WaveshareEPaper2P9InD::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in (D)");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 // DKE 2.9
 // https://www.badge.team/docs/badges/sha2017/hardware/#e-ink-display-the-dke-group-depg0290b1
 // https://www.badge.team/docs/badges/sha2017/hardware/DEPG0290B01V3.0.pdf

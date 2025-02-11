@@ -715,6 +715,25 @@ display:
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
   - platform: waveshare_epaper
+    model: 2.90in-d
+    spi_id: spi_waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    reset_duration: 200ms
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+  - platform: waveshare_epaper
     model: 2.90in
     spi_id: spi_waveshare_epaper
     cs_pin:
