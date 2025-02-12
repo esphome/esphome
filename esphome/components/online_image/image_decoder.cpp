@@ -9,10 +9,10 @@ namespace online_image {
 static const char *const TAG = "online_image.decoder";
 
 bool ImageDecoder::set_size(int width, int height) {
-  bool resized = this->image_->resize_(width, height);
+  bool success = this->image_->resize_(width, height) > 0;
   this->x_scale_ = static_cast<double>(this->image_->buffer_width_) / width;
   this->y_scale_ = static_cast<double>(this->image_->buffer_height_) / height;
-  return resized;
+  return success;
 }
 
 void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
@@ -51,8 +51,9 @@ size_t DownloadBuffer::read(size_t len) {
 }
 
 size_t DownloadBuffer::resize(size_t size) {
-  if (this->size_ == size) {
-    return size;
+  if (this->size_ >= size) {
+    // Avoid useless reallocations; if the buffer is big enough, don't reallocate.
+    return this->size_;
   }
   this->allocator_.deallocate(this->buffer_, this->size_);
   this->buffer_ = this->allocator_.allocate(size);
@@ -61,6 +62,8 @@ size_t DownloadBuffer::resize(size_t size) {
     this->size_ = size;
     return size;
   } else {
+    ESP_LOGE(TAG, "allocation of %zu bytes failed. Biggest block in heap: %zu Bytes", size,
+             this->allocator_.get_max_free_block_size());
     this->size_ = 0;
     return 0;
   }
