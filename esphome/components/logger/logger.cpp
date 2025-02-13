@@ -102,9 +102,6 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
 #endif
 
 int HOT Logger::level_for(const char *tag) {
-  // Uses std::vector<> for low memory footprint, though the vector
-  // could be sorted to minimize lookup times. This feature isn't used that
-  // much anyway so it doesn't matter too much.
   if (this->log_levels_.count(tag) != 0)
     return this->log_levels_[tag];
   return this->current_level_;

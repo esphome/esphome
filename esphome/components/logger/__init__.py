@@ -247,8 +247,8 @@ async def to_code(config):
         )
     cg.add(log.pre_setup())
 
-    for tag, level in config[CONF_LOGS].items():
-        cg.add(log.set_log_level(tag, LOG_LEVELS[level]))
+    for tag, log_level in config[CONF_LOGS].items():
+        cg.add(log.set_log_level(tag, LOG_LEVELS[log_level]))
 
     cg.add_define("USE_LOGGER")
     this_severity = LOG_LEVEL_SEVERITY.index(level)
