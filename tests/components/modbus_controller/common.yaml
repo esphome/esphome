@@ -33,3 +33,73 @@ modbus_controller:
         read_lambda: |-
           return 42.3;
     max_cmd_retries: 0
+
+binary_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_binary_sensor1
+    name: Test Binary Sensor
+    register_type: read
+    address: 0x3200
+    bitmask: 0x80
+
+number:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_number1
+    name: Test Number
+    address: 0x9001
+    value_type: U_WORD
+    multiply: 1.0
+
+output:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_output1
+    address: 2048
+    register_type: holding
+    value_type: U_WORD
+    multiply: 1000
+
+select:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_select1
+    name: Test Select
+    address: 1000
+    value_type: U_WORD
+    optionsmap:
+      "Zero": 0
+      "One": 1
+      "Two": 2
+      "Three": 3
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor1
+    name: Test Sensor
+    register_type: holding
+    address: 0x9001
+    unit_of_measurement: "AH"
+    value_type: U_WORD
+
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_switch1
+    name: Test Switch
+    register_type: coil
+    address: 0x15
+    bitmask: 1
+
+text_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor1
+    name: Test Text Sensor
+    register_type: holding
+    address: 0x9013
+    register_count: 3
+    raw_encode: HEXBYTES
+    response_size: 6
