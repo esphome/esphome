@@ -853,7 +853,7 @@ class InfoRequestHandler(BaseHandler):
         dashboard = DASHBOARD
         entry = dashboard.entries.get(yaml_path)
 
-        if not entry:
+        if not entry or entry.storage is None:
             self.set_status(404)
             return
 
