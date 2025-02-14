@@ -7,12 +7,15 @@
 #ifdef USE_ARDUINO
 #include <esp32-hal-dac.h>
 #endif
-#ifdef USE_ESP_IDF
-#include <driver/dac.h>
-#endif
 
 namespace esphome {
 namespace esp32_dac {
+
+#ifdef USE_ESP32_VARIANT_ESP32S2
+static constexpr uint8_t DAC0_PIN = 17;
+#else
+static constexpr uint8_t DAC0_PIN = 25;
+#endif
 
 static const char *const TAG = "esp32_dac";
 
@@ -22,8 +25,15 @@ void ESP32DAC::setup() {
   this->turn_off();
 
 #ifdef USE_ESP_IDF
-  auto channel = pin_->get_pin() == 25 ? DAC_CHANNEL_1 : DAC_CHANNEL_2;
-  dac_output_enable(channel);
+  const dac_channel_t channel = this->pin_->get_pin() == DAC0_PIN ? DAC_CHAN_0 : DAC_CHAN_1;
+  const dac_oneshot_config_t oneshot_cfg{channel};
+  dac_oneshot_new_channel(&oneshot_cfg, &this->dac_handle_);
+#endif
+}
+
+void ESP32DAC::on_safe_shutdown() {
+#ifdef USE_ESP_IDF
+  dac_oneshot_del_channel(this->dac_handle_);
 #endif
 }
 
@@ -40,8 +50,7 @@ void ESP32DAC::write_state(float state) {
   state = state * 255;
 
 #ifdef USE_ESP_IDF
-  auto channel = pin_->get_pin() == 25 ? DAC_CHANNEL_1 : DAC_CHANNEL_2;
-  dac_output_voltage(channel, (uint8_t) state);
+  dac_oneshot_output_voltage(this->dac_handle_, state);
 #endif
 #ifdef USE_ARDUINO
   dacWrite(this->pin_->get_pin(), state);
