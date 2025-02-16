@@ -34,7 +34,7 @@ DHT = dht_ns.class_("DHT", cg.PollingComponent)
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(DHT),
-        cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
+        cv.Required(CONF_PIN): pins.internal_gpio_input_pullup_pin_schema,
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
             accuracy_decimals=1,
