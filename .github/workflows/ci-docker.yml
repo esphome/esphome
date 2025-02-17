@@ -33,11 +33,11 @@ concurrency:
 jobs:
   check-docker:
     name: Build docker containers
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, aarch64]
+        os: ["ubuntu-latest", "ubuntu-24.04-arm"]
         build_type: ["ha-addon", "docker", "lint"]
     steps:
       - uses: actions/checkout@v4.1.7
@@ -47,8 +47,6 @@ jobs:
           python-version: "3.9"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.9.0
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.4.0
 
       - name: Set TAG
         run: |
@@ -58,6 +56,6 @@ jobs:
         run: |
           docker/build.py \
             --tag "${TAG}" \
-            --arch "${{ matrix.arch }}" \
+            --arch "${{ matrix.os == 'ubuntu-24.04-arm' && 'aarch64' || 'amd64' }}" \
             --build-type "${{ matrix.build_type }}" \
             build
