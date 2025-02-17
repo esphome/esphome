@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 import re
 
+import esphome_glyphsets as glyphsets
 import freetype
-import glyphsets
 import requests
 
 from esphome import core, external_files
