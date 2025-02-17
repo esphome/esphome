@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime
-from typing import Any
+import logging
+from typing import TYPE_CHECKING, Any
 
 from aioesphomeapi import APIClient
-from aioesphomeapi.api_pb2 import SubscribeLogsResponse
 from aioesphomeapi.log_runner import async_run
 
 from esphome.const import CONF_KEY, CONF_PASSWORD, CONF_PORT, __version__
 from esphome.core import CORE
 
 from . import CONF_ENCRYPTION
+
+if TYPE_CHECKING:
+    from aioesphomeapi.api_pb2 import (
+        SubscribeLogsResponse,  # pylint: disable=no-name-in-module
+    )
+
 
 _LOGGER = logging.getLogger(__name__)
 
