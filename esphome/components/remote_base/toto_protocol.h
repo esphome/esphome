@@ -36,7 +36,7 @@ template<typename... Ts> class TotoAction : public RemoteTransmitterActionBase<T
     data.rc_code_2 = this->rc_code_2_.value(x...);
     data.command = this->command_.value(x...);
     this->set_send_times(this->send_times_.value_or(x..., 3));
-    this->set_send_wait(this->send_wait_.value_or(x..., 32000));
+    this->set_send_wait(this->send_wait_.value_or(x..., 36000));
     TotoProtocol().encode(dst, data);
   }
 };
