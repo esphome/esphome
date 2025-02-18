@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import multiprocessing
 import os
 import queue
 import re
@@ -11,7 +10,13 @@ import threading
 
 import click
 import colorama
-from helpers import filter_changed, get_binary, git_ls_files, print_error_for_file
+from helpers import (
+    filter_changed,
+    get_binary,
+    get_usable_cpu_count,
+    git_ls_files,
+    print_error_for_file,
+)
 
 
 def run_format(executable, args, queue, lock, failed_files):
@@ -25,7 +30,9 @@ def run_format(executable, args, queue, lock, failed_files):
             invocation.extend(["--dry-run", "-Werror"])
         invocation.append(path)
 
-        proc = subprocess.run(invocation, capture_output=True, encoding="utf-8")
+        proc = subprocess.run(
+            invocation, capture_output=True, encoding="utf-8", check=False
+        )
         if proc.returncode != 0:
             with lock:
                 print_error_for_file(path, proc.stderr)
@@ -45,7 +52,7 @@ def main():
         "-j",
         "--jobs",
         type=int,
-        default=multiprocessing.cpu_count(),
+        default=get_usable_cpu_count(),
         help="number of format instances to be run in parallel.",
     )
     parser.add_argument(
@@ -80,7 +87,8 @@ def main():
         lock = threading.Lock()
         for _ in range(args.jobs):
             t = threading.Thread(
-                target=run_format, args=(executable, args, task_queue, lock, failed_files)
+                target=run_format,
+                args=(executable, args, task_queue, lock, failed_files),
             )
             t.daemon = True
             t.start()
@@ -95,7 +103,7 @@ def main():
         # Wait for all threads to be done.
         task_queue.join()
 
-    except FileNotFoundError as ex:
+    except FileNotFoundError:
         return 1
     except KeyboardInterrupt:
         print()
@@ -103,7 +111,7 @@ def main():
         # Kill subprocesses (and ourselves!)
         # No simple, clean alternative appears to be available.
         os.kill(0, 9)
-        return 2    # Will not execute.
+        return 2  # Will not execute.
 
     return len(failed_files)
 

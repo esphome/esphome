@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import multiprocessing
 import os
 import queue
 import re
@@ -19,6 +18,7 @@ from helpers import (
     filter_changed,
     filter_grep,
     get_binary,
+    get_usable_cpu_count,
     git_ls_files,
     load_idedata,
     print_error_for_file,
@@ -170,7 +170,7 @@ def main():
         "-j",
         "--jobs",
         type=int,
-        default=multiprocessing.cpu_count(),
+        default=get_usable_cpu_count(),
         help="number of tidy instances to be run in parallel.",
     )
     parser.add_argument(
