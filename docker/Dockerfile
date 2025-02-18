@@ -35,7 +35,7 @@ RUN \
         iputils-ping=3:20221126-1+deb12u1 \
         git=1:2.39.5-0+deb12u1 \
         curl=7.88.1-10+deb12u8 \
-        openssh-client=1:9.2p1-2+deb12u3 \
+        openssh-client=1:9.2p1-2+deb12u4 \
         python3-cffi=1.15.1-5 \
         libcairo2=1.16.0-7 \
         libmagic1=1:5.44-3 \
