@@ -47,7 +47,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.2.0
+        uses: actions/cache@v4.2.1
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -303,14 +303,14 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@v4.2.0
+        uses: actions/cache@v4.2.1
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@v4.2.0
+        uses: actions/cache/restore@v4.2.1
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
