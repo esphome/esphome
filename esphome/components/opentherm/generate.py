@@ -3,8 +3,9 @@ from typing import Any, Callable, Optional
 
 import esphome.codegen as cg
 from esphome.const import CONF_ID
+
 from . import const
-from .schema import TSchema, SettingSchema
+from .schema import SettingSchema, TSchema
 
 opentherm_ns = cg.esphome_ns.namespace("opentherm")
 OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
@@ -112,11 +113,10 @@ def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
         msg_expr = cg.RawExpression(f"esphome::opentherm::MessageId::{msg}")
         if keep_updated:
             cg.add(hub.add_repeating_message(msg_expr))
+        elif order is not None:
+            cg.add(hub.add_initial_message(msg_expr, order))
         else:
-            if order is not None:
-                cg.add(hub.add_initial_message(msg_expr, order))
-            else:
-                cg.add(hub.add_initial_message(msg_expr))
+            cg.add(hub.add_initial_message(msg_expr))
 
 
 def add_property_set(var: cg.MockObj, config_key: str, config: dict[str, Any]) -> None:
@@ -128,7 +128,7 @@ Create = Callable[[dict[str, Any], str, cg.MockObj], Awaitable[cg.Pvariable]]
 
 
 def create_only_conf(
-    create: Callable[[dict[str, Any]], Awaitable[cg.Pvariable]]
+    create: Callable[[dict[str, Any]], Awaitable[cg.Pvariable]],
 ) -> Create:
     return lambda conf, _key, _hub: create(conf)
 

@@ -506,9 +506,9 @@ def with_local_variable(id_: ID, rhs: SafeExpType, callback: Callable, *args) ->
     """
 
     # throw if the callback is async:
-    assert not inspect.iscoroutinefunction(
-        callback
-    ), "with_local_variable() callback cannot be async!"
+    assert not inspect.iscoroutinefunction(callback), (
+        "with_local_variable() callback cannot be async!"
+    )
 
     CORE.add(RawStatement("{"))  # output opening curly brace
     obj = variable(id_, rhs, None, True)
