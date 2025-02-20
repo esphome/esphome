@@ -273,11 +273,11 @@ bool IRAM_ATTR HDMICEC::send_frame_(const std::vector<uint8_t> &frame, bool is_b
 void IRAM_ATTR HDMICEC::send_start_bit_() {
   // 1. pull low for 3700 us
   pin_->digital_write(false);
-  delayMicroseconds(3700);
+  delay_microseconds_safe(3700);
 
   // 2. pull high for 800 us
   pin_->digital_write(true);
-  delayMicroseconds(800);
+  delay_microseconds_safe(800);
 
   // total duration of start bit: 4500 us
 }
@@ -291,9 +291,9 @@ void IRAM_ATTR HDMICEC::send_bit_(bool bit_value) {
   const uint32_t high_duration_us = (TOTAL_BIT_US - low_duration_us);
 
   pin_->digital_write(false);
-  delayMicroseconds(low_duration_us);
+  delay_microseconds_safe(low_duration_us);
   pin_->digital_write(true);
-  delayMicroseconds(high_duration_us);
+  delay_microseconds_safe(high_duration_us);
 }
 
 bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
@@ -301,7 +301,7 @@ bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
 
   // send a Logical 1
   pin_->digital_write(false);
-  delayMicroseconds(HIGH_BIT_US);
+  delay_microseconds_safe(HIGH_BIT_US);
   pin_->digital_write(true);
 
   // switch to input mode...
@@ -350,7 +350,7 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
         InterruptLock interrupt_lock;
         self->isr_pin_.pin_mode(OUTPUT_MODE_FLAGS);
         self->isr_pin_.digital_write(false);
-        delayMicroseconds(LOW_BIT_US);
+        delay_microseconds_safe(LOW_BIT_US);
         self->isr_pin_.digital_write(true);
         self->isr_pin_.pin_mode(INPUT_MODE_FLAGS);
       }
