@@ -309,14 +309,14 @@ bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
 
   // ...then wait up to the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
   static const uint32_t SAFE_SAMPLE_US = 1050;
-  while((micros() - start_us) < SAFE_SAMPLE_US);
+  delay_microseconds_safe(SAFE_SAMPLE_US - (micros() - start_us));
   bool value = pin_->digital_read();
 
   pin_->pin_mode(OUTPUT_MODE_FLAGS);
   pin_->digital_write(true);
 
   // sleep for the rest of the bit period
-  while((micros() - start_us) < TOTAL_BIT_US);
+  delay_microseconds_safe(TOTAL_BIT_US - (micros() - start_us));
 
   // broadcast messages: line pulled low by any follower => something went wrong. no need to flip the value.
   if (is_broadcast) {
