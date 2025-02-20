@@ -234,6 +234,7 @@ esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @regevbr @sebcaps
 esphome/components/ld2420/* @descipher
+esphome/components/ld2450/* @hareeshmu
 esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
 esphome/components/libretiny_pwm/* @kuba2k2
