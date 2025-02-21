@@ -51,10 +51,6 @@ version = {attr = "esphome.const.__version__"}
 [tool.setuptools.packages.find]
 include = ["esphome*"]
 
-[tool.black]
-target-version = ["py39", "py310"]
-exclude = 'generated'
-
 [tool.pytest.ini_options]
 testpaths = [
   "tests",
@@ -108,6 +104,8 @@ expected-line-ending-format = "LF"
 
 [tool.ruff]
 required-version = ">=0.5.0"
+target-version = "py39"
+exclude = ['generated']
 
 [tool.ruff.lint]
 select = [
