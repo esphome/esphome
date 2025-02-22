@@ -1,0 +1,17 @@
+sensor:
+  - platform: template
+    id: battery_voltage
+    lambda: |-
+      return 4.0;
+  - platform: template
+    id: battery_current
+    lambda: |-
+      return 0.5;
+  - platform: battery_gauge
+    name: Battery Level
+    voltage_source: battery_voltage
+    current_source: battery_current
+    capacity: 3.0Ah
+    max_charge_voltage: 4.2V
+    efficiency: 95%
+    initial_state: 50%
