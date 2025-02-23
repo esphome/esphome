@@ -71,7 +71,7 @@
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
-#define USE_OTA_VERSION 1
+#define USE_OTA_VERSION 2
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
