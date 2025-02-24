@@ -46,6 +46,7 @@ class BSDSocketImpl : public Socket {
       close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
     }
   }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return ::connect(fd_, addr, addrlen); }
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
     int fd = ::accept(fd_, addr, addrlen);
     if (fd == -1)
