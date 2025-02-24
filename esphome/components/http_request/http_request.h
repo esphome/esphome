@@ -18,8 +18,8 @@ namespace esphome {
 namespace http_request {
 
 struct Header {
-  const char *name;
-  const char *value;
+  std::string name;
+  std::string value;
 };
 
 // Some common HTTP status codes

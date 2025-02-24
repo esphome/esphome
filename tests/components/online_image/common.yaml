@@ -30,6 +30,14 @@ online_image:
     url: https://samples-files.com/samples/images/bmp/480-360-sample.bmp
     format: BMP
     type: BINARY
+  - id: online_jpeg_image
+    url: http://www.faqs.org/images/library.jpg
+    format: JPEG
+    type: RGB
+  - id: online_jpg_image
+    url: http://www.faqs.org/images/library.jpg
+    format: JPG
+    type: RGB565
 
 # Check the set_url action
 esphome:

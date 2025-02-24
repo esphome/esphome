@@ -40,6 +40,9 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   void stop() override;
   void finish() override;
 
+  void set_pause_state(bool pause_state) override { this->pause_state_ = pause_state; }
+  bool get_pause_state() const override { return this->pause_state_; }
+
   /// @brief Plays the provided audio data.
   /// Starts the speaker task, if necessary. Writes the audio data to the ring buffer.
   /// @param data Audio data in the format set by the parent speaker classes ``set_audio_stream_info`` method.
@@ -121,13 +124,18 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   uint8_t dout_pin_;
 
   bool task_created_{false};
+  bool pause_state_{false};
 
   int16_t q15_volume_factor_{INT16_MAX};
+
+  size_t bytes_written_{0};
 
 #if SOC_I2S_SUPPORTS_DAC
   i2s_dac_mode_t internal_dac_mode_{I2S_DAC_CHANNEL_DISABLE};
 #endif
   i2s_comm_format_t i2s_comm_fmt_;
+
+  uint32_t accumulated_frames_written_{0};
 };
 
 }  // namespace i2s_audio

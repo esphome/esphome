@@ -1,11 +1,7 @@
-spi:
-  - id: spi_max6675
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO8
 
-sensor:
-  - platform: max6675
-    name: Temperature
-    cs_pin: 8
-    update_interval: 15s
+<<: !include common.yaml

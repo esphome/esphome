@@ -2,6 +2,8 @@
 
 #include <cassert>
 #include <cstdarg>
+// for PRIu32 and friends
+#include <cinttypes>
 #include <string>
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH

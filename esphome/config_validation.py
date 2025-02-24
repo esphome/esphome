@@ -1168,6 +1168,15 @@ def ipv4address(value):
     return address
 
 
+def ipv4address_multi_broadcast(value):
+    address = ipv4address(value)
+    if not (address.is_multicast or (address == IPv4Address("255.255.255.255"))):
+        raise Invalid(
+            f"{value} is not a multicasst address nor local broadcast address"
+        )
+    return address
+
+
 def ipaddress(value):
     try:
         address = ip_address(value)
@@ -1214,8 +1223,7 @@ def subscribe_topic(value):
         if index != len(value) - 1:
             # If there are multiple wildcards, this will also trigger
             raise Invalid(
-                "Multi-level wildcard must be the last "
-                "character in the topic filter."
+                "Multi-level wildcard must be the last character in the topic filter."
             )
         if len(value) > 1 and value[index - 1] != "/":
             raise Invalid("Multi-level wildcard must be after a topic level separator.")

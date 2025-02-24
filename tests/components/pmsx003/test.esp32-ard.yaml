@@ -1,34 +1,5 @@
-uart:
-  - id: uart_pmsx003
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-sensor:
-  - platform: pmsx003
-    type: PMSX003
-    pm_1_0:
-      name: PM 1.0 Concentration
-    pm_2_5:
-      name: PM 2.5 Concentration
-    pm_10_0:
-      name: PM 10.0 Concentration
-    pm_1_0_std:
-      name: PM 1.0 Standard Atmospher Concentration
-    pm_2_5_std:
-      name: PM 2.5 Standard Atmospher Concentration
-    pm_10_0_std:
-      name: PM 10.0 Standard Atmospher Concentration
-    pm_0_3um:
-      name: Particulate Count >0.3um
-    pm_0_5um:
-      name: Particulate Count >0.5um
-    pm_1_0um:
-      name: Particulate Count >1.0um
-    pm_2_5um:
-      name: Particulate Count >2.5um
-    pm_5_0um:
-      name: Particulate Count >5.0um
-    pm_10_0um:
-      name: Particulate Count >10.0um
-    update_interval: 30s
+<<: !include common.yaml

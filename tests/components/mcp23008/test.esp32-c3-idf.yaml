@@ -1,23 +1,5 @@
-i2c:
-  - id: i2c_mcp23008
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-mcp23008:
-  id: mcp23008_hub
-
-binary_sensor:
-  - platform: gpio
-    id: mcp23008_binary_sensor
-    pin:
-      mcp23xxx: mcp23008_hub
-      number: 0
-      mode: INPUT
-
-switch:
-  - platform: gpio
-    id: mcp23008_switch
-    pin:
-      mcp23xxx: mcp23008_hub
-      number: 1
-      mode: OUTPUT
+<<: !include common.yaml

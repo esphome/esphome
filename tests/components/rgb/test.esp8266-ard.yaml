@@ -1,18 +1,7 @@
-output:
-  - platform: esp8266_pwm
-    id: light_output_1
-    pin: 12
-  - platform: esp8266_pwm
-    id: light_output_2
-    pin: 13
-  - platform: esp8266_pwm
-    id: light_output_3
-    pin: 14
+substitutions:
+  light_platform: esp8266_pwm
+  pin1: GPIO12
+  pin2: GPIO13
+  pin3: GPIO14
 
-light:
-  - platform: rgb
-    name: RGB Light
-    id: rgb_light
-    red: light_output_1
-    green: light_output_2
-    blue: light_output_3
+<<: !include common.yaml

@@ -1,22 +1,5 @@
-i2c:
-  - id: i2c_mpu6886
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: mpu6886
-    address: 0x68
-    accel_x:
-      name: MPU6886 Accel X
-    accel_y:
-      name: MPU6886 Accel Y
-    accel_z:
-      name: MPU6886 Accel z
-    gyro_x:
-      name: MPU6886 Gyro X
-    gyro_y:
-      name: MPU6886 Gyro Y
-    gyro_z:
-      name: MPU6886 Gyro z
-    temperature:
-      name: MPU6886 Temperature
+<<: !include common.yaml

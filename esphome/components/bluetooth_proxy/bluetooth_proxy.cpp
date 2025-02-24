@@ -475,6 +475,11 @@ void BluetoothProxy::send_connections_free() {
   api::BluetoothConnectionsFreeResponse call;
   call.free = this->get_bluetooth_connections_free();
   call.limit = this->get_bluetooth_connections_limit();
+  for (auto *connection : this->connections_) {
+    if (connection->address_ != 0) {
+      call.allocated.push_back(connection->address_);
+    }
+  }
   this->api_connection_->send_bluetooth_connections_free_response(call);
 }
 

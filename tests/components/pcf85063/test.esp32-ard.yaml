@@ -1,12 +1,5 @@
-esphome:
-  on_boot:
-    - pcf85063.read_time
-    - pcf85063.write_time
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-i2c:
-  - id: i2c_pcf85063
-    scl: 16
-    sda: 17
-
-time:
-  - platform: pcf85063
+<<: !include common.yaml

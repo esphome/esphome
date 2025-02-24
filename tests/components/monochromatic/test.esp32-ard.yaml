@@ -1,40 +1,5 @@
-output:
-  - platform: ledc
-    id: light_output_1
-    pin: 4
+substitutions:
+  light_platform: ledc
+  pin: GPIO2
 
-light:
-  - platform: monochromatic
-    name: Monochromatic Light
-    id: monochromatic_light
-    output: light_output_1
-    gamma_correct: 2.8
-    default_transition_length: 2s
-    effects:
-      - strobe:
-      - flicker:
-      - flicker:
-          name: My Flicker
-          alpha: 98%
-          intensity: 1.5%
-      - lambda:
-          name: My Custom Effect
-          update_interval: 1s
-          lambda: |-
-            static int state = 0;
-            state += 1;
-            if (state == 4)
-              state = 0;
-      - pulse:
-          transition_length: 10s
-          update_interval: 20s
-          min_brightness: 10%
-          max_brightness: 90%
-      - pulse:
-          name: pulse2
-          transition_length:
-            on_length: 10s
-            off_length: 5s
-          update_interval: 15s
-          min_brightness: 10%
-          max_brightness: 90%
+<<: !include common.yaml

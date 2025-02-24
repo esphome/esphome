@@ -1,12 +1,5 @@
-i2c:
-  - id: i2c_honeywell_hih
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: honeywell_hih_i2c
-    temperature:
-      name: Temperature
-    humidity:
-      name: Humidity
-    update_interval: 15s
+<<: !include common.yaml

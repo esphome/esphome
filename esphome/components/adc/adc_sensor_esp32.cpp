@@ -78,12 +78,14 @@ void ADCSensor::dump_config() {
     }
   }
   ESP_LOGCONFIG(TAG, "  Samples: %i", this->sample_count_);
+  ESP_LOGCONFIG(TAG, "  Sampling mode: %s", LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
   LOG_UPDATE_INTERVAL(this);
 }
 
 float ADCSensor::sample() {
   if (!this->autorange_) {
-    uint32_t sum = 0;
+    auto aggr = Aggregator(this->sampling_mode_);
+
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
       int raw = -1;
       if (this->channel1_ != ADC1_CHANNEL_MAX) {
@@ -94,13 +96,14 @@ float ADCSensor::sample() {
       if (raw == -1) {
         return NAN;
       }
-      sum += raw;
+
+      aggr.add_sample(raw);
     }
-    sum = (sum + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
     if (this->output_raw_) {
-      return sum;
+      return aggr.aggregate();
     }
-    uint32_t mv = esp_adc_cal_raw_to_voltage(sum, &this->cal_characteristics_[(int32_t) this->attenuation_]);
+    uint32_t mv =
+        esp_adc_cal_raw_to_voltage(aggr.aggregate(), &this->cal_characteristics_[(int32_t) this->attenuation_]);
     return mv / 1000.0f;
   }
 

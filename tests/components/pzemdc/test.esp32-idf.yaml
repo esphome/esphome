@@ -1,23 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - pzemdc.reset_energy: pzemdc1
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-uart:
-  - id: uart_pzemdc
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
-    stop_bits: 2
-
-sensor:
-  - platform: pzemdc
-    id: pzemdc1
-    voltage:
-      name: PZEMDC Voltage
-    current:
-      name: PZEMDC Current
-    power:
-      name: PZEMDC Power
-    energy:
-      name: PZEMDC Energy
+<<: !include common.yaml

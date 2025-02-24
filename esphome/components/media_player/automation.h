@@ -10,7 +10,10 @@ namespace media_player {
 template<MediaPlayerCommand Command, typename... Ts>
 class MediaPlayerCommandAction : public Action<Ts...>, public Parented<MediaPlayer> {
  public:
-  void play(Ts... x) override { this->parent_->make_call().set_command(Command).perform(); }
+  TEMPLATABLE_VALUE(bool, announcement);
+  void play(Ts... x) override {
+    this->parent_->make_call().set_command(Command).set_announcement(this->announcement_.value(x...)).perform();
+  }
 };
 
 template<typename... Ts>
@@ -28,7 +31,13 @@ using VolumeDownAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAY
 
 template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
-  void play(Ts... x) override { this->parent_->make_call().set_media_url(this->media_url_.value(x...)).perform(); }
+  TEMPLATABLE_VALUE(bool, announcement)
+  void play(Ts... x) override {
+    this->parent_->make_call()
+        .set_media_url(this->media_url_.value(x...))
+        .set_announcement(this->announcement_.value(x...))
+        .perform();
+  }
 };
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {

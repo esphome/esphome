@@ -21,7 +21,7 @@ class PngDecoder : public ImageDecoder {
   PngDecoder(OnlineImage *image) : ImageDecoder(image), pngle_(pngle_new()) {}
   ~PngDecoder() override { pngle_destroy(this->pngle_); }
 
-  void prepare(size_t download_size) override;
+  int prepare(size_t download_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
  protected:

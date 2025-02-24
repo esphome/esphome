@@ -1,10 +1,7 @@
-spi:
-  - id: spi_mcp23s17
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
+  cs_pin: GPIO15
 
-mcp23s17:
-  - id: mcp23s17_hub
-    cs_pin: 15
-    deviceaddress: 0
+<<: !include common.yaml

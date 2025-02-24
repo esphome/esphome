@@ -1,42 +1,5 @@
-uart:
-  - id: uart_vbus
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-vbus:
-
-binary_sensor:
-  - platform: vbus
-    model: deltasol_bs_plus
-    relay1:
-      name: Relay 1 On
-    relay2:
-      name: Relay 2 On
-    sensor1_error:
-      name: Sensor 1 Error
-  - platform: vbus
-    model: custom
-    command: 0x100
-    source: 0x1234
-    dest: 0x10
-    binary_sensors:
-      - id: vcustom_b
-        name: VBus Custom Binary Sensor
-        lambda: return x[0] & 1;
-
-sensor:
-  - platform: vbus
-    model: deltasol c
-    temperature_1:
-      name: Temperature 1
-    temperature_2:
-      name: Temperature 2
-    temperature_3:
-      name: Temperature 3
-    operating_hours_1:
-      name: Operating Hours 1
-    heat_quantity:
-      name: Heat Quantity
-    time:
-      name: System Time
+<<: !include common.yaml

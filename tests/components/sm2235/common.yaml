@@ -1,6 +1,6 @@
 sm2235:
-  clock_pin: 4
-  data_pin: 5
+  clock_pin: ${clock_pin}
+  data_pin: ${data_pin}
   max_power_color_channels: 9
   max_power_white_channels: 9
 

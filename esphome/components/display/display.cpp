@@ -815,8 +815,20 @@ void Display::test_card() {
 
 DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
-void DisplayPage::show_next() { this->next_->show(); }
-void DisplayPage::show_prev() { this->prev_->show(); }
+void DisplayPage::show_next() {
+  if (this->next_ == nullptr) {
+    ESP_LOGE(TAG, "no next page");
+    return;
+  }
+  this->next_->show();
+}
+void DisplayPage::show_prev() {
+  if (this->prev_ == nullptr) {
+    ESP_LOGE(TAG, "no previous page");
+    return;
+  }
+  this->prev_->show();
+}
 void DisplayPage::set_parent(Display *parent) { this->parent_ = parent; }
 void DisplayPage::set_prev(DisplayPage *prev) { this->prev_ = prev; }
 void DisplayPage::set_next(DisplayPage *next) { this->next_ = next; }

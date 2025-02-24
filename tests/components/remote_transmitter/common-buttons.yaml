@@ -190,3 +190,10 @@ button:
         channel: 1
         button: 1
         check: 1
+  - platform: template
+    name: Toto
+    on_press:
+      - remote_transmitter.transmit_toto:
+          command: 0xEC
+          rc_code_1: 0x0D
+          rc_code_2: 0x0D

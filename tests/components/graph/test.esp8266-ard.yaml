@@ -1,25 +1,6 @@
-i2c:
-  - id: i2c_graph
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
+  reset_pin: GPIO15
 
-sensor:
-  - platform: template
-    id: some_sensor
-
-graph:
-  - id: some_graph
-    sensor: some_sensor
-    duration: 1h
-    width: 100
-    height: 100
-
-display:
-  - platform: ssd1306_i2c
-    id: ssd1306_display
-    model: SSD1306_128X64
-    reset_pin: 13
-    pages:
-      - id: page1
-        lambda: |-
-          it.rectangle(0, 0, it.get_width(), it.get_height());
+<<: !include common.yaml

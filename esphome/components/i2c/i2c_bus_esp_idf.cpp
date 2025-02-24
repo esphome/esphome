@@ -39,6 +39,10 @@ void IDFI2CBus::setup() {
   conf.scl_io_num = scl_pin_;
   conf.scl_pullup_en = scl_pullup_enabled_;
   conf.master.clk_speed = frequency_;
+#ifdef USE_ESP32_VARIANT_ESP32S2
+  // workaround for https://github.com/esphome/issues/issues/6718
+  conf.clk_flags = I2C_SCLK_SRC_FLAG_AWARE_DFS;
+#endif
   esp_err_t err = i2c_param_config(port_, &conf);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));

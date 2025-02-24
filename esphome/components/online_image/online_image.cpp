@@ -9,6 +9,9 @@ static const char *const TAG = "online_image";
 #ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
 #include "bmp_image.h"
 #endif
+#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
+#include "jpeg_image.h"
+#endif
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 #include "png_image.h"
 #endif
@@ -32,6 +35,7 @@ OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFor
     : Image(nullptr, 0, 0, type, transparency),
       buffer_(nullptr),
       download_buffer_(download_buffer_size),
+      download_buffer_initial_size_(download_buffer_size),
       format_(format),
       fixed_width_(width),
       fixed_height_(height) {
@@ -60,33 +64,34 @@ void OnlineImage::release() {
   }
 }
 
-bool OnlineImage::resize_(int width_in, int height_in) {
+size_t OnlineImage::resize_(int width_in, int height_in) {
   int width = this->fixed_width_;
   int height = this->fixed_height_;
-  if (this->auto_resize_()) {
+  if (this->is_auto_resize_()) {
     width = width_in;
     height = height_in;
     if (this->width_ != width && this->height_ != height) {
       this->release();
     }
   }
-  if (this->buffer_) {
-    return false;
-  }
   size_t new_size = this->get_buffer_size_(width, height);
+  if (this->buffer_) {
+    // Buffer already allocated => no need to resize
+    return new_size;
+  }
   ESP_LOGD(TAG, "Allocating new buffer of %zu bytes", new_size);
   this->buffer_ = this->allocator_.allocate(new_size);
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "allocation of %zu bytes failed. Biggest block in heap: %zu Bytes", new_size,
              this->allocator_.get_max_free_block_size());
     this->end_connection_();
-    return false;
+    return 0;
   }
   this->buffer_width_ = width;
   this->buffer_height_ = height;
   this->width_ = width;
   ESP_LOGV(TAG, "New size: (%d, %d)", width, height);
-  return true;
+  return new_size;
 }
 
 void OnlineImage::update() {
@@ -96,7 +101,35 @@ void OnlineImage::update() {
   }
   ESP_LOGI(TAG, "Updating image %s", this->url_.c_str());
 
-  this->downloader_ = this->parent_->get(this->url_);
+  std::list<http_request::Header> headers = {};
+
+  http_request::Header accept_header;
+  accept_header.name = "Accept";
+  std::string accept_mime_type;
+  switch (this->format_) {
+#ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
+    case ImageFormat::BMP:
+      accept_mime_type = "image/bmp";
+      break;
+#endif  // ONLINE_IMAGE_BMP_SUPPORT
+#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
+    case ImageFormat::JPEG:
+      accept_mime_type = "image/jpeg";
+      break;
+#endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
+#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
+    case ImageFormat::PNG:
+      accept_mime_type = "image/png";
+      break;
+#endif  // ONLINE_IMAGE_PNG_SUPPORT
+    default:
+      accept_mime_type = "image/*";
+  }
+  accept_header.value = accept_mime_type + ",*/*;q=0.8";
+
+  headers.push_back(accept_header);
+
+  this->downloader_ = this->parent_->get(this->url_, headers);
 
   if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
@@ -123,23 +156,37 @@ void OnlineImage::update() {
 
 #ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
   if (this->format_ == ImageFormat::BMP) {
+    ESP_LOGD(TAG, "Allocating BMP decoder");
     this->decoder_ = make_unique<BmpDecoder>(this);
   }
 #endif  // ONLINE_IMAGE_BMP_SUPPORT
+#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
+  if (this->format_ == ImageFormat::JPEG) {
+    ESP_LOGD(TAG, "Allocating JPEG decoder");
+    this->decoder_ = esphome::make_unique<JpegDecoder>(this);
+  }
+#endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
   if (this->format_ == ImageFormat::PNG) {
+    ESP_LOGD(TAG, "Allocating PNG decoder");
     this->decoder_ = make_unique<PngDecoder>(this);
   }
 #endif  // ONLINE_IMAGE_PNG_SUPPORT
 
   if (!this->decoder_) {
-    ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported.");
+    ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported: %d", this->format_);
     this->end_connection_();
     this->download_error_callback_.call();
     return;
   }
-  this->decoder_->prepare(total_size);
-  ESP_LOGI(TAG, "Downloading image");
+  auto prepare_result = this->decoder_->prepare(total_size);
+  if (prepare_result < 0) {
+    this->end_connection_();
+    this->download_error_callback_.call();
+    return;
+  }
+  ESP_LOGI(TAG, "Downloading image (Size: %d)", total_size);
+  this->start_time_ = ::time(nullptr);
 }
 
 void OnlineImage::loop() {
@@ -153,6 +200,7 @@ void OnlineImage::loop() {
     this->height_ = buffer_height_;
     ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d", this->downloader_->get_bytes_read(),
              this->width_, this->height_);
+    ESP_LOGD(TAG, "Total time: %lds", ::time(nullptr) - this->start_time_);
     this->end_connection_();
     this->download_finished_callback_.call();
     return;
@@ -163,6 +211,10 @@ void OnlineImage::loop() {
   }
   size_t available = this->download_buffer_.free_capacity();
   if (available) {
+    // Some decoders need to fully download the image before downloading.
+    // In case of huge images, don't wait blocking until the whole image has been downloaded,
+    // use smaller chunks
+    available = std::min(available, this->download_buffer_initial_size_);
     auto len = this->downloader_->read(this->download_buffer_.append(), available);
     if (len > 0) {
       this->download_buffer_.write(len);

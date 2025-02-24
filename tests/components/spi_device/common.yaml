@@ -1,0 +1,11 @@
+spi:
+  - id: spi_device1
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}
+
+spi_device:
+  id: spi_device_test
+  data_rate: 2MHz
+  spi_mode: 3
+  bit_order: lsb_first

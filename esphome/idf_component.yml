@@ -7,7 +7,7 @@ dependencies:
     version: v2.0.9
   mdns:
     git: https://github.com/espressif/esp-protocols.git
-    version: mdns-v1.3.2
+    version: mdns-v1.5.1
     path: components/mdns
     rules:
       - if: "idf_version >=5.0"

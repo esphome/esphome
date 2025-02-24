@@ -10,5 +10,6 @@ sensor:
     pin: A0
     id: s_1
     name: test s1
+    sampling_mode: min
     update_interval: 60s
     device_class: voltage

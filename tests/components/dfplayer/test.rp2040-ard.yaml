@@ -1,42 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - dfplayer.play: 5
-      - dfplayer.play:
-          file: 4
-          loop: true
-      - dfplayer.play_folder:
-          folder: 1
-          file: 3
-      - dfplayer.play_folder:
-          folder: 1
-          loop: true
-      - dfplayer.set_device:
-          device: TF_CARD
-      - dfplayer.set_volume: 5
-      - dfplayer.set_eq: ROCK
-      - dfplayer.play_next
-      - dfplayer.play_previous
-      - dfplayer.reset
-      - dfplayer.start
-      - dfplayer.pause
-      - dfplayer.stop
-      - dfplayer.random
-      - dfplayer.volume_up
-      - dfplayer.volume_down
-      - dfplayer.sleep
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-uart:
-  - id: uart_dfplayer
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
-
-dfplayer:
-  on_finished_playback:
-    then:
-      if:
-        condition:
-          not: dfplayer.is_playing
-        then:
-          logger.log: Playback finished event
+<<: !include common.yaml

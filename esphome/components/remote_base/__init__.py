@@ -1,41 +1,41 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
+    CONF_BUTTON,
+    CONF_CARRIER_FREQUENCY,
+    CONF_CHANNEL,
+    CONF_CHECK,
+    CONF_CODE,
+    CONF_COMMAND,
     CONF_COMMAND_REPEATS,
     CONF_DATA,
-    CONF_TRIGGER_ID,
-    CONF_NBITS,
-    CONF_ADDRESS,
-    CONF_COMMAND,
-    CONF_CODE,
-    CONF_PULSE_LENGTH,
-    CONF_SYNC,
-    CONF_ZERO,
-    CONF_ONE,
-    CONF_INVERTED,
-    CONF_PROTOCOL,
-    CONF_GROUP,
+    CONF_DELTA,
     CONF_DEVICE,
-    CONF_SECOND,
-    CONF_STATE,
-    CONF_CHANNEL,
     CONF_FAMILY,
-    CONF_REPEAT,
-    CONF_WAIT_TIME,
-    CONF_TIMES,
-    CONF_TYPE_ID,
-    CONF_CARRIER_FREQUENCY,
+    CONF_GROUP,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_LEVEL,
+    CONF_MAGNITUDE,
+    CONF_NBITS,
+    CONF_ONE,
+    CONF_PROTOCOL,
+    CONF_PULSE_LENGTH,
     CONF_RC_CODE_1,
     CONF_RC_CODE_2,
-    CONF_MAGNITUDE,
+    CONF_REPEAT,
+    CONF_SECOND,
+    CONF_STATE,
+    CONF_SYNC,
+    CONF_TIMES,
+    CONF_TRIGGER_ID,
+    CONF_TYPE_ID,
+    CONF_WAIT_TIME,
     CONF_WAND_ID,
-    CONF_LEVEL,
-    CONF_DELTA,
-    CONF_ID,
-    CONF_BUTTON,
-    CONF_CHECK,
+    CONF_ZERO,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -1963,3 +1963,55 @@ async def mirage_action(var, config, args):
     vec_ = cg.std_vector.template(cg.uint8)
     template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
     cg.add(var.set_code(template_))
+
+
+# Toto
+(
+    TotoData,
+    TotoBinarySensor,
+    TotoTrigger,
+    TotoAction,
+    TotoDumper,
+) = declare_protocol("Toto")
+
+TOTO_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_RC_CODE_1, default=0): cv.hex_int_range(0, 0xF),
+        cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_int_range(0, 0xF),
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("toto", TotoBinarySensor, TOTO_SCHEMA)
+def toto_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                TotoData,
+                ("rc_code_1", config[CONF_RC_CODE_1]),
+                ("rc_code_2", config[CONF_RC_CODE_2]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("toto", TotoTrigger, TotoData)
+def toto_trigger(var, config):
+    pass
+
+
+@register_dumper("toto", TotoDumper)
+def toto_dumper(var, config):
+    pass
+
+
+@register_action("toto", TotoAction, TOTO_SCHEMA)
+async def Toto_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_RC_CODE_1], args, cg.uint8)
+    cg.add(var.set_rc_code_1(template_))
+    template_ = await cg.templatable(config[CONF_RC_CODE_2], args, cg.uint8)
+    cg.add(var.set_rc_code_2(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))

@@ -1,3 +1,5 @@
+import re
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
@@ -62,6 +64,43 @@ CONFIG_SCHEMA = cv.Schema(
         ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+bt_uuid16_format = "XXXX"
+bt_uuid32_format = "XXXXXXXX"
+bt_uuid128_format = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+
+
+def bt_uuid(value):
+    in_value = cv.string_strict(value)
+    value = in_value.upper()
+
+    if len(value) == len(bt_uuid16_format):
+        pattern = re.compile("^[A-F|0-9]{4,}$")
+        if not pattern.match(value):
+            raise cv.Invalid(
+                f"Invalid hexadecimal value for 16 bit UUID format: '{in_value}'"
+            )
+        return value
+    if len(value) == len(bt_uuid32_format):
+        pattern = re.compile("^[A-F|0-9]{8,}$")
+        if not pattern.match(value):
+            raise cv.Invalid(
+                f"Invalid hexadecimal value for 32 bit UUID format: '{in_value}'"
+            )
+        return value
+    if len(value) == len(bt_uuid128_format):
+        pattern = re.compile(
+            "^[A-F|0-9]{8,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{12,}$"
+        )
+        if not pattern.match(value):
+            raise cv.Invalid(
+                f"Invalid hexadecimal value for 128 UUID format: '{in_value}'"
+            )
+        return value
+    raise cv.Invalid(
+        f"Bluetooth UUID must be in 16 bit '{bt_uuid16_format}', 32 bit '{bt_uuid32_format}', or 128 bit '{bt_uuid128_format}' format"
+    )
 
 
 def validate_variant(_):

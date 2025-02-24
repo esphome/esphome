@@ -1,27 +1,7 @@
-spi:
-  - id: spi_cs5460a
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+  miso_pin: GPIO15
+  cs_pin: GPIO5
 
-sensor:
-  - platform: cs5460a
-    id: cs5460a1
-    cs_pin: 12
-    current:
-      name: Socket current
-    voltage:
-      name: Mains voltage
-    power:
-      name: Socket power
-      on_value:
-        then:
-          cs5460a.restart: cs5460a1
-    samples: 1600
-    pga_gain: 10X
-    current_gain: 0.01
-    voltage_gain: 0.000573
-    current_hpf: true
-    voltage_hpf: true
-    phase_offset: 20
-    pulse_energy: 0.01 kWh
+<<: !include common.yaml

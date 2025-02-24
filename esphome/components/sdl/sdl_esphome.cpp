@@ -61,6 +61,12 @@ void Sdl::draw_pixel_at(int x, int y, Color color) {
     this->y_high_ = y;
 }
 
+void Sdl::process_key(uint32_t keycode, bool down) {
+  auto callback = this->key_callbacks_.find(keycode);
+  if (callback != this->key_callbacks_.end())
+    callback->second(down);
+}
+
 void Sdl::loop() {
   SDL_Event e;
   if (SDL_PollEvent(&e)) {
@@ -85,6 +91,16 @@ void Sdl::loop() {
         } else {
           this->mouse_down = false;
         }
+        break;
+
+      case SDL_KEYDOWN:
+        ESP_LOGD(TAG, "keydown %d", e.key.keysym.sym);
+        this->process_key(e.key.keysym.sym, true);
+        break;
+
+      case SDL_KEYUP:
+        ESP_LOGD(TAG, "keyup %d", e.key.keysym.sym);
+        this->process_key(e.key.keysym.sym, false);
         break;
 
       case SDL_WINDOWEVENT:

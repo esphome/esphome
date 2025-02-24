@@ -1,5 +1,5 @@
 substitutions:
-  i2c_scl: GPIO16
-  i2c_sda: GPIO17
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
 <<: !include common.yaml

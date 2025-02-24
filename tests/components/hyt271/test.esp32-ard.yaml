@@ -1,11 +1,5 @@
-i2c:
-  - id: i2c_hyt271
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-sensor:
-  - platform: hyt271
-    temperature:
-      name: Temperature
-    humidity:
-      name: Humidity
+<<: !include common.yaml

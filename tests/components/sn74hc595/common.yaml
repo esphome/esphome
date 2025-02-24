@@ -1,0 +1,26 @@
+spi:
+  - id: spi_sn74hc595
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}
+
+sn74hc595:
+  - id: sn74hc595_hub
+    clock_pin: ${clock_pin}
+    data_pin: ${data_pin}
+    latch_pin: ${latch_pin1}
+    oe_pin: ${oe_pin1}
+    sr_count: 2
+  - id: sn74hc595_hub_2
+    latch_pin: ${latch_pin2}
+    oe_pin: ${oe_pin2}
+    type: spi
+    sr_count: 2
+
+switch:
+  - platform: gpio
+    name: SN74HC595 Pin 0
+    pin:
+      sn74hc595: sn74hc595_hub_2
+      number: 0
+      inverted: false

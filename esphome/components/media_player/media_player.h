@@ -24,6 +24,10 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_TOGGLE = 5,
   MEDIA_PLAYER_COMMAND_VOLUME_UP = 6,
   MEDIA_PLAYER_COMMAND_VOLUME_DOWN = 7,
+  MEDIA_PLAYER_COMMAND_ENQUEUE = 8,
+  MEDIA_PLAYER_COMMAND_REPEAT_ONE = 9,
+  MEDIA_PLAYER_COMMAND_REPEAT_OFF = 10,
+  MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 11,
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
@@ -72,10 +76,10 @@ class MediaPlayerCall {
 
   void perform();
 
-  const optional<MediaPlayerCommand> &get_command() const { return command_; }
-  const optional<std::string> &get_media_url() const { return media_url_; }
-  const optional<float> &get_volume() const { return volume_; }
-  const optional<bool> &get_announcement() const { return announcement_; }
+  const optional<MediaPlayerCommand> &get_command() const { return this->command_; }
+  const optional<std::string> &get_media_url() const { return this->media_url_; }
+  const optional<float> &get_volume() const { return this->volume_; }
+  const optional<bool> &get_announcement() const { return this->announcement_; }
 
  protected:
   void validate_();

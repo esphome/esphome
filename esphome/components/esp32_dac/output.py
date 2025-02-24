@@ -1,15 +1,27 @@
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import output
-import esphome.config_validation as cv
-import esphome.codegen as cg
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32, VARIANT_ESP32S2
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN
 
 DEPENDENCIES = ["esp32"]
 
+DAC_PINS = {
+    VARIANT_ESP32: (25, 26),
+    VARIANT_ESP32S2: (17, 18),
+}
+
 
 def valid_dac_pin(value):
-    num = value[CONF_NUMBER]
-    cv.one_of(25, 26)(num)
+    variant = get_esp32_variant()
+    try:
+        valid_pins = DAC_PINS[variant]
+    except KeyError as ex:
+        raise cv.Invalid(f"DAC is not supported on {variant}") from ex
+    given_pin = value[CONF_NUMBER]
+    cv.one_of(*valid_pins)(given_pin)
     return value
 
 

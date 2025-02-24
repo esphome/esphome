@@ -1,15 +1,7 @@
-spi:
-  - id: spi_pn532
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
+  cs_pin: GPIO5
 
-pn532_spi:
-  id: pn532_nfcc
-  cs_pin: 15
-
-binary_sensor:
-  - platform: pn532
-    pn532_id: pn532_nfcc
-    name: PN532 NFC Tag
-    uid: 74-10-37-94
+<<: !include common.yaml

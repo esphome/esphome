@@ -1,0 +1,4 @@
+substitutions:
+  pin: GPIO2
+
+<<: !include common-idf-esp32_rmt_led_strip.yaml

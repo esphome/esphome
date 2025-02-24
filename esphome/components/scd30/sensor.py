@@ -75,7 +75,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(
-                    min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=1800)
+                    min=core.TimePeriod(seconds=2), max=core.TimePeriod(seconds=1800)
                 ),
             ),
         }

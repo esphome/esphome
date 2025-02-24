@@ -1,42 +1,5 @@
-uart:
-  - id: uart_teleinfo
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 1200
-    parity: EVEN
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-button:
-  - platform: template
-    name: Poller component suspend test
-    on_press:
-      - component.suspend: test_teleinfo
-      - delay: 20s
-      - component.update: test_teleinfo
-      - delay: 20s
-      - component.resume: test_teleinfo
-      - delay: 20s
-      - component.resume:
-          id: test_teleinfo
-          update_interval: 2s
-      - delay: 20s
-      - component.resume:
-          id: test_teleinfo
-          update_interval: !lambda return 2500;
-
-teleinfo:
-  id: test_teleinfo
-  historical_mode: true
-  update_interval: 60s
-
-sensor:
-  - platform: teleinfo
-    name: hchc
-    tag_name: HCHC
-    teleinfo_id: test_teleinfo
-    unit_of_measurement: Wh
-
-text_sensor:
-  - platform: teleinfo
-    name: optarif
-    tag_name: OPTARIF
-    teleinfo_id: test_teleinfo
+<<: !include common.yaml

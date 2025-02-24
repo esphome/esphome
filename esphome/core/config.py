@@ -1,5 +1,4 @@
 import logging
-import multiprocessing
 import os
 from pathlib import Path
 
@@ -72,6 +71,9 @@ def validate_hostname(config):
 
 
 def valid_include(value):
+    # Look for "<...>" includes
+    if value.startswith("<") and value.endswith(">"):
+        return value
     try:
         return cv.directory(value)
     except cv.Invalid:
@@ -91,10 +93,19 @@ def valid_project_name(value: str):
     return value
 
 
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs that can be used for processes.
+    On Python 3.13+ this is the number of CPUs that can be used for processes.
+    On older Python versions this is the number of CPUs.
+    """
+    return (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+
+
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
     _compile_process_limit_default = min(
-        int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]),
-        multiprocessing.cpu_count(),
+        int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]), get_usable_cpu_count()
     )
 else:
     _compile_process_limit_default = cv.UNDEFINED
@@ -153,7 +164,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
-            ): cv.int_range(min=1, max=multiprocessing.cpu_count()),
+            ): cv.int_range(min=1, max=get_usable_cpu_count()),
         }
     ),
     validate_hostname,
@@ -214,6 +225,8 @@ def preload_core_config(config, result) -> str:
     target_platforms = []
 
     for domain, _ in config.items():
+        if domain.startswith("."):
+            continue
         if _is_target_platform(domain):
             target_platforms += [domain]
 
@@ -360,7 +373,19 @@ async def to_code(config):
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
-        CORE.add_job(add_includes, config[CONF_INCLUDES])
+        # Get the <...> includes
+        system_includes = []
+        other_includes = []
+        for include in config[CONF_INCLUDES]:
+            if include.startswith("<") and include.endswith(">"):
+                system_includes.append(include)
+            else:
+                other_includes.append(include)
+        # <...> includes should be at the start
+        for include in system_includes:
+            cg.add_global(cg.RawStatement(f"#include {include}"), prepend=True)
+        # Other includes should be at the end
+        CORE.add_job(add_includes, other_includes)
 
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])

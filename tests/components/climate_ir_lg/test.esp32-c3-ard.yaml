@@ -1,7 +1,4 @@
-remote_transmitter:
-  pin: 2
-  carrier_duty_percent: 50%
+substitutions:
+  pin: GPIO2
 
-climate:
-  - platform: climate_ir_lg
-    name: LG Climate
+<<: !include common.yaml

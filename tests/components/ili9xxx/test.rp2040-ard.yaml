@@ -1,36 +1,12 @@
-spi:
-  - id: spi_main_lcd
-    clk_pin: 2
-    mosi_pin: 3
-    miso_pin: 4
+substitutions:
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  miso_pin: GPIO4
+  cs_pin1: GPIO5
+  dc_pin1: GPIO15
+  reset_pin1: GPIO16
+  cs_pin2: GPIO20
+  dc_pin2: GPIO21
+  reset_pin2: GPIO22
 
-display:
-  - platform: ili9xxx
-    invert_colors: true
-    dimensions: 320x240
-    transform:
-      swap_xy: true
-      mirror_x: true
-      mirror_y: false
-    model: TFT 2.4
-    color_palette: GRAYSCALE
-    cs_pin: 5
-    dc_pin: 15
-    reset_pin: 16
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9xxx
-    invert_colors: false
-    dimensions:
-      width: 320
-      height: 240
-      offset_width: 20
-      offset_height: 10
-    model: TFT 2.4
-    cs_pin: 20
-    dc_pin: 21
-    reset_pin: 22
-    auto_clear_enabled: false
-    rotation: 90
-    lambda: |-
-      it.fill(Color::WHITE);
+<<: !include common.yaml

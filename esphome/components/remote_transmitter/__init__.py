@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_CLOCK_RESOLUTION,
     CONF_ID,
     CONF_INVERTED,
+    CONF_MODE,
+    CONF_OPEN_DRAIN,
     CONF_PIN,
     CONF_RMT_CHANNEL,
     CONF_RMT_SYMBOLS,
@@ -20,7 +22,6 @@ AUTO_LOAD = ["remote_base"]
 CONF_EOT_LEVEL = "eot_level"
 CONF_ON_TRANSMIT = "on_transmit"
 CONF_ON_COMPLETE = "on_complete"
-CONF_ONE_WIRE = "one_wire"
 
 remote_transmitter_ns = cg.esphome_ns.namespace("remote_transmitter")
 RemoteTransmitterComponent = remote_transmitter_ns.class_(
@@ -44,7 +45,6 @@ CONFIG_SCHEMA = cv.Schema(
             cv.only_on_esp32, cv.only_with_arduino, cv.int_range(min=1, max=255)
         ),
         cv.Optional(CONF_EOT_LEVEL): cv.All(cv.only_with_esp_idf, cv.boolean),
-        cv.Optional(CONF_ONE_WIRE): cv.All(cv.only_with_esp_idf, cv.boolean),
         cv.Optional(CONF_USE_DMA): cv.All(cv.only_with_esp_idf, cv.boolean),
         cv.SplitDefault(
             CONF_RMT_SYMBOLS,
@@ -74,14 +74,15 @@ async def to_code(config):
                 cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
             if CONF_USE_DMA in config:
                 cg.add(var.set_with_dma(config[CONF_USE_DMA]))
-            if CONF_ONE_WIRE in config:
-                cg.add(var.set_one_wire(config[CONF_ONE_WIRE]))
             if CONF_EOT_LEVEL in config:
                 cg.add(var.set_eot_level(config[CONF_EOT_LEVEL]))
-            elif CONF_ONE_WIRE in config and config[CONF_ONE_WIRE]:
-                cg.add(var.set_eot_level(True))
-            elif CONF_INVERTED in config[CONF_PIN] and config[CONF_PIN][CONF_INVERTED]:
-                cg.add(var.set_eot_level(True))
+            else:
+                cg.add(
+                    var.set_eot_level(
+                        config[CONF_PIN][CONF_MODE][CONF_OPEN_DRAIN]
+                        or config[CONF_PIN][CONF_INVERTED]
+                    )
+                )
         else:
             if (rmt_channel := config.get(CONF_RMT_CHANNEL, None)) is not None:
                 var = cg.new_Pvariable(config[CONF_ID], pin, rmt_channel)

@@ -1,14 +1,8 @@
-uart:
-  - id: uart_modbus
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+  client_tx_pin: GPIO2
+  client_rx_pin: GPIO3
+  server_tx_pin: GPIO4
+  server_rx_pin: GPIO5
+  flow_control_pin: GPIO6
 
-modbus:
-  id: mod_bus1
-  flow_control_pin: 6
-
-modbus_controller:
-  - id: modbus_controller1
-    address: 0x2
-    modbus_id: mod_bus1
+<<: !include common.yaml

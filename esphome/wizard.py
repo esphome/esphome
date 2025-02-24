@@ -144,17 +144,17 @@ def wizard_file(**kwargs):
 
     # Configure API
     if "password" in kwargs:
-        config += f"  password: \"{kwargs['password']}\"\n"
+        config += f'  password: "{kwargs["password"]}"\n'
     if "api_encryption_key" in kwargs:
-        config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
+        config += f'  encryption:\n    key: "{kwargs["api_encryption_key"]}"\n'
 
     # Configure OTA
     config += "\nota:\n"
     config += "  - platform: esphome\n"
     if "ota_password" in kwargs:
-        config += f"    password: \"{kwargs['ota_password']}\""
+        config += f'    password: "{kwargs["ota_password"]}"'
     elif "password" in kwargs:
-        config += f"    password: \"{kwargs['password']}\""
+        config += f'    password: "{kwargs["password"]}"'
 
     # Configuring wifi
     config += "\n\nwifi:\n"
@@ -181,18 +181,14 @@ def wizard_file(**kwargs):
     password: "{fallback_psk}"
 
 captive_portal:
-    """.format(
-            **kwargs
-        )
+    """.format(**kwargs)
     else:
         config += """
   # Enable fallback hotspot in case wifi connection fails
   ap:
     ssid: "{fallback_name}"
     password: "{fallback_psk}"
-    """.format(
-            **kwargs
-        )
+    """.format(**kwargs)
 
     return config
 
@@ -388,19 +384,19 @@ def wizard(path):
     safe_print()
     # Don't sleep because user needs to copy link
     if platform == "ESP32":
-        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcu-32s')}\".")
+        safe_print(f'For example "{color(Fore.BOLD_WHITE, "nodemcu-32s")}".')
         boards_list = esp32_boards.BOARDS.items()
     elif platform == "ESP8266":
-        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcuv2')}\".")
+        safe_print(f'For example "{color(Fore.BOLD_WHITE, "nodemcuv2")}".')
         boards_list = esp8266_boards.BOARDS.items()
     elif platform == "BK72XX":
-        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'cb2s')}\".")
+        safe_print(f'For example "{color(Fore.BOLD_WHITE, "cb2s")}".')
         boards_list = bk72xx_boards.BOARDS.items()
     elif platform == "RTL87XX":
-        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'wr3')}\".")
+        safe_print(f'For example "{color(Fore.BOLD_WHITE, "wr3")}".')
         boards_list = rtl87xx_boards.BOARDS.items()
     elif platform == "RP2040":
-        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'rpipicow')}\".")
+        safe_print(f'For example "{color(Fore.BOLD_WHITE, "rpipicow")}".')
         boards_list = rp2040_boards.BOARDS.items()
 
     else:
@@ -439,7 +435,7 @@ def wizard(path):
             f"First, what's the {color(Fore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
         )
         sleep(1.5)
-        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
+        safe_print(f'For example "{color(Fore.BOLD_WHITE, "Abraham Linksys")}".')
         while True:
             ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
             try:
@@ -465,7 +461,7 @@ def wizard(path):
             f"Now please state the {color(Fore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
         )
         safe_print()
-        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
+        safe_print(f'For example "{color(Fore.BOLD_WHITE, "PASSWORD42")}"')
         sleep(0.5)
         psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
         safe_print(

@@ -115,7 +115,7 @@ CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
 
 visual_temperature = cv.float_with_unit(
-    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
+    "visual_temperature", "(°C|° C|°|C|°K|° K|K|°F|° F|F)?"
 )
 
 
@@ -128,7 +128,6 @@ VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
 
 
 def visual_temperature_step(value):
-
     # Allow defining target/current temperature steps separately
     if isinstance(value, dict):
         return VISUAL_TEMPERATURE_STEP_SCHEMA(value)

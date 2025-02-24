@@ -1,15 +1,7 @@
-spi:
-  - id: spi_honeywellabp
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO8
 
-sensor:
-  - platform: honeywellabp
-    cs_pin: 8
-    pressure:
-      name: Honeywell pressure
-      min_pressure: 0
-      max_pressure: 15
-    temperature:
-      name: Honeywell temperature
+<<: !include common.yaml

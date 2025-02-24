@@ -19,7 +19,7 @@ curfile = None
 
 
 def print_error(file, lineno, msg):
-    global curfile
+    global curfile  # noqa: PLW0603
 
     if curfile != file:
         print_error_for_file(file, None)
@@ -29,6 +29,22 @@ def print_error(file, lineno, msg):
         print(f"{styled(colorama.Style.BRIGHT, f'{file}:{lineno}:')} {msg}")
     else:
         print(f"{styled(colorama.Style.BRIGHT, f'{file}:')} {msg}")
+
+
+def split_args_platform_compatible(args):
+    if os.name == "posix":
+        return [args]
+
+    char_length = 0
+    argsets = []
+    for index, arg in enumerate(args):
+        # Windows is techincally 8191, but we need to leave some room for the command itself
+        if char_length + len(arg) > 8000:
+            argsets.append(args[:index])
+            args = args[index:]
+            char_length = 0
+        char_length += len(arg)
+    return argsets
 
 
 def main():
@@ -69,61 +85,70 @@ def main():
 
     errors = 0
 
-    cmd = ["black", "--verbose"] + ([] if args.apply else ["--check"]) + files
-    print("Running black...")
-    print()
-    log = get_err(*cmd)
-    for line in log.splitlines():
-        WOULD_REFORMAT = "would reformat"
-        if line.startswith(WOULD_REFORMAT):
-            file_ = line[len(WOULD_REFORMAT) + 1 :]
-            print_error(file_, None, "Please format this file with the black formatter")
-            errors += 1
+    # Needed to get around command-line string limits in Windows.
+    filesets = split_args_platform_compatible(files)
 
-    cmd = ["flake8"] + files
+    print("Running ruff...")
+    print()
+    for fileset in filesets:
+        cmd = ["ruff", "format"] + ([] if args.apply else ["--check"]) + fileset
+        log = get_err(*cmd)
+        for line in log.splitlines():
+            WOULD_REFORMAT = "would reformat"
+            if line.startswith(WOULD_REFORMAT):
+                file_ = line[len(WOULD_REFORMAT) + 1 :]
+                print_error(
+                    file_, None, "Please format this file with the ruff formatter"
+                )
+                errors += 1
+
     print()
     print("Running flake8...")
     print()
-    log = get_output(*cmd)
-    for line in log.splitlines():
-        line = line.split(":", 4)
-        if len(line) < 4:
-            continue
-        file_ = line[0]
-        linno = line[1]
-        msg = (":".join(line[3:])).strip()
-        print_error(file_, linno, msg)
-        errors += 1
+    for files in filesets:
+        cmd = ["flake8"] + files
+        log = get_output(*cmd)
+        for line in log.splitlines():
+            line = line.split(":", 4)
+            if len(line) < 4:
+                continue
+            file_ = line[0]
+            linno = line[1]
+            msg = (":".join(line[3:])).strip()
+            print_error(file_, linno, msg)
+            errors += 1
 
-    cmd = ["pylint", "-f", "parseable", "--persistent=n"] + files
     print()
     print("Running pylint...")
     print()
-    log = get_output(*cmd)
-    for line in log.splitlines():
-        line = line.split(":", 3)
-        if len(line) < 3:
-            continue
-        file_ = line[0]
-        linno = line[1]
-        msg = (":".join(line[2:])).strip()
-        print_error(file_, linno, msg)
-        errors += 1
+    for files in filesets:
+        cmd = ["pylint", "-f", "parseable", "--persistent=n"] + files
+        log = get_output(*cmd)
+        for line in log.splitlines():
+            line = line.split(":", 3)
+            if len(line) < 3:
+                continue
+            file_ = line[0]
+            linno = line[1]
+            msg = (":".join(line[2:])).strip()
+            print_error(file_, linno, msg)
+            errors += 1
 
-    PYUPGRADE_TARGET = "--py39-plus"
-    cmd = ["pyupgrade", PYUPGRADE_TARGET] + files
     print()
     print("Running pyupgrade...")
     print()
-    log = get_err(*cmd)
-    for line in log.splitlines():
-        REWRITING = "Rewriting"
-        if line.startswith(REWRITING):
-            file_ = line[len(REWRITING) + 1 :]
-            print_error(
-                file_, None, f"Please run pyupgrade {PYUPGRADE_TARGET} on this file"
-            )
-            errors += 1
+    PYUPGRADE_TARGET = "--py39-plus"
+    for files in filesets:
+        cmd = ["pyupgrade", PYUPGRADE_TARGET] + files
+        log = get_err(*cmd)
+        for line in log.splitlines():
+            REWRITING = "Rewriting"
+            if line.startswith(REWRITING):
+                file_ = line[len(REWRITING) + 1 :]
+                print_error(
+                    file_, None, f"Please run pyupgrade {PYUPGRADE_TARGET} on this file"
+                )
+                errors += 1
 
     sys.exit(errors)
 

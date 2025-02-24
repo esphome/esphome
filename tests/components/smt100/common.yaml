@@ -1,0 +1,19 @@
+uart:
+  - id: uart_smt100
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+sensor:
+  - platform: smt100
+    counts:
+      name: Counts
+    dielectric_constant:
+      name: Dielectric Constant
+    temperature:
+      name: Temperature
+    moisture:
+      name: Moisture
+    voltage:
+      name: Voltage
+    update_interval: 60s
