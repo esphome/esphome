@@ -140,7 +140,7 @@ public:
 
 class AirConditioner : public PollingComponent, public climate::Climate {
 public:
-  AirConditioner() : PollingComponent(10000) { this->response_timeout = 40;}
+  AirConditioner() : PollingComponent(10000) { this->response_timeout = 140;}
 
 #ifdef USE_REMOTE_TRANSMITTER
   void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_.set_transmitter(transmitter); }
