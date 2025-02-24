@@ -97,7 +97,7 @@
 #define RX_BYTE_T2B_TEMP         13
 #define RX_BYTE_T3_TEMP          14
 #define RX_BYTE_CURRENT          15
-#define RX_BYTE_UNKNOWN2         16
+#define RX_BYTE_FREQUENCY        16
 #define RX_BYTE_TIMER_START      17
 #define RX_BYTE_TIMER_STOP       18
 #define RX_BYTE_UNKNOWN3         19
@@ -162,6 +162,7 @@ public:
   void set_temperature_2a_sensor(Sensor *sensor) { this->temperature_2a_sensor_ = sensor; }
   void set_temperature_2b_sensor(Sensor *sensor) { this->temperature_2b_sensor_ = sensor; }
   void set_current_sensor(Sensor *sensor) { this->current_sensor_ = sensor; }
+  void set_current_sensor(Sensor *sensor) { this->frequency_sensor_ = sensor; }
   void set_timer_start_sensor(Sensor *sensor) { this->timer_start_sensor_ = sensor; }
   void set_timer_stop_sensor(Sensor *sensor) { this->timer_stop_sensor_ = sensor; }
   void set_error_flags_sensor(Sensor *sensor) { this->error_flags_sensor_ = sensor; }
@@ -216,6 +217,7 @@ protected:
   Sensor *temperature_2a_sensor_{nullptr};
   Sensor *temperature_2b_sensor_{nullptr};
   Sensor *current_sensor_{nullptr};
+  Sensor *frequency_sensor_{nullptr};
   Sensor *timer_start_sensor_{nullptr};
   Sensor *timer_stop_sensor_{nullptr};
   Sensor *error_flags_sensor_{nullptr};

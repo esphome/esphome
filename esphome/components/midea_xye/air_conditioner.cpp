@@ -257,6 +257,7 @@ void AirConditioner::ParseResponse()
     set_sensor(this->temperature_2a_sensor_, CalculateTemp(RXData[RX_BYTE_T2A_TEMP]));
     set_sensor(this->temperature_2b_sensor_, CalculateTemp(RXData[RX_BYTE_T2B_TEMP]));
     set_sensor(this->current_sensor_, RXData[RX_BYTE_CURRENT]);
+    set_sensor(this->frequency_sensor_, RXData[RX_BYTE_FREQUENCY]);
     set_sensor(this->timer_start_sensor_, CalculateGetTime(RXData[RX_BYTE_TIMER_START]));
     set_sensor(this->timer_stop_sensor_, CalculateGetTime(RXData[RX_BYTE_TIMER_STOP]));
     set_sensor(this->error_flags_sensor_, (RXData[RX_BYTE_ERROR_FLAGS1]<<0) | (RXData[RX_BYTE_ERROR_FLAGS2]<<8));
