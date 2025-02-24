@@ -48,6 +48,7 @@ CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_TEMPERATURE_2A = "temperature_2a"
 CONF_TEMPERATURE_2B = "temperature_2b"
 CONF_CURRENT = "current"
+CONF_FREQUENCY = "frequency"
 CONF_TIMER_START = "timer_start"
 CONF_TIMER_STOP = "timer_stop"
 CONF_ERROR_FLAGS = "error_flags"
@@ -356,6 +357,9 @@ async def to_code(config):
     if CONF_CURRENT in config:
         sens = await sensor.new_sensor(config[CONF_CURRENT])
         cg.add(var.set_current_sensor(sens))
+    if CONF_FREQUENCY in config:
+        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
+        cg.add(var.set_frequency_sensor(sens))
     if CONF_TIMER_START in config:
         sens = await sensor.new_sensor(config[CONF_TIMER_START])
         cg.add(var.set_timer_start_sensor(sens))
