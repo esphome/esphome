@@ -76,6 +76,8 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_UPDATE
   bool on_update(update::UpdateEntity *update) override;
 #endif
+  bool completed() { return this->state_ == IteratorState::NONE; }
+
  protected:
   APIConnection *client_;
 };
