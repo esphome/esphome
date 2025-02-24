@@ -116,7 +116,7 @@
 #define RX_LEN                   32
 
 //TODO: Don't hardcode this
-#define SERVER_ID 0xFF
+#define SERVER_ID 0x01
 #define CLIENT_ID 0x33
 
 namespace esphome {
@@ -140,7 +140,7 @@ public:
 
 class AirConditioner : public PollingComponent, public climate::Climate {
 public:
-  AirConditioner() : PollingComponent(10000) { this->response_timeout = 140;}
+  AirConditioner() : PollingComponent(6000) { this->response_timeout = 40;}
 
 #ifdef USE_REMOTE_TRANSMITTER
   void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_.set_transmitter(transmitter); }
