@@ -238,6 +238,12 @@ async def to_code(config):
         else:
             add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
         add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
+        # CONFIG_BT_GATTC_NOTIF_REG_MAX controls the number of
+        # max notifications in 5.x, setting CONFIG_BT_ACL_CONNECTIONS
+        # is enough in 4.x
+        # https://github.com/esphome/issues/issues/6808
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 0, 0):
+            add_idf_sdkconfig_option("CONFIG_BT_GATTC_NOTIF_REG_MAX", 9)
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")
