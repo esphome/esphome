@@ -272,6 +272,11 @@ class ILI9XXXGC9A01A : public ILI9XXXDisplay {
   ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240) {}
 };
 
+class ILI9XXXGC9D01N : public ILI9XXXDisplay {
+ public:
+  ILI9XXXGC9D01N() : ILI9XXXDisplay(INITCMD_GC9D01N, 160, 160) {}
+};
+
 //-----------   ILI9XXX_24_TFT display --------------
 class ILI9XXXST7735 : public ILI9XXXDisplay {
  public:
