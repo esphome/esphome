@@ -116,8 +116,8 @@
 #define RX_LEN                   32
 
 //TODO: Don't hardcode this
-#define SERVER_ID 0x33
-#define CLIENT_ID 0
+#define SERVER_ID 0
+#define CLIENT_ID 0x33
 
 namespace esphome {
 namespace midea {
