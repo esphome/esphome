@@ -14,6 +14,7 @@ from esphome.const import (
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
+    CONF_MODE,
 )
 
 DEPENDENCIES = ["uart"]
@@ -26,6 +27,7 @@ CONF_ENERGY_1 = "energy_1"
 CONF_ENERGY_2 = "energy_2"
 CONF_ENERGY_TOTAL = "energy_total"
 
+
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
 
@@ -33,6 +35,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BL0939),
+            cv.Optional(CONF_MODE, default=""): cv.string,
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
@@ -117,3 +120,6 @@ async def to_code(config):
     if energy_total_config := config.get(CONF_ENERGY_TOTAL):
         sens = await sensor.new_sensor(energy_total_config)
         cg.add(var.set_energy_sensor_sum(sens))
+    if work_mode_config := config.get(CONF_MODE):
+        cg.add(var.set_work_mode(work_mode_config))
+
