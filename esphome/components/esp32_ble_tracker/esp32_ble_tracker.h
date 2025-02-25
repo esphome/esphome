@@ -173,12 +173,22 @@ class ESPBTClient : public ESPBTDeviceListener {
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
   virtual void disconnect() = 0;
-  virtual void set_state(ClientState st) { this->state_ = st; }
+  virtual void set_state(ClientState st) {
+    this->state_ = st;
+    if (st == ClientState::IDLE) {
+      this->want_disconnect_ = false;
+    }
+  }
   ClientState state() const { return state_; }
   int app_id;
 
  protected:
   ClientState state_{ClientState::INIT};
+  // want_disconnect_ is set to true when a disconnect is requested
+  // while the client is connecting. This is used to disconnect the
+  // client as soon as we get the connection id (conn_id_) from the
+  // ESP_GATTC_OPEN_EVT event.
+  bool want_disconnect_{false};
 };
 
 class ESP32BLETracker : public Component,
