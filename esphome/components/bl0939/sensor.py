@@ -121,4 +121,3 @@ async def to_code(config):
     if energy_total_config := config.get(CONF_ENERGY_TOTAL):
         sens = await sensor.new_sensor(energy_total_config)
         cg.add(var.set_energy_sensor_sum(sens))
-        
