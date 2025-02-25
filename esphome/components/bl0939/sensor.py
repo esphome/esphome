@@ -95,7 +95,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    
     if work_mode_config := config.get(CONF_MODE):
         cg.add(var.set_work_mode(work_mode_config))
     if voltage_config := config.get(CONF_VOLTAGE):
@@ -122,5 +121,3 @@ async def to_code(config):
     if energy_total_config := config.get(CONF_ENERGY_TOTAL):
         sens = await sensor.new_sensor(energy_total_config)
         cg.add(var.set_energy_sensor_sum(sens))
-
-
