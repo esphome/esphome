@@ -5,7 +5,24 @@ from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
 
 from esphome import config_validation
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 from esphome.config_validation import Invalid
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_HOST,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import CORE, HexInt, Lambda
 
 
@@ -174,3 +191,96 @@ def hex_int__valid(value):
 
     assert isinstance(actual, HexInt)
     assert actual == value
+
+
+@pytest.mark.parametrize(
+    "framework, platform, variant, full, idf, arduino, simple",
+    [
+        ("arduino", PLATFORM_ESP8266, None, "1", "1", "1", "1"),
+        ("arduino", PLATFORM_ESP32, VARIANT_ESP32, "3", "2", "3", "2"),
+        ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32, "4", "4", "2", "2"),
+        ("arduino", PLATFORM_ESP32, VARIANT_ESP32C2, "3", "2", "3", "2"),
+        ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32C2, "4", "4", "2", "2"),
+        ("arduino", PLATFORM_ESP32, VARIANT_ESP32S2, "6", "5", "6", "5"),
+        ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32S2, "7", "7", "5", "5"),
+        ("arduino", PLATFORM_ESP32, VARIANT_ESP32S3, "9", "8", "9", "8"),
+        ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32S3, "10", "10", "8", "8"),
+        ("arduino", PLATFORM_ESP32, VARIANT_ESP32C3, "12", "11", "12", "11"),
+        ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32C3, "13", "13", "11", "11"),
+        ("arduino", PLATFORM_ESP32, VARIANT_ESP32C6, "15", "14", "15", "14"),
+        ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32C6, "16", "16", "14", "14"),
+        ("arduino", PLATFORM_ESP32, VARIANT_ESP32H2, "18", "17", "18", "17"),
+        ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32H2, "19", "19", "17", "17"),
+        ("arduino", PLATFORM_RP2040, None, "20", "20", "20", "20"),
+        ("arduino", PLATFORM_BK72XX, None, "21", "21", "21", "21"),
+        ("arduino", PLATFORM_RTL87XX, None, "22", "22", "22", "22"),
+        ("host", PLATFORM_HOST, None, "23", "23", "23", "23"),
+    ],
+)
+def test_split_default(framework, platform, variant, full, idf, arduino, simple):
+    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.const import (
+        KEY_CORE,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        KEY_VARIANT,
+    )
+
+    CORE.data[KEY_CORE] = {}
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = framework
+    if platform == PLATFORM_ESP32:
+        CORE.data[KEY_ESP32] = {}
+        CORE.data[KEY_ESP32][KEY_VARIANT] = variant
+
+    common_mappings = {
+        "esp8266": "1",
+        "esp32": "2",
+        "esp32_s2": "5",
+        "esp32_s3": "8",
+        "esp32_c3": "11",
+        "esp32_c6": "14",
+        "esp32_h2": "17",
+        "rp2040": "20",
+        "bk72xx": "21",
+        "rtl87xx": "22",
+        "host": "23",
+    }
+
+    idf_mappings = {
+        "esp32_idf": "4",
+        "esp32_s2_idf": "7",
+        "esp32_s3_idf": "10",
+        "esp32_c3_idf": "13",
+        "esp32_c6_idf": "16",
+        "esp32_h2_idf": "19",
+    }
+
+    arduino_mappings = {
+        "esp32_arduino": "3",
+        "esp32_s2_arduino": "6",
+        "esp32_s3_arduino": "9",
+        "esp32_c3_arduino": "12",
+        "esp32_c6_arduino": "15",
+        "esp32_h2_arduino": "18",
+    }
+
+    schema = config_validation.Schema(
+        {
+            config_validation.SplitDefault(
+                "full", **common_mappings, **idf_mappings, **arduino_mappings
+            ): str,
+            config_validation.SplitDefault(
+                "idf", **common_mappings, **idf_mappings
+            ): str,
+            config_validation.SplitDefault(
+                "arduino", **common_mappings, **arduino_mappings
+            ): str,
+            config_validation.SplitDefault("simple", **common_mappings): str,
+        }
+    )
+
+    assert schema({}).get("full") == full
+    assert schema({}).get("idf") == idf
+    assert schema({}).get("arduino") == arduino
+    assert schema({}).get("simple") == simple
