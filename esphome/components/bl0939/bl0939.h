@@ -12,7 +12,8 @@ namespace bl0939 {
 // Sonoff Dual R3 V2 has the exact same resistor values for the current shunts (RL=1miliOhm)
 // and for the voltage divider (R1=0.51kOhm, R2=5*390kOhm)
 // as in the manufacturer's reference circuit, so the same formulas were used here (Vref=1.218V)
-// According to the data sheet of bl0939, it has direct connection mode and current transformer mode. The calculation formula of each mode is different.
+// According to the data sheet of bl0939, it has direct connection mode and current transformer mode. The calculation
+// formula of each mode is different.
 //  direct connection mode
 static const float BL0939_IREF = 324004 * 1 / 1.218;
 static const float BL0939_UREF = 79931 * 0.51 * 1000 / (1.218 * (5 * 390 + 0.51));

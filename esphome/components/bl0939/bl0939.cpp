@@ -72,17 +72,17 @@ void BL0939::update() {
 
 void BL0939::setup() {
   if (this->work_mode_ == "current_transformer_mode") {
-    ESP_LOGD(TAG,"work mode is current_transformer_mode");
+    ESP_LOGD(TAG, "work mode is current_transformer_mode");
     power_reference_ = BL0939_PREF_CT;
     voltage_reference_ = BL0939_UREF_CT;
     current_reference_ = BL0939_IREF_CT;
     energy_reference_ = BL0939_EREF_CT;
-  }else{
-    ESP_LOGD(TAG,"work mode is current_transformer_mode");
+  } else {
+    ESP_LOGD(TAG, "work mode is current_transformer_mode");
     power_reference_ = BL0939_PREF;
     voltage_reference_ = BL0939_UREF;
     current_reference_ = BL0939_IREF;
-    energy_reference_ = BL0939_EREF;  
+    energy_reference_ = BL0939_EREF;
   }
 
   for (auto *i : BL0939_INIT) {
