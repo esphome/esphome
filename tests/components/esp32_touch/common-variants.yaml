@@ -1,6 +1,5 @@
 esp32_touch:
   setup_mode: false
-  iir_filter: 10ms
   sleep_duration: 27ms
   measurement_duration: 8ms
   low_voltage_reference: 0.5V
