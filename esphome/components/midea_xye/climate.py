@@ -7,9 +7,12 @@ import esphome.codegen as cg
 from esphome.const import (
     CONF_AUTOCONF,
     CONF_BEEPER,
+    CONF_CURRENT,
     CONF_CUSTOM_FAN_MODES,
     CONF_CUSTOM_PRESETS,
+    CONF_FREQUENCY,
     CONF_ID,
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_PERIOD,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
@@ -21,6 +24,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_FREQUENCY,
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
@@ -32,6 +36,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT,
     UNIT_AMPERE,
+    UNIT_HERTZ,
     UNIT_MINUTE,
     UNIT_EMPTY,
 )
@@ -44,11 +49,8 @@ from esphome.components.climate import (
 #CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart", "wifi"]
 AUTO_LOAD = ["sensor"]
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_TEMPERATURE_2A = "temperature_2a"
 CONF_TEMPERATURE_2B = "temperature_2b"
-CONF_CURRENT = "current"
-CONF_FREQUENCY = "frequency"
 CONF_TIMER_START = "timer_start"
 CONF_TIMER_STOP = "timer_stop"
 CONF_ERROR_FLAGS = "error_flags"
@@ -131,7 +133,7 @@ CONFIG_SCHEMA = cv.All(
                 remote_transmitter.RemoteTransmitterComponent
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
-            cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
+            cv.Optional(CONF_AUTOCONF, default=False): cv.boolean,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_modes),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
                 validate_swing_modes
@@ -169,6 +171,12 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_HERTZ,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_FREQUENCY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_TIMER_START): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MINUTE,
                 icon=ICON_TIMER,
@@ -197,7 +205,6 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-
             cv.Optional(CONF_POWER_USAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT,
                 icon=ICON_POWER,
