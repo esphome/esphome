@@ -81,7 +81,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     if (glyph_n < 0) {
       // Unknown char, skip
       if (!this->get_glyphs().empty())
-        x += this->get_glyphs()[0].glyph_data_->width;
+        x += this->get_glyphs()[0].glyph_data_->advance;
       i++;
       continue;
     }
@@ -92,7 +92,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     } else {
       min_x = std::min(min_x, x + glyph.glyph_data_->offset_x);
     }
-    x += glyph.glyph_data_->width + glyph.glyph_data_->offset_x;
+    x += glyph.glyph_data_->advance;
 
     i += match_length;
     has_char = true;
@@ -111,7 +111,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
       if (!this->get_glyphs().empty()) {
-        uint8_t glyph_width = this->get_glyphs()[0].glyph_data_->width;
+        uint8_t glyph_width = this->get_glyphs()[0].glyph_data_->advance;
         display->filled_rectangle(x_at, y_start, glyph_width, this->height_, color);
         x_at += glyph_width;
       }
@@ -161,7 +161,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
         }
       }
     }
-    x_at += glyph.glyph_data_->width + glyph.glyph_data_->offset_x;
+    x_at += glyph.glyph_data_->advance;
 
     i += match_length;
   }
