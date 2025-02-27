@@ -1843,6 +1843,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #ifdef USE_BLUETOOTH_PROXY
   resp.legacy_bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->get_legacy_version();
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
+  resp.bluetooth_mac_address = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty();
 #endif
 #ifdef USE_VOICE_ASSISTANT
   resp.legacy_voice_assistant_version = voice_assistant::global_voice_assistant->get_legacy_version();

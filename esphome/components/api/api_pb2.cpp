@@ -838,6 +838,10 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       this->suggested_area = value.as_string();
       return true;
     }
+    case 18: {
+      this->bluetooth_mac_address = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -860,6 +864,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(14, this->legacy_voice_assistant_version);
   buffer.encode_uint32(17, this->voice_assistant_feature_flags);
   buffer.encode_string(16, this->suggested_area);
+  buffer.encode_string(18, this->bluetooth_mac_address);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -936,6 +941,10 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 
   out.append("  suggested_area: ");
   out.append("'").append(this->suggested_area).append("'");
+  out.append("\n");
+
+  out.append("  bluetooth_mac_address: ");
+  out.append("'").append(this->bluetooth_mac_address).append("'");
   out.append("\n");
   out.append("}");
 }
