@@ -29,7 +29,10 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   void set_resolution(uint8_t xyz, uint8_t res) { resolutions_[xyz] = res; }
   void set_filter(uint8_t filter) { filter_ = filter; }
   void set_gain(uint8_t gain_sel) { gain_ = gain_sel; }
-
+  void set_temperature_compensation(bool temperature_compensation) {
+    temperature_compensation_ = temperature_compensation;
+  }
+  void set_hallconf(uint8_t hallconf) { hallconf_ = hallconf; }
   // overrides for MLX library
 
   // disable lint because it keeps suggesting const uint8_t *response.
@@ -49,9 +52,11 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   sensor::Sensor *t_sensor_{nullptr};
   uint8_t gain_;
   uint8_t oversampling_;
-  uint8_t temperature_oversampling_ = 0;
+  uint8_t temperature_oversampling_{0};
   uint8_t filter_;
-  uint8_t resolutions_[3] = {0};
+  uint8_t resolutions_[3]{0};
+  bool temperature_compensation_{false};
+  uint8_t hallconf_{0xC};
   GPIOPin *drdy_pin_{nullptr};
 };
 
