@@ -45,7 +45,7 @@ from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .const import DASHBOARD_COMMAND
 from .core import DASHBOARD
-from .entries import EntryState, entry_state_to_bool
+from .entries import UNKNOWN_STATE, entry_state_to_bool
 from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
@@ -381,7 +381,7 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
         # Remove the old ping result from the cache
         entries = DASHBOARD.entries
         if entry := entries.get(self.old_name):
-            entries.async_set_state(entry, EntryState.UNKNOWN)
+            entries.async_set_state(entry, UNKNOWN_STATE)
 
 
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):

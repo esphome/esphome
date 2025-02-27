@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
+from dataclasses import dataclass
+from functools import lru_cache
 import logging
 import os
 from typing import TYPE_CHECKING, Any
@@ -27,37 +29,53 @@ _LOGGER = logging.getLogger(__name__)
 
 DashboardCacheKeyType = tuple[int, int, float, int]
 
-# Currently EntryState is a simple
-# online/offline/unknown enum, but in the future
-# it may be expanded to include more states
+
+@dataclass(frozen=True)
+class EntryState:
+    """Represents the state of an entry."""
+
+    reachable: ReachableState
+    source: EntryStateSource
 
 
-class EntryState(StrEnum):
-    ONLINE = "online"
-    OFFLINE = "offline"
+class EntryStateSource(StrEnum):
+    MDNS = "mdns"
+    PING = "ping"
+    MQTT = "mqtt"
     UNKNOWN = "unknown"
 
 
-_BOOL_TO_ENTRY_STATE = {
-    True: EntryState.ONLINE,
-    False: EntryState.OFFLINE,
-    None: EntryState.UNKNOWN,
-}
-_ENTRY_STATE_TO_BOOL = {
-    EntryState.ONLINE: True,
-    EntryState.OFFLINE: False,
-    EntryState.UNKNOWN: None,
-}
+class ReachableState(StrEnum):
+    ONLINE = "online"
+    OFFLINE = "offline"
+    DNS_FAILURE = "dns_failure"
+    UNKNOWN = "unknown"
 
 
-def bool_to_entry_state(value: bool) -> EntryState:
+_BOOL_TO_REACHABLE_STATE = {
+    True: ReachableState.ONLINE,
+    False: ReachableState.OFFLINE,
+    None: ReachableState.UNKNOWN,
+}
+_REACHABLE_STATE_TO_BOOL = {
+    ReachableState.ONLINE: True,
+    ReachableState.OFFLINE: False,
+    ReachableState.DNS_FAILURE: False,
+    ReachableState.UNKNOWN: None,
+}
+
+UNKNOWN_STATE = EntryState(ReachableState.UNKNOWN, EntryStateSource.UNKNOWN)
+
+
+@lru_cache  # creating frozen dataclass instances is expensive, so we cache them
+def bool_to_entry_state(value: bool | None, source: EntryStateSource) -> EntryState:
     """Convert a bool to an entry state."""
-    return _BOOL_TO_ENTRY_STATE[value]
+    return EntryState(_BOOL_TO_REACHABLE_STATE[value], source)
 
 
 def entry_state_to_bool(value: EntryState) -> bool | None:
     """Convert an entry state to a bool."""
-    return _ENTRY_STATE_TO_BOOL[value]
+    return _REACHABLE_STATE_TO_BOOL[value.reachable]
 
 
 class DashboardEntries:
@@ -118,6 +136,55 @@ class DashboardEntries:
     async def _async_set_state(self, entry: DashboardEntry, state: EntryState) -> None:
         """Set the state for an entry."""
         self.async_set_state(entry, state)
+
+    def set_state_if_online_or_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if its online or provided by the source or unknown."""
+        asyncio.run_coroutine_threadsafe(
+            self._async_set_state_if_online_or_source(entry, state), self._loop
+        ).result()
+
+    async def _async_set_state_if_online_or_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if its online or provided by the source or unknown."""
+        self.async_set_state_if_online_or_source(entry, state)
+
+    def async_set_state_if_online_or_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if its online or provided by the source or unknown."""
+        if (
+            state.reachable is ReachableState.ONLINE
+            and entry.state.reachable is not ReachableState.ONLINE
+        ) or entry.state.source in (
+            EntryStateSource.UNKNOWN,
+            state.source,
+        ):
+            self.async_set_state(entry, state)
+
+    def set_state_if_source(self, entry: DashboardEntry, state: EntryState) -> None:
+        """Set the state for an entry if provided by the source or unknown."""
+        asyncio.run_coroutine_threadsafe(
+            self._async_set_state_if_source(entry, state), self._loop
+        ).result()
+
+    async def _async_set_state_if_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if rovided by the source or unknown."""
+        self.async_set_state_if_source(entry, state)
+
+    def async_set_state_if_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if provided by the source or unknown."""
+        if entry.state.source in (
+            EntryStateSource.UNKNOWN,
+            state.source,
+        ):
+            self.async_set_state(entry, state)
 
     def async_set_state(self, entry: DashboardEntry, state: EntryState) -> None:
         """Set the state for an entry."""
@@ -269,7 +336,7 @@ class DashboardEntry:
         self._storage_path = ext_storage_path(self.filename)
         self.cache_key = cache_key
         self.storage: StorageJSON | None = None
-        self.state = EntryState.UNKNOWN
+        self.state = UNKNOWN_STATE
         self._to_dict: dict[str, Any] | None = None
 
     def __repr__(self) -> str:

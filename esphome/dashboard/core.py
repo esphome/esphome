@@ -9,7 +9,7 @@ import json
 import logging
 from pathlib import Path
 import threading
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
 
 from esphome.storage_json import ignored_devices_storage_path
 
@@ -17,14 +17,14 @@ from ..zeroconf import DiscoveredImport
 from .dns import DNSCache
 from .entries import DashboardEntries
 from .settings import DashboardSettings
-
-if TYPE_CHECKING:
-    from .status.mdns import MDNSStatus
-
+from .status.mdns import MDNSStatus
+from .status.ping import PingStatus
 
 _LOGGER = logging.getLogger(__name__)
 
 IGNORED_DEVICES_STORAGE_PATH = "ignored-devices.json"
+
+MDNS_BOOTSTRAP_TIME = 7.5
 
 
 @dataclass
@@ -81,6 +81,7 @@ class ESPHomeDashboard:
         "dns_cache",
         "_background_tasks",
         "ignored_devices",
+        "_ping_status_task",
     )
 
     def __init__(self) -> None:
@@ -97,6 +98,7 @@ class ESPHomeDashboard:
         self.dns_cache = DNSCache()
         self._background_tasks: set[asyncio.Task] = set()
         self.ignored_devices: set[str] = set()
+        self._ping_status_task: asyncio.Task | None = None
 
     async def async_setup(self) -> None:
         """Setup the dashboard."""
@@ -121,41 +123,48 @@ class ESPHomeDashboard:
                 {"ignored_devices": sorted(self.ignored_devices)}, indent=2, fp=f_handle
             )
 
+    def _async_start_ping_status(self, ping_status: PingStatus) -> None:
+        self._ping_status_task = asyncio.create_task(ping_status.async_run())
+
     async def async_run(self) -> None:
         """Run the dashboard."""
         settings = self.settings
         mdns_task: asyncio.Task | None = None
-        ping_status_task: asyncio.Task | None = None
         await self.entries.async_update_entries()
 
-        if settings.status_use_ping:
-            from .status.ping import PingStatus
+        mdns_status = MDNSStatus(self)
+        ping_status = PingStatus(self)
+        start_ping_timer: asyncio.TimerHandle | None = None
 
-            ping_status = PingStatus()
-            ping_status_task = asyncio.create_task(ping_status.async_run())
-        else:
-            from .status.mdns import MDNSStatus
-
-            mdns_status = MDNSStatus()
-            await mdns_status.async_refresh_hosts()
-            self.mdns_status = mdns_status
+        self.mdns_status = mdns_status
+        if mdns_status.async_setup():
             mdns_task = asyncio.create_task(mdns_status.async_run())
+            # Start ping MDNS_BOOTSTRAP_TIME seconds after startup to ensure
+            # MDNS has had a chance to resolve the devices
+            start_ping_timer = self.loop.call_later(
+                MDNS_BOOTSTRAP_TIME, self._async_start_ping_status, ping_status
+            )
+        else:
+            # If mDNS is not available, start the ping status immediately
+            self._async_start_ping_status(ping_status)
 
         if settings.status_use_mqtt:
             from .status.mqtt import MqttStatusThread
 
-            status_thread_mqtt = MqttStatusThread()
+            status_thread_mqtt = MqttStatusThread(self)
             status_thread_mqtt.start()
 
-        shutdown_event = asyncio.Event()
         try:
-            await shutdown_event.wait()
+            await asyncio.Event().wait()
         finally:
             _LOGGER.info("Shutting down...")
             self.stop_event.set()
             self.ping_request.set()
-            if ping_status_task:
-                ping_status_task.cancel()
+            if start_ping_timer:
+                start_ping_timer.cancel()
+            if self._ping_status_task:
+                self._ping_status_task.cancel()
+                self._ping_status_task = None
             if mdns_task:
                 mdns_task.cancel()
             if settings.status_use_mqtt:

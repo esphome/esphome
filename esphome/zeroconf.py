@@ -5,7 +5,13 @@ from dataclasses import dataclass
 import logging
 from typing import Callable
 
-from zeroconf import IPVersion, ServiceInfo, ServiceStateChange, Zeroconf
+from zeroconf import (
+    AddressResolver,
+    IPVersion,
+    ServiceInfo,
+    ServiceStateChange,
+    Zeroconf,
+)
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
 from esphome.storage_json import StorageJSON, ext_storage_path
@@ -14,15 +20,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 _BACKGROUND_TASKS: set[asyncio.Task] = set()
-
-
-class HostResolver(ServiceInfo):
-    """Resolve a host name to an IP address."""
-
-    @property
-    def _is_complete(self) -> bool:
-        """The ServiceInfo has all expected properties."""
-        return bool(self._ipv4_addresses)
 
 
 class DashboardStatus:
@@ -166,19 +163,10 @@ class DashboardImportDiscovery:
                 )
 
 
-def _make_host_resolver(host: str) -> HostResolver:
-    """Create a new HostResolver for the given host name."""
-    name = host.partition(".")[0]
-    info = HostResolver(
-        ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}", server=f"{name}.local."
-    )
-    return info
-
-
 class EsphomeZeroconf(Zeroconf):
     def resolve_host(self, host: str, timeout: float = 3.0) -> list[str] | None:
         """Resolve a host name to an IP address."""
-        info = _make_host_resolver(host)
+        info = AddressResolver(f'{host.partition(".")[0]}.local.')
         if (
             info.load_from_cache(self)
             or (timeout and info.request(self, timeout * 1000))
@@ -192,7 +180,7 @@ class AsyncEsphomeZeroconf(AsyncZeroconf):
         self, host: str, timeout: float = 3.0
     ) -> list[str] | None:
         """Resolve a host name to an IP address."""
-        info = _make_host_resolver(host)
+        info = AddressResolver(f'{host.partition(".")[0]}.local.')
         if (
             info.load_from_cache(self.zeroconf)
             or (timeout and await info.async_request(self.zeroconf, timeout * 1000))
