@@ -15,6 +15,8 @@ namespace audio {
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
+static const uint32_t CONNECTION_TIMEOUT_MS = 5000;
+
 // The number of times the http read times out with no data before throwing an error
 static const uint32_t ERROR_COUNT_NO_DATA_READ_TIMEOUT = 100;
 
@@ -97,7 +99,7 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
   client_config.user_data = this;
   client_config.buffer_size = HTTP_STREAM_BUFFER_SIZE;
   client_config.keep_alive_enable = true;
-  client_config.timeout_ms = 5000;  // Shouldn't trigger watchdog resets if caller runs in a task
+  client_config.timeout_ms = CONNECTION_TIMEOUT_MS;  // Shouldn't trigger watchdog resets if caller runs in a task
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
   if (uri.find("https:") != std::string::npos) {
@@ -189,7 +191,7 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
     file_type = this->audio_file_type_;
   }
 
-  this->no_data_read_count_ = 0;
+  this->last_data_read_ms_ = millis();
 
   this->output_transfer_buffer_ = AudioSinkTransferBuffer::create(this->buffer_size_);
   if (this->output_transfer_buffer_ == nullptr) {
@@ -271,8 +273,7 @@ AudioReaderState AudioReader::http_read_() {
 
     if (received_len > 0) {
       this->output_transfer_buffer_->increase_buffer_length(received_len);
-
-      this->no_data_read_count_ = 0;
+      this->last_data_read_ms_ = millis();
     } else if (received_len < 0) {
       // HTTP read error
       this->cleanup_connection_();
@@ -280,12 +281,11 @@ AudioReaderState AudioReader::http_read_() {
     } else {
       if (bytes_to_read > 0) {
         // Read timed out
-        ++this->no_data_read_count_;
-        if (this->no_data_read_count_ >= ERROR_COUNT_NO_DATA_READ_TIMEOUT) {
-          // Timed out with no data read too many times, so the http read has failed
+        if ((millis() - this->last_data_read_ms_) > CONNECTION_TIMEOUT_MS) {
           this->cleanup_connection_();
           return AudioReaderState::FAILED;
         }
+
         delay(READ_WRITE_TIMEOUT_MS);
       }
     }
