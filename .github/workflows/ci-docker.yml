@@ -46,7 +46,7 @@ jobs:
         with:
           python-version: "3.9"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.9.0
+        uses: docker/setup-buildx-action@v3.10.0
 
       - name: Set TAG
         run: |
