@@ -36,9 +36,8 @@ struct TMP1075Config {
       uint8_t shutdown : 1;  // Sets the device in shutdown mode to conserve power.
                              // 0: Device is in continuous conversion
                              // 1: Device is in shutdown mode
-      uint8_t unused : 8;
     } fields;
-    uint16_t regvalue;
+    uint8_t regvalue;
   };
 };
 
