@@ -110,8 +110,10 @@ LD2450Component::LD2450Component() {}
 void LD2450Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2450...");
 #ifdef USE_NUMBER
-  this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_object_id_hash());
-  this->set_presence_timeout();
+  if (this->presence_timeout_number_ != nullptr) {
+    this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_object_id_hash());
+    this->set_presence_timeout();
+  }
 #endif
   this->restart_and_read_all_info();
 }
@@ -171,17 +173,11 @@ void LD2450Component::dump_config() {
   }
 #endif
 #ifdef USE_NUMBER
-  for (number::Number *n : this->zone_x1_numbers_) {
-    LOG_NUMBER("  ", "ZoneX1Number", n);
-  }
-  for (number::Number *n : this->zone_y1_numbers_) {
-    LOG_NUMBER("  ", "ZoneY1Number", n);
-  }
-  for (number::Number *n : this->zone_x2_numbers_) {
-    LOG_NUMBER("  ", "ZoneX2Number", n);
-  }
-  for (number::Number *n : this->zone_y2_numbers_) {
-    LOG_NUMBER("  ", "ZoneY2Number", n);
+  for (auto n : this->zone_numbers_) {
+    LOG_NUMBER("  ", "ZoneX1Number", n.x1);
+    LOG_NUMBER("  ", "ZoneY1Number", n.y1);
+    LOG_NUMBER("  ", "ZoneX2Number", n.x2);
+    LOG_NUMBER("  ", "ZoneY2Number", n.y2);
   }
 #endif
 #ifdef USE_SELECT
@@ -281,10 +277,13 @@ void LD2450Component::process_zone_(uint8_t *buffer) {
     this->zone_config_[index].x2 = ld2450::hex_to_signed_int(buffer, start + 4);
     this->zone_config_[index].y2 = ld2450::hex_to_signed_int(buffer, start + 6);
 #ifdef USE_NUMBER
-    this->zone_x1_numbers_[index]->publish_state(this->zone_config_[index].x1);
-    this->zone_y1_numbers_[index]->publish_state(this->zone_config_[index].y1);
-    this->zone_x2_numbers_[index]->publish_state(this->zone_config_[index].x2);
-    this->zone_y2_numbers_[index]->publish_state(this->zone_config_[index].y2);
+    // only one null check as all coordinates are required for a single zone
+    if (this->zone_numbers_[index].x1 != nullptr) {
+      this->zone_numbers_[index].x1->publish_state(this->zone_config_[index].x1);
+      this->zone_numbers_[index].y1->publish_state(this->zone_config_[index].y1);
+      this->zone_numbers_[index].x2->publish_state(this->zone_config_[index].x2);
+      this->zone_numbers_[index].y2->publish_state(this->zone_config_[index].y2);
+    }
 #endif
   }
 }
@@ -480,21 +479,20 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
   uint8_t zone_moving_targets = 0;
   uint8_t zone_all_targets = 0;
   for (index = 0; index < MAX_ZONES; index++) {
+    zone_still_targets = this->count_targets_in_zone_(this->zone_config_[index], false);
+    zone_moving_targets = this->count_targets_in_zone_(this->zone_config_[index], true);
+    zone_all_targets = zone_still_targets + zone_moving_targets;
+
     // Publish Still Target Count in Zones
     sensor::Sensor *szstc = this->zone_still_target_count_sensors_[index];
     if (szstc != nullptr) {
-      zone_still_targets = this->count_targets_in_zone_(this->zone_config_[index], false);
       szstc->publish_state(zone_still_targets);
     }
     // Publish Moving Target Count in Zones
     sensor::Sensor *szmtc = this->zone_moving_target_count_sensors_[index];
     if (szmtc != nullptr) {
-      zone_moving_targets = this->count_targets_in_zone_(this->zone_config_[index], true);
       szmtc->publish_state(zone_moving_targets);
     }
-
-    zone_all_targets = zone_still_targets + zone_moving_targets;
-
     // Publish All Target Count in Zones
     sensor::Sensor *sztc = this->zone_target_count_sensors_[index];
     if (sztc != nullptr) {
@@ -820,10 +818,10 @@ void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::Tex
 // Send Zone coordinates data to LD2450
 #ifdef USE_NUMBER
 void LD2450Component::set_zone_coordinate(uint8_t zone) {
-  number::Number *x1sens = this->zone_x1_numbers_[zone];
-  number::Number *y1sens = this->zone_y1_numbers_[zone];
-  number::Number *x2sens = this->zone_x2_numbers_[zone];
-  number::Number *y2sens = this->zone_y2_numbers_[zone];
+  number::Number *x1sens = this->zone_numbers_[zone].x1;
+  number::Number *y1sens = this->zone_numbers_[zone].y1;
+  number::Number *x2sens = this->zone_numbers_[zone].x2;
+  number::Number *y2sens = this->zone_numbers_[zone].y2;
   if (!x1sens->has_state() || !y1sens->has_state() || !x2sens->has_state() || !y2sens->has_state()) {
     return;
   }
@@ -834,10 +832,15 @@ void LD2450Component::set_zone_coordinate(uint8_t zone) {
   this->send_set_zone_command_();
 }
 
-void LD2450Component::set_zone_x1_number(uint8_t zone, number::Number *n) { this->zone_x1_numbers_[zone] = n; }
-void LD2450Component::set_zone_y1_number(uint8_t zone, number::Number *n) { this->zone_y1_numbers_[zone] = n; }
-void LD2450Component::set_zone_x2_number(uint8_t zone, number::Number *n) { this->zone_x2_numbers_[zone] = n; }
-void LD2450Component::set_zone_y2_number(uint8_t zone, number::Number *n) { this->zone_y2_numbers_[zone] = n; }
+void LD2450Component::set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2,
+                                       number::Number *y2) {
+  if (zone < MAX_ZONES) {
+    this->zone_numbers_[zone].x1 = x1;
+    this->zone_numbers_[zone].y1 = y1;
+    this->zone_numbers_[zone].x2 = x2;
+    this->zone_numbers_[zone].y2 = y2;
+  }
+}
 #endif
 
 // Set Presence Timeout load and save from flash
