@@ -36,6 +36,10 @@ def trash_storage_path() -> str:
     return CORE.relative_config_path("trash")
 
 
+def archive_storage_path() -> str:
+    return CORE.relative_config_path("archive")
+
+
 class StorageJSON:
     def __init__(
         self,
