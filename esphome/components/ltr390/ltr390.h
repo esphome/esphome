@@ -77,7 +77,6 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
   LTR390GAIN gain_uv_;
   LTR390RESOLUTION res_als_;
   LTR390RESOLUTION res_uv_;
-  float sensitivity_uv_;
   float wfac_;
 
   sensor::Sensor *light_sensor_{nullptr};
