@@ -95,7 +95,7 @@ void BMP085Component::read_pressure_() {
     return;
   }
 
-  uint32_t value = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]) << 8) | uint32_t(buffer[0]);
+  uint32_t value = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]) << 8) | uint32_t(buffer[2]);
   if ((value >> 5) == 0) {
     ESP_LOGW(TAG, "Invalid pressure!");
     this->status_set_warning();
