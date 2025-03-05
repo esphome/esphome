@@ -1,0 +1,28 @@
+esphome:
+  on_boot:
+    then:
+      - pzemac.reset_energy: pzemac1
+
+uart:
+  - id: uart_pzemac
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+modbus:
+
+sensor:
+  - platform: pzemac
+    id: pzemac1
+    voltage:
+      name: PZEMAC Voltage
+    current:
+      name: PZEMAC Current
+    power:
+      name: PZEMAC Power
+    energy:
+      name: PZEMAC Energy
+    frequency:
+      name: PZEMAC Frequency
+    power_factor:
+      name: PZEMAC Power Factor

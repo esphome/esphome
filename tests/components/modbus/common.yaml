@@ -1,0 +1,9 @@
+uart:
+  - id: uart_modbus
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+modbus:
+  id: mod_bus1
+  flow_control_pin: ${flow_control_pin}

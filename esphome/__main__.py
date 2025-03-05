@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime
 import functools
+import importlib
 import logging
 import os
 import re
@@ -66,7 +67,7 @@ def choose_prompt(options, purpose: str = None):
         return options[0][1]
 
     safe_print(
-        f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
+        f"Found multiple options{f' for {purpose}' if purpose else ''}, please choose one:"
     )
     for i, (desc, _) in enumerate(options):
         safe_print(f"  [{i + 1}] {desc}")
@@ -336,6 +337,13 @@ def check_permissions(port):
 
 
 def upload_program(config, args, host):
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        if getattr(module, "upload_program")(config, args, host):
+            return 0
+    except AttributeError:
+        pass
+
     if get_port_type(host) == "SERIAL":
         check_permissions(host)
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):

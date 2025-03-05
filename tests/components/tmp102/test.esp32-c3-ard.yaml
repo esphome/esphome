@@ -1,8 +1,5 @@
-i2c:
-  - id: i2c_tmp102
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: tmp102
-    name: TMP102 Temperature
+<<: !include common.yaml

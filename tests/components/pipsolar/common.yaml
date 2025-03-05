@@ -1,0 +1,249 @@
+esphome:
+  on_boot:
+    then:
+      - output.pipsolar.set_level:
+          id: inverter0_battery_recharge_voltage_out
+          value: 48.0
+
+uart:
+  - id: uart_pipsolar
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 115200
+
+pipsolar:
+  id: inverter0
+
+binary_sensor:
+  - platform: pipsolar
+    pipsolar_id: inverter0
+    add_sbu_priority_version:
+      id: inverter0_add_sbu_priority_version
+      name: inverter0_add_sbu_priority_version
+    configuration_status:
+      id: inverter0_configuration_status
+      name: inverter0_configuration_status
+    scc_firmware_version:
+      id: inverter0_scc_firmware_version
+      name: inverter0_scc_firmware_version
+    load_status:
+      id: inverter0_load_status
+      name: inverter0_load_status
+    battery_voltage_to_steady_while_charging:
+      id: inverter0_battery_voltage_to_steady_while_charging
+      name: inverter0_battery_voltage_to_steady_while_charging
+    charging_status:
+      id: inverter0_charging_status
+      name: inverter0_charging_status
+    scc_charging_status:
+      id: inverter0_scc_charging_status
+      name: inverter0_scc_charging_status
+    ac_charging_status:
+      id: inverter0_ac_charging_status
+      name: inverter0_ac_charging_status
+    charging_to_floating_mode:
+      id: inverter0_charging_to_floating_mode
+      name: inverter0_charging_to_floating_mode
+    switch_on:
+      id: inverter0_switch_on
+      name: inverter0_switch_on
+    dustproof_installed:
+      id: inverter0_dustproof_installed
+      name: inverter0_dustproof_installed
+    silence_buzzer_open_buzzer:
+      id: inverter0_silence_buzzer_open_buzzer
+      name: inverter0_silence_buzzer_open_buzzer
+    overload_bypass_function:
+      id: inverter0_overload_bypass_function
+      name: inverter0_overload_bypass_function
+    lcd_escape_to_default:
+      id: inverter0_lcd_escape_to_default
+      name: inverter0_lcd_escape_to_default
+    overload_restart_function:
+      id: inverter0_overload_restart_function
+      name: inverter0_overload_restart_function
+    over_temperature_restart_function:
+      id: inverter0_over_temperature_restart_function
+      name: inverter0_over_temperature_restart_function
+    backlight_on:
+      id: inverter0_backlight_on
+      name: inverter0_backlight_on
+
+output:
+  - platform: pipsolar
+    pipsolar_id: inverter0
+    battery_recharge_voltage:
+      id: inverter0_battery_recharge_voltage_out
+
+sensor:
+  - platform: pipsolar
+    pipsolar_id: inverter0
+    grid_rating_voltage:
+      id: inverter0_grid_rating_voltage
+      name: inverter0_grid_rating_voltage
+    grid_rating_current:
+      id: inverter0_grid_rating_current
+      name: inverter0_grid_rating_current
+    ac_output_rating_voltage:
+      id: inverter0_ac_output_rating_voltage
+      name: inverter0_ac_output_rating_voltage
+    ac_output_rating_frequency:
+      id: inverter0_ac_output_rating_frequency
+      name: inverter0_ac_output_rating_frequency
+    ac_output_rating_current:
+      id: inverter0_ac_output_rating_current
+      name: inverter0_ac_output_rating_current
+    ac_output_rating_apparent_power:
+      id: inverter0_ac_output_rating_apparent_power
+      name: inverter0_ac_output_rating_apparent_power
+    ac_output_rating_active_power:
+      id: inverter0_ac_output_rating_active_power
+      name: inverter0_ac_output_rating_active_power
+    battery_rating_voltage:
+      id: inverter0_battery_rating_voltage
+      name: inverter0_battery_rating_voltage
+    battery_recharge_voltage:
+      id: inverter0_battery_recharge_voltage
+      name: inverter0_battery_recharge_voltage
+    battery_under_voltage:
+      id: inverter0_battery_under_voltage
+      name: inverter0_battery_under_voltage
+    battery_bulk_voltage:
+      id: inverter0_battery_bulk_voltage
+      name: inverter0_battery_bulk_voltage
+    battery_float_voltage:
+      id: inverter0_battery_float_voltage
+      name: inverter0_battery_float_voltage
+    battery_type:
+      id: inverter0_battery_type
+      name: inverter0_battery_type
+    current_max_ac_charging_current:
+      id: inverter0_current_max_ac_charging_current
+      name: inverter0_current_max_ac_charging_current
+    current_max_charging_current:
+      id: inverter0_current_max_charging_current
+      name: inverter0_current_max_charging_current
+    input_voltage_range:
+      id: inverter0_input_voltage_range
+      name: inverter0_input_voltage_range
+    output_source_priority:
+      id: inverter0_output_source_priority
+      name: inverter0_output_source_priority
+    charger_source_priority:
+      id: inverter0_charger_source_priority
+      name: inverter0_charger_source_priority
+    parallel_max_num:
+      id: inverter0_parallel_max_num
+      name: inverter0_parallel_max_num
+    machine_type:
+      id: inverter0_machine_type
+      name: inverter0_machine_type
+    topology:
+      id: inverter0_topology
+      name: inverter0_topology
+    output_mode:
+      id: inverter0_output_mode
+      name: inverter0_output_mode
+    battery_redischarge_voltage:
+      id: inverter0_battery_redischarge_voltage
+      name: inverter0_battery_redischarge_voltage
+    pv_ok_condition_for_parallel:
+      id: inverter0_pv_ok_condition_for_parallel
+      name: inverter0_pv_ok_condition_for_parallel
+    pv_power_balance:
+      id: inverter0_pv_power_balance
+      name: inverter0_pv_power_balance
+    grid_voltage:
+      id: inverter0_grid_voltage
+      name: inverter0_grid_voltage
+    grid_frequency:
+      id: inverter0_grid_frequency
+      name: inverter0_grid_frequency
+    ac_output_voltage:
+      id: inverter0_ac_output_voltage
+      name: inverter0_ac_output_voltage
+    ac_output_frequency:
+      id: inverter0_ac_output_frequency
+      name: inverter0_ac_output_frequency
+    ac_output_apparent_power:
+      id: inverter0_ac_output_apparent_power
+      name: inverter0_ac_output_apparent_power
+    ac_output_active_power:
+      id: inverter0_ac_output_active_power
+      name: inverter0_ac_output_active_power
+    output_load_percent:
+      id: inverter0_output_load_percent
+      name: inverter0_output_load_percent
+    bus_voltage:
+      id: inverter0_bus_voltage
+      name: inverter0_bus_voltage
+    battery_voltage:
+      id: inverter0_battery_voltage
+      name: inverter0_battery_voltage
+    battery_charging_current:
+      id: inverter0_battery_charging_current
+      name: inverter0_battery_charging_current
+    battery_capacity_percent:
+      id: inverter0_battery_capacity_percent
+      name: inverter0_battery_capacity_percent
+    inverter_heat_sink_temperature:
+      id: inverter0_inverter_heat_sink_temperature
+      name: inverter0_inverter_heat_sink_temperature
+    pv_input_current_for_battery:
+      id: inverter0_pv_input_current_for_battery
+      name: inverter0_pv_input_current_for_battery
+    pv_input_voltage:
+      id: inverter0_pv_input_voltage
+      name: inverter0_pv_input_voltage
+    battery_voltage_scc:
+      id: inverter0_battery_voltage_scc
+      name: inverter0_battery_voltage_scc
+    battery_discharge_current:
+      id: inverter0_battery_discharge_current
+      name: inverter0_battery_discharge_current
+    battery_voltage_offset_for_fans_on:
+      id: inverter0_battery_voltage_offset_for_fans_on
+      name: inverter0_battery_voltage_offset_for_fans_on
+    eeprom_version:
+      id: inverter0_eeprom_version
+      name: inverter0_eeprom_version
+    pv_charging_power:
+      id: inverter0_pv_charging_power
+      name: inverter0_pv_charging_power
+
+switch:
+  - platform: pipsolar
+    pipsolar_id: inverter0
+    output_source_priority_utility:
+      name: inverter0_output_source_priority_utility
+    output_source_priority_solar:
+      name: inverter0_output_source_priority_solar
+    output_source_priority_battery:
+      name: inverter0_output_source_priority_battery
+    output_source_priority_hybrid:
+      name: inverter0_output_source_priority_hybrid
+    input_voltage_range:
+      name: inverter0_input_voltage_range
+    pv_ok_condition_for_parallel:
+      name: inverter0_pv_ok_condition_for_parallel
+    pv_power_balance:
+      name: inverter0_pv_power_balance
+
+text_sensor:
+  - platform: pipsolar
+    pipsolar_id: inverter0
+    device_mode:
+      id: inverter0_device_mode
+      name: inverter0_device_mode
+    last_qpigs:
+      id: inverter0_last_qpigs
+      name: inverter0_last_qpigs
+    last_qpiri:
+      id: inverter0_last_qpiri
+      name: inverter0_last_qpiri
+    last_qmod:
+      id: inverter0_last_qmod
+      name: inverter0_last_qmod
+    last_qflag:
+      id: inverter0_last_qflag
+      name: inverter0_last_qflag

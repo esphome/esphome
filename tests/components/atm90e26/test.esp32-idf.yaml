@@ -1,26 +1,7 @@
-spi:
-  - id: spi_atm90e26
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+  miso_pin: GPIO15
+  cs_pin: GPIO5
 
-sensor:
-  - platform: atm90e26
-    cs_pin: 13
-    voltage:
-      name: Line Voltage
-    current:
-      name: CT Amps
-    power:
-      name: Active Watts
-    power_factor:
-      name: Power Factor
-    frequency:
-      name: Line Frequency
-    line_frequency: 50Hz
-    meter_constant: 1000
-    pl_const: 1429876
-    gain_pga: 1X
-    gain_metering: 7481
-    gain_voltage: 26400
-    gain_ct: 31251
+<<: !include common.yaml

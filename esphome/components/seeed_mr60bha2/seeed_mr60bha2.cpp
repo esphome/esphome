@@ -1,6 +1,7 @@
 #include "seeed_mr60bha2.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
 #include <utility>
 
 namespace esphome {
@@ -12,10 +13,14 @@ static const char *const TAG = "seeed_mr60bha2";
 // items in an easy-to-read format, including the configuration key-value pairs.
 void MR60BHA2Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MR60BHA2:");
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR(" ", "People Exist Binary Sensor", this->has_target_binary_sensor_);
+#endif
 #ifdef USE_SENSOR
   LOG_SENSOR(" ", "Breath Rate Sensor", this->breath_rate_sensor_);
   LOG_SENSOR(" ", "Heart Rate Sensor", this->heart_rate_sensor_);
   LOG_SENSOR(" ", "Distance Sensor", this->distance_sensor_);
+  LOG_SENSOR(" ", "Target Number Sensor", this->num_targets_sensor_);
 #endif
 }
 
@@ -94,7 +99,8 @@ bool MR60BHA2Component::validate_message_() {
   uint16_t frame_type = encode_uint16(data[5], data[6]);
 
   if (frame_type != BREATH_RATE_TYPE_BUFFER && frame_type != HEART_RATE_TYPE_BUFFER &&
-      frame_type != DISTANCE_TYPE_BUFFER) {
+      frame_type != DISTANCE_TYPE_BUFFER && frame_type != PEOPLE_EXIST_TYPE_BUFFER &&
+      frame_type != PRINT_CLOUD_BUFFER) {
     return false;
   }
 
@@ -144,6 +150,18 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
         }
       }
       break;
+    case PEOPLE_EXIST_TYPE_BUFFER:
+      if (this->has_target_binary_sensor_ != nullptr && length >= 2) {
+        uint16_t has_target_int = encode_uint16(data[1], data[0]);
+        this->has_target_binary_sensor_->publish_state(has_target_int);
+        if (has_target_int == 0) {
+          this->breath_rate_sensor_->publish_state(0.0);
+          this->heart_rate_sensor_->publish_state(0.0);
+          this->distance_sensor_->publish_state(0.0);
+          this->num_targets_sensor_->publish_state(0);
+        }
+      }
+      break;
     case HEART_RATE_TYPE_BUFFER:
       if (this->heart_rate_sensor_ != nullptr && length >= 4) {
         uint32_t current_heart_rate_int = encode_uint32(data[3], data[2], data[1], data[0]);
@@ -155,13 +173,19 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
       }
       break;
     case DISTANCE_TYPE_BUFFER:
-      if (!data[0]) {
+      if (data[0] != 0) {
         if (this->distance_sensor_ != nullptr && length >= 8) {
           uint32_t current_distance_int = encode_uint32(data[7], data[6], data[5], data[4]);
           float distance_float;
           memcpy(&distance_float, &current_distance_int, sizeof(float));
           this->distance_sensor_->publish_state(distance_float);
         }
+      }
+      break;
+    case PRINT_CLOUD_BUFFER:
+      if (this->num_targets_sensor_ != nullptr && length >= 4) {
+        uint32_t current_num_targets_int = encode_uint32(data[3], data[2], data[1], data[0]);
+        this->num_targets_sensor_->publish_state(current_num_targets_int);
       }
       break;
     default:

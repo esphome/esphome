@@ -42,12 +42,12 @@ jobs:
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.2.0
+        uses: actions/cache@v4.2.2
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -61,8 +61,8 @@ jobs:
           pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
           pip install -e .
 
-  black:
-    name: Check black
+  ruff:
+    name: Check ruff
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -74,10 +74,10 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run black
+      - name: Run Ruff
         run: |
           . venv/bin/activate
-          black --verbose esphome tests
+          ruff format esphome tests
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
@@ -255,7 +255,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
-      - black
+      - ruff
       - ci-custom
       - clang-format
       - flake8
@@ -303,14 +303,14 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@v4.2.0
+        uses: actions/cache@v4.2.2
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@v4.2.0
+        uses: actions/cache/restore@v4.2.2
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
@@ -482,7 +482,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
-      - black
+      - ruff
       - ci-custom
       - clang-format
       - flake8

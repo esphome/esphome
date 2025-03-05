@@ -1,7 +1,10 @@
 #pragma once
 
+#include "esphome/components/audio_adc/audio_adc.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+
+#include "es7210_const.h"
 
 namespace esphome {
 namespace es7210 {
@@ -14,25 +17,7 @@ enum ES7210BitsPerSample : uint8_t {
   ES7210_BITS_PER_SAMPLE_32 = 32,
 };
 
-enum ES7210MicGain : uint8_t {
-  ES7210_MIC_GAIN_0DB = 0,
-  ES7210_MIC_GAIN_3DB,
-  ES7210_MIC_GAIN_6DB,
-  ES7210_MIC_GAIN_9DB,
-  ES7210_MIC_GAIN_12DB,
-  ES7210_MIC_GAIN_15DB,
-  ES7210_MIC_GAIN_18DB,
-  ES7210_MIC_GAIN_21DB,
-  ES7210_MIC_GAIN_24DB,
-  ES7210_MIC_GAIN_27DB,
-  ES7210_MIC_GAIN_30DB,
-  ES7210_MIC_GAIN_33DB,
-  ES7210_MIC_GAIN_34_5DB,
-  ES7210_MIC_GAIN_36DB,
-  ES7210_MIC_GAIN_37_5DB,
-};
-
-class ES7210 : public Component, public i2c::I2CDevice {
+class ES7210 : public audio_adc::AudioAdc, public Component, public i2c::I2CDevice {
   /* Class for configuring an ES7210 ADC for microphone input.
    * Based on code from:
    * - https://github.com/espressif/esp-bsp/ (accessed 20241219)
@@ -44,8 +29,10 @@ class ES7210 : public Component, public i2c::I2CDevice {
   void dump_config() override;
 
   void set_bits_per_sample(ES7210BitsPerSample bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
-  void set_mic_gain(ES7210MicGain mic_gain) { this->mic_gain_ = mic_gain; }
+  bool set_mic_gain(float mic_gain) override;
   void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
+
+  float mic_gain() override { return this->mic_gain_; };
 
  protected:
   /// @brief Updates an I2C registry address by modifying the current state
@@ -55,14 +42,20 @@ class ES7210 : public Component, public i2c::I2CDevice {
   /// @return True if successful, false otherwise
   bool es7210_update_reg_bit_(uint8_t reg_addr, uint8_t update_bits, uint8_t data);
 
+  /// @brief Convert floating point mic gain value to register value
+  /// @param mic_gain Gain value to convert
+  /// @return Corresponding register value for specified gain
+  uint8_t es7210_gain_reg_value_(float mic_gain);
+
   bool configure_i2s_format_();
   bool configure_mic_gain_();
   bool configure_sample_rate_();
 
+  bool setup_complete_{false};
   bool enable_tdm_{false};  // TDM is unsupported in ESPHome as of version 2024.12
-  ES7210MicGain mic_gain_;
-  ES7210BitsPerSample bits_per_sample_;
-  uint32_t sample_rate_;
+  float mic_gain_{0};
+  ES7210BitsPerSample bits_per_sample_{ES7210_BITS_PER_SAMPLE_16};
+  uint32_t sample_rate_{0};
 };
 
 }  // namespace es7210

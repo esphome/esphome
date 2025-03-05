@@ -4,6 +4,12 @@
 namespace esphome {
 namespace online_image {
 
+enum DecodeError : int {
+  DECODE_ERROR_INVALID_TYPE = -1,
+  DECODE_ERROR_UNSUPPORTED_FORMAT = -2,
+  DECODE_ERROR_OUT_OF_MEMORY = -3,
+};
+
 class OnlineImage;
 
 /**
@@ -23,8 +29,12 @@ class ImageDecoder {
    * @brief Initialize the decoder.
    *
    * @param download_size The total number of bytes that need to be downloaded for the image.
+   * @return int          Returns 0 on success, a {@see DecodeError} value in case of an error.
    */
-  virtual void prepare(uint32_t download_size) { this->download_size_ = download_size; }
+  virtual int prepare(size_t download_size) {
+    this->download_size_ = download_size;
+    return 0;
+  }
 
   /**
    * @brief Decode a part of the image. It will try reading from the buffer.
@@ -45,8 +55,9 @@ class ImageDecoder {
    *
    * @param width The image's width.
    * @param height The image's height.
+   * @return true if the image was resized, false otherwise.
    */
-  void set_size(int width, int height);
+  bool set_size(int width, int height);
 
   /**
    * @brief Fill a rectangle on the display_buffer using the defined color.
@@ -68,18 +79,15 @@ class ImageDecoder {
   OnlineImage *image_;
   // Initializing to 1, to ensure it is distinguishable from initial "decoded_bytes_".
   // Will be overwritten anyway once the download size is known.
-  uint32_t download_size_ = 1;
-  uint32_t decoded_bytes_ = 0;
+  size_t download_size_ = 1;
+  size_t decoded_bytes_ = 0;
   double x_scale_ = 1.0;
   double y_scale_ = 1.0;
 };
 
 class DownloadBuffer {
  public:
-  DownloadBuffer(size_t size) : size_(size) {
-    this->buffer_ = this->allocator_.allocate(size);
-    this->reset();
-  }
+  DownloadBuffer(size_t size);
 
   virtual ~DownloadBuffer() { this->allocator_.deallocate(this->buffer_, this->size_); }
 
@@ -99,8 +107,10 @@ class DownloadBuffer {
 
   void reset() { this->unread_ = 0; }
 
+  size_t resize(size_t size);
+
  protected:
-  ExternalRAMAllocator<uint8_t> allocator_;
+  RAMAllocator<uint8_t> allocator_{};
   uint8_t *buffer_;
   size_t size_;
   /** Total number of downloaded bytes not yet read. */

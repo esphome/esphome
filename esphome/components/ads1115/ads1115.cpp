@@ -9,8 +9,6 @@ static const char *const TAG = "ads1115";
 static const uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
 static const uint8_t ADS1115_REGISTER_CONFIG = 0x01;
 
-static const uint8_t ADS1115_DATA_RATE_860_SPS = 0b111;  // 3300_SPS for ADS1015
-
 void ADS1115Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
   uint16_t value;
@@ -43,9 +41,9 @@ void ADS1115Component::setup() {
     config |= 0b0000000100000000;
   }
 
-  // Set data rate - 860 samples per second (we're in singleshot mode)
+  // Set data rate - 860 samples per second
   //        0bxxxxxxxx100xxxxx
-  config |= ADS1115_DATA_RATE_860_SPS << 5;
+  config |= ADS1115_860SPS << 5;
 
   // Set comparator mode - hysteresis
   //        0bxxxxxxxxxxx0xxxx
@@ -77,7 +75,7 @@ void ADS1115Component::dump_config() {
   }
 }
 float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1115Gain gain,
-                                            ADS1115Resolution resolution) {
+                                            ADS1115Resolution resolution, ADS1115Samplerate samplerate) {
   uint16_t config = this->prev_config_;
   // Multiplexer
   //        0bxBBBxxxxxxxxxxxx
@@ -88,6 +86,11 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
   //        0bxxxxBBBxxxxxxxxx
   config &= 0b1111000111111111;
   config |= (gain & 0b111) << 9;
+
+  // Sample rate
+  //        0bxxxxxxxxBBBxxxxx
+  config &= 0b1111111100011111;
+  config |= (samplerate & 0b111) << 5;
 
   if (!this->continuous_mode_) {
     // Start conversion
@@ -101,8 +104,54 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
     }
     this->prev_config_ = config;
 
-    // about 1.2 ms with 860 samples per second
-    delay(2);
+    // Delay calculated as: ceil((1000/SPS)+.5)
+    if (resolution == ADS1015_12_BITS) {
+      switch (samplerate) {
+        case ADS1115_8SPS:
+          delay(9);
+          break;
+        case ADS1115_16SPS:
+          delay(5);
+          break;
+        case ADS1115_32SPS:
+          delay(3);
+          break;
+        case ADS1115_64SPS:
+        case ADS1115_128SPS:
+          delay(2);
+          break;
+        default:
+          delay(1);
+          break;
+      }
+    } else {
+      switch (samplerate) {
+        case ADS1115_8SPS:
+          delay(126);  // NOLINT
+          break;
+        case ADS1115_16SPS:
+          delay(63);  // NOLINT
+          break;
+        case ADS1115_32SPS:
+          delay(32);
+          break;
+        case ADS1115_64SPS:
+          delay(17);
+          break;
+        case ADS1115_128SPS:
+          delay(9);
+          break;
+        case ADS1115_250SPS:
+          delay(5);
+          break;
+        case ADS1115_475SPS:
+          delay(3);
+          break;
+        case ADS1115_860SPS:
+          delay(2);
+          break;
+      }
+    }
 
     // in continuous mode, conversion will always be running, rely on the delay
     // to ensure conversion is taking place with the correct settings

@@ -11,7 +11,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(
     UptimeTextSensor,
     icon=ICON_TIMER,
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-).extend(cv.polling_component_schema("60s"))
+).extend(cv.polling_component_schema("30s"))
 
 
 async def to_code(config):

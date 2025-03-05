@@ -8,6 +8,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
+#define SOC_HP_I2C_NUM SOC_I2C_NUM
+#endif
+
 namespace esphome {
 namespace i2c {
 
@@ -17,14 +21,14 @@ void IDFI2CBus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2C bus...");
   static i2c_port_t next_port = I2C_NUM_0;
   port_ = next_port;
-#if SOC_I2C_NUM > 1
+#if SOC_HP_I2C_NUM > 1
   next_port = (next_port == I2C_NUM_0) ? I2C_NUM_1 : I2C_NUM_MAX;
 #else
   next_port = I2C_NUM_MAX;
 #endif
 
   if (port_ == I2C_NUM_MAX) {
-    ESP_LOGE(TAG, "Too many I2C buses configured. Max %u supported.", SOC_I2C_NUM);
+    ESP_LOGE(TAG, "Too many I2C buses configured. Max %u supported.", SOC_HP_I2C_NUM);
     this->mark_failed();
     return;
   }
@@ -39,6 +43,10 @@ void IDFI2CBus::setup() {
   conf.scl_io_num = scl_pin_;
   conf.scl_pullup_en = scl_pullup_enabled_;
   conf.master.clk_speed = frequency_;
+#ifdef USE_ESP32_VARIANT_ESP32S2
+  // workaround for https://github.com/esphome/issues/issues/6718
+  conf.clk_flags = I2C_SCLK_SRC_FLAG_AWARE_DFS;
+#endif
   esp_err_t err = i2c_param_config(port_, &conf);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));

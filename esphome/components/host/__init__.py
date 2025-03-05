@@ -17,6 +17,7 @@ from .gpio import host_pin_to_code  # noqa
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]
+IS_TARGET_PLATFORM = True
 
 
 def set_core_data(config):

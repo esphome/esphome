@@ -47,6 +47,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
+IS_TARGET_PLATFORM = True
 
 
 def _detect_variant(value):

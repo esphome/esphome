@@ -1,0 +1,7 @@
+io_bus:
+
+esphome:
+  on_boot:
+    lambda: |-
+      #include "esphome/components/io_bus/io_bus.h"
+

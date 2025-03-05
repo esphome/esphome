@@ -32,18 +32,17 @@ namespace esp32_improv {
 
 using namespace esp32_ble_server;
 
-class ESP32ImprovComponent : public Component, public BLEServiceComponent {
+class ESP32ImprovComponent : public Component {
  public:
   ESP32ImprovComponent();
   void dump_config() override;
   void loop() override;
   void setup() override;
   void setup_characteristics();
-  void on_client_disconnect() override;
 
   float get_setup_priority() const override;
-  void start() override;
-  void stop() override;
+  void start();
+  void stop();
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
 
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK

@@ -1,22 +1,5 @@
-i2c:
-  - id: i2c_lcd_pcf8574
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-display:
-  - platform: lcd_pcf8574
-    dimensions: 18x4
-    address: 0x3F
-    user_characters:
-      - position: 0
-        data:
-          - 0b00000
-          - 0b01010
-          - 0b00000
-          - 0b00100
-          - 0b00100
-          - 0b10001
-          - 0b01110
-          - 0b00000
-    lambda: |-
-      it.print("Hello World!");
+<<: !include common.yaml

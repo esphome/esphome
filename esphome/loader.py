@@ -53,6 +53,10 @@ class ComponentManifest:
         return getattr(self.module, "IS_PLATFORM_COMPONENT", False)
 
     @property
+    def is_target_platform(self) -> bool:
+        return getattr(self.module, "IS_TARGET_PLATFORM", False)
+
+    @property
     def config_schema(self) -> Optional[Any]:
         return getattr(self.module, "CONFIG_SCHEMA", None)
 
@@ -169,13 +173,15 @@ def install_custom_components_meta_finder():
     install_meta_finder(custom_components_dir)
 
 
-def _lookup_module(domain):
+def _lookup_module(domain, exception):
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
+        if exception:
+            raise
         if "No module named" in str(e):
             _LOGGER.info(
                 "Unable to import component %s: %s", domain, str(e), exc_info=False
@@ -184,6 +190,8 @@ def _lookup_module(domain):
             _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
         return None
     except Exception:  # pylint: disable=broad-except
+        if exception:
+            raise
         _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
         return None
 
@@ -192,14 +200,14 @@ def _lookup_module(domain):
     return manif
 
 
-def get_component(domain):
+def get_component(domain, exception=False):
     assert "." not in domain
-    return _lookup_module(domain)
+    return _lookup_module(domain, exception)
 
 
 def get_platform(domain, platform):
     full = f"{platform}.{domain}"
-    return _lookup_module(full)
+    return _lookup_module(full, False)
 
 
 _COMPONENT_CACHE = {}

@@ -39,6 +39,7 @@ class LwIPSocketImpl : public Socket {
       close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
     }
   }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return lwip_connect(fd_, addr, addrlen); }
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
     int fd = lwip_accept(fd_, addr, addrlen);
     if (fd == -1)

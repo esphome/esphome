@@ -1,8 +1,9 @@
 from typing import Any
 
-import esphome.config_validation as cv
 from esphome.components import sensor
-from .. import const, schema, validate, generate
+import esphome.config_validation as cv
+
+from .. import const, generate, schema, validate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.SENSOR
@@ -22,11 +23,9 @@ MSG_DATA_TYPES = {
 
 def get_entity_validation_schema(entity: schema.SensorSchema) -> cv.Schema:
     return sensor.sensor_schema(
-        unit_of_measurement=entity.unit_of_measurement
-        or sensor._UNDEF,  # pylint: disable=protected-access
+        unit_of_measurement=entity.unit_of_measurement or sensor._UNDEF,  # pylint: disable=protected-access
         accuracy_decimals=entity.accuracy_decimals,
-        device_class=entity.device_class
-        or sensor._UNDEF,  # pylint: disable=protected-access
+        device_class=entity.device_class or sensor._UNDEF,  # pylint: disable=protected-access
         icon=entity.icon or sensor._UNDEF,  # pylint: disable=protected-access
         state_class=entity.state_class,
     ).extend(

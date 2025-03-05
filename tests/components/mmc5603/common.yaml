@@ -1,0 +1,14 @@
+i2c:
+  - id: i2c_mmc5603
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: mmc5603
+    address: 0x30
+    field_strength_x:
+      name: HMC5883L Field Strength X
+    field_strength_y:
+      name: HMC5883L Field Strength Y
+    field_strength_z:
+      name: HMC5883L Field Strength Z

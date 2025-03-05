@@ -1,22 +1,8 @@
-output:
-  - platform: ledc
-    id: light_output_1
-    pin: 1
-  - platform: ledc
-    id: light_output_2
-    pin: 2
-  - platform: ledc
-    id: light_output_3
-    pin: 3
-  - platform: ledc
-    id: light_output_4
-    pin: 4
+substitutions:
+  light_platform: ledc
+  pin1: GPIO2
+  pin2: GPIO3
+  pin3: GPIO4
+  pin4: GPIO5
 
-light:
-  - platform: rgbw
-    name: RGBW Light
-    red: light_output_1
-    green: light_output_2
-    blue: light_output_3
-    white: light_output_4
-    color_interlock: true
+<<: !include common.yaml

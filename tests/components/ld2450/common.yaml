@@ -1,0 +1,168 @@
+uart:
+  - id: ld2450_uart
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
+
+ld2450:
+  - id: ld2450_radar
+    uart_id: ld2450_uart
+    throttle: 1000ms
+
+button:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    factory_reset:
+      name: LD2450 Factory Reset
+      entity_category: config
+    restart:
+      name: LD2450 Restart
+      entity_category: config
+
+sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    target_count:
+      name: Presence Target Count
+    still_target_count:
+      name: Still Target Count
+    moving_target_count:
+      name: Moving Target Count
+    target_1:
+      x:
+        name: Target-1 X
+      y:
+        name: Target-1 Y
+      speed:
+        name: Target-1 Speed
+      angle:
+        name: Target-1 Angle
+      distance:
+        name: Target-1 Distance
+      resolution:
+        name: Target-1 Resolution
+    target_2:
+      x:
+        name: Target-2 X
+      y:
+        name: Target-2 Y
+      speed:
+        name: Target-2 Speed
+      angle:
+        name: Target-2 Angle
+      distance:
+        name: Target-2 Distance
+      resolution:
+        name: Target-2 Resolution
+    target_3:
+      x:
+        name: Target-3 X
+      y:
+        name: Target-3 Y
+      speed:
+        name: Target-3 Speed
+      angle:
+        name: Target-3 Angle
+      distance:
+        name: Target-3 Distance
+      resolution:
+        name: Target-3 Resolution
+    zone_1:
+      target_count:
+        name: Zone-1 All Target Count
+      still_target_count:
+        name: Zone-1 Still Target Count
+      moving_target_count:
+        name: Zone-1 Moving Target Count
+    zone_2:
+      target_count:
+        name: Zone-2 All Target Count
+      still_target_count:
+        name: Zone-2 Still Target Count
+      moving_target_count:
+        name: Zone-2 Moving Target Count
+    zone_3:
+      target_count:
+        name: Zone-3 All Target Count
+      still_target_count:
+        name: Zone-3 Still Target Count
+      moving_target_count:
+        name: Zone-3 Moving Target Count
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    has_target:
+      name: Presence
+    has_moving_target:
+      name: Moving Target
+    has_still_target:
+      name: Still Target
+
+switch:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    bluetooth:
+      name: Bluetooth
+    multi_target:
+      name: Multi Target Tracking
+
+text_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    version:
+      name: LD2450 Firmware
+    mac_address:
+      name: LD2450 BT MAC
+    target_1:
+      direction:
+        name: Target-1 Direction
+    target_2:
+      direction:
+        name: Target-2 Direction
+    target_3:
+      direction:
+        name: Target-3 Direction
+
+number:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    presence_timeout:
+      name: Timeout
+    zone_1:
+      x1:
+        name: Zone-1 X1
+      y1:
+        name: Zone-1 Y1
+      x2:
+        name: Zone-1 X2
+      y2:
+        name: Zone-1 Y2
+    zone_2:
+      x1:
+        name: Zone-2 X1
+      y1:
+        name: Zone-2 Y1
+      x2:
+        name: Zone-2 X2
+      y2:
+        name: Zone-2 Y2
+    zone_3:
+      x1:
+        name: Zone-3 X1
+      y1:
+        name: Zone-3 Y1
+      x2:
+        name: Zone-3 X2
+      y2:
+        name: Zone-3 Y2
+
+select:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    baud_rate:
+      name: Baud Rate
+    zone_type:
+      name: Zone Type

@@ -1,10 +1,5 @@
-uart:
-  - id: uart_hrxl_maxsonar_wr
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 115200
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-sensor:
-  - platform: hrxl_maxsonar_wr
-    id: hrxl_maxsonar_wr_sensor
-    name: Rainwater Tank Level
+<<: !include common.yaml

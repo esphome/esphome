@@ -1,8 +1,5 @@
-i2c:
-  - id: i2c_mcp4725
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-output:
-  - platform: mcp4725
-    id: mcp4725_dac_output
+<<: !include common.yaml

@@ -211,10 +211,9 @@ def part_schema(parts):
 
 
 def automation_schema(typ: LvType):
+    events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
-        events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
-    else:
-        events = df.LV_EVENT_TRIGGERS
+        events = events + (CONF_ON_VALUE,)
     args = typ.get_arg_type() if isinstance(typ, LvType) else []
     args.append(lv_event_t_ptr)
     return {

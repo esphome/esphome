@@ -137,7 +137,7 @@ def validate_temperature_preset(preset, root_config, name, requirements):
 
 
 def generate_comparable_preset(config, name):
-    comparable_preset = f"{CONF_PRESET}:\n" f"  -  {CONF_NAME}: {name}\n"
+    comparable_preset = f"{CONF_PRESET}:\n  -  {CONF_NAME}: {name}\n"
 
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
         comparable_preset += f"     {CONF_DEFAULT_TARGET_TEMPERATURE_LOW}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]}\n"

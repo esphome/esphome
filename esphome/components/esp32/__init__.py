@@ -64,6 +64,7 @@ from .gpio import esp32_pin_to_code  # noqa
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["preferences"]
+IS_TARGET_PLATFORM = True
 
 CONF_RELEASE = "release"
 

@@ -34,6 +34,7 @@ from .gpio import PinInitialState, add_pin_initial_states_array
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
+IS_TARGET_PLATFORM = True
 
 
 def set_core_data(config):

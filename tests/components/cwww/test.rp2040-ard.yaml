@@ -1,16 +1,6 @@
-output:
-  - platform: rp2040_pwm
-    id: light_output_1
-    pin: 12
-  - platform: rp2040_pwm
-    id: light_output_2
-    pin: 13
+substitutions:
+  light_platform: rp2040_pwm
+  pin_o1: GPIO12
+  pin_o2: GPIO13
 
-light:
-  - platform: cwww
-    name: CWWW Light
-    cold_white: light_output_1
-    warm_white: light_output_2
-    cold_white_color_temperature: 153 mireds
-    warm_white_color_temperature: 500 mireds
-    constant_brightness: true
+<<: !include common.yaml

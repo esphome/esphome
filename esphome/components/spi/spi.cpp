@@ -88,7 +88,7 @@ void SPIDelegateBitBash::write(uint16_t data, size_t num_bits) { this->transfer_
 uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   // Clock starts out at idle level
   this->clk_pin_->digital_write(clock_polarity_);
-  uint8_t out_data = 0;
+  uint16_t out_data = 0;
 
   for (uint8_t i = 0; i != num_bits; i++) {
     uint8_t shift;

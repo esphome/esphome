@@ -21,6 +21,7 @@ class HostGPIOPin : public InternalGPIOPin {
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }
+  gpio::Flags get_flags() const override { return flags_; }
   bool is_inverted() const override { return inverted_; }
 
  protected:

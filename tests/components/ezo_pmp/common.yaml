@@ -1,0 +1,61 @@
+i2c:
+  - id: i2c_ezo_pmp
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+ezo_pmp:
+  id: hcl_pump
+  update_interval: 1s
+
+binary_sensor:
+  - platform: ezo_pmp
+    pump_state:
+      name: Pump State
+    is_paused:
+      name: Is Paused
+
+sensor:
+  - platform: ezo_pmp
+    current_volume_dosed:
+      name: Current Volume Dosed
+    total_volume_dosed:
+      name: Total Volume Dosed
+    absolute_total_volume_dosed:
+      name: Absolute Total Volume Dosed
+    pump_voltage:
+      name: Pump Voltage
+    last_volume_requested:
+      name: Last Volume Requested
+    max_flow_rate:
+      name: Max Flow Rate
+
+text_sensor:
+  - platform: ezo_pmp
+    dosing_mode:
+      name: Dosing Mode
+    calibration_status:
+      name: Calibration Status
+      on_value:
+        - ezo_pmp.dose_volume:
+            id: hcl_pump
+            volume: 10
+        - ezo_pmp.dose_volume_over_time:
+            id: hcl_pump
+            volume: 10
+            duration: 2
+        - ezo_pmp.dose_with_constant_flow_rate:
+            id: hcl_pump
+            volume_per_minute: 10
+            duration: 2
+        - ezo_pmp.set_calibration_volume:
+            id: hcl_pump
+            volume: 10
+        - ezo_pmp.find: hcl_pump
+        - ezo_pmp.dose_continuously: hcl_pump
+        - ezo_pmp.clear_total_volume_dosed: hcl_pump
+        - ezo_pmp.clear_calibration: hcl_pump
+        - ezo_pmp.pause_dosing: hcl_pump
+        - ezo_pmp.stop_dosing: hcl_pump
+        - ezo_pmp.arbitrary_command:
+            id: hcl_pump
+            command: D,?

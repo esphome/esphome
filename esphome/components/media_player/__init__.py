@@ -1,5 +1,4 @@
 from esphome import automation
-from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -20,6 +19,16 @@ IS_PLATFORM_COMPONENT = True
 media_player_ns = cg.esphome_ns.namespace("media_player")
 
 MediaPlayer = media_player_ns.class_("MediaPlayer")
+
+MediaPlayerSupportedFormat = media_player_ns.struct("MediaPlayerSupportedFormat")
+
+MediaPlayerFormatPurpose = media_player_ns.enum(
+    "MediaPlayerFormatPurpose", is_class=True
+)
+MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
+    "default": MediaPlayerFormatPurpose.PURPOSE_DEFAULT,
+    "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
+}
 
 
 PlayAction = media_player_ns.class_(
@@ -47,7 +56,7 @@ VolumeSetAction = media_player_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
 
-
+CONF_ANNOUNCEMENT = "announcement"
 CONF_ON_PLAY = "on_play"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_ANNOUNCEMENT = "on_announcement"
@@ -125,7 +134,16 @@ MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
 )
 
 
-MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(MediaPlayer)})
+MEDIA_PLAYER_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(MediaPlayer),
+        cv.Optional(CONF_ANNOUNCEMENT, default=False): cv.templatable(cv.boolean),
+    }
+)
+
+MEDIA_PLAYER_CONDITION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(MediaPlayer)}
+)
 
 
 @automation.register_action(
@@ -135,6 +153,7 @@ MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(MediaPl
         {
             cv.GenerateID(): cv.use_id(MediaPlayer),
             cv.Required(CONF_MEDIA_URL): cv.templatable(cv.url),
+            cv.Optional(CONF_ANNOUNCEMENT, default=False): cv.templatable(cv.boolean),
         },
         key=CONF_MEDIA_URL,
     ),
@@ -143,7 +162,9 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     media_url = await cg.templatable(config[CONF_MEDIA_URL], args, cg.std_string)
+    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
     cg.add(var.set_media_url(media_url))
+    cg.add(var.set_announcement(announcement))
     return var
 
 
@@ -161,19 +182,27 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
 @automation.register_action(
     "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
 )
-@automation.register_condition(
-    "media_player.is_idle", IsIdleCondition, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_paused", IsPausedCondition, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_playing", IsPlayingCondition, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_announcing", IsAnnouncingCondition, MEDIA_PLAYER_ACTION_SCHEMA
-)
 async def media_player_action(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
+    cg.add(var.set_announcement(announcement))
+    return var
+
+
+@automation.register_condition(
+    "media_player.is_idle", IsIdleCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_paused", IsPausedCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_playing", IsPlayingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_announcing", IsAnnouncingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+async def media_player_condition(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

@@ -1,0 +1,25 @@
+i2c:
+  - id: i2c_chsc6x
+    scl: 1
+    sda: 0
+
+spi:
+  clk_pin: 2
+  mosi_pin: 3
+
+display:
+  - platform: ili9xxx
+    id: ili9xxx_display
+    model: GC9A01A
+    invert_colors: True
+    cs_pin: 18
+    dc_pin: 19
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: chsc6x
+    display: ili9xxx_display
+    interrupt_pin: 20

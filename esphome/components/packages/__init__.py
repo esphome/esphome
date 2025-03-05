@@ -1,8 +1,8 @@
 from pathlib import Path
 
-import esphome.config_validation as cv
 from esphome import git, yaml_util
 from esphome.config_helpers import merge_config
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
     CONF_FILE,
@@ -10,12 +10,14 @@ from esphome.const import (
     CONF_MIN_VERSION,
     CONF_PACKAGES,
     CONF_PASSWORD,
+    CONF_PATH,
     CONF_REF,
     CONF_REFRESH,
     CONF_URL,
     CONF_USERNAME,
+    CONF_VARS,
+    __version__ as ESPHOME_VERSION,
 )
-from esphome.const import __version__ as ESPHOME_VERSION
 from esphome.core import EsphomeError
 
 DOMAIN = CONF_PACKAGES
@@ -74,7 +76,19 @@ BASE_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Exclusive(CONF_FILE, "files"): validate_yaml_filename,
             cv.Exclusive(CONF_FILES, "files"): cv.All(
-                cv.ensure_list(validate_yaml_filename),
+                cv.ensure_list(
+                    cv.Any(
+                        validate_yaml_filename,
+                        cv.Schema(
+                            {
+                                cv.Required(CONF_PATH): validate_yaml_filename,
+                                cv.Optional(CONF_VARS, default={}): cv.Schema(
+                                    {cv.string: cv.string}
+                                ),
+                            }
+                        ),
+                    )
+                ),
                 cv.Length(min=1),
             ),
             cv.Optional(CONF_REF): cv.git_ref,
@@ -106,16 +120,25 @@ def _process_base_package(config: dict) -> dict:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
-    files: list[str] = config[CONF_FILES]
+    files = []
+
+    for file in config[CONF_FILES]:
+        if isinstance(file, str):
+            files.append({CONF_PATH: file, CONF_VARS: {}})
+        else:
+            files.append(file)
 
     def get_packages(files) -> dict:
         packages = {}
-        for file in files:
-            yaml_file: Path = repo_dir / file
+        for idx, file in enumerate(files):
+            filename = file[CONF_PATH]
+            yaml_file: Path = repo_dir / filename
+            vars = file.get(CONF_VARS, {})
 
             if not yaml_file.is_file():
                 raise cv.Invalid(
-                    f"{file} does not exist in repository", path=[CONF_FILES]
+                    f"{filename} does not exist in repository",
+                    path=[CONF_FILES, idx, CONF_PATH],
                 )
 
             try:
@@ -131,11 +154,12 @@ def _process_base_package(config: dict) -> dict:
                         raise cv.Invalid(
                             f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
                         )
-
-                packages[file] = new_yaml
+                vars = {k: str(v) for k, v in vars.items()}
+                new_yaml = yaml_util.substitute_vars(new_yaml, vars)
+                packages[f"{filename}{idx}"] = new_yaml
             except EsphomeError as e:
                 raise cv.Invalid(
-                    f"{file} is not a valid YAML file. Please check the file contents.\n{e}"
+                    f"{filename} is not a valid YAML file. Please check the file contents.\n{e}"
                 ) from e
         return packages
 
@@ -154,7 +178,7 @@ def _process_base_package(config: dict) -> dict:
             error = er
 
     if packages is None:
-        raise cv.Invalid(f"Failed to load packages. {error}")
+        raise cv.Invalid(f"Failed to load packages. {error}", path=error.path)
 
     return {"packages": packages}
 

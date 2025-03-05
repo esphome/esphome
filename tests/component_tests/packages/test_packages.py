@@ -1,11 +1,18 @@
 """Tests for the packages component."""
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-
+from esphome.components.packages import do_packages_pass
+from esphome.config_helpers import Extend, Remove
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEFAULTS,
     CONF_DOMAIN,
     CONF_ESPHOME,
+    CONF_FILES,
     CONF_FILTERS,
     CONF_ID,
     CONF_MULTIPLY,
@@ -13,15 +20,18 @@ from esphome.const import (
     CONF_OFFSET,
     CONF_PACKAGES,
     CONF_PASSWORD,
+    CONF_PATH,
     CONF_PLATFORM,
+    CONF_REF,
+    CONF_REFRESH,
     CONF_SENSOR,
     CONF_SSID,
     CONF_UPDATE_INTERVAL,
+    CONF_URL,
+    CONF_VARS,
     CONF_WIFI,
 )
-from esphome.components.packages import do_packages_pass
-from esphome.config_helpers import Extend, Remove
-import esphome.config_validation as cv
+from esphome.util import OrderedDict
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -34,9 +44,11 @@ TEST_SENSOR_PLATFORM_1 = "test_sensor_platform_1"
 TEST_SENSOR_PLATFORM_2 = "test_sensor_platform_2"
 TEST_SENSOR_NAME_1 = "test_sensor_name_1"
 TEST_SENSOR_NAME_2 = "test_sensor_name_2"
+TEST_SENSOR_NAME_3 = "test_sensor_name_3"
 TEST_SENSOR_ID_1 = "test_sensor_id_1"
 TEST_SENSOR_ID_2 = "test_sensor_id_2"
 TEST_SENSOR_UPDATE_INTERVAL = "test_sensor_update_interval"
+TEST_YAML_FILENAME = "sensor1.yaml"
 
 
 @pytest.fixture(name="basic_wifi")
@@ -188,17 +200,35 @@ def test_package_list_merge():
             }
         },
         CONF_SENSOR: [
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ],
     }
 
     expected = {
         CONF_SENSOR: [
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: TEST_SENSOR_NAME_2},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ]
     }
 
@@ -252,7 +282,10 @@ def test_package_list_merge_by_id():
                 CONF_UPDATE_INTERVAL: TEST_SENSOR_UPDATE_INTERVAL,
             },
             {CONF_ID: Extend(TEST_SENSOR_ID_2), CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ],
     }
 
@@ -270,7 +303,10 @@ def test_package_list_merge_by_id():
                 CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
                 CONF_NAME: TEST_SENSOR_NAME_1,
             },
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ]
     }
 
@@ -289,12 +325,18 @@ def test_package_merge_by_id_with_list():
         CONF_PACKAGES: {
             "sensors": {
                 CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]}
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+                    }
                 ]
             }
         },
         CONF_SENSOR: [
-            {CONF_ID: Extend(TEST_SENSOR_ID_1), CONF_FILTERS: [{CONF_OFFSET: 146.0}]}
+            {
+                CONF_ID: Extend(TEST_SENSOR_ID_1),
+                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
+            }
         ],
     }
 
@@ -320,13 +362,19 @@ def test_package_merge_by_missing_id():
         CONF_PACKAGES: {
             "sensors": {
                 CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+                    },
                 ]
             }
         },
         CONF_SENSOR: [
             {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
-            {CONF_ID: Extend(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]},
+            {
+                CONF_ID: Extend(TEST_SENSOR_ID_2),
+                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
+            },
         ],
     }
 
@@ -451,8 +499,6 @@ def test_multiple_package_list_remove_by_id():
 def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
     """
     Ensures that components with missing IDs are removed from dict.
-    """
-    """
     Ensures that the top-level configuration takes precedence over duplicate keys defined in a package.
 
     In this test, CONF_SSID should be overwritten by that defined in the top-level config.
@@ -480,14 +526,20 @@ def test_package_remove_by_missing_id():
         CONF_PACKAGES: {
             "sensors": {
                 CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+                    },
                 ]
             }
         },
         "missing_key": Remove(),
         CONF_SENSOR: [
             {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
-            {CONF_ID: Remove(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]},
+            {
+                CONF_ID: Remove(TEST_SENSOR_ID_2),
+                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
+            },
         ],
     }
 
@@ -507,6 +559,174 @@ def test_package_remove_by_missing_id():
                 CONF_FILTERS: [{CONF_OFFSET: 146.0}],
             },
         ],
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_list(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+):
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    }
+                ]
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    }
+                ]
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_REF: "main",
+                CONF_FILES: [
+                    {CONF_PATH: TEST_YAML_FILENAME},
+                    "sensor2.yaml",
+                ],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_and_vars(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+):
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings with vars
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_DEFAULTS: {CONF_NAME: TEST_SENSOR_NAME_1},
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: "${name}",
+                    }
+                ],
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_DEFAULTS: {CONF_NAME: TEST_SENSOR_NAME_1},
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: "${name}",
+                    }
+                ],
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_DEFAULTS: {CONF_NAME: TEST_SENSOR_NAME_1},
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: "${name}",
+                    }
+                ],
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_REF: "main",
+                CONF_FILES: [
+                    {
+                        CONF_PATH: TEST_YAML_FILENAME,
+                        CONF_VARS: {CONF_NAME: TEST_SENSOR_NAME_2},
+                    },
+                    {
+                        CONF_PATH: TEST_YAML_FILENAME,
+                        CONF_VARS: {CONF_NAME: TEST_SENSOR_NAME_3},
+                    },
+                    {CONF_PATH: TEST_YAML_FILENAME},
+                ],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_3,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+        ]
     }
 
     actual = do_packages_pass(config)

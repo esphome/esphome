@@ -1,12 +1,6 @@
-uart:
-  - id: uart_dsmr
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO12
+  rx_pin: GPIO14
+  request_pin: GPIO15
 
-dsmr:
-  decryption_key: 00112233445566778899aabbccddeeff
-  max_telegram_length: 1000
-  request_pin: 15
-  request_interval: 20s
-  receive_timeout: 100ms
+<<: !include common.yaml

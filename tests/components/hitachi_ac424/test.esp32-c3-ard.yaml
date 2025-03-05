@@ -1,7 +1,4 @@
-remote_transmitter:
-  pin: 2
-  carrier_duty_percent: 50%
+substitutions:
+  pin: GPIO2
 
-climate:
-  - platform: hitachi_ac424
-    name: Hitachi Climate
+<<: !include common.yaml

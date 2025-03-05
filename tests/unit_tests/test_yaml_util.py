@@ -10,7 +10,7 @@ def test_include_with_vars(fixture_path):
     substitutions.do_substitution_pass(actual, None)
     assert actual["esphome"]["name"] == "original"
     assert actual["esphome"]["libraries"][0] == "Wire"
-    assert actual["esphome"]["board"] == "nodemcu"
+    assert actual["esp8266"]["board"] == "nodemcu"
     assert actual["wifi"]["ssid"] == "my_custom_ssid"
 
 

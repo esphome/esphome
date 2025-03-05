@@ -506,9 +506,9 @@ def with_local_variable(id_: ID, rhs: SafeExpType, callback: Callable, *args) ->
     """
 
     # throw if the callback is async:
-    assert not inspect.iscoroutinefunction(
-        callback
-    ), "with_local_variable() callback cannot be async!"
+    assert not inspect.iscoroutinefunction(callback), (
+        "with_local_variable() callback cannot be async!"
+    )
 
     CORE.add(RawStatement("{"))  # output opening curly brace
     obj = variable(id_, rhs, None, True)
@@ -588,9 +588,9 @@ def add(expression: Union[Expression, Statement]):
     CORE.add(expression)
 
 
-def add_global(expression: Union[SafeExpType, Statement]):
+def add_global(expression: Union[SafeExpType, Statement], prepend: bool = False):
     """Add an expression to the codegen global storage (above setup())."""
-    CORE.add_global(expression)
+    CORE.add_global(expression, prepend)
 
 
 def add_library(name: str, version: Optional[str], repository: Optional[str] = None):

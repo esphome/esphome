@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_tmp117
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: tmp117
-    name: TMP117 Temperature
-    update_interval: 5s
+<<: !include common.yaml

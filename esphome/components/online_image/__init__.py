@@ -5,7 +5,7 @@ import esphome.codegen as cg
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import (
     CONF_INVERT_ALPHA,
-    CONF_USE_TRANSPARENCY,
+    CONF_TRANSPARENCY,
     IMAGE_SCHEMA,
     Image_,
     get_image_type_enum,
@@ -52,6 +52,23 @@ class Format:
         pass
 
 
+class BMPFormat(Format):
+    def __init__(self):
+        super().__init__("BMP")
+
+    def actions(self):
+        cg.add_define("USE_ONLINE_IMAGE_BMP_SUPPORT")
+
+
+class JPEGFormat(Format):
+    def __init__(self):
+        super().__init__("JPEG")
+
+    def actions(self):
+        cg.add_define("USE_ONLINE_IMAGE_JPEG_SUPPORT")
+        cg.add_library("JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2")
+
+
 class PNGFormat(Format):
     def __init__(self):
         super().__init__("PNG")
@@ -61,8 +78,15 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.0.2")
 
 
-# New formats can be added here.
-IMAGE_FORMATS = {x.image_type: x for x in (PNGFormat(),)}
+IMAGE_FORMATS = {
+    x.image_type: x
+    for x in (
+        BMPFormat(),
+        JPEGFormat(),
+        PNGFormat(),
+    )
+}
+IMAGE_FORMATS.update({"JPG": IMAGE_FORMATS["JPEG"]})
 
 OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
 
@@ -102,7 +126,7 @@ ONLINE_IMAGE_SCHEMA = (
             cv.Required(CONF_URL): cv.url,
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
-            cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
+            cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
             cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -168,7 +192,7 @@ async def to_code(config):
 
     url = config[CONF_URL]
     width, height = config.get(CONF_RESIZE, (0, 0))
-    transparent = get_transparency_enum(config[CONF_USE_TRANSPARENCY])
+    transparent = get_transparency_enum(config[CONF_TRANSPARENCY])
 
     var = cg.new_Pvariable(
         config[CONF_ID],

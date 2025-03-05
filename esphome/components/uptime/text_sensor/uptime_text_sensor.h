@@ -17,8 +17,8 @@ class UptimeTextSensor : public text_sensor::TextSensor, public PollingComponent
   float get_setup_priority() const override;
 
  protected:
-  uint64_t uptime_{0};
-  uint64_t last_ms_{0};
+  uint32_t uptime_{0};  // uptime in seconds, will overflow after 136 years
+  uint32_t last_ms_{0};
 };
 
 }  // namespace uptime

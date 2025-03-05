@@ -1,13 +1,5 @@
-i2c:
-  - id: i2c_bmp581
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO22
+  sda_pin: GPIO21
 
-sensor:
-  - platform: bmp581
-    temperature:
-      name: "BMP581 Temperature"
-      iir_filter: 2x
-    pressure:
-      name: "BMP581 Pressure"
-      oversampling: 128x
+<<: !include common.yaml

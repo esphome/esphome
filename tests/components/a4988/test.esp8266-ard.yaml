@@ -1,12 +1,6 @@
-stepper:
-  - platform: a4988
-    id: a4988_stepper
-    step_pin:
-      number: 1
-    dir_pin:
-      number: 2
-    sleep_pin:
-      number: 5
-    max_speed: 250 steps/s
-    acceleration: 100 steps/s^2
-    deceleration: 200 steps/s^2
+substitutions:
+  step_pin: GPIO1
+  dir_pin: GPIO2
+  sleep_pin: GPIO5
+
+<<: !include common.yaml

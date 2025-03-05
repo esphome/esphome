@@ -1,20 +1,5 @@
-i2c:
-  - id: i2c_gp8403
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-gp8403:
-  - id: gp8403_5v
-    voltage: 5V
-  - id: gp8403_10v
-    voltage: 10V
-
-output:
-  - platform: gp8403
-    id: gp8403_output_0
-    gp8403_id: gp8403_5v
-    channel: 0
-  - platform: gp8403
-    gp8403_id: gp8403_10v
-    id: gp8403_output_1
-    channel: 1
+<<: !include common.yaml

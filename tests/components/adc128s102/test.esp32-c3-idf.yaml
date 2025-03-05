@@ -1,14 +1,7 @@
-spi:
-  - id: spi_adc128s102
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO2
 
-adc128s102:
-  cs_pin: 8
-  id: adc128s102_adc
-
-sensor:
-  - platform: adc128s102
-    id: adc128s102_channel_0
-    channel: 0
+<<: !include common.yaml

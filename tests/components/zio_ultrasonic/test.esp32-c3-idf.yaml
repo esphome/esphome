@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_zio_ultrasonic
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: zio_ultrasonic
-    name: "Distance"
-    update_interval: 60s
+<<: !include common.yaml

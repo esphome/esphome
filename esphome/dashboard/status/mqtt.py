@@ -4,19 +4,27 @@ import binascii
 import json
 import os
 import threading
+import typing
 
 from esphome import mqtt
 
-from ..core import DASHBOARD
-from ..entries import EntryState
+from ..entries import EntryStateSource, bool_to_entry_state
+
+if typing.TYPE_CHECKING:
+    from ..core import ESPHomeDashboard
 
 
 class MqttStatusThread(threading.Thread):
     """Status thread to get the status of the devices via MQTT."""
 
+    def __init__(self, dashboard: ESPHomeDashboard) -> None:
+        """Initialize the status thread."""
+        super().__init__()
+        self.dashboard = dashboard
+
     def run(self) -> None:
         """Run the status thread."""
-        dashboard = DASHBOARD
+        dashboard = self.dashboard
         entries = dashboard.entries
         current_entries = entries.all()
 
@@ -31,10 +39,13 @@ class MqttStatusThread(threading.Thread):
                 data = json.loads(payload)
                 if "name" not in data:
                     return
-                for entry in current_entries:
-                    if entry.name == data["name"]:
-                        entries.set_state(entry, EntryState.ONLINE)
-                        return
+                if matching_entries := entries.get_by_name(data["name"]):
+                    for entry in matching_entries:
+                        # Only override state if we don't have a state from another source
+                        # or we have a state from MQTT and the device is reachable
+                        entries.set_state_if_online_or_source(
+                            entry, bool_to_entry_state(True, EntryStateSource.MQTT)
+                        )
 
         def on_connect(client, userdata, flags, return_code):
             client.publish("esphome/discover", None, retain=False)
@@ -56,8 +67,10 @@ class MqttStatusThread(threading.Thread):
             current_entries = entries.all()
             # will be set to true on on_message
             for entry in current_entries:
-                if entry.no_mdns:
-                    entries.set_state(entry, EntryState.OFFLINE)
+                # Only override state if we don't have a state from another source
+                entries.set_state_if_source(
+                    entry, bool_to_entry_state(False, EntryStateSource.MQTT)
+                )
 
             client.publish("esphome/discover", None, retain=False)
             dashboard.mqtt_ping_request.wait()

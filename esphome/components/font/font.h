@@ -15,6 +15,7 @@ class Font;
 struct GlyphData {
   const uint8_t *a_char;
   const uint8_t *data;
+  int advance;
   int offset_x;
   int offset_y;
   int width;

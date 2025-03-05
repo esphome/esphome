@@ -1,0 +1,9 @@
+stepper:
+  - platform: a4988
+    id: a4988_stepper
+    step_pin: ${step_pin}
+    dir_pin: ${dir_pin}
+    sleep_pin: ${sleep_pin}
+    max_speed: 250 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 200 steps/s^2

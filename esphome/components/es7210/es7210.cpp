@@ -25,12 +25,12 @@ static const size_t MCLK_DIV_FRE = 256;
   }
 
 void ES7210::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES7210 ADC:");
+  ESP_LOGCONFIG(TAG, "ES7210 audio ADC:");
   ESP_LOGCONFIG(TAG, "  Bits Per Sample: %" PRIu8, this->bits_per_sample_);
   ESP_LOGCONFIG(TAG, "  Sample Rate: %" PRIu32, this->sample_rate_);
 
   if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  Failed to initialize!");
+    ESP_LOGE(TAG, "  Failed to initialize");
     return;
   }
 }
@@ -84,6 +84,16 @@ void ES7210::setup() {
   // Enable device
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x71));
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x41));
+
+  this->setup_complete_ = true;
+}
+
+bool ES7210::set_mic_gain(float mic_gain) {
+  this->mic_gain_ = clamp<float>(mic_gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX);
+  if (this->setup_complete_) {
+    return this->configure_mic_gain_();
+  }
+  return true;
 }
 
 bool ES7210::configure_sample_rate_() {
@@ -122,9 +132,11 @@ bool ES7210::configure_sample_rate_() {
 
   return true;
 }
+
 bool ES7210::configure_mic_gain_() {
-  for (int i = 0; i < 4; ++i) {
-    this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43 + i, 0x10, 0x00);
+  auto regv = this->es7210_gain_reg_value_(this->mic_gain_);
+  for (uint8_t i = 0; i < 4; ++i) {
+    ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43 + i, 0x10, 0x00));
   }
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0xff));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0xff));
@@ -133,27 +145,42 @@ bool ES7210::configure_mic_gain_() {
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x0f, this->mic_gain_));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x0f, regv));
 
   // Configure mic 2
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x0f, this->mic_gain_));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x0f, regv));
 
   // Configure mic 3
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x0f, this->mic_gain_));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x0f, regv));
 
   // Configure mic 4
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x0f, this->mic_gain_));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x0f, regv));
 
   return true;
+}
+
+uint8_t ES7210::es7210_gain_reg_value_(float mic_gain) {
+  // reg: 12 - 34.5dB, 13 - 36dB, 14 - 37.5dB
+  mic_gain += 0.5;
+  if (mic_gain <= 33.0) {
+    return (uint8_t) mic_gain / 3;
+  }
+  if (mic_gain < 36.0) {
+    return 12;
+  }
+  if (mic_gain < 37.0) {
+    return 13;
+  }
+  return 14;
 }
 
 bool ES7210::configure_i2s_format_() {

@@ -21,6 +21,8 @@ namespace esp32_ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
+static const int UNSET_CONN_ID = 0xFFFF;
+
 class BLEClientBase : public espbt::ESPBTClient, public Component {
  public:
   void setup() override;
@@ -37,6 +39,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void connect() override;
   esp_err_t pair();
   void disconnect() override;
+  void unconditional_disconnect();
   void release_services();
 
   bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
@@ -94,7 +97,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   int gattc_if_;
   esp_bd_addr_t remote_bda_;
   esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
-  uint16_t conn_id_{0xFFFF};
+  uint16_t conn_id_{UNSET_CONN_ID};
   uint64_t address_{0};
   bool auto_connect_{false};
   std::string address_str_{};

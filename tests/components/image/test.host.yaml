@@ -12,7 +12,7 @@ image:
       dither: FloydSteinberg
     - id: transparent_transparent_image
       file: ../../pnglogo.png
-      use_transparency: chroma_key
+      transparency: chroma_key
   rgb:
     alpha_channel:
       - id: rgba_image
@@ -28,21 +28,21 @@ image:
   rgb565:
     - id: rgb565_image
       file: ../../pnglogo.png
-      use_transparency: opaque
+      transparency: opaque
     - id: rgb565_ck_image
       file: ../../pnglogo.png
-      use_transparency: chroma_key
+      transparency: chroma_key
     - id: rgb565_alpha_image
       file: ../../pnglogo.png
-      use_transparency: alpha_channel
+      transparency: alpha_channel
   grayscale:
     - id: grayscale_alpha_image
       file: ../../pnglogo.png
-      use_transparency: alpha_channel
+      transparency: alpha_channel
       resize: 50x50
     - id: grayscale_ck_image
       file: ../../pnglogo.png
-      use_transparency: chroma_key
+      transparency: chroma_key
     - id: grayscale_image
       file: ../../pnglogo.png
-      use_transparency: opaque
+      transparency: opaque

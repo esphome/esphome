@@ -1,7 +1,5 @@
-sensor:
-  - platform: hx711
-    name: HX711 Value
-    dout_pin: 4
-    clk_pin: 5
-    gain: 128
-    update_interval: 15s
+substitutions:
+  clk_pin: GPIO5
+  dout_pin: GPIO4
+
+<<: !include common.yaml

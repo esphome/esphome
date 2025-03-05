@@ -8,6 +8,8 @@ CONFIG_SCHEMA = cv.All(
     cv.only_with_esp_idf,
 )
 
+AUTO_LOAD = ["web_server"]
+
 
 async def to_code(config):
     # Increase the maximum supported size of headers section in HTTP request packet to be processed by the server

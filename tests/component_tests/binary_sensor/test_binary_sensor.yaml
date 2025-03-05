@@ -1,7 +1,8 @@
 ---
 esphome:
   name: test
-  platform: ESP8266
+
+esp8266:
   board: d1_mini_lite
 
 binary_sensor:

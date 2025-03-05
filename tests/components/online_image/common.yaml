@@ -14,18 +14,30 @@ online_image:
   - id: online_binary_transparent_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
     type: BINARY
-    use_transparency: chroma_key
+    transparency: chroma_key
     format: png
   - id: online_rgba_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
     format: PNG
     type: RGB
-    use_transparency: alpha_channel
+    transparency: alpha_channel
   - id: online_rgb24_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
     format: PNG
     type: RGB
-    use_transparency: chroma_key
+    transparency: chroma_key
+  - id: online_binary_bmp
+    url: https://samples-files.com/samples/images/bmp/480-360-sample.bmp
+    format: BMP
+    type: BINARY
+  - id: online_jpeg_image
+    url: http://www.faqs.org/images/library.jpg
+    format: JPEG
+    type: RGB
+  - id: online_jpg_image
+    url: http://www.faqs.org/images/library.jpg
+    format: JPG
+    type: RGB565
 
 # Check the set_url action
 esphome:

@@ -35,8 +35,8 @@ void DebugComponent::log_partition_info_() {
   esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
   while (it != NULL) {
     const esp_partition_t *partition = esp_partition_get(it);
-    ESP_LOGCONFIG(TAG, "  %-12s %-4d %-8d 0x%08X 0x%08X", partition->label, partition->type, partition->subtype,
-                  partition->address, partition->size);
+    ESP_LOGCONFIG(TAG, "  %-12s %-4d %-8d 0x%08" PRIX32 " 0x%08" PRIX32, partition->label, partition->type,
+                  partition->subtype, partition->address, partition->size);
     it = esp_partition_next(it);
   }
   esp_partition_iterator_release(it);

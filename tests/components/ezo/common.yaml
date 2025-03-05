@@ -1,0 +1,10 @@
+i2c:
+  - id: i2c_ezo
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: ezo
+    id: ph_ezo
+    address: 99
+    unit_of_measurement: pH

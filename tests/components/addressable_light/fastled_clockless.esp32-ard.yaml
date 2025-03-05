@@ -1,0 +1,4 @@
+substitutions:
+  pin: GPIO2
+
+<<: !include common-ard-fastled.yaml

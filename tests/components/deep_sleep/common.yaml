@@ -1,0 +1,6 @@
+esphome:
+  on_boot:
+    then:
+      - deep_sleep.prevent
+      - delay: 1s
+      - deep_sleep.allow

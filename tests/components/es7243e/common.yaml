@@ -1,0 +1,14 @@
+esphome:
+  on_boot:
+    then:
+      - audio_adc.set_mic_gain: 0db
+      - audio_adc.set_mic_gain: !lambda 'return 4;'
+
+i2c:
+  - id: i2c_es7243e
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+audio_adc:
+  - platform: es7243e
+    id: es7243e_adc
