@@ -28,16 +28,39 @@ void UDPComponent::setup() {
   // set up broadcast socket
   if (this->should_broadcast_) {
     this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-#if USE_NETWORK_IPV6
-    this->broadcast_socket6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IPV6);
-#endif
     if (this->broadcast_socket_ == nullptr) {
       this->mark_failed();
       this->status_set_error("Could not create socket");
       return;
     }
     int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+    int8_t err;
+#if USE_NETWORK_IPV6
+    this->broadcast_socket6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IPV6);
+    if (this->broadcast_socket6_ == nullptr) {
+      this->mark_failed();
+      this->status_set_error("Could not create IPv6 socket");
+      return;
+    }
+    err = this->broadcast_socket6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+    if (err != 0) {
+      this->status_set_warning("IPv6 Socket unable to set reuseaddr");
+      // we can still continue
+    }
+
+    uint8_t multicast_ttl = 1;
+    err = this->broadcast_socket6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &multicast_ttl, sizeof(uint8_t));
+    if (err != 0) {
+      this->status_set_warning("IPv6 Socket unable to set HOPS");
+    }
+    // TODO(HeMan): Why 2?
+    uint8_t netif_index = 2;
+    err = this->broadcast_socket6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &netif_index, sizeof(uint8_t));
+    if (err != 0) {
+      this->status_set_warning("IPv6 Socket unable to set broadcast");
+    }
+#endif
+    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
     if (err != 0) {
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
