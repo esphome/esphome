@@ -12,7 +12,7 @@ float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWAR
 void HBridgeSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up H-Bridge Switch '%s'...", this->name_.c_str());
 
-  optional<bool> initial_state = this->get_initial_state_with_restore_mode().value_or(false);
+  optional<bool> initial_state = this->get_initial_state_with_restore_mode();
 
   // Like GPIOSwitch does, set the pin state both before and after pin setup()
   this->on_pin_->digital_write(false);
@@ -24,7 +24,7 @@ void HBridgeSwitch::setup() {
   this->off_pin_->digital_write(false);
 
   if (initial_state.has_value())
-    this->write_state(initial_state);
+    this->write_state(initial_state.value());
 }
 
 void HBridgeSwitch::dump_config() {
