@@ -197,6 +197,7 @@ void ESPTime::recalc_timestamp_local() {
   tm.tm_hour = this->hour;
   tm.tm_min = this->minute;
   tm.tm_sec = this->second;
+  tm.tm_isdst = -1;
 
   this->timestamp = mktime(&tm);
 }
