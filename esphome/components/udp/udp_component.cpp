@@ -51,7 +51,7 @@ void UDPComponent::setup() {
     uint8_t netif_index = 2;
     err = this->broadcast_socket6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &netif_index, sizeof(uint8_t));
     if (err != 0) {
-      this->status_set_warning("IPv6 Socket unable to set broadcast");
+      this->status_set_warning("IPv6 Socket unable to set multicast");
     }
 #endif
     err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));

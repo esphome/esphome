@@ -1272,7 +1272,7 @@ def ipv4address_multi_broadcast(value):
     address = ipv4address(value)
     if not (address.is_multicast or (address == IPv4Address("255.255.255.255"))):
         raise Invalid(
-            f"{value} is not a multicasst address nor local broadcast address"
+            f"{value} is not a multicast address nor local broadcast address"
         )
     return address
 
