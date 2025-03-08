@@ -48,12 +48,6 @@ void UDPComponent::setup() {
       // we can still continue
     }
 
-    uint8_t multicast_ttl = 1;
-    err = this->broadcast_socket6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &multicast_ttl, sizeof(uint8_t));
-    if (err != 0) {
-      this->status_set_warning("IPv6 Socket unable to set HOPS");
-    }
-    // TODO(HeMan): Why 2?
     uint8_t netif_index = 2;
     err = this->broadcast_socket6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &netif_index, sizeof(uint8_t));
     if (err != 0) {
