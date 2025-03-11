@@ -45,7 +45,7 @@ TIME_SCHEMA = (
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         }
     )
-    .extend(cv.polling_component_schema("15m"))
+    .extend(cv.polling_component_schema("15min"))
     .extend(DUCO_COMPONENT_SCHEMA)
 )
 
