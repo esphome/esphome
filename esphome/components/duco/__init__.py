@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import esphome.codegen as cg
-from esphome.components import uart
+from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_DISABLE_CRC, CONF_DISCOVERY, CONF_ID
+from esphome.const import (
+    CONF_DISABLE_CRC,
+    CONF_DISCOVERY,
+    CONF_ID,
+    CONF_TIME,
+    CONF_TIME_ID,
+)
 
 CODEOWNERS = ["@kokx"]
 DEPENDENCIES = ["uart"]
@@ -13,6 +19,7 @@ Duco = duco_ns.class_("Duco", cg.Component, uart.UARTDevice)
 DucoDiscovery = duco_ns.class_(
     "DucoDiscovery", cg.PollingComponent, cg.Parented.template(Duco)
 )
+DucoTime = duco_ns.class_("DucoTime", cg.PollingComponent, cg.Parented.template(Duco))
 MULTI_CONF = True
 
 CONF_DUCO_ID = "duco_id"
@@ -31,6 +38,17 @@ DISCOVERY_SCHEMA = (
     .extend(DUCO_COMPONENT_SCHEMA)
 )
 
+TIME_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(DucoTime),
+            cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+        }
+    )
+    .extend(cv.polling_component_schema("15m"))
+    .extend(DUCO_COMPONENT_SCHEMA)
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -40,6 +58,7 @@ CONFIG_SCHEMA = (
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DISABLE_CRC, default=False): cv.boolean,
             cv.Optional(CONF_DISCOVERY): DISCOVERY_SCHEMA,
+            cv.Optional(CONF_TIME): TIME_SCHEMA,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -56,6 +75,17 @@ async def to_code(config):
 
     cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
     cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
+
+    if CONF_TIME in config:
+        time_config = config[CONF_TIME]
+        time_var = cg.new_Pvariable(time_config[CONF_ID])
+        await cg.register_component(time_var, time_config)
+
+        if time_id := time_config.get(CONF_TIME_ID):
+            time_ = await cg.get_variable(time_id)
+            cg.add(time_var.set_time_id(time_))
+
+        cg.add(time_var.set_parent(var))
 
     if CONF_DISCOVERY in config:
         discovery_config = config[CONF_DISCOVERY]

@@ -4,8 +4,14 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include <string>
 #include <vector>
 #include <map>
+
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/time.h"
+#endif
 
 namespace esphome {
 namespace duco {
@@ -36,7 +42,7 @@ class DucoMessage {
     return message;
   }
 
-  std::string to_string() {
+  std::string to_string() const {
     std::string res;
 
     char buf[5];
@@ -133,6 +139,21 @@ class DucoDiscovery : public DucoDevice, public PollingComponent {
 
   std::vector<std::tuple<uint8_t, uint8_t>> nodes_;
 };
+
+#ifdef USE_TIME
+class DucoTime : public DucoDevice, public PollingComponent {
+ public:
+  void setup() override;
+  void update() override;
+
+  void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+
+  void receive_response(const DucoMessage &message) override;
+
+ protected:
+  time::RealTimeClock *time_id_{nullptr};
+};
+#endif
 
 }  // namespace duco
 }  // namespace esphome

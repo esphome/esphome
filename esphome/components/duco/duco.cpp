@@ -241,5 +241,40 @@ void DucoDiscovery::receive_response(const DucoMessage &message) {
   }
 }
 
+#ifdef USE_TIME
+void DucoTime::setup() {}
+
+void DucoTime::update() {
+  if (this->time_id_ != nullptr) {
+    ESPTime now = this->time_id_->now();
+    if (!now.is_valid()) {
+      ESP_LOGW(TAG, "Could not obtain valid time.");
+      return;
+    }
+
+    DucoMessage message;
+    message.function = 0x24;
+
+    message.data = {0x05,
+                    static_cast<uint8_t>(now.timestamp & 0xff),
+                    static_cast<uint8_t>((now.timestamp >> 8) & 0xff),
+                    static_cast<uint8_t>((now.timestamp >> 16) & 0xff),
+                    static_cast<uint8_t>((now.timestamp >> 24) & 0xff),
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00};
+
+    this->parent_->send(message, this);
+  }
+}
+
+void DucoTime::receive_response(const DucoMessage &message) {
+  if (message.function == 0x26) {
+    this->parent_->stop_waiting(message.id);
+  }
+}
+#endif
+
 }  // namespace duco
 }  // namespace esphome
