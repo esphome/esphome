@@ -66,19 +66,30 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
     case AudioFileType::FLAC:
       this->flac_decoder_ = make_unique<esp_audio_libs::flac::FLACDecoder>();
       this->free_buffer_required_ =
-          this->output_transfer_buffer_->capacity();  // We'll revise this after reading the header
+          this->output_transfer_buffer_->capacity();  // Adjusted and reallocated after reading the header
       break;
 #endif
 #ifdef USE_AUDIO_MP3_SUPPORT
     case AudioFileType::MP3:
       this->mp3_decoder_ = esp_audio_libs::helix_decoder::MP3InitDecoder();
+
+      // MP3 always has 1152 samples per chunk
       this->free_buffer_required_ = 1152 * sizeof(int16_t) * 2;  // samples * size per sample * channels
+
+      // Always reallocate the output transfer buffer to the smallest necessary size
+      this->output_transfer_buffer_->reallocate(this->free_buffer_required_);
       break;
 #endif
     case AudioFileType::WAV:
       this->wav_decoder_ = make_unique<esp_audio_libs::wav_decoder::WAVDecoder>();
       this->wav_decoder_->reset();
+
+      // Processing WAVs doesn't actually require a specific amount of buffer size, as it is already in PCM format.
+      // Thus, we don't reallocate to a minimum size.
       this->free_buffer_required_ = 1024;
+      if (this->output_transfer_buffer_->capacity() < this->free_buffer_required_) {
+        this->output_transfer_buffer_->reallocate(this->free_buffer_required_);
+      }
       break;
     case AudioFileType::NONE:
     default:
@@ -116,10 +127,18 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 
   uint32_t decoding_start = millis();
 
+  bool first_loop_iteration = true;
+
+  size_t bytes_processed = 0;
+  size_t bytes_available_before_processing = 0;
+
   while (state == FileDecoderState::MORE_TO_PROCESS) {
     // Transfer decoded out
     if (!this->pause_output_) {
-      size_t bytes_written = this->output_transfer_buffer_->transfer_data_to_sink(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
+      // Never shift the data in the output transfer buffer to avoid unnecessary, slow data moves
+      size_t bytes_written =
+          this->output_transfer_buffer_->transfer_data_to_sink(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
+
       if (this->audio_stream_info_.has_value()) {
         this->accumulated_frames_written_ += this->audio_stream_info_.value().bytes_to_frames(bytes_written);
         this->playback_ms_ +=
@@ -138,12 +157,24 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 
     // Decode more audio
 
-    size_t bytes_read = this->input_transfer_buffer_->transfer_data_from_source(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
+    // Only shift data on the first loop iteration to avoid unnecessary, slow moves
+    size_t bytes_read = this->input_transfer_buffer_->transfer_data_from_source(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS),
+                                                                                first_loop_iteration);
 
-    if ((this->potentially_failed_count_ > 0) && (bytes_read == 0)) {
+    if (!first_loop_iteration && (this->input_transfer_buffer_->available() < bytes_processed)) {
+      // Less data is available than what was processed in last iteration, so don't attempt to decode.
+      // This attempts to avoid the decoder from consistently trying to decode an incomplete frame. The transfer buffer
+      // will shift the remaining data to the start and copy more from the source the next time the decode function is
+      // called
+      break;
+    }
+
+    bytes_available_before_processing = this->input_transfer_buffer_->available();
+
+    if ((this->potentially_failed_count_ > 10) && (bytes_read == 0)) {
       // Failed to decode in last attempt and there is no new data
 
-      if (this->input_transfer_buffer_->free() == 0) {
+      if ((this->input_transfer_buffer_->free() == 0) && first_loop_iteration) {
         // The input buffer is full. Since it previously failed on the exact same data, we can never recover
         state = FileDecoderState::FAILED;
       } else {
@@ -174,6 +205,9 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
           break;
       }
     }
+
+    first_loop_iteration = false;
+    bytes_processed = bytes_available_before_processing - this->input_transfer_buffer_->available();
 
     if (state == FileDecoderState::POTENTIALLY_FAILED) {
       ++this->potentially_failed_count_;
@@ -207,13 +241,11 @@ FileDecoderState AudioDecoder::decode_flac_() {
     size_t bytes_consumed = this->flac_decoder_->get_bytes_index();
     this->input_transfer_buffer_->decrease_buffer_length(bytes_consumed);
 
+    // Reallocate the output transfer buffer to the smallest necessary size
     this->free_buffer_required_ = flac_decoder_->get_output_buffer_size_bytes();
-    if (this->output_transfer_buffer_->capacity() < this->free_buffer_required_) {
-      // Output buffer is not big enough
-      if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
-        // Couldn't reallocate output buffer
-        return FileDecoderState::FAILED;
-      }
+    if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
+      // Couldn't reallocate output buffer
+      return FileDecoderState::FAILED;
     }
 
     this->audio_stream_info_ =
