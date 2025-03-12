@@ -177,10 +177,14 @@ void SourceSpeaker::set_mute_state(bool mute_state) {
   this->parent_->get_output_speaker()->set_mute_state(mute_state);
 }
 
+bool SourceSpeaker::get_mute_state() { return this->parent_->get_output_speaker()->get_mute_state(); }
+
 void SourceSpeaker::set_volume(float volume) {
   this->volume_ = volume;
   this->parent_->get_output_speaker()->set_volume(volume);
 }
+
+float SourceSpeaker::get_volume() { return this->parent_->get_output_speaker()->get_volume(); }
 
 size_t SourceSpeaker::process_data_from_source(TickType_t ticks_to_wait) {
   if (!this->transfer_buffer_.use_count()) {

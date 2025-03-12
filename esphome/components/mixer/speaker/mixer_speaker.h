@@ -53,9 +53,11 @@ class SourceSpeaker : public speaker::Speaker, public Component {
 
   /// @brief Mute state changes are passed to the parent's output speaker
   void set_mute_state(bool mute_state) override;
+  bool get_mute_state() override;
 
   /// @brief Volume state changes are passed to the parent's output speaker
   void set_volume(float volume) override;
+  float get_volume() override;
 
   void set_pause_state(bool pause_state) override { this->pause_state_ = pause_state; }
   bool get_pause_state() const override { return this->pause_state_; }

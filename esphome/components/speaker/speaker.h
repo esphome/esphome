@@ -76,7 +76,7 @@ class Speaker {
     }
 #endif
   };
-  float get_volume() { return this->volume_; }
+  virtual float get_volume() { return this->volume_; }
 
   virtual void set_mute_state(bool mute_state) {
     this->mute_state_ = mute_state;
@@ -90,7 +90,7 @@ class Speaker {
     }
 #endif
   }
-  bool get_mute_state() { return this->mute_state_; }
+  virtual bool get_mute_state() { return this->mute_state_; }
 
 #ifdef USE_AUDIO_DAC
   void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
