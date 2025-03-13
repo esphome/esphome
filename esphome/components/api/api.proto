@@ -1567,6 +1567,8 @@ message VoiceAssistantAnnounceRequest {
 
   string media_id = 1;
   string text = 2;
+  string preannounce_media_id = 3;
+  bool start_conversation = 4;
 }
 
 message VoiceAssistantAnnounceFinished {
