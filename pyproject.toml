@@ -43,10 +43,12 @@ include-package-data = true
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-optional-dependencies.dev = { file = ["requirements_dev.txt"] }
-optional-dependencies.test = { file = ["requirements_test.txt"] }
-optional-dependencies.displays = { file = ["requirements_optional.txt"] }
 version = {attr = "esphome.const.__version__"}
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements_dev.txt"] }
+test = { file = ["requirements_test.txt"] }
+displays = { file = ["requirements_optional.txt"] }
 
 [tool.setuptools.packages.find]
 include = ["esphome*"]
