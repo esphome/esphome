@@ -33,12 +33,17 @@ size_t AudioTransferBuffer::free() const {
   if (this->buffer_size_ == 0) {
     return 0;
   }
-  return this->buffer_size_ - (this->buffer_length_ - (this->data_start_ - this->buffer_));
+  return this->buffer_size_ - (this->buffer_length_ + (this->data_start_ - this->buffer_));
 }
 
 void AudioTransferBuffer::decrease_buffer_length(size_t bytes) {
   this->buffer_length_ -= bytes;
-  this->data_start_ += bytes;
+  if (this->buffer_length_ > 0) {
+    this->data_start_ += bytes;
+  } else {
+    // All the data in the buffer has been consumed, reset the start pointer
+    this->data_start_ = this->buffer_;
+  }
 }
 
 void AudioTransferBuffer::increase_buffer_length(size_t bytes) { this->buffer_length_ += bytes; }
@@ -71,7 +76,7 @@ bool AudioTransferBuffer::has_buffered_data() const {
 
 bool AudioTransferBuffer::reallocate(size_t new_buffer_size) {
   if (this->buffer_length_ > 0) {
-    // Already has data in the buffer, fail
+    // Buffer currently has data, so reallocation is impossible
     return false;
   }
   this->deallocate_buffer_();
@@ -106,12 +111,14 @@ void AudioTransferBuffer::deallocate_buffer_() {
   this->buffer_length_ = 0;
 }
 
-size_t AudioSourceTransferBuffer::transfer_data_from_source(TickType_t ticks_to_wait) {
-  // Shift data in buffer to start
-  if (this->buffer_length_ > 0) {
-    memmove(this->buffer_, this->data_start_, this->buffer_length_);
+size_t AudioSourceTransferBuffer::transfer_data_from_source(TickType_t ticks_to_wait, bool pre_shift) {
+  if (pre_shift) {
+    // Shift data in buffer to start
+    if (this->buffer_length_ > 0) {
+      memmove(this->buffer_, this->data_start_, this->buffer_length_);
+    }
+    this->data_start_ = this->buffer_;
   }
-  this->data_start_ = this->buffer_;
 
   size_t bytes_to_read = this->free();
   size_t bytes_read = 0;
@@ -125,7 +132,7 @@ size_t AudioSourceTransferBuffer::transfer_data_from_source(TickType_t ticks_to_
   return bytes_read;
 }
 
-size_t AudioSinkTransferBuffer::transfer_data_to_sink(TickType_t ticks_to_wait) {
+size_t AudioSinkTransferBuffer::transfer_data_to_sink(TickType_t ticks_to_wait, bool post_shift) {
   size_t bytes_written = 0;
   if (this->available()) {
 #ifdef USE_SPEAKER
@@ -139,11 +146,14 @@ size_t AudioSinkTransferBuffer::transfer_data_to_sink(TickType_t ticks_to_wait) 
     }
 
     this->decrease_buffer_length(bytes_written);
+  }
 
+  if (post_shift) {
     // Shift unwritten data to the start of the buffer
     memmove(this->buffer_, this->data_start_, this->buffer_length_);
     this->data_start_ = this->buffer_;
   }
+
   return bytes_written;
 }
 

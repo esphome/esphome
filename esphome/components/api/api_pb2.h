@@ -1832,6 +1832,8 @@ class VoiceAssistantAnnounceRequest : public ProtoMessage {
  public:
   std::string media_id{};
   std::string text{};
+  std::string preannounce_media_id{};
+  bool start_conversation{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1839,6 +1841,7 @@ class VoiceAssistantAnnounceRequest : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class VoiceAssistantAnnounceFinished : public ProtoMessage {
  public:

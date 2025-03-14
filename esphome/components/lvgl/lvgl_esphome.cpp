@@ -416,37 +416,45 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
       resume_on_input_(resume_on_input) {
-  auto *display = this->displays_[0];
-  size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
-  auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
-  this->rotation = display->get_rotation();
-  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
-    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
-    if (this->rotate_buf_ == nullptr)
-      return;
-  }
-  auto *buf = lv_custom_mem_alloc(buf_bytes);  // NOLINT
-  if (buf == nullptr)
-    return;
-  lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
+  lv_disp_draw_buf_init(&this->draw_buf_, nullptr, nullptr, 0);
   lv_disp_drv_init(&this->disp_drv_);
   this->disp_drv_.draw_buf = &this->draw_buf_;
   this->disp_drv_.user_data = this;
   this->disp_drv_.full_refresh = this->full_refresh_;
   this->disp_drv_.flush_cb = static_flush_cb;
   this->disp_drv_.rounder_cb = rounder_cb;
-  this->disp_drv_.hor_res = (lv_coord_t) display->get_width();
-  this->disp_drv_.ver_res = (lv_coord_t) display->get_height();
+  this->disp_drv_.hor_res = 0;
+  this->disp_drv_.ver_res = 0;
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
 }
 
 void LvglComponent::setup() {
-  if (this->draw_buf_.buf1 == nullptr) {
+  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
+  auto *display = this->displays_[0];
+  auto width = display->get_width();
+  auto height = display->get_height();
+  size_t buffer_pixels = width * height / this->buffer_frac_;
+  auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
+  auto *buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
+  if (buffer == nullptr) {
     this->mark_failed();
     this->status_set_error("Memory allocation failure");
     return;
   }
-  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
+  lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buf_bytes);
+  this->disp_drv_.hor_res = width;
+  this->disp_drv_.ver_res = height;
+  // this->setup_driver_(display->get_width(), display->get_height());
+  lv_disp_drv_update(this->disp_, &this->disp_drv_);
+  this->rotation = display->get_rotation();
+  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(this->draw_buf_.size));  // NOLINT
+    if (this->rotate_buf_ == nullptr) {
+      this->mark_failed();
+      this->status_set_error("Memory allocation failure");
+      return;
+    }
+  }
 #if LV_USE_LOG
   lv_log_register_print_cb([](const char *buf) {
     auto next = strchr(buf, ')');
@@ -458,8 +466,8 @@ void LvglComponent::setup() {
   });
 #endif
   // Rotation will be handled by our drawing function, so reset the display rotation.
-  for (auto *display : this->displays_)
-    display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
+  for (auto *disp : this->displays_)
+    disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
   ESP_LOGCONFIG(TAG, "LVGL Setup complete");

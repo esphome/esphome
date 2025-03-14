@@ -7094,6 +7094,16 @@ void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool VoiceAssistantAnnounceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 4: {
+      this->start_conversation = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -7104,6 +7114,10 @@ bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLength
       this->text = value.as_string();
       return true;
     }
+    case 3: {
+      this->preannounce_media_id = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -7111,6 +7125,8 @@ bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLength
 void VoiceAssistantAnnounceRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->media_id);
   buffer.encode_string(2, this->text);
+  buffer.encode_string(3, this->preannounce_media_id);
+  buffer.encode_bool(4, this->start_conversation);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
@@ -7122,6 +7138,14 @@ void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
 
   out.append("  text: ");
   out.append("'").append(this->text).append("'");
+  out.append("\n");
+
+  out.append("  preannounce_media_id: ");
+  out.append("'").append(this->preannounce_media_id).append("'");
+  out.append("\n");
+
+  out.append("  start_conversation: ");
+  out.append(YESNO(this->start_conversation));
   out.append("\n");
   out.append("}");
 }
