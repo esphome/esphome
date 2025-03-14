@@ -146,6 +146,13 @@ def check_missing_glyphs(file, codepoints, warning: bool = False):
             raise cv.Invalid(message)
 
 
+def pt_to_px(pt):
+    """
+    Convert a point size to pixels, rounding up to the nearest pixel
+    """
+    return (pt + 63) // 64
+
+
 def validate_font_config(config):
     """
     Check for duplicate codepoints, then check that all requested codepoints actually
@@ -172,42 +179,43 @@ def validate_font_config(config):
     )
     # Make setpoints and glyphspoints disjoint
     setpoints.difference_update(glyphspoints)
-    if fileconf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
-        if any(x >= 256 for x in setpoints.copy().union(glyphspoints)):
-            raise cv.Invalid("Codepoints in bitmap fonts must be in the range 0-255")
-    else:
-        # for TT fonts, check that glyphs are actually present
-        # Check extras against their own font, exclude from parent font codepoints
-        for extra in config[CONF_EXTRAS]:
-            points = {ord(x) for x in flatten(extra[CONF_GLYPHS])}
-            glyphspoints.difference_update(points)
-            setpoints.difference_update(points)
-            check_missing_glyphs(extra[CONF_FILE], points)
+    # check that glyphs are actually present
+    # Check extras against their own font, exclude from parent font codepoints
+    for extra in config[CONF_EXTRAS]:
+        points = {ord(x) for x in flatten(extra[CONF_GLYPHS])}
+        glyphspoints.difference_update(points)
+        setpoints.difference_update(points)
+        check_missing_glyphs(extra[CONF_FILE], points)
 
-        # A named glyph that can't be provided is an error
+    # A named glyph that can't be provided is an error
 
-        check_missing_glyphs(fileconf, glyphspoints)
-        # A missing glyph from a set is a warning.
-        if not config[CONF_IGNORE_MISSING_GLYPHS]:
-            check_missing_glyphs(fileconf, setpoints, warning=True)
+    check_missing_glyphs(fileconf, glyphspoints)
+    # A missing glyph from a set is a warning.
+    if not config[CONF_IGNORE_MISSING_GLYPHS]:
+        check_missing_glyphs(fileconf, setpoints, warning=True)
 
     # Populate the default after the above checks so that use of the default doesn't trigger errors
+    font = FONT_CACHE[fileconf]
     if not config[CONF_GLYPHS] and not config[CONF_GLYPHSETS]:
-        if fileconf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
-            config[CONF_GLYPHS] = [DEFAULT_GLYPHS]
-        else:
-            # set a default glyphset, intersected with what the font actually offers
-            font = FONT_CACHE[fileconf]
-            config[CONF_GLYPHS] = [
-                chr(x)
-                for x in glyphsets.unicodes_per_glyphset(DEFAULT_GLYPHSET)
-                if font.get_char_index(x) != 0
-            ]
+        # set a default glyphset, intersected with what the font actually offers
+        config[CONF_GLYPHS] = [
+            chr(x)
+            for x in glyphsets.unicodes_per_glyphset(DEFAULT_GLYPHSET)
+            if font.get_char_index(x) != 0
+        ]
 
-    if config[CONF_FILE][CONF_TYPE] == TYPE_LOCAL_BITMAP:
-        if CONF_SIZE in config:
+    if font.has_fixed_sizes:
+        sizes = [pt_to_px(x.size) for x in font.available_sizes]
+        if not sizes:
             raise cv.Invalid(
-                "Size is not a valid option for bitmap fonts, which are inherently fixed size"
+                f"Font {FontCache.get_name(fileconf)} has no available sizes"
+            )
+        if CONF_SIZE not in config:
+            config[CONF_SIZE] = sizes[0]
+        elif config[CONF_SIZE] not in sizes:
+            sizes = ", ".join(str(x) for x in sizes)
+            raise cv.Invalid(
+                f"Font {FontCache.get_name(fileconf)} only has size{'s' if len(sizes) != 1 else ''} {sizes} available"
             )
     elif CONF_SIZE not in config:
         config[CONF_SIZE] = 20
@@ -215,14 +223,7 @@ def validate_font_config(config):
     return config
 
 
-FONT_EXTENSIONS = (".ttf", ".woff", ".otf")
-BITMAP_EXTENSIONS = (".bdf", ".pcf")
-
-
-def validate_bitmap_file(value):
-    if not any(map(value.lower().endswith, BITMAP_EXTENSIONS)):
-        raise cv.Invalid(f"Only {', '.join(BITMAP_EXTENSIONS)} files are supported.")
-    return CORE.relative_config_path(cv.file_(value))
+FONT_EXTENSIONS = (".ttf", ".woff", ".otf", "bdf", ".pcf")
 
 
 def validate_truetype_file(value):
@@ -246,22 +247,12 @@ def add_local_file(value):
 
 
 TYPE_LOCAL = "local"
-TYPE_LOCAL_BITMAP = "local_bitmap"
 TYPE_GFONTS = "gfonts"
 TYPE_WEB = "web"
 LOCAL_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_PATH): validate_truetype_file,
-        }
-    ),
-    add_local_file,
-)
-
-LOCAL_BITMAP_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_PATH): validate_bitmap_file,
         }
     ),
     add_local_file,
@@ -403,15 +394,6 @@ def validate_file_shorthand(value):
             }
         )
 
-    extension = Path(value).suffix
-    if extension in BITMAP_EXTENSIONS:
-        return font_file_schema(
-            {
-                CONF_TYPE: TYPE_LOCAL_BITMAP,
-                CONF_PATH: value,
-            }
-        )
-
     return font_file_schema(
         {
             CONF_TYPE: TYPE_LOCAL,
@@ -424,7 +406,6 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
     {
         TYPE_LOCAL: LOCAL_SCHEMA,
         TYPE_GFONTS: GFONTS_SCHEMA,
-        TYPE_LOCAL_BITMAP: LOCAL_BITMAP_SCHEMA,
         TYPE_WEB: WEB_FONT_SCHEMA,
     }
 )
@@ -522,11 +503,13 @@ async def to_code(config):
     bpp = config[CONF_BPP]
     mode = ft_pixel_mode_grays
     scale = 256 // (1 << bpp)
+    size = config[CONF_SIZE]
     # create the data array for all glyphs
     for codepoint in codepoints:
         font = point_font_map[codepoint]
-        if not font.has_fixed_sizes:
-            font.set_pixel_sizes(config[CONF_SIZE], 0)
+        format = font.get_format().decode("utf-8")
+        if format != "PCF":
+            font.set_pixel_sizes(size, 0)
         font.load_char(codepoint)
         font.glyph.render(mode)
         width = font.glyph.bitmap.width
@@ -550,17 +533,17 @@ async def to_code(config):
                     if pixel & (1 << (bpp - bit_num - 1)):
                         glyph_data[pos // 8] |= 0x80 >> (pos % 8)
                     pos += 1
-        ascender = font.size.ascender // 64
+        ascender = pt_to_px(font.size.ascender)
         if ascender == 0:
             if font.has_fixed_sizes:
-                ascender = font.available_sizes[0].height
+                ascender = size
             else:
                 _LOGGER.error(
                     "Unable to determine ascender of font %s", config[CONF_FILE]
                 )
         glyph_args[codepoint] = GlyphInfo(
             len(data),
-            font.glyph.metrics.horiAdvance // 64,
+            pt_to_px(font.glyph.metrics.horiAdvance),
             font.glyph.bitmap_left,
             ascender - font.glyph.bitmap_top,
             width,
@@ -599,11 +582,11 @@ async def to_code(config):
 
     glyphs = cg.static_const_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
 
-    font_height = base_font.size.height // 64
-    ascender = base_font.size.ascender // 64
+    font_height = pt_to_px(base_font.size.height)
+    ascender = pt_to_px(base_font.size.ascender)
     if font_height == 0:
         if base_font.has_fixed_sizes:
-            font_height = base_font.available_sizes[0].height
+            font_height = size
             ascender = font_height
         else:
             _LOGGER.error("Unable to determine height of font %s", config[CONF_FILE])
