@@ -17,7 +17,7 @@ aioesphomeapi==29.6.0
 zeroconf==0.146.1
 puremagic==1.28
 ruamel.yaml==0.18.6 # dashboard_import
-esphome-glyphsets==0.1.0
+esphome-glyphsets==0.2.0
 pillow==10.4.0
 freetype-py==2.5.1
 
