@@ -753,7 +753,17 @@ class WaveshareEPaper7P3InE : public WaveshareEPaper6C {
 
   uint32_t idle_timeout_() override;
 
-  void deep_sleep() override { ; }
+  void deep_sleep() override {
+    this->command(0x07);  // DEEP_SLEEP
+    this->data(0XA5);
+
+    this->command(0X02);  // DEEP_SLEEP
+    this->data(0x00);
+    this->wait_until_idle_();
+
+    this->command(0x07);  // DEEP_SLEEP
+    this->data(0XA5);
+  }
 
   bool wait_until_idle_();
 
@@ -809,7 +819,10 @@ class WaveshareEPaper7P3InF : public WaveshareEPaper7C {
 
   uint32_t idle_timeout_() override;
 
-  void deep_sleep() override { ; }
+  void deep_sleep() override {
+    this->command(0x07);  // DEEP_SLEEP
+    this->data(0XA5);
+  }
 
   bool wait_until_idle_();
 
