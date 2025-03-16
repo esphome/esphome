@@ -210,8 +210,6 @@ uint8_t WaveshareEPaper6C::color_to_hex(Color color) {
       } else {
         hex_code = 0x2;  // Yellow
       }
-    } else if (color.green > 85) {
-      hex_code = 0x3;  // Orange -> Red
     } else {
       hex_code = 0x3;  // Red (or Magenta)
     }
@@ -3749,9 +3747,6 @@ void WaveshareEPaper7P3InE::initialize() {
   this->command(0xE3);
   this->data(0x2F);
 
-  this->command(0x04);       // PWR on
-  this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
-
   ESP_LOGI(TAG, "Display initialized successfully");
 }
 void HOT WaveshareEPaper7P3InE::display() {
@@ -3761,7 +3756,6 @@ void HOT WaveshareEPaper7P3InE::display() {
   }
 
   // INITIALIZATION
-  ESP_LOGI(TAG, "Initialise the display");
   this->initialize();
 
   // COMMAND DATA START TRANSMISSION
