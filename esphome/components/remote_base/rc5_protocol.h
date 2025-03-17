@@ -9,6 +9,7 @@ namespace remote_base {
 struct RC5Data {
   uint8_t address;
   uint8_t command;
+  uint8_t toggle;
 
   bool operator==(const RC5Data &rhs) const { return address == rhs.address && command == rhs.command; }
 };
