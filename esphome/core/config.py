@@ -189,9 +189,10 @@ def _is_target_platform(name):
     from esphome.loader import get_component
 
     try:
-        if get_component(name, True).is_target_platform:
-            return True
+        return get_component(name, True).is_target_platform
     except KeyError:
+        pass
+    except ImportError:
         pass
     return False
 
