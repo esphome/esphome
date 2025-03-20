@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, climate
 import esphome.config_validation as cv
-from esphome.components import climate, ble_client
 from esphome.const import CONF_ID, CONF_UNIT_OF_MEASUREMENT
 
 UNITS = {

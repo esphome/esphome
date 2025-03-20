@@ -1,13 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import climate
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 from .. import (
-    uponor_smatrix_ns,
-    UponorSmatrixDevice,
     UPONOR_SMATRIX_DEVICE_SCHEMA,
+    UponorSmatrixDevice,
     register_uponor_smatrix_device,
+    uponor_smatrix_ns,
 )
 
 DEPENDENCIES = ["uponor_smatrix"]

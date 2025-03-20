@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
@@ -21,8 +21,8 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_VOLT,
-    UNIT_WATT_HOURS,
     UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 
 CODEOWNERS = ["@latonita"]

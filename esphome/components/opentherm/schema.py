@@ -2,16 +2,10 @@
 # inputs of the OpenTherm component.
 
 from dataclasses import dataclass
-from typing import Optional, TypeVar, Any
+from typing import Any, Optional, TypeVar
 
 import esphome.config_validation as cv
 from esphome.const import (
-    UNIT_CELSIUS,
-    UNIT_EMPTY,
-    UNIT_KILOWATT,
-    UNIT_MICROAMP,
-    UNIT_PERCENT,
-    UNIT_REVOLUTIONS_PER_MINUTE,
     DEVICE_CLASS_COLD,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_EMPTY,
@@ -22,6 +16,12 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_CELSIUS,
+    UNIT_EMPTY,
+    UNIT_KILOWATT,
+    UNIT_MICROAMP,
+    UNIT_PERCENT,
+    UNIT_REVOLUTIONS_PER_MINUTE,
 )
 
 

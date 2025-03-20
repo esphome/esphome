@@ -1,17 +1,16 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import sensor, cover
+import esphome.codegen as cg
+from esphome.components import cover, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLOSE_ACTION,
     CONF_CLOSE_DURATION,
     CONF_ID,
+    CONF_MAX_DURATION,
     CONF_OPEN_ACTION,
     CONF_OPEN_DURATION,
     CONF_STOP_ACTION,
-    CONF_MAX_DURATION,
 )
-
 
 CONF_OPEN_SENSOR = "open_sensor"
 CONF_OPEN_MOVING_CURRENT_THRESHOLD = "open_moving_current_threshold"

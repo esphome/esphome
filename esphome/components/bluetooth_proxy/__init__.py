@@ -34,13 +34,10 @@ def validate_connections(config):
             raise cv.Invalid(
                 "Connections can only be used if the proxy is set to active"
             )
-    else:
-        if config[CONF_ACTIVE]:
-            conf = config.copy()
-            conf[CONF_CONNECTIONS] = [
-                CONNECTION_SCHEMA({}) for _ in range(MAX_CONNECTIONS)
-            ]
-            return conf
+    elif config[CONF_ACTIVE]:
+        conf = config.copy()
+        conf[CONF_CONNECTIONS] = [CONNECTION_SCHEMA({}) for _ in range(MAX_CONNECTIONS)]
+        return conf
     return config
 
 

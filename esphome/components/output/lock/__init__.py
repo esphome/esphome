@@ -1,7 +1,8 @@
 import esphome.codegen as cg
+from esphome.components import lock, output
 import esphome.config_validation as cv
-from esphome.components import output, lock
 from esphome.const import CONF_ID, CONF_OUTPUT
+
 from .. import output_ns
 
 OutputLock = output_ns.class_("OutputLock", lock.Lock, cg.Component)

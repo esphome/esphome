@@ -1,11 +1,8 @@
 from esphome import core
 import esphome.codegen as cg
+from esphome.components import binary_sensor, i2c
 import esphome.config_validation as cv
-from esphome.components import i2c, binary_sensor
-from esphome.const import (
-    CONF_DEBOUNCE,
-    DEVICE_CLASS_MOTION,
-)
+from esphome.const import CONF_DEBOUNCE, DEVICE_CLASS_MOTION
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@kahrendt"]

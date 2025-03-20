@@ -1,21 +1,19 @@
-import esphome.codegen as cg
-from esphome.components import media_player, esp32
-import esphome.config_validation as cv
-
 from esphome import pins
-
+import esphome.codegen as cg
+from esphome.components import esp32, media_player
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE
 
 from .. import (
-    i2s_audio_ns,
-    I2SAudioComponent,
-    I2SAudioOut,
     CONF_I2S_AUDIO_ID,
     CONF_I2S_DOUT_PIN,
     CONF_LEFT,
-    CONF_RIGHT,
     CONF_MONO,
+    CONF_RIGHT,
     CONF_STEREO,
+    I2SAudioComponent,
+    I2SAudioOut,
+    i2s_audio_ns,
 )
 
 CODEOWNERS = ["@jesserockz"]

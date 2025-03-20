@@ -1,14 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import switch
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_INVERTED,
-    CONF_ICON,
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
+
 from .. import factory_reset_ns
 
 FactoryResetSwitch = factory_reset_ns.class_(

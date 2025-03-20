@@ -1,8 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_PIN
+
 from .. import gpio_ns
 
 GPIOBinarySensor = gpio_ns.class_(

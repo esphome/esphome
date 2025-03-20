@@ -5,15 +5,16 @@ from esphome.const import (
     CONF_ID,
     CONF_TIMEOUT,
     DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_ILLUMINANCE,
-    UNIT_SECOND,
-    UNIT_PERCENT,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_CONFIG,
+    ICON_LIGHTBULB,
     ICON_MOTION_SENSOR,
     ICON_TIMELAPSE,
-    ICON_LIGHTBULB,
+    UNIT_PERCENT,
+    UNIT_SECOND,
 )
+
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
 GateThresholdNumber = ld2410_ns.class_("GateThresholdNumber", number.Number)

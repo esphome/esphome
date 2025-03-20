@@ -1,10 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import ENTITY_CATEGORY_CONFIG, CONF_TYPE
+import esphome.config_validation as cv
+from esphome.const import CONF_TYPE, ENTITY_CATEGORY_CONFIG
 
 from .. import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component
-
 
 DEPENDENCIES = ["dfrobot_sen0395"]
 

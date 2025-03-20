@@ -1,22 +1,22 @@
 import esphome.codegen as cg
+from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.components import uart, sensor
 from esphome.const import (
     CONF_ID,
     CONF_MODEL,
     CONF_MOISTURE,
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRECIPITATION,
+    DEVICE_CLASS_PRECIPITATION_INTENSITY,
+    ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
     UNIT_MILLIMETER,
-    ICON_THERMOMETER,
 )
 
-from . import RGModel, RG15Resolution, HydreonRGxxComponent
+from . import HydreonRGxxComponent, RG15Resolution, RGModel
 
 UNIT_INTENSITY = "intensity"
 UNIT_MILLIMETERS_PER_HOUR = "mm/h"

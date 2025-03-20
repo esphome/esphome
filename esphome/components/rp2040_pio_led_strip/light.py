@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import light, rp2040
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
     CONF_ID,
@@ -11,10 +13,6 @@ from esphome.const import (
     CONF_PIN,
     CONF_RGB_ORDER,
 )
-
-import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome.util import _LOGGER
 
 

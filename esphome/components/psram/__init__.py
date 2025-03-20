@@ -1,12 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_MODE, CONF_SPEED
 from esphome.core import CORE
-from esphome.const import (
-    CONF_ID,
-    CONF_MODE,
-    CONF_SPEED,
-)
 
 CODEOWNERS = ["@esphome/core"]
 

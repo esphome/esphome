@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, cover
 import esphome.config_validation as cv
-from esphome.components import cover, ble_client
 from esphome.const import CONF_ID, CONF_PIN
 
 CODEOWNERS = ["@buxtronix"]

@@ -1,6 +1,6 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_PORT, CONF_MODE
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_MODE, CONF_PORT
 
 CODEOWNERS = ["@ayufan"]
 DEPENDENCIES = ["esp32_camera"]

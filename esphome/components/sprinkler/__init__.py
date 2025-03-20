@@ -1,9 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import number
-from esphome.components import switch
+import esphome.codegen as cg
+from esphome.components import number, switch
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ID,
@@ -14,12 +13,12 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_RESTORE_VALUE,
     CONF_RUN_DURATION,
+    CONF_SET_ACTION,
     CONF_STEP,
     CONF_UNIT_OF_MEASUREMENT,
     ENTITY_CATEGORY_CONFIG,
     UNIT_MINUTE,
     UNIT_SECOND,
-    CONF_SET_ACTION,
 )
 
 AUTO_LOAD = ["number", "switch"]

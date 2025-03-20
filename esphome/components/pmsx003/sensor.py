@@ -1,36 +1,35 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
-
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_FORMALDEHYDE,
     CONF_HUMIDITY,
     CONF_ID,
-    CONF_PM_10_0,
-    CONF_PM_1_0,
-    CONF_PM_2_5,
-    CONF_PM_10_0_STD,
-    CONF_PM_1_0_STD,
-    CONF_PM_2_5_STD,
     CONF_PM_0_3UM,
     CONF_PM_0_5UM,
+    CONF_PM_1_0,
+    CONF_PM_1_0_STD,
     CONF_PM_1_0UM,
+    CONF_PM_2_5,
+    CONF_PM_2_5_STD,
     CONF_PM_2_5UM,
     CONF_PM_5_0UM,
+    CONF_PM_10_0,
+    CONF_PM_10_0_STD,
     CONF_PM_10_0UM,
-    CONF_UPDATE_INTERVAL,
     CONF_TEMPERATURE,
     CONF_TYPE,
+    CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
-    DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_CELSIUS,
     UNIT_COUNT_DECILITRE,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
 )
 

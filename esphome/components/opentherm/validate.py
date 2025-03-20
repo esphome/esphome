@@ -4,7 +4,7 @@ from voluptuous import Schema
 
 import esphome.config_validation as cv
 
-from . import const, schema, generate
+from . import const, generate, schema
 from .schema import TSchema
 
 

@@ -9,11 +9,10 @@ not be part of a unit test suite.
 
 """
 
-import sys
-import pytest
-
 from pathlib import Path
+import sys
 
+import pytest
 
 here = Path(__file__).parent
 

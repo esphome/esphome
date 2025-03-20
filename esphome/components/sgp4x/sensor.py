@@ -1,13 +1,13 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
 from esphome.const import (
     CONF_COMPENSATION,
     CONF_ID,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
-    ICON_RADIATOR,
     DEVICE_CLASS_AQI,
+    ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
 )
 

@@ -1,20 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
-
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_COUNTS,
     CONF_DIELECTRIC_CONSTANT,
-    CONF_TEMPERATURE,
+    CONF_ID,
     CONF_MOISTURE,
+    CONF_TEMPERATURE,
     CONF_VOLTAGE,
-    ICON_WATER_PERCENT,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
     UNIT_CELSIUS,
+    UNIT_EMPTY,
     UNIT_PERCENT,
     UNIT_VOLT,
 )

@@ -1,16 +1,11 @@
 import logging
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import fan
-from esphome.const import (
-    CONF_ID,
-)
-from .. import (
-    BEDJET_CLIENT_SCHEMA,
-    bedjet_ns,
-    register_bedjet_child,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
+
+from .. import BEDJET_CLIENT_SCHEMA, bedjet_ns, register_bedjet_child
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jhansche"]

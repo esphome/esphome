@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_EXTERNAL_CLOCK_INPUT
+import esphome.config_validation as cv
+from esphome.const import CONF_EXTERNAL_CLOCK_INPUT, CONF_FREQUENCY, CONF_ID
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True

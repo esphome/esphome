@@ -1,18 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_FREE,
-    CONF_FRAGMENTATION,
     CONF_BLOCK,
+    CONF_FRAGMENTATION,
+    CONF_FREE,
     CONF_LOOP_TIME,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    UNIT_MILLISECOND,
-    UNIT_PERCENT,
-    UNIT_BYTES,
     ICON_COUNTER,
     ICON_TIMER,
+    UNIT_BYTES,
+    UNIT_MILLISECOND,
+    UNIT_PERCENT,
 )
+
 from . import CONF_DEBUG_ID, DebugComponent
 
 DEPENDENCIES = ["debug"]

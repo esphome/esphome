@@ -1,10 +1,11 @@
 from typing import Any
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import switch
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from .. import const, schema, validate, generate
+
+from .. import const, generate, schema, validate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.SWITCH

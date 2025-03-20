@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import key_provider
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_MAX_LENGTH,

@@ -1,22 +1,22 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_COUNT_MODE,
     CONF_FALLING_EDGE,
     CONF_ID,
     CONF_INTERNAL_FILTER,
+    CONF_NUMBER,
     CONF_PIN,
     CONF_RISING_EDGE,
-    CONF_NUMBER,
     CONF_TOTAL,
     CONF_VALUE,
     ICON_PULSE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
+    UNIT_PULSES_PER_MINUTE,
 )
 from esphome.core import CORE
 

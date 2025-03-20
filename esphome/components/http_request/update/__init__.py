@@ -1,14 +1,10 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-
 from esphome.components import update
-from esphome.const import (
-    CONF_SOURCE,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_SOURCE
 
-from .. import http_request_ns, CONF_HTTP_REQUEST_ID, HttpRequestComponent
+from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 from ..ota import OtaHttpRequestComponent
-
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@jesserockz"]

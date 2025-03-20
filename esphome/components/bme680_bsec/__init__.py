@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import esp32, i2c
 import esphome.config_validation as cv
-from esphome.components import i2c, esp32
 from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET
 
 CODEOWNERS = ["@trvrnrth"]

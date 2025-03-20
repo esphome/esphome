@@ -1,12 +1,10 @@
 from esphome import automation
-import esphome.config_validation as cv
-import esphome.codegen as cg
-
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
-
 
 CODEOWNERS = ["@jesserockz"]
 

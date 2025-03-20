@@ -1,10 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, sensor
-from esphome.const import (
-    CONF_SENSOR_ID,
-    CONF_THRESHOLD,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_SENSOR_ID, CONF_THRESHOLD
 
 analog_threshold_ns = cg.esphome_ns.namespace("analog_threshold")
 
