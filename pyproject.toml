@@ -86,6 +86,7 @@ disable = [
   "too-many-branches",
   "too-many-statements",
   "too-many-arguments",
+  "too-many-positional-arguments",
   "too-many-return-statements",
   "too-many-instance-attributes",
   "duplicate-code",
