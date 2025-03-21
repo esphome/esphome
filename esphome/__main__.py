@@ -133,7 +133,7 @@ def get_port_type(port):
     return "NETWORK"
 
 
-def run_miniterm(config, port):
+def run_miniterm(config, port, args):
     import serial
 
     from esphome import platformio_api
@@ -154,7 +154,7 @@ def run_miniterm(config, port):
 
     # We can't set to False by default since it leads to toggling and hence
     # ESP32 resets on some platforms.
-    if config["logger"][CONF_DEASSERT_RTS_DTR]:
+    if config["logger"][CONF_DEASSERT_RTS_DTR] or args.reset:
         ser.dtr = False
         ser.rts = False
 
@@ -244,11 +244,11 @@ def compile_program(args, config):
     return 0 if idedata is not None else 1
 
 
-def upload_using_esptool(config, port, file):
+def upload_using_esptool(config, port, file, speed):
     from esphome import platformio_api
 
-    first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
-        "upload_speed", 460800
+    first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
+        "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
 
     if file is not None:
@@ -348,7 +348,7 @@ def upload_program(config, args, host):
         check_permissions(host)
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
-            return upload_using_esptool(config, host, file)
+            return upload_using_esptool(config, host, file, args.upload_speed)
 
         if CORE.target_platform in (PLATFORM_RP2040):
             return upload_using_platformio(config, args.device)
@@ -397,7 +397,7 @@ def show_logs(config, args, port):
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
         check_permissions(port)
-        return run_miniterm(config, port)
+        return run_miniterm(config, port, args)
     if get_port_type(port) == "NETWORK" and "api" in config:
         if config[CONF_MDNS][CONF_DISABLED] and CONF_MQTT in config:
             from esphome import mqtt
@@ -843,6 +843,10 @@ def parse_args(argv):
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
     parser_upload.add_argument(
+        "--upload_speed",
+        help="Override the default or configured upload speed.",
+    )
+    parser_upload.add_argument(
         "--file",
         help="Manually specify the binary file to upload.",
     )
@@ -859,6 +863,13 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+    parser_logs.add_argument(
+        "--reset",
+        "-r",
+        action="store_true",
+        help="Reset the device before starting serial logs.",
+        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
 
     parser_discover = subparsers.add_parser(
@@ -883,7 +894,18 @@ def parse_args(argv):
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
     parser_run.add_argument(
+        "--upload_speed",
+        help="Override the default or configured upload speed.",
+    )
+    parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"
+    )
+    parser_run.add_argument(
+        "--reset",
+        "-r",
+        action="store_true",
+        help="Reset the device before starting serial logs.",
+        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
 
     parser_clean = subparsers.add_parser(
