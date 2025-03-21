@@ -8,6 +8,6 @@ pre-commit
 pytest==8.2.0
 pytest-cov==5.0.0
 pytest-mock==3.14.0
-pytest-asyncio==0.23.6
+pytest-asyncio==0.25.3
 asyncmock==0.4.2
 hypothesis==6.92.1
