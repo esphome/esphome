@@ -249,7 +249,7 @@ void HlkFm22xComponent::handle_reply_(const std::vector<uint8_t> &data) {
       int16_t face_id = ((int16_t) data[2] << 8) | data[3];
       HlkFm22xFaceDirection direction = (HlkFm22xFaceDirection) data[4];
       ESP_LOGI(TAG, "Face enrolled. ID: %d, Direction: 0x%.2X", face_id, direction);
-      this->enrollment_done_callback_.call(face_id);
+      this->enrollment_done_callback_.call(face_id, (uint8_t) direction);
       this->set_enrolling_(false);
       this->defer([this]() { this->get_face_count_(); });
       break;

@@ -48,7 +48,7 @@ FaceInfoTrigger = hlk_fm22x_ns.class_(
 )
 
 EnrollmentDoneTrigger = hlk_fm22x_ns.class_(
-    "EnrollmentDoneTrigger", automation.Trigger.template(cg.int16)
+    "EnrollmentDoneTrigger", automation.Trigger.template(cg.int16, cg.uint8)
 )
 
 EnrollmentFailedTrigger = hlk_fm22x_ns.class_(
@@ -150,7 +150,9 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_ENROLLMENT_DONE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.int16, "face_id")], conf)
+        await automation.build_automation(
+            trigger, [(cg.int16, "face_id"), (cg.uint8, "direction")], conf
+        )
 
     for conf in config.get(CONF_ON_ENROLLMENT_FAILED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

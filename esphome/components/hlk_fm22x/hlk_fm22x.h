@@ -102,7 +102,7 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
       std::function<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> callback) {
     this->face_info_callback_.add(std::move(callback));
   }
-  void add_on_enrollment_done_callback(std::function<void(int16_t)> callback) {
+  void add_on_enrollment_done_callback(std::function<void(int16_t, uint8_t)> callback) {
     this->enrollment_done_callback_.add(std::move(callback));
   }
   void add_on_enrollment_failed_callback(std::function<void(uint8_t)> callback) {
@@ -135,7 +135,7 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   CallbackManager<void(int16_t, std::string)> face_scan_matched_callback_;
   CallbackManager<void()> face_scan_unmatched_callback_;
   CallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
-  CallbackManager<void(int16_t)> enrollment_done_callback_;
+  CallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   CallbackManager<void(uint8_t)> enrollment_failed_callback_;
 };
 
@@ -170,10 +170,11 @@ class FaceInfoTrigger : public Trigger<int16_t, int16_t, int16_t, int16_t, int16
   }
 };
 
-class EnrollmentDoneTrigger : public Trigger<int16_t> {
+class EnrollmentDoneTrigger : public Trigger<int16_t, uint8_t> {
  public:
   explicit EnrollmentDoneTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_enrollment_done_callback([this](int16_t face_id) { this->trigger(face_id); });
+    parent->add_on_enrollment_done_callback(
+        [this](int16_t face_id, uint8_t direction) { this->trigger(face_id, direction); });
   }
 };
 
