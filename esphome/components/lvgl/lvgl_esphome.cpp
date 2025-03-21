@@ -441,7 +441,7 @@ void LvglComponent::setup() {
     this->status_set_error("Memory allocation failure");
     return;
   }
-  lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buf_bytes);
+  lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buffer_pixels);
   this->disp_drv_.hor_res = width;
   this->disp_drv_.ver_res = height;
   // this->setup_driver_(display->get_width(), display->get_height());
