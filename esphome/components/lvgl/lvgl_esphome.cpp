@@ -423,8 +423,6 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
   this->disp_drv_.full_refresh = this->full_refresh_;
   this->disp_drv_.flush_cb = static_flush_cb;
   this->disp_drv_.rounder_cb = rounder_cb;
-  this->disp_drv_.hor_res = 0;
-  this->disp_drv_.ver_res = 0;
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
 }
 
@@ -448,7 +446,7 @@ void LvglComponent::setup() {
   lv_disp_drv_update(this->disp_, &this->disp_drv_);
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
-    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(this->draw_buf_.size));  // NOLINT
+    this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
       this->mark_failed();
       this->status_set_error("Memory allocation failure");
