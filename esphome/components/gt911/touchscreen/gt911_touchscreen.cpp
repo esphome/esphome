@@ -60,19 +60,24 @@ void GT911Touchscreen::setup() {
       }
     }
   }
-  if (err == i2c::ERROR_OK) {
-    err = this->write(GET_MAX_VALUES, 2);
+  if (this->x_raw_max_ == 0 || this->y_raw_max_ == 0) {
+    // no calibration? Attempt to read the max values from the touchscreen.
     if (err == i2c::ERROR_OK) {
-      err = this->read(data, sizeof(data));
+      err = this->write(GET_MAX_VALUES, 2);
       if (err == i2c::ERROR_OK) {
-        if (this->x_raw_max_ == this->x_raw_min_) {
+        err = this->read(data, sizeof(data));
+        if (err == i2c::ERROR_OK) {
           this->x_raw_max_ = encode_uint16(data[1], data[0]);
-        }
-        if (this->y_raw_max_ == this->y_raw_min_) {
           this->y_raw_max_ = encode_uint16(data[3], data[2]);
+          if (this->swap_x_y_)
+            std::swap(this->x_raw_max_, this->y_raw_max_);
         }
-        esph_log_d(TAG, "calibration max_x/max_y %d/%d", this->x_raw_max_, this->y_raw_max_);
       }
+    }
+    if (err != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Failed to read calibration values from touchscreen!");
+      this->mark_failed();
+      return;
     }
   }
   if (err != i2c::ERROR_OK) {
