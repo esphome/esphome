@@ -24,7 +24,10 @@ float DucoCo2Sensor::get_setup_priority() const {
 void DucoCo2Sensor::receive_response(const DucoMessage &message) {
   if (message.function == 0x12) {
     uint16_t co2_value = (message.data[5] << 8) + message.data[4];
-    publish_state(co2_value);
+    // only publish the state if the co2 value is below 10000
+    // otherwise the value is likely invalid
+    if (co2_value <= 10000)
+      publish_state(co2_value);
 
     this->parent_->stop_waiting(message.id);
   }
