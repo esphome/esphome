@@ -15,6 +15,7 @@ namespace esphome {
 namespace ld2450 {
 
 static const char *const TAG = "ld2450";
+static const char *const NO_MAC("08:05:04:03:02:01");
 static const char *const UNKNOWN_MAC("unknown");
 
 // LD2450 UART Serial Commands
@@ -614,12 +615,12 @@ bool LD2450Component::handle_ack_data_(uint8_t *buffer, uint8_t len) {
       ESP_LOGV(TAG, "MAC address: %s", this->mac_.c_str());
 #ifdef USE_TEXT_SENSOR
       if (this->mac_text_sensor_ != nullptr) {
-        this->mac_text_sensor_->publish_state(this->mac_);
+        this->mac_text_sensor_->publish_state(this->mac_ == NO_MAC ? UNKNOWN_MAC : this->mac_);
       }
 #endif
 #ifdef USE_SWITCH
       if (this->bluetooth_switch_ != nullptr) {
-        this->bluetooth_switch_->publish_state(this->mac_ != UNKNOWN_MAC);
+        this->bluetooth_switch_->publish_state(this->mac_ != NO_MAC);
       }
 #endif
       break;
