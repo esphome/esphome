@@ -138,75 +138,46 @@ void SpeakerMediaPlayer::watch_media_commands_() {
   }
 
   MediaCallCommand media_command;
-  esp_err_t err = ESP_OK;
 
   if (xQueueReceive(this->media_control_command_queue_, &media_command, 0) == pdTRUE) {
-    bool new_url = media_command.new_url.has_value() && media_command.new_url.value();
-    bool new_file = media_command.new_file.has_value() && media_command.new_file.value();
+    bool enqueue = media_command.enqueue.has_value() && media_command.enqueue.value();
 
-    if (new_url || new_file) {
-      bool enqueue = media_command.enqueue.has_value() && media_command.enqueue.value();
+    if (media_command.url.has_value() || media_command.file.has_value()) {
+      PlaylistItem playlist_item;
+      if (media_command.url.has_value()) {
+        playlist_item.url = *media_command.url.value();
+        delete media_command.url.value();
+      }
+      if (media_command.file.has_value()) {
+        playlist_item.file = media_command.file.value();
+      }
 
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
-        // Announcement playlist/pipeline
-
         if (!enqueue) {
-          // Clear the queue and ensure the loaded next item doesn't start playing
+          // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout("next_ann");
           this->announcement_playlist_.clear();
-        }
-
-        PlaylistItem playlist_item;
-        if (new_url) {
-          playlist_item.url = this->announcement_url_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
-            this->announcement_pipeline_->start_url(playlist_item.url.value());
-            this->announcement_pipeline_->set_pause_state(false);
-          }
-        } else {
-          playlist_item.file = this->announcement_file_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
+          if (media_command.file.has_value()) {
             this->announcement_pipeline_->start_file(playlist_item.file.value());
-            this->announcement_pipeline_->set_pause_state(false);
+          } else if (media_command.url.has_value()) {
+            this->announcement_pipeline_->start_url(playlist_item.url.value());
           }
+          this->announcement_pipeline_->set_pause_state(false);
         }
         this->announcement_playlist_.push_back(playlist_item);
       } else {
-        // Media playlist/pipeline
-
         if (!enqueue) {
-          // Clear the queue and ensure the loaded next item doesn't start playing
+          // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout("next_media");
           this->media_playlist_.clear();
-        }
-
-        this->is_paused_ = false;
-        PlaylistItem playlist_item;
-        if (new_url) {
-          playlist_item.url = this->media_url_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
-            this->media_pipeline_->start_url(playlist_item.url.value());
-            this->media_pipeline_->set_pause_state(false);
-          }
-        } else {
-          playlist_item.file = this->media_file_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
+          if (media_command.file.has_value()) {
             this->media_pipeline_->start_file(playlist_item.file.value());
-            this->media_pipeline_->set_pause_state(false);
+          } else if (media_command.url.has_value()) {
+            this->media_pipeline_->start_url(playlist_item.url.value());
           }
+          this->media_pipeline_->set_pause_state(false);
         }
         this->media_playlist_.push_back(playlist_item);
-      }
-
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error starting the audio pipeline: %s", esp_err_to_name(err));
-        this->status_set_error();
-      } else {
-        this->status_clear_error();
       }
 
       return;  // Don't process the new file play command further
@@ -429,12 +400,10 @@ void SpeakerMediaPlayer::play_file(audio::AudioFile *media_file, bool announceme
 
   MediaCallCommand media_command;
 
-  media_command.new_file = true;
+  media_command.file = media_file;
   if (this->single_pipeline_() || announcement) {
-    this->announcement_file_ = media_file;
     media_command.announce = true;
   } else {
-    this->media_file_ = media_file;
     media_command.announce = false;
   }
   media_command.enqueue = enqueue;
@@ -456,14 +425,8 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   }
 
   if (call.get_media_url().has_value()) {
-    std::string new_uri = call.get_media_url().value();
-
-    media_command.new_url = true;
-    if (this->single_pipeline_() || (call.get_announcement().has_value() && call.get_announcement().value())) {
-      this->announcement_url_ = new_uri;
-    } else {
-      this->media_url_ = new_uri;
-    }
+    media_command.url = new std::string(
+        call.get_media_url().value());  // Must be manually deleted after receiving media_command from a queue
 
     if (call.get_command().has_value()) {
       if (call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE) {

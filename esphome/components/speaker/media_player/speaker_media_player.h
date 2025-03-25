@@ -24,8 +24,8 @@ struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
   optional<float> volume;
   optional<bool> announce;
-  optional<bool> new_url;
-  optional<bool> new_file;
+  optional<std::string *> url;  // Must be manually deleted after receiving this struct from a queue
+  optional<audio::AudioFile *> file;
   optional<bool> enqueue;
 };
 
@@ -109,15 +109,11 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
 
   optional<media_player::MediaPlayerSupportedFormat> media_format_;
   AudioPipelineState media_pipeline_state_{AudioPipelineState::STOPPED};
-  std::string media_url_{};         // only modified by control function
-  audio::AudioFile *media_file_{};  // only modified by play_file function
   bool media_repeat_one_{false};
   uint32_t media_playlist_delay_ms_{0};
 
   optional<media_player::MediaPlayerSupportedFormat> announcement_format_;
   AudioPipelineState announcement_pipeline_state_{AudioPipelineState::STOPPED};
-  std::string announcement_url_{};         // only modified by control function
-  audio::AudioFile *announcement_file_{};  // only modified by play_file function
   bool announcement_repeat_one_{false};
   uint32_t announcement_playlist_delay_ms_{0};
 
