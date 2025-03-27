@@ -1,0 +1,20 @@
+esphome:
+  debug_scheduler: true
+  platformio_options:
+    board_build.flash_mode: dio
+  area: testing
+  on_boot:
+    logger.log: on_boot
+  on_shutdown:
+    logger.log: on_shutdown
+  on_loop:
+    logger.log: on_loop
+  compile_process_limit: 1
+  min_version: "2025.1"
+  name_add_mac_suffix: true
+  project:
+    name: esphome.test
+    version: "1.1"
+    on_update:
+      logger.log: on_update
+
