@@ -6,6 +6,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
+#include "esphome/components/uart/uart.h"
+
 
 namespace esphome {
 namespace hdmi_cec {
@@ -20,7 +22,15 @@ enum class ReceiverState : uint8_t {
   WaitingForEOMAck = 5,
 };
 
+enum class TransmitState : uint8_t {
+  Idle       = 0,
+  Busy       = 1,
+  EomAckGood = 2,
+  EomAckFail = 3,
+};
+
 class MessageTrigger;
+using Message = std::vector<uint8_t>;
 
 class HDMICEC : public Component {
 public:
@@ -44,13 +54,31 @@ public:
 protected:
   static void gpio_intr_(HDMICEC *self);
   static void reset_state_variables_(HDMICEC *self);
-  void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
-  bool send_frame_(const std::vector<uint8_t> &frame, bool is_broadcast);
-  void send_start_bit_();
+  void try_builtin_handler_(uint8_t source, uint8_t destination, const Message &data);
+  bool send_frame_(const Message &frame, bool is_broadcast);
+  bool send_start_bit_();
   void send_bit_(bool bit_value);
   bool send_and_read_ack_(bool is_broadcast);
   void switch_to_listen_mode_();
   void switch_to_send_mode_();
+  void handle_received_message(const Message &frame);
+
+  /** Transmit one messge out on the CEC line
+   * @param frame Message to send
+   * @return true: send is finished, message can be removed from queue; false: transmit needs another attempt
+  */
+  void transmit_message();
+  void transmit_message_uart(const Message &frame);
+  void transmit_message_gpio(const Message &frame);
+  bool transmit_my_address(const uint8_t &address);  // send the only first 4 bits with my address and check for bus collision
+  void transmit_receives_ack(bool isEom, bool ack);
+
+  std::queue<Message> send_queue_;
+  TransmitState transmit_state_{TransmitState::Idle};
+  uint8_t transmit_attempts_{0};
+  volatile bool transmit_acks_ok_{true};
+  volatile bool transmit_bus_collision_{false};
+  uart::UARTDevice *uart_{nullptr};
 
   InternalGPIOPin *pin_;
   ISRInternalGPIOPin isr_pin_;
@@ -62,16 +90,17 @@ protected:
   std::vector<MessageTrigger*> message_triggers_;
 
   uint32_t last_falling_edge_us_;
+  uint32_t allow_xmit_message_us_;
   ReceiverState receiver_state_;
   uint8_t recv_bit_counter_;
   uint8_t recv_byte_buffer_;
-  std::vector<uint8_t> recv_frame_buffer_;
-  std::queue<std::vector<uint8_t>> recv_queue_;
+  Message recv_frame_buffer_;
+  std::queue<Message> recv_queue_;
   bool recv_ack_queued_;
   Mutex send_mutex_;
 };
 
-class MessageTrigger : public Trigger<uint8_t, uint8_t, std::vector<uint8_t>> {
+class MessageTrigger : public Trigger<uint8_t, uint8_t, Message> {
   friend class HDMICEC;
 
 public:
