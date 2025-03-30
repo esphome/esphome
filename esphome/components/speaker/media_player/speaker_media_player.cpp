@@ -203,19 +203,37 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           this->is_paused_ = true;
           break;
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
+          // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
+          // This avoids an audible short segment playing after receiving the stop command in a paused state.
           if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
             if (this->announcement_pipeline_ != nullptr) {
               this->cancel_timeout("next_ann");
               this->announcement_playlist_.clear();
               this->announcement_pipeline_->stop();
+              this->set_retry("unpause_ann", 50, 3, [this](const uint8_t remaining_attempts) {
+                if (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED) {
+                  this->announcement_pipeline_->set_pause_state(false);
+                  return RetryResult::DONE;
+                }
+                return RetryResult::RETRY;
+              });
             }
           } else {
             if (this->media_pipeline_ != nullptr) {
               this->cancel_timeout("next_media");
               this->media_playlist_.clear();
               this->media_pipeline_->stop();
+              this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
+                if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
+                  this->media_pipeline_->set_pause_state(false);
+                  this->is_paused_ = false;
+                  return RetryResult::DONE;
+                }
+                return RetryResult::RETRY;
+              });
             }
           }
+
           break;
         case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
           if (this->media_pipeline_ != nullptr) {
