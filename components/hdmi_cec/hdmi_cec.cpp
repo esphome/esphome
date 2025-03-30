@@ -24,8 +24,10 @@ static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = (TOTAL_BIT_US * 3);
 static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 7);
 static const size_t MAX_ATTEMPTS = 5;
 
-static const gpio::Flags INPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_PULLUP;
-static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_OUTPUT;
+// static const gpio::Flags INPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_PULLUP;
+// static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_OUTPUT;
+static const gpio::Flags INPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
+static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 std::string bytes_to_string(std::vector<uint8_t> bytes) {
   std::string result;
@@ -47,7 +49,25 @@ void HDMICEC::setup() {
   isr_pin_ = pin_->to_isr();
   recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
   pin_->attach_interrupt(HDMICEC::gpio_intr_, this, gpio::INTERRUPT_ANY_EDGE);
-  switch_to_listen_mode_();
+  pin_->pin_mode(INPUT_MODE_FLAGS);
+  // The UART can send with a CEC-standard bit pattern by using a 5x oversampling:
+  // Each CEC-bit is created with 5 successive UART-bits.
+  // The UART mode is 1 (always 0) start-bit, 8 data-bits, 1 (always 1) stop-bit: total 10 bit periods for 1 byte
+  // Those 10 UART bits are used to create 2 CEC bits, each of which start low and end high.
+  // So the UART baud rate is ((10 / 2) / (CEC bit period)) bits/sec,
+  // which is 5 / 2400us = 2083 bits/sec or baudrate.
+  // In this mode, every 2 CEC bits need to be translated into 8 UART data bits with the appropriate pattern:
+  // A CEC-1 is translated into 1 low (480us) and 4 high uart bits (1920us)
+  // A CEC-0 is translated into 3 low (1440us) and 2 high uart bits (960us)
+  // These generated low and high periods fall well within the CEC standard presribed ranges
+  if (uart_) {
+    uart_->set_baud_rate(2083);
+    uart_->set_data_bits(8);
+    uart_->set_stop_bits(1);
+    uart_->set_parity(uart::UART_CONFIG_PARITY_NONE);
+    uart_->load_settings(true);
+    // TODO: check/manage tx_pin mode settings??
+  }
 }
 
 void HDMICEC::dump_config() {
@@ -56,6 +76,7 @@ void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "  address: %x", address_);
   ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
   ESP_LOGCONFIG(TAG, "  monitor mode: %s", (monitor_mode_ ? "yes" : "no"));
+  ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
 void HDMICEC::loop() {
@@ -168,24 +189,28 @@ void HDMICEC::transmit_message() {
   }
 
   if (uart_) {
-    transmit_message_uart(frame);
+    transmit_message_on_uart(frame);
   } else {
-    transmit_message_gpio(frame);
+    transmit_message_on_gpio(frame);
   }
   // don't wait here on the transmission result (Acknowledge from destination)
   // because (at least) the uart proceeds in the background
   return;
 }
 
-bool HDMICEC::transmit_my_address(const uint8_t &address) {
-  // My (initiator) address is in the first 4 bits of the header byte
-  for (int i = 0; i < 4; i++) {
-    bool bit_value = ((address >> i) & 0b1);
+bool HDMICEC::transmit_my_address(const uint8_t &header) {
+  // My (initiator) address is in the 4 MSB bits of the header byte (CEC transfers MSB first)
+  for (int i = 7; i >= 4; i--) {
+    bool bit_value = ((header >> i) & 0b1);
     send_bit_(bit_value);
   }
-  // Check for bus collisions, which would make the recieved bus address different from the sent address
+  // Check for bus collisions, which would make the received bus address different from the sent address
   uint8_t received_address = recv_byte_buffer_;
-  bool collision = (received_address & 0xf) != (address & 0xf);
+  bool collision = (received_address & 0xf) != ((header >> 4) & 0xf);
+  if (collision) {
+    ESP_LOGD(TAG, "Mismatch in sent initiator addr 0x%1x and bus seen addr 0x%1x: collision",
+             ((header >> 4) & 0xf), (received_address & 0xf));
+  }
   return !collision;
 }
 
@@ -297,7 +322,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   return true;
 }
 
-void IRAM_ATTR HDMICEC::transmit_message_gpio(const std::vector<uint8_t> &frame) {
+void IRAM_ATTR HDMICEC::transmit_message_on_gpio(const std::vector<uint8_t> &frame) {
   // InterruptLock interrupt_lock;
   // switch_to_send_mode_();
   // send_start_bit_();
@@ -388,6 +413,7 @@ bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
 }
 
 void IRAM_ATTR HDMICEC::switch_to_listen_mode_() {
+  // TODO: remove all mode switching
   pin_->pin_mode(INPUT_MODE_FLAGS);
 }
 
@@ -396,8 +422,38 @@ void IRAM_ATTR HDMICEC::switch_to_send_mode_() {
   pin_->digital_write(true);
 }
 
-void IRAM_ATTR HDMICEC::transmit_message_uart(const std::vector<uint8_t> &frame) {
-  
+void IRAM_ATTR HDMICEC::transmit_message_on_uart(const Message &frame) {
+  std::vector<uint8_t> uart_data;
+  for (auto it = frame.begin(); it != frame.end(); it++) {
+    transmit_byte_on_uart(*it, it == frame.begin(), it == frame.end());
+  }
+}
+
+void IRAM_ATTR HDMICEC::transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom) {
+  // 5 uart-bits create the nominal 2.4ms cec bit period
+  // 10 uart-bits are made with an (always-0) uart start bit, then 8 data bit, and an (always 1) uart stop bit.
+  // transmitting a '0' data bit gets translated to a uart 3xlow, 2xhigh on the cec line
+  // transmitting a '1' data bit gets translated to a uart 1xlow, 4xhigh on the cec line
+  // Note that a CEC 'header/data block' byte is sent MSB (Most Significant Bit) first,
+  // whereas the bytes as given to the UART are sent out with LSB first.
+  //   cec2bit data     10-bit pattern in transmission order      stripped start/stop, swap lsb-first, uart data byte
+  //        00                    0001100011                           10001100 = 8c
+  //        01                    0001101111                           11101100 = ec
+  //        10                    0111100011                           10001111 = 8f
+  //        11                    0111101111                           11101111 = ef
+  static const std::array<uint8_t, 4> cec2bit_to_uartbyte = {0x8c, 0xec, 0x8f, 0xef};
+  std::array<uint8_t, 5> uart_bytes;
+  uint16_t cec_block = ((uint16_t)byte) << 2;
+  cec_block |= (is_eom ? 0x2 : 0);  // add eom (end-of-message) bit
+  cec_block |= 0x1;  // add ack bit, is always written as 1
+  // send block MSB-first, but skip initial 4 bits of header byte as those have already been sent
+  uint8_t nbytes = is_header ? 3 : 5;
+  for (int i = 0; i < nbytes; i++, cec_block >>= 2) {
+    uint8_t twobits = cec_block & 0x3;
+    uart_bytes[nbytes - 1 - i] = cec2bit_to_uartbyte[twobits];
+  }
+  uart_->write_array(uart_bytes.data(), nbytes);
+  // TODO: is this buffered in the uart, and can be called again quickly?
 }
 
 void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {

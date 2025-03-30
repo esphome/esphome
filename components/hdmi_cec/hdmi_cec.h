@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
-#include "esphome/components/uart/uart.h"
-
+#include "esphome/components/uart/uart_component.h"
 
 namespace esphome {
 namespace hdmi_cec {
@@ -41,6 +40,7 @@ public:
   void set_promiscuous_mode(bool promiscuous_mode) { promiscuous_mode_ = promiscuous_mode; }
   void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
   void set_osd_name_bytes(const std::vector<uint8_t> &osd_name_bytes) { osd_name_bytes_ = osd_name_bytes; }
+  void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
 
   bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
@@ -68,8 +68,9 @@ protected:
    * @return true: send is finished, message can be removed from queue; false: transmit needs another attempt
   */
   void transmit_message();
-  void transmit_message_uart(const Message &frame);
-  void transmit_message_gpio(const Message &frame);
+  void transmit_message_on_gpio(const Message &frame);
+  void transmit_message_on_uart(const Message &frame);
+  void transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom);
   bool transmit_my_address(const uint8_t &address);  // send the only first 4 bits with my address and check for bus collision
   void transmit_receives_ack(bool isEom, bool ack);
 
@@ -78,7 +79,7 @@ protected:
   uint8_t transmit_attempts_{0};
   volatile bool transmit_acks_ok_{true};
   volatile bool transmit_bus_collision_{false};
-  uart::UARTDevice *uart_{nullptr};
+  uart::UARTComponent *uart_{nullptr};
 
   InternalGPIOPin *pin_;
   ISRInternalGPIOPin isr_pin_;

@@ -1,9 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
+from esphome.components import uart
 from esphome.const import (
     CONF_ID,
-    CONF_TRIGGER_ID
+    CONF_TRIGGER_ID,
+    CONF_UART_ID
 )
 
 CODEOWNERS = ["@Palakis"]
@@ -63,6 +65,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_PROMISCUOUS_MODE, False): cv.boolean,
         cv.Optional(CONF_MONITOR_MODE, False): cv.boolean,
         cv.Optional(CONF_OSD_NAME, "esphome"): validate_osd_name,
+        cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
         cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MessageTrigger),
@@ -81,6 +84,10 @@ async def to_code(config):
 
     cec_pin_ = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(cec_pin_))
+
+    if config.get(CONF_UART_ID) is not None:
+        uart_component = await cg.get_variable(config[CONF_UART_ID])
+        cg.add(var.set_uart(uart_component))
 
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_physical_address(config[CONF_PHYSICAL_ADDRESS]))
