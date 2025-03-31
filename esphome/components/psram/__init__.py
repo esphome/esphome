@@ -9,9 +9,12 @@ CODEOWNERS = ["@esphome/core"]
 psram_ns = cg.esphome_ns.namespace("psram")
 PsramComponent = psram_ns.class_("PsramComponent", cg.Component)
 
+TYPE_QUAD = "quad"
+TYPE_OCTAL = "octal"
+
 SPIRAM_MODES = {
-    "quad": "CONFIG_SPIRAM_MODE_QUAD",
-    "octal": "CONFIG_SPIRAM_MODE_OCT",
+    TYPE_QUAD: "CONFIG_SPIRAM_MODE_QUAD",
+    TYPE_OCTAL: "CONFIG_SPIRAM_MODE_OCT",
 }
 
 SPIRAM_SPEEDS = {
@@ -20,15 +23,27 @@ SPIRAM_SPEEDS = {
     120e6: "CONFIG_SPIRAM_SPEED_120M",
 }
 
+
+def validate_psram_mode(config):
+    if config[CONF_MODE] == TYPE_OCTAL and config[CONF_SPEED] == 120e6:
+        raise cv.Invalid("PSRAM 120MHz is not supported in octal mode")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
-            cv.Optional(CONF_MODE): cv.enum(SPIRAM_MODES, lower=True),
-            cv.Optional(CONF_SPEED): cv.All(cv.frequency, cv.one_of(*SPIRAM_SPEEDS)),
+            cv.Optional(CONF_MODE, default=TYPE_QUAD): cv.enum(
+                SPIRAM_MODES, lower=True
+            ),
+            cv.Optional(CONF_SPEED, default=40e6): cv.All(
+                cv.frequency, cv.one_of(*SPIRAM_SPEEDS)
+            ),
         }
     ),
     cv.only_on_esp32,
+    validate_psram_mode,
 )
 
 
@@ -45,10 +60,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
 
-        if CONF_MODE in config:
-            add_idf_sdkconfig_option(f"{SPIRAM_MODES[config[CONF_MODE]]}", True)
-        if CONF_SPEED in config:
-            add_idf_sdkconfig_option(f"{SPIRAM_SPEEDS[config[CONF_SPEED]]}", True)
+        add_idf_sdkconfig_option(f"{SPIRAM_MODES[config[CONF_MODE]]}", True)
+        add_idf_sdkconfig_option(f"{SPIRAM_SPEEDS[config[CONF_SPEED]]}", True)
 
     cg.add_define("USE_PSRAM")
 
