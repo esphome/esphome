@@ -93,8 +93,8 @@ protected:
   uint32_t last_falling_edge_us_;
   uint32_t allow_xmit_message_us_;
   ReceiverState receiver_state_;
-  uint8_t recv_bit_counter_;
-  uint8_t recv_byte_buffer_;
+  volatile uint8_t recv_bit_counter_;
+  volatile uint8_t recv_byte_buffer_;
   Message recv_frame_buffer_;
   std::queue<Message> recv_queue_;
   bool recv_ack_queued_;

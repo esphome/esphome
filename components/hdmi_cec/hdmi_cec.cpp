@@ -45,7 +45,8 @@ std::string bytes_to_string(std::vector<uint8_t> bytes) {
 }
 
 void HDMICEC::setup() {
-  this->pin_->setup();  
+  this->pin_->setup();
+  this->pin_->digital_write(true);
   isr_pin_ = pin_->to_isr();
   recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
   pin_->attach_interrupt(HDMICEC::gpio_intr_, this, gpio::INTERRUPT_ANY_EDGE);
@@ -65,8 +66,9 @@ void HDMICEC::setup() {
     uart_->set_data_bits(8);
     uart_->set_stop_bits(1);
     uart_->set_parity(uart::UART_CONFIG_PARITY_NONE);
-    uart_->load_settings(true);
+    uart_->load_settings(false);
     // TODO: check/manage tx_pin mode settings??
+    ESP_LOGD(TAG, "Set uart config");
   }
 }
 
@@ -94,6 +96,15 @@ void HDMICEC::loop() {
   }
   if (!send_queue_.empty()) {
     transmit_message();
+  }
+  static int cnt = 0;
+  if (transmit_state_ == TransmitState::Idle) {
+    cnt = 0;
+  } else if (cnt++ < 20) {
+    const char *state_s = (transmit_state_ == TransmitState::Busy) ? "Busy" : "End";
+    ESP_LOGD(TAG, "T=%d TxState=%d, RxState=%d, bitCnt=%d, ByteBuf=0x%02x, ByteCnt=%d",
+             micros(), static_cast<int>(transmit_state_), static_cast<int>(receiver_state_),
+             recv_bit_counter_, recv_byte_buffer_, recv_frame_buffer_.size());
   }
 }
 
@@ -159,11 +170,9 @@ void HDMICEC::transmit_message() {
   } else if (transmit_state_ == TransmitState::EomAckFail ) {
     // last transmit just ended without appropriate Acknowledge from recipient
     if (transmit_attempts_ >= MAX_ATTEMPTS) {
-      ESP_LOGD(TAG, "frame was NOT sent successfully after %d attempts, drop frame", transmit_attempts_);
+      ESP_LOGD(TAG, "frame was NOT acknowledged after %d attempts, drop frame", transmit_attempts_);
       transmit_attempts_ = 0;
       send_queue_.pop();       
-    } else {
-      transmit_attempts_++;
     }
   }
   transmit_state_ = TransmitState::Idle;
@@ -180,11 +189,12 @@ void HDMICEC::transmit_message() {
   transmit_attempts_++;
   transmit_acks_ok_ = true;  // expect successful acknowledges
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
-  // pin to detect a bus collision and allow early termination of the frame  transmit
+  // pin to detect a bus collision and allow early termination of the frame transmit
   if (!send_start_bit_() || !transmit_my_address(frame[0])) {
     // sending these first bits caused a bus-collision with another initiator.
     // further transmission is stopped immediatly, as the other initiator might not see the collision,
-    allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
+    allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;  // TODO: timing of receiver?
+    transmit_state_ = TransmitState::EomAckFail;
     return;
   }
 
@@ -208,8 +218,8 @@ bool HDMICEC::transmit_my_address(const uint8_t &header) {
   uint8_t received_address = recv_byte_buffer_;
   bool collision = (received_address & 0xf) != ((header >> 4) & 0xf);
   if (collision) {
-    ESP_LOGD(TAG, "Mismatch in sent initiator addr 0x%1x and bus seen addr 0x%1x: collision",
-             ((header >> 4) & 0xf), (received_address & 0xf));
+    ESP_LOGD(TAG, "Mismatch in sent initiator addr 0x%1x and bus seen addr 0x%1x: collision, bitcnt=%d",
+             ((header >> 4) & 0xf), (received_address & 0xf), recv_bit_counter_);
   }
   return !collision;
 }
@@ -313,7 +323,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   frame.insert(frame.end(), data_bytes.begin(), data_bytes.end());
 
   std::string bytes_to_send = bytes_to_string(frame);
-  ESP_LOGD(TAG, "Queing send frame: %s", bytes_to_send.c_str());
+  ESP_LOGD(TAG, "Queing frame to send: %s", bytes_to_send.c_str());
 
   {
     LockGuard send_lock(send_mutex_);
@@ -364,6 +374,9 @@ bool IRAM_ATTR HDMICEC::send_start_bit_() {
   delay_microseconds_safe(800);
 
   // total duration of start bit: 4500 us
+  if (transmit_bus_collision_) {
+    ESP_LOGD(TAG, "Send frame: bus collision during start-bit!");
+  }
   return !transmit_bus_collision_;
 }
 
@@ -423,9 +436,10 @@ void IRAM_ATTR HDMICEC::switch_to_send_mode_() {
 }
 
 void IRAM_ATTR HDMICEC::transmit_message_on_uart(const Message &frame) {
+  pin_->digital_write(true);  // make sure gpio output is 'high' (and is pull-up), so uart can pull low
   std::vector<uint8_t> uart_data;
-  for (auto it = frame.begin(); it != frame.end(); it++) {
-    transmit_byte_on_uart(*it, it == frame.begin(), it == frame.end());
+  for (int i = 0; i < frame.size(); i++) {
+      transmit_byte_on_uart(frame[i], i == 0, i == (frame.size() - 1));
   }
 }
 
@@ -509,7 +523,7 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
       self->recv_bit_counter_++;
       if (self->recv_bit_counter_ >= 8) { 
         // if we reached eight bits, push the current byte to the frame buffer
-        self->recv_frame_buffer_.push_back(self->recv_byte_buffer_);
+        self->recv_frame_buffer_.push_back((uint8_t)(self->recv_byte_buffer_));
 
         self->recv_bit_counter_ = 0;
         self->recv_byte_buffer_ = 0;
@@ -573,6 +587,8 @@ void IRAM_ATTR HDMICEC::transmit_receives_ack(bool is_eom, bool ack_value) {
   transmit_acks_ok_ &= ack_ok;
   if (is_eom) {
     transmit_state_ = transmit_acks_ok_ ? TransmitState::EomAckGood : TransmitState::EomAckFail;
+    allow_xmit_message_us_ = micros() +
+      (transmit_acks_ok_ ? SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS : SIGNAL_FREE_TIME_AFTER_XMIT_FAIL);
   }
 }
 
