@@ -100,7 +100,7 @@ void SpeakerMediaPlayer::setup() {
 
   if (!this->single_pipeline_()) {
     this->media_pipeline_ = make_unique<AudioPipeline>(this->media_speaker_, this->buffer_size_,
-                                                       this->task_stack_in_psram_, "ann", MEDIA_PIPELINE_TASK_PRIORITY);
+                                                       this->task_stack_in_psram_, "med", MEDIA_PIPELINE_TASK_PRIORITY);
 
     if (this->media_pipeline_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create media pipeline");
@@ -170,12 +170,28 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout("next_media");
           this->media_playlist_.clear();
-          if (media_command.file.has_value()) {
-            this->media_pipeline_->start_file(playlist_item.file.value());
-          } else if (media_command.url.has_value()) {
-            this->media_pipeline_->start_url(playlist_item.url.value());
+          if (this->is_paused_) {
+            // If paused, stop the media pipeline and unpause it after confirming its stopped. This avoids playing a
+            // short segment of the paused file before starting the new one.
+            this->media_pipeline_->stop();
+            this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
+              if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
+                this->media_pipeline_->set_pause_state(false);
+                this->is_paused_ = false;
+                return RetryResult::DONE;
+              }
+              return RetryResult::RETRY;
+            });
+          } else {
+            // Not paused, just directly start the file
+            if (media_command.file.has_value()) {
+              this->media_pipeline_->start_file(playlist_item.file.value());
+            } else if (media_command.url.has_value()) {
+              this->media_pipeline_->start_url(playlist_item.url.value());
+            }
+            this->media_pipeline_->set_pause_state(false);
+            this->is_paused_ = false;
           }
-          this->media_pipeline_->set_pause_state(false);
         }
         this->media_playlist_.push_back(playlist_item);
       }
@@ -350,11 +366,11 @@ void SpeakerMediaPlayer::loop() {
         }
 
         if (timeout_ms > 0) {
-          // Pause pipeline internally to facilitiate delay between items
+          // Pause pipeline internally to facilitate the delay between items
           this->announcement_pipeline_->set_pause_state(true);
-          // Internally unpause the pipeline after the delay between playlist items
-          this->set_timeout("next_ann", timeout_ms,
-                            [this]() { this->announcement_pipeline_->set_pause_state(this->is_paused_); });
+          // Internally unpause the pipeline after the delay between playlist items. Announcements do not follow the
+          // media player's pause state.
+          this->set_timeout("next_ann", timeout_ms, [this]() { this->announcement_pipeline_->set_pause_state(false); });
         }
       }
     } else {
@@ -390,9 +406,10 @@ void SpeakerMediaPlayer::loop() {
             }
 
             if (timeout_ms > 0) {
-              // Pause pipeline internally to facilitiate delay between items
+              // Pause pipeline internally to facilitate the delay between items
               this->media_pipeline_->set_pause_state(true);
-              // Internally unpause the pipeline after the delay between playlist items
+              // Internally unpause the pipeline after the delay between playlist items, if the media player state is
+              // not paused.
               this->set_timeout("next_media", timeout_ms,
                                 [this]() { this->media_pipeline_->set_pause_state(this->is_paused_); });
             }
