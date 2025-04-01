@@ -1,6 +1,10 @@
-#include "hdmi_cec.h"
-
+#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+
+#ifdef USE_UART
+  #include "esphome/components/uart/uart_component.h"
+#endif
+#include "hdmi_cec.h"
 
 namespace esphome {
 namespace hdmi_cec {
@@ -61,6 +65,7 @@ void HDMICEC::setup() {
   // A CEC-1 is translated into 1 low (480us) and 4 high uart bits (1920us)
   // A CEC-0 is translated into 3 low (1440us) and 2 high uart bits (960us)
   // These generated low and high periods fall well within the CEC standard presribed ranges
+  #ifdef USE_UART
   if (uart_) {
     uart_->set_baud_rate(2083);
     uart_->set_data_bits(8);
@@ -70,6 +75,7 @@ void HDMICEC::setup() {
     // TODO: check/manage tx_pin mode settings??
     ESP_LOGD(TAG, "Set uart config");
   }
+  #endif
 }
 
 void HDMICEC::dump_config() {
@@ -455,6 +461,7 @@ void IRAM_ATTR HDMICEC::transmit_byte_on_uart(uint8_t byte, bool is_header, bool
   //        01                    0001101111                           11101100 = ec
   //        10                    0111100011                           10001111 = 8f
   //        11                    0111101111                           11101111 = ef
+  #ifdef USE_UART
   static const std::array<uint8_t, 4> cec2bit_to_uartbyte = {0x8c, 0xec, 0x8f, 0xef};
   std::array<uint8_t, 5> uart_bytes;
   uint16_t cec_block = ((uint16_t)byte) << 2;
@@ -468,6 +475,7 @@ void IRAM_ATTR HDMICEC::transmit_byte_on_uart(uint8_t byte, bool is_header, bool
   }
   uart_->write_array(uart_bytes.data(), nbytes);
   // TODO: is this buffered in the uart, and can be called again quickly?
+  #endif
 }
 
 void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
