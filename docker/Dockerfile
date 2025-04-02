@@ -55,7 +55,7 @@ RUN \
     pip3 install \
     --break-system-packages --no-cache-dir \
     # Keep platformio version in sync with requirements.txt
-    platformio==6.1.16 \
+    platformio==6.1.18 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
