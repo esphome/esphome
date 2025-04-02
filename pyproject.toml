@@ -8,7 +8,7 @@ license     = {text = "MIT"}
 description = "ESPHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems."
 readme      = "README.md"
 authors     = [
-  {name = "The ESPHome Authors", email = "esphome@nabucasa.com"}
+  {name = "The ESPHome Authors", email = "esphome@openhomefoundation.org"}
 ]
 keywords    = ["home", "automation"]
 classifiers = [

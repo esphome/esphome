@@ -39,8 +39,8 @@ jobs:
         uses: peter-evans/create-pull-request@v7.0.8
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
-          committer: esphomebot <esphome@nabucasa.com>
-          author: esphomebot <esphome@nabucasa.com>
+          committer: esphomebot <esphome@openhomefoundation.org>
+          author: esphomebot <esphome@openhomefoundation.org>
           branch: sync/device-classes
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"
