@@ -62,6 +62,7 @@ class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::Text
 class MACAddressEthernetInfo : public Component, public text_sensor::TextSensor {
  public:
   void setup() override { this->publish_state(ethernet::global_eth_component->get_eth_mac_address_pretty()); }
+  float get_setup_priority() const override { return setup_priority::ETHERNET; }
   std::string unique_id() override { return get_mac_address() + "-ethernetinfo-mac"; }
   void dump_config() override;
 };
