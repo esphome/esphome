@@ -36,6 +36,7 @@ public:
   Message() = default;
   Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
   bool is_broadcast() const { return (this->at(0) & 0xf) == 0xf; };
+  uint8_t get_header() const { return this->at(0); };
   std::string to_string() const;
 };
 

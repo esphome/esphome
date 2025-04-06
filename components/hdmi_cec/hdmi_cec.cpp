@@ -210,7 +210,7 @@ void HDMICEC::transmit_message() {
   transmit_acks_ok_ = true;  // expect successful acknowledges
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
-  if (!send_start_bit_() || !transmit_my_address(frame[0])) {
+  if (!send_start_bit_() || !transmit_my_address(frame.get_header())) {
     // sending these first bits caused a bus-collision with another initiator.
     // further transmission is stopped immediatly, as the other initiator might not see the collision,
     allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;  // TODO: timing of receiver?
