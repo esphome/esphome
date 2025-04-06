@@ -287,8 +287,12 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
                          .tagsize = 4,
                          .ivsize = 12};
 
-  vector.datasize = (raw.size() == 19) ? raw.size() - 12 : raw.size() - 18;
-  int cipher_pos = (raw.size() == 19) ? 5 : 11;
+  vector.datasize = raw.size() - 12;
+  int cipher_pos = 5;
+  if (raw.size() != 19 && raw.size() != 24) {
+    vector.datasize = raw.size() - 18;
+    cipher_pos = 11;
+  }
 
   const uint8_t *v = raw.data();
 

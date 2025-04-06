@@ -1,0 +1,21 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_miscale
+    mac_address: '5C:CA:D3:70:D4:A2'
+    bindkey: '0728974d657a4b60964c1b1677f35f7c'
+    weight:
+      name: "Xiaomi Mi Scale Weight"
+    impedance:
+      name: "Xiaomi Mi Scale Impedance"
+    impedance_low:
+      name: "Xiaomi Mi Scale Impedance Low"
+    heart_rate:
+      name: "Xiaomi Mi Scale Heart Rate"
+    timestamp:
+      name: "Xiaomi Mi Scale Timestamp"
+    profile_id:
+      name: "Xiaomi Mi Scale Profile ID"
+    allowed_profile_ids:
+      - 1
+      - any
