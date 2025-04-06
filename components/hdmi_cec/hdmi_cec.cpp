@@ -33,15 +33,22 @@ static const size_t MAX_ATTEMPTS = 5;
 static const gpio::Flags INPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
-std::string bytes_to_string(std::vector<uint8_t> bytes) {
+Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)  // TODO: or std::initializer_list<uint8_t>
+  : std::vector<uint8_t>(1u + payload.size(), (uint8_t)(0)) {
+  auto inx = this->begin();
+  *inx++ = ((initiator_addr & 0xf) << 4) | (target_addr & 0x7);
+  this->insert(inx, payload.cbegin(), payload.cend());
+}
+
+std::string Message::to_string() const {
   std::string result;
   char part_buffer[3];
-  for (auto it = bytes.begin(); it != bytes.end(); it++) {
+  for (auto it = this->begin(); it != this->end(); it++) {
     uint8_t byte_value = *it;
     sprintf(part_buffer, "%02X", byte_value);
     result += part_buffer;
 
-    if (it != (bytes.end() - 1)) {
+    if (it != (this->end() - 1)) {
       result += ":";
     }
   }
@@ -75,6 +82,8 @@ void HDMICEC::setup() {
     // TODO: check/manage tx_pin mode settings??
     ESP_LOGD(TAG, "Set uart config");
   }
+  #else
+    uart_ = nullptr;  // probably superfluous, just to be safe and clear
   #endif
 }
 
@@ -103,6 +112,7 @@ void HDMICEC::loop() {
   if (!send_queue_.empty()) {
     transmit_message();
   }
+#if 0
   static int cnt = 0;
   if (transmit_state_ == TransmitState::Idle) {
     cnt = 0;
@@ -112,6 +122,7 @@ void HDMICEC::loop() {
              micros(), static_cast<int>(transmit_state_), static_cast<int>(receiver_state_),
              recv_bit_counter_, recv_byte_buffer_, recv_frame_buffer_.size());
   }
+#endif
 }
 
 void HDMICEC::handle_received_message(const Message &frame) {
@@ -130,7 +141,7 @@ void HDMICEC::handle_received_message(const Message &frame) {
     return;
   }
 
-  auto frame_str = bytes_to_string(frame);
+  auto frame_str = frame.to_string();
   ESP_LOGD(TAG, "frame received: %s", frame_str.c_str());
 
   std::vector<uint8_t> data(frame.begin() + 1, frame.end());
@@ -191,6 +202,9 @@ void HDMICEC::transmit_message() {
 
   // Launch the transmit of the frame that is on the front of the queue
   const Message &frame = send_queue_.front();
+  if (transmit_attempts_ == 0) {
+    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
+  }
   transmit_state_ = TransmitState::Busy;
   transmit_attempts_++;
   transmit_acks_ok_ = true;  // expect successful acknowledges
@@ -318,27 +332,23 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
   }
 }
 
+bool HDMICEC::send(uint8_t destination, const std::vector<uint8_t> &data_bytes) {
+  return send(address_, destination, data_bytes);
+}
+
 bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
   if (monitor_mode_) return false;
 
-  bool is_broadcast = (destination == 0xF);
-
-  // prepare the bytes to send
-  uint8_t header = (((source & 0x0F) << 4) | (destination & 0x0F));
-  std::vector<uint8_t> frame = { header };
-  frame.insert(frame.end(), data_bytes.begin(), data_bytes.end());
-
-  std::string bytes_to_send = bytes_to_string(frame);
-  ESP_LOGD(TAG, "Queing frame to send: %s", bytes_to_send.c_str());
-
+  Message frame(source, destination, data_bytes);
+  ESP_LOGD(TAG, "Queing frame to send: %s", frame.to_string().c_str());
   {
     LockGuard send_lock(send_mutex_);
-    send_queue_.push(frame);
+    send_queue_.push(std::move(frame));
   }
   return true;
 }
 
-void IRAM_ATTR HDMICEC::transmit_message_on_gpio(const std::vector<uint8_t> &frame) {
+void IRAM_ATTR HDMICEC::transmit_message_on_gpio(const Message &frame) {
   // InterruptLock interrupt_lock;
   // switch_to_send_mode_();
   // send_start_bit_();
@@ -400,6 +410,7 @@ void IRAM_ATTR HDMICEC::send_bit_(bool bit_value) {
   delay_microseconds_safe(high_duration_us);
 }
 
+// TODO: remove this method
 bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
   uint32_t start_us = micros();
 
@@ -590,7 +601,7 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
 void IRAM_ATTR HDMICEC::transmit_receives_ack(bool is_eom, bool ack_value) {
   // currently a transmit is busy
   // TODO: don't need to check for broadcast in each ISR invocation if we just count the ack values
-  bool is_broadcast = ((send_queue_.front())[0] & 0x0f) == 0x0f;
+  bool is_broadcast = send_queue_.front().is_broadcast();
   bool ack_ok = ack_value == is_broadcast;
   transmit_acks_ok_ &= ack_ok;
   if (is_eom) {

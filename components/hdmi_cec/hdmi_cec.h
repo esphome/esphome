@@ -14,8 +14,6 @@ namespace uart {
 }
 namespace hdmi_cec {
 
-std::string bytes_to_string(std::vector<uint8_t> bytes);
-
 enum class ReceiverState : uint8_t {
   Idle = 0,
   ReceivingByte = 2,
@@ -32,7 +30,14 @@ enum class TransmitState : uint8_t {
 };
 
 class MessageTrigger;
-using Message = std::vector<uint8_t>;
+
+class Message : public std::vector<uint8_t> {
+public:
+  Message() = default;
+  Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
+  bool is_broadcast() const { return (this->at(0) & 0xf) == 0xf; };
+  std::string to_string() const;
+};
 
 class HDMICEC : public Component {
 public:
@@ -46,6 +51,7 @@ public:
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
 
+  bool send(uint8_t destination, const std::vector<uint8_t> &data_bytes);
   bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
 
   // Component overrides
@@ -57,7 +63,7 @@ public:
 protected:
   static void gpio_intr_(HDMICEC *self);
   static void reset_state_variables_(HDMICEC *self);
-  void try_builtin_handler_(uint8_t source, uint8_t destination, const Message &data);
+  void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
   bool send_frame_(const Message &frame, bool is_broadcast);
   bool send_start_bit_();
   void send_bit_(bool bit_value);
@@ -66,9 +72,7 @@ protected:
   void switch_to_send_mode_();
   void handle_received_message(const Message &frame);
 
-  /** Transmit one messge out on the CEC line
-   * @param frame Message to send
-   * @return true: send is finished, message can be removed from queue; false: transmit needs another attempt
+  /** Transmit the message on the front of the send_queue out on the CEC line
   */
   void transmit_message();
   void transmit_message_on_gpio(const Message &frame);
@@ -104,7 +108,7 @@ protected:
   Mutex send_mutex_;
 };
 
-class MessageTrigger : public Trigger<uint8_t, uint8_t, Message> {
+class MessageTrigger : public Trigger<uint8_t, uint8_t, std::vector<uint8_t>> {
   friend class HDMICEC;
 
 public:
