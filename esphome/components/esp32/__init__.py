@@ -67,6 +67,7 @@ AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
 
 CONF_RELEASE = "release"
+CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 
 
 def set_core_data(config):
@@ -506,6 +507,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                         CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
                     ): cv.boolean,
                     cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
+                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -645,6 +647,11 @@ async def to_code(config):
                 add_idf_sdkconfig_option(
                     "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
                 )
+        if conf[CONF_ADVANCED].get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
+            _LOGGER.warning(
+                "Using experimental features in ESP-IDF may result in unexpected failures."
+            )
+            add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
 
         cg.add_define(
             "USE_ESP_IDF_VERSION_CODE",
