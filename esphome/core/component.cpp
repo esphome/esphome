@@ -79,7 +79,7 @@ void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
   this->dump_config();
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Component %s is marked FAILED", this->get_component_source());
+    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(), this->error_message_.c_str());
   }
 }
 
@@ -162,6 +162,8 @@ void Component::status_set_error(const char *message) {
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "Component %s set Error flag: %s", this->get_component_source(), message);
+  if (strcmp(message, "unspecified") != 0)
+    this->error_message_ = message;
 }
 void Component::status_clear_warning() {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
