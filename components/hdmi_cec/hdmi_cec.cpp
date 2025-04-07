@@ -53,10 +53,8 @@ std::string Message::to_string() const {
 
 void HDMICEC::setup() {
   xmit_.setup(pin_);
-  pin_->attach_interrupt(HDMICEC::gpio_intr_, this, gpio::INTERRUPT_ANY_EDGE);
-  isr_pin_ = pin_->to_isr();
+  recv_.setup(pin_, address_, monitor_mode_);
 
-  recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
   // The UART can send with a CEC-standard bit pattern by using a 5x oversampling:
   // Each CEC-bit is created with 5 successive UART-bits.
   // The UART mode is 1 (always 0) start-bit, 8 data-bits, 1 (always 1) stop-bit: total 10 bit periods for 1 byte
@@ -76,17 +74,17 @@ void HDMICEC::set_pin(InternalGPIOPin *pin) {
 void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "HDMI-CEC");
   ESP_LOGCONFIG(TAG, "  address: %x", address_);
-  ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
   ESP_LOGCONFIG(TAG, "  monitor mode: %s", (monitor_mode_ ? "yes" : "no"));
   xmit_.dump_config();
+  recv_.dump_config();
 }
 
 void HDMICEC::loop() {
-  if (!recv_queue_.empty()) {
+  if (recv_.has_received_message()) {
     // handle one inbound message
     // handle 1 message per loop(), to avoid taking too much time
-    handle_received_message(recv_queue_.front());
-    recv_queue_.pop();
+    Message mesg = recv_.take_received_message();
+    handle_received_message(mesg);
   }
   if (!xmit_.is_idle()) {
     xmit_.transmit_message();
@@ -107,11 +105,6 @@ void HDMICEC::handle_received_message(const Message &frame) {
   uint8_t header = frame[0];
   uint8_t src_addr = ((header & 0xF0) >> 4);
   uint8_t dest_addr = (header & 0x0F);
-
-  if (!promiscuous_mode_ && (dest_addr != 0x0F) && (dest_addr != address_)) {
-    // ignore frames not meant for us
-    return;
-  }
 
   if (frame.size() == 1) {
     // don't process pings. they're already dealt with by the acknowledgement mechanism
@@ -521,33 +514,55 @@ void IRAM_ATTR CECTransmit::got_end_of_message(uint8_t n_bytes, uint8_t n_acks) 
   }
 }
 
-void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
+void CECReceive::setup(InternalGPIOPin *pin, uint8_t address, bool monitor_mode) {
+  address_ = address;
+  monitor_mode_ = monitor_mode;
+  pin->attach_interrupt(CECReceive::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
+  isr_pin_ = pin->to_isr();
+  reset_state_variables();
+}
+
+void CECReceive::dump_config() {
+  ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
+}
+
+Message CECReceive::take_received_message() {
+  Message msg = recv_queue_.front();
+  recv_queue_.pop();
+  return msg;
+}
+
+void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) {
+  self->gpio_isr();
+}
+
+void IRAM_ATTR CECReceive::gpio_isr() {
   const uint32_t now = micros();
-  const bool level = self->isr_pin_.digital_read();
+  const bool level = isr_pin_.digital_read();
 
   // on falling edge, store current time as the start of the low pulse
   if (level == false) {
-    self->last_falling_edge_us_ = now;
+    last_falling_edge_us_ = now;
 
     //if (self->receiver_state_ == ReceiverState::Idle) {
       // warn transmitter for new bus activity 
     //  self->xmit_.got_start_of_activity();
     //}
 
-    if (self->recv_ack_queued_ && !self->monitor_mode_) {
+    if (recv_ack_queued_ && !monitor_mode_) {
       // create Acknowledge bit on the CEC bus by stretching the 'low' period
-      self->recv_ack_queued_ = false;
+      recv_ack_queued_ = false;
       {
-        self->isr_pin_.digital_write(false);
+        isr_pin_.digital_write(false);
         delay_microseconds_safe(LOW_BIT_US);
-        self->isr_pin_.digital_write(true);
+        isr_pin_.digital_write(true);
       }
     }
     return;
   }
   // otherwise, it's a rising edge, so it's time to process the pulse length 
 
-  uint32_t pulse_duration = (now - self->last_falling_edge_us_);
+  uint32_t pulse_duration = (now - last_falling_edge_us_);
   if (pulse_duration < 25) {
     // spurious edge, forget about this
     return;
@@ -555,39 +570,39 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
   
   if (pulse_duration > START_BIT_MIN_US) {
     // start bit detected. reset everything and start receiving
-    self->receiver_state_ = ReceiverState::ReceivingByte;
-    reset_state_variables_(self);
-    self->recv_ack_queued_ = false;
-    self->xmit_.got_start_of_activity();
+    receiver_state_ = ReceiverState::ReceivingByte;
+    reset_state_variables();
+    recv_ack_queued_ = false;
+    xmit_.got_start_of_activity();
     return;
   }
 
   bool value = (pulse_duration >= HIGH_BIT_MIN_US && pulse_duration <= HIGH_BIT_MAX_US);
   
-  switch (self->receiver_state_) {
+  switch (receiver_state_) {
     case ReceiverState::ReceivingByte: {
       // write bit to the current byte
-      self->recv_byte_buffer_ = (self->recv_byte_buffer_ << 1) | (value & 0b1);
+      recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0b1);
 
-      self->recv_bit_counter_++;
-      if (self->recv_bit_counter_ >= 8) { 
+      recv_bit_counter_++;
+      if (recv_bit_counter_ >= 8) { 
         // if we reached eight bits, push the current byte to the frame buffer
-        self->recv_frame_buffer_.push_back((uint8_t)(self->recv_byte_buffer_));
+        recv_frame_buffer_.push_back((uint8_t)(recv_byte_buffer_));
 
-        self->recv_bit_counter_ = 0;
-        self->recv_byte_buffer_ = 0;
+        recv_bit_counter_ = 0;
+        recv_byte_buffer_ = 0;
 
-        self->receiver_state_ = ReceiverState::WaitingForEOM;
+        receiver_state_ = ReceiverState::WaitingForEOM;
       } else {
-        self->receiver_state_ = ReceiverState::ReceivingByte;
+        receiver_state_ = ReceiverState::ReceivingByte;
       }
       break;
     }
 
     case ReceiverState::WaitingForEOM: {
       // check if we need to acknowledge this byte on the next bit
-      if (!self->recv_frame_buffer_.is_broadcast() && self->recv_frame_buffer_.destination_addr() == self->address_) {
-        self->recv_ack_queued_ = true;
+      if (!recv_frame_buffer_.is_broadcast() && recv_frame_buffer_.destination_addr() == address_) {
+        recv_ack_queued_ = true;
       }
 
       bool isEOM = (value == 1);
@@ -595,7 +610,7 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
         // pass frame to app
       }
 
-      self->receiver_state_ = (
+      receiver_state_ = (
         isEOM
         ? ReceiverState::WaitingForEOMAck
         : ReceiverState::WaitingForAck
@@ -605,20 +620,25 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
 
     case ReceiverState::WaitingForAck: {
       if (!value) {
-        self->num_acks_++;
+        num_acks_++;
       }
-      self->receiver_state_ = ReceiverState::ReceivingByte;
+      receiver_state_ = ReceiverState::ReceivingByte;
       break;
     }
 
     case ReceiverState::WaitingForEOMAck: {
       if (!value) {
-        self->num_acks_++;
+        num_acks_++;
       }
-      self->xmit_.got_end_of_message(self->recv_frame_buffer_.size(), self->num_acks_);
-      self->recv_queue_.push(self->recv_frame_buffer_);
-      reset_state_variables_(self);
-      self->receiver_state_ = ReceiverState::Idle;
+      xmit_.got_end_of_message(recv_frame_buffer_.size(), num_acks_);
+      if (promiscuous_mode_ ||
+          recv_frame_buffer_.is_broadcast() ||
+          (recv_frame_buffer_.destination_addr() == address_)) {
+        // we are interested in this message
+        recv_queue_.push(recv_frame_buffer_);
+      }
+      reset_state_variables();
+      receiver_state_ = ReceiverState::Idle;
       break;
     }
 
@@ -628,12 +648,13 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
   }
 }
 
-void IRAM_ATTR HDMICEC::reset_state_variables_(HDMICEC *self) {
-  self->num_acks_ = 0;
-  self->recv_bit_counter_ = 0;
-  self->recv_byte_buffer_ = 0x0;
-  self->recv_frame_buffer_.clear();
-  self->recv_frame_buffer_.reserve(16);
+
+void IRAM_ATTR CECReceive::reset_state_variables() {
+  num_acks_ = 0;
+  recv_bit_counter_ = 0;
+  recv_byte_buffer_ = 0x0;
+  recv_frame_buffer_.clear();
+  recv_frame_buffer_.reserve(16);
 }
 
 }
