@@ -13,7 +13,6 @@ static const char *const TAG = "hdmi_cec";
 // receiver constants
 static const uint32_t START_BIT_MIN_US = 3500;  // minimum duration of 'low' startbit
 static const uint32_t START_BIT_NOM_US = 3700;  // nominal duration of 'low' startbit
-static const uint32_t START_BIT_STRECHED_US = 4000;  // star bit got 'streched' by a bus collision with another initiator
 static const uint32_t START_BIT_HIGH_US = 800;
 static const uint32_t HIGH_BIT_MIN_US = 400;
 static const uint32_t HIGH_BIT_MAX_US = 800;
@@ -28,10 +27,7 @@ static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = (TOTAL_BIT_US * 3);
 static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 7);
 static const size_t MAX_ATTEMPTS = 5;
 
-// static const gpio::Flags INPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_PULLUP;
-// static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_OUTPUT;
-static const gpio::Flags INPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
-static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
+static const gpio::Flags PIN_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)  // TODO: or std::initializer_list<uint8_t>
   : std::vector<uint8_t>(1u + payload.size(), (uint8_t)(0)) {
@@ -43,7 +39,7 @@ Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<
 std::string Message::to_string() const {
   std::string result;
   char part_buffer[3];
-  for (auto it = this->begin(); it != this->end(); it++) {
+  for (auto it = this->cbegin(); it != this->cend(); it++) {
     uint8_t byte_value = *it;
     sprintf(part_buffer, "%02X", byte_value);
     result += part_buffer;
@@ -56,12 +52,11 @@ std::string Message::to_string() const {
 }
 
 void HDMICEC::setup() {
-  this->pin_->setup();
-  this->pin_->digital_write(true);
-  isr_pin_ = pin_->to_isr();
-  recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
+  xmit_.setup(pin_);
   pin_->attach_interrupt(HDMICEC::gpio_intr_, this, gpio::INTERRUPT_ANY_EDGE);
-  pin_->pin_mode(INPUT_MODE_FLAGS);
+  isr_pin_ = pin_->to_isr();
+
+  recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
   // The UART can send with a CEC-standard bit pattern by using a 5x oversampling:
   // Each CEC-bit is created with 5 successive UART-bits.
   // The UART mode is 1 (always 0) start-bit, 8 data-bits, 1 (always 1) stop-bit: total 10 bit periods for 1 byte
@@ -72,28 +67,18 @@ void HDMICEC::setup() {
   // A CEC-1 is translated into 1 low (480us) and 4 high uart bits (1920us)
   // A CEC-0 is translated into 3 low (1440us) and 2 high uart bits (960us)
   // These generated low and high periods fall well within the CEC standard presribed ranges
-  #ifdef USE_UART
-  if (uart_) {
-    uart_->set_baud_rate(2083);
-    uart_->set_data_bits(8);
-    uart_->set_stop_bits(1);
-    uart_->set_parity(uart::UART_CONFIG_PARITY_NONE);
-    uart_->load_settings(false);
-    // TODO: check/manage tx_pin mode settings??
-    ESP_LOGD(TAG, "Set uart config");
-  }
-  #else
-    uart_ = nullptr;  // probably superfluous, just to be safe and clear
-  #endif
+}
+
+void HDMICEC::set_pin(InternalGPIOPin *pin) {
+  pin_ = pin;
 }
 
 void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "HDMI-CEC");
-  LOG_PIN("  pin: ", pin_);
   ESP_LOGCONFIG(TAG, "  address: %x", address_);
   ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
   ESP_LOGCONFIG(TAG, "  monitor mode: %s", (monitor_mode_ ? "yes" : "no"));
-  ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
+  xmit_.dump_config();
 }
 
 void HDMICEC::loop() {
@@ -103,23 +88,16 @@ void HDMICEC::loop() {
     handle_received_message(recv_queue_.front());
     recv_queue_.pop();
   }
-  if (transmit_state_ != TransmitState::Idle && send_queue_.empty()) {
-    // With a 'busy' transmit, the transmitted frame is always on the queue front
-    // Error state: this shall never occur: SW bug or HW line failure?
-    ESP_LOGE(TAG, "HDMICEC::send(): frame error status, force clear!");
-    transmit_state_ = TransmitState::Idle;
-  }
-  if (!send_queue_.empty()) {
-    transmit_message();
+  if (!xmit_.is_idle()) {
+    xmit_.transmit_message();
   }
 #if 0
   static int cnt = 0;
-  if (transmit_state_ == TransmitState::Idle) {
+  if (xmit_.is_idle()) {
     cnt = 0;
   } else if (cnt++ < 20) {
-    const char *state_s = (transmit_state_ == TransmitState::Busy) ? "Busy" : "End";
-    ESP_LOGD(TAG, "T=%d TxState=%d, RxState=%d, bitCnt=%d, ByteBuf=0x%02x, ByteCnt=%d",
-             micros(), static_cast<int>(transmit_state_), static_cast<int>(receiver_state_),
+    ESP_LOGD(TAG, "T=%d RxState=%d, bitCnt=%d, ByteBuf=0x%02x, ByteCnt=%d",
+             micros(), static_cast<int>(receiver_state_),
              recv_bit_counter_, recv_byte_buffer_, recv_frame_buffer_.size());
   }
 #endif
@@ -171,78 +149,6 @@ void HDMICEC::handle_received_message(const Message &frame) {
   }
 }
 
-void HDMICEC::transmit_message() {
-  if (transmit_state_ == TransmitState::Busy) {
-    // Transmit is busy, probably on the uart.
-    // Need to wait until this message transmit ends;
-    return;
-  }
-
-  if (transmit_state_ == TransmitState::EomAckGood) {
-    // last transmit just ended successfully
-    ESP_LOGD(TAG, "frame was sent successfully in %d attempt(s)", transmit_attempts_);
-    transmit_attempts_ = 0;
-    send_queue_.pop();
-    // Maybe there is a new queue front to be handled below
-  } else if (transmit_state_ == TransmitState::EomAckFail ) {
-    // last transmit just ended without appropriate Acknowledge from recipient
-    if (transmit_attempts_ >= MAX_ATTEMPTS) {
-      ESP_LOGD(TAG, "frame was NOT acknowledged after %d attempts, drop frame", transmit_attempts_);
-      transmit_attempts_ = 0;
-      send_queue_.pop();       
-    }
-  }
-  transmit_state_ = TransmitState::Idle;
-
-  if (send_queue_.empty() ||
-      (micros() < allow_xmit_message_us_)) {
-    // maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
-    return;
-  }
-
-  // Launch the transmit of the frame that is on the front of the queue
-  const Message &frame = send_queue_.front();
-  if (transmit_attempts_ == 0) {
-    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
-  }
-  transmit_state_ = TransmitState::Busy;
-  transmit_attempts_++;
-  transmit_acks_ok_ = true;  // expect successful acknowledges
-  // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
-  // pin to detect a bus collision and allow early termination of the frame transmit
-  if (!send_start_bit_() || !transmit_my_address(frame.get_header())) {
-    // sending these first bits caused a bus-collision with another initiator.
-    // further transmission is stopped immediatly, as the other initiator might not see the collision,
-    allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;  // TODO: timing of receiver?
-    transmit_state_ = TransmitState::EomAckFail;
-    return;
-  }
-
-  if (uart_) {
-    transmit_message_on_uart(frame);
-  } else {
-    transmit_message_on_gpio(frame);
-  }
-  // don't wait here on the transmission result (Acknowledge from destination)
-  // because (at least) the uart proceeds in the background
-  return;
-}
-
-bool HDMICEC::transmit_my_address(const uint8_t &header) {
-  // My (initiator) address is in the 4 MSB bits of the header byte (CEC transfers MSB first)
-  for (int i = 7; i >= 4; i--) {
-    bool bit_value = ((header >> i) & 0b1);
-    send_bit_(bit_value);
-  }
-  // Check for bus collisions, which would make the received bus address different from the sent address
-  uint8_t received_address = recv_byte_buffer_;
-  bool collision = (received_address & 0xf) != ((header >> 4) & 0xf);
-  if (collision) {
-    ESP_LOGD(TAG, "Mismatch in sent initiator addr 0x%1x and bus seen addr 0x%1x: collision, bitcnt=%d",
-             ((header >> 4) & 0xf), (received_address & 0xf), recv_bit_counter_);
-  }
-  return !collision;
-}
 
 uint8_t logical_address_to_device_type(uint8_t logical_address) {
   switch (logical_address) {
@@ -342,17 +248,146 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   Message frame(source, destination, data_bytes);
   ESP_LOGD(TAG, "Queing frame to send: %s", frame.to_string().c_str());
   {
-    LockGuard send_lock(send_mutex_);
-    send_queue_.push(std::move(frame));
+    xmit_.queue_for_send(std::move(frame));
   }
   return true;
 }
 
-void IRAM_ATTR HDMICEC::transmit_message_on_gpio(const Message &frame) {
-  // InterruptLock interrupt_lock;
-  // switch_to_send_mode_();
-  // send_start_bit_();
-  
+void CECTransmit::setup(InternalGPIOPin *pin) {
+  pin_ = pin;
+  pin_->pin_mode(PIN_MODE_FLAGS);
+  pin_->digital_write(true);  // make the 'open_drain' output high-impedance
+  pin_->setup();
+
+  #ifdef USE_UART
+  if (uart_) {
+    uart_->set_baud_rate(2083);
+    uart_->set_data_bits(8);
+    uart_->set_stop_bits(1);
+    uart_->set_parity(uart::UART_CONFIG_PARITY_NONE);
+    uart_->load_settings(false);
+    // TODO: check/manage tx_pin mode settings??
+    ESP_LOGD(TAG, "Set uart config");
+  }
+  #else
+    uart_ = nullptr;  // probably superfluous, just to be safe and clear
+  #endif
+}
+
+void CECTransmit::dump_config() {
+  LOG_PIN("  pin: ", pin_);
+  ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
+}
+
+void CECTransmit::transmit_message() {
+  if (transmit_state_ != TransmitState::Idle && send_queue_.empty()) {
+    // With a 'busy' transmit, the transmitted frame is always on the queue front
+    // Error state: this shall never occur: SW bug or HW line failure?
+    ESP_LOGE(TAG, "HDMICEC::transmit_message(): frame error status, force clear!");
+    transmit_state_ = TransmitState::Idle;
+    return;
+  }
+
+  if (transmit_state_ == TransmitState::Busy) {
+    // Transmit is busy, probably on the uart.
+    // Need to wait until this message transmit ends;
+    return;
+  }
+
+  if (transmit_state_ == TransmitState::EomConfirmed) {
+    const Message &frame = send_queue_.front();
+    bool sent_ok = (n_bytes_received_ == frame.size())
+                   && ((frame.is_broadcast() && (n_acks_received_ == 0))  // for broadcast, acknowledge is bad
+                       || (!frame.is_broadcast() && (n_acks_received_ == n_bytes_received_)));
+    // Create log message for debugging
+    if (!sent_ok) {
+      // last transmit had a byte count error, or ended without appropriate Acknowledge from recipient
+      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
+      if (n_bytes_received_ != frame.size()) {
+        ESP_LOGD(TAG, "frame was sent incorrectly, saw %d bytes but expected %d bytes", n_bytes_received_, frame.size());
+      } else {
+        if (transmit_attempts_ >= MAX_ATTEMPTS) {
+          ESP_LOGD(TAG, "frame was NOT acknowledged after %d attempts, drop frame", transmit_attempts_);
+        }
+      }
+    } else {
+      // last transmit just ended successfully
+      ESP_LOGD(TAG, "frame was sent successfully in %d attempt(s)", transmit_attempts_);
+      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
+    }
+
+    // terminate working on the current frame?
+    if (sent_ok || transmit_attempts_ >= MAX_ATTEMPTS) {
+      transmit_attempts_ = 0;
+      LockGuard send_lock(send_mutex_);
+      send_queue_.pop();
+    }
+    // reset confirmation from receiver
+    n_bytes_received_ = 0;
+    n_acks_received_ = 0;
+  }
+
+  transmit_state_ = TransmitState::Idle;
+  if (send_queue_.empty() ||
+      receiver_is_busy_ ||
+      (micros() < allow_xmit_message_us_)) {
+    // maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
+    static int count = 0;
+    if ((count % 2 == 0) && count < 400) {
+      ESP_LOGD(TAG, "Xmit Idle because Queue Empty %d, Receiver busy %d, Micros too early %d",
+        send_queue_.empty(), receiver_is_busy_, (micros() < allow_xmit_message_us_));
+    }
+    count++;
+    return;
+  }
+
+  // Launch the transmit of the frame that is on the front of the queue
+  const Message &frame = send_queue_.front();
+  if (transmit_attempts_ == 0) {
+    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
+  }
+  transmit_state_ = TransmitState::Busy;
+  transmit_attempts_++;
+  // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
+  // pin to detect a bus collision and allow early termination of the frame transmit
+  if (!send_start_bit() || !transmit_my_address(frame.initiator_addr())) {
+    // sending these first bits caused a bus-collision with another initiator.
+    // further transmission is stopped immediatly, as the other initiator might not see the collision,
+    allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
+    transmit_state_ = TransmitState::Idle;
+    return;
+  }
+  // ESP_LOGD(TAG, "Continue send from queue: startbits done, attempts=%d, receiver_busy=%d",
+  //         transmit_attempts_, receiver_is_busy_);  // is_busy is expected: raised after send_start_bit
+  if (uart_) {
+    transmit_message_on_uart(frame);
+  } else {
+    transmit_message_on_gpio(frame);
+  }
+  // don't wait here on the transmission result (Acknowledge from destination)
+  // because (at least) the uart proceeds in the background
+  return;
+}
+
+bool CECTransmit::transmit_my_address(const uint8_t initiator_addr) {
+  // My (initiator) address is in the 4 MSB bits of the header byte (CEC transfers MSB first)
+  bool ok = true;
+  for (int i = 3; i >= 0; i--) {
+    bool bit_value = ((initiator_addr >> i) & 0x1);
+    if (bit_value) {
+      ok &= send_high_and_test();
+    } else {
+      send_bit(false);
+    }
+  }
+  // Check for bus collisions, which would make the received bus address different from the sent address
+  if (!ok) {
+    ESP_LOGD(TAG, "Bus collision while sending my initiator addr 0x%1x", initiator_addr);
+  }
+  return ok;
+}
+
+void IRAM_ATTR CECTransmit::transmit_message_on_gpio(const Message &frame) {
   // for each byte of the frame:
   bool success = true;
   for (auto it = frame.begin(); it != frame.end(); ++it) {
@@ -362,41 +397,42 @@ void IRAM_ATTR HDMICEC::transmit_message_on_gpio(const Message &frame) {
     bool partial_first_byte = (it == frame.begin());
     for (int8_t i = (partial_first_byte ? 3 : 7); i >= 0; i--) {
       bool bit_value = ((current_byte >> i) & 0b1);
-      send_bit_(bit_value);
+      send_bit(bit_value);
     }
 
     // 2. send EOM bit (logic 1 if this is the last byte of the frame)
     bool is_eom = (it == (frame.end() - 1));
-    send_bit_(is_eom);
+    send_bit(is_eom);
 
     // 3. send ack bit
-    send_bit_(true);  // always send a 1, check elsewhere if our receiver sees a 1 or 0
+    send_bit(true);  // always send a 1, check elsewhere if our receiver sees a 1 or 0
   }
-
-  // switch_to_listen_mode_();
-
   // return success;
 }
 
-bool IRAM_ATTR HDMICEC::send_start_bit_() {
-  // TODO: improve 
-  // 1. pull low for 3700 us
-  pin_->digital_write(false);
-  delay_microseconds_safe(START_BIT_NOM_US);
+bool CECTransmit::send_start_bit() {
+  bool value = pin_->digital_read();
+  if (value) {
+    // The CEC line was not yet occupied (pulled low) by someone else
+    // 1. pull low for the start-bit duration
+    pin_->digital_write(false);
+    delay_microseconds_safe(START_BIT_NOM_US);
 
+    // 2. let the line go high again, but test if no one else keeps it low
+    pin_->digital_write(true);
+    delay_microseconds_safe(START_BIT_HIGH_US / 2);
+    value &= pin_->digital_read();
+    delay_microseconds_safe(START_BIT_HIGH_US / 2);
+    value &= pin_->digital_read();
+  }
 
-  // 2. pull high for 800 us
-  pin_->digital_write(true);
-  delay_microseconds_safe(800);
-
-  // total duration of start bit: 4500 us
-  if (transmit_bus_collision_) {
+  if (!value) {
     ESP_LOGD(TAG, "Send frame: bus collision during start-bit!");
   }
-  return !transmit_bus_collision_;
+  return value;
 }
 
-void IRAM_ATTR HDMICEC::send_bit_(bool bit_value) {
+void IRAM_ATTR CECTransmit::send_bit(bool bit_value) {
   // total bit duration:
   // logic 1: pull low for 600 us, then pull high for 1800 us
   // logic 0: pull low for 1500 us, then pull high for 900 us
@@ -410,8 +446,7 @@ void IRAM_ATTR HDMICEC::send_bit_(bool bit_value) {
   delay_microseconds_safe(high_duration_us);
 }
 
-// TODO: remove this method
-bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
+bool IRAM_ATTR CECTransmit::send_high_and_test() {
   uint32_t start_us = micros();
 
   // send a Logical 1
@@ -419,40 +454,20 @@ bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
   delay_microseconds_safe(HIGH_BIT_US);
   pin_->digital_write(true);
 
-  // switch to input mode...
-  pin_->pin_mode(INPUT_MODE_FLAGS);
-
   // ...then wait up to the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
   static const uint32_t SAFE_SAMPLE_US = 1050;
   delay_microseconds_safe(SAFE_SAMPLE_US - (micros() - start_us));
   bool value = pin_->digital_read();
 
-  pin_->pin_mode(OUTPUT_MODE_FLAGS);
-  pin_->digital_write(true);
-
   // sleep for the rest of the bit period
   delay_microseconds_safe(TOTAL_BIT_US - (micros() - start_us));
 
-  // broadcast messages: line pulled low by any follower => something went wrong. no need to flip the value.
-  if (is_broadcast) {
-    return value;
-  }
-
-  // normal messages: line pulled low by the target follower => message ACKed successfully. we need to flip the value to match that logic.
-  return (!value);
+  // If a 'high' value was read, the 'low' pulse was short, not lengthened by another driver.
+  // Such short pulse represents a 'high' bit.
+  return value;
 }
 
-void IRAM_ATTR HDMICEC::switch_to_listen_mode_() {
-  // TODO: remove all mode switching
-  pin_->pin_mode(INPUT_MODE_FLAGS);
-}
-
-void IRAM_ATTR HDMICEC::switch_to_send_mode_() {
-  pin_->pin_mode(OUTPUT_MODE_FLAGS);
-  pin_->digital_write(true);
-}
-
-void IRAM_ATTR HDMICEC::transmit_message_on_uart(const Message &frame) {
+void IRAM_ATTR CECTransmit::transmit_message_on_uart(const Message &frame) {
   pin_->digital_write(true);  // make sure gpio output is 'high' (and is pull-up), so uart can pull low
   std::vector<uint8_t> uart_data;
   for (int i = 0; i < frame.size(); i++) {
@@ -460,7 +475,7 @@ void IRAM_ATTR HDMICEC::transmit_message_on_uart(const Message &frame) {
   }
 }
 
-void IRAM_ATTR HDMICEC::transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom) {
+void IRAM_ATTR CECTransmit::transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom) {
   // 5 uart-bits create the nominal 2.4ms cec bit period
   // 10 uart-bits are made with an (always-0) uart start bit, then 8 data bit, and an (always 1) uart stop bit.
   // transmitting a '0' data bit gets translated to a uart 3xlow, 2xhigh on the cec line
@@ -489,6 +504,23 @@ void IRAM_ATTR HDMICEC::transmit_byte_on_uart(uint8_t byte, bool is_header, bool
   #endif
 }
 
+void IRAM_ATTR CECTransmit::got_start_of_activity() {
+  // bus is occupied, inhibit send
+  receiver_is_busy_ = true;
+}
+
+void IRAM_ATTR CECTransmit::got_end_of_message(uint8_t n_bytes, uint8_t n_acks) {
+  allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_RECEIVE;
+  receiver_is_busy_ = false;
+  if (transmit_state_ == TransmitState::Busy) {
+    // this received message was sent by me, handle this confirmation
+    n_bytes_received_ = n_bytes;
+    n_acks_received_ = n_acks;
+    transmit_state_ = TransmitState::EomConfirmed;
+    confirm_received_us_ = micros();
+  }
+}
+
 void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
   const uint32_t now = micros();
   const bool level = self->isr_pin_.digital_read();
@@ -497,31 +529,28 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
   if (level == false) {
     self->last_falling_edge_us_ = now;
 
+    //if (self->receiver_state_ == ReceiverState::Idle) {
+      // warn transmitter for new bus activity 
+    //  self->xmit_.got_start_of_activity();
+    //}
+
     if (self->recv_ack_queued_ && !self->monitor_mode_) {
+      // create Acknowledge bit on the CEC bus by stretching the 'low' period
       self->recv_ack_queued_ = false;
       {
-        // InterruptLock interrupt_lock; Needed when already inside an ISR?
-        self->isr_pin_.pin_mode(OUTPUT_MODE_FLAGS);
         self->isr_pin_.digital_write(false);
         delay_microseconds_safe(LOW_BIT_US);
         self->isr_pin_.digital_write(true);
-        self->isr_pin_.pin_mode(INPUT_MODE_FLAGS);
       }
     }
-
     return;
   }
   // otherwise, it's a rising edge, so it's time to process the pulse length 
 
-  self->allow_xmit_message_us_ = now + SIGNAL_FREE_TIME_AFTER_RECEIVE;
-
-  auto pulse_duration = (now - self->last_falling_edge_us_);
-
-  if (pulse_duration >= START_BIT_STRECHED_US && self->transmit_state_ == TransmitState::Busy) {
-    // the receiver gets the frame that the transmitter is currently sending
-    // On a too long start bit, report a bus collision to support the transmitter
-    // Our transmitter should stop sending, but we might continue receiving from the other initiator
-    self->transmit_bus_collision_ = true;
+  uint32_t pulse_duration = (now - self->last_falling_edge_us_);
+  if (pulse_duration < 25) {
+    // spurious edge, forget about this
+    return;
   }
   
   if (pulse_duration > START_BIT_MIN_US) {
@@ -529,6 +558,7 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
     self->receiver_state_ = ReceiverState::ReceivingByte;
     reset_state_variables_(self);
     self->recv_ack_queued_ = false;
+    self->xmit_.got_start_of_activity();
     return;
   }
 
@@ -556,16 +586,13 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
 
     case ReceiverState::WaitingForEOM: {
       // check if we need to acknowledge this byte on the next bit
-      uint8_t destination_address = (self->recv_frame_buffer_[0] & 0x0F);
-      if (destination_address != 0xF && destination_address == self->address_) {
+      if (!self->recv_frame_buffer_.is_broadcast() && self->recv_frame_buffer_.destination_addr() == self->address_) {
         self->recv_ack_queued_ = true;
       }
 
       bool isEOM = (value == 1);
       if (isEOM) {
         // pass frame to app
-        self->recv_queue_.push(self->recv_frame_buffer_);
-        reset_state_variables_(self);
       }
 
       self->receiver_state_ = (
@@ -577,17 +604,20 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
     }
 
     case ReceiverState::WaitingForAck: {
-      if (self->transmit_state_ == TransmitState::Busy) {
-        self->transmit_receives_ack(false, value);
+      if (!value) {
+        self->num_acks_++;
       }
       self->receiver_state_ = ReceiverState::ReceivingByte;
       break;
     }
 
     case ReceiverState::WaitingForEOMAck: {
-      if (self->transmit_state_ == TransmitState::Busy) {
-        self->transmit_receives_ack(true, value);
+      if (!value) {
+        self->num_acks_++;
       }
+      self->xmit_.got_end_of_message(self->recv_frame_buffer_.size(), self->num_acks_);
+      self->recv_queue_.push(self->recv_frame_buffer_);
+      reset_state_variables_(self);
       self->receiver_state_ = ReceiverState::Idle;
       break;
     }
@@ -598,20 +628,8 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
   }
 }
 
-void IRAM_ATTR HDMICEC::transmit_receives_ack(bool is_eom, bool ack_value) {
-  // currently a transmit is busy
-  // TODO: don't need to check for broadcast in each ISR invocation if we just count the ack values
-  bool is_broadcast = send_queue_.front().is_broadcast();
-  bool ack_ok = ack_value == is_broadcast;
-  transmit_acks_ok_ &= ack_ok;
-  if (is_eom) {
-    transmit_state_ = transmit_acks_ok_ ? TransmitState::EomAckGood : TransmitState::EomAckFail;
-    allow_xmit_message_us_ = micros() +
-      (transmit_acks_ok_ ? SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS : SIGNAL_FREE_TIME_AFTER_XMIT_FAIL);
-  }
-}
-
 void IRAM_ATTR HDMICEC::reset_state_variables_(HDMICEC *self) {
+  self->num_acks_ = 0;
   self->recv_bit_counter_ = 0;
   self->recv_byte_buffer_ = 0x0;
   self->recv_frame_buffer_.clear();

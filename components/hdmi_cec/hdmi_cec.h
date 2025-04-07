@@ -23,10 +23,9 @@ enum class ReceiverState : uint8_t {
 };
 
 enum class TransmitState : uint8_t {
-  Idle       = 0,
-  Busy       = 1,
-  EomAckGood = 2,
-  EomAckFail = 3,
+  Idle         = 0,
+  Busy         = 1,
+  EomConfirmed = 2,
 };
 
 class MessageTrigger;
@@ -35,21 +34,72 @@ class Message : public std::vector<uint8_t> {
 public:
   Message() = default;
   Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
-  bool is_broadcast() const { return (this->at(0) & 0xf) == 0xf; };
-  uint8_t get_header() const { return this->at(0); };
+  uint8_t initiator_addr() const { return (this->at(0) >> 4) & 0xf; }
+  uint8_t destination_addr() const { return this->at(0) & 0xf; }
+  bool is_broadcast() const { return this->destination_addr() == 0xf; }
   std::string to_string() const;
+};
+
+class CECTransmit {
+public:
+  void setup(InternalGPIOPin *pin);
+  void dump_config();
+  void queue_for_send(const Message &&frame) { LockGuard send_lock(send_mutex_); send_queue_.push(std::move(frame)); }
+  bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::Idle); }
+  void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
+
+  /**
+   * Transmit the message on the front of the send_queue out on the CEC line
+   */
+  void transmit_message();
+
+  /**
+   * This method is called from within the receiver isr method at the end of a received message.
+   * So, the fields that it updates need to be declared 'volatile'.
+   * @param n_bytes is this the length of the message in bytes
+   * @param n_acks is the sum of byte 'acknowledges' that were received as 'low'. So 0 <= n_acks <= n_bytes
+   */
+  void got_end_of_message(uint8_t n_bytes, uint8_t n_acks);
+  void got_start_of_activity();
+
+protected:
+
+  /**
+   * Send the CEC protocol frane start bit.
+   * While doing so, check if another initiator tries to do the same, and if so, abort.
+   * @return true: start bit was successful, false: bus collision is detected and abort
+   */
+  bool send_start_bit();
+  void send_bit(bool bit_value);
+  bool send_high_and_test();
+  void transmit_message_on_gpio(const Message &frame);
+  void transmit_message_on_uart(const Message &frame);
+  void transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom);
+  bool transmit_my_address(const uint8_t address);  // send the only first 4 bits with my address and check for bus collision
+
+  std::queue<Message> send_queue_;
+  uint8_t transmit_attempts_{0};
+  volatile bool receiver_is_busy_{false};
+  volatile TransmitState transmit_state_{TransmitState::Idle};
+  volatile uint8_t n_bytes_received_{0};
+  volatile uint8_t n_acks_received_{0};
+  volatile uint32_t confirm_received_us_{0};
+  uint32_t allow_xmit_message_us_;
+  uart::UARTComponent *uart_{nullptr};
+  InternalGPIOPin *pin_{nullptr};
+  Mutex send_mutex_;
 };
 
 class HDMICEC : public Component {
 public:
-  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
+  void set_pin(InternalGPIOPin *pin);
   void set_address(uint8_t address) { address_ = address; }
   uint8_t address() { return address_; }
   void set_physical_address(uint16_t physical_address) { physical_address_ = physical_address; }
   void set_promiscuous_mode(bool promiscuous_mode) { promiscuous_mode_ = promiscuous_mode; }
   void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
   void set_osd_name_bytes(const std::vector<uint8_t> &osd_name_bytes) { osd_name_bytes_ = osd_name_bytes; }
-  void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
+  void set_uart(uart::UARTComponent *uart) { xmit_.set_uart(uart); }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
 
   bool send(uint8_t destination, const std::vector<uint8_t> &data_bytes);
@@ -65,31 +115,10 @@ protected:
   static void gpio_intr_(HDMICEC *self);
   static void reset_state_variables_(HDMICEC *self);
   void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
-  bool send_frame_(const Message &frame, bool is_broadcast);
-  bool send_start_bit_();
-  void send_bit_(bool bit_value);
-  bool send_and_read_ack_(bool is_broadcast);
-  void switch_to_listen_mode_();
-  void switch_to_send_mode_();
   void handle_received_message(const Message &frame);
 
-  /** Transmit the message on the front of the send_queue out on the CEC line
-  */
-  void transmit_message();
-  void transmit_message_on_gpio(const Message &frame);
-  void transmit_message_on_uart(const Message &frame);
-  void transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom);
-  bool transmit_my_address(const uint8_t &address);  // send the only first 4 bits with my address and check for bus collision
-  void transmit_receives_ack(bool isEom, bool ack);
 
-  std::queue<Message> send_queue_;
-  TransmitState transmit_state_{TransmitState::Idle};
-  uint8_t transmit_attempts_{0};
-  volatile bool transmit_acks_ok_{true};
-  volatile bool transmit_bus_collision_{false};
-  uart::UARTComponent *uart_{nullptr};
-
-  InternalGPIOPin *pin_;
+  InternalGPIOPin *pin_{nullptr};
   ISRInternalGPIOPin isr_pin_;
   uint8_t address_;
   uint16_t physical_address_;
@@ -98,15 +127,16 @@ protected:
   std::vector<uint8_t> osd_name_bytes_;
   std::vector<MessageTrigger*> message_triggers_;
 
+  CECTransmit xmit_;
+
   uint32_t last_falling_edge_us_;
-  uint32_t allow_xmit_message_us_;
   ReceiverState receiver_state_;
   volatile uint8_t recv_bit_counter_;
   volatile uint8_t recv_byte_buffer_;
   Message recv_frame_buffer_;
   std::queue<Message> recv_queue_;
+  uint8_t num_acks_;  // numer of 'low' acknowledge bits received in the current message
   bool recv_ack_queued_;
-  Mutex send_mutex_;
 };
 
 class MessageTrigger : public Trigger<uint8_t, uint8_t, std::vector<uint8_t>> {
