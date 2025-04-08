@@ -59,7 +59,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=18511): cv.port,
             cv.Optional(
                 CONF_LISTEN_ADDRESS, default="255.255.255.255"
-            ): cv.ipv4address_multi_broadcast,
+            ): cv.ipaddress_multi_broadcast,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
                 cv.ipaddress,
             ),
@@ -100,6 +100,7 @@ def _final_validate(config):
     if not enable_ipv6:
         for address in config[CONF_ADDRESSES]:
             cv.ipv4address(address)
+        cv.ipv4address_multi_broadcast(config[CONF_LISTEN_ADDRESS])
     return config
 
 
