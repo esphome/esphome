@@ -5,7 +5,7 @@ pyupgrade==3.19.1  # also change in .pre-commit-config.yaml when updating
 pre-commit
 
 # Unit tests
-pytest==8.2.0
+pytest==8.3.5
 pytest-cov==6.0.0
 pytest-mock==3.14.0
 pytest-asyncio==0.26.0
