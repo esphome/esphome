@@ -893,8 +893,28 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 
   ParsedFrame frame;
   aerr = try_read_frame_(&frame);
-  if (aerr != APIError::OK)
+  if (aerr != APIError::OK) {
+    if (aerr == APIError::BAD_INDICATOR) {
+      // Make sure to tell the remote that we don't
+      // understand the indicator byte so it knows
+      // we do not support it.
+      struct iovec iov[1];
+      // The \x00 first byte is the marker for plaintext.
+      //
+      // The remote will know how to handle the indicator byte,
+      // but it likely won't understand the rest of the message.
+      //
+      // We must send at least 3 bytes to be read, so we add
+      // a message after the indicator byte to ensures its long
+      // enough and can aid in debugging.
+      const char msg[] = "\x00"
+                         "Bad indicator byte";
+      iov[0].iov_base = (void *) msg;
+      iov[0].iov_len = 19;
+      write_raw_(iov, 1);
+    }
     return aerr;
+  }
 
   buffer->container = std::move(frame.msg);
   buffer->data_offset = 0;

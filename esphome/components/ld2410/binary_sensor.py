@@ -2,16 +2,17 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_HAS_MOVING_TARGET,
+    CONF_HAS_STILL_TARGET,
+    CONF_HAS_TARGET,
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_PRESENCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_MOTION_SENSOR,
     ICON_ACCOUNT,
-    CONF_HAS_TARGET,
-    CONF_HAS_MOVING_TARGET,
-    CONF_HAS_STILL_TARGET,
+    ICON_MOTION_SENSOR,
 )
+
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]

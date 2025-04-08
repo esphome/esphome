@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import (
     binary_sensor,
     climate,
@@ -11,6 +10,7 @@ from esphome.components import (
     switch,
     text_sensor,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_BINARY_SENSORS,

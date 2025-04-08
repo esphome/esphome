@@ -52,7 +52,7 @@ void ESP32TouchComponent::setup() {
   }
 #endif
 
-#if ESP_IDF_VERSION_MAJOR >= 5
+#if ESP_IDF_VERSION_MAJOR >= 5 && defined(USE_ESP32_VARIANT_ESP32)
   touch_pad_set_measurement_clock_cycles(this->meas_cycle_);
   touch_pad_set_measurement_interval(this->sleep_cycle_);
 #else

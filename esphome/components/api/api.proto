@@ -227,6 +227,9 @@ message DeviceInfoResponse {
   uint32 voice_assistant_feature_flags = 17;
 
   string suggested_area = 16;
+
+  // The Bluetooth mac address of the device. For example "AC:BC:32:89:0E:AA"
+  string bluetooth_mac_address = 18;
 }
 
 message ListEntitiesRequest {
@@ -1564,6 +1567,8 @@ message VoiceAssistantAnnounceRequest {
 
   string media_id = 1;
   string text = 2;
+  string preannounce_media_id = 3;
+  bool start_conversation = 4;
 }
 
 message VoiceAssistantAnnounceFinished {

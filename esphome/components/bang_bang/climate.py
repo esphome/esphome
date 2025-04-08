@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import climate, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AWAY_CONFIG,
     CONF_COOL_ACTION,

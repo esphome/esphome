@@ -1,13 +1,14 @@
+import esphome.codegen as cg
 from esphome.components import cover
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
-    CONF_OUTPUT_ID,
-    CONF_MIN_VALUE,
     CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_OUTPUT_ID,
     CONF_RESTORE_MODE,
 )
-from .. import tuya_ns, CONF_TUYA_ID, Tuya
+
+from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 

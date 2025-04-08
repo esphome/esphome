@@ -1,19 +1,19 @@
 import logging
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
+
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components.output import FloatOutput
 from esphome.components.speaker import Speaker
-
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_GAIN,
     CONF_ID,
     CONF_OUTPUT,
     CONF_PLATFORM,
-    CONF_TRIGGER_ID,
     CONF_SPEAKER,
-    CONF_GAIN,
+    CONF_TRIGGER_ID,
 )
+import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 

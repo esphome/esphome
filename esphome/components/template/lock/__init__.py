@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import lock
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_ID,
@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_UNLOCK_ACTION,
 )
+
 from .. import template_ns
 
 TemplateLock = template_ns.class_("TemplateLock", lock.Lock, cg.Component)

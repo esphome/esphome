@@ -1,11 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import cover, uart
-from esphome.const import (
-    CONF_CLOSE_DURATION,
-    CONF_ID,
-    CONF_OPEN_DURATION,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_CLOSE_DURATION, CONF_ID, CONF_OPEN_DURATION
 
 he60r_ns = cg.esphome_ns.namespace("he60r")
 HE60rCover = he60r_ns.class_("HE60rCover", cover.Cover, cg.Component)

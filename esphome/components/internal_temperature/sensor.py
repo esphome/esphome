@@ -1,20 +1,18 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import (
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32.const import VARIANT_ESP32S3
+import esphome.config_validation as cv
 from esphome.const import (
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_RP2040,
-    PLATFORM_BK72XX,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
 )
 from esphome.core import CORE
 

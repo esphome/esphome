@@ -1,8 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import i2c
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSOR,
     CONF_CHANNEL,
@@ -13,6 +12,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+import esphome.final_validate as fv
 
 CONF_TOUCH_THRESHOLD = "touch_threshold"
 CONF_RELEASE_THRESHOLD = "release_threshold"

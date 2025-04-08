@@ -1,22 +1,22 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor, text_sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    ICON_RADIATOR,
-    ICON_RESTART,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PARTS_PER_BILLION,
     CONF_BASELINE,
     CONF_ECO2,
+    CONF_HUMIDITY,
+    CONF_ID,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    CONF_HUMIDITY,
     CONF_VERSION,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_MOLECULE_CO2,
+    ICON_RADIATOR,
+    ICON_RESTART,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
 )
 
 AUTO_LOAD = ["text_sensor"]

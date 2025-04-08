@@ -1,13 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import spi
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_NUMBER,
-    CONF_INVERTED,
-    CONF_DATA_PIN,
     CONF_CLOCK_PIN,
+    CONF_DATA_PIN,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
     CONF_OE_PIN,
     CONF_OUTPUT,
     CONF_TYPE,

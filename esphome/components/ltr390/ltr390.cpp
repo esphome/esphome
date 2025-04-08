@@ -1,7 +1,7 @@
 #include "ltr390.h"
+#include <bitset>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <bitset>
 
 namespace esphome {
 namespace ltr390 {
@@ -91,7 +91,12 @@ void LTR390Component::read_uvs_() {
   uint32_t uv = *val;
 
   if (this->uvi_sensor_ != nullptr) {
-    this->uvi_sensor_->publish_state((uv / this->sensitivity_uv_) * this->wfac_);
+    // Set sensitivity by linearly scaling against known value in the datasheet
+    float gain_scale_uv = GAINVALUES[this->gain_uv_] / GAIN_MAX;
+    float intg_scale_uv = (RESOLUTIONVALUE[this->res_uv_] * 100) / INTG_MAX;
+    float sensitivity_uv = SENSITIVITY_MAX * gain_scale_uv * intg_scale_uv;
+
+    this->uvi_sensor_->publish_state((uv / sensitivity_uv) * this->wfac_);
   }
 
   if (this->uv_sensor_ != nullptr) {
@@ -165,11 +170,6 @@ void LTR390Component::setup() {
     this->mark_failed();
     return;
   }
-
-  // Set sensitivity by linearly scaling against known value in the datasheet
-  float gain_scale_uv = GAINVALUES[this->gain_uv_] / GAIN_MAX;
-  float intg_scale_uv = (RESOLUTIONVALUE[this->res_uv_] * 100) / INTG_MAX;
-  this->sensitivity_uv_ = SENSITIVITY_MAX * gain_scale_uv * intg_scale_uv;
 
   // Set sensor read state
   this->reading_ = false;

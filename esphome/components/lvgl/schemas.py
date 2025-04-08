@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
+    CONF_ON_BOOT,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
@@ -14,10 +15,11 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import TimePeriod
+from esphome.core.config import StartupTrigger
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .defines import CONF_TIME_FORMAT, CONF_X, CONF_Y, LV_GRAD_DIR
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import LvglComponent, lv_event_t_ptr
@@ -84,6 +86,33 @@ ENCODER_SCHEMA = cv.Schema(
         cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
 )
+
+
+def point_shorthand(value):
+    """
+    A shorthand for a point in the form of x,y
+    :param value: The value to check
+    :return: The value as a tuple of x,y
+    """
+    if isinstance(value, str):
+        try:
+            x, y = map(int, value.split(","))
+            return {CONF_X: x, CONF_Y: y}
+        except ValueError:
+            pass
+    raise cv.Invalid("Invalid point format, should be <x_value>, <y_value>")
+
+
+POINT_SCHEMA = cv.Any(
+    cv.Schema(
+        {
+            cv.Required(CONF_X): cv.templatable(cv.int_),
+            cv.Required(CONF_Y): cv.templatable(cv.int_),
+        }
+    ),
+    point_shorthand,
+)
+
 
 # All LVGL styles and their validators
 STYLE_PROPS = {
@@ -216,14 +245,24 @@ def automation_schema(typ: LvType):
         events = events + (CONF_ON_VALUE,)
     args = typ.get_arg_type() if isinstance(typ, LvType) else []
     args.append(lv_event_t_ptr)
-    return {
-        cv.Optional(event): validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
-            }
-        )
-        for event in events
-    }
+    return cv.Schema(
+        {
+            cv.Optional(event): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Trigger.template(*args)
+                    ),
+                }
+            )
+            for event in events
+        }
+    ).extend(
+        {
+            cv.Optional(CONF_ON_BOOT): validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
+            )
+        }
+    )
 
 
 def base_update_schema(widget_type, parts):

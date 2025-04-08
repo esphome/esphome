@@ -71,7 +71,7 @@ class AudioReader {
   void cleanup_connection_();
 
   size_t buffer_size_;
-  uint32_t no_data_read_count_;
+  uint32_t last_data_read_ms_;
 
   esp_http_client_handle_t client_{nullptr};
 

@@ -1,32 +1,32 @@
-from esphome.components.font import Font
-from esphome.components import sensor, color
-import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components import color, sensor
+from esphome.components.font import Font
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BORDER,
     CONF_COLOR,
     CONF_DIRECTION,
     CONF_DURATION,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_LEGEND,
+    CONF_LINE_THICKNESS,
+    CONF_LINE_TYPE,
+    CONF_MAX_RANGE,
+    CONF_MAX_VALUE,
+    CONF_MIN_RANGE,
+    CONF_MIN_VALUE,
     CONF_NAME,
     CONF_NAME_FONT,
+    CONF_SENSOR,
     CONF_SHOW_LINES,
     CONF_SHOW_UNITS,
     CONF_SHOW_VALUES,
+    CONF_TRACES,
     CONF_VALUE_FONT,
     CONF_WIDTH,
-    CONF_SENSOR,
-    CONF_HEIGHT,
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-    CONF_MIN_RANGE,
-    CONF_MAX_RANGE,
-    CONF_LINE_THICKNESS,
-    CONF_LINE_TYPE,
     CONF_X_GRID,
     CONF_Y_GRID,
-    CONF_BORDER,
-    CONF_TRACES,
 )
 
 CODEOWNERS = ["@synco"]

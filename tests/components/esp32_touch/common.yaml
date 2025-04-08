@@ -10,7 +10,7 @@ esp32_touch:
 binary_sensor:
   - platform: esp32_touch
     name: ESP32 Touch Pad
-    pin: 27
+    pin: ${pin}
     threshold: 1000
     on_press:
       - logger.log: "I'm touched!"

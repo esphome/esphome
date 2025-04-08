@@ -35,6 +35,10 @@ def literal(arg):
     return arg
 
 
+def static_cast(type, value):
+    return literal(f"static_cast<{type}>({value})")
+
+
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
@@ -416,7 +420,6 @@ CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_DEPTH = "color_depth"
 CONF_CONTROL = "control"
-CONF_DEFAULT = "default"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"
@@ -462,8 +465,6 @@ CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
-CONF_OFFSET_X = "offset_x"
-CONF_OFFSET_Y = "offset_y"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
 CONF_ON_PAUSE = "on_pause"

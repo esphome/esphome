@@ -1,23 +1,22 @@
 from esphome import automation, core
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
-from esphome.components import sensirion_common
 from esphome.const import (
-    CONF_ID,
-    CONF_HUMIDITY,
-    CONF_TEMPERATURE,
     CONF_CO2,
+    CONF_HUMIDITY,
+    CONF_ID,
+    CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
 

@@ -1,17 +1,17 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CO2,
     CONF_ID,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
-    CONF_CO2,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_HECTOPASCAL,
-    UNIT_CELSIUS,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_HECTOPASCAL,
     UNIT_PARTS_PER_MILLION,
 )
 

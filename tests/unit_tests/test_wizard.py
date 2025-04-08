@@ -1,15 +1,16 @@
 """Tests for the wizard.py file."""
 
 import os
-
-import esphome.wizard as wz
-import pytest
-from esphome.core import CORE
-from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
-from esphome.components.esp32.boards import ESP32_BOARD_PINS
-from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
-from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
 from unittest.mock import MagicMock
+
+import pytest
+
+from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
+from esphome.components.esp32.boards import ESP32_BOARD_PINS
+from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
+from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
+from esphome.core import CORE
+import esphome.wizard as wz
 
 
 @pytest.fixture

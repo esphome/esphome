@@ -211,11 +211,19 @@ class SPIBusHw : public SPIBus {
       buscfg.data1_io_num = data_pins[1];
       buscfg.data2_io_num = data_pins[2];
       buscfg.data3_io_num = data_pins[3];
-      buscfg.data4_io_num = -1;
-      buscfg.data5_io_num = -1;
-      buscfg.data6_io_num = -1;
-      buscfg.data7_io_num = -1;
-      buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
+      if (data_pins.size() == 8) {
+        buscfg.data4_io_num = data_pins[4];
+        buscfg.data5_io_num = data_pins[5];
+        buscfg.data6_io_num = data_pins[6];
+        buscfg.data7_io_num = data_pins[7];
+        buscfg.flags |= SPICOMMON_BUSFLAG_OCTAL;
+      } else {
+        buscfg.data4_io_num = -1;
+        buscfg.data5_io_num = -1;
+        buscfg.data6_io_num = -1;
+        buscfg.data7_io_num = -1;
+        buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
+      }
     }
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);

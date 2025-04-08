@@ -33,9 +33,9 @@ RUN \
         python3-venv=3.11.2-1+b1 \
         python3-wheel=0.38.4-2 \
         iputils-ping=3:20221126-1+deb12u1 \
-        git=1:2.39.5-0+deb12u1 \
-        curl=7.88.1-10+deb12u8 \
-        openssh-client=1:9.2p1-2+deb12u4 \
+        git=1:2.39.5-0+deb12u2 \
+        curl=7.88.1-10+deb12u12 \
+        openssh-client=1:9.2p1-2+deb12u5 \
         python3-cffi=1.15.1-5 \
         libcairo2=1.16.0-7 \
         libmagic1=1:5.44-3 \
@@ -55,7 +55,7 @@ RUN \
     pip3 install \
     --break-system-packages --no-cache-dir \
     # Keep platformio version in sync with requirements.txt
-    platformio==6.1.16 \
+    platformio==6.1.18 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -76,7 +76,7 @@ BUILD_DEPS="
     python3-dev=3.11.2-1+b1
     zlib1g-dev=1:1.2.13.dfsg-1
     libjpeg-dev=1:2.1.5-2
-    libfreetype-dev=2.12.1+dfsg-5+deb12u3
+    libfreetype-dev=2.12.1+dfsg-5+deb12u4
     libssl-dev=3.0.15-1~deb12u1
     libffi-dev=3.4.4-1
     cargo=0.66.0+ds1-1
@@ -84,7 +84,7 @@ BUILD_DEPS="
 "
 LIB_DEPS="
     libtiff6=4.5.0-6+deb12u1
-    libopenjp2-7=2.5.0-2
+    libopenjp2-7=2.5.0-2+deb12u1
 "
 if [ "$TARGETARCH$TARGETVARIANT" = "arm64" ]
 then
@@ -160,7 +160,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx-light=1.22.1-9 \
+        nginx-light=1.22.1-9+deb12u1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \

@@ -93,8 +93,9 @@ AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_d
   }
 
   if (!this->pause_output_) {
-    // Move audio data to the sink
-    this->output_transfer_buffer_->transfer_data_to_sink(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
+    // Move audio data to the sink without shifting the data in the output transfer buffer to avoid unnecessary, slow
+    // data moves
+    this->output_transfer_buffer_->transfer_data_to_sink(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
   } else {
     // If paused, block to avoid wasting CPU resources
     delay(READ_WRITE_TIMEOUT_MS);
@@ -115,6 +116,7 @@ AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_d
 
   if ((this->input_stream_info_.get_sample_rate() != this->output_stream_info_.get_sample_rate()) ||
       (this->input_stream_info_.get_bits_per_sample() != this->output_stream_info_.get_bits_per_sample())) {
+    // Adjust gain by -3 dB to avoid clipping due to the resampling process
     esp_audio_libs::resampler::ResamplerResults results =
         this->resampler_->resample(this->input_transfer_buffer_->get_buffer_start(),
                                    this->output_transfer_buffer_->get_buffer_end(), frames_available, frames_free, -3);

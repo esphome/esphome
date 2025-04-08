@@ -100,7 +100,7 @@ void SpeakerMediaPlayer::setup() {
 
   if (!this->single_pipeline_()) {
     this->media_pipeline_ = make_unique<AudioPipeline>(this->media_speaker_, this->buffer_size_,
-                                                       this->task_stack_in_psram_, "ann", MEDIA_PIPELINE_TASK_PRIORITY);
+                                                       this->task_stack_in_psram_, "med", MEDIA_PIPELINE_TASK_PRIORITY);
 
     if (this->media_pipeline_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create media pipeline");
@@ -138,75 +138,62 @@ void SpeakerMediaPlayer::watch_media_commands_() {
   }
 
   MediaCallCommand media_command;
-  esp_err_t err = ESP_OK;
 
   if (xQueueReceive(this->media_control_command_queue_, &media_command, 0) == pdTRUE) {
-    bool new_url = media_command.new_url.has_value() && media_command.new_url.value();
-    bool new_file = media_command.new_file.has_value() && media_command.new_file.value();
+    bool enqueue = media_command.enqueue.has_value() && media_command.enqueue.value();
 
-    if (new_url || new_file) {
-      bool enqueue = media_command.enqueue.has_value() && media_command.enqueue.value();
+    if (media_command.url.has_value() || media_command.file.has_value()) {
+      PlaylistItem playlist_item;
+      if (media_command.url.has_value()) {
+        playlist_item.url = *media_command.url.value();
+        delete media_command.url.value();
+      }
+      if (media_command.file.has_value()) {
+        playlist_item.file = media_command.file.value();
+      }
 
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
-        // Announcement playlist/pipeline
-
         if (!enqueue) {
-          // Clear the queue and ensure the loaded next item doesn't start playing
+          // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout("next_ann");
           this->announcement_playlist_.clear();
-        }
-
-        PlaylistItem playlist_item;
-        if (new_url) {
-          playlist_item.url = this->announcement_url_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
-            this->announcement_pipeline_->start_url(playlist_item.url.value());
-            this->announcement_pipeline_->set_pause_state(false);
-          }
-        } else {
-          playlist_item.file = this->announcement_file_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
+          if (media_command.file.has_value()) {
             this->announcement_pipeline_->start_file(playlist_item.file.value());
-            this->announcement_pipeline_->set_pause_state(false);
+          } else if (media_command.url.has_value()) {
+            this->announcement_pipeline_->start_url(playlist_item.url.value());
           }
+          this->announcement_pipeline_->set_pause_state(false);
         }
         this->announcement_playlist_.push_back(playlist_item);
       } else {
-        // Media playlist/pipeline
-
         if (!enqueue) {
-          // Clear the queue and ensure the loaded next item doesn't start playing
+          // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout("next_media");
           this->media_playlist_.clear();
-        }
-
-        this->is_paused_ = false;
-        PlaylistItem playlist_item;
-        if (new_url) {
-          playlist_item.url = this->media_url_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
-            this->media_pipeline_->start_url(playlist_item.url.value());
+          if (this->is_paused_) {
+            // If paused, stop the media pipeline and unpause it after confirming its stopped. This avoids playing a
+            // short segment of the paused file before starting the new one.
+            this->media_pipeline_->stop();
+            this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
+              if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
+                this->media_pipeline_->set_pause_state(false);
+                this->is_paused_ = false;
+                return RetryResult::DONE;
+              }
+              return RetryResult::RETRY;
+            });
+          } else {
+            // Not paused, just directly start the file
+            if (media_command.file.has_value()) {
+              this->media_pipeline_->start_file(playlist_item.file.value());
+            } else if (media_command.url.has_value()) {
+              this->media_pipeline_->start_url(playlist_item.url.value());
+            }
             this->media_pipeline_->set_pause_state(false);
-          }
-        } else {
-          playlist_item.file = this->media_file_;
-          if (!enqueue) {
-            // Not adding to the queue, so directly start playback and internally unpause the pipeline
-            this->media_pipeline_->start_file(playlist_item.file.value());
-            this->media_pipeline_->set_pause_state(false);
+            this->is_paused_ = false;
           }
         }
         this->media_playlist_.push_back(playlist_item);
-      }
-
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error starting the audio pipeline: %s", esp_err_to_name(err));
-        this->status_set_error();
-      } else {
-        this->status_clear_error();
       }
 
       return;  // Don't process the new file play command further
@@ -232,19 +219,37 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           this->is_paused_ = true;
           break;
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
+          // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
+          // This avoids an audible short segment playing after receiving the stop command in a paused state.
           if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
             if (this->announcement_pipeline_ != nullptr) {
               this->cancel_timeout("next_ann");
               this->announcement_playlist_.clear();
               this->announcement_pipeline_->stop();
+              this->set_retry("unpause_ann", 50, 3, [this](const uint8_t remaining_attempts) {
+                if (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED) {
+                  this->announcement_pipeline_->set_pause_state(false);
+                  return RetryResult::DONE;
+                }
+                return RetryResult::RETRY;
+              });
             }
           } else {
             if (this->media_pipeline_ != nullptr) {
               this->cancel_timeout("next_media");
               this->media_playlist_.clear();
               this->media_pipeline_->stop();
+              this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
+                if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
+                  this->media_pipeline_->set_pause_state(false);
+                  this->is_paused_ = false;
+                  return RetryResult::DONE;
+                }
+                return RetryResult::RETRY;
+              });
             }
           }
+
           break;
         case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
           if (this->media_pipeline_ != nullptr) {
@@ -361,11 +366,11 @@ void SpeakerMediaPlayer::loop() {
         }
 
         if (timeout_ms > 0) {
-          // Pause pipeline internally to facilitiate delay between items
+          // Pause pipeline internally to facilitate the delay between items
           this->announcement_pipeline_->set_pause_state(true);
-          // Internally unpause the pipeline after the delay between playlist items
-          this->set_timeout("next_ann", timeout_ms,
-                            [this]() { this->announcement_pipeline_->set_pause_state(this->is_paused_); });
+          // Internally unpause the pipeline after the delay between playlist items. Announcements do not follow the
+          // media player's pause state.
+          this->set_timeout("next_ann", timeout_ms, [this]() { this->announcement_pipeline_->set_pause_state(false); });
         }
       }
     } else {
@@ -401,9 +406,10 @@ void SpeakerMediaPlayer::loop() {
             }
 
             if (timeout_ms > 0) {
-              // Pause pipeline internally to facilitiate delay between items
+              // Pause pipeline internally to facilitate the delay between items
               this->media_pipeline_->set_pause_state(true);
-              // Internally unpause the pipeline after the delay between playlist items
+              // Internally unpause the pipeline after the delay between playlist items, if the media player state is
+              // not paused.
               this->set_timeout("next_media", timeout_ms,
                                 [this]() { this->media_pipeline_->set_pause_state(this->is_paused_); });
             }
@@ -429,12 +435,10 @@ void SpeakerMediaPlayer::play_file(audio::AudioFile *media_file, bool announceme
 
   MediaCallCommand media_command;
 
-  media_command.new_file = true;
+  media_command.file = media_file;
   if (this->single_pipeline_() || announcement) {
-    this->announcement_file_ = media_file;
     media_command.announce = true;
   } else {
-    this->media_file_ = media_file;
     media_command.announce = false;
   }
   media_command.enqueue = enqueue;
@@ -456,14 +460,8 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   }
 
   if (call.get_media_url().has_value()) {
-    std::string new_uri = call.get_media_url().value();
-
-    media_command.new_url = true;
-    if (this->single_pipeline_() || (call.get_announcement().has_value() && call.get_announcement().value())) {
-      this->announcement_url_ = new_uri;
-    } else {
-      this->media_url_ = new_uri;
-    }
+    media_command.url = new std::string(
+        call.get_media_url().value());  // Must be manually deleted after receiving media_command from a queue
 
     if (call.get_command().has_value()) {
       if (call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE) {

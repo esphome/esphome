@@ -1,18 +1,19 @@
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import climate
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
+    CONF_FAN_MODE,
     CONF_ID,
-    CONF_SWITCH_DATAPOINT,
+    CONF_PRESET,
     CONF_SUPPORTS_COOL,
     CONF_SUPPORTS_HEAT,
-    CONF_PRESET,
     CONF_SWING_MODE,
-    CONF_FAN_MODE,
+    CONF_SWITCH_DATAPOINT,
     CONF_TEMPERATURE,
 )
-from .. import tuya_ns, CONF_TUYA_ID, Tuya
+
+from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@jesserockz"]

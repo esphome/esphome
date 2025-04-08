@@ -1,4 +1,11 @@
 import esphome.codegen as cg
+from esphome.components import esp32
+from esphome.components.esp32 import get_esp32_variant, gpio
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HIGH_VOLTAGE_REFERENCE,
@@ -11,13 +18,6 @@ from esphome.const import (
     CONF_VOLTAGE_ATTENUATION,
 )
 from esphome.core import TimePeriod
-from esphome.components import esp32
-from esphome.components.esp32 import get_esp32_variant, gpio
-from esphome.components.esp32.const import (
-    VARIANT_ESP32,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-)
 
 AUTO_LOAD = ["binary_sensor"]
 DEPENDENCIES = ["esp32"]

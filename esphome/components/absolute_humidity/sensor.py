@@ -1,12 +1,12 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_EQUATION,
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    CONF_EQUATION,
     ICON_WATER,
+    STATE_CLASS_MEASUREMENT,
     UNIT_GRAMS_PER_CUBIC_METER,
 )
 

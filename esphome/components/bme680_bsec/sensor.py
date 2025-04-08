@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
     CONF_HUMIDITY,
@@ -22,11 +22,8 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from . import (
-    BME680BSECComponent,
-    CONF_BME680_BSEC_ID,
-    SAMPLE_RATE_OPTIONS,
-)
+
+from . import CONF_BME680_BSEC_ID, SAMPLE_RATE_OPTIONS, BME680BSECComponent
 
 DEPENDENCIES = ["bme680_bsec"]
 

@@ -93,6 +93,7 @@ esphome/components/captive_portal/* @OttoWinter
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
 esphome/components/ch422g/* @clydebarrow @jesterret
+esphome/components/chsc6x/* @kkosik20
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
@@ -265,6 +266,7 @@ esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
+esphome/components/mcp4461/* @p1ngb4ck
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
 esphome/components/mcp9600/* @mreditor97
@@ -298,6 +300,7 @@ esphome/components/mopeka_std_check/* @Fabian-Schmidt
 esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/ms8607/* @e28eta
+esphome/components/msa3xx/* @latonita
 esphome/components/nau7802/* @cujomalainey
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @edwardtfn @senexcrenshaw
@@ -446,6 +449,7 @@ esphome/components/tmp102/* @timsavage
 esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
+esphome/components/tormatic/* @ti-mo
 esphome/components/toshiba/* @kbx81
 esphome/components/touchscreen/* @jesserockz @nielsnl68
 esphome/components/tsl2591/* @wjcarpenter

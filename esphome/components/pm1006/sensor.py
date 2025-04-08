@@ -1,14 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PM_2_5,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_PM25,
+    ICON_BLUR,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    ICON_BLUR,
 )
 from esphome.core import TimePeriodMilliseconds
 

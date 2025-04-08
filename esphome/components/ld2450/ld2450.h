@@ -57,6 +57,15 @@ struct Zone {
   int16_t y2 = 0;
 };
 
+#ifdef USE_NUMBER
+struct ZoneOfNumbers {
+  number::Number *x1 = nullptr;
+  number::Number *y1 = nullptr;
+  number::Number *x2 = nullptr;
+  number::Number *y2 = nullptr;
+};
+#endif
+
 enum BaudRateStructure : uint8_t {
   BAUD_RATE_9600 = 1,
   BAUD_RATE_19200 = 2,
@@ -152,10 +161,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_NUMBER
   void set_zone_coordinate(uint8_t zone);
-  void set_zone_x1_number(uint8_t zone, number::Number *n);
-  void set_zone_y1_number(uint8_t zone, number::Number *n);
-  void set_zone_x2_number(uint8_t zone, number::Number *n);
-  void set_zone_y2_number(uint8_t zone, number::Number *n);
+  void set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2, number::Number *y2);
 #endif
 #ifdef USE_SENSOR
   void set_move_x_sensor(uint8_t target, sensor::Sensor *s);
@@ -206,10 +212,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   std::string mac_{};
 #ifdef USE_NUMBER
   ESPPreferenceObject pref_;  // only used when numbers are in use
-  std::vector<number::Number *> zone_x1_numbers_ = std::vector<number::Number *>(MAX_ZONES);
-  std::vector<number::Number *> zone_y1_numbers_ = std::vector<number::Number *>(MAX_ZONES);
-  std::vector<number::Number *> zone_x2_numbers_ = std::vector<number::Number *>(MAX_ZONES);
-  std::vector<number::Number *> zone_y2_numbers_ = std::vector<number::Number *>(MAX_ZONES);
+  ZoneOfNumbers zone_numbers_[MAX_ZONES];
 #endif
 #ifdef USE_SENSOR
   std::vector<sensor::Sensor *> move_x_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);

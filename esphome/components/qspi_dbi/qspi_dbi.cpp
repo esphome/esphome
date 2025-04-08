@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32S3)
 #include "qspi_dbi.h"
 #include "esphome/core/log.h"
 

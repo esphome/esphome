@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import valve
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_CLOSE_ACTION,
@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_STOP_ACTION,
 )
+
 from .. import template_ns
 
 TemplateValve = template_ns.class_("TemplateValve", valve.Valve, cg.Component)

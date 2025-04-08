@@ -56,7 +56,8 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
 
 void MediaPlayerCall::validate_() {
   if (this->media_url_.has_value()) {
-    if (this->command_.has_value()) {
+    if (this->command_.has_value() && this->command_.value() != MEDIA_PLAYER_COMMAND_ENQUEUE) {
+      // Don't remove an enqueue command
       ESP_LOGW(TAG, "MediaPlayerCall: Setting both command and media_url is not needed.");
       this->command_.reset();
     }

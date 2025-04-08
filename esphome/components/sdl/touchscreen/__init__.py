@@ -1,9 +1,9 @@
 import esphome.codegen as cg
+from esphome.components import touchscreen
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-from esphome.components import touchscreen
-from ..display import Sdl, sdl_ns, CONF_SDL_ID
+from ..display import CONF_SDL_ID, Sdl, sdl_ns
 
 SdlTouchscreen = sdl_ns.class_("SdlTouchscreen", touchscreen.Touchscreen)
 
