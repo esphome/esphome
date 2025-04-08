@@ -17,6 +17,7 @@ from .defines import (
     CONF_SHOW_SNOW,
     PARTS,
     literal,
+    static_cast,
 )
 from .lv_validation import lv_bool, lv_color, lv_image, opacity
 from .lvcode import (
@@ -32,7 +33,6 @@ from .lvcode import (
     lv_expr,
     lv_obj,
     lvgl_comp,
-    static_cast,
 )
 from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA, base_update_schema
 from .types import (

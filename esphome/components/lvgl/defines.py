@@ -35,6 +35,10 @@ def literal(arg):
     return arg
 
 
+def static_cast(type, value):
+    return literal(f"static_cast<{type}>({value})")
+
+
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
