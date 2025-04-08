@@ -283,15 +283,24 @@ void CECTransmit::transmit_message() {
 
   if (transmit_state_ == TransmitState::BUSY) {
     // Transmit is busy, probably on the uart.
-    // Need to wait until this message transmit ends;
+    // Need to wait until this message transmit ends, from confirmation by receiver.
+    if (confirm_received_us_ + 15 * TOTAL_BIT_US < micros()) {
+      // protocol error on the bus between receiver and transmitter, this should never occur!
+      // The Receiver has stopped giving byte_eom_ack confirmations, which should occur after
+      // every received byte, which is 10x bit-period. So, >=15 bit periods is an error.
+      // (Normally, then sequence of bits ends with an 'eom' confirmation, which changes the state out of BUSY.)
+      // Force now leaving the BUSY state to avoid a deadlock by waiting indefinitely.
+      transmit_state_ = TransmitState::EOM_CONFIRMED;
+      receiver_is_busy_ = false;
+    }
     return;
   }
 
   if (transmit_state_ == TransmitState::EOM_CONFIRMED) {
     const Message &frame = send_queue_.front();
+    uint8_t n_acks_expected = frame.is_broadcast() ? 0 : frame.size();  // for broadcast, acknowledge is bad
     bool sent_ok = (n_bytes_received_ == frame.size())
-                   && ((frame.is_broadcast() && (n_acks_received_ == 0))  // for broadcast, acknowledge is bad
-                       || (!frame.is_broadcast() && (n_acks_received_ == n_bytes_received_)));
+                   && (n_acks_received_ == n_acks_expected);
     // Create log message for debugging
     if (!sent_ok) {
       // last transmit had a byte count error, or ended without appropriate Acknowledge from recipient
@@ -350,8 +359,7 @@ void CECTransmit::transmit_message() {
     transmit_state_ = TransmitState::IDLE;
     return;
   }
-  // ESP_LOGD(TAG, "Continue send from queue: startbits done, attempts=%d, receiver_busy=%d",
-  //         transmit_attempts_, receiver_is_busy_);  // is_busy is expected: raised after send_start_bit
+  confirm_received_us_ = micros();  // initialize timing guard
   if (uart_) {
     transmit_message_on_uart(frame);
   } else {
@@ -502,15 +510,22 @@ void IRAM_ATTR CECTransmit::got_start_of_activity() {
   receiver_is_busy_ = true;
 }
 
-void IRAM_ATTR CECTransmit::got_end_of_message(uint8_t n_bytes, uint8_t n_acks) {
-  allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_RECEIVE;
-  receiver_is_busy_ = false;
+void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
+  confirm_received_us_ = micros();
+  if (eom) {
+    // some bus transfer ended. When the bus is free for a little while, we are allowed to transmit.
+    allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_RECEIVE;
+    receiver_is_busy_ = false;
+  }
   if (transmit_state_ == TransmitState::BUSY) {
-    // this received message was sent by me, handle this confirmation
-    n_bytes_received_ = n_bytes;
-    n_acks_received_ = n_acks;
-    transmit_state_ = TransmitState::EOM_CONFIRMED;
-    confirm_received_us_ = micros();
+    // this received message was sent by myself, handle this confirmation to check acknowledgement
+    n_bytes_received_++;
+    // 'ack value == 0' means that the addressed device on the bus confirms receipt by pulling 'ack' low.
+    // (But for broadcast messages, 'ack == 0' indicates that some receiver denies the message.)
+    n_acks_received_ += (ack ? 0 : 1);  // 0 bit value means 'acknowledge' for an addressed message
+    if (eom) {
+      transmit_state_ = TransmitState::EOM_CONFIRMED;
+    }
   }
 }
 
@@ -606,9 +621,6 @@ void IRAM_ATTR CECReceive::gpio_isr() {
       }
 
       bool isEOM = (value == 1);
-      if (isEOM) {
-        // pass frame to app
-      }
 
       receiver_state_ = (
         isEOM
@@ -619,22 +631,17 @@ void IRAM_ATTR CECReceive::gpio_isr() {
     }
 
     case ReceiverState::WAITING_FOR_ACK: {
-      if (!value) {
-        num_acks_++;
-      }
+      xmit_.got_byte_eom_ack(false, value);
       receiver_state_ = ReceiverState::RECEIVING_BYTE;
       break;
     }
 
     case ReceiverState::WAITING_FOR_EOM_ACK: {
-      if (!value) {
-        num_acks_++;
-      }
-      xmit_.got_end_of_message(recv_frame_buffer_.size(), num_acks_);
+      xmit_.got_byte_eom_ack(true, value);
       if (promiscuous_mode_ ||
           recv_frame_buffer_.is_broadcast() ||
           (recv_frame_buffer_.destination_addr() == address_)) {
-        // we are interested in this message
+        // we are interested in this message, push to application
         recv_queue_.push(recv_frame_buffer_);
       }
       reset_state_variables();

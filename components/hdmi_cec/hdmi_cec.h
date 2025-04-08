@@ -46,12 +46,17 @@ class CECTransmit {
   void transmit_message();
 
   /**
-   * This method is called from within the receiver isr method at the end of a received message.
+   * This method is called from within the receiver isr method after receiving each byte.
    * So, the fields that it updates need to be declared 'volatile'.
-   * @param n_bytes is this the length of the message in bytes
-   * @param n_acks is the sum of byte 'acknowledges' that were received as 'low'. So 0 <= n_acks <= n_bytes
+   * @param eom the value of the received 'eom' bit
+   * @param ack the value of the received 'ack' bit
    */
-  void got_end_of_message(uint8_t n_bytes, uint8_t n_acks);
+  void got_byte_eom_ack(bool eom, bool ack);
+
+  /**
+   * This method is called from within the receiver isr method,
+   * when receiving a start-bit, to notify that the CEC bus line is busy
+   */
   void got_start_of_activity();
 
 protected:
