@@ -113,7 +113,7 @@ BASE_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
             cs_pin_required=False,
             default_mode="MODE0",
             default_data_rate=10e6,
-            quad=True,
+            mode=spi.TYPE_QUAD,
         )
     )
 )
