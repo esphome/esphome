@@ -100,12 +100,12 @@ void UDPComponent::setup() {
       struct ipv6_mreq v6imreq {};
 
       if (this->listen_address_.value().is_ip4()) {
-          this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-          if (this->listen_socket_ == nullptr) {
-              this->mark_failed();
-              this->status_set_error("Could not create socket");
-              return;
-          }
+        this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+        if (this->listen_socket_ == nullptr) {
+          this->mark_failed();
+          this->status_set_error("Could not create socket");
+          return;
+        }
         server.sin6_family = AF_INET;
         err = inet_aton(this->listen_address_.value().str().c_str(), &v6imreq.ipv6mr_multiaddr);
         ESP_LOGI(TAG, "Configured multicast address %s", inet_ntoa(v6imreq.ipv6mr_multiaddr));
@@ -127,11 +127,11 @@ void UDPComponent::setup() {
       if (this->listen_address_.value().is_ip6()) {
         uint8_t netif_index = 2;
         this->listen_socket_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IPV6);
-          if (this->listen_socket_ == nullptr) {
-              this->mark_failed();
-              this->status_set_error("Could not create socket");
-              return;
-          }
+        if (this->listen_socket_ == nullptr) {
+          this->mark_failed();
+          this->status_set_error("Could not create socket");
+          return;
+        }
         server.sin6_family = AF_INET6;
         err = inet6_aton(this->listen_address_.value().str().c_str(), &v6imreq.ipv6mr_multiaddr);
         ESP_LOGI(TAG, "Configured multicast address %s", inet6_ntoa(v6imreq.ipv6mr_multiaddr));
@@ -141,7 +141,7 @@ void UDPComponent::setup() {
           this->status_set_error("Unable to convert");
           return;
         }
-        //server.sin6_addr = v6imreq.ipv6mr_multiaddr;
+        // server.sin6_addr = v6imreq.ipv6mr_multiaddr;
         err = this->listen_socket_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &netif_index, sizeof(uint8_t));
         if (err < 0) {
           ESP_LOGE(TAG, "Failed to set IPV6_MULTICAST_IF. Error %d", errno);
@@ -176,16 +176,16 @@ void UDPComponent::setup() {
 #endif
       err = this->listen_socket_->setblocking(false);
       if (err < 0) {
-          ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
-          this->mark_failed();
-          this->status_set_error("Unable to set nonblocking");
-          return;
+        ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
+        this->mark_failed();
+        this->status_set_error("Unable to set nonblocking");
+        return;
       }
       int enable = 1;
       err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
       if (err != 0) {
-          this->status_set_warning("Socket unable to set reuseaddr");
-          // we can still continue
+        this->status_set_warning("Socket unable to set reuseaddr");
+        // we can still continue
       }
       err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
       if (err != 0) {
