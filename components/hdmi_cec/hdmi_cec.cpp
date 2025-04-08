@@ -273,21 +273,21 @@ void CECTransmit::dump_config() {
 }
 
 void CECTransmit::transmit_message() {
-  if (transmit_state_ != TransmitState::Idle && send_queue_.empty()) {
+  if (transmit_state_ != TransmitState::IDLE && send_queue_.empty()) {
     // With a 'busy' transmit, the transmitted frame is always on the queue front
     // Error state: this shall never occur: SW bug or HW line failure?
     ESP_LOGE(TAG, "HDMICEC::transmit_message(): frame error status, force clear!");
-    transmit_state_ = TransmitState::Idle;
+    transmit_state_ = TransmitState::IDLE;
     return;
   }
 
-  if (transmit_state_ == TransmitState::Busy) {
+  if (transmit_state_ == TransmitState::BUSY) {
     // Transmit is busy, probably on the uart.
     // Need to wait until this message transmit ends;
     return;
   }
 
-  if (transmit_state_ == TransmitState::EomConfirmed) {
+  if (transmit_state_ == TransmitState::EOM_CONFIRMED) {
     const Message &frame = send_queue_.front();
     bool sent_ok = (n_bytes_received_ == frame.size())
                    && ((frame.is_broadcast() && (n_acks_received_ == 0))  // for broadcast, acknowledge is bad
@@ -320,7 +320,7 @@ void CECTransmit::transmit_message() {
     n_acks_received_ = 0;
   }
 
-  transmit_state_ = TransmitState::Idle;
+  transmit_state_ = TransmitState::IDLE;
   if (send_queue_.empty() ||
       receiver_is_busy_ ||
       (micros() < allow_xmit_message_us_)) {
@@ -339,7 +339,7 @@ void CECTransmit::transmit_message() {
   if (transmit_attempts_ == 0) {
     ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
   }
-  transmit_state_ = TransmitState::Busy;
+  transmit_state_ = TransmitState::BUSY;
   transmit_attempts_++;
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
@@ -347,7 +347,7 @@ void CECTransmit::transmit_message() {
     // sending these first bits caused a bus-collision with another initiator.
     // further transmission is stopped immediatly, as the other initiator might not see the collision,
     allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
-    transmit_state_ = TransmitState::Idle;
+    transmit_state_ = TransmitState::IDLE;
     return;
   }
   // ESP_LOGD(TAG, "Continue send from queue: startbits done, attempts=%d, receiver_busy=%d",
@@ -505,11 +505,11 @@ void IRAM_ATTR CECTransmit::got_start_of_activity() {
 void IRAM_ATTR CECTransmit::got_end_of_message(uint8_t n_bytes, uint8_t n_acks) {
   allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_RECEIVE;
   receiver_is_busy_ = false;
-  if (transmit_state_ == TransmitState::Busy) {
+  if (transmit_state_ == TransmitState::BUSY) {
     // this received message was sent by me, handle this confirmation
     n_bytes_received_ = n_bytes;
     n_acks_received_ = n_acks;
-    transmit_state_ = TransmitState::EomConfirmed;
+    transmit_state_ = TransmitState::EOM_CONFIRMED;
     confirm_received_us_ = micros();
   }
 }
@@ -544,7 +544,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   if (level == false) {
     last_falling_edge_us_ = now;
 
-    //if (self->receiver_state_ == ReceiverState::Idle) {
+    //if (self->receiver_state_ == ReceiverState::IDLE) {
       // warn transmitter for new bus activity 
     //  self->xmit_.got_start_of_activity();
     //}
@@ -570,7 +570,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   
   if (pulse_duration > START_BIT_MIN_US) {
     // start bit detected. reset everything and start receiving
-    receiver_state_ = ReceiverState::ReceivingByte;
+    receiver_state_ = ReceiverState::RECEIVING_BYTE;
     reset_state_variables();
     recv_ack_queued_ = false;
     xmit_.got_start_of_activity();
@@ -580,7 +580,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   bool value = (pulse_duration >= HIGH_BIT_MIN_US && pulse_duration <= HIGH_BIT_MAX_US);
   
   switch (receiver_state_) {
-    case ReceiverState::ReceivingByte: {
+    case ReceiverState::RECEIVING_BYTE: {
       // write bit to the current byte
       recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0b1);
 
@@ -592,14 +592,14 @@ void IRAM_ATTR CECReceive::gpio_isr() {
         recv_bit_counter_ = 0;
         recv_byte_buffer_ = 0;
 
-        receiver_state_ = ReceiverState::WaitingForEOM;
+        receiver_state_ = ReceiverState::WAITING_FOR_EOM;
       } else {
-        receiver_state_ = ReceiverState::ReceivingByte;
+        receiver_state_ = ReceiverState::RECEIVING_BYTE;
       }
       break;
     }
 
-    case ReceiverState::WaitingForEOM: {
+    case ReceiverState::WAITING_FOR_EOM: {
       // check if we need to acknowledge this byte on the next bit
       if (!recv_frame_buffer_.is_broadcast() && recv_frame_buffer_.destination_addr() == address_) {
         recv_ack_queued_ = true;
@@ -612,21 +612,21 @@ void IRAM_ATTR CECReceive::gpio_isr() {
 
       receiver_state_ = (
         isEOM
-        ? ReceiverState::WaitingForEOMAck
-        : ReceiverState::WaitingForAck
+        ? ReceiverState::WAITING_FOR_EOM_ACK
+        : ReceiverState::WAITING_FOR_ACK
       );
       break;
     }
 
-    case ReceiverState::WaitingForAck: {
+    case ReceiverState::WAITING_FOR_ACK: {
       if (!value) {
         num_acks_++;
       }
-      receiver_state_ = ReceiverState::ReceivingByte;
+      receiver_state_ = ReceiverState::RECEIVING_BYTE;
       break;
     }
 
-    case ReceiverState::WaitingForEOMAck: {
+    case ReceiverState::WAITING_FOR_EOM_ACK: {
       if (!value) {
         num_acks_++;
       }
@@ -638,7 +638,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
         recv_queue_.push(recv_frame_buffer_);
       }
       reset_state_variables();
-      receiver_state_ = ReceiverState::Idle;
+      receiver_state_ = ReceiverState::IDLE;
       break;
     }
 

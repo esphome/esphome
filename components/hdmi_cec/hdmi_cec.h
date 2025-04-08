@@ -14,20 +14,6 @@ namespace uart {
 }
 namespace hdmi_cec {
 
-enum class ReceiverState : uint8_t {
-  Idle = 0,
-  ReceivingByte = 2,
-  WaitingForEOM = 3,
-  WaitingForAck = 4,
-  WaitingForEOMAck = 5,
-};
-
-enum class TransmitState : uint8_t {
-  Idle         = 0,
-  Busy         = 1,
-  EomConfirmed = 2,
-};
-
 class MessageTrigger;
 
 class Message : public std::vector<uint8_t> {
@@ -41,11 +27,17 @@ public:
 };
 
 class CECTransmit {
-public:
+  enum class TransmitState : uint8_t {
+    IDLE,
+    BUSY,
+    EOM_CONFIRMED,
+  };
+
+  public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
   void queue_for_send(const Message &&frame) { LockGuard send_lock(send_mutex_); send_queue_.push(std::move(frame)); }
-  bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::Idle); }
+  bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
 
   /**
@@ -80,7 +72,7 @@ protected:
   std::queue<Message> send_queue_;
   uint8_t transmit_attempts_{0};
   volatile bool receiver_is_busy_{false};
-  volatile TransmitState transmit_state_{TransmitState::Idle};
+  volatile TransmitState transmit_state_{TransmitState::IDLE};
   volatile uint8_t n_bytes_received_{0};
   volatile uint8_t n_acks_received_{0};
   volatile uint32_t confirm_received_us_{0};
@@ -91,6 +83,14 @@ protected:
 };
 
 class CECReceive {
+  enum class ReceiverState : uint8_t {
+    IDLE,
+    RECEIVING_BYTE,
+    WAITING_FOR_EOM,
+    WAITING_FOR_ACK,
+    WAITING_FOR_EOM_ACK
+  };
+
 public:
   CECReceive(CECTransmit &xmit) : xmit_(xmit) {}
   void setup(InternalGPIOPin *pin, uint8_t address, bool monitor_mode);
