@@ -67,35 +67,14 @@ void UDPComponent::setup() {
   // create listening socket if we either want to subscribe to providers, or need to listen
   // for ping key broadcasts.
   if (this->should_listen_) {
-    this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (this->listen_socket_ == nullptr) {
-      this->mark_failed();
-      this->status_set_error("Could not create socket");
-      return;
-    }
-    auto err = this->listen_socket_->setblocking(false);
-    if (err < 0) {
-      ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
-      this->mark_failed();
-      this->status_set_error("Unable to set nonblocking");
-      return;
-    }
-    int enable = 1;
-    err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
-    }
+#if USE_NETWORK_IPV6
+    struct sockaddr_in6 server {};
+#else
     struct sockaddr_in server {};
-
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-    server.sin_port = htons(this->listen_port_);
-
+#endif
     int8_t err;
     if (this->listen_address_.has_value()) {
 #if USE_NETWORK_IPV6
-      struct sockaddr_in6 server {};
       server.sin6_port = htons(this->port_);
       struct ipv6_mreq v6imreq {};
 
@@ -159,7 +138,6 @@ void UDPComponent::setup() {
         }
       }
 #else
-      struct sockaddr_in server {};
       this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
       server.sin_family = AF_INET;
       server.sin_port = htons(this->port_);
@@ -174,26 +152,30 @@ void UDPComponent::setup() {
         return;
       }
 #endif
-      err = this->listen_socket_->setblocking(false);
-      if (err < 0) {
-        ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
-        this->mark_failed();
-        this->status_set_error("Unable to set nonblocking");
-        return;
-      }
-      int enable = 1;
-      err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-      if (err != 0) {
-        this->status_set_warning("Socket unable to set reuseaddr");
-        // we can still continue
-      }
-      err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
-      if (err != 0) {
-        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-        this->mark_failed();
-        this->status_set_error("Unable to bind socket");
-        return;
-      }
+    } else {
+      server.sin_family = AF_INET;
+      server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
+      server.sin_port = htons(this->port_);
+    }
+    err = this->listen_socket_->setblocking(false);
+    if (err < 0) {
+      ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
+      this->mark_failed();
+      this->status_set_error("Unable to set nonblocking");
+      return;
+    }
+    int enable = 1;
+    err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
+    if (err != 0) {
+      this->status_set_warning("Socket unable to set reuseaddr");
+      // we can still continue
+    }
+    err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
+    if (err != 0) {
+      ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+      this->mark_failed();
+      this->status_set_error("Unable to bind socket");
+      return;
     }
   }
 #endif
