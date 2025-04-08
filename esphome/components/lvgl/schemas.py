@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
+    CONF_ON_BOOT,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
@@ -14,6 +15,7 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import TimePeriod
+from esphome.core.config import StartupTrigger
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
@@ -216,14 +218,24 @@ def automation_schema(typ: LvType):
         events = events + (CONF_ON_VALUE,)
     args = typ.get_arg_type() if isinstance(typ, LvType) else []
     args.append(lv_event_t_ptr)
-    return {
-        cv.Optional(event): validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
-            }
-        )
-        for event in events
-    }
+    return cv.Schema(
+        {
+            cv.Optional(event): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Trigger.template(*args)
+                    ),
+                }
+            )
+            for event in events
+        }
+    ).extend(
+        {
+            cv.Optional(CONF_ON_BOOT): validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
+            )
+        }
+    )
 
 
 def base_update_schema(widget_type, parts):

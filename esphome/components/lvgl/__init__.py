@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
     CONF_TIMEOUT,
@@ -50,7 +51,7 @@ from .schemas import (
 )
 from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import generate_triggers
+from .trigger import add_on_boot_triggers, generate_triggers
 from .types import (
     FontEngine,
     IdleTrigger,
@@ -365,6 +366,7 @@ async def to_code(configs):
                     conf[CONF_TRIGGER_ID], lv_component, False
                 )
                 await build_automation(resume_trigger, [], conf)
+            await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:

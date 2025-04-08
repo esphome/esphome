@@ -24,6 +24,8 @@ lvgl:
     logger.log: LVGL is Paused
   on_resume:
     logger.log: LVGL has resumed
+  on_boot:
+    logger.log: LVGL has started
   bg_color: light_blue
   disp_bg_color: color_id
   disp_bg_image: cat_image
@@ -210,6 +212,10 @@ lvgl:
                   src: !lambda "return {dog_image, cat_image};"
                   duration: 2s
         - label:
+            on_boot:
+              lvgl.label.update:
+                id: hello_label
+                text: Goodbye Cruel World
             id: hello_label
             text: Hello world
             text_color: 0xFF8000
