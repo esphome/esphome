@@ -4,7 +4,7 @@ from esphome.core import Lambda
 
 from ..defines import CONF_MAIN, CONF_X, CONF_Y, call_lambda
 from ..lvcode import lv_add
-from ..schemas import POINT_SCHEMA
+from ..schemas import point_schema
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType
 
@@ -16,14 +16,14 @@ lv_point_t = cg.global_ns.struct("lv_point_t")
 
 
 LINE_SCHEMA = {
-    cv.Required(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
+    cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
 }
 
 
 async def process_coord(coord):
     if isinstance(coord, Lambda):
         coord = call_lambda(
-            await cg.process_lambda(coord, (), return_type="lv_coord_t")
+            await cg.process_lambda(coord, [], return_type="lv_coord_t")
         )
         if not coord.endswith("()"):
             coord = f"static_cast<lv_coord_t>({coord})"

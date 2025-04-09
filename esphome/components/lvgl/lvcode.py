@@ -206,11 +206,16 @@ class LocalVariable(MockObj):
 
     def __enter__(self):
         CodeContext.start_block()
-        CodeContext.append(
-            VariableDeclarationExpression(self.base.type, self.modifier, self.base.id)
-        )
         if self.rhs is not None:
-            CodeContext.append(AssignmentExpression(None, "", self.base, self.rhs))
+            CodeContext.append(
+                AssignmentExpression(self.base.type, self.modifier, self.base, self.rhs)
+            )
+        else:
+            CodeContext.append(
+                VariableDeclarationExpression(
+                    self.base.type, self.modifier, self.base.id
+                )
+            )
         return MockObj(self.base)
 
     def __exit__(self, *args):

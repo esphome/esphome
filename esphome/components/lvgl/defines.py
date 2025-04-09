@@ -29,7 +29,7 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
-def literal(arg):
+def literal(arg) -> MockObj:
     if isinstance(arg, str):
         return MockObj(arg)
     return arg
