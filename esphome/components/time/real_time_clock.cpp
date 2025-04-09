@@ -21,10 +21,6 @@ namespace time {
 static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
-void RealTimeClock::call_setup() {
-  this->apply_timezone_();
-  PollingComponent::call_setup();
-}
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   // Update UTC epoch time.
   struct timeval timev {
