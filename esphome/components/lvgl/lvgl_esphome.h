@@ -63,10 +63,12 @@ inline void lv_disp_set_bg_image(lv_disp_t *disp, esphome::image::Image *image) 
 inline void lv_obj_set_style_bg_img_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
   lv_obj_set_style_bg_img_src(obj, image->get_lv_img_dsc(), selector);
 }
+#ifdef USE_LVGL_CANVAS
 inline void lv_canvas_draw_img(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, image::Image *image,
                                lv_draw_img_dsc_t *dsc) {
   lv_canvas_draw_img(canvas, x, y, image->get_lv_img_dsc(), dsc);
 }
+#endif
 
 #ifdef USE_LVGL_METER
 inline lv_meter_indicator_t *lv_meter_add_needle_img(lv_obj_t *obj, lv_meter_scale_t *scale, esphome::image::Image *src,
