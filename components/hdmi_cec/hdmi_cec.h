@@ -98,9 +98,11 @@ class CECReceive {
 
 public:
   CECReceive(CECTransmit &xmit) : xmit_(xmit) {}
-  void setup(InternalGPIOPin *pin, uint8_t address, bool monitor_mode);
+  void setup(InternalGPIOPin *pin, uint8_t address);
   void dump_config();
   void set_promiscuous_mode(bool promiscuous) { promiscuous_mode_ = promiscuous; }
+  void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
+  bool get_monitor_mode() const { return monitor_mode_; }
   bool has_received_message() const { return !recv_queue_.empty(); }
   Message take_received_message();
 
@@ -111,15 +113,15 @@ protected:
 
   CECTransmit &xmit_;
   ISRInternalGPIOPin isr_pin_;
-  bool promiscuous_mode_;
-  bool monitor_mode_;
-  uint32_t last_falling_edge_us_;
-  ReceiverState receiver_state_;
-  volatile uint8_t recv_bit_counter_;
-  volatile uint8_t recv_byte_buffer_;
-  uint8_t num_acks_;  // numer of 'low' acknowledge bits received in the current message
-  bool recv_ack_queued_;
-  uint8_t address_;
+  bool promiscuous_mode_{false};
+  bool monitor_mode_{false};
+  uint32_t last_falling_edge_us_{0};
+  ReceiverState receiver_state_{ReceiverState::IDLE};
+  volatile uint8_t recv_bit_counter_{0};
+  volatile uint8_t recv_byte_buffer_{0};
+  uint8_t num_acks_{0};  // numer of 'low' acknowledge bits received in the current message
+  bool recv_ack_queued_{false};
+  uint8_t address_{0};
   Message recv_frame_buffer_;
   std::queue<Message> recv_queue_;
 };
@@ -131,7 +133,7 @@ public:
   uint8_t address() { return address_; }
   void set_physical_address(uint16_t physical_address) { physical_address_ = physical_address; }
   void set_promiscuous_mode(bool promiscuous) { recv_.set_promiscuous_mode(promiscuous); }
-  void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
+  void set_monitor_mode(bool monitor_mode) { recv_.set_monitor_mode(monitor_mode); }
   void set_osd_name_bytes(const std::vector<uint8_t> &osd_name_bytes) { osd_name_bytes_ = osd_name_bytes; }
   void set_uart(uart::UARTComponent *uart) { xmit_.set_uart(uart); }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
@@ -152,7 +154,6 @@ protected:
   InternalGPIOPin *pin_{nullptr};
   uint8_t address_;
   uint16_t physical_address_;
-  bool monitor_mode_;
   std::vector<uint8_t> osd_name_bytes_;
   std::vector<MessageTrigger*> message_triggers_;
 

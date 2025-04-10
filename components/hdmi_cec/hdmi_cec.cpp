@@ -11,6 +11,7 @@ namespace hdmi_cec {
 
 static const char *const TAG = "hdmi_cec";
 // receiver constants
+static const uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // CEC max frame length in bytes
 static const uint32_t START_BIT_MIN_US = 3500;  // minimum duration of 'low' startbit
 static const uint32_t START_BIT_NOM_US = 3700;  // nominal duration of 'low' startbit
 static const uint32_t START_BIT_HIGH_US = 800;
@@ -32,7 +33,7 @@ static const gpio::Flags PIN_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT |
 Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)  // TODO: or std::initializer_list<uint8_t>
   : std::vector<uint8_t>(1u + payload.size(), (uint8_t)(0)) {
   auto inx = this->begin();
-  *inx++ = ((initiator_addr & 0xf) << 4) | (target_addr & 0x7);
+  *inx++ = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
   this->insert(inx, payload.cbegin(), payload.cend());
 }
 
@@ -53,7 +54,7 @@ std::string Message::to_string() const {
 
 void HDMICEC::setup() {
   xmit_.setup(pin_);
-  recv_.setup(pin_, address_, monitor_mode_);
+  recv_.setup(pin_, address_);
 
   // The UART can send with a CEC-standard bit pattern by using a 5x oversampling:
   // Each CEC-bit is created with 5 successive UART-bits.
@@ -74,7 +75,6 @@ void HDMICEC::set_pin(InternalGPIOPin *pin) {
 void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "HDMI-CEC");
   ESP_LOGCONFIG(TAG, "  address: %x", address_);
-  ESP_LOGCONFIG(TAG, "  monitor mode: %s", (monitor_mode_ ? "yes" : "no"));
   xmit_.dump_config();
   recv_.dump_config();
 }
@@ -236,7 +236,10 @@ bool HDMICEC::send(uint8_t destination, const std::vector<uint8_t> &data_bytes) 
 }
 
 bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
-  if (monitor_mode_) return false;
+  if (recv_.get_monitor_mode()) {
+    // in 'monitor mode' no presence on the CEC bus is shown, so we don't send
+    return false;
+  }
 
   Message frame(source, destination, data_bytes);
   ESP_LOGD(TAG, "Queing frame to send: %s", frame.to_string().c_str());
@@ -259,8 +262,7 @@ void CECTransmit::setup(InternalGPIOPin *pin) {
     uart_->set_stop_bits(1);
     uart_->set_parity(uart::UART_CONFIG_PARITY_NONE);
     uart_->load_settings(false);
-    // TODO: check/manage tx_pin mode settings??
-    ESP_LOGD(TAG, "Set uart config");
+    ESP_LOGD(TAG, "Set uart configuration for CEC");
   }
   #else
     uart_ = nullptr;  // probably superfluous, just to be safe and clear
@@ -272,6 +274,11 @@ void CECTransmit::dump_config() {
   ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
+// void CECTransmit::queue_for_send(const Message &&frame) {
+//   LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
+//   send_queue_.push(std::move(frame));
+// }
+
 void CECTransmit::transmit_message() {
   if (transmit_state_ != TransmitState::IDLE && send_queue_.empty()) {
     // With a 'busy' transmit, the transmitted frame is always on the queue front
@@ -281,48 +288,52 @@ void CECTransmit::transmit_message() {
     return;
   }
 
+  if (receiver_is_busy_ && (confirm_received_us_ + 15 * TOTAL_BIT_US < micros())) {
+    // protocol error on the bus between receiver and transmitter, this should never occur!
+    // The Receiver has stopped giving byte_eom_ack confirmations, which should occur after
+    // every received byte, which is 10x bit-period. So, >=15 bit periods is an error.
+    // (Normally, the sequence of bits ends with an 'eom' confirmation, which changes the state out of BUSY.)
+    // Force now leaving the BUSY state to avoid a deadlock by waiting indefinitely.
+    receiver_is_busy_ = false;
+    if (transmit_state_ == TransmitState::BUSY) {
+      transmit_state_ = TransmitState::EOM_CONFIRMED;
+    }
+  }
+
   if (transmit_state_ == TransmitState::BUSY) {
     // Transmit is busy, probably on the uart.
     // Need to wait until this message transmit ends, from confirmation by receiver.
-    if (confirm_received_us_ + 15 * TOTAL_BIT_US < micros()) {
-      // protocol error on the bus between receiver and transmitter, this should never occur!
-      // The Receiver has stopped giving byte_eom_ack confirmations, which should occur after
-      // every received byte, which is 10x bit-period. So, >=15 bit periods is an error.
-      // (Normally, then sequence of bits ends with an 'eom' confirmation, which changes the state out of BUSY.)
-      // Force now leaving the BUSY state to avoid a deadlock by waiting indefinitely.
-      transmit_state_ = TransmitState::EOM_CONFIRMED;
-      receiver_is_busy_ = false;
-    }
     return;
   }
 
   if (transmit_state_ == TransmitState::EOM_CONFIRMED) {
     const Message &frame = send_queue_.front();
     uint8_t n_acks_expected = frame.is_broadcast() ? 0 : frame.size();  // for broadcast, acknowledge is bad
-    bool sent_ok = (n_bytes_received_ == frame.size())
-                   && (n_acks_received_ == n_acks_expected);
+    bool sent_ok = (n_bytes_received_ == frame.size()) && (n_acks_received_ == n_acks_expected);
     // Create log message for debugging
     if (!sent_ok) {
       // last transmit had a byte count error, or ended without appropriate Acknowledge from recipient
-      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
-      if (n_bytes_received_ != frame.size()) {
-        ESP_LOGD(TAG, "frame was sent incorrectly, saw %d bytes but expected %d bytes", n_bytes_received_, frame.size());
-      } else {
-        if (transmit_attempts_ >= MAX_ATTEMPTS) {
+      if (transmit_attempts_ >= MAX_ATTEMPTS) {
+        if (n_bytes_received_ != frame.size()) {
+          ESP_LOGD(TAG, "frame was sent incorrectly after %d attempts, saw %d bytes but expected %d bytes",
+                   transmit_attempts_, n_bytes_received_, frame.size());
+        } else {
           ESP_LOGD(TAG, "frame was NOT acknowledged after %d attempts, drop frame", transmit_attempts_);
         }
       }
     } else {
       // last transmit just ended successfully
       ESP_LOGD(TAG, "frame was sent successfully in %d attempt(s)", transmit_attempts_);
-      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
     }
 
     // terminate working on the current frame?
     if (sent_ok || transmit_attempts_ >= MAX_ATTEMPTS) {
+      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
       transmit_attempts_ = 0;
       LockGuard send_lock(send_mutex_);
       send_queue_.pop();
+    } else {
+      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
     }
     // reset confirmation from receiver
     n_bytes_received_ = 0;
@@ -334,22 +345,18 @@ void CECTransmit::transmit_message() {
       receiver_is_busy_ ||
       (micros() < allow_xmit_message_us_)) {
     // maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
-    static int count = 0;
-    if ((count % 2 == 0) && count < 400) {
-      ESP_LOGD(TAG, "Xmit Idle because Queue Empty %d, Receiver busy %d, Micros too early %d",
-        send_queue_.empty(), receiver_is_busy_, (micros() < allow_xmit_message_us_));
-    }
-    count++;
     return;
   }
 
   // Launch the transmit of the frame that is on the front of the queue
   const Message &frame = send_queue_.front();
-  if (transmit_attempts_ == 0) {
-    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
-  }
   transmit_state_ = TransmitState::BUSY;
   transmit_attempts_++;
+  if (transmit_attempts_ <= 1) {
+    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
+  } else {
+    ESP_LOGD(TAG, "Send message from queue: attempt %d", transmit_attempts_);
+  }
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
   if (!send_start_bit() || !transmit_my_address(frame.initiator_addr())) {
@@ -390,25 +397,24 @@ bool CECTransmit::transmit_my_address(const uint8_t initiator_addr) {
 
 void IRAM_ATTR CECTransmit::transmit_message_on_gpio(const Message &frame) {
   // for each byte of the frame:
-  bool success = true;
   for (auto it = frame.begin(); it != frame.end(); ++it) {
     uint8_t current_byte = *it;
 
     // 1. send the current byte
     bool partial_first_byte = (it == frame.begin());
     for (int8_t i = (partial_first_byte ? 3 : 7); i >= 0; i--) {
+      // send MSB (Most Significant Bit) first
       bool bit_value = ((current_byte >> i) & 0b1);
       send_bit(bit_value);
     }
 
-    // 2. send EOM bit (logic 1 if this is the last byte of the frame)
+    // 2. send EOM (End Of Message) bit (logic 1 if this is the last byte of the frame)
     bool is_eom = (it == (frame.end() - 1));
     send_bit(is_eom);
 
-    // 3. send ack bit
+    // 3. send ACK (Acknowledge) bit
     send_bit(true);  // always send a 1, check elsewhere if our receiver sees a 1 or 0
   }
-  // return success;
 }
 
 bool CECTransmit::send_start_bit() {
@@ -529,19 +535,20 @@ void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
   }
 }
 
-void CECReceive::setup(InternalGPIOPin *pin, uint8_t address, bool monitor_mode) {
+void CECReceive::setup(InternalGPIOPin *pin, uint8_t address) {
   address_ = address;
-  monitor_mode_ = monitor_mode;
   pin->attach_interrupt(CECReceive::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
   isr_pin_ = pin->to_isr();
   reset_state_variables();
 }
 
 void CECReceive::dump_config() {
+  ESP_LOGCONFIG(TAG, "  monitor mode: %s", (monitor_mode_ ? "yes" : "no"));
   ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
 }
 
 Message CECReceive::take_received_message() {
+  InterruptLock lock;  // prevent simultaneous queue modification from the gpio_isr
   Message msg = recv_queue_.front();
   recv_queue_.pop();
   return msg;
@@ -559,17 +566,17 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   if (level == false) {
     last_falling_edge_us_ = now;
 
-    //if (self->receiver_state_ == ReceiverState::IDLE) {
-      // warn transmitter for new bus activity 
-    //  self->xmit_.got_start_of_activity();
-    //}
+    if (receiver_state_ == ReceiverState::IDLE) {
+      // inform transmitter on new bus activity 
+      xmit_.got_start_of_activity();
+    }
 
     if (recv_ack_queued_ && !monitor_mode_) {
       // create Acknowledge bit on the CEC bus by stretching the 'low' period
       recv_ack_queued_ = false;
       {
         isr_pin_.digital_write(false);
-        delay_microseconds_safe(LOW_BIT_US);
+        delay_microseconds_safe(LOW_BIT_US);  // TODO: not nice in isr
         isr_pin_.digital_write(true);
       }
     }
@@ -577,75 +584,64 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   }
   // otherwise, it's a rising edge, so it's time to process the pulse length 
 
-  uint32_t pulse_duration = (now - last_falling_edge_us_);
-  if (pulse_duration < 25) {
+  const uint32_t pulse_duration = (now - last_falling_edge_us_);
+  if (pulse_duration < (HIGH_BIT_MIN_US / 5)) {
     // spurious edge, forget about this
     return;
   }
   
   if (pulse_duration > START_BIT_MIN_US) {
     // start bit detected. reset everything and start receiving
+    reset_state_variables();  // abort any previously gathered (unfinished) state
     receiver_state_ = ReceiverState::RECEIVING_BYTE;
-    reset_state_variables();
-    recv_ack_queued_ = false;
-    xmit_.got_start_of_activity();
     return;
   }
 
-  bool value = (pulse_duration >= HIGH_BIT_MIN_US && pulse_duration <= HIGH_BIT_MAX_US);
+  bool value = (pulse_duration <= HIGH_BIT_MAX_US);  // short low pulse represents '1'
   
   switch (receiver_state_) {
     case ReceiverState::RECEIVING_BYTE: {
       // write bit to the current byte
-      recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0b1);
-
+      recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0x1);
       recv_bit_counter_++;
       if (recv_bit_counter_ >= 8) { 
         // if we reached eight bits, push the current byte to the frame buffer
         recv_frame_buffer_.push_back((uint8_t)(recv_byte_buffer_));
-
         recv_bit_counter_ = 0;
         recv_byte_buffer_ = 0;
-
-        receiver_state_ = ReceiverState::WAITING_FOR_EOM;
-      } else {
-        receiver_state_ = ReceiverState::RECEIVING_BYTE;
+        receiver_state_ = ReceiverState::WAITING_FOR_EOM;  // expect 9th bit of block: EOM
       }
       break;
     }
 
     case ReceiverState::WAITING_FOR_EOM: {
-      // check if we need to acknowledge this byte on the next bit
+      // check if we need to acknowledge this byte on the next 'ack' bit (10th bit of block)
       if (!recv_frame_buffer_.is_broadcast() && recv_frame_buffer_.destination_addr() == address_) {
         recv_ack_queued_ = true;
       }
-
       bool isEOM = (value == 1);
-
-      receiver_state_ = (
+      receiver_state_ =
         isEOM
         ? ReceiverState::WAITING_FOR_EOM_ACK
-        : ReceiverState::WAITING_FOR_ACK
-      );
+        : ReceiverState::WAITING_FOR_ACK;
       break;
     }
 
     case ReceiverState::WAITING_FOR_ACK: {
-      xmit_.got_byte_eom_ack(false, value);
-      receiver_state_ = ReceiverState::RECEIVING_BYTE;
+      xmit_.got_byte_eom_ack(false, value);  // pass time of received byte, eom and ack, to transmitter
+      receiver_state_ = ReceiverState::RECEIVING_BYTE;  // no EOM, so expect next byte for this frame
       break;
     }
 
     case ReceiverState::WAITING_FOR_EOM_ACK: {
-      xmit_.got_byte_eom_ack(true, value);
+      xmit_.got_byte_eom_ack(true, value);  // pass time of received byte, eom and ack, to transmitter
       if (promiscuous_mode_ ||
           recv_frame_buffer_.is_broadcast() ||
           (recv_frame_buffer_.destination_addr() == address_)) {
         // we are interested in this message, push to application
-        recv_queue_.push(recv_frame_buffer_);
+        recv_queue_.push(recv_frame_buffer_);  // TODO: safe inside isr?
       }
       reset_state_variables();
-      receiver_state_ = ReceiverState::IDLE;
       break;
     }
 
@@ -657,11 +653,13 @@ void IRAM_ATTR CECReceive::gpio_isr() {
 
 
 void IRAM_ATTR CECReceive::reset_state_variables() {
+  receiver_state_ = ReceiverState::IDLE;
   num_acks_ = 0;
   recv_bit_counter_ = 0;
-  recv_byte_buffer_ = 0x0;
+  recv_byte_buffer_ = 0;
+  recv_ack_queued_ = false;
   recv_frame_buffer_.clear();
-  recv_frame_buffer_.reserve(16);
+  recv_frame_buffer_.reserve(MAX_FRAME_LENGTH_BYTES);
 }
 
 }
