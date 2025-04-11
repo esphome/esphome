@@ -39,6 +39,7 @@ class CECTransmit {
   void queue_for_send(const Message &&frame) { LockGuard send_lock(send_mutex_); send_queue_.push(std::move(frame)); }
   bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
+  bool has_uart() const { return uart_ != nullptr; }
 
   /**
    * Transmit the message on the front of the send_queue out on the CEC line
@@ -58,6 +59,12 @@ class CECTransmit {
    * when receiving a start-bit, to notify that the CEC bus line is busy
    */
   void got_start_of_activity();
+
+  /**
+   * Use the uart to immediatly write an 'ack' (Acknowledge) bit,
+   * by pulling the cec bus line low for the longer bit-0 time.
+   */
+  bool send_ack_with_uart();
 
 protected:
 
@@ -129,7 +136,7 @@ protected:
 class HDMICEC : public Component {
 public:
   void set_pin(InternalGPIOPin *pin);
-  void set_address(uint8_t address) { address_ = address; }
+  void set_address(uint8_t address) { address_ = address & 0xf; }
   uint8_t address() { return address_; }
   void set_physical_address(uint16_t physical_address) { physical_address_ = physical_address; }
   void set_promiscuous_mode(bool promiscuous) { recv_.set_promiscuous_mode(promiscuous); }

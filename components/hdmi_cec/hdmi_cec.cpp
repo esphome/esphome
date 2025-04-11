@@ -9,25 +9,23 @@
 namespace esphome {
 namespace hdmi_cec {
 
-static const char *const TAG = "hdmi_cec";
-// receiver constants
-static const uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // CEC max frame length in bytes
+// CEC protocol constants as stated in standard:
+static const uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // max frame (message) length in bytes
 static const uint32_t START_BIT_MIN_US = 3500;  // minimum duration of 'low' startbit
 static const uint32_t START_BIT_NOM_US = 3700;  // nominal duration of 'low' startbit
 static const uint32_t START_BIT_HIGH_US = 800;
 static const uint32_t HIGH_BIT_MIN_US = 400;
 static const uint32_t HIGH_BIT_MAX_US = 800;
-// transmitter constants
 static const uint32_t TOTAL_BIT_US = 2400;
 static const uint32_t HIGH_BIT_US = 600;
 static const uint32_t LOW_BIT_US = 1500;
-// arbitration and retransmission
-static const uint32_t MIN_SIGNAL_FREE_TIME = (TOTAL_BIT_US * 7);
 static const uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = (TOTAL_BIT_US * 5);
 static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = (TOTAL_BIT_US * 3);
 static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 7);
-static const size_t MAX_ATTEMPTS = 5;
+static const uint8_t MAX_ATTEMPTS = 5;
 
+// constants used for this implementation:
+static const char *const TAG = "hdmi_cec";
 static const gpio::Flags PIN_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)  // TODO: or std::initializer_list<uint8_t>
@@ -74,7 +72,8 @@ void HDMICEC::set_pin(InternalGPIOPin *pin) {
 
 void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "HDMI-CEC");
-  ESP_LOGCONFIG(TAG, "  address: %x", address_);
+  ESP_LOGCONFIG(TAG, "  address: 0x%x", address_);
+  ESP_LOGCONFIG(TAG, "  physical address: 0x%04x", physical_address_);
   xmit_.dump_config();
   recv_.dump_config();
 }
@@ -511,6 +510,21 @@ void IRAM_ATTR CECTransmit::transmit_byte_on_uart(uint8_t byte, bool is_header, 
   #endif
 }
 
+bool IRAM_ATTR CECTransmit::send_ack_with_uart() {
+  // transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
+  // So, the uart byte to send has its 2 most-significant bits 0.
+  if (transmit_state_ != TransmitState::IDLE) {
+    // This method is called by the receiver. When receiving a message, this transmitter
+    // is expected to be idle. The only exception to that would be the rather abnormal case
+    // where we transmit a message to ourselves (address_ == initiator_address == target_address).
+    return false;
+  }
+  const uint8_t ack_byte = 0x3f;
+  uart_->write_byte(ack_byte);
+  return true;
+}
+
+
 void IRAM_ATTR CECTransmit::got_start_of_activity() {
   // bus is occupied, inhibit send
   receiver_is_busy_ = true;
@@ -574,7 +588,9 @@ void IRAM_ATTR CECReceive::gpio_isr() {
     if (recv_ack_queued_ && !monitor_mode_) {
       // create Acknowledge bit on the CEC bus by stretching the 'low' period
       recv_ack_queued_ = false;
-      {
+      if (!(xmit_.has_uart() && xmit_.send_ack_with_uart())) {
+        // put the ack bit here on the gpio pin.
+        // Unfortunately, this keeps this isr function busy for a rather long time
         isr_pin_.digital_write(false);
         delay_microseconds_safe(LOW_BIT_US);  // TODO: not nice in isr
         isr_pin_.digital_write(true);
