@@ -1,7 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
-from esphome.components import sensirion_common
 from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     STATE_CLASS_MEASUREMENT,

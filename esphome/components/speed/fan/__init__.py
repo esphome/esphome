@@ -1,13 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import fan, output
 from esphome.components.fan import validate_preset_modes
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_PRESET_MODES,
     CONF_DIRECTION_OUTPUT,
     CONF_OSCILLATION_OUTPUT,
     CONF_OUTPUT,
     CONF_OUTPUT_ID,
+    CONF_PRESET_MODES,
     CONF_SPEED,
     CONF_SPEED_COUNT,
 )

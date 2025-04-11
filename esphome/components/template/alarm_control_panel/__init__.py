@@ -1,15 +1,8 @@
 import esphome.codegen as cg
+from esphome.components import alarm_control_panel, binary_sensor
 import esphome.config_validation as cv
-from esphome.components import (
-    binary_sensor,
-    alarm_control_panel,
-)
-from esphome.const import (
-    CONF_ID,
-    CONF_BINARY_SENSORS,
-    CONF_INPUT,
-    CONF_RESTORE_MODE,
-)
+from esphome.const import CONF_BINARY_SENSORS, CONF_ID, CONF_INPUT, CONF_RESTORE_MODE
+
 from .. import template_ns
 
 CODEOWNERS = ["@grahambrown11", "@hwstar"]

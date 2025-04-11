@@ -36,6 +36,7 @@ def clang_options(idedata):
         # clang doesn't support Xtensa (yet?), so compile in 32-bit mode and pretend we're the Xtensa compiler
         cmd.append("-m32")
         cmd.append("-D__XTENSA__")
+        cmd.append("-D_LIBC")
     else:
         cmd.append(f"--target={triplet}")
 
@@ -79,6 +80,7 @@ def clang_options(idedata):
             "-fstrict-volatile-bitfields",
             "-mlongcalls",
             "-mtext-section-literals",
+            "-mdisable-hardware-atomics",
             "-mfix-esp32-psram-cache-issue",
             "-mfix-esp32-psram-cache-strategy=memw",
             "-fno-tree-switch-conversion",

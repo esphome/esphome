@@ -1,15 +1,15 @@
+from esphome import pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ENABLE_PIN,
+    CONF_TIMEOUT,
+    ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
-    ICON_ARROW_EXPAND_VERTICAL,
-    CONF_ADDRESS,
-    CONF_TIMEOUT,
-    CONF_ENABLE_PIN,
 )
-from esphome import pins
 
 DEPENDENCIES = ["i2c"]
 

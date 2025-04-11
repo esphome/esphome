@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2025.4.0-dev"
+__version__ = "2025.5.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -196,8 +196,10 @@ CONF_DC_PIN = "dc_pin"
 CONF_DEASSERT_RTS_DTR = "deassert_rts_dtr"
 CONF_DEBOUNCE = "debounce"
 CONF_DEBUG = "debug"
+CONF_DEBUG_SCHEDULER = "debug_scheduler"
 CONF_DECAY_MODE = "decay_mode"
 CONF_DECELERATION = "deceleration"
+CONF_DEFAULT = "default"
 CONF_DEFAULT_MODE = "default_mode"
 CONF_DEFAULT_TARGET_TEMPERATURE_HIGH = "default_target_temperature_high"
 CONF_DEFAULT_TARGET_TEMPERATURE_LOW = "default_target_temperature_low"

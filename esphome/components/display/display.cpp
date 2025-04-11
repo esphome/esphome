@@ -555,10 +555,10 @@ void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, Te
 
   switch (x_align) {
     case TextAlign::RIGHT:
-      *x1 = x - *width;
+      *x1 = x - *width - x_offset;
       break;
     case TextAlign::CENTER_HORIZONTAL:
-      *x1 = x - (*width) / 2;
+      *x1 = x - (*width + x_offset) / 2;
       break;
     case TextAlign::LEFT:
     default:

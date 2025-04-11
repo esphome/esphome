@@ -32,23 +32,10 @@ class Scheduler {
     Component *component;
     std::string name;
     enum Type { TIMEOUT, INTERVAL } type;
-    union {
-      uint32_t interval;
-      uint32_t timeout;
-    };
-    uint32_t last_execution;
+    uint32_t interval;
+    uint64_t next_execution_;
     std::function<void()> callback;
     bool remove;
-    uint8_t last_execution_major;
-
-    inline uint32_t next_execution() { return this->last_execution + this->timeout; }
-    inline uint8_t next_execution_major() {
-      uint32_t next_exec = this->next_execution();
-      uint8_t next_exec_major = this->last_execution_major;
-      if (next_exec < this->last_execution)
-        next_exec_major++;
-      return next_exec_major;
-    }
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
     const char *get_type_str() {
@@ -61,9 +48,12 @@ class Scheduler {
           return "";
       }
     }
+    const char *get_source() {
+      return this->component != nullptr ? this->component->get_component_source() : "unknown";
+    }
   };
 
-  uint32_t millis_();
+  uint64_t millis_();
   void cleanup_();
   void pop_raw_();
   void push_(std::unique_ptr<SchedulerItem> item);
@@ -77,7 +67,7 @@ class Scheduler {
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
   uint32_t last_millis_{0};
-  uint8_t millis_major_{0};
+  uint16_t millis_major_{0};
   uint32_t to_remove_{0};
 };
 

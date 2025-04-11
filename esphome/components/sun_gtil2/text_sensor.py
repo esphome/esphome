@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_STATE
-from . import SunGTIL2Component, CONF_SUN_GTIL2_ID
+
+from . import CONF_SUN_GTIL2_ID, SunGTIL2Component
 
 CONF_SERIAL_NUMBER = "serial_number"
 

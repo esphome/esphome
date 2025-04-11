@@ -3,10 +3,11 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_SWITCH,
-    ICON_BLUETOOTH,
     ENTITY_CATEGORY_CONFIG,
+    ICON_BLUETOOTH,
     ICON_PULSE,
 )
+
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
 BluetoothSwitch = ld2410_ns.class_("BluetoothSwitch", switch.Switch)

@@ -1,15 +1,14 @@
 import esphome.codegen as cg
+from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.components import uart
-from esphome.components import sensor
 from esphome.const import (
+    CONF_ALTITUDE,
+    CONF_COURSE,
     CONF_ID,
     CONF_LATITUDE,
     CONF_LONGITUDE,
-    CONF_SPEED,
-    CONF_COURSE,
-    CONF_ALTITUDE,
     CONF_SATELLITES,
+    CONF_SPEED,
     STATE_CLASS_MEASUREMENT,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,

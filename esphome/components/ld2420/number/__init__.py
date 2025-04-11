@@ -4,12 +4,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_DISTANCE,
-    UNIT_SECOND,
     ENTITY_CATEGORY_CONFIG,
     ICON_MOTION_SENSOR,
-    ICON_TIMELAPSE,
     ICON_SCALE,
+    ICON_TIMELAPSE,
+    UNIT_SECOND,
 )
+
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
 LD2420TimeoutNumber = ld2420_ns.class_("LD2420TimeoutNumber", number.Number)

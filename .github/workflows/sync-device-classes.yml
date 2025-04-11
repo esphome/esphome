@@ -22,7 +22,7 @@ jobs:
           path: lib/home-assistant
 
       - name: Setup Python
-        uses: actions/setup-python@v5.4.0
+        uses: actions/setup-python@v5.5.0
         with:
           python-version: 3.12
 
@@ -36,11 +36,11 @@ jobs:
           python ./script/sync-device_class.py
 
       - name: Commit changes
-        uses: peter-evans/create-pull-request@v7.0.7
+        uses: peter-evans/create-pull-request@v7.0.8
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
-          committer: esphomebot <esphome@nabucasa.com>
-          author: esphomebot <esphome@nabucasa.com>
+          committer: esphomebot <esphome@openhomefoundation.org>
+          author: esphomebot <esphome@openhomefoundation.org>
           branch: sync/device-classes
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"

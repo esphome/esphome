@@ -1,13 +1,13 @@
+from esphome import automation, pins
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins, automation
-from esphome.automation import maybe_simple_id
 from esphome.const import (
-    CONF_ID,
+    CONF_BRIGHTNESS,
     CONF_CLK_PIN,
     CONF_DIO_PIN,
+    CONF_ID,
     CONF_LEVEL,
-    CONF_BRIGHTNESS,
 )
 
 CODEOWNERS = ["@freekode"]

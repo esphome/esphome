@@ -1,32 +1,32 @@
-from pathlib import Path
 import hashlib
+from pathlib import Path
 import re
+
 import requests
 
-
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import light, sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_OUTPUT_ID,
-    CONF_GAMMA_CORRECT,
-    CONF_POWER,
-    CONF_VOLTAGE,
     CONF_CURRENT,
-    CONF_VERSION,
-    CONF_URL,
+    CONF_GAMMA_CORRECT,
+    CONF_MAX_BRIGHTNESS,
+    CONF_MIN_BRIGHTNESS,
+    CONF_OUTPUT_ID,
+    CONF_POWER,
     CONF_UPDATE_INTERVAL,
-    UNIT_VOLT,
-    UNIT_AMPERE,
-    UNIT_WATT,
+    CONF_URL,
+    CONF_VERSION,
+    CONF_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    CONF_MIN_BRIGHTNESS,
-    CONF_MAX_BRIGHTNESS,
+    UNIT_AMPERE,
+    UNIT_VOLT,
+    UNIT_WATT,
 )
-from esphome.core import HexInt, CORE
+from esphome.core import CORE, HexInt
 
 DOMAIN = "shelly_dimmer"
 AUTO_LOAD = ["sensor"]

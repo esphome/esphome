@@ -85,8 +85,8 @@ def load_components():
 
 
 # pylint: disable=wrong-import-position
-from esphome.const import CONF_TYPE, KEY_CORE, KEY_TARGET_PLATFORM
-from esphome.core import CORE
+from esphome.const import CONF_TYPE, KEY_CORE, KEY_TARGET_PLATFORM  # noqa: E402
+from esphome.core import CORE  # noqa: E402
 
 # pylint: enable=wrong-import-position
 
@@ -95,13 +95,13 @@ load_components()
 
 # Import esphome after loading components (so schema is tracked)
 # pylint: disable=wrong-import-position
-from esphome import automation, pins
-from esphome.components import remote_base
-import esphome.config_validation as cv
-import esphome.core as esphome_core
-from esphome.helpers import write_file_if_changed
-from esphome.loader import CORE_COMPONENTS_PATH, get_platform
-from esphome.util import Registry
+from esphome import automation, pins  # noqa: E402
+from esphome.components import remote_base  # noqa: E402
+import esphome.config_validation as cv  # noqa: E402
+import esphome.core as esphome_core  # noqa: E402
+from esphome.helpers import write_file_if_changed  # noqa: E402
+from esphome.loader import CORE_COMPONENTS_PATH, get_platform  # noqa: E402
+from esphome.util import Registry  # noqa: E402
 
 # pylint: enable=wrong-import-position
 
@@ -614,9 +614,9 @@ def build_schema():
             if platform_manifest is not None:
                 output[platform][S_COMPONENTS][domain] = {}
                 if len(platform_manifest.dependencies) > 0:
-                    output[platform][S_COMPONENTS][domain][
-                        "dependencies"
-                    ] = platform_manifest.dependencies
+                    output[platform][S_COMPONENTS][domain]["dependencies"] = (
+                        platform_manifest.dependencies
+                    )
                 register_module_schemas(
                     f"{domain}.{platform}", platform_manifest.module, platform_manifest
                 )

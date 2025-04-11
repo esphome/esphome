@@ -1,9 +1,9 @@
-from esphome.core import coroutine
 from esphome import automation
-from esphome.components import climate, sensor, uart, remote_transmitter
+import esphome.codegen as cg
+from esphome.components import climate, remote_transmitter, sensor, uart
+from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_AUTOCONF,
     CONF_BEEPER,
@@ -16,12 +16,12 @@ from esphome.const import (
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
-    CONF_TIMEOUT,
     CONF_TEMPERATURE,
+    CONF_TIMEOUT,
     CONF_USE_FAHRENHEIT,
+    DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
@@ -30,11 +30,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT,
 )
-from esphome.components.climate import (
-    ClimateMode,
-    ClimatePreset,
-    ClimateSwingMode,
-)
+from esphome.core import coroutine
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]

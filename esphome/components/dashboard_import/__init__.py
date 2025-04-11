@@ -1,18 +1,18 @@
 import base64
-import secrets
 from pathlib import Path
-from typing import Optional
 import re
+import secrets
+from typing import Optional
 
 import requests
 from ruamel.yaml import YAML
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome import git
+import esphome.codegen as cg
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_REF, CONF_WIFI, CONF_ESPHOME, CONF_PROJECT
+import esphome.config_validation as cv
+from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_REF, CONF_WIFI
+import esphome.final_validate as fv
 from esphome.yaml_util import dump
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")

@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    ENTITY_CATEGORY_NONE,
-    DEVICE_CLASS_RUNNING,
-    DEVICE_CLASS_EMPTY,
     CONF_ID,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_RUNNING,
+    ENTITY_CATEGORY_NONE,
 )
 
 from . import EzoPMP

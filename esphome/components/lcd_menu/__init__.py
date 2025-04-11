@@ -1,17 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_DIMENSIONS,
-    CONF_DISPLAY_ID,
-)
-from esphome.core.entity_helpers import inherit_property_from
 from esphome.components import lcd_base
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
     DisplayMenuComponent,
     display_menu_to_code,
 )
+import esphome.config_validation as cv
+from esphome.const import CONF_DIMENSIONS, CONF_DISPLAY_ID, CONF_ID
+from esphome.core.entity_helpers import inherit_property_from
 
 CODEOWNERS = ["@numo68"]
 

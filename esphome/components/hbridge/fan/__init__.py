@@ -1,20 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import fan, output
 from esphome.components.fan import validate_preset_modes
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_DECAY_MODE,
-    CONF_SPEED_COUNT,
+    CONF_ENABLE_PIN,
+    CONF_ID,
     CONF_PIN_A,
     CONF_PIN_B,
-    CONF_ENABLE_PIN,
     CONF_PRESET_MODES,
+    CONF_SPEED_COUNT,
 )
-from .. import hbridge_ns
 
+from .. import hbridge_ns
 
 CODEOWNERS = ["@WeekendWarrior"]
 

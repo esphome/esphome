@@ -2,12 +2,13 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    CONF_VERSION,
     CONF_MAC_ADDRESS,
+    CONF_VERSION,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BLUETOOTH,
     ICON_CHIP,
 )
+
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]

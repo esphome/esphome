@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
-from . import cap1188_ns, CAP1188Component, CONF_CAP1188_ID
+
+from . import CONF_CAP1188_ID, CAP1188Component, cap1188_ns
 
 DEPENDENCIES = ["cap1188"]
 CAP1188Channel = cap1188_ns.class_("CAP1188Channel", binary_sensor.BinarySensor)

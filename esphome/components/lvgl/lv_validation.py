@@ -254,9 +254,25 @@ def pixels_or_percent_validator(value):
 pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
 
 
-def zoom(value):
+def pixels_validator(value):
+    if isinstance(value, str) and value.lower().endswith("px"):
+        value = value[:-2]
+    return cv.positive_int(value)
+
+
+pixels = LValidator(pixels_validator, uint32, retmapper=literal)
+
+
+def zoom_validator(value):
     value = cv.float_range(0.1, 10.0)(value)
+    return value
+
+
+def zoom_retmapper(value):
     return int(value * 256)
+
+
+zoom = LValidator(zoom_validator, uint32, retmapper=zoom_retmapper)
 
 
 def angle(value):
@@ -285,14 +301,6 @@ def size_validator(value):
 
 size = LValidator(size_validator, uint32, retmapper=literal)
 
-
-def pixels_validator(value):
-    if isinstance(value, str) and value.lower().endswith("px"):
-        return cv.int_(value[:-2])
-    return cv.int_(value)
-
-
-pixels = LValidator(pixels_validator, uint32, retmapper=literal)
 
 radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 

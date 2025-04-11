@@ -1,17 +1,18 @@
+import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
-    CONF_NUMBER_DATAPOINT,
+    CONF_INITIAL_VALUE,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_MULTIPLY,
-    CONF_STEP,
-    CONF_INITIAL_VALUE,
+    CONF_NUMBER_DATAPOINT,
     CONF_RESTORE_VALUE,
+    CONF_STEP,
 )
-from .. import tuya_ns, CONF_TUYA_ID, Tuya, TuyaDatapointType
+
+from .. import CONF_TUYA_ID, Tuya, TuyaDatapointType, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@frankiboy1"]

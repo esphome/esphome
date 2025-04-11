@@ -1,9 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor, uart
-from esphome.const import (
-    ICON_FINGERPRINT,
-)
+import esphome.config_validation as cv
+from esphome.const import ICON_FINGERPRINT
 
 CODEOWNERS = ["@hobbypunk90"]
 DEPENDENCIES = ["uart"]

@@ -1,9 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_FACTORY_RESET, CONF_ID, CONF_SENSITIVITY
+import esphome.codegen as cg
 from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_FACTORY_RESET, CONF_ID, CONF_SENSITIVITY
 
 CODEOWNERS = ["@niklasweber"]
 DEPENDENCIES = ["uart"]

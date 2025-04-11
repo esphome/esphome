@@ -1,7 +1,6 @@
-import pytest
-
 from hypothesis import given
 from hypothesis.strategies import ip_addresses
+import pytest
 
 from esphome import helpers
 

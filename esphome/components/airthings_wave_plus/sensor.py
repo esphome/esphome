@@ -1,20 +1,19 @@
 import esphome.codegen as cg
+from esphome.components import airthings_wave_base, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, airthings_wave_base
-
 from esphome.const import (
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    STATE_CLASS_MEASUREMENT,
-    ICON_RADIOACTIVE,
+    CONF_CO2,
     CONF_ID,
+    CONF_ILLUMINANCE,
     CONF_RADON,
     CONF_RADON_LONG_TERM,
-    CONF_CO2,
-    UNIT_BECQUEREL_PER_CUBIC_METER,
-    UNIT_PARTS_PER_MILLION,
-    CONF_ILLUMINANCE,
-    UNIT_LUX,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_ILLUMINANCE,
+    ICON_RADIOACTIVE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_BECQUEREL_PER_CUBIC_METER,
+    UNIT_LUX,
+    UNIT_PARTS_PER_MILLION,
 )
 
 DEPENDENCIES = airthings_wave_base.DEPENDENCIES

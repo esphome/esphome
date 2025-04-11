@@ -1,7 +1,7 @@
 import esphome.codegen as cg
+from esphome.components import climate, remote_base, sensor
 import esphome.config_validation as cv
-from esphome.components import climate, sensor, remote_base
-from esphome.const import CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT, CONF_SENSOR
+from esphome.const import CONF_SENSOR, CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT
 
 DEPENDENCIES = ["remote_transmitter"]
 AUTO_LOAD = ["sensor", "remote_base"]

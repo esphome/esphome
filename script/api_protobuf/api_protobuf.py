@@ -17,12 +17,12 @@ then run this script with python3 and the files
 will be generated, they still need to be formatted
 """
 
-import os
-import re
-import sys
 from abc import ABC, abstractmethod
+import os
 from pathlib import Path
+import re
 from subprocess import call
+import sys
 from textwrap import dedent
 
 # Generate with
@@ -528,7 +528,7 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def dump_content(self):
-        o = f'for (const auto {"" if self._ti_is_bool else "&"}it : this->{self.field_name}) {{\n'
+        o = f"for (const auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
         o += f'  out.append("  {self.name}: ");\n'
         o += indent(self._ti.dump("it")) + "\n"
         o += '  out.append("\\n");\n'

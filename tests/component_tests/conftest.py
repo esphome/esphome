@@ -1,18 +1,18 @@
 """Fixtures for component tests."""
 
-import sys
 from pathlib import Path
+import sys
 
 # Add package root to python path
 here = Path(__file__).parent
 package_root = here.parent.parent
 sys.path.insert(0, package_root.as_posix())
 
-import pytest
+import pytest  # noqa: E402
 
-from esphome.core import CORE
-from esphome.config import read_config
-from esphome.__main__ import generate_cpp_contents
+from esphome.__main__ import generate_cpp_contents  # noqa: E402
+from esphome.config import read_config  # noqa: E402
+from esphome.core import CORE  # noqa: E402
 
 
 @pytest.fixture
