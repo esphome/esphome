@@ -1,7 +1,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_UART
+#ifdef HAVE_UART
   #include "esphome/components/uart/uart_component.h"
 #endif
 #include "hdmi_cec.h"
@@ -254,7 +254,7 @@ void CECTransmit::setup(InternalGPIOPin *pin) {
   pin_->digital_write(true);  // make the 'open_drain' output high-impedance
   pin_->setup();
 
-  #ifdef USE_UART
+  #ifdef HAVE_UART
   if (uart_) {
     uart_->set_baud_rate(2083);
     uart_->set_data_bits(8);
@@ -322,7 +322,8 @@ void CECTransmit::transmit_message() {
       }
     } else {
       // last transmit just ended successfully
-      ESP_LOGD(TAG, "frame was sent successfully in %d attempt(s)", transmit_attempts_);
+      ESP_LOGD(TAG, "frame was sent successfully in %d attempt%s",
+               transmit_attempts_, (transmit_attempts_ > 1 ? "s" : ""));
     }
 
     // terminate working on the current frame?
@@ -482,18 +483,18 @@ void IRAM_ATTR CECTransmit::transmit_message_on_uart(const Message &frame) {
 }
 
 void IRAM_ATTR CECTransmit::transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom) {
-  // 5 uart-bits create the nominal 2.4ms cec bit period
+  // 5 uart-bits create the nominal 2.4ms cec bit period, with our baudrate of 2083 bits/sec.
   // 10 uart-bits are made with an (always-0) uart start bit, then 8 data bit, and an (always 1) uart stop bit.
   // transmitting a '0' data bit gets translated to a uart 3xlow, 2xhigh on the cec line
   // transmitting a '1' data bit gets translated to a uart 1xlow, 4xhigh on the cec line
   // Note that a CEC 'header/data block' byte is sent MSB (Most Significant Bit) first,
   // whereas the bytes as given to the UART are sent out with LSB first.
-  //   cec2bit data     10-bit pattern in transmission order      stripped start/stop, swap lsb-first, uart data byte
+  //  cec 2-bit data    10-bit pattern in transmission order    stripped start/stop, swap lsb-first, uart data byte
   //        00                    0001100011                           10001100 = 8c
   //        01                    0001101111                           11101100 = ec
   //        10                    0111100011                           10001111 = 8f
   //        11                    0111101111                           11101111 = ef
-  #ifdef USE_UART
+  #ifdef HAVE_UART
   static const std::array<uint8_t, 4> cec2bit_to_uartbyte = {0x8c, 0xec, 0x8f, 0xef};
   std::array<uint8_t, 5> uart_bytes;
   uint16_t cec_block = ((uint16_t)byte) << 2;
@@ -513,15 +514,17 @@ void IRAM_ATTR CECTransmit::transmit_byte_on_uart(uint8_t byte, bool is_header, 
 bool IRAM_ATTR CECTransmit::send_ack_with_uart() {
   // transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
   // So, the uart byte to send has its 2 most-significant bits 0.
-  if (transmit_state_ != TransmitState::IDLE) {
-    // This method is called by the receiver. When receiving a message, this transmitter
-    // is expected to be idle. The only exception to that would be the rather abnormal case
-    // where we transmit a message to ourselves (address_ == initiator_address == target_address).
-    return false;
+  #ifdef HAVE_UART
+  if (transmit_state_ == TransmitState::IDLE) {
+    const uint8_t ack_byte = 0x3f;
+    uart_->write_byte(ack_byte);
+    return true;
   }
-  const uint8_t ack_byte = 0x3f;
-  uart_->write_byte(ack_byte);
-  return true;
+  #endif
+  // This method is called by the receiver. When receiving a message, this transmitter
+  // is expected to be idle. The only exception to that would be the rather abnormal case
+  // where we transmit a message to ourselves (address_ == initiator_address == target_address).
+  return false;
 }
 
 
