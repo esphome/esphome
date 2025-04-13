@@ -30,8 +30,12 @@ void AXS15231Touchscreen::setup() {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
-  this->x_raw_max_ = this->display_->get_native_width();
-  this->y_raw_max_ = this->display_->get_native_height();
+  if (this->x_raw_max_ == 0) {
+    this->x_raw_max_ = this->display_->get_native_width();
+  }
+  if (this->y_raw_max_ == 0) {
+    this->y_raw_max_ = this->display_->get_native_height();
+  }
   ESP_LOGCONFIG(TAG, "AXS15231 Touchscreen setup complete");
 }
 
@@ -44,7 +48,7 @@ void AXS15231Touchscreen::update_touches() {
   err = this->read(data, sizeof(data));
   ERROR_CHECK(err);
   this->status_clear_warning();
-  if (data[0] != 0)  // no touches
+  if (data[0] != 0 || data[1] == 0)  // no touches
     return;
   uint16_t x = encode_uint16(data[2] & 0xF, data[3]);
   uint16_t y = encode_uint16(data[4] & 0xF, data[5]);
