@@ -990,3 +990,13 @@ color:
     green_int: 123
     blue_int: 64
     white_int: 255
+
+select:
+  - platform: lvgl
+    id: lv_roller_select
+    widget: lv_roller
+    restore_value: true
+  - platform: lvgl
+    id: lv_dropdown_select
+    widget: lv_dropdown
+    restore_value: false
