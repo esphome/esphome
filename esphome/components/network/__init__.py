@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
                     esp32_arduino=cv.Version(0, 0, 0),
                     esp8266_arduino=cv.Version(0, 0, 0),
                     rp2040_arduino=cv.Version(0, 0, 0),
-                    bk72xx_libretiny=cv.Version(1, 7, 0),
+                    bk72xx_arduino=cv.Version(1, 7, 0),
                 ),
                 cv.boolean_false,
             ),

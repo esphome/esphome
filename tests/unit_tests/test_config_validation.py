@@ -284,3 +284,93 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
     assert schema({}).get("idf") == idf
     assert schema({}).get("arduino") == arduino
     assert schema({}).get("simple") == simple
+
+
+@pytest.mark.parametrize(
+    "framework, platform, message",
+    [
+        ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
+        ("arduino", PLATFORM_ESP32, "ESP32 using arduino framework"),
+        ("arduino", PLATFORM_ESP8266, "ESP8266 using arduino framework"),
+        ("arduino", PLATFORM_RP2040, "RP2040 using arduino framework"),
+        ("arduino", PLATFORM_BK72XX, "BK72XX using arduino framework"),
+        ("host", PLATFORM_HOST, "HOST using host framework"),
+    ],
+)
+def test_require_framework_version(framework, platform, message):
+    import voluptuous as vol
+
+    from esphome.const import (
+        KEY_CORE,
+        KEY_FRAMEWORK_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+    )
+
+    CORE.data[KEY_CORE] = {}
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = framework
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = config_validation.Version(1, 0, 0)
+
+    assert (
+        config_validation.require_framework_version(
+            esp_idf=config_validation.Version(0, 5, 0),
+            esp32_arduino=config_validation.Version(0, 5, 0),
+            esp8266_arduino=config_validation.Version(0, 5, 0),
+            rp2040_arduino=config_validation.Version(0, 5, 0),
+            bk72xx_arduino=config_validation.Version(0, 5, 0),
+            host=config_validation.Version(0, 5, 0),
+            extra_message="test 1",
+        )("test")
+        == "test"
+    )
+
+    with pytest.raises(
+        vol.error.Invalid,
+        match="This feature requires at least framework version 2.0.0. test 2",
+    ):
+        config_validation.require_framework_version(
+            esp_idf=config_validation.Version(2, 0, 0),
+            esp32_arduino=config_validation.Version(2, 0, 0),
+            esp8266_arduino=config_validation.Version(2, 0, 0),
+            rp2040_arduino=config_validation.Version(2, 0, 0),
+            bk72xx_arduino=config_validation.Version(2, 0, 0),
+            host=config_validation.Version(2, 0, 0),
+            extra_message="test 2",
+        )("test")
+
+    assert (
+        config_validation.require_framework_version(
+            esp_idf=config_validation.Version(1, 5, 0),
+            esp32_arduino=config_validation.Version(1, 5, 0),
+            esp8266_arduino=config_validation.Version(1, 5, 0),
+            rp2040_arduino=config_validation.Version(1, 5, 0),
+            bk72xx_arduino=config_validation.Version(1, 5, 0),
+            host=config_validation.Version(1, 5, 0),
+            max_version=True,
+            extra_message="test 3",
+        )("test")
+        == "test"
+    )
+
+    with pytest.raises(
+        vol.error.Invalid,
+        match="This feature requires framework version 0.5.0 or lower. test 4",
+    ):
+        config_validation.require_framework_version(
+            esp_idf=config_validation.Version(0, 5, 0),
+            esp32_arduino=config_validation.Version(0, 5, 0),
+            esp8266_arduino=config_validation.Version(0, 5, 0),
+            rp2040_arduino=config_validation.Version(0, 5, 0),
+            bk72xx_arduino=config_validation.Version(0, 5, 0),
+            host=config_validation.Version(0, 5, 0),
+            max_version=True,
+            extra_message="test 4",
+        )("test")
+
+    with pytest.raises(
+        vol.error.Invalid, match=f"This feature is incompatible with {message}. test 5"
+    ):
+        config_validation.require_framework_version(
+            extra_message="test 5",
+        )("test")
