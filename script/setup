@@ -21,6 +21,8 @@ pre-commit install
 
 script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
 
+mkdir .temp
+
 echo
 echo
 echo "Virtual environment created. Run 'source $location' to use it."
