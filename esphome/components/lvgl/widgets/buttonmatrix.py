@@ -250,7 +250,7 @@ async def button_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config[CONF_ID])
     assert all(isinstance(w, MatrixButton) for w in widgets)
 
-    async def do_button_update(w: MatrixButton):
+    async def do_button_update(w):
         if (width := config.get(CONF_WIDTH)) is not None:
             lv.btnmatrix_set_btn_width(w.obj, w.index, width)
         if config.get(CONF_SELECTED):
@@ -275,5 +275,5 @@ async def button_update_to_code(config, action_id, template_arg, args):
                 )
 
     return await action_to_code(
-        widgets, do_button_update, action_id, template_arg, args
+        widgets, do_button_update, action_id, template_arg, args, config
     )

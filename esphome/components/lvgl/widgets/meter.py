@@ -297,7 +297,9 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     async def set_value(w: Widget):
         await set_indicator_values(w.var, w.obj, config)
 
-    return await action_to_code(widget, set_value, action_id, template_arg, args)
+    return await action_to_code(
+        widget, set_value, action_id, template_arg, args, config
+    )
 
 
 async def set_indicator_values(meter, indicator, config):

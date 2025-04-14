@@ -97,7 +97,7 @@ async def canvas_fill(config, action_id, template_arg, args):
     async def do_fill(w: Widget):
         lv.canvas_fill_bg(w.obj, color, opa)
 
-    return await action_to_code(widget, do_fill, action_id, template_arg, args)
+    return await action_to_code(widget, do_fill, action_id, template_arg, args, config)
 
 
 @automation.register_action(
@@ -145,7 +145,9 @@ async def canvas_set_pixel(config, action_id, template_arg, args):
                         x, y = point
                         lv.canvas_set_px_opa(w.obj, x, y, opa_var)
 
-    return await action_to_code(widget, do_set_pixels, action_id, template_arg, args)
+    return await action_to_code(
+        widget, do_set_pixels, action_id, template_arg, args, config
+    )
 
 
 DRAW_SCHEMA = cv.Schema(
@@ -181,7 +183,9 @@ async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg
                     lv_assign(getattr(dsc, mapped_prop), value)
             await do_draw(w, x, y, dsc_addr)
 
-    return await action_to_code(widget, action_func, action_id, template_arg, args)
+    return await action_to_code(
+        widget, action_func, action_id, template_arg, args, config
+    )
 
 
 RECT_PROPS = {
