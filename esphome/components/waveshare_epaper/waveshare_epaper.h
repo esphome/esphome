@@ -94,7 +94,10 @@ class WaveshareEPaper7C : public WaveshareEPaperBase {
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   uint32_t get_buffer_length_() override;
   void setup() override;
+
   void init_internal_7c_(uint32_t buffer_length);
+  void send_buffers_();
+  void reset_();
 
   static const int NUM_BUFFERS = 10;
   uint8_t *buffers_[NUM_BUFFERS];
@@ -683,6 +686,29 @@ class WaveshareEPaper5P8InV2 : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper5P65InF : public WaveshareEPaper7C {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+  void deep_sleep() override { ; }
+
+  enum WaitForState { BUSY = true, IDLE = false };
+  bool wait_until_(WaitForState state);
+
+  bool deep_sleep_between_updates_{true};
+};
+
 class WaveshareEPaper7P3InF : public WaveshareEPaper7C {
  public:
   void initialize() override;
@@ -703,17 +729,6 @@ class WaveshareEPaper7P3InF : public WaveshareEPaper7C {
   bool wait_until_idle_();
 
   bool deep_sleep_between_updates_{true};
-
-  void reset_() {
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(true);
-      delay(20);
-      this->reset_pin_->digital_write(false);
-      delay(1);
-      this->reset_pin_->digital_write(true);
-      delay(20);
-    }
-  };
 };
 
 class WaveshareEPaper7P5In : public WaveshareEPaper {
