@@ -413,12 +413,13 @@ void Sim7600Component::parse_cmd_(std::string message) {
       }
       // Otherwise we receive another OK
       if (ok) {
-        send_cmd_("AT+CLCC");
+        //send_cmd_("AT+CLCC");
+        send_cmd_("AT+CPAS");
         this->state_ = STATE_CHECK_CALL;
       }
       break;
     case STATE_CHECK_CALL:
-      if (message.compare(0, 6, "+CLCC:") == 0 && this->parse_index_ == 0) {
+      if (message.compare(0, 6, "+CPAS:") == 0 && this->parse_index_ == 0) {    // was "+CLCC:"
         this->expect_ack_ = true;
         size_t start = 7;
         size_t end = message.find(',', start);
