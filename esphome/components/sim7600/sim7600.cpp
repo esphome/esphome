@@ -143,12 +143,12 @@ void Sim7600Component::parse_cmd_(std::string message) {
       break;
     case STATE_SETUP_CMGF:
       send_cmd_("AT+CMGF=1");
-      this->state_ = STATE_SETUP_CLIP;
+      //this->state_ = STATE_SETUP_CLIP;  // skip setup clip not supported on7670G
+      this->state_ = LAST_CxREG;
       this->expect_ack_ = true;
       break;
     case STATE_SETUP_CLIP:
-      //send_cmd_("AT+CLIP=1");
-      send_cmd_("AT+CMGF=1");
+      send_cmd_("AT+CLIP=1");
       this->state_ = LAST_CxREG;
       this->expect_ack_ = true;
       break;
