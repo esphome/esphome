@@ -441,9 +441,10 @@ void AudioPipeline::decode_task(void *params) {
                                                  pdFALSE,                                    // Wait for all the bits,
                                                  portMAX_DELAY);  // Block indefinitely until bit is set
 
+    xEventGroupClearBits(this_pipeline->event_group_,
+                         EventGroupBits::DECODER_MESSAGE_FINISHED | EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE);
+
     if (!(event_bits & EventGroupBits::PIPELINE_COMMAND_STOP)) {
-      xEventGroupClearBits(this_pipeline->event_group_,
-                           EventGroupBits::DECODER_MESSAGE_FINISHED | EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE);
       InfoErrorEvent event;
       event.source = InfoErrorSource::DECODER;
 
