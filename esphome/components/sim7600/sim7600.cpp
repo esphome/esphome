@@ -7,7 +7,7 @@ namespace sim7600 {
 
 static const char *const TAG = "sim7600";
 
-enum State PREF_CxREG = STATE_CEREG;
+enum State PREF_CxREG = STATE_CREG;
 enum State LAST_CxREG = PREF_CxREG;
 
 const char ASCII_CR = 0x0D;
@@ -192,7 +192,72 @@ void Sim7600Component::parse_cmd_(std::string message) {
       if (message == "OK")
         this->state_ = STATE_INIT;
       break;
-	  
+
+
+
+
+
+
+    
+
+    
+    case STATE_CREG:
+      send_cmd_("AT+CREG?");                    
+      this->state_ = STATE_CREG_WAIT;
+      break;
+    case STATE_CREG_WAIT: {
+      // Response: "+CREG: 0,1" -- the one there means registered ok
+      //           "+CREG: *,4" means LTE (4G/5G) not available, try GPRS (3G)
+      //           "+CREG: -,-" means not registered ok
+      bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');     
+      if (registered) {
+        if (!this->registered_) {
+          ESP_LOGD(TAG, "Registered OK");
+        }
+        this->state_ = STATE_CSQ;
+        this->expect_ack_ = true;
+		    LAST_CxREG = STATE_CREG;
+		
+#ifdef USE_SENSOR
+        if (this->network_sensor_ != nullptr) {
+          this->network_sensor_->publish_state(2);
+	    	}
+        ESP_LOGD(TAG, "network registration: 2 (GSM)");
+#endif
+
+		
+      } else {
+        
+ 		if (message[7] == '0') {           // Network registration is disabled, enable it   
+          ESP_LOGD(TAG, " Registration is disabled, enable it");
+          send_cmd_("AT+CREG=1");                        
+          this->expect_ack_ = true;
+          this->state_ = STATE_SETUP_CMGF;
+		//  break;
+		} else if (message[9] == '4')  {          // not available, trying GPRS
+          ESP_LOGD(TAG, "network Registration failed, trying LTE");
+          this->state_ = STATE_CEREG;
+          this->expect_ack_ = true;
+        //  break;			
+        } else {
+          ESP_LOGD(TAG, "network Registration failed, trying again");
+          // Keep waiting registration
+          this->state_ = STATE_INIT;
+        }
+      }
+      set_registered_(registered);
+      break;
+    }
+
+
+
+
+
+
+
+
+
+    
     case STATE_CEREG:
       send_cmd_("AT+CEREG?");                    
       this->state_ = STATE_CEREG_WAIT;
@@ -208,7 +273,8 @@ void Sim7600Component::parse_cmd_(std::string message) {
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
-		LAST_CxREG = STATE_CEREG;
+		    
+        LAST_CxREG = STATE_CEREG;
 		
 #ifdef USE_SENSOR
         if (this->network_sensor_ != nullptr) {
@@ -225,9 +291,11 @@ void Sim7600Component::parse_cmd_(std::string message) {
           this->expect_ack_ = true;
           this->state_ = STATE_SETUP_CMGF;
 		//  break;
-		} else if (message[10] == '4')  {          //LTE not available, trying GPRS
-          ESP_LOGD(TAG, "LTE Registration failed, trying GPRS");
-          this->state_ = STATE_CGREG;
+		} else if (message[10] == '4')  {          //LTE not available, 
+          ESP_LOGD(TAG, "LTE Registration failed, trying GSM"); //trying GPRS
+          this->state_ = STATE_CREG;
+        // ESP_LOGD(TAG, "LTE Registration failed, trying GPRS"); //trying GPRS
+        // this->state_ = STATE_CGREG;
           this->expect_ack_ = true;
         //  break;			
         } else {
@@ -239,7 +307,10 @@ void Sim7600Component::parse_cmd_(std::string message) {
       set_registered_(registered);
       break;
     }
-	
+
+
+
+    
     case STATE_CGREG:
       send_cmd_("AT+CGREG?");                    
       this->state_ = STATE_CGREG_WAIT;
