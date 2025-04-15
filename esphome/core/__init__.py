@@ -475,7 +475,6 @@ class EsphomeCore:
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
-        self.ace = False
         # The name of the node
         self.name: Optional[str] = None
         # The friendly name of the node
