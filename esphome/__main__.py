@@ -375,10 +375,12 @@ def upload_program(config, args, host):
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        not is_ip_address(CORE.address)  # pylint: disable=too-many-boolean-expressions
-        and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
-        and CONF_MQTT in config
+        CONF_MQTT in config  # pylint: disable=too-many-boolean-expressions
         and (not args.device or args.device in ("MQTT", "OTA"))
+        and (
+            ((config[CONF_MDNS][CONF_DISABLED]) and not is_ip_address(CORE.address))
+            or get_port_type(host) == "MQTT"
+        )
     ):
         from esphome import mqtt
 
