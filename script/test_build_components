@@ -53,7 +53,7 @@ start_esphome() {
   echo "> [$target_component] [$test_name] [$target_platform_with_version]"
   set -x
   # TODO: Validate escape of Command line substitution value
-  python -m esphome -s component_name $target_component -s component_dir ../../components/$target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
+  python3 -m esphome -s component_name $target_component -s component_dir ../../components/$target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
   { set +x; } 2>/dev/null
 }
 
