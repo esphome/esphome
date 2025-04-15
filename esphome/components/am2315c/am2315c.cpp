@@ -128,7 +128,7 @@ void AM2315C::update() {
   data[2] = 0x00;
   if (this->write(data, 3) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Write failed!");
-    this->mark_failed();
+    this->status_set_warning();
     return;
   }
 
@@ -138,12 +138,12 @@ void AM2315C::update() {
     uint8_t status = 0;
     if (this->read(&status, 1) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read failed!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
     if ((status & 0x80) == 0x80) {
       ESP_LOGE(TAG, "HW still busy!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
 
@@ -151,7 +151,7 @@ void AM2315C::update() {
     uint8_t data[7];
     if (this->read(data, 7) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read failed!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
 
