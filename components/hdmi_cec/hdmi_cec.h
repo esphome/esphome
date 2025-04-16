@@ -78,8 +78,8 @@ protected:
   bool send_high_and_test();
   void transmit_message_on_gpio(const Message &frame);
   void transmit_message_on_uart(const Message &frame);
-  void transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom);
-  bool transmit_my_address(const uint8_t address);  // send the only first 4 bits with my address and check for bus collision
+  void convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom);
+  bool transmit_my_address(const uint8_t address);  // send 4 bits with my address and check for bus collision
 
   std::queue<Message> send_queue_;
   uint8_t transmit_attempts_{0};

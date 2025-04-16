@@ -25,7 +25,7 @@ static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 
 static constexpr uint8_t MAX_ATTEMPTS = 5;
 
 // constants used for this implementation:
-static constexpr char *const TAG = "hdmi_cec";
+static const char * const TAG = "hdmi_cec";
 static constexpr gpio::Flags PIN_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)
