@@ -10,25 +10,25 @@ namespace esphome {
 namespace hdmi_cec {
 
 // CEC protocol constants as stated in standard:
-static const uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // max frame (message) length in bytes
-static const uint32_t START_BIT_MIN_US = 3500;  // minimum duration of 'low' startbit
-static const uint32_t START_BIT_NOM_US = 3700;  // nominal duration of 'low' startbit
-static const uint32_t START_BIT_HIGH_US = 800;
-static const uint32_t HIGH_BIT_MIN_US = 400;
-static const uint32_t HIGH_BIT_MAX_US = 800;
-static const uint32_t TOTAL_BIT_US = 2400;
-static const uint32_t HIGH_BIT_US = 600;
-static const uint32_t LOW_BIT_US = 1500;
-static const uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = (TOTAL_BIT_US * 5);
-static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = (TOTAL_BIT_US * 3);
-static const uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 7);
-static const uint8_t MAX_ATTEMPTS = 5;
+static constexpr uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // max frame (message) length in bytes
+static constexpr uint32_t START_BIT_MIN_US = 3500;  // minimum duration of 'low' startbit
+static constexpr uint32_t START_BIT_NOM_US = 3700;  // nominal duration of 'low' startbit
+static constexpr uint32_t START_BIT_HIGH_US = 800;
+static constexpr uint32_t HIGH_BIT_MIN_US = 400;
+static constexpr uint32_t HIGH_BIT_MAX_US = 800;
+static constexpr uint32_t TOTAL_BIT_US = 2400;
+static constexpr uint32_t HIGH_BIT_US = 600;
+static constexpr uint32_t LOW_BIT_US = 1500;
+static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = (TOTAL_BIT_US * 5);
+static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = (TOTAL_BIT_US * 3);
+static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 7);
+static constexpr uint8_t MAX_ATTEMPTS = 5;
 
 // constants used for this implementation:
-static const char *const TAG = "hdmi_cec";
-static const gpio::Flags PIN_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
+static constexpr char *const TAG = "hdmi_cec";
+static constexpr gpio::Flags PIN_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
-Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)  // TODO: or std::initializer_list<uint8_t>
+Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)
   : std::vector<uint8_t>(1u + payload.size(), (uint8_t)(0)) {
   auto inx = this->begin();
   *inx++ = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
@@ -64,6 +64,12 @@ void HDMICEC::setup() {
   // A CEC-1 is translated into 1 low (480us) and 4 high uart bits (1920us)
   // A CEC-0 is translated into 3 low (1440us) and 2 high uart bits (960us)
   // These generated low and high periods fall well within the CEC standard presribed ranges
+  // The uart output is connected to the GPIO CEC pin with a diode: catode to uart pin.
+  // This makes sure the uart can only pull-down the CEC line.
+  // (It seems that specifying 'open-drain' mode for the uart pin has no effect)
+  // A small-signal diode type is not critical, a schottky type is preferred:
+  // such as schottky small-signal low-leakage types: 1N5711, BAT85, BAT46, BAT42, BAS70
+  // Otherwise small-signal plain (non-schottky) types:
 }
 
 void HDMICEC::set_pin(InternalGPIOPin *pin) {
@@ -395,7 +401,7 @@ bool CECTransmit::transmit_my_address(const uint8_t initiator_addr) {
   return ok;
 }
 
-void IRAM_ATTR CECTransmit::transmit_message_on_gpio(const Message &frame) {
+void CECTransmit::transmit_message_on_gpio(const Message &frame) {
   // for each byte of the frame:
   for (auto it = frame.begin(); it != frame.end(); ++it) {
     uint8_t current_byte = *it;
@@ -462,7 +468,7 @@ bool IRAM_ATTR CECTransmit::send_high_and_test() {
   pin_->digital_write(true);
 
   // ...then wait up to the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
-  static const uint32_t SAFE_SAMPLE_US = 1050;
+  static constexpr uint32_t SAFE_SAMPLE_US = 1050;
   delay_microseconds_safe(SAFE_SAMPLE_US - (micros() - start_us));
   bool value = pin_->digital_read();
 
@@ -474,17 +480,20 @@ bool IRAM_ATTR CECTransmit::send_high_and_test() {
   return value;
 }
 
-void IRAM_ATTR CECTransmit::transmit_message_on_uart(const Message &frame) {
-  pin_->digital_write(true);  // make sure gpio output is 'high' (and is pull-up), so uart can pull low
+void CECTransmit::transmit_message_on_uart(const Message &frame) {
   std::vector<uint8_t> uart_data;
+  uart_data.reserve(5 * frame.size());  // the UART is used with 5x oversampling (5 uart bytes per cec byte)
   for (int i = 0; i < frame.size(); i++) {
-      transmit_byte_on_uart(frame[i], i == 0, i == (frame.size() - 1));
+    convert_byte_to_uart(uart_data, frame[i], i == 0, i == (frame.size() - 1));
   }
+  #ifdef HAVE_UART
+  uart_->write_array(uart_data);  // if not 'HAVE_UART', the include file is missing and this cannot be compiled
+  #endif
 }
 
-void IRAM_ATTR CECTransmit::transmit_byte_on_uart(uint8_t byte, bool is_header, bool is_eom) {
+void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom) {
   // 5 uart-bits create the nominal 2.4ms cec bit period, with our baudrate of 2083 bits/sec.
-  // 10 uart-bits are made with an (always-0) uart start bit, then 8 data bit, and an (always 1) uart stop bit.
+  // 10 uart-bits are made with an (always-0) uart start bit, then 8 data bit, and last an (always 1) uart stop bit.
   // transmitting a '0' data bit gets translated to a uart 3xlow, 2xhigh on the cec line
   // transmitting a '1' data bit gets translated to a uart 1xlow, 4xhigh on the cec line
   // Note that a CEC 'header/data block' byte is sent MSB (Most Significant Bit) first,
@@ -494,21 +503,16 @@ void IRAM_ATTR CECTransmit::transmit_byte_on_uart(uint8_t byte, bool is_header, 
   //        01                    0001101111                           11101100 = ec
   //        10                    0111100011                           10001111 = 8f
   //        11                    0111101111                           11101111 = ef
-  #ifdef HAVE_UART
   static const std::array<uint8_t, 4> cec2bit_to_uartbyte = {0x8c, 0xec, 0x8f, 0xef};
-  std::array<uint8_t, 5> uart_bytes;
-  uint16_t cec_block = ((uint16_t)byte) << 2;
-  cec_block |= (is_eom ? 0x2 : 0);  // add eom (end-of-message) bit
-  cec_block |= 0x1;  // add ack bit, is always written as 1
-  // send block MSB-first, but skip initial 4 bits of header byte as those have already been sent
-  uint8_t nbytes = is_header ? 3 : 5;
-  for (int i = 0; i < nbytes; i++, cec_block >>= 2) {
-    uint8_t twobits = cec_block & 0x3;
-    uart_bytes[nbytes - 1 - i] = cec2bit_to_uartbyte[twobits];
+  uint16_t cec_block = ((uint16_t)byte) << 2; // expand byte to 10 bits
+  cec_block |= (is_eom ? 0x2 : 0);  // insert eom (end-of-message) bit
+  cec_block |= 0x1;  // insert ack bit, is always written as 1
+  // send 10-bit block MSB-first, but skip initial 4 bits of header byte as those have already been sent
+  const uint8_t nbytes = is_header ? 3 : 5;
+  for (int i = nbytes - 1; i >= 0; i--) {
+    uint8_t twobits = (cec_block >> (2 * i)) & 0x3;  // get most-signifiant bits first
+    uart_data.push_back(cec2bit_to_uartbyte[twobits]);
   }
-  uart_->write_array(uart_bytes.data(), nbytes);
-  // TODO: is this buffered in the uart, and can be called again quickly?
-  #endif
 }
 
 bool IRAM_ATTR CECTransmit::send_ack_with_uart() {
@@ -523,10 +527,9 @@ bool IRAM_ATTR CECTransmit::send_ack_with_uart() {
   #endif
   // This method is called by the receiver. When receiving a message, this transmitter
   // is expected to be idle. The only exception to that would be the rather abnormal case
-  // where we transmit a message to ourselves (address_ == initiator_address == target_address).
+  // where we transmit a message to ourselves (address_ == target_address).
   return false;
 }
-
 
 void IRAM_ATTR CECTransmit::got_start_of_activity() {
   // bus is occupied, inhibit send
@@ -595,7 +598,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
         // put the ack bit here on the gpio pin.
         // Unfortunately, this keeps this isr function busy for a rather long time
         isr_pin_.digital_write(false);
-        delay_microseconds_safe(LOW_BIT_US);  // TODO: not nice in isr
+        delay_microseconds_safe(LOW_BIT_US);
         isr_pin_.digital_write(true);
       }
     }
