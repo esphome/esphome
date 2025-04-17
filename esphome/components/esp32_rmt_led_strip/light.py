@@ -3,7 +3,7 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32_rmt, light
+from esphome.components import esp32, esp32_rmt, light
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_RGB_ORDER,
     CONF_RMT_CHANNEL,
     CONF_RMT_SYMBOLS,
+    CONF_USE_DMA,
 )
 from esphome.core import CORE
 
@@ -138,6 +139,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
+            cv.Optional(CONF_USE_DMA): cv.All(
+                esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32S3]),
+                cv.only_with_esp_idf,
+                cv.boolean,
+            ),
             cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
@@ -211,6 +217,8 @@ async def to_code(config):
 
     if esp32_rmt.use_new_rmt_driver():
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
+        if CONF_USE_DMA in config:
+            cg.add(var.set_use_dma(config[CONF_USE_DMA]))
     else:
         rmt_channel_t = cg.global_ns.enum("rmt_channel_t")
         cg.add(
