@@ -789,13 +789,17 @@ class MockObj(Expression):
 
     def class_(self, name: str, *parents: "MockObjClass") -> "MockObjClass":
         op = "" if self.op == "" else "::"
-        return MockObjClass(f"{self.base}{op}{name}", ".", parents=parents)
+        result = MockObjClass(f"{self.base}{op}{name}", ".", parents=parents)
+        CORE.id_classes[str(result)] = result
+        return result
 
     def struct(self, name: str) -> "MockObjClass":
         return self.class_(name)
 
     def enum(self, name: str, is_class: bool = False) -> "MockObj":
-        return MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
+        result = MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
+        CORE.id_classes[str(result)] = result
+        return result
 
     def operator(self, name: str) -> "MockObj":
         """Various other operations.

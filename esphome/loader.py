@@ -92,6 +92,10 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
+    def instance_type(self) -> list[str]:
+        return getattr(self.module, "INSTANCE_TYPE", None)
+
+    @property
     def final_validate_schema(self) -> Optional[Callable[[ConfigType], None]]:
         """Components can declare a `FINAL_VALIDATE_SCHEMA` cv.Schema that gets called
         after the main validation. In that function checks across components can be made.

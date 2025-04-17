@@ -291,6 +291,8 @@ SOURCE_WEB = "web"
 
 Image_ = image_ns.class_("Image")
 
+INSTANCE_TYPE = Image_
+
 
 def compute_local_image_path(value) -> Path:
     url = value[CONF_URL] if isinstance(value, dict) else value

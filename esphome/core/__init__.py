@@ -518,6 +518,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # A list of all known ID classes
+        self.id_classes = {}
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
