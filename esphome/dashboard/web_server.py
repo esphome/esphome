@@ -38,7 +38,7 @@ import yaml
 from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
-from esphome.helpers import get_bool_env, mkdir_p
+from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
 from esphome.storage_json import (
     StorageJSON,
     archive_storage_path,
@@ -336,7 +336,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                 # Use the IP address if available but only
                 # if the API is loaded and the device is online
                 # since MQTT logging will not work otherwise
-                port = address_list[0]
+                port = sort_ip_addresses(address_list)[0]
             elif (
                 entry.address
                 and (
@@ -347,7 +347,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                 and not isinstance(address_list, Exception)
             ):
                 # If mdns is not available, try to use the DNS cache
-                port = address_list[0]
+                port = sort_ip_addresses(address_list)[0]
 
         return [
             *DASHBOARD_COMMAND,

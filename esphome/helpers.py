@@ -200,6 +200,45 @@ def resolve_ip_address(host, port):
     return res
 
 
+def sort_ip_addresses(address_list: list[str]) -> list[str]:
+    """Takes a list of IP addresses in string form, e.g. from mDNS or MQTT,
+    and sorts them into the best order to actually try connecting to them.
+
+    This is roughly based on RFC6724 but a lot simpler: First we choose
+    IPv6 addresses, then Legacy IP addresses, and lowest priority is
+    link-local IPv6 addresses that don't have a link specified (which
+    are useless, but mDNS does provide them in that form). Addresses
+    which cannot be parsed are silently dropped.
+    """
+    import socket
+
+    # First "resolve" all the IP addresses to getaddrinfo() tuples of the form
+    # (family, type, proto, canonname, sockaddr)
+    res: list[
+        tuple[
+            int,
+            int,
+            int,
+            Union[str, None],
+            Union[tuple[str, int], tuple[str, int, int, int]],
+        ]
+    ] = []
+    for addr in address_list:
+        # This should always work as these are supposed to be IP addresses
+        try:
+            res += socket.getaddrinfo(
+                addr, 0, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
+            )
+        except OSError:
+            _LOGGER.info("Failed to parse IP address '%s'", addr)
+
+    # Now use that information to sort them.
+    res.sort(key=addr_preference_)
+
+    # Finally, turn the getaddrinfo() tuples back into plain hostnames.
+    return [socket.getnameinfo(r[4], socket.NI_NUMERICHOST)[0] for r in res]
+
+
 def get_bool_env(var, default=False):
     value = os.getenv(var, default)
     if isinstance(value, str):
