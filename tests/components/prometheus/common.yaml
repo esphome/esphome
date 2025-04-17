@@ -1,6 +1,3 @@
-substitutions:
-  verify_ssl: "false"
-
 esphome:
   name: livingroomdevice
   friendly_name: Living Room Device
@@ -128,6 +125,14 @@ valve:
       return VALVE_OPEN;
     optimistic: true
     has_position: true
+
+remote_transmitter:
+  pin: ${pin}
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: climate_ir_lg
+    name: LG Climate
 
 prometheus:
   include_internal: true
