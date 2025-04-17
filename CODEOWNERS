@@ -324,6 +324,7 @@ esphome/components/pcf8563/* @KoenBreeman
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
+esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
 esphome/components/pmwcs3/* @SeByDocKy
 esphome/components/pn532/* @OttoWinter @jesserockz
