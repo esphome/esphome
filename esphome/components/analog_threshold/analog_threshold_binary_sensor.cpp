@@ -14,7 +14,8 @@ void AnalogThresholdBinarySensor::setup() {
   if (std::isnan(sensor_value)) {
     this->publish_initial_state(false);
   } else {
-    this->publish_initial_state(sensor_value >= (this->lower_threshold_ + this->upper_threshold_) / 2.0f);
+    this->publish_initial_state(sensor_value >=
+                                (this->lower_threshold_.value() + this->upper_threshold_.value()) / 2.0f);
   }
 }
 
@@ -24,7 +25,8 @@ void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) {
   this->sensor_->add_on_state_callback([this](float sensor_value) {
     // if there is an invalid sensor reading, ignore the change and keep the current state
     if (!std::isnan(sensor_value)) {
-      this->publish_state(sensor_value >= (this->state ? this->lower_threshold_ : this->upper_threshold_));
+      this->publish_state(sensor_value >=
+                          (this->state ? this->lower_threshold_.value() : this->upper_threshold_.value()));
     }
   });
 }
@@ -32,8 +34,8 @@ void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) {
 void AnalogThresholdBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Analog Threshold Binary Sensor", this);
   LOG_SENSOR("  ", "Sensor", this->sensor_);
-  ESP_LOGCONFIG(TAG, "  Upper threshold: %.11f", this->upper_threshold_);
-  ESP_LOGCONFIG(TAG, "  Lower threshold: %.11f", this->lower_threshold_);
+  ESP_LOGCONFIG(TAG, "  Upper threshold: %.11f", this->upper_threshold_.value());
+  ESP_LOGCONFIG(TAG, "  Lower threshold: %.11f", this->lower_threshold_.value());
 }
 
 }  // namespace analog_threshold
