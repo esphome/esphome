@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef HAVE_UART
-  #include "esphome/components/uart/uart_component.h"
+#include "esphome/components/uart/uart_component.h"
 #endif
 #include "hdmi_cec.h"
 
@@ -11,8 +11,8 @@ namespace hdmi_cec {
 
 // CEC protocol constants as stated in standard:
 static constexpr uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // max frame (message) length in bytes
-static constexpr uint32_t START_BIT_MIN_US = 3500;  // minimum duration of 'low' startbit
-static constexpr uint32_t START_BIT_NOM_US = 3700;  // nominal duration of 'low' startbit
+static constexpr uint32_t START_BIT_MIN_US = 3500;     // minimum duration of 'low' startbit
+static constexpr uint32_t START_BIT_NOM_US = 3700;     // nominal duration of 'low' startbit
 static constexpr uint32_t START_BIT_HIGH_US = 800;
 static constexpr uint32_t HIGH_BIT_MIN_US = 400;
 static constexpr uint32_t HIGH_BIT_MAX_US = 800;
@@ -25,11 +25,12 @@ static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 
 static constexpr uint8_t MAX_ATTEMPTS = 5;
 
 // constants used for this implementation:
-static const char * const TAG = "hdmi_cec";
-static constexpr gpio::Flags PIN_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
+static const char *const TAG = "hdmi_cec";
+static constexpr gpio::Flags PIN_MODE_FLAGS =
+    gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)
-  : std::vector<uint8_t>(1u + payload.size(), (uint8_t)(0)) {
+    : std::vector<uint8_t>(1u + payload.size(), (uint8_t) (0)) {
   auto inx = this->begin();
   *inx++ = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
   this->insert(inx, payload.cbegin(), payload.cend());
@@ -72,9 +73,7 @@ void HDMICEC::setup() {
   // Otherwise small-signal plain (non-schottky) types:
 }
 
-void HDMICEC::set_pin(InternalGPIOPin *pin) {
-  pin_ = pin;
-}
+void HDMICEC::set_pin(InternalGPIOPin *pin) { pin_ = pin; }
 
 void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "HDMI-CEC");
@@ -126,14 +125,12 @@ void HDMICEC::handle_received_message(const Message &frame) {
   bool handled_by_trigger = false;
   uint8_t opcode = data[0];
   for (auto trigger : message_triggers_) {
-    bool can_trigger = (
-      (!trigger->source_.has_value()      || (trigger->source_ == src_addr)) &&
-      (!trigger->destination_.has_value() || (trigger->destination_ == dest_addr)) &&
-      (!trigger->opcode_.has_value()      || (trigger->opcode_ == opcode)) &&
-      (!trigger->data_.has_value() ||
-        (data.size() == trigger->data_->size() && std::equal(trigger->data_->begin(), trigger->data_->end(), data.begin()))
-      )
-    );
+    bool can_trigger =
+        ((!trigger->source_.has_value() || (trigger->source_ == src_addr)) &&
+         (!trigger->destination_.has_value() || (trigger->destination_ == dest_addr)) &&
+         (!trigger->opcode_.has_value() || (trigger->opcode_ == opcode)) &&
+         (!trigger->data_.has_value() || (data.size() == trigger->data_->size() &&
+                                          std::equal(trigger->data_->begin(), trigger->data_->end(), data.begin()))));
     if (can_trigger) {
       trigger->trigger(src_addr, dest_addr, data);
       handled_by_trigger = true;
@@ -147,16 +144,15 @@ void HDMICEC::handle_received_message(const Message &frame) {
   }
 }
 
-
 uint8_t logical_address_to_device_type(uint8_t logical_address) {
   switch (logical_address) {
     // "TV"
     case 0x0:
-      return 0x00; // "TV"
+      return 0x00;  // "TV"
 
     // "Audio System"
     case 0x5:
-      return 0x05; // "Audio System"
+      return 0x05;  // "Audio System"
 
     // "Recording 1"
     case 0x1:
@@ -164,7 +160,7 @@ uint8_t logical_address_to_device_type(uint8_t logical_address) {
     case 0x2:
     // "Recording 3"
     case 0x9:
-      return 0x01; // "Recording Device"
+      return 0x01;  // "Recording Device"
 
     // "Tuner 1"
     case 0x3:
@@ -174,10 +170,10 @@ uint8_t logical_address_to_device_type(uint8_t logical_address) {
     case 0x7:
     // "Tuner 4"
     case 0xA:
-      return 0x03; // "Tuner"
+      return 0x03;  // "Tuner"
 
     default:
-      return 0x04; // "Playback Device"
+      return 0x04;  // "Playback Device"
   }
 }
 
@@ -198,14 +194,14 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
     // "Give Device Power Status" request
     case 0x8F: {
       // reply with "Report Power Status" (0x90)
-      send(address_, source, {0x90, 0x00}); // "On"
+      send(address_, source, {0x90, 0x00});  // "On"
       break;
     }
 
     // "Give OSD Name" request
     case 0x46: {
       // reply with "Set OSD Name" (0x47)
-      std::vector<uint8_t> data = { 0x47 };
+      std::vector<uint8_t> data = {0x47};
       data.insert(data.end(), osd_name_bytes_.begin(), osd_name_bytes_.end());
       send(address_, source, data);
       break;
@@ -215,7 +211,7 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
     case 0x83: {
       // reply with "Report Physical Address" (0x84)
       auto physical_address_bytes = decode_value(physical_address_);
-      std::vector<uint8_t> data = { 0x84 };
+      std::vector<uint8_t> data = {0x84};
       data.insert(data.end(), physical_address_bytes.begin(), physical_address_bytes.end());
       // Device Type
       data.push_back(logical_address_to_device_type(address_));
@@ -248,9 +244,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
 
   Message frame(source, destination, data_bytes);
   ESP_LOGD(TAG, "Queing frame to send: %s", frame.to_string().c_str());
-  {
-    xmit_.queue_for_send(std::move(frame));
-  }
+  { xmit_.queue_for_send(std::move(frame)); }
   return true;
 }
 
@@ -260,7 +254,7 @@ void CECTransmit::setup(InternalGPIOPin *pin) {
   pin_->digital_write(true);  // make the 'open_drain' output high-impedance
   pin_->setup();
 
-  #ifdef HAVE_UART
+#ifdef HAVE_UART
   if (uart_) {
     uart_->set_baud_rate(2083);
     uart_->set_data_bits(8);
@@ -269,9 +263,9 @@ void CECTransmit::setup(InternalGPIOPin *pin) {
     uart_->load_settings(false);
     ESP_LOGD(TAG, "Set uart configuration for CEC");
   }
-  #else
-    uart_ = nullptr;  // probably superfluous, just to be safe and clear
-  #endif
+#else
+  uart_ = nullptr;  // probably superfluous, just to be safe and clear
+#endif
 }
 
 void CECTransmit::dump_config() {
@@ -328,8 +322,8 @@ void CECTransmit::transmit_message() {
       }
     } else {
       // last transmit just ended successfully
-      ESP_LOGD(TAG, "frame was sent successfully in %d attempt%s",
-               transmit_attempts_, (transmit_attempts_ > 1 ? "s" : ""));
+      ESP_LOGD(TAG, "frame was sent successfully in %d attempt%s", transmit_attempts_,
+               (transmit_attempts_ > 1 ? "s" : ""));
     }
 
     // terminate working on the current frame?
@@ -347,9 +341,7 @@ void CECTransmit::transmit_message() {
   }
 
   transmit_state_ = TransmitState::IDLE;
-  if (send_queue_.empty() ||
-      receiver_is_busy_ ||
-      (micros() < allow_xmit_message_us_)) {
+  if (send_queue_.empty() || receiver_is_busy_ || (micros() < allow_xmit_message_us_)) {
     // maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
     return;
   }
@@ -486,9 +478,9 @@ void CECTransmit::transmit_message_on_uart(const Message &frame) {
   for (int i = 0; i < frame.size(); i++) {
     convert_byte_to_uart(uart_data, frame[i], i == 0, i == (frame.size() - 1));
   }
-  #ifdef HAVE_UART
+#ifdef HAVE_UART
   uart_->write_array(uart_data);  // if not 'HAVE_UART', the include file is missing and this cannot be compiled
-  #endif
+#endif
 }
 
 void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom) {
@@ -504,9 +496,9 @@ void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t 
   //        10                    0111100011                           10001111 = 8f
   //        11                    0111101111                           11101111 = ef
   static const std::array<uint8_t, 4> cec2bit_to_uartbyte = {0x8c, 0xec, 0x8f, 0xef};
-  uint16_t cec_block = ((uint16_t)byte) << 2; // expand byte to 10 bits
-  cec_block |= (is_eom ? 0x2 : 0);  // insert eom (end-of-message) bit
-  cec_block |= 0x1;  // insert ack bit, is always written as 1
+  uint16_t cec_block = ((uint16_t) byte) << 2;  // expand byte to 10 bits
+  cec_block |= (is_eom ? 0x2 : 0);              // insert eom (end-of-message) bit
+  cec_block |= 0x1;                             // insert ack bit, is always written as 1
   // send 10-bit block MSB-first, but skip initial 4 bits of header byte as those have already been sent
   const uint8_t nbytes = is_header ? 3 : 5;
   for (int i = nbytes - 1; i >= 0; i--) {
@@ -516,15 +508,15 @@ void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t 
 }
 
 bool IRAM_ATTR CECTransmit::send_ack_with_uart() {
-  // transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
-  // So, the uart byte to send has its 2 most-significant bits 0.
-  #ifdef HAVE_UART
+// transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
+// So, the uart byte to send has its 2 most-significant bits 0.
+#ifdef HAVE_UART
   if (transmit_state_ == TransmitState::IDLE) {
     const uint8_t ack_byte = 0x3f;
     uart_->write_byte(ack_byte);
     return true;
   }
-  #endif
+#endif
   // This method is called by the receiver. When receiving a message, this transmitter
   // is expected to be idle. The only exception to that would be the rather abnormal case
   // where we transmit a message to ourselves (address_ == target_address).
@@ -574,9 +566,7 @@ Message CECReceive::take_received_message() {
   return msg;
 }
 
-void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) {
-  self->gpio_isr();
-}
+void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) { self->gpio_isr(); }
 
 void IRAM_ATTR CECReceive::gpio_isr() {
   const uint32_t now = micros();
@@ -587,7 +577,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
     last_falling_edge_us_ = now;
 
     if (receiver_state_ == ReceiverState::IDLE) {
-      // inform transmitter on new bus activity 
+      // inform transmitter on new bus activity
       xmit_.got_start_of_activity();
     }
 
@@ -604,14 +594,14 @@ void IRAM_ATTR CECReceive::gpio_isr() {
     }
     return;
   }
-  // otherwise, it's a rising edge, so it's time to process the pulse length 
+  // otherwise, it's a rising edge, so it's time to process the pulse length
 
   const uint32_t pulse_duration = (now - last_falling_edge_us_);
   if (pulse_duration < (HIGH_BIT_MIN_US / 5)) {
     // spurious edge, forget about this
     return;
   }
-  
+
   if (pulse_duration > START_BIT_MIN_US) {
     // start bit detected. reset everything and start receiving
     reset_state_variables();  // abort any previously gathered (unfinished) state
@@ -620,15 +610,15 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   }
 
   bool value = (pulse_duration <= HIGH_BIT_MAX_US);  // short low pulse represents '1'
-  
+
   switch (receiver_state_) {
     case ReceiverState::RECEIVING_BYTE: {
       // write bit to the current byte
       recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0x1);
       recv_bit_counter_++;
-      if (recv_bit_counter_ >= 8) { 
+      if (recv_bit_counter_ >= 8) {
         // if we reached eight bits, push the current byte to the frame buffer
-        recv_frame_buffer_.push_back((uint8_t)(recv_byte_buffer_));
+        recv_frame_buffer_.push_back((uint8_t) (recv_byte_buffer_));
         recv_bit_counter_ = 0;
         recv_byte_buffer_ = 0;
         receiver_state_ = ReceiverState::WAITING_FOR_EOM;  // expect 9th bit of block: EOM
@@ -642,23 +632,19 @@ void IRAM_ATTR CECReceive::gpio_isr() {
         recv_ack_queued_ = true;
       }
       bool isEOM = (value == 1);
-      receiver_state_ =
-        isEOM
-        ? ReceiverState::WAITING_FOR_EOM_ACK
-        : ReceiverState::WAITING_FOR_ACK;
+      receiver_state_ = isEOM ? ReceiverState::WAITING_FOR_EOM_ACK : ReceiverState::WAITING_FOR_ACK;
       break;
     }
 
     case ReceiverState::WAITING_FOR_ACK: {
-      xmit_.got_byte_eom_ack(false, value);  // pass time of received byte, eom and ack, to transmitter
+      xmit_.got_byte_eom_ack(false, value);             // pass time of received byte, eom and ack, to transmitter
       receiver_state_ = ReceiverState::RECEIVING_BYTE;  // no EOM, so expect next byte for this frame
       break;
     }
 
     case ReceiverState::WAITING_FOR_EOM_ACK: {
       xmit_.got_byte_eom_ack(true, value);  // pass time of received byte, eom and ack, to transmitter
-      if (promiscuous_mode_ ||
-          recv_frame_buffer_.is_broadcast() ||
+      if (promiscuous_mode_ || recv_frame_buffer_.is_broadcast() ||
           (recv_frame_buffer_.destination_addr() == address_)) {
         // we are interested in this message, push to application
         recv_queue_.push(recv_frame_buffer_);  // TODO: safe inside isr?
@@ -673,7 +659,6 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   }
 }
 
-
 void IRAM_ATTR CECReceive::reset_state_variables() {
   receiver_state_ = ReceiverState::IDLE;
   num_acks_ = 0;
@@ -684,5 +669,5 @@ void IRAM_ATTR CECReceive::reset_state_variables() {
   recv_frame_buffer_.reserve(MAX_FRAME_LENGTH_BYTES);
 }
 
-}
-}
+}  // namespace hdmi_cec
+}  // namespace esphome

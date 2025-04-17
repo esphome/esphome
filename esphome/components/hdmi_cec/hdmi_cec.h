@@ -10,14 +10,14 @@
 
 namespace esphome {
 namespace uart {
-  class UARTComponent;
+class UARTComponent;
 }
 namespace hdmi_cec {
 
 class MessageTrigger;
 
 class Message : public std::vector<uint8_t> {
-public:
+ public:
   Message() = default;
   Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
   uint8_t initiator_addr() const { return (this->at(0) >> 4) & 0xf; }
@@ -33,10 +33,13 @@ class CECTransmit {
     EOM_CONFIRMED,
   };
 
-  public:
+ public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
-  void queue_for_send(const Message &&frame) { LockGuard send_lock(send_mutex_); send_queue_.push(std::move(frame)); }
+  void queue_for_send(const Message &&frame) {
+    LockGuard send_lock(send_mutex_);
+    send_queue_.push(std::move(frame));
+  }
   bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
@@ -66,8 +69,7 @@ class CECTransmit {
    */
   bool send_ack_with_uart();
 
-protected:
-
+ protected:
   /**
    * Send the CEC protocol frane start bit.
    * While doing so, check if another initiator tries to do the same, and if so, abort.
@@ -95,15 +97,9 @@ protected:
 };
 
 class CECReceive {
-  enum class ReceiverState : uint8_t {
-    IDLE,
-    RECEIVING_BYTE,
-    WAITING_FOR_EOM,
-    WAITING_FOR_ACK,
-    WAITING_FOR_EOM_ACK
-  };
+  enum class ReceiverState : uint8_t { IDLE, RECEIVING_BYTE, WAITING_FOR_EOM, WAITING_FOR_ACK, WAITING_FOR_EOM_ACK };
 
-public:
+ public:
   CECReceive(CECTransmit &xmit) : xmit_(xmit) {}
   void setup(InternalGPIOPin *pin, uint8_t address);
   void dump_config();
@@ -113,7 +109,7 @@ public:
   bool has_received_message() const { return !recv_queue_.empty(); }
   Message take_received_message();
 
-protected:
+ protected:
   static void gpio_isr_s(CECReceive *self);
   void gpio_isr();
   void reset_state_variables();
@@ -134,7 +130,7 @@ protected:
 };
 
 class HDMICEC : public Component {
-public:
+ public:
   void set_pin(InternalGPIOPin *pin);
   void set_address(uint8_t address) { address_ = address & 0xf; }
   uint8_t address() { return address_; }
@@ -154,7 +150,7 @@ public:
   void dump_config() override;
   void loop() override;
 
-protected:
+ protected:
   void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
   void handle_received_message(const Message &frame);
 
@@ -162,7 +158,7 @@ protected:
   uint8_t address_;
   uint16_t physical_address_;
   std::vector<uint8_t> osd_name_bytes_;
-  std::vector<MessageTrigger*> message_triggers_;
+  std::vector<MessageTrigger *> message_triggers_;
 
   CECTransmit xmit_;
   CECReceive recv_{xmit_};
@@ -171,14 +167,14 @@ protected:
 class MessageTrigger : public Trigger<uint8_t, uint8_t, std::vector<uint8_t>> {
   friend class HDMICEC;
 
-public:
+ public:
   explicit MessageTrigger(HDMICEC *parent) { parent->add_message_trigger(this); };
   void set_source(uint8_t source) { source_ = source; };
   void set_destination(uint8_t destination) { destination_ = destination; };
   void set_opcode(uint8_t opcode) { opcode_ = opcode; };
   void set_data(const std::vector<uint8_t> &data) { data_ = data; };
 
-protected:
+ protected:
   optional<uint8_t> source_;
   optional<uint8_t> destination_;
   optional<uint8_t> opcode_;
@@ -186,7 +182,7 @@ protected:
 };
 
 template<typename... Ts> class SendAction : public Action<Ts...> {
-public:
+ public:
   SendAction(HDMICEC *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint8_t, source)
   TEMPLATABLE_VALUE(uint8_t, destination)
@@ -199,9 +195,9 @@ public:
     parent_->send(source_address, destination_address, data);
   }
 
-protected:
+ protected:
   HDMICEC *parent_;
 };
 
-}
-}
+}  // namespace hdmi_cec
+}  // namespace esphome

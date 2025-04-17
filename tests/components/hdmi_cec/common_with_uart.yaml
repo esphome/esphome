@@ -1,0 +1,65 @@
+esphome:
+  name: "hdmi-cec-test"
+  on_boot:
+    priority: -100
+    then:
+      - delay: 50ms
+      - lambda: !lambda |-
+          bool is_hw_uart = id(cec_uart)->get_hw_serial() != nullptr;
+          ESP_LOGD("UART", "UART is HW_SERIAL=%d", is_hw_uart);
+          id(cec).send(0x8, {0x90, 0x01});
+          id(cec).send(0xf, {0x90, 0x00});
+          // send 'feature abort' message to myself: will be accepted without creating a response message
+          id(cec).send(0x1, id(cec).address(), {0x00, 0x90, 0x00});
+
+# Enable logging
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: MyHomeNetwork
+  password: VerySafePassword
+
+# Enable Home Assistant API: Show/test hdmi_cec service
+api:
+  services:
+    - service: hdmi_cec_send
+      variables:
+        cec_source: int
+        cec_destination: int
+        cec_data: int[]
+      then:
+        - hdmi_cec.send:
+            source: !lambda "return static_cast<uint8_t>(cec_source);"
+            destination: !lambda "return static_cast<uint8_t>(cec_destination);"
+            data: !lambda |-
+              std::vector<uint8_t> charVector;
+              for (int i : cec_data) {
+                charVector.push_back(static_cast<uint8_t>(i));
+              }
+              return charVector;
+
+uart:
+  id: cec_uart
+  tx_pin: ${uart_pin}  # has diode to cec pin, with kathode here on uart
+  baud_rate: 38400
+
+hdmi_cec:
+  id: cec
+  pin: ${cec_pin}  # to HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
+  address: 0x5
+  physical_address: 0x4000
+  uart_id: cec_uart
+  promiscuous_mode: true
+  monitor_mode: false
+  on_message:
+    # Give Device Power Status
+    - opcode: 0x8F
+      then:
+        - lambda: !lambda |-
+            id(cec).send(source, {0x90, 0x01});
+     # Volume Up from TV remote
+    - data: [0x44, 0x41]
+      then:
+        - logger.log: "HDMI-CEC Volume Up"
+

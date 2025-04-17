@@ -1,0 +1,32 @@
+esphome:
+  name: "hdmi-cec-test"
+  on_boot:
+    priority: -100
+    then:
+      - delay: 50ms
+      - lambda: !lambda |-
+          id(cec).send(0x8, {0x90, 0x01});
+          id(cec).send(0xf, {0x90, 0x00});
+          // send 'feature abort' message to myself: will be accepted without creating a response message
+          id(cec).send(0x1, id(cec).address(), {0x00, 0x90, 0x00});
+
+# Enable logging
+logger:
+  level: DEBUG
+
+hdmi_cec:
+  id: cec
+  pin: ${cec_pin}  # to HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
+  address: 0x5
+  physical_address: 0x4000
+  promiscuous_mode: true
+  on_message:
+    # Give Device Power Status
+    - opcode: 0x8F
+      then:
+        - lambda: !lambda |-
+            id(cec).send(source, {0x90, 0x01});
+     # Volume Up from TV remote
+    - data: [0x44, 0x41]
+      then:
+        - logger.log: "HDMI-CEC Volume Up"
