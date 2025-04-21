@@ -120,6 +120,7 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
+  lv_disp_set_default(this->disp_);
   page->setup(this->pages_.size() - 1);
 }
 void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time) {
