@@ -154,6 +154,21 @@ enum class ClientState {
   ESTABLISHED,
 };
 
+enum class ScannerState {
+  // Scanner is idle, init state, set from the main loop when processing STOPPED
+  IDLE,
+  // Scanner is starting, set from the main loop only
+  STARTING,
+  // Scanner is running, set from the ESP callback only
+  RUNNING,
+  // Scanner failed to start, set from the ESP callback only
+  FAILED,
+  // Scanner is stopping, set from the main loop only
+  STOPPING,
+  // Scanner is stopped, set from the ESP callback only
+  STOPPED,
+};
+
 enum class ConnectionType {
   // The default connection type, we hold all the services in ram
   // for the duration of the connection.
@@ -257,12 +272,11 @@ class ESP32BLETracker : public Component,
   uint8_t scan_start_fail_count_{0};
   bool scan_continuous_;
   bool scan_active_;
-  bool scanner_idle_{true};
+  ScannerState scanner_state_{ScannerState::IDLE};
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
   SemaphoreHandle_t scan_result_lock_;
-  SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
 #ifdef USE_PSRAM
   const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
