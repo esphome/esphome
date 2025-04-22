@@ -114,13 +114,14 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
     // fully off, disable output immediately
     this->gate_pin.digital_write(false);
   } else {
+    auto min_us = this->cycle_time_us * this->min_power / 1000;
     if (this->method == DIM_METHOD_TRAILING) {
       this->enable_time_us = 1;  // cannot be 0
-      this->disable_time_us = std::max((uint32_t) 10, this->value * this->cycle_time_us / 65535);
+      // calculate time until disable in µs with integer arithmetic and take into account min_power
+      this->disable_time_us = std::max((uint32_t) 10, this->value * (this->cycle_time_us - min_us) / 65535 + min_us);
     } else {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
       // also take into account min_power
-      auto min_us = this->cycle_time_us * this->min_power / 1000;
       this->enable_time_us = std::max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
 
       if (this->method == DIM_METHOD_LEADING_PULSE) {
