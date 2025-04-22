@@ -208,7 +208,6 @@ void RemoteReceiverComponent::loop() {
     this->store_.buffer_read = next_read;
 
     if (!this->temp_.empty()) {
-      this->temp_.push_back(-this->idle_us_);
       this->call_listeners_dumpers_();
     }
   }
@@ -219,11 +218,9 @@ void RemoteReceiverComponent::loop() {
     this->decode_rmt_(item, len / sizeof(rmt_item32_t));
     vRingbufferReturnItem(this->ringbuf_, item);
 
-    if (this->temp_.empty())
-      return;
-
-    this->temp_.push_back(-this->idle_us_);
-    this->call_listeners_dumpers_();
+    if (!this->temp_.empty()) {
+      this->call_listeners_dumpers_();
+    }
   }
 #endif
 }
@@ -234,6 +231,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_symbol_word_t *item, size_t item_c
 void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t item_count) {
 #endif
   bool prev_level = false;
+  bool idle_level = false;
   uint32_t prev_length = 0;
   this->temp_.clear();
   int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
@@ -266,7 +264,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t item_count)
     } else if ((bool(item[i].level0) == prev_level) || (item[i].duration0 < filter_ticks)) {
       prev_length += item[i].duration0;
     } else {
-      if (prev_length > 0) {
+      if (prev_length >= filter_ticks) {
         if (prev_level) {
           this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
         } else {
@@ -276,6 +274,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t item_count)
       prev_level = bool(item[i].level0);
       prev_length = item[i].duration0;
     }
+    idle_level = !bool(item[i].level0);
 
     if (item[i].duration1 == 0u) {
       // EOF, sometimes garbage follows, break early
@@ -283,7 +282,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t item_count)
     } else if ((bool(item[i].level1) == prev_level) || (item[i].duration1 < filter_ticks)) {
       prev_length += item[i].duration1;
     } else {
-      if (prev_length > 0) {
+      if (prev_length >= filter_ticks) {
         if (prev_level) {
           this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
         } else {
@@ -293,12 +292,20 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t item_count)
       prev_level = bool(item[i].level1);
       prev_length = item[i].duration1;
     }
+    idle_level = !bool(item[i].level1);
   }
-  if (prev_length > 0) {
+  if (prev_length >= filter_ticks && prev_level != idle_level) {
     if (prev_level) {
       this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
     } else {
       this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
+    }
+  }
+  if (!this->temp_.empty()) {
+    if (idle_level) {
+      this->temp_.push_back(this->idle_us_ * multiplier);
+    } else {
+      this->temp_.push_back(-int32_t(this->idle_us_) * multiplier);
     }
   }
 }

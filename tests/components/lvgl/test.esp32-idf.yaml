@@ -71,5 +71,6 @@ lvgl:
     sensor: encoder
     enter_button: pushbutton
     group: general
+    initial_focus: lv_roller
 
 <<: !include common.yaml

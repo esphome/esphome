@@ -52,9 +52,8 @@ void Sml::loop() {
             break;
 
           // remove start/end sequence
-          this->sml_data_.erase(this->sml_data_.begin(), this->sml_data_.begin() + START_SEQ.size());
-          this->sml_data_.resize(this->sml_data_.size() - 8);
-          this->process_sml_file_(this->sml_data_);
+          this->process_sml_file_(
+              BytesView(this->sml_data_).subview(START_SEQ.size(), this->sml_data_.size() - START_SEQ.size() - 8));
         }
         break;
       };
@@ -66,8 +65,8 @@ void Sml::add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &
   this->data_callbacks_.add(std::move(callback));
 }
 
-void Sml::process_sml_file_(const bytes &sml_data) {
-  SmlFile sml_file = SmlFile(sml_data);
+void Sml::process_sml_file_(const BytesView &sml_data) {
+  SmlFile sml_file(sml_data);
   std::vector<ObisInfo> obis_info = sml_file.get_obis_info();
   this->publish_obis_info_(obis_info);
 
@@ -75,6 +74,7 @@ void Sml::process_sml_file_(const bytes &sml_data) {
 }
 
 void Sml::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
+#ifdef ESPHOME_LOG_HAS_DEBUG
   ESP_LOGD(TAG, "OBIS info:");
   for (auto const &obis_info : obis_info_vec) {
     std::string info;
@@ -83,6 +83,7 @@ void Sml::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
     info += " [0x" + bytes_repr(obis_info.value) + "]";
     ESP_LOGD(TAG, "%s", info.c_str());
   }
+#endif
 }
 
 void Sml::publish_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
@@ -92,10 +93,11 @@ void Sml::publish_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
 }
 
 void Sml::publish_value_(const ObisInfo &obis_info) {
+  const auto obis_code = obis_info.code_repr();
   for (auto const &sml_listener : sml_listeners_) {
     if ((!sml_listener->server_id.empty()) && (bytes_repr(obis_info.server_id) != sml_listener->server_id))
       continue;
-    if (obis_info.code_repr() != sml_listener->obis_code)
+    if (obis_code != sml_listener->obis_code)
       continue;
     sml_listener->publish_val(obis_info);
   }

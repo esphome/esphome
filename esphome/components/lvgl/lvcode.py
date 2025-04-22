@@ -173,7 +173,8 @@ class LambdaContext(CodeContext):
 
 class LvContext(LambdaContext):
     """
-    Code generation into the LVGL initialisation code (called in `setup()`)
+    Code generation into the LVGL initialisation code, called before setup() and loop()
+    Basically just does cg.add, so now fairly redundant.
     """
 
     added_lambda_count = 0

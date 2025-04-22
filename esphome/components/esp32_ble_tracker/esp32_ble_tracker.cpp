@@ -57,7 +57,6 @@ void ESP32BLETracker::setup() {
 
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
-  this->scan_end_lock_ = xSemaphoreCreateMutex();
 
 #ifdef USE_OTA
   ota::get_global_ota_callback()->add_on_state_callback(
@@ -117,119 +116,104 @@ void ESP32BLETracker::loop() {
   }
   bool promote_to_connecting = discovered && !searching && !connecting;
 
-  if (!this->scanner_idle_) {
-    if (this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
-        xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
-      uint32_t index = this->scan_result_index_;
-      if (index >= ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
-        ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
-      }
+  if (this->scanner_state_ == ScannerState::RUNNING &&
+      this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
+      xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
+    uint32_t index = this->scan_result_index_;
+    if (index >= ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
+      ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
+    }
 
-      if (this->raw_advertisements_) {
+    if (this->raw_advertisements_) {
+      for (auto *listener : this->listeners_) {
+        listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+      }
+      for (auto *client : this->clients_) {
+        client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+      }
+    }
+
+    if (this->parse_advertisements_) {
+      for (size_t i = 0; i < index; i++) {
+        ESPBTDevice device;
+        device.parse_scan_rst(this->scan_result_buffer_[i]);
+
+        bool found = false;
         for (auto *listener : this->listeners_) {
-          listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+          if (listener->parse_device(device))
+            found = true;
         }
+
         for (auto *client : this->clients_) {
-          client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
-        }
-      }
-
-      if (this->parse_advertisements_) {
-        for (size_t i = 0; i < index; i++) {
-          ESPBTDevice device;
-          device.parse_scan_rst(this->scan_result_buffer_[i]);
-
-          bool found = false;
-          for (auto *listener : this->listeners_) {
-            if (listener->parse_device(device))
-              found = true;
-          }
-
-          for (auto *client : this->clients_) {
-            if (client->parse_device(device)) {
-              found = true;
-              if (!connecting && client->state() == ClientState::DISCOVERED) {
-                promote_to_connecting = true;
-              }
+          if (client->parse_device(device)) {
+            found = true;
+            if (!connecting && client->state() == ClientState::DISCOVERED) {
+              promote_to_connecting = true;
             }
           }
+        }
 
-          if (!found && !this->scan_continuous_) {
-            this->print_bt_device_info(device);
-          }
+        if (!found && !this->scan_continuous_) {
+          this->print_bt_device_info(device);
         }
       }
-      this->scan_result_index_ = 0;
-      xSemaphoreGive(this->scan_result_lock_);
     }
-
-    /*
-
-      Avoid starting the scanner if:
-      - we are already scanning
-      - we are connecting to a device
-      - we are disconnecting from a device
-
-      Otherwise the scanner could fail to ever start again
-      and our only way to recover is to reboot.
-
-      https://github.com/espressif/esp-idf/issues/6688
-
-    */
-    if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-      if (this->scan_continuous_) {
-        if (!disconnecting && !promote_to_connecting && !this->scan_start_failed_ && !this->scan_set_param_failed_) {
-          this->start_scan_(false);
-        } else {
-          // We didn't start the scan, so we need to release the lock
-          xSemaphoreGive(this->scan_end_lock_);
-        }
-      } else if (!this->scanner_idle_) {
-        this->end_of_scan_();
-        return;
-      }
+    this->scan_result_index_ = 0;
+    xSemaphoreGive(this->scan_result_lock_);
+  }
+  if (this->scanner_state_ == ScannerState::STOPPED) {
+    this->end_of_scan_();  // Change state to IDLE
+  }
+  if (this->scanner_state_ == ScannerState::FAILED ||
+      (this->scan_set_param_failed_ && this->scanner_state_ == ScannerState::RUNNING)) {
+    this->stop_scan_();
+    if (this->scan_start_fail_count_ == std::numeric_limits<uint8_t>::max()) {
+      ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after %d attempts, rebooting to restore BLE stack...",
+               std::numeric_limits<uint8_t>::max());
+      App.reboot();
     }
-
-    if (this->scan_start_failed_ || this->scan_set_param_failed_) {
-      if (this->scan_start_fail_count_ == std::numeric_limits<uint8_t>::max()) {
-        ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after %d attempts, rebooting to restore BLE stack...",
-                 std::numeric_limits<uint8_t>::max());
-        App.reboot();
-      }
-      if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
-        xSemaphoreGive(this->scan_end_lock_);
-      } else {
-        ESP_LOGD(TAG, "Stopping scan after failure...");
-        this->stop_scan_();
-      }
-      if (this->scan_start_failed_) {
-        ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
-        this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
-      }
-      if (this->scan_set_param_failed_) {
-        ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
-        this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
-      }
+    if (this->scan_start_failed_) {
+      ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
+      this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+    }
+    if (this->scan_set_param_failed_) {
+      ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
+      this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
     }
   }
+  /*
 
+    Avoid starting the scanner if:
+    - we are already scanning
+    - we are connecting to a device
+    - we are disconnecting from a device
+
+    Otherwise the scanner could fail to ever start again
+    and our only way to recover is to reboot.
+
+    https://github.com/espressif/esp-idf/issues/6688
+
+  */
+  if (this->scanner_state_ == ScannerState::IDLE && this->scan_continuous_ && !connecting && !disconnecting &&
+      !promote_to_connecting) {
+    this->start_scan_(false);  // first = false
+  }
   // If there is a discovered client and no connecting
   // clients and no clients using the scanner to search for
   // devices, then stop scanning and promote the discovered
   // client to ready to connect.
-  if (promote_to_connecting) {
+  if (promote_to_connecting &&
+      (this->scanner_state_ == ScannerState::RUNNING || this->scanner_state_ == ScannerState::IDLE)) {
     for (auto *client : this->clients_) {
       if (client->state() == ClientState::DISCOVERED) {
-        if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
-          // Scanner is not running since we got the
-          // lock, so we can promote the client.
-          xSemaphoreGive(this->scan_end_lock_);
+        if (this->scanner_state_ == ScannerState::RUNNING) {
+          ESP_LOGD(TAG, "Stopping scan to make connection...");
+          this->stop_scan_();
+        } else if (this->scanner_state_ == ScannerState::IDLE) {
+          ESP_LOGD(TAG, "Promoting client to connect...");
           // We only want to promote one client at a time.
           // once the scanner is fully stopped.
           client->set_state(ClientState::READY_TO_CONNECT);
-        } else {
-          ESP_LOGD(TAG, "Pausing scan to make connection...");
-          this->stop_scan_();
         }
         break;
       }
@@ -237,13 +221,7 @@ void ESP32BLETracker::loop() {
   }
 }
 
-void ESP32BLETracker::start_scan() {
-  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    this->start_scan_(true);
-  } else {
-    ESP_LOGW(TAG, "Scan requested when a scan is already in progress. Ignoring.");
-  }
-}
+void ESP32BLETracker::start_scan() { this->start_scan_(true); }
 
 void ESP32BLETracker::stop_scan() {
   ESP_LOGD(TAG, "Stopping scan.");
@@ -251,16 +229,23 @@ void ESP32BLETracker::stop_scan() {
   this->stop_scan_();
 }
 
-void ESP32BLETracker::ble_before_disabled_event_handler() {
-  this->stop_scan_();
-  xSemaphoreGive(this->scan_end_lock_);
-}
+void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); }
 
 void ESP32BLETracker::stop_scan_() {
-  this->cancel_timeout("scan");
-  if (this->scanner_idle_) {
+  if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
+    if (this->scanner_state_ == ScannerState::IDLE) {
+      ESP_LOGE(TAG, "Scan is already stopped while trying to stop.");
+    } else if (this->scanner_state_ == ScannerState::STARTING) {
+      ESP_LOGE(TAG, "Scan is starting while trying to stop.");
+    } else if (this->scanner_state_ == ScannerState::STOPPING) {
+      ESP_LOGE(TAG, "Scan is already stopping while trying to stop.");
+    } else if (this->scanner_state_ == ScannerState::STOPPED) {
+      ESP_LOGE(TAG, "Scan is already stopped while trying to stop.");
+    }
     return;
   }
+  this->cancel_timeout("scan");
+  this->scanner_state_ = ScannerState::STOPPING;
   esp_err_t err = esp_ble_gap_stop_scanning();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_scanning failed: %d", err);
@@ -273,13 +258,22 @@ void ESP32BLETracker::start_scan_(bool first) {
     ESP_LOGW(TAG, "Cannot start scan while ESP32BLE is disabled.");
     return;
   }
-  // The lock must be held when calling this function.
-  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    ESP_LOGE(TAG, "start_scan called without holding scan_end_lock_");
+  if (this->scanner_state_ != ScannerState::IDLE) {
+    if (this->scanner_state_ == ScannerState::STARTING) {
+      ESP_LOGE(TAG, "Cannot start scan while already starting.");
+    } else if (this->scanner_state_ == ScannerState::RUNNING) {
+      ESP_LOGE(TAG, "Cannot start scan while already running.");
+    } else if (this->scanner_state_ == ScannerState::STOPPING) {
+      ESP_LOGE(TAG, "Cannot start scan while already stopping.");
+    } else if (this->scanner_state_ == ScannerState::FAILED) {
+      ESP_LOGE(TAG, "Cannot start scan while already failed.");
+    } else if (this->scanner_state_ == ScannerState::STOPPED) {
+      ESP_LOGE(TAG, "Cannot start scan while already stopped.");
+    }
     return;
   }
-
-  ESP_LOGD(TAG, "Starting scan...");
+  this->scanner_state_ = ScannerState::STARTING;
+  ESP_LOGD(TAG, "Starting scan, set scanner state to STARTING.");
   if (!first) {
     for (auto *listener : this->listeners_)
       listener->on_scan_end();
@@ -307,24 +301,21 @@ void ESP32BLETracker::start_scan_(bool first) {
     ESP_LOGE(TAG, "esp_ble_gap_start_scanning failed: %d", err);
     return;
   }
-  this->scanner_idle_ = false;
 }
 
 void ESP32BLETracker::end_of_scan_() {
   // The lock must be held when calling this function.
-  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    ESP_LOGE(TAG, "end_of_scan_ called without holding the scan_end_lock_");
+  if (this->scanner_state_ != ScannerState::STOPPED) {
+    ESP_LOGE(TAG, "end_of_scan_ called while scanner is not stopped.");
     return;
   }
-
-  ESP_LOGD(TAG, "End of scan.");
-  this->scanner_idle_ = true;
+  ESP_LOGD(TAG, "End of scan, set scanner state to IDLE.");
   this->already_discovered_.clear();
-  xSemaphoreGive(this->scan_end_lock_);
   this->cancel_timeout("scan");
 
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
+  this->scanner_state_ = ScannerState::IDLE;
 }
 
 void ESP32BLETracker::register_client(ESPBTClient *client) {
@@ -392,19 +383,46 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   ESP_LOGV(TAG, "gap_scan_start_complete - status %d", param.status);
   this->scan_start_failed_ = param.status;
+  if (this->scanner_state_ != ScannerState::STARTING) {
+    if (this->scanner_state_ == ScannerState::RUNNING) {
+      ESP_LOGE(TAG, "Scan was already running when start complete.");
+    } else if (this->scanner_state_ == ScannerState::STOPPING) {
+      ESP_LOGE(TAG, "Scan was stopping when start complete.");
+    } else if (this->scanner_state_ == ScannerState::FAILED) {
+      ESP_LOGE(TAG, "Scan was in failed state when start complete.");
+    } else if (this->scanner_state_ == ScannerState::IDLE) {
+      ESP_LOGE(TAG, "Scan was idle when start complete.");
+    } else if (this->scanner_state_ == ScannerState::STOPPED) {
+      ESP_LOGE(TAG, "Scan was stopped when start complete.");
+    }
+  }
   if (param.status == ESP_BT_STATUS_SUCCESS) {
     this->scan_start_fail_count_ = 0;
+    this->scanner_state_ = ScannerState::RUNNING;
   } else {
+    this->scanner_state_ = ScannerState::FAILED;
     if (this->scan_start_fail_count_ != std::numeric_limits<uint8_t>::max()) {
       this->scan_start_fail_count_++;
     }
-    xSemaphoreGive(this->scan_end_lock_);
   }
 }
 
 void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
   ESP_LOGV(TAG, "gap_scan_stop_complete - status %d", param.status);
-  xSemaphoreGive(this->scan_end_lock_);
+  if (this->scanner_state_ != ScannerState::STOPPING) {
+    if (this->scanner_state_ == ScannerState::RUNNING) {
+      ESP_LOGE(TAG, "Scan was not running when stop complete.");
+    } else if (this->scanner_state_ == ScannerState::STARTING) {
+      ESP_LOGE(TAG, "Scan was not started when stop complete.");
+    } else if (this->scanner_state_ == ScannerState::FAILED) {
+      ESP_LOGE(TAG, "Scan was in failed state when stop complete.");
+    } else if (this->scanner_state_ == ScannerState::IDLE) {
+      ESP_LOGE(TAG, "Scan was idle when stop complete.");
+    } else if (this->scanner_state_ == ScannerState::STOPPED) {
+      ESP_LOGE(TAG, "Scan was stopped when stop complete.");
+    }
+  }
+  this->scanner_state_ = ScannerState::STOPPED;
 }
 
 void ESP32BLETracker::gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
@@ -417,7 +435,21 @@ void ESP32BLETracker::gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_re
       xSemaphoreGive(this->scan_result_lock_);
     }
   } else if (param.search_evt == ESP_GAP_SEARCH_INQ_CMPL_EVT) {
-    xSemaphoreGive(this->scan_end_lock_);
+    // Scan finished on its own
+    if (this->scanner_state_ != ScannerState::RUNNING) {
+      if (this->scanner_state_ == ScannerState::STOPPING) {
+        ESP_LOGE(TAG, "Scan was not running when scan completed.");
+      } else if (this->scanner_state_ == ScannerState::STARTING) {
+        ESP_LOGE(TAG, "Scan was not started when scan completed.");
+      } else if (this->scanner_state_ == ScannerState::FAILED) {
+        ESP_LOGE(TAG, "Scan was in failed state when scan completed.");
+      } else if (this->scanner_state_ == ScannerState::IDLE) {
+        ESP_LOGE(TAG, "Scan was idle when scan completed.");
+      } else if (this->scanner_state_ == ScannerState::STOPPED) {
+        ESP_LOGE(TAG, "Scan was stopped when scan completed.");
+      }
+    }
+    this->scanner_state_ = ScannerState::STOPPED;
   }
 }
 
@@ -680,8 +712,26 @@ void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
   ESP_LOGCONFIG(TAG, "  Continuous Scanning: %s", YESNO(this->scan_continuous_));
-  ESP_LOGCONFIG(TAG, "  Scanner Idle: %s", YESNO(this->scanner_idle_));
-  ESP_LOGCONFIG(TAG, "  Scan End: %s", YESNO(xSemaphoreGetMutexHolder(this->scan_end_lock_) == nullptr));
+  switch (this->scanner_state_) {
+    case ScannerState::IDLE:
+      ESP_LOGCONFIG(TAG, "  Scanner State: IDLE");
+      break;
+    case ScannerState::STARTING:
+      ESP_LOGCONFIG(TAG, "  Scanner State: STARTING");
+      break;
+    case ScannerState::RUNNING:
+      ESP_LOGCONFIG(TAG, "  Scanner State: RUNNING");
+      break;
+    case ScannerState::STOPPING:
+      ESP_LOGCONFIG(TAG, "  Scanner State: STOPPING");
+      break;
+    case ScannerState::STOPPED:
+      ESP_LOGCONFIG(TAG, "  Scanner State: STOPPED");
+      break;
+    case ScannerState::FAILED:
+      ESP_LOGCONFIG(TAG, "  Scanner State: FAILED");
+      break;
+  }
   ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, searching: %d, disconnecting: %d", connecting_, discovered_,
                 searching_, disconnecting_);
   if (this->scan_start_fail_count_) {

@@ -4,6 +4,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
+from esphome.core import Lambda
 from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
@@ -64,7 +65,14 @@ async def action_to_code(
     action_id,
     template_arg,
     args,
+    config=None,
 ):
+    # Ensure all required ids have been processed, so our LambdaContext doesn't get context-switched.
+    if config:
+        for lamb in config.values():
+            if isinstance(lamb, Lambda):
+                for id_ in lamb.requires_ids:
+                    await get_variable(id_)
     await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
@@ -84,7 +92,9 @@ async def update_to_code(config, action_id, template_arg, args):
             lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(widgets, do_update, action_id, template_arg, args)
+    return await action_to_code(
+        widgets, do_update, action_id, template_arg, args, config
+    )
 
 
 @automation.register_condition(
@@ -348,4 +358,6 @@ async def obj_update_to_code(config, action_id, template_arg, args):
         await set_obj_properties(widget, config)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(widgets, do_update, action_id, template_arg, args)
+    return await action_to_code(
+        widgets, do_update, action_id, template_arg, args, config
+    )

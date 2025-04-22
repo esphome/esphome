@@ -20,6 +20,10 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+    CONF_MEASUREMENT_MODE,
 )
 
 CODEOWNERS = ["@sjtrny", "@martgras"]
@@ -47,11 +51,6 @@ FactoryResetAction = scd4x_ns.class_("FactoryResetAction", automation.Action)
 
 
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
-CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
-CONF_MEASUREMENT_MODE = "measurement_mode"
-
 
 CONFIG_SCHEMA = (
     cv.Schema(

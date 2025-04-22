@@ -16,6 +16,8 @@ from esphome.const import (
     CONF_ID,
     CONF_MODE,
     CONF_SPEED,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
 )
 from esphome.core import CORE
@@ -110,11 +112,11 @@ async def to_code(config):
         add_idf_sdkconfig_option(f"{SPIRAM_MODES[config[CONF_MODE]]}", True)
         add_idf_sdkconfig_option(f"{SPIRAM_SPEEDS[config[CONF_SPEED]]}", True)
         if config[CONF_MODE] == TYPE_OCTAL and config[CONF_SPEED] == 120e6:
-            add_idf_sdkconfig_option("CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240", True)
-            # This works only on IDF 5.4.x but does no harm on earlier versions
-            add_idf_sdkconfig_option(
-                "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
-            )
+            add_idf_sdkconfig_option("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240", True)
+            if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
+                add_idf_sdkconfig_option(
+                    "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
+                )
         if config[CONF_ENABLE_ECC]:
             add_idf_sdkconfig_option("CONFIG_SPIRAM_ECC_ENABLE", True)
 

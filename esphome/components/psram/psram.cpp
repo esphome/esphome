@@ -1,7 +1,8 @@
 
 #ifdef USE_ESP32
 #include "psram.h"
-#ifdef USE_ESP_IDF
+#include <esp_idf_version.h>
+#if defined(USE_ESP_IDF) && ESP_IDF_VERSION_MAJOR >= 5
 #include <esp_psram.h>
 #endif  // USE_ESP_IDF
 
@@ -15,7 +16,7 @@ static const char *const TAG = "psram";
 
 void PsramComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "PSRAM:");
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && ESP_IDF_VERSION_MAJOR >= 5
   bool available = esp_psram_is_initialized();
 
   ESP_LOGCONFIG(TAG, "  Available: %s", YESNO(available));
