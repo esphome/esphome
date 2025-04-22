@@ -173,6 +173,8 @@ class ESPBTClient : public ESPBTDeviceListener {
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
   virtual void disconnect() = 0;
+  bool disconnect_pending() const { return this->want_disconnect_; }
+  void cancel_pending_disconnect() { this->want_disconnect_ = false; }
   virtual void set_state(ClientState st) {
     this->state_ = st;
     if (st == ClientState::IDLE) {
