@@ -22,6 +22,7 @@ class Message : public std::vector<uint8_t> {
   Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
   uint8_t initiator_addr() const { return (this->at(0) >> 4) & 0xf; }
   uint8_t destination_addr() const { return this->at(0) & 0xf; }
+  uint8_t opcode() const { return (this->size() >= 2) ? this->at(1) : 0; }
   bool is_broadcast() const { return this->destination_addr() == 0xf; }
   std::string to_string() const;
 };

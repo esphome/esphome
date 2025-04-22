@@ -1,6 +1,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
+#include <map>
+
 #ifdef HAVE_UART
 #include "esphome/components/uart/uart_component.h"
 #endif
@@ -8,6 +10,78 @@
 
 namespace esphome {
 namespace hdmi_cec {
+
+static const std::map<uint8_t, const char *> cec_opcode_name{{0x82, "Active Source"},
+                                                             {0x04, "Image View On"},
+                                                             {0x0D, "Text View On"},
+                                                             {0x9D, "Inactive Source"},
+                                                             {0x85, "Request Active Source"},
+                                                             {0x80, "Routing Change"},
+                                                             {0x81, "Routing Information"},
+                                                             {0x86, "Set Stream Path"},
+                                                             {0x36, "Standby"},
+                                                             {0x0B, "Record Off"},
+                                                             {0x09, "Record On"},
+                                                             {0x0A, "Record Status"},
+                                                             {0x0F, "Record TV Screen"},
+                                                             {0x33, "Clear Analogue Timer"},
+                                                             {0x99, "Clear Digital Timer"},
+                                                             {0xA1, "Clear External Timer"},
+                                                             {0x34, "Set Analogue Timer"},
+                                                             {0x97, "Set Digital Timer"},
+                                                             {0xA2, "Set External Timer"},
+                                                             {0x67, "Set Timer Program Title"},
+                                                             {0x43, "Timer Cleared Status"},
+                                                             {0x35, "Timer Status"},
+                                                             {0x9E, "CEC Version"},
+                                                             {0x9F, "Get CEC Version"},
+                                                             {0x83, "Give Physical Address"},
+                                                             {0x91, "Get Menu Language"},
+                                                             {0x84, "Report Physical Address"},
+                                                             {0x32, "Set Menu Language"},
+                                                             {0x42, "Deck Control"},
+                                                             {0x1B, "Deck Status"},
+                                                             {0x1A, "Give Deck Status"},
+                                                             {0x41, "Play"},
+                                                             {0x08, "Give Tuner Device Status"},
+                                                             {0x92, "Select Analogue Service"},
+                                                             {0x93, "Select Digital Service"},
+                                                             {0x07, "Tuner Device Status"},
+                                                             {0x06, "Tuner Step Decrement"},
+                                                             {0x05, "Tuner Step Increment"},
+                                                             {0x87, "Device Vendor ID"},
+                                                             {0x8C, "Give Device Vendor ID"},
+                                                             {0x89, "Vendor Command"},
+                                                             {0xA0, "Vendor Command With ID"},
+                                                             {0x8A, "Vendor Remote Button Down"},
+                                                             {0x8B, "Vendor Remote Button Up"},
+                                                             {0x64, "Set OSD String"},
+                                                             {0x46, "Give OSD Name"},
+                                                             {0x47, "Set OSD Name"},
+                                                             {0x8D, "Menu Request"},
+                                                             {0x8E, "Menu Status"},
+                                                             {0x44, "User Control Pressed"},
+                                                             {0x45, "User Control Released"},
+                                                             {0x8F, "Give Device Power Status"},
+                                                             {0x90, "Report Power Status"},
+                                                             {0x00, "Feature Abort"},
+                                                             {0xFF, "Abort"},
+                                                             {0x71, "Give Audio Status"},
+                                                             {0x7D, "Give System Audio Mode Status"},
+                                                             {0x7A, "Report Audio Status"},
+                                                             {0xA3, "Report Short Audio Descriptor"},
+                                                             {0xA4, "Request Short Audio Descriptor"},
+                                                             {0x72, "Set System Audio Mode"},
+                                                             {0x70, "System Audio Mode Request"},
+                                                             {0x7E, "System Audio Mode Status"},
+                                                             {0x9A, "Set Audio Rate"},
+                                                             {0xC0, "Initiate ARC"},
+                                                             {0xC1, "Report ARC Initiated"},
+                                                             {0xC2, "Report ARC Terminated"},
+                                                             {0xC3, "Request ARC Initiation"},
+                                                             {0xC4, "Request ARC Termination"},
+                                                             {0xC5, "Terminate ARC"},
+                                                             {0xF8, "CDC Message"}};
 
 // CEC protocol constants as stated in standard:
 static constexpr uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // max frame (message) length in bytes
@@ -30,10 +104,9 @@ static constexpr gpio::Flags PIN_MODE_FLAGS =
     gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)
-    : std::vector<uint8_t>(1u + payload.size(), (uint8_t) (0)) {
-  auto inx = this->begin();
-  *inx++ = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
-  this->insert(inx, payload.cbegin(), payload.cend());
+    : std::vector<uint8_t>(1 + payload.size(), (uint8_t) (0)) {
+  this->at(0) = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
+  std::memcpy(this->data() + 1, payload.data(), payload.size());
 }
 
 std::string Message::to_string() const {
@@ -48,6 +121,11 @@ std::string Message::to_string() const {
       result += ":";
     }
   }
+  auto it = cec_opcode_name.find(this->opcode());
+  const char *opcode_name = (it != cec_opcode_name.end()) ? it->second : "?";
+  result += " <";
+  result += opcode_name;
+  result += ">";
   return result;
 }
 
@@ -93,22 +171,12 @@ void HDMICEC::loop() {
   if (!xmit_.is_idle()) {
     xmit_.transmit_message();
   }
-#if 0
-  static int cnt = 0;
-  if (xmit_.is_idle()) {
-    cnt = 0;
-  } else if (cnt++ < 20) {
-    ESP_LOGD(TAG, "T=%d RxState=%d, bitCnt=%d, ByteBuf=0x%02x, ByteCnt=%d",
-             micros(), static_cast<int>(receiver_state_),
-             recv_bit_counter_, recv_byte_buffer_, recv_frame_buffer_.size());
-  }
-#endif
 }
 
 void HDMICEC::handle_received_message(const Message &frame) {
-  uint8_t header = frame[0];
-  uint8_t src_addr = ((header & 0xF0) >> 4);
-  uint8_t dest_addr = (header & 0x0F);
+  const uint8_t src_addr = frame.initiator_addr();
+  const uint8_t dest_addr = frame.destination_addr();
+  const uint8_t opcode = frame.opcode();
 
   if (frame.size() == 1) {
     // don't process pings. they're already dealt with by the acknowledgement mechanism
@@ -123,7 +191,6 @@ void HDMICEC::handle_received_message(const Message &frame) {
 
   // Process on_message triggers
   bool handled_by_trigger = false;
-  uint8_t opcode = data[0];
   for (auto trigger : message_triggers_) {
     bool can_trigger =
         ((!trigger->source_.has_value() || (trigger->source_ == src_addr)) &&
@@ -312,22 +379,19 @@ void CECTransmit::transmit_message() {
     // Create log message for debugging
     if (!sent_ok) {
       // last transmit had a byte count error, or ended without appropriate Acknowledge from recipient
-      if (transmit_attempts_ >= MAX_ATTEMPTS) {
-        if (n_bytes_received_ != frame.size()) {
-          ESP_LOGD(TAG, "frame was sent incorrectly after %d attempts, saw %d bytes but expected %d bytes",
-                   transmit_attempts_, n_bytes_received_, frame.size());
-        } else {
-          ESP_LOGD(TAG, "frame was NOT acknowledged after %d attempts, drop frame", transmit_attempts_);
-        }
+      if (n_bytes_received_ != frame.size()) {
+        ESP_LOGD(TAG, "Send frame incorrect on attempt %d, saw %d bytes but expected %d bytes", transmit_attempts_,
+                 n_bytes_received_, frame.size());
+      } else {
+        ESP_LOGD(TAG, "Send frame NOT acknowledged on attempt %d", transmit_attempts_);
       }
     } else {
       // last transmit just ended successfully
-      ESP_LOGD(TAG, "frame was sent successfully in %d attempt%s", transmit_attempts_,
-               (transmit_attempts_ > 1 ? "s" : ""));
+      ESP_LOGD(TAG, "Send frame success in %d attempt%s", transmit_attempts_, (transmit_attempts_ > 1 ? "s" : ""));
     }
 
     // terminate working on the current frame?
-    if (sent_ok || transmit_attempts_ >= MAX_ATTEMPTS) {
+    if (sent_ok) {
       allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
       transmit_attempts_ = 0;
       LockGuard send_lock(send_mutex_);
@@ -341,6 +405,14 @@ void CECTransmit::transmit_message() {
   }
 
   transmit_state_ = TransmitState::IDLE;
+  if (transmit_attempts_ >= MAX_ATTEMPTS) {
+    ESP_LOGD(TAG, "frame was NOT sent correctly after %d attempts, drop frame", transmit_attempts_);
+    allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
+    transmit_attempts_ = 0;
+    LockGuard send_lock(send_mutex_);
+    send_queue_.pop();
+  }
+
   if (send_queue_.empty() || receiver_is_busy_ || (micros() < allow_xmit_message_us_)) {
     // maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
     return;
@@ -352,8 +424,6 @@ void CECTransmit::transmit_message() {
   transmit_attempts_++;
   if (transmit_attempts_ <= 1) {
     ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
-  } else {
-    ESP_LOGD(TAG, "Send message from queue: attempt %d", transmit_attempts_);
   }
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
@@ -370,7 +440,7 @@ void CECTransmit::transmit_message() {
   } else {
     transmit_message_on_gpio(frame);
   }
-  // don't wait here on the transmission result (Acknowledge from destination)
+  // don't wait here on the transmision result (Acknowledge from destination)
   // because (at least) the uart proceeds in the background
   return;
 }
@@ -388,7 +458,7 @@ bool CECTransmit::transmit_my_address(const uint8_t initiator_addr) {
   }
   // Check for bus collisions, which would make the received bus address different from the sent address
   if (!ok) {
-    ESP_LOGD(TAG, "Bus collision while sending my initiator addr 0x%1x", initiator_addr);
+    ESP_LOGD(TAG, "Bus collision on sending my initiator addr 0x%1x on attempt %d", initiator_addr, transmit_attempts_);
   }
   return ok;
 }
@@ -417,22 +487,24 @@ void CECTransmit::transmit_message_on_gpio(const Message &frame) {
 
 bool CECTransmit::send_start_bit() {
   bool value = pin_->digital_read();
-  if (value) {
-    // The CEC line was not yet occupied (pulled low) by someone else
-    // 1. pull low for the start-bit duration
-    pin_->digital_write(false);
-    delay_microseconds_safe(START_BIT_NOM_US);
-
-    // 2. let the line go high again, but test if no one else keeps it low
-    pin_->digital_write(true);
-    delay_microseconds_safe(START_BIT_HIGH_US / 2);
-    value &= pin_->digital_read();
-    delay_microseconds_safe(START_BIT_HIGH_US / 2);
-    value &= pin_->digital_read();
+  if (!value) {
+    ESP_LOGD(TAG, "Bus occupied before start-bit on attempt %d", transmit_attempts_);
+    return false;
   }
+  // The CEC line was not yet occupied (pulled low) by someone else
+  // 1. pull low for the start-bit duration
+  pin_->digital_write(false);
+  delay_microseconds_safe(START_BIT_NOM_US);
+
+  // 2. let the line go high again, but test if no one else keeps it low
+  pin_->digital_write(true);
+  delay_microseconds_safe(START_BIT_HIGH_US / 2);
+  value &= pin_->digital_read();
+  delay_microseconds_safe(START_BIT_HIGH_US / 2);
+  value &= pin_->digital_read();
 
   if (!value) {
-    ESP_LOGD(TAG, "Send frame: bus collision during start-bit!");
+    ESP_LOGD(TAG, "Bus collision on sending start-bit on attempt %d", transmit_attempts_);
   }
   return value;
 }
@@ -509,10 +581,10 @@ void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t 
 
 bool IRAM_ATTR CECTransmit::send_ack_with_uart() {
 // transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
-// So, the uart byte to send has its 2 most-significant bits 0.
+// So, the uart byte to send has its 2 least-significant bits 0.
 #ifdef HAVE_UART
   if (transmit_state_ == TransmitState::IDLE) {
-    const uint8_t ack_byte = 0x3f;
+    const uint8_t ack_byte = 0xfc;
     uart_->write_byte(ack_byte);
     return true;
   }
@@ -587,6 +659,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
       if (!(xmit_.has_uart() && xmit_.send_ack_with_uart())) {
         // put the ack bit here on the gpio pin.
         // Unfortunately, this keeps this isr function busy for a rather long time
+        // Alternatively, it would have been nice to use a hw timer, but that is not in the esphpome hal
         isr_pin_.digital_write(false);
         delay_microseconds_safe(LOW_BIT_US);
         isr_pin_.digital_write(true);
@@ -644,10 +717,11 @@ void IRAM_ATTR CECReceive::gpio_isr() {
 
     case ReceiverState::WAITING_FOR_EOM_ACK: {
       xmit_.got_byte_eom_ack(true, value);  // pass time of received byte, eom and ack, to transmitter
-      if (promiscuous_mode_ || recv_frame_buffer_.is_broadcast() ||
+      if (promiscuous_mode_ ||
+          (recv_frame_buffer_.is_broadcast() && (recv_frame_buffer_.initiator_addr() != address_)) ||
           (recv_frame_buffer_.destination_addr() == address_)) {
-        // we are interested in this message, push to application
-        recv_queue_.push(recv_frame_buffer_);  // TODO: safe inside isr?
+        // the application could be interested in this message
+        recv_queue_.push(recv_frame_buffer_);
       }
       reset_state_variables();
       break;
