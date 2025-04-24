@@ -165,6 +165,7 @@ jobs:
           . venv/bin/activate
           script/ci-custom.py
           script/build_codeowners.py --check
+          script/build_language_schema.py --check
 
   pytest:
     name: Run pytest
