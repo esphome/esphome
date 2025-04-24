@@ -6,12 +6,15 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER
 
 from .. import (
+    CONF_CHANNEL,
     CONF_I2S_DIN_PIN,
+    CONF_MONO,
     CONF_RIGHT,
     I2SAudioIn,
     i2s_audio_component_schema,
     i2s_audio_ns,
     register_i2s_audio_component,
+    use_legacy,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -43,6 +46,12 @@ def validate_esp32_variant(config):
     raise NotImplementedError
 
 
+def validate_channel(config):
+    if config[CONF_CHANNEL] == CONF_MONO:
+        raise cv.Invalid(f"I2S microphone does not support {CONF_MONO}.")
+    return config
+
+
 BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
     i2s_audio_component_schema(
         I2SAudioMicrophone,
@@ -71,7 +80,17 @@ CONFIG_SCHEMA = cv.All(
         key=CONF_ADC_TYPE,
     ),
     validate_esp32_variant,
+    validate_channel,
 )
+
+
+def _final_validate(config):
+    if not use_legacy():
+        if config[CONF_ADC_TYPE] == "internal":
+            raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver.")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

@@ -8,6 +8,7 @@ microphone:
     i2s_din_pin: GPIO17
     adc_type: external
     pdm: true
+    bits_per_sample: 16bit
 
 micro_wake_word:
   on_wake_word_detected:
