@@ -77,7 +77,7 @@ def get_component_names():
             if d not in component_names and d not in skip_components:
                 component_names.append(d)
 
-    return component_names
+    return sorted(component_names)
 
 
 def load_components():
