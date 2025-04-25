@@ -116,7 +116,7 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 ROOT_CONFIG_PATH = object()
 
 RESERVED_IDS = [
-    # C++ keywords http://en.cppreference.com/w/cpp/keyword
+    # C++ keywords https://en.cppreference.com/w/cpp/keyword
     "alarm",
     "alignas",
     "alignof",

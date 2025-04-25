@@ -361,11 +361,11 @@ def wizard(path):
 
     if platform == "ESP32":
         board_link = (
-            "http://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
+            "https://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
         )
     elif platform == "ESP8266":
         board_link = (
-            "http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
+            "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
     elif platform == "RP2040":
         board_link = (
