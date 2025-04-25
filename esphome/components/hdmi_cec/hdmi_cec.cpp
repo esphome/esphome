@@ -327,7 +327,9 @@ void CECTransmit::setup(InternalGPIOPin *pin) {
     uart_->set_data_bits(8);
     uart_->set_stop_bits(1);
     uart_->set_parity(uart::UART_CONFIG_PARITY_NONE);
+#if defined(USE_ESP8266) || defined(USE_ESP32)
     uart_->load_settings(false);
+#endif  // USE_ESP8266 || USE_ESP32
     ESP_LOGD(TAG, "Set uart configuration for CEC");
   }
 #else

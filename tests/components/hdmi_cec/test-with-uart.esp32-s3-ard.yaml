@@ -1,0 +1,5 @@
+substitutions:
+  uart_pin: GPIO10
+  cec_pin: GPIO12
+
+<<: !include common_with_uart.yaml

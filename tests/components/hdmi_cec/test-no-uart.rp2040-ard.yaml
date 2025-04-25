@@ -1,0 +1,4 @@
+substitutions:
+  cec_pin: GPIO13
+
+<<: !include common_no_uart.yaml
