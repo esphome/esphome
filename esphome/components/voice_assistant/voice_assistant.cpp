@@ -72,12 +72,8 @@ bool VoiceAssistant::start_udp_socket_() {
 }
 
 bool VoiceAssistant::allocate_buffers_() {
-  if (this->send_buffer_ != nullptr) {
-    return true;  // Already allocated
-  }
-
 #ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ == nullptr)) {
     ExternalRAMAllocator<uint8_t> speaker_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
     this->speaker_buffer_ = speaker_allocator.allocate(SPEAKER_BUFFER_SIZE);
     if (this->speaker_buffer_ == nullptr) {
@@ -87,28 +83,34 @@ bool VoiceAssistant::allocate_buffers_() {
   }
 #endif
 
-  ExternalRAMAllocator<int16_t> allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
-  this->input_buffer_ = allocator.allocate(INPUT_BUFFER_SIZE);
   if (this->input_buffer_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate input buffer");
-    return false;
+    ExternalRAMAllocator<int16_t> allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
+    this->input_buffer_ = allocator.allocate(INPUT_BUFFER_SIZE);
+    if (this->input_buffer_ == nullptr) {
+      ESP_LOGW(TAG, "Could not allocate input buffer");
+      return false;
+    }
   }
 
 #ifdef USE_ESP_ADF
   this->vad_instance_ = vad_create(VAD_MODE_4);
 #endif
 
-  this->ring_buffer_ = RingBuffer::create(BUFFER_SIZE * sizeof(int16_t));
-  if (this->ring_buffer_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate ring buffer");
-    return false;
+  if (this->ring_buffer_.use_count() == 0) {
+    this->ring_buffer_ = RingBuffer::create(BUFFER_SIZE * sizeof(int16_t));
+    if (this->ring_buffer_.use_count() == 0) {
+      ESP_LOGE(TAG, "Could not allocate ring buffer");
+      return false;
+    }
   }
 
-  ExternalRAMAllocator<uint8_t> send_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
-  if (send_buffer_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate send buffer");
-    return false;
+  if (this->send_buffer_ == nullptr) {
+    ExternalRAMAllocator<uint8_t> send_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
+    if (send_buffer_ == nullptr) {
+      ESP_LOGW(TAG, "Could not allocate send buffer");
+      return false;
+    }
   }
 
   return true;
@@ -139,13 +141,14 @@ void VoiceAssistant::clear_buffers_() {
 }
 
 void VoiceAssistant::deallocate_buffers_() {
-  ExternalRAMAllocator<uint8_t> send_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  send_deallocator.deallocate(this->send_buffer_, SEND_BUFFER_SIZE);
-  this->send_buffer_ = nullptr;
+  if (this->send_buffer_ != nullptr) {
+    ExternalRAMAllocator<uint8_t> send_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    send_deallocator.deallocate(this->send_buffer_, SEND_BUFFER_SIZE);
+    this->send_buffer_ = nullptr;
+  }
 
-  if (this->ring_buffer_ != nullptr) {
+  if (this->ring_buffer_.use_count() > 0) {
     this->ring_buffer_.reset();
-    this->ring_buffer_ = nullptr;
   }
 
 #ifdef USE_ESP_ADF
@@ -155,9 +158,11 @@ void VoiceAssistant::deallocate_buffers_() {
   }
 #endif
 
-  ExternalRAMAllocator<int16_t> input_deallocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
-  input_deallocator.deallocate(this->input_buffer_, INPUT_BUFFER_SIZE);
-  this->input_buffer_ = nullptr;
+  if (this->input_buffer_ != nullptr) {
+    ExternalRAMAllocator<int16_t> input_deallocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
+    input_deallocator.deallocate(this->input_buffer_, INPUT_BUFFER_SIZE);
+    this->input_buffer_ = nullptr;
+  }
 
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
@@ -216,6 +221,7 @@ void VoiceAssistant::loop() {
         }
       } else {
         this->high_freq_.stop();
+        this->deallocate_buffers_();
       }
       break;
     }
@@ -276,7 +282,7 @@ void VoiceAssistant::loop() {
       this->read_microphone_();
       ESP_LOGD(TAG, "Requesting start...");
       uint32_t flags = 0;
-      if (this->use_wake_word_)
+      if (!this->continue_conversation_ && this->use_wake_word_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD;
       if (this->silence_detection_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_VAD;
@@ -387,6 +393,25 @@ void VoiceAssistant::loop() {
 #ifdef USE_MEDIA_PLAYER
       if (this->media_player_ != nullptr) {
         playing = (this->media_player_->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING);
+
+        if (playing && this->media_player_wait_for_announcement_start_) {
+          // Announcement has started playing, wait for it to finish
+          this->media_player_wait_for_announcement_start_ = false;
+          this->media_player_wait_for_announcement_end_ = true;
+        }
+
+        if (!playing && this->media_player_wait_for_announcement_end_) {
+          // Announcement has finished playing
+          this->media_player_wait_for_announcement_end_ = false;
+          this->cancel_timeout("playing");
+          ESP_LOGD(TAG, "Announcement finished playing");
+          this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
+
+          api::VoiceAssistantAnnounceFinished msg;
+          msg.success = true;
+          this->api_client_->send_voice_assistant_announce_finished(msg);
+          break;
+        }
       }
 #endif
       if (playing) {
@@ -417,7 +442,11 @@ void VoiceAssistant::loop() {
         this->tts_stream_end_trigger_->trigger();
       }
 #endif
-      this->set_state_(State::IDLE, State::IDLE);
+      if (this->continue_conversation_) {
+        this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
+      } else {
+        this->set_state_(State::IDLE, State::IDLE);
+      }
       break;
     }
     default:
@@ -587,6 +616,7 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
 
 void VoiceAssistant::request_stop() {
   this->continuous_ = false;
+  this->continue_conversation_ = false;
 
   switch (this->state_) {
     case State::IDLE:
@@ -611,6 +641,16 @@ void VoiceAssistant::request_stop() {
       this->signal_stop_();
       break;
     case State::STREAMING_RESPONSE:
+#ifdef USE_MEDIA_PLAYER
+      // Stop any ongoing media player announcement
+      if (this->media_player_ != nullptr) {
+        this->media_player_->make_call()
+            .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
+            .set_announcement(true)
+            .perform();
+      }
+#endif
+      break;
     case State::RESPONSE_FINISHED:
       break;  // Let the incoming audio stream finish then it will go to idle.
   }
@@ -628,9 +668,9 @@ void VoiceAssistant::signal_stop_() {
 }
 
 void VoiceAssistant::start_playback_timeout_() {
-  this->set_timeout("playing", 100, [this]() {
+  this->set_timeout("playing", 2000, [this]() {
     this->cancel_timeout("speaker-timeout");
-    this->set_state_(State::IDLE, State::IDLE);
+    this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
@@ -679,6 +719,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       for (auto arg : msg.data) {
         if (arg.name == "conversation_id") {
           this->conversation_id_ = std::move(arg.value);
+        } else if (arg.name == "continue_conversation") {
+          this->continue_conversation_ = (arg.value == "1");
         }
       }
       this->defer([this]() { this->intent_end_trigger_->trigger(); });
@@ -722,6 +764,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 #ifdef USE_MEDIA_PLAYER
         if (this->media_player_ != nullptr) {
           this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
+
+          this->media_player_wait_for_announcement_start_ = true;
+          this->media_player_wait_for_announcement_end_ = false;
           // Start the playback timeout, as the media player state isn't immediately updated
           this->start_playback_timeout_();
         }
@@ -888,8 +933,28 @@ void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) 
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
     this->tts_start_trigger_->trigger(msg.text);
-    this->media_player_->make_call().set_media_url(msg.media_id).set_announcement(true).perform();
-    this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+    if (!msg.preannounce_media_id.empty()) {
+      this->media_player_->make_call().set_media_url(msg.preannounce_media_id).set_announcement(true).perform();
+    }
+    // Enqueueing a URL with an empty playlist will still play the file immediately
+    this->media_player_->make_call()
+        .set_command(media_player::MEDIA_PLAYER_COMMAND_ENQUEUE)
+        .set_media_url(msg.media_id)
+        .set_announcement(true)
+        .perform();
+    this->continue_conversation_ = msg.start_conversation;
+
+    this->media_player_wait_for_announcement_start_ = true;
+    this->media_player_wait_for_announcement_end_ = false;
+    // Start the playback timeout, as the media player state isn't immediately updated
+    this->start_playback_timeout_();
+
+    if (this->continuous_) {
+      this->set_state_(State::STOP_MICROPHONE, State::STREAMING_RESPONSE);
+    } else {
+      this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+    }
+
     this->tts_end_trigger_->trigger(msg.media_id);
     this->end_trigger_->trigger();
   }
