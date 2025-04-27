@@ -284,19 +284,21 @@ void I2SAudioMicrophone::stop_() {
   this->status_clear_error();
 }
 
-size_t I2SAudioMicrophone::read(int16_t *buf, size_t len) {
+size_t I2SAudioMicrophone::read(int16_t *buf, size_t len, TickType_t ticks_to_wait) {
   size_t bytes_read = 0;
 #ifdef USE_I2S_LEGACY
-  esp_err_t err = i2s_read(this->parent_->get_port(), buf, len, &bytes_read, (100 / portTICK_PERIOD_MS));
+  esp_err_t err = i2s_read(this->parent_->get_port(), buf, len, &bytes_read, ticks_to_wait);
 #else
-  esp_err_t err = i2s_channel_read(this->rx_handle_, buf, len, &bytes_read, (100 / portTICK_PERIOD_MS));
+  // i2s_channel_read expects the timeout value in ms, not ticks
+  esp_err_t err = i2s_channel_read(this->rx_handle_, buf, len, &bytes_read, pdTICKS_TO_MS(ticks_to_wait));
 #endif
-  if (err != ESP_OK) {
+  if ((err != ESP_OK) && ((err != ESP_ERR_TIMEOUT) || (ticks_to_wait != 0))) {
+    // Ignore ESP_ERR_TIMEOUT if ticks_to_wait = 0, as it will read the data on the next call
     ESP_LOGW(TAG, "Error reading from I2S microphone: %s", esp_err_to_name(err));
     this->status_set_warning();
     return 0;
   }
-  if (bytes_read == 0) {
+  if ((bytes_read == 0) && (ticks_to_wait > 0)) {
     this->status_set_warning();
     return 0;
   }
@@ -350,7 +352,7 @@ size_t I2SAudioMicrophone::read(int16_t *buf, size_t len) {
 void I2SAudioMicrophone::read_() {
   std::vector<int16_t> samples;
   samples.resize(BUFFER_SIZE);
-  size_t bytes_read = this->read(samples.data(), BUFFER_SIZE / sizeof(int16_t));
+  size_t bytes_read = this->read(samples.data(), BUFFER_SIZE * sizeof(int16_t), 0);
   samples.resize(bytes_read / sizeof(int16_t));
   this->data_callbacks_.call(samples);
 }
