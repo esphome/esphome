@@ -62,9 +62,8 @@ class MicroWakeWord : public Component {
   microphone::Microphone *microphone_{nullptr};
   Trigger<std::string> *wake_word_detected_trigger_ = new Trigger<std::string>();
   State state_{State::IDLE};
-  HighFrequencyLoopRequester high_freq_;
 
-  std::unique_ptr<RingBuffer> ring_buffer_;
+  std::shared_ptr<RingBuffer> ring_buffer_;
 
   std::vector<WakeWordModel> wake_word_models_;
 
@@ -97,15 +96,6 @@ class MicroWakeWord : public Component {
   /// @brief Tests if there are enough samples in the ring buffer to generate new features.
   /// @return True if enough samples, false otherwise.
   bool has_enough_samples_();
-
-  /** Reads audio from microphone into the ring buffer
-   *
-   * Audio data (16000 kHz with int16 samples) is read into the input_buffer_.
-   * Verifies the ring buffer has enough space for all audio data. If not, it logs
-   * a warning and resets the ring buffer entirely.
-   * @return Number of bytes written to the ring buffer
-   */
-  size_t read_microphone_();
 
   /// @brief Allocates memory for input_buffer_, preprocessor_audio_buffer_, and ring_buffer_
   /// @return True if successful, false otherwise

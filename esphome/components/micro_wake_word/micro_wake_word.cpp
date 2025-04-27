@@ -61,6 +61,29 @@ void MicroWakeWord::dump_config() {
 void MicroWakeWord::setup() {
   ESP_LOGCONFIG(TAG, "Setting up microWakeWord...");
 
+  this->microphone_->add_data_callback([this](const std::vector<int16_t> &data) {
+    if (this->state_ != State::DETECTING_WAKE_WORD) {
+      return;
+    }
+    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_;
+    if (this->ring_buffer_.use_count() == 2) {
+      // mWW still owns the ring buffer and temp_ring_buffer does as well, proceed to copy audio into ring buffer
+
+      size_t bytes_free = temp_ring_buffer->free();
+
+      if (bytes_free < data.size() * sizeof(int16_t)) {
+        ESP_LOGW(
+            TAG,
+            "Not enough free bytes in ring buffer to store incoming audio data (free bytes=%d, incoming bytes=%d). "
+            "Resetting the ring buffer. Wake word detection accuracy will be reduced.",
+            bytes_free, data.size());
+
+        temp_ring_buffer->reset();
+      }
+      temp_ring_buffer->write((void *) data.data(), data.size() * sizeof(int16_t));
+    }
+  });
+
   if (!this->register_streaming_ops_(this->streaming_op_resolver_)) {
     this->mark_failed();
     return;
@@ -107,7 +130,6 @@ void MicroWakeWord::loop() {
       ESP_LOGD(TAG, "Starting Microphone");
       this->microphone_->start();
       this->set_state_(State::STARTING_MICROPHONE);
-      this->high_freq_.start();
       break;
     case State::STARTING_MICROPHONE:
       if (this->microphone_->is_running()) {
@@ -115,21 +137,19 @@ void MicroWakeWord::loop() {
       }
       break;
     case State::DETECTING_WAKE_WORD:
-      while (!this->has_enough_samples_()) {
-        this->read_microphone_();
-      }
-      this->update_model_probabilities_();
-      if (this->detect_wake_words_()) {
-        ESP_LOGD(TAG, "Wake Word '%s' Detected", (this->detected_wake_word_).c_str());
-        this->detected_ = true;
-        this->set_state_(State::STOP_MICROPHONE);
+      while (this->has_enough_samples_()) {
+        this->update_model_probabilities_();
+        if (this->detect_wake_words_()) {
+          ESP_LOGD(TAG, "Wake Word '%s' Detected", (this->detected_wake_word_).c_str());
+          this->detected_ = true;
+          this->set_state_(State::STOP_MICROPHONE);
+        }
       }
       break;
     case State::STOP_MICROPHONE:
       ESP_LOGD(TAG, "Stopping Microphone");
       this->microphone_->stop();
       this->set_state_(State::STOPPING_MICROPHONE);
-      this->high_freq_.stop();
       this->unload_models_();
       this->deallocate_buffers_();
       break;
@@ -157,6 +177,11 @@ void MicroWakeWord::start() {
     return;
   }
 
+  if (this->state_ != State::IDLE) {
+    ESP_LOGW(TAG, "Wake word is already running");
+    return;
+  }
+
   if (!this->load_models_() || !this->allocate_buffers_()) {
     ESP_LOGE(TAG, "Failed to load the wake word model(s) or allocate buffers");
     this->status_set_error();
@@ -166,11 +191,6 @@ void MicroWakeWord::start() {
 
   if (this->status_has_error()) {
     ESP_LOGW(TAG, "Wake word component has an error. Please check logs");
-    return;
-  }
-
-  if (this->state_ != State::IDLE) {
-    ESP_LOGW(TAG, "Wake word is already running");
     return;
   }
 
@@ -196,26 +216,6 @@ void MicroWakeWord::set_state_(State state) {
   this->state_ = state;
 }
 
-size_t MicroWakeWord::read_microphone_() {
-  size_t bytes_read = this->microphone_->read(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t));
-  if (bytes_read == 0) {
-    return 0;
-  }
-
-  size_t bytes_free = this->ring_buffer_->free();
-
-  if (bytes_free < bytes_read) {
-    ESP_LOGW(TAG,
-             "Not enough free bytes in ring buffer to store incoming audio data (free bytes=%d, incoming bytes=%d). "
-             "Resetting the ring buffer. Wake word detection accuracy will be reduced.",
-             bytes_free, bytes_read);
-
-    this->ring_buffer_->reset();
-  }
-
-  return this->ring_buffer_->write((void *) this->input_buffer_, bytes_read);
-}
-
 bool MicroWakeWord::allocate_buffers_() {
   ExternalRAMAllocator<int16_t> audio_samples_allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
 
@@ -235,9 +235,9 @@ bool MicroWakeWord::allocate_buffers_() {
     }
   }
 
-  if (this->ring_buffer_ == nullptr) {
+  if (this->ring_buffer_.use_count() == 0) {
     this->ring_buffer_ = RingBuffer::create(BUFFER_SIZE * sizeof(int16_t));
-    if (this->ring_buffer_ == nullptr) {
+    if (this->ring_buffer_.use_count() == 0) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
     }
@@ -248,10 +248,17 @@ bool MicroWakeWord::allocate_buffers_() {
 
 void MicroWakeWord::deallocate_buffers_() {
   ExternalRAMAllocator<int16_t> audio_samples_allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
-  audio_samples_allocator.deallocate(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t));
-  this->input_buffer_ = nullptr;
-  audio_samples_allocator.deallocate(this->preprocessor_audio_buffer_, this->new_samples_to_get_());
-  this->preprocessor_audio_buffer_ = nullptr;
+  if (this->input_buffer_ != nullptr) {
+    audio_samples_allocator.deallocate(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t));
+    this->input_buffer_ = nullptr;
+  }
+
+  if (this->preprocessor_audio_buffer_ != nullptr) {
+    audio_samples_allocator.deallocate(this->preprocessor_audio_buffer_, this->new_samples_to_get_());
+    this->preprocessor_audio_buffer_ = nullptr;
+  }
+
+  this->ring_buffer_.reset();
 }
 
 bool MicroWakeWord::load_models_() {
