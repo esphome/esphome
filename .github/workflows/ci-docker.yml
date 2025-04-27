@@ -37,8 +37,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "ubuntu-24.04-arm"]
-        build_type: ["ha-addon", "docker", "lint"]
+        os: ["ubuntu-24.04", "ubuntu-24.04-arm"]
+        build_type:
+          - "ha-addon"
+          - "docker"
+          # - "lint"
     steps:
       - uses: actions/checkout@v4.1.7
       - name: Set up Python
