@@ -6,10 +6,27 @@ namespace esphome {
 namespace image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
+  int img_x0 = 0;
+  int img_y0 = 0;
+  int w = width_;
+  int h = height_;
+
+  auto clipping = display->get_clipping();
+  if (clipping.is_set()) {
+    if (clipping.x > x)
+      img_x0 += clipping.x - x;
+    if (clipping.y > y)
+      img_y0 += clipping.y - y;
+    if (w > clipping.x2() - x)
+      w = clipping.x2() - x;
+    if (h > clipping.y2() - y)
+      h = clipping.y2() - y;
+  }
+
   switch (type_) {
     case IMAGE_TYPE_BINARY: {
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           if (this->get_binary_pixel_(img_x, img_y)) {
             display->draw_pixel_at(x + img_x, y + img_y, color_on);
           } else if (!this->transparency_) {
@@ -20,8 +37,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       break;
     }
     case IMAGE_TYPE_GRAYSCALE:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           const uint32_t pos = (img_x + img_y * this->width_);
           const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
           Color color = Color(gray, gray, gray, 0xFF);
@@ -47,8 +64,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     case IMAGE_TYPE_RGB565:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           auto color = this->get_rgb565_pixel_(img_x, img_y);
           if (color.w >= 0x80) {
             display->draw_pixel_at(x + img_x, y + img_y, color);
@@ -57,8 +74,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     case IMAGE_TYPE_RGB:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           auto color = this->get_rgb_pixel_(img_x, img_y);
           if (color.w >= 0x80) {
             display->draw_pixel_at(x + img_x, y + img_y, color);
