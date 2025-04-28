@@ -2,6 +2,7 @@ import logging
 
 from esphome.automation import build_automation, register_action, validate_automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_DRAW_ROUNDING
 from esphome.components.display import Display
 import esphome.config_validation as cv
 from esphome.const import (
@@ -24,7 +25,7 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, focused_widgets, update_to_code
-from .defines import CONF_DRAW_ROUNDING, add_define
+from .defines import add_define
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -323,7 +324,7 @@ async def to_code(configs):
             displays,
             frac,
             config[df.CONF_FULL_REFRESH],
-            config[df.CONF_DRAW_ROUNDING],
+            config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
         )
         await cg.register_component(lv_component, config)
@@ -413,7 +414,7 @@ LVGL_SCHEMA = cv.All(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
-                cv.Optional(df.CONF_DRAW_ROUNDING, default=2): cv.positive_int,
+                cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
                 cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
