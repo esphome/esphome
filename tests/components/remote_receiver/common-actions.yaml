@@ -3,6 +3,11 @@ on_abbwelcome:
     - logger.log:
         format: "on_abbwelcome: %u"
         args: ["x.data()[0]"]
+on_beo4:
+  then:
+    - logger.log:
+        format: "on_beo4: %u %u"
+        args: ["x.source", "x.command"]
 on_aeha:
   then:
     - logger.log:
