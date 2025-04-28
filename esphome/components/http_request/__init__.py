@@ -295,8 +295,8 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    for key in config.get(CONF_REQUEST_HEADERS, []):
-        template_ = await cg.templatable(key, args, cg.std_string)
+    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+        template_ = await cg.templatable(value, args, cg.const_char_ptr)
         cg.add(var.add_request_header(key, template_))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
