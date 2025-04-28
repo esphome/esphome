@@ -1,0 +1,46 @@
+substitutions:
+  verify_ssl: "true"
+
+network:
+
+esphome:
+  on_boot:
+    then:
+      - http_request.get:
+          url: https://esphome.io
+          request_headers:
+            Content-Type: application/json
+          on_error:
+            logger.log: "Request failed"
+          on_response:
+            then:
+              - logger.log:
+                  format: "Response status: %d, Duration: %lu ms"
+                  args:
+                    - response->status_code
+                    - (long) response->duration_ms
+      - http_request.post:
+          url: https://esphome.io
+          request_headers:
+            Content-Type: application/json
+          json:
+            key: value
+      - http_request.send:
+          method: PUT
+          url: https://esphome.io
+          request_headers:
+            Content-Type: application/json
+          body: "Some data"
+
+http_request:
+  useragent: esphome/tagreader
+  timeout: 10s
+  verify_ssl: ${verify_ssl}
+
+script:
+  - id: does_not_compile
+    parameters:
+      api_url: string
+    then:
+      - http_request.get:
+          url: "http://google.com"

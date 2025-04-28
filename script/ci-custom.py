@@ -292,6 +292,7 @@ def highlight(s):
         "esphome/core/log.h",
         "esphome/components/socket/headers.h",
         "esphome/core/defines.h",
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_no_defines(fname, match):
@@ -552,6 +553,7 @@ def lint_relative_py_import(fname):
         "esphome/components/rp2040/core.cpp",
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_namespace(fname, content):
