@@ -74,12 +74,13 @@ def setup_log(
 
     colorama.init()
 
-    if log_level == logging.DEBUG:
-        CORE.verbose = True
-    elif log_level == logging.CRITICAL:
-        CORE.quiet = True
-
+    # Setup logging - will map log level from string to constant
     logging.basicConfig(level=log_level)
+
+    if logging.root.level == logging.DEBUG:
+        CORE.verbose = True
+    elif logging.root.level == logging.CRITICAL:
+        CORE.quiet = True
 
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
