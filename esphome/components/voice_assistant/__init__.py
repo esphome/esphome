@@ -94,8 +94,8 @@ CONFIG_SCHEMA = cv.All(
                 media_player.MediaPlayer
             ),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
-            cv.Optional(CONF_VAD_THRESHOLD): cv.All(
-                cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.uint8_t
+            cv.Optional(CONF_VAD_THRESHOLD): cv.invalid(
+                "VAD threshold is no longer supported, as it requires the deprecated esp_adf external component. Use an i2s_audio microphone/speaker instead. Additionally, you may need to configure the audio_adc and audio_dac components depending on your hardware."
             ),
             cv.Optional(CONF_NOISE_SUPPRESSION_LEVEL, default=0): cv.int_range(0, 4),
             cv.Optional(CONF_AUTO_GAIN, default="0dBFS"): cv.All(
