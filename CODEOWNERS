@@ -328,6 +328,7 @@ esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
 esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
+esphome/components/pmsx003/* @ximex
 esphome/components/pmwcs3/* @SeByDocKy
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
