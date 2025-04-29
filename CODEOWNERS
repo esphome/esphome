@@ -278,7 +278,7 @@ esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
 esphome/components/micro_wake_word/* @jesserockz @kahrendt
 esphome/components/micronova/* @jorre05
-esphome/components/microphone/* @jesserockz
+esphome/components/microphone/* @jesserockz @kahrendt
 esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov

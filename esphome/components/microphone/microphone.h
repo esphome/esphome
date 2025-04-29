@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/components/audio/audio.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -28,8 +30,12 @@ class Microphone {
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
+  audio::AudioStreamInfo get_audio_stream_info() { return this->audio_stream_info_; }
+
  protected:
   State state_{STATE_STOPPED};
+
+  audio::AudioStreamInfo audio_stream_info_;
 
   CallbackManager<void(const std::vector<int16_t> &)> data_callbacks_{};
 };
