@@ -169,6 +169,18 @@ enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
   BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6,
 };
+enum BluetoothScannerState : uint32_t {
+  BLUETOOTH_SCANNER_STATE_IDLE = 0,
+  BLUETOOTH_SCANNER_STATE_STARTING = 1,
+  BLUETOOTH_SCANNER_STATE_RUNNING = 2,
+  BLUETOOTH_SCANNER_STATE_FAILED = 3,
+  BLUETOOTH_SCANNER_STATE_STOPPING = 4,
+  BLUETOOTH_SCANNER_STATE_STOPPED = 5,
+};
+enum BluetoothScannerMode : uint32_t {
+  BLUETOOTH_SCANNER_MODE_PASSIVE = 0,
+  BLUETOOTH_SCANNER_MODE_ACTIVE = 1,
+};
 enum VoiceAssistantSubscribeFlag : uint32_t {
   VOICE_ASSISTANT_SUBSCRIBE_NONE = 0,
   VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1,
@@ -1734,6 +1746,29 @@ class BluetoothDeviceClearCacheResponse : public ProtoMessage {
   uint64_t address{0};
   bool success{false};
   int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothScannerStateResponse : public ProtoMessage {
+ public:
+  enums::BluetoothScannerState state{};
+  enums::BluetoothScannerMode mode{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothScannerSetModeRequest : public ProtoMessage {
+ public:
+  enums::BluetoothScannerMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

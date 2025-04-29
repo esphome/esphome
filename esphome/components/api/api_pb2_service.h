@@ -234,6 +234,12 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg);
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_scanner_state_response(const BluetoothScannerStateResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &value){};
+#endif
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &value){};
 #endif
@@ -440,6 +446,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BLUETOOTH_PROXY
   virtual void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) = 0;
+#endif
 #ifdef USE_VOICE_ASSISTANT
   virtual void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) = 0;
 #endif
@@ -550,6 +559,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BLUETOOTH_PROXY
   void on_unsubscribe_bluetooth_le_advertisements_request(
       const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) override;
 #endif
 #ifdef USE_VOICE_ASSISTANT
   void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) override;

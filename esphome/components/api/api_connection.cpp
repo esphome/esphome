@@ -1475,6 +1475,11 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
   resp.limit = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_connections_limit();
   return resp;
 }
+
+void APIConnection::bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_scanner_set_mode(
+      msg.mode == enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE);
+}
 #endif
 
 #ifdef USE_VOICE_ASSISTANT

@@ -25,6 +25,22 @@ std::vector<uint64_t> get_128bit_uuid_vec(esp_bt_uuid_t uuid_source) {
 
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
+void BluetoothProxy::setup() {
+  this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
+    if (this->api_connection_ != nullptr) {
+      this->send_bluetooth_scanner_state_(state);
+    }
+  });
+}
+
+void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state) {
+  api::BluetoothScannerStateResponse resp;
+  resp.state = static_cast<api::enums::BluetoothScannerState>(state);
+  resp.mode = this->parent_->get_scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
+                                               : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
+  this->api_connection_->send_bluetooth_scanner_state_response(resp);
+}
+
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || this->raw_advertisements_)
     return false;
@@ -453,6 +469,8 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   this->api_connection_ = api_connection;
   this->raw_advertisements_ = flags & BluetoothProxySubscriptionFlag::SUBSCRIPTION_RAW_ADVERTISEMENTS;
   this->parent_->recalculate_advertisement_parser_types();
+
+  this->send_bluetooth_scanner_state_(this->parent_->get_scanner_state());
 }
 
 void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {
@@ -523,6 +541,17 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, esp_e
   call.error = error;
 
   this->api_connection_->send_bluetooth_device_unpairing_response(call);
+}
+
+void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
+  if (this->parent_->get_scan_active() == active) {
+    return;
+  }
+  ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
+  this->parent_->set_scan_active(active);
+  this->parent_->stop_scan();
+  this->parent_->set_scan_continuous(
+      true);  // Set this to true to automatically start scanning again when it has cleaned up.
 }
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

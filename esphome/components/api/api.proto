@@ -61,6 +61,7 @@ service APIConnection {
   rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
   rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc bluetooth_scanner_set_mode(BluetoothScannerSetModeRequest) returns (void) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
   rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
@@ -1470,6 +1471,37 @@ message BluetoothDeviceClearCacheResponse {
   uint64 address = 1;
   bool success = 2;
   int32 error = 3;
+}
+
+enum BluetoothScannerState {
+  BLUETOOTH_SCANNER_STATE_IDLE = 0;
+  BLUETOOTH_SCANNER_STATE_STARTING = 1;
+  BLUETOOTH_SCANNER_STATE_RUNNING = 2;
+  BLUETOOTH_SCANNER_STATE_FAILED = 3;
+  BLUETOOTH_SCANNER_STATE_STOPPING = 4;
+  BLUETOOTH_SCANNER_STATE_STOPPED = 5;
+}
+
+enum BluetoothScannerMode {
+  BLUETOOTH_SCANNER_MODE_PASSIVE = 0;
+  BLUETOOTH_SCANNER_MODE_ACTIVE = 1;
+}
+
+message BluetoothScannerStateResponse {
+  option(id) = 126;
+  option(source) = SOURCE_SERVER;
+  option(ifdef) = "USE_BLUETOOTH_PROXY";
+
+  BluetoothScannerState state = 1;
+  BluetoothScannerMode mode = 2;
+}
+
+message BluetoothScannerSetModeRequest {
+  option(id) = 127;
+  option(source) = SOURCE_CLIENT;
+  option(ifdef) = "USE_BLUETOOTH_PROXY";
+
+  BluetoothScannerMode mode = 1;
 }
 
 // ==================== PUSH TO TALK ====================
