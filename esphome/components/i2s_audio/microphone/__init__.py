@@ -1,13 +1,20 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32, microphone
+from esphome.components import audio, esp32, microphone
 from esphome.components.adc import ESP32_VARIANT_ADC1_PIN_TO_CHANNEL, validate_adc_pin
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NUMBER
+from esphome.const import (
+    CONF_BITS_PER_SAMPLE,
+    CONF_CHANNEL,
+    CONF_ID,
+    CONF_NUM_CHANNELS,
+    CONF_NUMBER,
+    CONF_SAMPLE_RATE,
+)
 
 from .. import (
-    CONF_CHANNEL,
     CONF_I2S_DIN_PIN,
+    CONF_LEFT,
     CONF_MONO,
     CONF_RIGHT,
     I2SAudioIn,
@@ -32,7 +39,7 @@ INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
 PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
 
 
-def validate_esp32_variant(config):
+def _validate_esp32_variant(config):
     variant = esp32.get_esp32_variant()
     if config[CONF_ADC_TYPE] == "external":
         if config[CONF_PDM]:
@@ -46,9 +53,31 @@ def validate_esp32_variant(config):
     raise NotImplementedError
 
 
-def validate_channel(config):
+def _validate_channel(config):
     if config[CONF_CHANNEL] == CONF_MONO:
         raise cv.Invalid(f"I2S microphone does not support {CONF_MONO}.")
+    return config
+
+
+def _set_num_channels_from_config(config):
+    if config[CONF_CHANNEL] in (CONF_LEFT, CONF_RIGHT):
+        config[CONF_NUM_CHANNELS] = 1
+    else:
+        config[CONF_NUM_CHANNELS] = 2
+
+    return config
+
+
+def _set_stream_limits(config):
+    audio.set_stream_limits(
+        min_bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
+        max_bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
+        min_channels=config.get(CONF_NUM_CHANNELS),
+        max_channels=config.get(CONF_NUM_CHANNELS),
+        min_sample_rate=config.get(CONF_SAMPLE_RATE),
+        max_sample_rate=config.get(CONF_SAMPLE_RATE),
+    )(config)
+
     return config
 
 
@@ -79,8 +108,10 @@ CONFIG_SCHEMA = cv.All(
         },
         key=CONF_ADC_TYPE,
     ),
-    validate_esp32_variant,
-    validate_channel,
+    _validate_esp32_variant,
+    _validate_channel,
+    _set_num_channels_from_config,
+    _set_stream_limits,
 )
 
 

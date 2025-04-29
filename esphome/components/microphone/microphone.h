@@ -22,10 +22,9 @@ class Microphone {
  public:
   virtual void start() = 0;
   virtual void stop() = 0;
-  void add_data_callback(std::function<void(const std::vector<int16_t> &)> &&data_callback) {
+  void add_data_callback(std::function<void(const std::vector<uint8_t> &)> &&data_callback) {
     this->data_callbacks_.add(std::move(data_callback));
   }
-  virtual size_t read(int16_t *buf, size_t len) = 0;
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
@@ -37,7 +36,7 @@ class Microphone {
 
   audio::AudioStreamInfo audio_stream_info_;
 
-  CallbackManager<void(const std::vector<int16_t> &)> data_callbacks_{};
+  CallbackManager<void(const std::vector<uint8_t> &)> data_callbacks_{};
 };
 
 }  // namespace microphone

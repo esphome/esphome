@@ -25,9 +25,6 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
   void set_pdm(bool pdm) { this->pdm_ = pdm; }
 
-  size_t read(int16_t *buf, size_t len, TickType_t ticks_to_wait);
-  size_t read(int16_t *buf, size_t len) override { return this->read(buf, len, pdMS_TO_TICKS(100)); }
-
 #ifdef USE_I2S_LEGACY
 #if SOC_I2S_SUPPORTS_ADC
   void set_adc_channel(adc1_channel_t channel) {
@@ -41,6 +38,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   void start_();
   void stop_();
   void read_();
+  size_t read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait);
 
 #ifdef USE_I2S_LEGACY
   int8_t din_pin_{I2S_PIN_NO_CHANGE};

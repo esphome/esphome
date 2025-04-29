@@ -11,7 +11,7 @@
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
-#include "esphome/components/microphone/microphone.h"
+#include "esphome/components/microphone/microphone_source.h"
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
 #endif
@@ -98,7 +98,7 @@ class VoiceAssistant : public Component {
   void start_streaming(struct sockaddr_storage *addr, uint16_t port);
   void failed_to_start();
 
-  void set_microphone(microphone::Microphone *mic) { this->mic_ = mic; }
+  void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
     this->speaker_ = speaker;
@@ -249,7 +249,7 @@ class VoiceAssistant : public Component {
   bool has_timers_{false};
   bool timer_tick_running_{false};
 
-  microphone::Microphone *mic_{nullptr};
+  microphone::MicrophoneSource *mic_source_{nullptr};
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};

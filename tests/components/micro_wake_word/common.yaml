@@ -11,6 +11,7 @@ microphone:
     bits_per_sample: 16bit
 
 micro_wake_word:
+  microphone: echo_microphone
   on_wake_word_detected:
     - logger.log: "Wake word detected"
   models:

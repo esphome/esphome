@@ -56,6 +56,35 @@ void I2SAudioMicrophone::start_() {
   }
   esp_err_t err;
 
+  uint8_t channel_count = 1;
+#ifdef USE_I2S_LEGACY
+  uint8_t bits_per_sample = this->bits_per_sample_;
+
+  if (this->channel_ == I2S_CHANNEL_FMT_RIGHT_LEFT) {
+    channel_count = 2;
+  }
+#else
+  if (this->slot_bit_width_ == I2S_SLOT_BIT_WIDTH_AUTO) {
+    this->slot_bit_width_ = I2S_SLOT_BIT_WIDTH_16BIT;
+  }
+  uint8_t bits_per_sample = this->slot_bit_width_;
+
+  if (this->slot_mode_ == I2S_SLOT_MODE_STEREO) {
+    channel_count = 2;
+  }
+#endif
+
+#ifdef USE_ESP32_VARIANT_ESP32
+  // ESP32 reads audio aligned to a multiple of 2 bytes. For example, if configured for 24 bits per sample, then it will
+  // produce 32 bits per sample, where the actual data is in the most significant bits. Other ESP32 variants produce 24
+  // bits per sample in this situation.
+  if (bits_per_sample < 16) {
+    bits_per_sample = 16;
+  } else if ((bits_per_sample > 16) && (bits_per_sample <= 32)) {
+    bits_per_sample = 32;
+  }
+#endif
+
 #ifdef USE_I2S_LEGACY
   i2s_driver_config_t config = {
       .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_RX),
@@ -144,6 +173,8 @@ void I2SAudioMicrophone::start_() {
   i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
 #if SOC_I2S_SUPPORTS_PDM_RX
   if (this->pdm_) {
+    bits_per_sample = 16;  // PDM mics are always 16 bits per sample with the IDF 5 driver
+
     i2s_pdm_rx_clk_config_t clk_cfg = {
         .sample_rate_hz = this->sample_rate_,
         .clk_src = clk_src,
@@ -187,13 +218,8 @@ void I2SAudioMicrophone::start_() {
         .clk_src = clk_src,
         .mclk_multiple = I2S_MCLK_MULTIPLE_256,
     };
-    i2s_data_bit_width_t data_bit_width;
-    if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_8BIT) {
-      data_bit_width = I2S_DATA_BIT_WIDTH_16BIT;
-    } else {
-      data_bit_width = I2S_DATA_BIT_WIDTH_8BIT;
-    }
-    i2s_std_slot_config_t std_slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(data_bit_width, this->slot_mode_);
+    i2s_std_slot_config_t std_slot_cfg =
+        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
     std_slot_cfg.slot_bit_width = this->slot_bit_width_;
     std_slot_cfg.slot_mask = this->std_slot_mask_;
 
@@ -221,6 +247,8 @@ void I2SAudioMicrophone::start_() {
     return;
   }
 #endif
+
+  this->audio_stream_info_ = audio::AudioStreamInfo(bits_per_sample, channel_count, this->sample_rate_);
 
   this->state_ = microphone::STATE_RUNNING;
   this->high_freq_.start();
@@ -284,7 +312,7 @@ void I2SAudioMicrophone::stop_() {
   this->status_clear_error();
 }
 
-size_t I2SAudioMicrophone::read(int16_t *buf, size_t len, TickType_t ticks_to_wait) {
+size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {
   size_t bytes_read = 0;
 #ifdef USE_I2S_LEGACY
   esp_err_t err = i2s_read(this->parent_->get_port(), buf, len, &bytes_read, ticks_to_wait);
@@ -303,38 +331,7 @@ size_t I2SAudioMicrophone::read(int16_t *buf, size_t len, TickType_t ticks_to_wa
     return 0;
   }
   this->status_clear_warning();
-  // ESP-IDF I2S implementation right-extends 8-bit data to 16 bits,
-  // and 24-bit data to 32 bits.
-#ifdef USE_I2S_LEGACY
-  switch (this->bits_per_sample_) {
-    case I2S_BITS_PER_SAMPLE_8BIT:
-    case I2S_BITS_PER_SAMPLE_16BIT:
-      return bytes_read;
-    case I2S_BITS_PER_SAMPLE_24BIT:
-    case I2S_BITS_PER_SAMPLE_32BIT: {
-      size_t samples_read = bytes_read / sizeof(int32_t);
-      for (size_t i = 0; i < samples_read; i++) {
-        int32_t temp = reinterpret_cast<int32_t *>(buf)[i] >> 14;
-        buf[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
-      }
-      return samples_read * sizeof(int16_t);
-    }
-    default:
-      ESP_LOGE(TAG, "Unsupported bits per sample: %d", this->bits_per_sample_);
-      return 0;
-  }
-#else
-#ifndef USE_ESP32_VARIANT_ESP32
-  // For newer ESP32 variants 8 bit data needs to be extended to 16 bit.
-  if (this->slot_bit_width_ == I2S_SLOT_BIT_WIDTH_8BIT) {
-    size_t samples_read = bytes_read / sizeof(int8_t);
-    for (size_t i = samples_read - 1; i >= 0; i--) {
-      int16_t temp = static_cast<int16_t>(reinterpret_cast<int8_t *>(buf)[i]) << 8;
-      buf[i] = temp;
-    }
-    return samples_read * sizeof(int16_t);
-  }
-#else
+#if defined(USE_ESP32_VARIANT_ESP32) and not defined(USE_I2S_LEGACY)
   // For ESP32 8/16 bit standard mono mode samples need to be switched.
   if (this->slot_mode_ == I2S_SLOT_MODE_MONO && this->slot_bit_width_ <= 16 && !this->pdm_) {
     size_t samples_read = bytes_read / sizeof(int16_t);
@@ -346,14 +343,14 @@ size_t I2SAudioMicrophone::read(int16_t *buf, size_t len, TickType_t ticks_to_wa
   }
 #endif
   return bytes_read;
-#endif
 }
 
 void I2SAudioMicrophone::read_() {
-  std::vector<int16_t> samples;
-  samples.resize(BUFFER_SIZE);
-  size_t bytes_read = this->read(samples.data(), BUFFER_SIZE * sizeof(int16_t), 0);
-  samples.resize(bytes_read / sizeof(int16_t));
+  std::vector<uint8_t> samples;
+  const size_t bytes_to_read = this->audio_stream_info_.ms_to_bytes(32);
+  samples.resize(bytes_to_read);
+  size_t bytes_read = this->read_(samples.data(), bytes_to_read, 0);
+  samples.resize(bytes_read);
   this->data_callbacks_.call(samples);
 }
 

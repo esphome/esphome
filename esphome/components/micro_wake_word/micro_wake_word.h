@@ -9,7 +9,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/ring_buffer.h"
 
-#include "esphome/components/microphone/microphone.h"
+#include "esphome/components/microphone/microphone_source.h"
 
 #include <frontend_util.h>
 
@@ -46,7 +46,9 @@ class MicroWakeWord : public Component {
 
   void set_features_step_size(uint8_t step_size) { this->features_step_size_ = step_size; }
 
-  void set_microphone(microphone::Microphone *microphone) { this->microphone_ = microphone; }
+  void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
+    this->microphone_source_ = microphone_source;
+  }
 
   Trigger<std::string> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
 
@@ -59,7 +61,7 @@ class MicroWakeWord : public Component {
 #endif
 
  protected:
-  microphone::Microphone *microphone_{nullptr};
+  microphone::MicrophoneSource *microphone_source_{nullptr};
   Trigger<std::string> *wake_word_detected_trigger_ = new Trigger<std::string>();
   State state_{State::IDLE};
 

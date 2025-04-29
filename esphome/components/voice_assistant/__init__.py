@@ -88,7 +88,14 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VoiceAssistant),
-            cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
+            cv.Optional(
+                CONF_MICROPHONE, default={}
+            ): microphone.microphone_source_schema(
+                min_bits_per_sample=16,
+                max_bits_per_sample=16,
+                min_channels=1,
+                max_channels=1,
+            ),
             cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
             cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
                 media_player.MediaPlayer
@@ -163,13 +170,26 @@ CONFIG_SCHEMA = cv.All(
     tts_stream_validate,
 )
 
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(
+                CONF_MICROPHONE
+            ): microphone.final_validate_microphone_source_schema(
+                "voice_assistant", sample_rate=16000
+            ),
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    mic = await cg.get_variable(config[CONF_MICROPHONE])
-    cg.add(var.set_microphone(mic))
+    mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
+    cg.add(var.set_microphone_source(mic_source))
 
     if CONF_SPEAKER in config:
         spkr = await cg.get_variable(config[CONF_SPEAKER])

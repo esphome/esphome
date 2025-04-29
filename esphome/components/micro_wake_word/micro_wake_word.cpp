@@ -61,7 +61,7 @@ void MicroWakeWord::dump_config() {
 void MicroWakeWord::setup() {
   ESP_LOGCONFIG(TAG, "Setting up microWakeWord...");
 
-  this->microphone_->add_data_callback([this](const std::vector<int16_t> &data) {
+  this->microphone_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
     if (this->state_ != State::DETECTING_WAKE_WORD) {
       return;
     }
@@ -71,7 +71,7 @@ void MicroWakeWord::setup() {
 
       size_t bytes_free = temp_ring_buffer->free();
 
-      if (bytes_free < data.size() * sizeof(int16_t)) {
+      if (bytes_free < data.size()) {
         ESP_LOGW(
             TAG,
             "Not enough free bytes in ring buffer to store incoming audio data (free bytes=%d, incoming bytes=%d). "
@@ -80,7 +80,7 @@ void MicroWakeWord::setup() {
 
         temp_ring_buffer->reset();
       }
-      temp_ring_buffer->write((void *) data.data(), data.size() * sizeof(int16_t));
+      temp_ring_buffer->write((void *) data.data(), data.size());
     }
   });
 
@@ -128,11 +128,11 @@ void MicroWakeWord::loop() {
       break;
     case State::START_MICROPHONE:
       ESP_LOGD(TAG, "Starting Microphone");
-      this->microphone_->start();
+      this->microphone_source_->start();
       this->set_state_(State::STARTING_MICROPHONE);
       break;
     case State::STARTING_MICROPHONE:
-      if (this->microphone_->is_running()) {
+      if (this->microphone_source_->is_running()) {
         this->set_state_(State::DETECTING_WAKE_WORD);
       }
       break;
@@ -148,13 +148,13 @@ void MicroWakeWord::loop() {
       break;
     case State::STOP_MICROPHONE:
       ESP_LOGD(TAG, "Stopping Microphone");
-      this->microphone_->stop();
+      this->microphone_source_->stop();
       this->set_state_(State::STOPPING_MICROPHONE);
       this->unload_models_();
       this->deallocate_buffers_();
       break;
     case State::STOPPING_MICROPHONE:
-      if (this->microphone_->is_stopped()) {
+      if (this->microphone_source_->is_stopped()) {
         this->set_state_(State::IDLE);
         if (this->detected_) {
           this->wake_word_detected_trigger_->trigger(this->detected_wake_word_);
