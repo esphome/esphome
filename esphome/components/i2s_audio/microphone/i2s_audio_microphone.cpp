@@ -15,9 +15,24 @@
 namespace esphome {
 namespace i2s_audio {
 
-static const size_t BUFFER_SIZE = 512;
+static const UBaseType_t MAX_LISTENERS = 16;
+
+static const uint32_t READ_DURATION_MS = 16;
+
+static const size_t TASK_STACK_SIZE = 4096;
+static const ssize_t TASK_PRIORITY = 23;
 
 static const char *const TAG = "i2s_audio.microphone";
+
+enum MicrophoneEventGroupBits : uint32_t {
+  COMMAND_STOP = (1 << 0),  // stops the microphone task
+  TASK_STARTING = (1 << 10),
+  TASK_RUNNING = (1 << 11),
+  TASK_STOPPING = (1 << 12),
+  TASK_STOPPED = (1 << 13),
+
+  ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
+};
 
 void I2SAudioMicrophone::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2S Audio Microphone...");
@@ -41,18 +56,32 @@ void I2SAudioMicrophone::setup() {
       }
     }
   }
+
+  this->active_listeners_semaphore_ = xSemaphoreCreateCounting(MAX_LISTENERS, MAX_LISTENERS);
+  if (this->active_listeners_semaphore_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create semaphore");
+    this->mark_failed();
+    return;
+  }
+
+  this->event_group_ = xEventGroupCreate();
+  if (this->event_group_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create event group");
+    this->mark_failed();
+    return;
+  }
 }
 
 void I2SAudioMicrophone::start() {
   if (this->is_failed())
     return;
-  if (this->state_ == microphone::STATE_RUNNING)
-    return;  // Already running
-  this->state_ = microphone::STATE_STARTING;
+
+  xSemaphoreTake(this->active_listeners_semaphore_, 0);
 }
-void I2SAudioMicrophone::start_() {
+
+bool I2SAudioMicrophone::start_driver_() {
   if (!this->parent_->try_lock()) {
-    return;  // Waiting for another i2s to return lock
+    return false;  // Waiting for another i2s to return lock
   }
   esp_err_t err;
 
@@ -94,11 +123,11 @@ void I2SAudioMicrophone::start_() {
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 4,
-      .dma_buf_len = 256,
+      .dma_buf_len = 240,  // Must be divisible by 3 to support 24 bits per sample on old driver and newer variants
       .use_apll = this->use_apll_,
       .tx_desc_auto_clear = false,
       .fixed_mclk = 0,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+      .mclk_multiple = this->mclk_multiple_,
       .bits_per_chan = this->bits_per_channel_,
   };
 
@@ -109,20 +138,20 @@ void I2SAudioMicrophone::start_() {
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
       this->status_set_error();
-      return;
+      return false;
     }
 
     err = i2s_set_adc_mode(ADC_UNIT_1, this->adc_channel_);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Error setting ADC mode: %s", esp_err_to_name(err));
       this->status_set_error();
-      return;
+      return false;
     }
     err = i2s_adc_enable(this->parent_->get_port());
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Error enabling ADC: %s", esp_err_to_name(err));
       this->status_set_error();
-      return;
+      return false;
     }
 
   } else
@@ -135,7 +164,7 @@ void I2SAudioMicrophone::start_() {
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
       this->status_set_error();
-      return;
+      return false;
     }
 
     i2s_pin_config_t pin_config = this->parent_->get_pin_config();
@@ -145,7 +174,7 @@ void I2SAudioMicrophone::start_() {
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Error setting I2S pin: %s", esp_err_to_name(err));
       this->status_set_error();
-      return;
+      return false;
     }
   }
 #else
@@ -161,7 +190,7 @@ void I2SAudioMicrophone::start_() {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Error creating new I2S channel: %s", esp_err_to_name(err));
     this->status_set_error();
-    return;
+    return false;
   }
 
   i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
@@ -178,7 +207,7 @@ void I2SAudioMicrophone::start_() {
     i2s_pdm_rx_clk_config_t clk_cfg = {
         .sample_rate_hz = this->sample_rate_,
         .clk_src = clk_src,
-        .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+        .mclk_multiple = this->mclk_multiple_,
         .dn_sample_mode = I2S_PDM_DSR_8S,
     };
 
@@ -216,7 +245,7 @@ void I2SAudioMicrophone::start_() {
     i2s_std_clk_config_t clk_cfg = {
         .sample_rate_hz = this->sample_rate_,
         .clk_src = clk_src,
-        .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+        .mclk_multiple = this->mclk_multiple_,
     };
     i2s_std_slot_config_t std_slot_cfg =
         I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
@@ -236,7 +265,7 @@ void I2SAudioMicrophone::start_() {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Error initializing I2S channel: %s", esp_err_to_name(err));
     this->status_set_error();
-    return;
+    return false;
   }
 
   /* Before reading data, start the RX channel first */
@@ -244,28 +273,25 @@ void I2SAudioMicrophone::start_() {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Error enabling I2S Microphone: %s", esp_err_to_name(err));
     this->status_set_error();
-    return;
+    return false;
   }
 #endif
 
   this->audio_stream_info_ = audio::AudioStreamInfo(bits_per_sample, channel_count, this->sample_rate_);
 
-  this->state_ = microphone::STATE_RUNNING;
-  this->high_freq_.start();
   this->status_clear_error();
+
+  return true;
 }
 
 void I2SAudioMicrophone::stop() {
   if (this->state_ == microphone::STATE_STOPPED || this->is_failed())
     return;
-  if (this->state_ == microphone::STATE_STARTING) {
-    this->state_ = microphone::STATE_STOPPED;
-    return;
-  }
-  this->state_ = microphone::STATE_STOPPING;
+
+  xSemaphoreGive(this->active_listeners_semaphore_);
 }
 
-void I2SAudioMicrophone::stop_() {
+void I2SAudioMicrophone::stop_driver_() {
   esp_err_t err;
 #ifdef USE_I2S_LEGACY
 #if SOC_I2S_SUPPORTS_ADC
@@ -307,9 +333,49 @@ void I2SAudioMicrophone::stop_() {
   }
 #endif
   this->parent_->unlock();
-  this->state_ = microphone::STATE_STOPPED;
-  this->high_freq_.stop();
   this->status_clear_error();
+}
+
+void I2SAudioMicrophone::mic_task(void *params) {
+  I2SAudioMicrophone *this_microphone = (I2SAudioMicrophone *) params;
+
+  xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_STARTING);
+
+  uint8_t start_counter = 0;
+  bool started = this_microphone->start_driver_();
+  while (!started && start_counter < 10) {
+    // Attempt to load the driver again in 100 ms. Doesn't slow down main loop since its in a task.
+    vTaskDelay(pdMS_TO_TICKS(100));
+    ++start_counter;
+    started = this_microphone->start_driver_();
+  }
+
+  if (started) {
+    xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_RUNNING);
+    const size_t bytes_to_read = this_microphone->audio_stream_info_.ms_to_bytes(READ_DURATION_MS);
+    std::vector<uint8_t> samples;
+    samples.reserve(bytes_to_read);
+
+    while (!(xEventGroupGetBits(this_microphone->event_group_) & COMMAND_STOP)) {
+      if (this_microphone->data_callbacks_.size() > 0) {
+        samples.resize(bytes_to_read);
+        size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * pdMS_TO_TICKS(READ_DURATION_MS));
+        samples.resize(bytes_read);
+        this_microphone->data_callbacks_.call(samples);
+      } else {
+        delay(READ_DURATION_MS);
+      }
+    }
+  }
+
+  xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_STOPPING);
+  this_microphone->stop_driver_();
+
+  xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_STOPPED);
+  while (true) {
+    // Continuously delay until the loop method delete the task
+    delay(10);
+  }
 }
 
 size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {
@@ -345,29 +411,60 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
   return bytes_read;
 }
 
-void I2SAudioMicrophone::read_() {
-  std::vector<uint8_t> samples;
-  const size_t bytes_to_read = this->audio_stream_info_.ms_to_bytes(32);
-  samples.resize(bytes_to_read);
-  size_t bytes_read = this->read_(samples.data(), bytes_to_read, 0);
-  samples.resize(bytes_read);
-  this->data_callbacks_.call(samples);
-}
-
 void I2SAudioMicrophone::loop() {
+  uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
+
+  if (event_group_bits & MicrophoneEventGroupBits::TASK_STARTING) {
+    ESP_LOGD(TAG, "Task has started, attempting to setup I2S audio driver");
+    xEventGroupClearBits(this->event_group_, MicrophoneEventGroupBits::TASK_STARTING);
+  }
+
+  if (event_group_bits & MicrophoneEventGroupBits::TASK_RUNNING) {
+    ESP_LOGD(TAG, "Task is running and reading data");
+
+    xEventGroupClearBits(this->event_group_, MicrophoneEventGroupBits::TASK_RUNNING);
+    this->state_ = microphone::STATE_RUNNING;
+  }
+
+  if (event_group_bits & MicrophoneEventGroupBits::TASK_STOPPING) {
+    ESP_LOGD(TAG, "Task is stopping, attempting to unload the I2S audio driver");
+    xEventGroupClearBits(this->event_group_, MicrophoneEventGroupBits::TASK_STOPPING);
+  }
+
+  if ((event_group_bits & MicrophoneEventGroupBits::TASK_STOPPED)) {
+    ESP_LOGD(TAG, "Task is finished, freeing resources");
+    vTaskDelete(this->task_handle_);
+    this->task_handle_ = nullptr;
+    xEventGroupClearBits(this->event_group_, ALL_BITS);
+    this->state_ = microphone::STATE_STOPPED;
+  }
+
+  if ((uxSemaphoreGetCount(this->active_listeners_semaphore_) < MAX_LISTENERS) &&
+      (this->state_ == microphone::STATE_STOPPED)) {
+    this->state_ = microphone::STATE_STARTING;
+  }
+  if ((uxSemaphoreGetCount(this->active_listeners_semaphore_) == MAX_LISTENERS) &&
+      (this->state_ == microphone::STATE_RUNNING)) {
+    this->state_ = microphone::STATE_STOPPING;
+  }
+
   switch (this->state_) {
-    case microphone::STATE_STOPPED:
-      break;
     case microphone::STATE_STARTING:
-      this->start_();
-      break;
-    case microphone::STATE_RUNNING:
-      if (this->data_callbacks_.size() > 0) {
-        this->read_();
+      if ((this->task_handle_ == nullptr) && !this->status_has_error()) {
+        xTaskCreate(I2SAudioMicrophone::mic_task, "mic_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
+                    &this->task_handle_);
+
+        if (this->task_handle_ == nullptr) {
+          this->status_momentary_error("Task failed to start, attempting again in 1 second", 1000);
+        }
       }
       break;
+    case microphone::STATE_RUNNING:
+      break;
     case microphone::STATE_STOPPING:
-      this->stop_();
+      xEventGroupSetBits(this->event_group_, MicrophoneEventGroupBits::COMMAND_STOP);
+      break;
+    case microphone::STATE_STOPPED:
       break;
   }
 }

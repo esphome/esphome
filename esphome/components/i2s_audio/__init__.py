@@ -39,6 +39,7 @@ CONF_SECONDARY = "secondary"
 
 CONF_USE_APLL = "use_apll"
 CONF_BITS_PER_CHANNEL = "bits_per_channel"
+CONF_MCLK_MULTIPLE = "mclk_multiple"
 CONF_MONO = "mono"
 CONF_LEFT = "left"
 CONF_RIGHT = "right"
@@ -122,7 +123,24 @@ I2S_SLOT_BIT_WIDTH = {
     32: i2s_slot_bit_width_t.I2S_SLOT_BIT_WIDTH_32BIT,
 }
 
+i2s_mclk_multiple_t = cg.global_ns.enum("i2s_mclk_multiple_t")
+I2S_MCLK_MULTIPLE = {
+    128: i2s_mclk_multiple_t.I2S_MCLK_MULTIPLE_128,
+    256: i2s_mclk_multiple_t.I2S_MCLK_MULTIPLE_256,
+    384: i2s_mclk_multiple_t.I2S_MCLK_MULTIPLE_384,
+    512: i2s_mclk_multiple_t.I2S_MCLK_MULTIPLE_512,
+}
+
 _validate_bits = cv.float_with_unit("bits", "bit")
+
+
+def validate_mclk_divisible_by_3(config):
+    if config[CONF_BITS_PER_SAMPLE] == 24 and config[CONF_MCLK_MULTIPLE] % 3 != 0:
+        raise cv.Invalid(
+            f"{CONF_MCLK_MULTIPLE} must be divisible by 3 when bits per sample is 24"
+        )
+    return config
+
 
 _use_legacy_driver = None
 
@@ -155,6 +173,7 @@ def i2s_audio_component_schema(
                 cv.Any(cv.float_with_unit("bits", "bit"), "default"),
                 cv.one_of(*I2S_BITS_PER_CHANNEL),
             ),
+            cv.Optional(CONF_MCLK_MULTIPLE, default=256): cv.one_of(*I2S_MCLK_MULTIPLE),
         }
     )
 
@@ -182,11 +201,10 @@ async def register_i2s_audio_component(var, config):
             slot_mask = CONF_BOTH
         cg.add(var.set_slot_mode(I2S_SLOT_MODE[slot_mode]))
         cg.add(var.set_std_slot_mask(I2S_STD_SLOT_MASK[slot_mask]))
-        cg.add(
-            var.set_slot_bit_width(I2S_SLOT_BIT_WIDTH[config[CONF_BITS_PER_CHANNEL]])
-        )
+        cg.add(var.set_slot_bit_width(I2S_SLOT_BIT_WIDTH[config[CONF_BITS_PER_SAMPLE]]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_use_apll(config[CONF_USE_APLL]))
+    cg.add(var.set_mclk_multiple(I2S_MCLK_MULTIPLE[config[CONF_MCLK_MULTIPLE]]))
 
 
 def validate_use_legacy(value):

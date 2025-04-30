@@ -545,7 +545,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     .use_apll = this->use_apll_,
     .tx_desc_auto_clear = true,
     .fixed_mclk = I2S_PIN_NO_CHANGE,
-    .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+    .mclk_multiple = this->mclk_multiple_,
     .bits_per_chan = this->bits_per_channel_,
 #if SOC_I2S_SUPPORTS_TDM
     .chan_mask = (i2s_channel_t) (I2S_TDM_ACTIVE_CH0 | I2S_TDM_ACTIVE_CH1),
@@ -614,7 +614,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
   i2s_std_clk_config_t clk_cfg = {
       .sample_rate_hz = audio_stream_info.get_sample_rate(),
       .clk_src = clk_src,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+      .mclk_multiple = this->mclk_multiple_,
   };
 
   i2s_slot_mode_t slot_mode = this->slot_mode_;

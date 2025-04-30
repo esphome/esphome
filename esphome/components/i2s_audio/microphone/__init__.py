@@ -22,6 +22,7 @@ from .. import (
     i2s_audio_ns,
     register_i2s_audio_component,
     use_legacy,
+    validate_mclk_divisible_by_3,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -112,6 +113,7 @@ CONFIG_SCHEMA = cv.All(
     _validate_channel,
     _set_num_channels_from_config,
     _set_stream_limits,
+    validate_mclk_divisible_by_3,
 )
 
 
