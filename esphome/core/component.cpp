@@ -39,6 +39,9 @@ const uint32_t STATUS_LED_OK = 0x0000;
 const uint32_t STATUS_LED_WARNING = 0x0100;
 const uint32_t STATUS_LED_ERROR = 0x0200;
 
+const uint32_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
+const uint32_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
+
 uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 float Component::get_loop_priority() const { return 0.0f; }
@@ -114,6 +117,13 @@ const char *Component::get_component_source() const {
   if (this->component_source_ == nullptr)
     return "<unknown>";
   return this->component_source_;
+}
+bool Component::should_warn_of_blocking(uint32_t blocking_time) {
+  if (blocking_time > this->warn_if_blocking_over_) {
+    this->warn_if_blocking_over_ = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    return true;
+  }
+  return false;
 }
 void Component::mark_failed() {
   ESP_LOGE(TAG, "Component %s was marked as failed.", this->get_component_source());
@@ -233,10 +243,16 @@ void PollingComponent::set_update_interval(uint32_t update_interval) { this->upd
 WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component)
     : started_(millis()), component_(component) {}
 WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
-  uint32_t now = millis();
-  if (now - started_ > 50) {
+  uint32_t blocking_time = millis() - this->started_;
+  bool should_warn;
+  if (this->component_ != nullptr) {
+    should_warn = this->component_->should_warn_of_blocking(blocking_time);
+  } else {
+    should_warn = blocking_time > WARN_IF_BLOCKING_OVER_MS;
+  }
+  if (should_warn) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms).", src, (now - started_));
+    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms).", src, blocking_time);
     ESP_LOGW(TAG, "Components should block for at most 30 ms.");
     ;
   }
