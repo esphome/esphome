@@ -36,6 +36,9 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_ESP32
   void set_psram_sensor(sensor::Sensor *psram_sensor) { this->psram_sensor_ = psram_sensor; }
 #endif  // USE_ESP32
+  void set_cpu_frequency_sensor(sensor::Sensor *cpu_frequency_sensor) {
+    this->cpu_frequency_sensor_ = cpu_frequency_sensor;
+  }
 #endif  // USE_SENSOR
  protected:
   uint32_t free_heap_{};
@@ -53,6 +56,7 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_ESP32
   sensor::Sensor *psram_sensor_{nullptr};
 #endif  // USE_ESP32
+  sensor::Sensor *cpu_frequency_sensor_{nullptr};
 #endif  // USE_SENSOR
 
 #ifdef USE_ESP32
@@ -75,6 +79,7 @@ class DebugComponent : public PollingComponent {
 #endif  // USE_TEXT_SENSOR
 
   std::string get_reset_reason_();
+  std::string get_wakeup_cause_();
   uint32_t get_free_heap_();
   void get_device_info_(std::string &device_info);
   void update_platform_();

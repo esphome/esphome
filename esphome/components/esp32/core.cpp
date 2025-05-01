@@ -13,11 +13,13 @@
 #include <hal/cpu_hal.h>
 
 #ifdef USE_ARDUINO
-#include <esp32-hal.h>
-#endif
+#include <Esp.h>
+#else
+#include <esp_clk_tree.h>
 
 void setup();
 void loop();
+#endif
 
 namespace esphome {
 
@@ -59,9 +61,13 @@ uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_cycle_count() { return cpu_hal_get_cycle_count(); }
 #endif
 uint32_t arch_get_cpu_freq_hz() {
-  rtc_cpu_freq_config_t config;
-  rtc_clk_cpu_freq_get_config(&config);
-  return config.freq_mhz * 1000000U;
+  uint32_t freq = 0;
+#ifdef USE_ESP_IDF
+  esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_CPU, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &freq);
+#elif defined(USE_ARDUINO)
+  freq = ESP.getCpuFreqMHz() * 1000000;
+#endif
+  return freq;
 }
 
 #ifdef USE_ESP_IDF
