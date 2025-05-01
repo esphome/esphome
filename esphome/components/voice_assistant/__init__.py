@@ -1,7 +1,7 @@
 from esphome import automation
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
-from esphome.components import media_player, microphone, speaker
+from esphome.components import media_player, micro_wake_word, microphone, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -41,6 +41,7 @@ CONF_AUTO_GAIN = "auto_gain"
 CONF_NOISE_SUPPRESSION_LEVEL = "noise_suppression_level"
 CONF_VOLUME_MULTIPLIER = "volume_multiplier"
 
+CONF_MICRO_WAKE_WORD = "micro_wake_word"
 CONF_WAKE_WORD = "wake_word"
 
 CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
@@ -96,11 +97,12 @@ CONFIG_SCHEMA = cv.All(
                 min_channels=1,
                 max_channels=1,
             ),
-            cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
             cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
                 media_player.MediaPlayer
             ),
+            cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
+            cv.Optional(CONF_MICRO_WAKE_WORD): cv.use_id(micro_wake_word.MicroWakeWord),
             cv.Optional(CONF_VAD_THRESHOLD): cv.invalid(
                 "VAD threshold is no longer supported, as it requires the deprecated esp_adf external component. Use an i2s_audio microphone/speaker instead. Additionally, you may need to configure the audio_adc and audio_dac components depending on your hardware."
             ),
@@ -191,13 +193,17 @@ async def to_code(config):
     mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
     cg.add(var.set_microphone_source(mic_source))
 
-    if CONF_SPEAKER in config:
-        spkr = await cg.get_variable(config[CONF_SPEAKER])
-        cg.add(var.set_speaker(spkr))
+    if CONF_MICRO_WAKE_WORD in config:
+        mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
+        cg.add(var.set_micro_wake_word(mww))
 
     if CONF_MEDIA_PLAYER in config:
         mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
         cg.add(var.set_media_player(mp))
+
+    if CONF_SPEAKER in config:
+        spkr = await cg.get_variable(config[CONF_SPEAKER])
+        cg.add(var.set_speaker(spkr))
 
     cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
 

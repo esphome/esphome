@@ -869,6 +869,59 @@ void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) 
 #endif
 }
 
+void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active_wake_words) {
+#ifdef USE_MICRO_WAKE_WORD
+  if (this->micro_wake_word_) {
+    // Disable all wake words first
+    for (auto &model : this->micro_wake_word_->get_wake_words()) {
+      model->disable();
+    }
+
+    // Enable only active wake words
+    for (auto ww_id : active_wake_words) {
+      for (auto &model : this->micro_wake_word_->get_wake_words()) {
+        if (model->get_id() == ww_id) {
+          model->enable();
+          ESP_LOGD(TAG, "Enabled wake word: %s (id=%s)", model->get_wake_word().c_str(), model->get_id().c_str());
+        }
+      }
+    }
+  }
+#endif
+};
+
+const Configuration &VoiceAssistant::get_configuration() {
+  this->config_.available_wake_words.clear();
+  this->config_.active_wake_words.clear();
+
+#ifdef USE_MICRO_WAKE_WORD
+  if (this->micro_wake_word_) {
+    this->config_.max_active_wake_words = 1;
+
+    for (auto &model : this->micro_wake_word_->get_wake_words()) {
+      if (model->is_enabled()) {
+        this->config_.active_wake_words.push_back(model->get_id());
+      }
+
+      WakeWord wake_word;
+      wake_word.id = model->get_id();
+      wake_word.wake_word = model->get_wake_word();
+      for (const auto &lang : model->get_trained_languages()) {
+        wake_word.trained_languages.push_back(lang);
+      }
+      this->config_.available_wake_words.push_back(std::move(wake_word));
+    }
+  } else {
+#endif
+    // No microWakeWord
+    this->config_.max_active_wake_words = 0;
+#ifdef USE_MICRO_WAKE_WORD
+  }
+#endif
+
+  return this->config_;
+};
+
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace voice_assistant

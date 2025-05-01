@@ -12,11 +12,14 @@
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/microphone/microphone_source.h"
-#ifdef USE_SPEAKER
-#include "esphome/components/speaker/speaker.h"
-#endif
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
+#endif
+#ifdef USE_MICRO_WAKE_WORD
+#include "esphome/components/micro_wake_word/micro_wake_word.h"
+#endif
+#ifdef USE_SPEAKER
+#include "esphome/components/speaker/speaker.h"
 #endif
 #include "esphome/components/socket/socket.h"
 
@@ -99,6 +102,9 @@ class VoiceAssistant : public Component {
   void failed_to_start();
 
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
+#ifdef USE_MICRO_WAKE_WORD
+  void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
+#endif
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
     this->speaker_ = speaker;
@@ -152,8 +158,8 @@ class VoiceAssistant : public Component {
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
-  void on_set_configuration(const std::vector<std::string> &active_wake_words){};
-  const Configuration &get_configuration() { return this->config_; };
+  void on_set_configuration(const std::vector<std::string> &active_wake_words);
+  const Configuration &get_configuration();
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -295,6 +301,10 @@ class VoiceAssistant : public Component {
   bool start_udp_socket_();
 
   Configuration config_{};
+
+#ifdef USE_MICRO_WAKE_WORD
+  micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
+#endif
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
