@@ -34,7 +34,7 @@ void FastLEDLightOutput::write_state(light::LightState *state) {
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus...");
-  this->controller_->showLeds();
+  this->controller_->showLeds(this->state_parent_->current_values.get_brightness() * 255);
 }
 
 }  // namespace fastled_base
