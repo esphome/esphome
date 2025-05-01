@@ -14,12 +14,16 @@ void MicrophoneSource::add_data_callback(std::function<void(const std::vector<ui
 }
 
 void MicrophoneSource::start() {
-  this->enabled_ = true;
-  this->mic_->start();
+  if (!this->enabled_) {
+    this->enabled_ = true;
+    this->mic_->start();
+  }
 }
 void MicrophoneSource::stop() {
-  this->enabled_ = false;
-  this->mic_->stop();
+  if (this->enabled_) {
+    this->enabled_ = false;
+    this->mic_->stop();
+  }
 }
 
 std::vector<uint8_t> MicrophoneSource::process_audio_(const std::vector<uint8_t> &data) {
