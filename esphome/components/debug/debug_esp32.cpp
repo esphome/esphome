@@ -14,6 +14,8 @@
 #include <Esp.h>
 #endif
 
+#include <map>
+
 namespace esphome {
 namespace debug {
 
