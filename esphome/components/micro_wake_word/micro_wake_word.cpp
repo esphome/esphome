@@ -404,8 +404,8 @@ size_t MicroWakeWord::generate_features_(int16_t *audio_buffer, size_t samples_a
     constexpr int32_t value_div = 666;  // 666 = 25.6 * 26.0 after rounding
     int32_t value = ((frontend_output.values[i] * value_scale) + (value_div / 2)) / value_div;
 
-    value -= INT8_MIN;
-    features_buffer[i] = clamp<int8_t>(value, INT8_MIN, INT8_MAX);
+    value += INT8_MIN;  // Adds a -128; i.e., subtracts 128
+    features_buffer[i] = static_cast<int8_t>(clamp<int32_t>(value, INT8_MIN, INT8_MAX));
   }
 
   return processed_samples;
