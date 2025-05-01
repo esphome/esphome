@@ -68,7 +68,7 @@ void TT21100Touchscreen::setup() {
       this->x_raw_max_ = this->display_->get_native_width();
     }
     if (this->y_raw_max_ == this->y_raw_min_) {
-      this->x_raw_max_ = this->display_->get_native_height();
+      this->y_raw_max_ = this->display_->get_native_height();
     }
   }
 
