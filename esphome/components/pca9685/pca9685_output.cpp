@@ -101,8 +101,9 @@ void PCA9685Output::loop() {
     return;
 
   const uint16_t num_channels = this->max_channel_ - this->min_channel_ + 1;
+  const uint16_t phase_delta_begin = 4096 / num_channels;
   for (uint8_t channel = this->min_channel_; channel <= this->max_channel_; channel++) {
-    uint16_t phase_begin = uint16_t(channel - this->min_channel_) / num_channels * 4096;
+    uint16_t phase_begin = (channel - this->min_channel_) * phase_delta_begin;
     uint16_t phase_end;
     uint16_t amount = this->pwm_amounts_[channel];
     if (amount == 0) {
