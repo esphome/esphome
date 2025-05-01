@@ -32,6 +32,12 @@ CaptureAction = microphone_ns.class_(
 StopCaptureAction = microphone_ns.class_(
     "StopCaptureAction", automation.Action, cg.Parented.template(Microphone)
 )
+MuteAction = microphone_ns.class_(
+    "MuteAction", automation.Action, cg.Parented.template(Microphone)
+)
+UnmuteAction = microphone_ns.class_(
+    "UnmuteAction", automation.Action, cg.Parented.template(Microphone)
+)
 
 
 DataTrigger = microphone_ns.class_(
@@ -42,15 +48,15 @@ DataTrigger = microphone_ns.class_(
 IsCapturingCondition = microphone_ns.class_(
     "IsCapturingCondition", automation.Condition
 )
+IsMutedCondition = microphone_ns.class_("IsMutedCondition", automation.Condition)
 
 
 async def setup_microphone_core_(var, config):
     for conf in config.get(CONF_ON_DATA, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        # Future PR will change the vector type to uint8
         await automation.build_automation(
             trigger,
-            [(cg.std_vector.template(cg.int16).operator("ref").operator("const"), "x")],
+            [(cg.std_vector.template(cg.uint8).operator("ref").operator("const"), "x")],
             conf,
         )
 
@@ -186,8 +192,18 @@ automation.register_action(
     "microphone.stop_capture", StopCaptureAction, MICROPHONE_ACTION_SCHEMA
 )(microphone_action)
 
+automation.register_action("microphone.mute", MuteAction, MICROPHONE_ACTION_SCHEMA)(
+    microphone_action
+)
+automation.register_action("microphone.unmute", UnmuteAction, MICROPHONE_ACTION_SCHEMA)(
+    microphone_action
+)
+
 automation.register_condition(
     "microphone.is_capturing", IsCapturingCondition, MICROPHONE_ACTION_SCHEMA
+)(microphone_action)
+automation.register_condition(
+    "microphone.is_muted", IsMutedCondition, MICROPHONE_ACTION_SCHEMA
 )(microphone_action)
 
 
