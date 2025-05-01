@@ -439,5 +439,27 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
+class ToNTCResistanceFilter : public Filter {
+ public:
+  ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  double a_;
+  double b_;
+  double c_;
+};
+
+class ToNTCTemperatureFilter : public Filter {
+ public:
+  ToNTCTemperatureFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  double a_;
+  double b_;
+  double c_;
+};
+
 }  // namespace sensor
 }  // namespace esphome
