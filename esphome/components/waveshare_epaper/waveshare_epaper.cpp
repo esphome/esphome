@@ -2938,6 +2938,223 @@ void WaveshareEPaper5P8InV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//     Good Display 5.83in black/white GDEY0583T81
+// Product page:
+//  - https://www.good-display.com/product/440.html
+//  - https://www.seeedstudio.com/5-83-Monochrome-ePaper-Display-with-648x480-Pixels-p-5785.html
+// Datasheet:
+//  -
+//  https://www.good-display.com/public/html/pdfjs/viewer/viewernew.html?file=https://v4.cecdn.yun300.cn/100001_1909185148/GDEY0583T81-new.pdf
+//  - https://v4.cecdn.yun300.cn/100001_1909185148/GDEY0583T81-new.pdf
+// Reference code from GoodDisplay:
+//  - https://www.good-display.com/companyfile/903.html
+// ========================================================
+
+void GDEY0583T81::initialize() {
+  // Allocate buffer for old data for partial updates
+  RAMAllocator<uint8_t> allocator{};
+  this->old_buffer_ = allocator.allocate(this->get_buffer_length_());
+  if (this->old_buffer_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate old buffer for display!");
+    return;
+  }
+  memset(this->old_buffer_, 0xFF, this->get_buffer_length_());
+
+  this->init_full_();
+
+  this->wait_until_idle_();
+
+  this->deep_sleep();
+}
+
+void GDEY0583T81::power_on_() {
+  if (!this->power_is_on_) {
+    this->command(0x04);
+    this->wait_until_idle_();
+  }
+  this->power_is_on_ = true;
+  this->is_deep_sleep_ = false;
+}
+
+void GDEY0583T81::power_off_() {
+  this->command(0x02);
+  this->wait_until_idle_();
+  this->power_is_on_ = false;
+}
+
+void GDEY0583T81::deep_sleep() {
+  if (this->is_deep_sleep_) {
+    return;
+  }
+
+  // VCOM and data interval setting (CDI)
+  this->command(0x50);
+  this->data(0xf7);
+
+  this->power_off_();
+  delay(10);
+
+  // Deep sleep (DSLP)
+  this->command(0x07);
+  this->data(0xA5);
+  this->is_deep_sleep_ = true;
+}
+
+void GDEY0583T81::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+  }
+}
+
+// Initialize for full screen update in fast mode
+void GDEY0583T81::init_full_() {
+  this->init_display_();
+
+  // Based on the GD sample code
+  // VCOM and data interval setting (CDI)
+  this->command(0x50);
+  this->data(0x29);
+  this->data(0x07);
+
+  // Cascade Setting (CCSET)
+  this->command(0xE0);
+  this->data(0x02);
+
+  // Force Temperature (TSSET)
+  this->command(0xE5);
+  this->data(0x5A);
+}
+
+// Initialize for a partial update of the full screen
+void GDEY0583T81::init_partial_() {
+  this->init_display_();
+
+  // Cascade Setting (CCSET)
+  this->command(0xE0);
+  this->data(0x02);
+
+  // Force Temperature (TSSET)
+  this->command(0xE5);
+  this->data(0x6E);
+}
+
+void GDEY0583T81::init_display_() {
+  this->reset_();
+
+  // Panel Setting (PSR)
+  this->command(0x00);
+  // Sets: REG=0, LUT from OTP (set by CDI)
+  // KW/R=1, Sets KW mode (Black/White)
+  //         as opposed to the default KWR mode (Black/White/Red)
+  // UD=1, Gate Scan Direction, 1 = up (default)
+  // SHL=1, Source Shift Direction, 1 = right (default)
+  // SHD_N=1, Booster Switch, 1 = ON (default)
+  // RST_N=1, Soft reset, 1 = No effect (default)
+  this->data(0x1F);
+
+  // Resolution setting (TRES)
+  this->command(0x61);
+
+  // Horizontal display resolution (HRES)
+  this->data(get_width_internal() / 256);
+  this->data(get_width_internal() % 256);
+
+  // Vertical display resolution (VRES)
+  this->data(get_height_internal() / 256);
+  this->data(get_height_internal() % 256);
+
+  this->power_on_();
+}
+
+void HOT GDEY0583T81::display() {
+  bool full_update = this->at_update_ == 0;
+  if (full_update) {
+    this->init_full_();
+  } else {
+    this->init_partial_();
+
+    // VCOM and data interval setting (CDI)
+    this->command(0x50);
+    this->data(0xA9);
+    this->data(0x07);
+
+    // Partial In (PTIN), makes the display enter partial mode
+    this->command(0x91);
+
+    // Partial Window (PTL)
+    //  We use the full screen as the window
+    this->command(0x90);
+
+    // Horizontal start/end channel bank (HRST/HRED)
+    this->data(0);
+    this->data(0);
+    this->data((get_width_internal() - 1) / 256);
+    this->data((get_width_internal() - 1) % 256);
+
+    // Vertical start/end line (VRST/VRED)
+    this->data(0);
+    this->data(0);
+    this->data((get_height_internal() - 1) / 256);
+    this->data((get_height_internal() - 1) % 256);
+
+    this->data(0x01);
+
+    // Display Start Transmission 1 (DTM1)
+    //  in KW mode this writes "OLD" data to SRAM
+    this->command(0x10);
+    this->start_data_();
+    this->write_array(this->old_buffer_, this->get_buffer_length_());
+    this->end_data_();
+  }
+
+  // Display Start Transmission 2 (DTM2)
+  //  in KW mode this writes "NEW" data to SRAM
+  this->command(0x13);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->old_buffer_[i] = this->buffer_[i];
+  }
+
+  // Display Refresh (DRF)
+  this->command(0x12);
+  delay(10);
+  this->wait_until_idle_();
+
+  if (full_update) {
+    ESP_LOGD(TAG, "Full update done");
+  } else {
+    // Partial out (PTOUT), makes the display exit partial mode
+    this->command(0x92);
+    ESP_LOGD(TAG, "Partial update done, next full update after %d cycles",
+             this->full_update_every_ - this->at_update_ - 1);
+  }
+
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+
+  this->deep_sleep();
+}
+
+void GDEY0583T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+int GDEY0583T81::get_width_internal() { return 648; }
+int GDEY0583T81::get_height_internal() { return 480; }
+uint32_t GDEY0583T81::idle_timeout_() { return 5000; }
+void GDEY0583T81::dump_config() {
+  LOG_DISPLAY("", "GoodDisplay E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.83in B/W GDEY0583T81");
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);

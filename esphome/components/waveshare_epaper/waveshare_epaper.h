@@ -686,6 +686,40 @@ class WaveshareEPaper5P8InV2 : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class GDEY0583T81 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override;
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+  uint32_t idle_timeout_() override;
+
+ private:
+  void power_on_();
+  void power_off_();
+  void reset_();
+  void update_full_();
+  void update_part_();
+  void init_full_();
+  void init_partial_();
+  void init_display_();
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+  bool power_is_on_{false};
+  bool is_deep_sleep_{false};
+  uint8_t *old_buffer_{nullptr};
+};
+
 class WaveshareEPaper5P65InF : public WaveshareEPaper7C {
  public:
   void initialize() override;
