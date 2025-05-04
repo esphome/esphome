@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BORDER,
     CONF_COLOR,
+    CONF_CONTINUOUS,
     CONF_DIRECTION,
     CONF_DURATION,
     CONF_HEIGHT,
@@ -60,8 +61,6 @@ VALUE_POSITION_TYPE = {
     "BESIDE": ValuePositionType.VALUE_POSITION_TYPE_BESIDE,
     "BELOW": ValuePositionType.VALUE_POSITION_TYPE_BELOW,
 }
-
-CONF_CONTINUOUS = "continuous"
 
 GRAPH_TRACE_SCHEMA = cv.Schema(
     {

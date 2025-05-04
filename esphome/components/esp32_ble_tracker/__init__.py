@@ -17,6 +17,7 @@ from esphome.components.esp32_ble import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
+    CONF_CONTINUOUS,
     CONF_DURATION,
     CONF_ID,
     CONF_INTERVAL,
@@ -42,7 +43,6 @@ CONF_MAX_CONNECTIONS = "max_connections"
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
-CONF_CONTINUOUS = "continuous"
 CONF_ON_SCAN_END = "on_scan_end"
 
 DEFAULT_MAX_CONNECTIONS = 3
