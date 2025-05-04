@@ -105,7 +105,7 @@ enum PeriodicDataStructure : uint8_t {
   TARGET_RESOLUTION = 10,
 };
 
-enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
+enum PeriodicDataValue : uint8_t { HEAD = 0xAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 

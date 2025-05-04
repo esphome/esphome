@@ -1004,7 +1004,7 @@ void WaveshareEPaper1P54InBV2::initialize() {
 
   this->command(0x4E);  // set RAM x address count to 0;
   this->data(0x00);
-  this->command(0x4F);  // set RAM y address count to 0X199;
+  this->command(0x4F);  // set RAM y address count to 0x199;
   this->data(0xC7);
   this->data(0x00);
 
@@ -1878,7 +1878,7 @@ void GDEY029T94::initialize() {
 
   this->command(0x4E);  // set RAM x address count to 0;
   this->data(0x00);
-  this->command(0x4F);  // set RAM y address count to 0X199;
+  this->command(0x4F);  // set RAM y address count to 0x199;
   this->command(0x00);
   this->command(0x00);
   this->wait_until_idle_();
@@ -2070,7 +2070,7 @@ void GDEW029T5::init_full_() {
   this->init_display_();
   this->command(0x82);  // vcom_DC setting
   this->data(0x08);
-  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);  // VCOM AND DATA INTERVAL SETTING
   this->data(0x97);     // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
   this->command(0x20);
   this->write_lut_(LUT_20_VCOMDC_29_5, sizeof(LUT_20_VCOMDC_29_5));
@@ -2090,7 +2090,7 @@ void GDEW029T5::init_partial_() {
   this->init_display_();
   this->command(0x82);  // vcom_DC setting
   this->data(0x08);
-  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);  // VCOM AND DATA INTERVAL SETTING
   this->data(0x17);     // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
   this->command(0x20);
   this->write_lut_(LUT_20_VCOMDC_PARTIAL_29_5, sizeof(LUT_20_VCOMDC_PARTIAL_29_5));
@@ -4481,10 +4481,10 @@ void WaveshareEPaper7P5InHDB::initialize() {
   this->data(0x01);     // LUT1, for white
 
   this->command(0x18);
-  this->data(0X80);
+  this->data(0x80);
 
   this->command(0x22);
-  this->data(0XB1);  // Load Temperature and waveform setting.
+  this->data(0xB1);  // Load Temperature and waveform setting.
 
   this->command(0x20);
 

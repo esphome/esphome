@@ -138,8 +138,8 @@ enum class NCIState : uint8_t {
   RFST_POLL_ACTIVE,
   EP_DEACTIVATING,
   EP_SELECTING,
-  TEST = 0XFE,
-  FAILED = 0XFF,
+  TEST = 0xFE,
+  FAILED = 0xFF,
 };
 
 enum class TestMode : uint8_t {
