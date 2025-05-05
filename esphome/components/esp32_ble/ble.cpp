@@ -110,6 +110,7 @@ void ESP32BLE::advertising_init_() {
 
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
+  this->advertising_->set_appearance(this->appearance_);
 }
 
 bool ESP32BLE::ble_setup_() {
