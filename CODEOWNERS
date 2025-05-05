@@ -429,6 +429,7 @@ esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
+esphome/components/syslog/* @clydebarrow
 esphome/components/t6615/* @tylermenezes
 esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984
