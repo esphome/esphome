@@ -134,6 +134,15 @@ lvgl:
                   id: style_test
                   bg_color: blue
                   bg_opa: !lambda return 0.5;
+              - lvgl.image.update:
+                  id: lv_image
+                  zoom: !lambda return 512;
+                  angle: !lambda return 100;
+                  pivot_x: !lambda return 20;
+                  pivot_y: !lambda return 20;
+                  offset_x: !lambda return 20;
+                  offset_y: !lambda return 20;
+                  antialias: !lambda return true;
     - id: simple_msgbox
       title: Simple
 
@@ -486,6 +495,8 @@ lvgl:
             align: top_left
             y: "50"
             mode: real
+            zoom: 2.0
+            angle: 45
         - tileview:
             id: tileview_id
             scrollbar_mode: active
