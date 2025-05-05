@@ -31,11 +31,22 @@ bool Nextion::send_command_(const std::string &command) {
     return false;
   }
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+  if (!this->ignore_is_setup_ && !this->command_pacer_.can_send()) {
+    return false;
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
+
   ESP_LOGN(TAG, "send_command %s", command.c_str());
 
   this->write_str(command.c_str());
   const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(to_send, sizeof(to_send));
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  this->command_pacer_.mark_sent();
+#endif  // USE_NEXTION_COMMAND_SPACING
+
   return true;
 }
 
@@ -158,6 +169,10 @@ void Nextion::dump_config() {
   if (this->start_up_page_ != -1) {
     ESP_LOGCONFIG(TAG, "  Start Up Page:    %" PRId16, this->start_up_page_);
   }
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  ESP_LOGCONFIG(TAG, "  Command spacing:  %" PRIu8 "ms", this->command_pacer_.get_spacing());
+#endif  // USE_NEXTION_COMMAND_SPACING
 }
 
 float Nextion::get_setup_priority() const { return setup_priority::DATA; }
@@ -312,6 +327,11 @@ bool Nextion::remove_from_q_(bool report_empty) {
   }
 
   NextionQueue *nb = this->nextion_queue_.front();
+  if (!nb || !nb->component) {
+    ESP_LOGE(TAG, "Invalid queue entry!");
+    this->nextion_queue_.pop_front();
+    return false;
+  }
   NextionComponentBase *component = nb->component;
 
   ESP_LOGN(TAG, "Removing %s from the queue", component->get_variable_name().c_str());
@@ -340,6 +360,12 @@ void Nextion::process_nextion_commands_() {
   if (this->command_data_.empty()) {
     return;
   }
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  if (!this->command_pacer_.can_send()) {
+    return;  // Will try again in next loop iteration
+  }
+#endif
 
   size_t to_process_length = 0;
   std::string to_process;
@@ -380,7 +406,9 @@ void Nextion::process_nextion_commands_() {
             this->setup_callback_.call();
           }
         }
-
+#ifdef USE_NEXTION_COMMAND_SPACING
+        this->command_pacer_.mark_sent();  // Here is where we should mark the command as sent
+#endif
         break;
       case 0x02:  // invalid Component ID or name was used
         ESP_LOGW(TAG, "Nextion reported component ID or name invalid!");
@@ -524,6 +552,11 @@ void Nextion::process_nextion_commands_() {
         }
 
         NextionQueue *nb = this->nextion_queue_.front();
+        if (!nb || !nb->component) {
+          ESP_LOGE(TAG, "Invalid queue entry!");
+          this->nextion_queue_.pop_front();
+          return;
+        }
         NextionComponentBase *component = nb->component;
 
         if (component->get_queue_type() != NextionQueueType::TEXT_SENSOR) {
@@ -564,6 +597,11 @@ void Nextion::process_nextion_commands_() {
         }
 
         NextionQueue *nb = this->nextion_queue_.front();
+        if (!nb || !nb->component) {
+          ESP_LOGE(TAG, "Invalid queue entry!");
+          this->nextion_queue_.pop_front();
+          return;
+        }
         NextionComponentBase *component = nb->component;
 
         if (component->get_queue_type() != NextionQueueType::SENSOR &&
