@@ -641,6 +641,8 @@ lvgl:
             knob:
               radius: 1
               width: "4"
+              pad_left: -5
+              pad_top: 5
               height: 10%
               bg_color: 0x000000
             width: 100%
