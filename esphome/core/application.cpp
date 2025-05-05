@@ -70,6 +70,7 @@ void Application::loop() {
   this->feed_wdt();
   for (Component *component : this->looping_components_) {
     {
+      this->set_current_component(component);
       WarnIfComponentBlockingGuard guard{component};
       component->call();
     }
