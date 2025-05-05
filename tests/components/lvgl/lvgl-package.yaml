@@ -212,7 +212,7 @@ lvgl:
         - animimg:
             height: 60
             id: anim_img
-            src: [cat_image, dog_image]
+            src: !lambda "return {dog_image, cat_image};"
             repeat_count: 10
             duration: 1s
             auto_start: true
@@ -224,6 +224,7 @@ lvgl:
                   id: anim_img
                   src: !lambda "return {dog_image, cat_image};"
                   duration: 2s
+              - lvgl.widget.refresh: anim_img
         - label:
             on_boot:
               lvgl.label.update:
