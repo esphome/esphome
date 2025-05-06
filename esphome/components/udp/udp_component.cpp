@@ -19,7 +19,8 @@ void UDPComponent::setup() {
     struct sockaddr saddr {};
 #endif
 
-    auto err = socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), address, this->port_);
+    auto err =
+        socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), address, this->broadcast_port_);
     if (err == 0) {
       ESP_LOGV(TAG, "Couldn't set sockaddr %d", errno);
     }
@@ -75,7 +76,7 @@ void UDPComponent::setup() {
     int8_t err;
     if (this->listen_address_.has_value()) {
 #if USE_NETWORK_IPV6
-      server.sin6_port = htons(this->port_);
+      server.sin6_port = htons(this->listen_port_);
       struct ipv6_mreq v6imreq {};
 
       if (this->listen_address_.value().is_ip4()) {
@@ -140,7 +141,7 @@ void UDPComponent::setup() {
 #else
       this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
       server.sin_family = AF_INET;
-      server.sin_port = htons(this->port_);
+      server.sin_port = htons(this->listen_port_);
       struct ip_mreq imreq = {};
       inet_aton(this->listen_address_.value().str().c_str(), &imreq.imr_multiaddr);
       server.sin_addr.s_addr = imreq.imr_multiaddr.s_addr;
@@ -155,7 +156,7 @@ void UDPComponent::setup() {
     } else {
       server.sin_family = AF_INET;
       server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-      server.sin_port = htons(this->port_);
+      server.sin_port = htons(this->listen_port_);
     }
     err = this->listen_socket_->setblocking(false);
     if (err < 0) {
@@ -235,18 +236,18 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if USE_NETWORK_IPV6
     if (saddr.sin6_family == AF_INET) {
       auto result =
-          this->broadcast_socket_->sendto(data, len, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
+          this->broadcast_socket_->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
       if (result < 0)
         ESP_LOGW(TAG, "sendto() error %d", errno);
     }
     if (saddr.sin6_family == AF_INET6) {
       auto result =
-          this->broadcast_socket6_->sendto(data, len, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
+          this->broadcast_socket6_->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
       if (result < 0)
         ESP_LOGW(TAG, "sendto() error %d", errno);
     }
 #else
-    auto result = this->broadcast_socket_->sendto(data, len, 0, &saddr, sizeof(saddr));
+    auto result = this->broadcast_socket_->sendto(data, size, 0, &saddr, sizeof(saddr));
     if (result < 0)
       ESP_LOGW(TAG, "sendto() error %d", errno);
 #endif
