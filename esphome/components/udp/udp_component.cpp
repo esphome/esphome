@@ -153,10 +153,6 @@ void UDPComponent::setup() {
         return;
       }
 #endif
-    } else {
-      server.sin_family = AF_INET;
-      server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-      server.sin_port = htons(this->listen_port_);
     }
     err = this->listen_socket_->setblocking(false);
     if (err < 0) {
