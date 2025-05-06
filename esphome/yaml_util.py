@@ -284,6 +284,10 @@ class ESPHomeLoaderMixin:
         return val
 
     @_add_data_ref
+    def construct_rel(self, node: yaml.Node) -> str:
+        return os.path.abspath(self._rel_path(node.value))
+
+    @_add_data_ref
     def construct_include(
         self, node: yaml.Node
     ) -> dict[str, Any] | OrderedDict[str, Any]:
@@ -399,6 +403,7 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
     _loader.add_constructor("tag:yaml.org,2002:map", _loader.construct_yaml_map)
     _loader.add_constructor("!env_var", _loader.construct_env_var)
     _loader.add_constructor("!secret", _loader.construct_secret)
+    _loader.add_constructor("!rel", _loader.construct_rel)
     _loader.add_constructor("!include", _loader.construct_include)
     _loader.add_constructor("!include_dir_list", _loader.construct_include_dir_list)
     _loader.add_constructor(
