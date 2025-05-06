@@ -258,6 +258,47 @@ void WaveshareEPaper7C::fill(Color color) {
     }
   }
 }
+void WaveshareEPaper7C::send_buffers_() {
+  if (this->buffers_[0] == nullptr) {
+    ESP_LOGE(TAG, "Buffer unavailable!");
+    return;
+  }
+
+  uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
+  uint8_t byte_to_send;
+  for (auto &buffer : this->buffers_) {
+    for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
+      std::bitset<24> triplet =
+          buffer[buffer_pos + 0] << 16 | buffer[buffer_pos + 1] << 8 | buffer[buffer_pos + 2] << 0;
+      // 8 bitset<3> are stored in 3 bytes
+      // |aaabbbaa|abbbaaab|bbaaabbb|
+      // | byte 1 | byte 2 | byte 3 |
+      byte_to_send = ((triplet >> 17).to_ulong() & 0b01110000) | ((triplet >> 18).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+
+      byte_to_send = ((triplet >> 11).to_ulong() & 0b01110000) | ((triplet >> 12).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+
+      byte_to_send = ((triplet >> 5).to_ulong() & 0b01110000) | ((triplet >> 6).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+
+      byte_to_send = ((triplet << 1).to_ulong() & 0b01110000) | ((triplet << 0).to_ulong() & 0b00000111);
+      this->data(byte_to_send);
+    }
+    App.feed_wdt();
+  }
+}
+void WaveshareEPaper7C::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(true);
+    delay(20);
+    this->reset_pin_->digital_write(false);
+    delay(1);
+    this->reset_pin_->digital_write(true);
+    delay(20);
+  }
+}
+
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
@@ -963,7 +1004,7 @@ void WaveshareEPaper1P54InBV2::initialize() {
 
   this->command(0x4E);  // set RAM x address count to 0;
   this->data(0x00);
-  this->command(0x4F);  // set RAM y address count to 0X199;
+  this->command(0x4F);  // set RAM y address count to 0x199;
   this->data(0xC7);
   this->data(0x00);
 
@@ -1837,7 +1878,7 @@ void GDEY029T94::initialize() {
 
   this->command(0x4E);  // set RAM x address count to 0;
   this->data(0x00);
-  this->command(0x4F);  // set RAM y address count to 0X199;
+  this->command(0x4F);  // set RAM y address count to 0x199;
   this->command(0x00);
   this->command(0x00);
   this->wait_until_idle_();
@@ -2029,7 +2070,7 @@ void GDEW029T5::init_full_() {
   this->init_display_();
   this->command(0x82);  // vcom_DC setting
   this->data(0x08);
-  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);  // VCOM AND DATA INTERVAL SETTING
   this->data(0x97);     // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
   this->command(0x20);
   this->write_lut_(LUT_20_VCOMDC_29_5, sizeof(LUT_20_VCOMDC_29_5));
@@ -2049,7 +2090,7 @@ void GDEW029T5::init_partial_() {
   this->init_display_();
   this->command(0x82);  // vcom_DC setting
   this->data(0x08);
-  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);  // VCOM AND DATA INTERVAL SETTING
   this->data(0x17);     // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
   this->command(0x20);
   this->write_lut_(LUT_20_VCOMDC_PARTIAL_29_5, sizeof(LUT_20_VCOMDC_PARTIAL_29_5));
@@ -2897,6 +2938,223 @@ void WaveshareEPaper5P8InV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//     Good Display 5.83in black/white GDEY0583T81
+// Product page:
+//  - https://www.good-display.com/product/440.html
+//  - https://www.seeedstudio.com/5-83-Monochrome-ePaper-Display-with-648x480-Pixels-p-5785.html
+// Datasheet:
+//  -
+//  https://www.good-display.com/public/html/pdfjs/viewer/viewernew.html?file=https://v4.cecdn.yun300.cn/100001_1909185148/GDEY0583T81-new.pdf
+//  - https://v4.cecdn.yun300.cn/100001_1909185148/GDEY0583T81-new.pdf
+// Reference code from GoodDisplay:
+//  - https://www.good-display.com/companyfile/903.html
+// ========================================================
+
+void GDEY0583T81::initialize() {
+  // Allocate buffer for old data for partial updates
+  RAMAllocator<uint8_t> allocator{};
+  this->old_buffer_ = allocator.allocate(this->get_buffer_length_());
+  if (this->old_buffer_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate old buffer for display!");
+    return;
+  }
+  memset(this->old_buffer_, 0xFF, this->get_buffer_length_());
+
+  this->init_full_();
+
+  this->wait_until_idle_();
+
+  this->deep_sleep();
+}
+
+void GDEY0583T81::power_on_() {
+  if (!this->power_is_on_) {
+    this->command(0x04);
+    this->wait_until_idle_();
+  }
+  this->power_is_on_ = true;
+  this->is_deep_sleep_ = false;
+}
+
+void GDEY0583T81::power_off_() {
+  this->command(0x02);
+  this->wait_until_idle_();
+  this->power_is_on_ = false;
+}
+
+void GDEY0583T81::deep_sleep() {
+  if (this->is_deep_sleep_) {
+    return;
+  }
+
+  // VCOM and data interval setting (CDI)
+  this->command(0x50);
+  this->data(0xf7);
+
+  this->power_off_();
+  delay(10);
+
+  // Deep sleep (DSLP)
+  this->command(0x07);
+  this->data(0xA5);
+  this->is_deep_sleep_ = true;
+}
+
+void GDEY0583T81::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+  }
+}
+
+// Initialize for full screen update in fast mode
+void GDEY0583T81::init_full_() {
+  this->init_display_();
+
+  // Based on the GD sample code
+  // VCOM and data interval setting (CDI)
+  this->command(0x50);
+  this->data(0x29);
+  this->data(0x07);
+
+  // Cascade Setting (CCSET)
+  this->command(0xE0);
+  this->data(0x02);
+
+  // Force Temperature (TSSET)
+  this->command(0xE5);
+  this->data(0x5A);
+}
+
+// Initialize for a partial update of the full screen
+void GDEY0583T81::init_partial_() {
+  this->init_display_();
+
+  // Cascade Setting (CCSET)
+  this->command(0xE0);
+  this->data(0x02);
+
+  // Force Temperature (TSSET)
+  this->command(0xE5);
+  this->data(0x6E);
+}
+
+void GDEY0583T81::init_display_() {
+  this->reset_();
+
+  // Panel Setting (PSR)
+  this->command(0x00);
+  // Sets: REG=0, LUT from OTP (set by CDI)
+  // KW/R=1, Sets KW mode (Black/White)
+  //         as opposed to the default KWR mode (Black/White/Red)
+  // UD=1, Gate Scan Direction, 1 = up (default)
+  // SHL=1, Source Shift Direction, 1 = right (default)
+  // SHD_N=1, Booster Switch, 1 = ON (default)
+  // RST_N=1, Soft reset, 1 = No effect (default)
+  this->data(0x1F);
+
+  // Resolution setting (TRES)
+  this->command(0x61);
+
+  // Horizontal display resolution (HRES)
+  this->data(get_width_internal() / 256);
+  this->data(get_width_internal() % 256);
+
+  // Vertical display resolution (VRES)
+  this->data(get_height_internal() / 256);
+  this->data(get_height_internal() % 256);
+
+  this->power_on_();
+}
+
+void HOT GDEY0583T81::display() {
+  bool full_update = this->at_update_ == 0;
+  if (full_update) {
+    this->init_full_();
+  } else {
+    this->init_partial_();
+
+    // VCOM and data interval setting (CDI)
+    this->command(0x50);
+    this->data(0xA9);
+    this->data(0x07);
+
+    // Partial In (PTIN), makes the display enter partial mode
+    this->command(0x91);
+
+    // Partial Window (PTL)
+    //  We use the full screen as the window
+    this->command(0x90);
+
+    // Horizontal start/end channel bank (HRST/HRED)
+    this->data(0);
+    this->data(0);
+    this->data((get_width_internal() - 1) / 256);
+    this->data((get_width_internal() - 1) % 256);
+
+    // Vertical start/end line (VRST/VRED)
+    this->data(0);
+    this->data(0);
+    this->data((get_height_internal() - 1) / 256);
+    this->data((get_height_internal() - 1) % 256);
+
+    this->data(0x01);
+
+    // Display Start Transmission 1 (DTM1)
+    //  in KW mode this writes "OLD" data to SRAM
+    this->command(0x10);
+    this->start_data_();
+    this->write_array(this->old_buffer_, this->get_buffer_length_());
+    this->end_data_();
+  }
+
+  // Display Start Transmission 2 (DTM2)
+  //  in KW mode this writes "NEW" data to SRAM
+  this->command(0x13);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->old_buffer_[i] = this->buffer_[i];
+  }
+
+  // Display Refresh (DRF)
+  this->command(0x12);
+  delay(10);
+  this->wait_until_idle_();
+
+  if (full_update) {
+    ESP_LOGD(TAG, "Full update done");
+  } else {
+    // Partial out (PTOUT), makes the display exit partial mode
+    this->command(0x92);
+    ESP_LOGD(TAG, "Partial update done, next full update after %d cycles",
+             this->full_update_every_ - this->at_update_ - 1);
+  }
+
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+
+  this->deep_sleep();
+}
+
+void GDEY0583T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+int GDEY0583T81::get_width_internal() { return 648; }
+int GDEY0583T81::get_height_internal() { return 480; }
+uint32_t GDEY0583T81::idle_timeout_() { return 5000; }
+void GDEY0583T81::dump_config() {
+  LOG_DISPLAY("", "GoodDisplay E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.83in B/W GDEY0583T81");
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
@@ -3307,6 +3565,175 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
+// Waveshare 5.65F ========================================================
+
+namespace cmddata_5P65InF {
+// WaveshareEPaper5P65InF commands
+// https://www.waveshare.com/wiki/5.65inch_e-Paper_Module_(F)
+
+// R00H (PSR): Panel setting Register
+// UD(1): scan up
+// SHL(1) shift right
+// SHD_N(1) DC-DC on
+// RST_N(1) no reset
+static const uint8_t R00_CMD_PSR[] = {0x00, 0xEF, 0x08};
+
+// R01H (PWR): Power setting Register
+// internal DC-DC power generation
+static const uint8_t R01_CMD_PWR[] = {0x01, 0x07, 0x00, 0x00, 0x00};
+
+// R02H (POF): Power OFF Command
+static const uint8_t R02_CMD_POF[] = {0x02};
+
+// R03H (PFS): Power off sequence setting Register
+// T_VDS_OFF (00) = 1 frame
+static const uint8_t R03_CMD_PFS[] = {0x03, 0x00};
+
+// R04H (PON): Power ON Command
+static const uint8_t R04_CMD_PON[] = {0x04};
+
+// R06h (BTST): Booster Soft Start
+static const uint8_t R06_CMD_BTST[] = {0x06, 0xC7, 0xC7, 0x1D};
+
+// R07H (DSLP): Deep sleep#
+// Note Documentation @  Waveshare shows cmd code as 0x10 in table, but
+// 0x10 is DTM1.
+static const uint8_t R07_CMD_DSLP[] = {0x07, 0xA5};
+
+// R10H (DTM1): Data Start Transmission 1
+
+static const uint8_t R10_CMD_DTM1[] = {0x10};
+
+// R11H (DSP): Data Stop
+static const uint8_t R11_CMD_DSP[] = {0x11};
+
+// R12H (DRF): Display Refresh
+static const uint8_t R12_CMD_DRF[] = {0x12};
+
+// R13H (IPC): Image Process Command
+static const uint8_t R13_CMD_IPC[] = {0x13, 0x00};
+
+// R30H (PLL): PLL Control
+// 0x3C = 50Hz
+static const uint8_t R30_CMD_PLL[] = {0x30, 0x3C};
+
+// R41H (TSE): Temperature Sensor Enable
+// TSE(0) enable, TO(0000) +0 degree offset
+static const uint8_t R41_CMD_TSE[] = {0x41, 0x00};
+
+// R50H (CDI) VCOM and Data interval setting
+// CDI(0111) 10
+// DDX(1), VBD(001) Border output "White"
+static const uint8_t R50_CMD_CDI[] = {0x50, 0x37};
+
+// R60H (TCON) Gate and Source non overlap period command
+// S2G(10) 12 units
+// G2S(10) 12 units
+static const uint8_t R60_CMD_TCON[] = {0x60, 0x22};
+
+// R61H (TRES) Resolution Setting
+// 0x258 = 600
+// 0x1C0 = 448
+static const uint8_t R61_CMD_TRES[] = {0x61, 0x02, 0x58, 0x01, 0xC0};
+
+// RE3H (PWS) Power Savings
+static const uint8_t RE3_CMD_PWS[] = {0xE3, 0xAA};
+}  // namespace cmddata_5P65InF
+
+void WaveshareEPaper5P65InF::initialize() {
+  if (this->buffers_[0] == nullptr) {
+    ESP_LOGE(TAG, "Buffer unavailable!");
+    return;
+  }
+
+  this->reset_();
+  delay(20);
+  this->wait_until_(IDLE);
+
+  using namespace cmddata_5P65InF;
+
+  this->cmd_data(R00_CMD_PSR, sizeof(R00_CMD_PSR));
+  this->cmd_data(R01_CMD_PWR, sizeof(R01_CMD_PWR));
+  this->cmd_data(R03_CMD_PFS, sizeof(R03_CMD_PFS));
+  this->cmd_data(R06_CMD_BTST, sizeof(R06_CMD_BTST));
+  this->cmd_data(R30_CMD_PLL, sizeof(R30_CMD_PLL));
+  this->cmd_data(R41_CMD_TSE, sizeof(R41_CMD_TSE));
+  this->cmd_data(R50_CMD_CDI, sizeof(R50_CMD_CDI));
+  this->cmd_data(R60_CMD_TCON, sizeof(R60_CMD_TCON));
+  this->cmd_data(R61_CMD_TRES, sizeof(R61_CMD_TRES));
+  this->cmd_data(RE3_CMD_PWS, sizeof(RE3_CMD_PWS));
+
+  delay(100);  // NOLINT
+  this->cmd_data(R50_CMD_CDI, sizeof(R50_CMD_CDI));
+
+  ESP_LOGI(TAG, "Display initialized successfully");
+}
+
+void HOT WaveshareEPaper5P65InF::display() {
+  // INITIALIZATION
+  ESP_LOGI(TAG, "Initialise the display");
+  this->initialize();
+
+  using namespace cmddata_5P65InF;
+
+  // COMMAND DATA START TRANSMISSION
+  ESP_LOGI(TAG, "Sending data to the display");
+  this->cmd_data(R61_CMD_TRES, sizeof(R61_CMD_TRES));
+  this->cmd_data(R10_CMD_DTM1, sizeof(R10_CMD_DTM1));
+  this->send_buffers_();
+
+  // COMMAND POWER ON
+  ESP_LOGI(TAG, "Power on the display");
+  this->cmd_data(R04_CMD_PON, sizeof(R04_CMD_PON));
+  this->wait_until_(IDLE);
+
+  // COMMAND REFRESH SCREEN
+  ESP_LOGI(TAG, "Refresh the display");
+  this->cmd_data(R12_CMD_DRF, sizeof(R12_CMD_DRF));
+  this->wait_until_(IDLE);
+
+  // COMMAND POWER OFF
+  ESP_LOGI(TAG, "Power off the display");
+  this->cmd_data(R02_CMD_POF, sizeof(R02_CMD_POF));
+  this->wait_until_(BUSY);
+
+  if (this->deep_sleep_between_updates_) {
+    ESP_LOGI(TAG, "Set the display to deep sleep");
+    this->cmd_data(R07_CMD_DSLP, sizeof(R07_CMD_DSLP));
+  }
+}
+
+int WaveshareEPaper5P65InF::get_width_internal() { return 600; }
+int WaveshareEPaper5P65InF::get_height_internal() { return 448; }
+uint32_t WaveshareEPaper5P65InF::idle_timeout_() { return 35000; }
+
+void WaveshareEPaper5P65InF::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.65in-F");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+bool WaveshareEPaper5P65InF::wait_until_(WaitForState busy_state) {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+
+  const uint32_t start = millis();
+  while (busy_state != this->busy_pin_->digital_read()) {
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+  return true;
+}
+
 void WaveshareEPaper7P3InF::initialize() {
   if (this->buffers_[0] == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
@@ -3411,11 +3838,6 @@ void WaveshareEPaper7P3InF::initialize() {
   ESP_LOGI(TAG, "Display initialized successfully");
 }
 void HOT WaveshareEPaper7P3InF::display() {
-  if (this->buffers_[0] == nullptr) {
-    ESP_LOGE(TAG, "Buffer unavailable!");
-    return;
-  }
-
   // INITIALIZATION
   ESP_LOGI(TAG, "Initialise the display");
   this->initialize();
@@ -3423,29 +3845,7 @@ void HOT WaveshareEPaper7P3InF::display() {
   // COMMAND DATA START TRANSMISSION
   ESP_LOGI(TAG, "Sending data to the display");
   this->command(0x10);
-  uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
-  uint8_t byte_to_send;
-  for (auto &buffer : this->buffers_) {
-    for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
-      std::bitset<24> triplet =
-          buffer[buffer_pos + 0] << 16 | buffer[buffer_pos + 1] << 8 | buffer[buffer_pos + 2] << 0;
-      // 8 bitset<3> are stored in 3 bytes
-      // |aaabbbaa|abbbaaab|bbaaabbb|
-      // | byte 1 | byte 2 | byte 3 |
-      byte_to_send = ((triplet >> 17).to_ulong() & 0b01110000) | ((triplet >> 18).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
-
-      byte_to_send = ((triplet >> 11).to_ulong() & 0b01110000) | ((triplet >> 12).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
-
-      byte_to_send = ((triplet >> 5).to_ulong() & 0b01110000) | ((triplet >> 6).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
-
-      byte_to_send = ((triplet << 1).to_ulong() & 0b01110000) | ((triplet << 0).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
-    }
-    App.feed_wdt();
-  }
+  this->send_buffers_();
 
   // COMMAND POWER ON
   ESP_LOGI(TAG, "Power on the display");
@@ -3464,9 +3864,11 @@ void HOT WaveshareEPaper7P3InF::display() {
   this->data(0x00);
   this->wait_until_idle_();
 
-  ESP_LOGI(TAG, "Set the display to deep sleep");
-  this->command(0x07);
-  this->data(0xA5);
+  if (this->deep_sleep_between_updates_) {
+    ESP_LOGI(TAG, "Set the display to deep sleep");
+    this->command(0x07);
+    this->data(0xA5);
+  }
 }
 int WaveshareEPaper7P3InF::get_width_internal() { return 800; }
 int WaveshareEPaper7P3InF::get_height_internal() { return 480; }
@@ -4079,10 +4481,10 @@ void WaveshareEPaper7P5InHDB::initialize() {
   this->data(0x01);     // LUT1, for white
 
   this->command(0x18);
-  this->data(0X80);
+  this->data(0x80);
 
   this->command(0x22);
-  this->data(0XB1);  // Load Temperature and waveform setting.
+  this->data(0xB1);  // Load Temperature and waveform setting.
 
   this->command(0x20);
 

@@ -10,9 +10,11 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_URL,
+    PLATFORM_HOST,
     __version__,
 )
 from esphome.core import CORE, Lambda
+from esphome.helpers import IS_MACOS
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
@@ -21,6 +23,7 @@ http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)
 HttpRequestArduino = http_request_ns.class_("HttpRequestArduino", HttpRequestComponent)
 HttpRequestIDF = http_request_ns.class_("HttpRequestIDF", HttpRequestComponent)
+HttpRequestHost = http_request_ns.class_("HttpRequestHost", HttpRequestComponent)
 
 HttpContainer = http_request_ns.class_("HttpContainer")
 
@@ -43,10 +46,13 @@ CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
+CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
 CONF_ON_RESPONSE = "on_response"
 CONF_HEADERS = "headers"
+CONF_REQUEST_HEADERS = "request_headers"
+CONF_COLLECT_HEADERS = "collect_headers"
 CONF_BODY = "body"
 CONF_JSON = "json"
 CONF_CAPTURE_RESPONSE = "capture_response"
@@ -85,6 +91,8 @@ def validate_ssl_verification(config):
 
 
 def _declare_request_class(value):
+    if CORE.is_host:
+        return cv.declare_id(HttpRequestHost)(value)
     if CORE.using_esp_idf:
         return cv.declare_id(HttpRequestIDF)(value)
     if CORE.is_esp8266 or CORE.is_esp32 or CORE.is_rp2040:
@@ -119,6 +127,10 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32_idf=512): cv.All(
                 cv.uint16_t, cv.only_with_esp_idf
             ),
+            cv.Optional(CONF_CA_CERTIFICATE_PATH): cv.All(
+                cv.file_,
+                cv.only_on(PLATFORM_HOST),
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -126,6 +138,7 @@ CONFIG_SCHEMA = cv.All(
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
         rp2040_arduino=cv.Version(0, 0, 0),
+        host=cv.Version(0, 0, 0),
     ),
     validate_ssl_verification,
 )
@@ -168,6 +181,21 @@ async def to_code(config):
         cg.add_library("ESP8266HTTPClient", None)
     if CORE.is_rp2040 and CORE.using_arduino:
         cg.add_library("HTTPClient", None)
+    if CORE.is_host:
+        if IS_MACOS:
+            cg.add_build_flag("-I/opt/homebrew/opt/openssl/include")
+            cg.add_build_flag("-L/opt/homebrew/opt/openssl/lib")
+            cg.add_build_flag("-lssl")
+            cg.add_build_flag("-lcrypto")
+            cg.add_build_flag("-Wl,-framework,CoreFoundation")
+            cg.add_build_flag("-Wl,-framework,Security")
+            cg.add_define("CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN")
+            cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
+        elif path := config.get(CONF_CA_CERTIFICATE_PATH):
+            cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
+            cg.add(var.set_ca_path(path))
+            cg.add_build_flag("-lssl")
+            cg.add_build_flag("-lcrypto")
 
     await cg.register_component(var, config)
 
@@ -176,9 +204,13 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(HttpRequestComponent),
         cv.Required(CONF_URL): cv.templatable(validate_url),
-        cv.Optional(CONF_HEADERS): cv.All(
+        cv.Optional(CONF_HEADERS): cv.invalid(
+            "The 'headers' options has been renamed to 'request_headers'"
+        ),
+        cv.Optional(CONF_REQUEST_HEADERS): cv.All(
             cv.Schema({cv.string: cv.templatable(cv.string)})
         ),
+        cv.Optional(CONF_COLLECT_HEADERS): cv.ensure_list(cv.string),
         cv.Optional(CONF_VERIFY_SSL): cv.invalid(
             f"{CONF_VERIFY_SSL} has moved to the base component configuration."
         ),
@@ -263,11 +295,12 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    for key in config.get(CONF_HEADERS, []):
-        template_ = await cg.templatable(
-            config[CONF_HEADERS][key], args, cg.const_char_ptr
-        )
-        cg.add(var.add_header(key, template_))
+    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+        template_ = await cg.templatable(value, args, cg.const_char_ptr)
+        cg.add(var.add_request_header(key, template_))
+
+    for value in config.get(CONF_COLLECT_HEADERS, []):
+        cg.add(var.add_collect_header(value))
 
     for conf in config.get(CONF_ON_RESPONSE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

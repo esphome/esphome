@@ -13,6 +13,7 @@ from esphome.components.esp32.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEFAULT,
     CONF_HOUR,
     CONF_ID,
     CONF_MINUTE,
@@ -153,7 +154,6 @@ WakeupCauseToRunDuration = deep_sleep_ns.struct("WakeupCauseToRunDuration")
 CONF_WAKEUP_PIN_MODE = "wakeup_pin_mode"
 CONF_ESP32_EXT1_WAKEUP = "esp32_ext1_wakeup"
 CONF_TOUCH_WAKEUP = "touch_wakeup"
-CONF_DEFAULT = "default"
 CONF_GPIO_WAKEUP_REASON = "gpio_wakeup_reason"
 CONF_TOUCH_WAKEUP_REASON = "touch_wakeup_reason"
 CONF_UNTIL = "until"

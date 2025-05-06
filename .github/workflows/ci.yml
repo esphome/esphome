@@ -39,10 +39,10 @@ jobs:
         uses: actions/checkout@v4.1.7
       - name: Generate cache-key
         id: cache-key
-        run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
+        run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.4.0
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
@@ -58,7 +58,7 @@ jobs:
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+          pip install -r requirements.txt -r requirements_test.txt
           pip install -e .
 
   ruff:
@@ -165,6 +165,7 @@ jobs:
           . venv/bin/activate
           script/ci-custom.py
           script/build_codeowners.py --check
+          script/build_language_schema.py --check
 
   pytest:
     name: Run pytest
@@ -220,7 +221,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native tests
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v5.4.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 

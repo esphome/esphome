@@ -4,6 +4,8 @@
 #include "esphome/core/hal.h"
 #include "max7219font.h"
 
+#include <algorithm>
+
 namespace esphome {
 namespace max7219digit {
 
@@ -61,45 +63,42 @@ void MAX7219Component::dump_config() {
 }
 
 void MAX7219Component::loop() {
-  uint32_t now = millis();
-
+  const uint32_t now = millis();
+  const uint32_t millis_since_last_scroll = now - this->last_scroll_;
+  const size_t first_line_size = this->max_displaybuffer_[0].size();
   // check if the buffer has shrunk past the current position since last update
-  if ((this->max_displaybuffer_[0].size() >= this->old_buffer_size_ + 3) ||
-      (this->max_displaybuffer_[0].size() <= this->old_buffer_size_ - 3)) {
+  if ((first_line_size >= this->old_buffer_size_ + 3) || (first_line_size <= this->old_buffer_size_ - 3)) {
+    ESP_LOGV(TAG, "Buffer size changed %d to %d", this->old_buffer_size_, first_line_size);
     this->stepsleft_ = 0;
     this->display();
-    this->old_buffer_size_ = this->max_displaybuffer_[0].size();
+    this->old_buffer_size_ = first_line_size;
   }
 
-  // Reset the counter back to 0 when full string has been displayed.
-  if (this->stepsleft_ > this->max_displaybuffer_[0].size())
-    this->stepsleft_ = 0;
-
-  // Return if there is no need to scroll or scroll is off
-  if (!this->scroll_ || (this->max_displaybuffer_[0].size() <= (size_t) get_width_internal())) {
+  if (!this->scroll_ || (first_line_size <= (size_t) get_width_internal())) {
+    ESP_LOGVV(TAG, "Return if there is no need to scroll or scroll is off.");
     this->display();
     return;
   }
 
-  if ((this->stepsleft_ == 0) && (now - this->last_scroll_ < this->scroll_delay_)) {
+  if ((this->stepsleft_ == 0) && (millis_since_last_scroll < this->scroll_delay_)) {
+    ESP_LOGVV(TAG, "At first step. Waiting for scroll delay");
     this->display();
     return;
   }
 
-  // Dwell time at end of string in case of stop at end
   if (this->scroll_mode_ == ScrollMode::STOP) {
-    if (this->stepsleft_ >= this->max_displaybuffer_[0].size() - (size_t) get_width_internal() + 1) {
-      if (now - this->last_scroll_ >= this->scroll_dwell_) {
-        this->stepsleft_ = 0;
-        this->last_scroll_ = now;
-        this->display();
+    if (this->stepsleft_ + get_width_internal() == first_line_size + 1) {
+      if (millis_since_last_scroll < this->scroll_dwell_) {
+        ESP_LOGVV(TAG, "Dwell time at end of string in case of stop at end. Step %d, since last scroll %d, dwell %d.",
+                  this->stepsleft_, millis_since_last_scroll, this->scroll_dwell_);
+        return;
       }
-      return;
+      ESP_LOGV(TAG, "Dwell time passed. Continue scrolling.");
     }
   }
 
-  // Actual call to scroll left action
-  if (now - this->last_scroll_ >= this->scroll_speed_) {
+  if (millis_since_last_scroll >= this->scroll_speed_) {
+    ESP_LOGVV(TAG, "Call to scroll left action");
     this->last_scroll_ = now;
     this->scroll_left();
     this->display();
@@ -227,19 +226,20 @@ void MAX7219Component::scroll(bool on_off) { this->set_scroll(on_off); }
 
 void MAX7219Component::scroll_left() {
   for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
+    auto scroll = [&](std::vector<uint8_t> &line, uint16_t steps) {
+      std::rotate(line.begin(), std::next(line.begin(), steps), line.end());
+    };
     if (this->update_) {
       this->max_displaybuffer_[chip_line].push_back(this->bckgrnd_);
-      for (uint16_t i = 0; i < this->stepsleft_; i++) {
-        this->max_displaybuffer_[chip_line].push_back(this->max_displaybuffer_[chip_line].front());
-        this->max_displaybuffer_[chip_line].erase(this->max_displaybuffer_[chip_line].begin());
-      }
+      scroll(this->max_displaybuffer_[chip_line],
+             (this->stepsleft_ + 1) % (this->max_displaybuffer_[chip_line].size()));
     } else {
-      this->max_displaybuffer_[chip_line].push_back(this->max_displaybuffer_[chip_line].front());
-      this->max_displaybuffer_[chip_line].erase(this->max_displaybuffer_[chip_line].begin());
+      scroll(this->max_displaybuffer_[chip_line], 1);
     }
   }
   this->update_ = false;
   this->stepsleft_++;
+  this->stepsleft_ %= this->max_displaybuffer_[0].size();
 }
 
 void MAX7219Component::send_char(uint8_t chip, uint8_t data) {

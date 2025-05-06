@@ -53,7 +53,7 @@ FILTER_PLATFORMIO_LINES = [
     f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
     r"Scanning dependencies...",
     r"Found \d+ compatible libraries",
-    r"Memory Usage -> http://bit.ly/pio-memory-usage",
+    r"Memory Usage -> https://bit.ly/pio-memory-usage",
     r"Found: https://platformio.org/lib/show/.*",
     r"Using cache: .*",
     r"Installing dependencies",

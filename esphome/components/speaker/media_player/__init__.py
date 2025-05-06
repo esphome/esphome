@@ -332,14 +332,12 @@ async def to_code(config):
         esp32.add_idf_sdkconfig_option("CONFIG_TCP_MSS", 1436)
         esp32.add_idf_sdkconfig_option("CONFIG_TCP_MSL", 60000)
         esp32.add_idf_sdkconfig_option("CONFIG_TCP_SND_BUF_DEFAULT", 65535)
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_TCP_WND_DEFAULT", 65535
-        )  # Adjusted from referenced settings to avoid compilation error
+        esp32.add_idf_sdkconfig_option("CONFIG_TCP_WND_DEFAULT", 512000)
         esp32.add_idf_sdkconfig_option("CONFIG_TCP_RECVMBOX_SIZE", 512)
         esp32.add_idf_sdkconfig_option("CONFIG_TCP_QUEUE_OOSEQ", True)
         esp32.add_idf_sdkconfig_option("CONFIG_TCP_OVERSIZE_MSS", True)
         esp32.add_idf_sdkconfig_option("CONFIG_LWIP_WND_SCALE", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_TCP_RCV_SCALE", 3)
+        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RCV_SCALE", 3)
         esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 512)
 
         # Allocate wifi buffers in PSRAM

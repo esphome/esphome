@@ -95,6 +95,7 @@ class ESP32BLE : public Component {
   void advertising_start();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
+  void advertising_set_appearance(uint16_t appearance) { this->appearance_ = appearance; }
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
@@ -128,11 +129,12 @@ class ESP32BLE : public Component {
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};
 
   Queue<BLEEvent> ble_events_;
-  BLEAdvertising *advertising_;
+  BLEAdvertising *advertising_{};
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
-  uint32_t advertising_cycle_time_;
-  bool enable_on_boot_;
+  uint32_t advertising_cycle_time_{};
+  bool enable_on_boot_{};
   optional<std::string> name_;
+  uint16_t appearance_{0};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

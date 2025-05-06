@@ -14,6 +14,7 @@ from .. import (
     I2SAudioComponent,
     I2SAudioOut,
     i2s_audio_ns,
+    use_legacy,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -85,6 +86,14 @@ CONFIG_SCHEMA = cv.All(
     cv.only_with_arduino,
     validate_esp32_variant,
 )
+
+
+def _final_validate(_):
+    if not use_legacy():
+        raise cv.Invalid("I2S media player is only compatible with legacy i2s driver.")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

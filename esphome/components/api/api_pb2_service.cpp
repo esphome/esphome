@@ -179,6 +179,16 @@ bool APIServerConnectionBase::send_text_sensor_state_response(const TextSensorSt
 bool APIServerConnectionBase::send_subscribe_logs_response(const SubscribeLogsResponse &msg) {
   return this->send_message_<SubscribeLogsResponse>(msg, 29);
 }
+#ifdef USE_API_NOISE
+#endif
+#ifdef USE_API_NOISE
+bool APIServerConnectionBase::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_noise_encryption_set_key_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<NoiseEncryptionSetKeyResponse>(msg, 125);
+}
+#endif
 bool APIServerConnectionBase::send_homeassistant_service_response(const HomeassistantServiceResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_homeassistant_service_response: %s", msg.dump().c_str());
@@ -461,6 +471,16 @@ bool APIServerConnectionBase::send_bluetooth_device_clear_cache_response(const B
 #endif
   return this->send_message_<BluetoothDeviceClearCacheResponse>(msg, 88);
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_scanner_state_response(const BluetoothScannerStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_scanner_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothScannerStateResponse>(msg, 126);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #endif
@@ -1194,6 +1214,28 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 124: {
+#ifdef USE_API_NOISE
+      NoiseEncryptionSetKeyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_noise_encryption_set_key_request: %s", msg.dump().c_str());
+#endif
+      this->on_noise_encryption_set_key_request(msg);
+#endif
+      break;
+    }
+    case 127: {
+#ifdef USE_BLUETOOTH_PROXY
+      BluetoothScannerSetModeRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_bluetooth_scanner_set_mode_request: %s", msg.dump().c_str());
+#endif
+      this->on_bluetooth_scanner_set_mode_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1311,6 +1353,22 @@ void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest
   }
   this->execute_service(msg);
 }
+#ifdef USE_API_NOISE
+void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  NoiseEncryptionSetKeyResponse ret = this->noise_encryption_set_key(msg);
+  if (!this->send_noise_encryption_set_key_response(ret)) {
+    this->on_fatal_error();
+  }
+}
+#endif
 #ifdef USE_COVER
 void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -1666,6 +1724,19 @@ void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
     return;
   }
   this->unsubscribe_bluetooth_le_advertisements(msg);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+void APIServerConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->bluetooth_scanner_set_mode(msg);
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT

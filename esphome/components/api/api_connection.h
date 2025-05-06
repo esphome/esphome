@@ -221,6 +221,7 @@ class APIConnection : public APIServerConnection {
   void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
   BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
       const SubscribeBluetoothConnectionsFreeRequest &msg) override;
+  void bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) override;
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
@@ -300,6 +301,9 @@ class APIConnection : public APIServerConnection {
     return {};
   }
   void execute_service(const ExecuteServiceRequest &msg) override;
+#ifdef USE_API_NOISE
+  NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) override;
+#endif
 
   bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
   bool is_connection_setup() override {

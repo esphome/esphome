@@ -81,6 +81,20 @@ class Canbus : public Component {
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
 
   void add_trigger(CanbusTrigger *trigger);
+  /**
+   * Add a callback to be called when a CAN message is received. All received messages
+   * are passed to the callback without filtering.
+   *
+   * The callback function receives:
+   * - can_id of the received data
+   * - extended_id True if the can_id is an extended id
+   * - rtr If this is a remote transmission request
+   * - data The message data
+   */
+  void add_callback(
+      std::function<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)> callback) {
+    this->callback_manager_.add(std::move(callback));
+  }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
@@ -88,6 +102,8 @@ class Canbus : public Component {
   uint32_t can_id_;
   bool use_extended_id_;
   CanSpeed bit_rate_;
+  CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
+      callback_manager_{};
 
   virtual bool setup_internal();
   virtual Error send_message(struct CanFrame *frame);

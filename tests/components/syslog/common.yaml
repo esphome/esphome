@@ -1,0 +1,15 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+udp:
+  addresses: ["239.0.60.53"]
+
+time:
+  platform: host
+
+syslog:
+  port: 514
+  strip: true
+  level: info
+  facility: 16

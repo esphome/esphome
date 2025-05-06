@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==76.0.0", "wheel>=0.43,<0.46"]
+requires = ["setuptools==79.0.1", "wheel>=0.43,<0.46"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ license     = {text = "MIT"}
 description = "ESPHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems."
 readme      = "README.md"
 authors     = [
-  {name = "The ESPHome Authors", email = "esphome@nabucasa.com"}
+  {name = "The ESPHome Authors", email = "esphome@openhomefoundation.org"}
 ]
 keywords    = ["home", "automation"]
 classifiers = [
@@ -48,7 +48,6 @@ version = {attr = "esphome.const.__version__"}
 [tool.setuptools.dynamic.optional-dependencies]
 dev = { file = ["requirements_dev.txt"] }
 test = { file = ["requirements_test.txt"] }
-displays = { file = ["requirements_optional.txt"] }
 
 [tool.setuptools.packages.find]
 include = ["esphome*"]

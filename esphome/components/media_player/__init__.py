@@ -134,11 +134,13 @@ MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
 )
 
 
-MEDIA_PLAYER_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(MediaPlayer),
-        cv.Optional(CONF_ANNOUNCEMENT, default=False): cv.templatable(cv.boolean),
-    }
+MEDIA_PLAYER_ACTION_SCHEMA = automation.maybe_simple_id(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(MediaPlayer),
+            cv.Optional(CONF_ANNOUNCEMENT, default=False): cv.templatable(cv.boolean),
+        }
+    )
 )
 
 MEDIA_PLAYER_CONDITION_SCHEMA = automation.maybe_simple_id(

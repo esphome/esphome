@@ -2,6 +2,7 @@ import logging
 
 from esphome.automation import build_automation, register_action, validate_automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_DRAW_ROUNDING
 from esphome.components.display import Display
 import esphome.config_validation as cv
 from esphome.const import (
@@ -10,20 +11,21 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .automation import disp_update, focused_widgets, update_to_code
-from .defines import CONF_DRAW_ROUNDING, add_define
+from .automation import disp_update, focused_widgets, refreshed_widgets, update_to_code
+from .defines import add_define
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -38,19 +40,18 @@ from .lvcode import LvContext, LvglComponent, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FLEX_OBJ_SCHEMA,
+    FULL_STYLE_SCHEMA,
     GRID_CELL_SCHEMA,
     LAYOUT_SCHEMAS,
-    STYLE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
     create_modify_schema,
-    grid_alignments,
     obj_schema,
 )
 from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import generate_triggers
+from .trigger import add_on_boot_triggers, generate_triggers
 from .types import (
     FontEngine,
     IdleTrigger,
@@ -73,6 +74,7 @@ from .widgets.animimg import animimg_spec
 from .widgets.arc import arc_spec
 from .widgets.button import button_spec
 from .widgets.buttonmatrix import buttonmatrix_spec
+from .widgets.canvas import canvas_spec
 from .widgets.checkbox import checkbox_spec
 from .widgets.dropdown import dropdown_spec
 from .widgets.img import img_spec
@@ -125,6 +127,7 @@ for w_type in (
     keyboard_spec,
     tileview_spec,
     qr_code_spec,
+    canvas_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
@@ -237,6 +240,13 @@ def final_validation(configs):
                     "A non adjustable arc may not be focused",
                     path,
                 )
+        for w in refreshed_widgets:
+            path = global_config.get_path_for_id(w)
+            widget_conf = global_config.get_config_for_path(path[:-1])
+            if not any(isinstance(v, Lambda) for v in widget_conf.values()):
+                raise cv.Invalid(
+                    f"Widget '{w}' does not have any templated properties to refresh",
+                )
 
 
 async def to_code(configs):
@@ -321,7 +331,7 @@ async def to_code(configs):
             displays,
             frac,
             config[df.CONF_FULL_REFRESH],
-            config[df.CONF_DRAW_ROUNDING],
+            config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
         )
         await cg.register_component(lv_component, config)
@@ -365,6 +375,7 @@ async def to_code(configs):
                     conf[CONF_TRIGGER_ID], lv_component, False
                 )
                 await build_automation(resume_trigger, [], conf)
+            await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
@@ -373,6 +384,7 @@ async def to_code(configs):
         add_define("LV_COLOR_SCREEN_TRANSP", "1")
     for use in helpers.lv_uses:
         add_define(f"LV_USE_{use.upper()}")
+        cg.add_define(f"USE_LVGL_{use.upper()}")
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
     cg.add_build_flag("-DLV_CONF_H=1")
@@ -409,7 +421,7 @@ LVGL_SCHEMA = cv.All(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
-                cv.Optional(df.CONF_DRAW_ROUNDING, default=2): cv.positive_int,
+                cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
                 cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
@@ -418,15 +430,8 @@ LVGL_SCHEMA = cv.All(
                     "big_endian", "little_endian"
                 ),
                 cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
-                    cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
-                    .extend(STYLE_SCHEMA)
-                    .extend(
-                        {
-                            cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
-                            cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
-                            cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                            cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
-                        }
+                    cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)}).extend(
+                        FULL_STYLE_SCHEMA
                     )
                 ),
                 cv.Optional(CONF_ON_IDLE): validate_automation(

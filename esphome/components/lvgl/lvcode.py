@@ -173,7 +173,8 @@ class LambdaContext(CodeContext):
 
 class LvContext(LambdaContext):
     """
-    Code generation into the LVGL initialisation code (called in `setup()`)
+    Code generation into the LVGL initialisation code, called before setup() and loop()
+    Basically just does cg.add, so now fairly redundant.
     """
 
     added_lambda_count = 0
@@ -206,11 +207,16 @@ class LocalVariable(MockObj):
 
     def __enter__(self):
         CodeContext.start_block()
-        CodeContext.append(
-            VariableDeclarationExpression(self.base.type, self.modifier, self.base.id)
-        )
         if self.rhs is not None:
-            CodeContext.append(AssignmentExpression(None, "", self.base, self.rhs))
+            CodeContext.append(
+                AssignmentExpression(self.base.type, self.modifier, self.base, self.rhs)
+            )
+        else:
+            CodeContext.append(
+                VariableDeclarationExpression(
+                    self.base.type, self.modifier, self.base.id
+                )
+            )
         return MockObj(self.base)
 
     def __exit__(self, *args):
@@ -283,10 +289,6 @@ class LvExpr(MockLv):
 
     def append(self, expression):
         pass
-
-
-def static_cast(type, value):
-    return literal(f"static_cast<{type}>({value})")
 
 
 # Top level mock for generic lv_ calls to be recorded

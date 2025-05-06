@@ -46,7 +46,13 @@ void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transm
     ESP_LOGVV(TAG, "  data[%d]=%02x", i, can_message.data[i]);
   }
 
-  this->send_message(&can_message);
+  if (this->send_message(&can_message) != canbus::ERROR_OK) {
+    if (use_extended_id) {
+      ESP_LOGW(TAG, "send to extended id=0x%08" PRIx32 " failed!", can_id);
+    } else {
+      ESP_LOGW(TAG, "send to standard id=0x%03" PRIx32 " failed!", can_id);
+    }
+  }
 }
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
@@ -79,6 +85,9 @@ void Canbus::loop() {
       ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
       data.push_back(can_message.data[i]);
     }
+
+    this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
+                            data);
 
     // fire all triggers
     for (auto *trigger : this->triggers_) {

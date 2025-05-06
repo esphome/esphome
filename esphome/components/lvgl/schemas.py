@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
+    CONF_ON_BOOT,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
@@ -14,10 +15,11 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import TimePeriod
+from esphome.core.config import StartupTrigger
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .defines import CONF_TIME_FORMAT, CONF_X, CONF_Y, LV_GRAD_DIR
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import LvglComponent, lv_event_t_ptr
@@ -79,11 +81,38 @@ ENCODER_SCHEMA = cv.Schema(
             cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
-        cv.Optional(df.CONF_INITIAL_FOCUS): cv.use_id(lv_obj_t),
+        cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
+            LIST_ACTION_SCHEMA, cv.Length(min=1, max=1)
+        ),
         cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
 )
+
+POINT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_X): cv.templatable(cv.int_),
+        cv.Required(CONF_Y): cv.templatable(cv.int_),
+    }
+)
+
+
+def point_schema(value):
+    """
+    A shorthand for a point in the form of x,y
+    :param value: The value to check
+    :return: The value as a tuple of x,y
+    """
+    if isinstance(value, dict):
+        return POINT_SCHEMA(value)
+    try:
+        x, y = map(int, value.split(","))
+        return {CONF_X: x, CONF_Y: y}
+    except ValueError:
+        pass
+    # not raising this in the catch block because pylint doesn't like it
+    raise cv.Invalid("Invalid point format, should be <x_int>, <y_int>")
+
 
 # All LVGL styles and their validators
 STYLE_PROPS = {
@@ -103,6 +132,7 @@ STYLE_PROPS = {
     "bg_image_recolor": lvalid.lv_color,
     "bg_image_recolor_opa": lvalid.opacity,
     "bg_image_src": lvalid.lv_image,
+    "bg_image_tiled": lvalid.lv_bool,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
     "border_color": lvalid.lv_color,
@@ -117,22 +147,22 @@ STYLE_PROPS = {
     "height": lvalid.size,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
-    "line_width": cv.positive_int,
-    "line_dash_width": cv.positive_int,
-    "line_dash_gap": cv.positive_int,
+    "line_width": lvalid.lv_positive_int,
+    "line_dash_width": lvalid.lv_positive_int,
+    "line_dash_gap": lvalid.lv_positive_int,
     "line_rounded": lvalid.lv_bool,
     "line_color": lvalid.lv_color,
     "opa": lvalid.opacity,
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
-    "outline_pad": lvalid.pixels,
+    "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
-    "pad_all": lvalid.pixels,
-    "pad_bottom": lvalid.pixels,
-    "pad_left": lvalid.pixels,
-    "pad_right": lvalid.pixels,
-    "pad_top": lvalid.pixels,
+    "pad_all": lvalid.padding,
+    "pad_bottom": lvalid.padding,
+    "pad_left": lvalid.padding,
+    "pad_right": lvalid.padding,
+    "pad_top": lvalid.padding,
     "shadow_color": lvalid.lv_color,
     "shadow_ofs_x": lvalid.lv_int,
     "shadow_ofs_y": lvalid.lv_int,
@@ -147,8 +177,8 @@ STYLE_PROPS = {
         "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
     ).several_of,
     "text_font": lv_font,
-    "text_letter_space": cv.positive_int,
-    "text_line_space": cv.positive_int,
+    "text_letter_space": lvalid.lv_positive_int,
+    "text_line_space": lvalid.lv_positive_int,
     "text_opa": lvalid.opacity,
     "transform_angle": lvalid.lv_angle,
     "transform_height": lvalid.pixels_or_percent,
@@ -172,9 +202,14 @@ STYLE_REMAP = {
     "bg_image_recolor": "bg_img_recolor",
     "bg_image_recolor_opa": "bg_img_recolor_opa",
     "bg_image_src": "bg_img_src",
+    "bg_image_tiled": "bg_img_tiled",
     "image_recolor": "img_recolor",
     "image_recolor_opa": "img_recolor_opa",
 }
+
+cell_alignments = df.LV_CELL_ALIGNMENTS.one_of
+grid_alignments = df.LV_GRID_ALIGNMENTS.one_of
+flex_alignments = df.LV_FLEX_ALIGNMENTS.one_of
 
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
@@ -183,6 +218,16 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+    }
+)
+
+# Also allow widget specific properties for use in style definitions
+FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(
+    {
+        cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+        cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+        cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+        cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
     }
 )
 
@@ -216,14 +261,24 @@ def automation_schema(typ: LvType):
         events = events + (CONF_ON_VALUE,)
     args = typ.get_arg_type() if isinstance(typ, LvType) else []
     args.append(lv_event_t_ptr)
-    return {
-        cv.Optional(event): validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
-            }
-        )
-        for event in events
-    }
+    return cv.Schema(
+        {
+            cv.Optional(event): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Trigger.template(*args)
+                    ),
+                }
+            )
+            for event in events
+        }
+    ).extend(
+        {
+            cv.Optional(CONF_ON_BOOT): validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
+            )
+        }
+    )
 
 
 def base_update_schema(widget_type, parts):
@@ -307,10 +362,6 @@ grid_spec = cv.Any(
     lvalid.size, df.LvConstant("LV_GRID_", "CONTENT").one_of, grid_free_space
 )
 
-cell_alignments = df.LV_CELL_ALIGNMENTS.one_of
-grid_alignments = df.LV_GRID_ALIGNMENTS.one_of
-flex_alignments = df.LV_FLEX_ALIGNMENTS.one_of
-
 LAYOUT_SCHEMA = {
     cv.Optional(df.CONF_LAYOUT): cv.typed_schema(
         {
@@ -319,8 +370,8 @@ LAYOUT_SCHEMA = {
                 cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
                 cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
                 cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
             },
             df.TYPE_FLEX: {
                 cv.Optional(
@@ -329,8 +380,8 @@ LAYOUT_SCHEMA = {
                 cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
             },
         },
         lower=True,
@@ -376,8 +427,8 @@ ALL_STYLES = {
     **STYLE_PROPS,
     **GRID_CELL_SCHEMA,
     **FLEX_OBJ_SCHEMA,
-    cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-    cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+    cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+    cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
 }
 
 

@@ -187,7 +187,7 @@ void ENS160Component::update() {
       }
       return;
     case INVALID_OUTPUT:
-      ESP_LOGE(TAG, "ENS160 Invalid Status - No Invalid Output");
+      ESP_LOGE(TAG, "ENS160 Invalid Status - No valid output");
       this->status_set_warning();
       return;
   }

@@ -56,7 +56,6 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
-    KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -117,7 +116,7 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 ROOT_CONFIG_PATH = object()
 
 RESERVED_IDS = [
-    # C++ keywords http://en.cppreference.com/w/cpp/keyword
+    # C++ keywords https://en.cppreference.com/w/cpp/keyword
     "alarm",
     "alignas",
     "alignof",
@@ -1499,29 +1498,8 @@ def dimensions(value):
 
 
 def directory(value):
-    import json
-
     value = string(value)
     path = CORE.relative_config_path(value)
-
-    if CORE.vscode and (
-        not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
-    ):
-        print(
-            json.dumps(
-                {
-                    "type": "check_directory_exists",
-                    "path": path,
-                }
-            )
-        )
-        data = json.loads(input())
-        assert data["type"] == "directory_exists_response"
-        if data["content"]:
-            return value
-        raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
-        )
 
     if not os.path.exists(path):
         raise Invalid(
@@ -1535,29 +1513,8 @@ def directory(value):
 
 
 def file_(value):
-    import json
-
     value = string(value)
     path = CORE.relative_config_path(value)
-
-    if CORE.vscode and (
-        not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
-    ):
-        print(
-            json.dumps(
-                {
-                    "type": "check_file_exists",
-                    "path": path,
-                }
-            )
-        )
-        data = json.loads(input())
-        assert data["type"] == "file_exists_response"
-        if data["content"]:
-            return value
-        raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
-        )
 
     if not os.path.exists(path):
         raise Invalid(
@@ -1984,70 +1941,28 @@ def platformio_version_constraint(value):
 
 def require_framework_version(
     *,
-    esp_idf=None,
-    esp32_arduino=None,
-    esp8266_arduino=None,
-    rp2040_arduino=None,
-    bk72xx_libretiny=None,
-    host=None,
     max_version=False,
     extra_message=None,
+    **kwargs,
 ):
     def validator(value):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
-        if framework == "esp-idf":
-            if esp_idf is None:
-                msg = "This feature is incompatible with esp-idf"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = esp_idf
-        elif CORE.is_bk72xx and framework == "arduino":
-            if bk72xx_libretiny is None:
-                msg = "This feature is incompatible with BK72XX"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = bk72xx_libretiny
-        elif CORE.is_esp32 and framework == "arduino":
-            if esp32_arduino is None:
-                msg = "This feature is incompatible with ESP32 using arduino framework"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = esp32_arduino
-        elif CORE.is_esp8266 and framework == "arduino":
-            if esp8266_arduino is None:
-                msg = "This feature is incompatible with ESP8266"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = esp8266_arduino
-        elif CORE.is_rp2040 and framework == "arduino":
-            if rp2040_arduino is None:
-                msg = "This feature is incompatible with RP2040"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = rp2040_arduino
-        elif CORE.is_host and framework == "host":
-            if host is None:
-                msg = "This feature is incompatible with host platform"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = host
-        else:
-            raise Invalid(
-                f"""
-            Internal Error: require_framework_version does not support this platform configuration
-                platform: {core_data[KEY_TARGET_PLATFORM]}
-                framework: {framework}
 
-            Please report this issue on GitHub -> https://github.com/esphome/issues/issues/new?template=bug_report.yml.
-            """
-            )
+        if CORE.is_host and framework == "host":
+            key = "host"
+        elif framework == "esp-idf":
+            key = "esp_idf"
+        else:
+            key = CORE.target_platform + "_" + framework
+
+        if key not in kwargs:
+            msg = f"This feature is incompatible with {CORE.target_platform.upper()} using {framework} framework"
+            if extra_message:
+                msg += f". {extra_message}"
+            raise Invalid(msg)
+
+        required = kwargs[key]
 
         if max_version:
             if core_data[KEY_FRAMEWORK_VERSION] > required:

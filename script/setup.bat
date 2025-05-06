@@ -15,9 +15,9 @@ echo Installing required packages...
 
 python.exe -m pip install --upgrade pip
 
-pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt -r requirements_dev.txt
+pip3 install -r requirements.txt -r requirements_test.txt -r requirements_dev.txt
 pip3 install setuptools wheel
-pip3 install -e ".[dev,test,displays]" --config-settings editable_mode=compat
+pip3 install -e ".[dev,test]" --config-settings editable_mode=compat
 
 pre-commit install
 

@@ -5,6 +5,7 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_HECTOPASCAL,
+    CONF_MEASUREMENT_MODE,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -22,7 +23,7 @@ MEASUREMENT_MODE = {
     "mass_flow": MeasurementMode.MASS_FLOW_AVG,
     "differential_pressure": MeasurementMode.DP_AVG,
 }
-CONF_MEASUREMENT_MODE = "measurement_mode"
+
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(

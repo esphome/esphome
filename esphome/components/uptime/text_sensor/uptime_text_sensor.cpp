@@ -16,6 +16,11 @@ void UptimeTextSensor::setup() {
   this->update();
 }
 
+void UptimeTextSensor::insert_buffer_(std::string &buffer, const char *key, unsigned value) const {
+  buffer.insert(0, this->separator_);
+  buffer.insert(0, str_sprintf("%u%s", value, key));
+}
+
 void UptimeTextSensor::update() {
   auto now = millis();
   // get whole seconds since last update. Note that even if the millis count has overflowed between updates,
@@ -32,25 +37,25 @@ void UptimeTextSensor::update() {
     unsigned remainder = uptime % 60;
     uptime /= 60;
     if (interval < 30) {
-      buffer.insert(0, str_sprintf("%us", remainder));
-      if (uptime == 0)
+      this->insert_buffer_(buffer, this->seconds_text_, remainder);
+      if (!this->expand_ && uptime == 0)
         break;
     }
     remainder = uptime % 60;
     uptime /= 60;
     if (interval < 1800) {
-      buffer.insert(0, str_sprintf("%um", remainder));
-      if (uptime == 0)
+      this->insert_buffer_(buffer, this->minutes_text_, remainder);
+      if (!this->expand_ && uptime == 0)
         break;
     }
     remainder = uptime % 24;
     uptime /= 24;
     if (interval < 12 * 3600) {
-      buffer.insert(0, str_sprintf("%uh", remainder));
-      if (uptime == 0)
+      this->insert_buffer_(buffer, this->hours_text_, remainder);
+      if (!this->expand_ && uptime == 0)
         break;
     }
-    buffer.insert(0, str_sprintf("%ud", (unsigned) uptime));
+    this->insert_buffer_(buffer, this->days_text_, (unsigned) uptime);
     break;
   }
   this->publish_state(buffer);

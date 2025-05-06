@@ -24,6 +24,8 @@ lvgl:
     logger.log: LVGL is Paused
   on_resume:
     logger.log: LVGL has resumed
+  on_boot:
+    logger.log: LVGL has started
   bg_color: light_blue
   disp_bg_color: color_id
   disp_bg_image: cat_image
@@ -128,6 +130,19 @@ lvgl:
           on_click:
             then:
               - lvgl.widget.hide: message_box
+              - lvgl.style.update:
+                  id: style_test
+                  bg_color: blue
+                  bg_opa: !lambda return 0.5;
+              - lvgl.image.update:
+                  id: lv_image
+                  zoom: !lambda return 512;
+                  angle: !lambda return 100;
+                  pivot_x: !lambda return 20;
+                  pivot_y: !lambda return 20;
+                  offset_x: !lambda return 20;
+                  offset_y: !lambda return 20;
+                  antialias: !lambda return true;
     - id: simple_msgbox
       title: Simple
 
@@ -197,7 +212,7 @@ lvgl:
         - animimg:
             height: 60
             id: anim_img
-            src: [cat_image, dog_image]
+            src: !lambda "return {dog_image, cat_image};"
             repeat_count: 10
             duration: 1s
             auto_start: true
@@ -209,7 +224,12 @@ lvgl:
                   id: anim_img
                   src: !lambda "return {dog_image, cat_image};"
                   duration: 2s
+              - lvgl.widget.refresh: anim_img
         - label:
+            on_boot:
+              lvgl.label.update:
+                id: hello_label
+                text: Goodbye Cruel World
             id: hello_label
             text: Hello world
             text_color: 0xFF8000
@@ -476,6 +496,8 @@ lvgl:
             align: top_left
             y: "50"
             mode: real
+            zoom: 2.0
+            angle: 45
         - tileview:
             id: tileview_id
             scrollbar_mode: active
@@ -504,6 +526,110 @@ lvgl:
 
     - id: page2
       widgets:
+        - canvas:
+            id: canvas_id
+            align: center
+            width: 400
+            height: 400
+            transparent: true
+            on_boot:
+              - lvgl.canvas.fill:
+                  color: blue
+                  opa: 50%
+              - lvgl.canvas.draw_rectangle:
+                  x: 20
+                  y: 20
+                  width: 150
+                  height: 150
+                  bg_color: green
+                  bg_opa: cover
+                  radius: 5
+                  border_color: black
+                  border_width: 4
+                  border_opa: 80%
+                  shadow_color: black
+                  shadow_width: 10
+                  shadow_ofs_x: 5
+                  shadow_ofs_y: 5
+                  shadow_spread: 4
+                  shadow_opa: cover
+                  outline_color: red
+                  outline_width: 4
+                  outline_pad: 4
+                  outline_opa: cover
+              - lvgl.canvas.set_pixels:
+                  color: red
+                  points:
+                    - x: 100
+                      y: 100
+                    - 100,101
+                    - 100,102
+                    - 100,103
+                    - 100,104
+              - lvgl.canvas.set_pixels:
+                  opa: 50%
+                  color: !lambda return lv_color_make(255,255,255);
+                  points:
+                    - x: !lambda return random_uint32() % 200;
+                      y: !lambda return random_uint32() % 200;
+                    - 121,120
+                    - 122,120
+                    - 123,120
+                    - 124,120
+                    - 125,120
+
+              - lvgl.canvas.draw_text:
+                  x: 100
+                  y: 100
+                  font: montserrat_18
+                  color: white
+                  opa: cover
+                  decor: underline
+                  letter_space: 1
+                  line_space: 2
+                  text: Canvas Text
+                  align: center
+                  max_width: 150
+              - lvgl.canvas.draw_image:
+                  src: cat_image
+                  x: 100
+                  y: 100
+                  angle: 90
+                  zoom: 2.0
+                  pivot_x: 25
+                  pivot_y: 25
+              - lvgl.canvas.draw_line:
+                  color: blue
+                  width: 4
+                  round_end: true
+                  round_start: false
+                  points:
+                    - 50,50
+                    - 50, 200
+                    - 200, 200
+                    - 200, 50
+                    - 50,50
+              - lvgl.canvas.draw_polygon:
+                  bg_color: teal
+                  border_color: white
+                  border_width: 2
+                  border_opa: cover
+                  points:
+                    - 150,150
+                    - 150, 300
+                    - 300, 300
+                    - 350, 250
+              - lvgl.canvas.draw_arc:
+                  x: 200
+                  y: 200
+                  radius: 40
+                  opa: 50%
+                  color: purple
+                  width: 6
+                  rounded: true
+                  start_angle: 10
+                  end_angle: !lambda return 900;
+
         - qrcode:
             id: lv_qr
             align: left_mid
@@ -527,6 +653,8 @@ lvgl:
             knob:
               radius: 1
               width: "4"
+              pad_left: -5
+              pad_top: 5
               height: 10%
               bg_color: 0x000000
             width: 100%
@@ -608,6 +736,8 @@ lvgl:
             align: center
             points:
               - 5, 5
+              - x: !lambda return random_uint32() % 100;
+                y: !lambda return random_uint32() % 100;
               - 70, 70
               - 120, 10
               - 180, 60
@@ -616,6 +746,14 @@ lvgl:
               - lvgl.line.update:
                   id: lv_line_id
                   line_color: 0xFFFF
+                  points:
+                    - 5, 5
+                    - x: !lambda return random_uint32() % 100;
+                      y: !lambda return random_uint32() % 100;
+                    - 70, 70
+                    - 120, 10
+                    - 180, 60
+                    - 240, 10
               - lvgl.page.next:
         - switch:
             align: right_mid
@@ -866,3 +1004,13 @@ color:
     green_int: 123
     blue_int: 64
     white_int: 255
+
+select:
+  - platform: lvgl
+    id: lv_roller_select
+    widget: lv_roller
+    restore_value: true
+  - platform: lvgl
+    id: lv_dropdown_select
+    widget: lv_dropdown
+    restore_value: false

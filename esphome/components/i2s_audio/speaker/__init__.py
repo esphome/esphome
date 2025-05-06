@@ -26,6 +26,8 @@ from .. import (
     i2s_audio_component_schema,
     i2s_audio_ns,
     register_i2s_audio_component,
+    use_legacy,
+    validate_mclk_divisible_by_3,
 )
 
 AUTO_LOAD = ["audio"]
@@ -60,7 +62,7 @@ I2C_COMM_FMT_OPTIONS = {
     "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
 }
 
-NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
+INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32]
 
 
 def _set_num_channels_from_config(config):
@@ -101,7 +103,7 @@ def _validate_esp32_variant(config):
     if config[CONF_DAC_TYPE] != "internal":
         return config
     variant = esp32.get_esp32_variant()
-    if variant in NO_INTERNAL_DAC_VARIANTS:
+    if variant not in INTERNAL_DAC_VARIANTS:
         raise cv.Invalid(f"{variant} does not have an internal DAC")
     return config
 
@@ -143,8 +145,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(
                         CONF_I2S_DOUT_PIN
                     ): pins.internal_gpio_output_pin_number,
-                    cv.Optional(CONF_I2S_COMM_FMT, default="stand_i2s"): cv.enum(
-                        I2C_COMM_FMT_OPTIONS, lower=True
+                    cv.Optional(CONF_I2S_COMM_FMT, default="stand_i2s"): cv.one_of(
+                        *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
                 }
             ),
@@ -154,7 +156,21 @@ CONFIG_SCHEMA = cv.All(
     _validate_esp32_variant,
     _set_num_channels_from_config,
     _set_stream_limits,
+    validate_mclk_divisible_by_3,
 )
+
+
+def _final_validate(config):
+    if not use_legacy():
+        if config[CONF_DAC_TYPE] == "internal":
+            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver.")
+        if config[CONF_I2S_COMM_FMT] == "stand_max":
+            raise cv.Invalid(
+                "I2S standard max format only implemented with legacy i2s driver."
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
@@ -167,7 +183,17 @@ async def to_code(config):
         cg.add(var.set_internal_dac_mode(config[CONF_CHANNEL]))
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
-        cg.add(var.set_i2s_comm_fmt(config[CONF_I2S_COMM_FMT]))
+        if use_legacy():
+            cg.add(
+                var.set_i2s_comm_fmt(I2C_COMM_FMT_OPTIONS[config[CONF_I2S_COMM_FMT]])
+            )
+        else:
+            fmt = "std"  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
+            if config[CONF_I2S_COMM_FMT] in ["stand_msb", "i2s_lsb"]:
+                fmt = "msb"
+            elif config[CONF_I2S_COMM_FMT] in ["stand_pcm_short", "pcm_short", "pcm"]:
+                fmt = "pcm"
+            cg.add(var.set_i2s_comm_fmt(fmt))
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))

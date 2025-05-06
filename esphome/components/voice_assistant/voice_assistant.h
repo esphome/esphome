@@ -11,18 +11,17 @@
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
-#include "esphome/components/microphone/microphone.h"
-#ifdef USE_SPEAKER
-#include "esphome/components/speaker/speaker.h"
-#endif
+#include "esphome/components/microphone/microphone_source.h"
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
-#include "esphome/components/socket/socket.h"
-
-#ifdef USE_ESP_ADF
-#include <esp_vad.h>
+#ifdef USE_MICRO_WAKE_WORD
+#include "esphome/components/micro_wake_word/micro_wake_word.h"
 #endif
+#ifdef USE_SPEAKER
+#include "esphome/components/speaker/speaker.h"
+#endif
+#include "esphome/components/socket/socket.h"
 
 #include <unordered_map>
 #include <vector>
@@ -41,6 +40,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_API_AUDIO = 1 << 2,
   FEATURE_TIMERS = 1 << 3,
   FEATURE_ANNOUNCE = 1 << 4,
+  FEATURE_START_CONVERSATION = 1 << 5,
 };
 
 enum class State {
@@ -95,12 +95,16 @@ class VoiceAssistant : public Component {
   VoiceAssistant();
 
   void loop() override;
+  void setup() override;
   float get_setup_priority() const override;
   void start_streaming();
   void start_streaming(struct sockaddr_storage *addr, uint16_t port);
   void failed_to_start();
 
-  void set_microphone(microphone::Microphone *mic) { this->mic_ = mic; }
+  void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
+#ifdef USE_MICRO_WAKE_WORD
+  void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
+#endif
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
     this->speaker_ = speaker;
@@ -140,6 +144,7 @@ class VoiceAssistant : public Component {
 #ifdef USE_MEDIA_PLAYER
     if (this->media_player_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_ANNOUNCE;
+      flags |= VoiceAssistantFeature::FEATURE_START_CONVERSATION;
     }
 #endif
 
@@ -153,17 +158,14 @@ class VoiceAssistant : public Component {
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
-  void on_set_configuration(const std::vector<std::string> &active_wake_words){};
-  const Configuration &get_configuration() { return this->config_; };
+  void on_set_configuration(const std::vector<std::string> &active_wake_words);
+  const Configuration &get_configuration();
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
 
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
-#ifdef USE_ESP_ADF
-  void set_vad_threshold(uint8_t vad_threshold) { this->vad_threshold_ = vad_threshold; }
-#endif
 
   void set_noise_suppression_level(uint8_t noise_suppression_level) {
     this->noise_suppression_level_ = noise_suppression_level;
@@ -212,7 +214,6 @@ class VoiceAssistant : public Component {
   void clear_buffers_();
   void deallocate_buffers_();
 
-  int read_microphone_();
   void set_state_(State state);
   void set_state_(State state, State desired_state);
   void signal_stop_();
@@ -254,7 +255,7 @@ class VoiceAssistant : public Component {
   bool has_timers_{false};
   bool timer_tick_running_{false};
 
-  microphone::Microphone *mic_{nullptr};
+  microphone::MicrophoneSource *mic_source_{nullptr};
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
@@ -267,6 +268,8 @@ class VoiceAssistant : public Component {
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
+  bool media_player_wait_for_announcement_start_{false};
+  bool media_player_wait_for_announcement_end_{false};
 #endif
 
   bool local_output_{false};
@@ -275,14 +278,7 @@ class VoiceAssistant : public Component {
 
   std::string wake_word_{""};
 
-  HighFrequencyLoopRequester high_freq_;
-
-#ifdef USE_ESP_ADF
-  vad_handle_t vad_instance_;
-  uint8_t vad_threshold_{5};
-  uint8_t vad_counter_{0};
-#endif
-  std::unique_ptr<RingBuffer> ring_buffer_;
+  std::shared_ptr<RingBuffer> ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
@@ -291,10 +287,11 @@ class VoiceAssistant : public Component {
   uint32_t conversation_timeout_;
 
   uint8_t *send_buffer_{nullptr};
-  int16_t *input_buffer_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;
+
+  bool continue_conversation_{false};
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
@@ -304,6 +301,10 @@ class VoiceAssistant : public Component {
   bool start_udp_socket_();
 
   Configuration config_{};
+
+#ifdef USE_MICRO_WAKE_WORD
+  micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
+#endif
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {

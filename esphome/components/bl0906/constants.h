@@ -45,7 +45,7 @@ static const uint8_t BL0906_WRITE_COMMAND = 0xCA;
 static const uint8_t BL0906_V_RMS = 0x16;
 
 // Total power
-static const uint8_t BL0906_WATT_SUM = 0X2C;
+static const uint8_t BL0906_WATT_SUM = 0x2C;
 
 // Current1~6
 static const uint8_t BL0906_I_1_RMS = 0x0D;  // current_1
@@ -56,29 +56,29 @@ static const uint8_t BL0906_I_5_RMS = 0x13;
 static const uint8_t BL0906_I_6_RMS = 0x14;  // current_6
 
 // Power1~6
-static const uint8_t BL0906_WATT_1 = 0X23;  // power_1
-static const uint8_t BL0906_WATT_2 = 0X24;
-static const uint8_t BL0906_WATT_3 = 0X25;
-static const uint8_t BL0906_WATT_4 = 0X26;
-static const uint8_t BL0906_WATT_5 = 0X29;
-static const uint8_t BL0906_WATT_6 = 0X2A;  // power_6
+static const uint8_t BL0906_WATT_1 = 0x23;  // power_1
+static const uint8_t BL0906_WATT_2 = 0x24;
+static const uint8_t BL0906_WATT_3 = 0x25;
+static const uint8_t BL0906_WATT_4 = 0x26;
+static const uint8_t BL0906_WATT_5 = 0x29;
+static const uint8_t BL0906_WATT_6 = 0x2A;  // power_6
 
 // Active pulse count, unsigned
-static const uint8_t BL0906_CF_1_CNT = 0X30;  // Channel_1
-static const uint8_t BL0906_CF_2_CNT = 0X31;
-static const uint8_t BL0906_CF_3_CNT = 0X32;
-static const uint8_t BL0906_CF_4_CNT = 0X33;
-static const uint8_t BL0906_CF_5_CNT = 0X36;
-static const uint8_t BL0906_CF_6_CNT = 0X37;  // Channel_6
+static const uint8_t BL0906_CF_1_CNT = 0x30;  // Channel_1
+static const uint8_t BL0906_CF_2_CNT = 0x31;
+static const uint8_t BL0906_CF_3_CNT = 0x32;
+static const uint8_t BL0906_CF_4_CNT = 0x33;
+static const uint8_t BL0906_CF_5_CNT = 0x36;
+static const uint8_t BL0906_CF_6_CNT = 0x37;  // Channel_6
 
 // Total active pulse count, unsigned
-static const uint8_t BL0906_CF_SUM_CNT = 0X39;
+static const uint8_t BL0906_CF_SUM_CNT = 0x39;
 
 // Voltage frequency cycle
-static const uint8_t BL0906_FREQUENCY = 0X4E;
+static const uint8_t BL0906_FREQUENCY = 0x4E;
 
 // Internal temperature
-static const uint8_t BL0906_TEMPERATURE = 0X5E;
+static const uint8_t BL0906_TEMPERATURE = 0x5E;
 
 // Calibration register
 // RMS gain adjustment register

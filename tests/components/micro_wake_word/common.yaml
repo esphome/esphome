@@ -8,12 +8,30 @@ microphone:
     i2s_din_pin: GPIO17
     adc_type: external
     pdm: true
+    bits_per_sample: 16bit
 
 micro_wake_word:
+  microphone: echo_microphone
   on_wake_word_detected:
     - logger.log: "Wake word detected"
+    - micro_wake_word.stop:
+    - if:
+        condition:
+          - micro_wake_word.model_is_enabled: hey_jarvis_model
+        then:
+          - micro_wake_word.disable_model: hey_jarvis_model
+        else:
+          - micro_wake_word.enable_model: hey_jarvis_model
+    - if:
+        condition:
+          - not:
+              - micro_wake_word.is_running:
+        then:
+          micro_wake_word.start:
+  stop_after_detection: false
   models:
     - model: hey_jarvis
       probability_cutoff: 0.7
+      id: hey_jarvis_model
     - model: okay_nabu
       sliding_window_size: 5

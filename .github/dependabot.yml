@@ -17,7 +17,6 @@ updates:
       docker-actions:
         applies-to: version-updates
         patterns:
-          - "docker/setup-qemu-action"
           - "docker/login-action"
           - "docker/setup-buildx-action"
   - package-ecosystem: github-actions

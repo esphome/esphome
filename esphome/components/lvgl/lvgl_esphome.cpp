@@ -120,6 +120,7 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
+  lv_disp_set_default(this->disp_);
   page->setup(this->pages_.size() - 1);
 }
 void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time) {
@@ -433,7 +434,11 @@ void LvglComponent::setup() {
   auto height = display->get_height();
   size_t buffer_pixels = width * height / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
-  auto *buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
+  void *buffer = nullptr;
+  if (this->buffer_frac_ >= 4)
+    buffer = malloc(buf_bytes);  // NOLINT
+  if (buffer == nullptr)
+    buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   if (buffer == nullptr) {
     this->mark_failed();
     this->status_set_error("Memory allocation failure");

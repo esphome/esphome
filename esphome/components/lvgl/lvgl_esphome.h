@@ -63,6 +63,13 @@ inline void lv_disp_set_bg_image(lv_disp_t *disp, esphome::image::Image *image) 
 inline void lv_obj_set_style_bg_img_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
   lv_obj_set_style_bg_img_src(obj, image->get_lv_img_dsc(), selector);
 }
+#ifdef USE_LVGL_CANVAS
+inline void lv_canvas_draw_img(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, image::Image *image,
+                               lv_draw_img_dsc_t *dsc) {
+  lv_canvas_draw_img(canvas, x, y, image->get_lv_img_dsc(), dsc);
+}
+#endif
+
 #ifdef USE_LVGL_METER
 inline lv_meter_indicator_t *lv_meter_add_needle_img(lv_obj_t *obj, lv_meter_scale_t *scale, esphome::image::Image *src,
                                                      lv_coord_t pivot_x, lv_coord_t pivot_y) {
@@ -90,6 +97,7 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
+  virtual ~LvCompound() = default;
   virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
 };
@@ -330,6 +338,19 @@ class LVEncoderListener : public Parented<LvglComponent> {
 };
 #endif  //  USE_LVGL_KEY_LISTENER
 
+#ifdef USE_LVGL_LINE
+class LvLineType : public LvCompound {
+ public:
+  std::vector<lv_point_t> get_points() { return this->points_; }
+  void set_points(std::vector<lv_point_t> points) {
+    this->points_ = std::move(points);
+    lv_line_set_points(this->obj, this->points_.data(), this->points_.size());
+  }
+
+ protected:
+  std::vector<lv_point_t> points_{};
+};
+#endif
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 class LvSelectable : public LvCompound {
  public:

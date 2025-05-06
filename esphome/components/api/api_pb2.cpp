@@ -422,6 +422,38 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::BluetoothScannerState>(enums::BluetoothScannerState value) {
+  switch (value) {
+    case enums::BLUETOOTH_SCANNER_STATE_IDLE:
+      return "BLUETOOTH_SCANNER_STATE_IDLE";
+    case enums::BLUETOOTH_SCANNER_STATE_STARTING:
+      return "BLUETOOTH_SCANNER_STATE_STARTING";
+    case enums::BLUETOOTH_SCANNER_STATE_RUNNING:
+      return "BLUETOOTH_SCANNER_STATE_RUNNING";
+    case enums::BLUETOOTH_SCANNER_STATE_FAILED:
+      return "BLUETOOTH_SCANNER_STATE_FAILED";
+    case enums::BLUETOOTH_SCANNER_STATE_STOPPING:
+      return "BLUETOOTH_SCANNER_STATE_STOPPING";
+    case enums::BLUETOOTH_SCANNER_STATE_STOPPED:
+      return "BLUETOOTH_SCANNER_STATE_STOPPED";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::BluetoothScannerMode>(enums::BluetoothScannerMode value) {
+  switch (value) {
+    case enums::BLUETOOTH_SCANNER_MODE_PASSIVE:
+      return "BLUETOOTH_SCANNER_MODE_PASSIVE";
+    case enums::BLUETOOTH_SCANNER_MODE_ACTIVE:
+      return "BLUETOOTH_SCANNER_MODE_ACTIVE";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<>
 const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
   switch (value) {
@@ -792,6 +824,10 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->voice_assistant_feature_flags = value.as_uint32();
       return true;
     }
+    case 19: {
+      this->api_encryption_supported = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -865,6 +901,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(17, this->voice_assistant_feature_flags);
   buffer.encode_string(16, this->suggested_area);
   buffer.encode_string(18, this->bluetooth_mac_address);
+  buffer.encode_bool(19, this->api_encryption_supported);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -945,6 +982,10 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 
   out.append("  bluetooth_mac_address: ");
   out.append("'").append(this->bluetooth_mac_address).append("'");
+  out.append("\n");
+
+  out.append("  api_encryption_supported: ");
+  out.append(YESNO(this->api_encryption_supported));
   out.append("\n");
   out.append("}");
 }
@@ -3005,6 +3046,48 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
 
   out.append("  send_failed: ");
   out.append(YESNO(this->send_failed));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool NoiseEncryptionSetKeyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void NoiseEncryptionSetKeyRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->key); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("NoiseEncryptionSetKeyRequest {\n");
+  out.append("  key: ");
+  out.append("'").append(this->key).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool NoiseEncryptionSetKeyResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->success = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void NoiseEncryptionSetKeyResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->success); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("NoiseEncryptionSetKeyResponse {\n");
+  out.append("  success: ");
+  out.append(YESNO(this->success));
   out.append("\n");
   out.append("}");
 }
@@ -6720,6 +6803,61 @@ void BluetoothDeviceClearCacheResponse::dump_to(std::string &out) const {
   out.append("  error: ");
   sprintf(buffer, "%" PRId32, this->error);
   out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothScannerStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->state = value.as_enum<enums::BluetoothScannerState>();
+      return true;
+    }
+    case 2: {
+      this->mode = value.as_enum<enums::BluetoothScannerMode>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothScannerStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_enum<enums::BluetoothScannerState>(1, this->state);
+  buffer.encode_enum<enums::BluetoothScannerMode>(2, this->mode);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothScannerStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothScannerStateResponse {\n");
+  out.append("  state: ");
+  out.append(proto_enum_to_string<enums::BluetoothScannerState>(this->state));
+  out.append("\n");
+
+  out.append("  mode: ");
+  out.append(proto_enum_to_string<enums::BluetoothScannerMode>(this->mode));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->mode = value.as_enum<enums::BluetoothScannerMode>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothScannerSetModeRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_enum<enums::BluetoothScannerMode>(1, this->mode);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothScannerSetModeRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothScannerSetModeRequest {\n");
+  out.append("  mode: ");
+  out.append(proto_enum_to_string<enums::BluetoothScannerMode>(this->mode));
   out.append("\n");
   out.append("}");
 }

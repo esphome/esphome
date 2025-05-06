@@ -31,6 +31,7 @@ service APIConnection {
     option (needs_authentication) = false;
   }
   rpc execute_service (ExecuteServiceRequest) returns (void) {}
+  rpc noise_encryption_set_key (NoiseEncryptionSetKeyRequest) returns (NoiseEncryptionSetKeyResponse) {}
 
   rpc cover_command (CoverCommandRequest) returns (void) {}
   rpc fan_command (FanCommandRequest) returns (void) {}
@@ -60,6 +61,7 @@ service APIConnection {
   rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
   rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc bluetooth_scanner_set_mode(BluetoothScannerSetModeRequest) returns (void) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
   rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
@@ -230,6 +232,9 @@ message DeviceInfoResponse {
 
   // The Bluetooth mac address of the device. For example "AC:BC:32:89:0E:AA"
   string bluetooth_mac_address = 18;
+
+  // Supports receiving and saving api encryption key
+  bool api_encryption_supported = 19;
 }
 
 message ListEntitiesRequest {
@@ -652,6 +657,23 @@ message SubscribeLogsResponse {
   LogLevel level = 1;
   string message = 3;
   bool send_failed = 4;
+}
+
+// ==================== NOISE ENCRYPTION ====================
+message NoiseEncryptionSetKeyRequest {
+  option (id) = 124;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_NOISE";
+
+  bytes key = 1;
+}
+
+message NoiseEncryptionSetKeyResponse {
+  option (id) = 125;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_NOISE";
+
+  bool success = 1;
 }
 
 // ==================== HOMEASSISTANT.SERVICE ====================
@@ -1449,6 +1471,37 @@ message BluetoothDeviceClearCacheResponse {
   uint64 address = 1;
   bool success = 2;
   int32 error = 3;
+}
+
+enum BluetoothScannerState {
+  BLUETOOTH_SCANNER_STATE_IDLE = 0;
+  BLUETOOTH_SCANNER_STATE_STARTING = 1;
+  BLUETOOTH_SCANNER_STATE_RUNNING = 2;
+  BLUETOOTH_SCANNER_STATE_FAILED = 3;
+  BLUETOOTH_SCANNER_STATE_STOPPING = 4;
+  BLUETOOTH_SCANNER_STATE_STOPPED = 5;
+}
+
+enum BluetoothScannerMode {
+  BLUETOOTH_SCANNER_MODE_PASSIVE = 0;
+  BLUETOOTH_SCANNER_MODE_ACTIVE = 1;
+}
+
+message BluetoothScannerStateResponse {
+  option(id) = 126;
+  option(source) = SOURCE_SERVER;
+  option(ifdef) = "USE_BLUETOOTH_PROXY";
+
+  BluetoothScannerState state = 1;
+  BluetoothScannerMode mode = 2;
+}
+
+message BluetoothScannerSetModeRequest {
+  option(id) = 127;
+  option(source) = SOURCE_CLIENT;
+  option(ifdef) = "USE_BLUETOOTH_PROXY";
+
+  BluetoothScannerMode mode = 1;
 }
 
 // ==================== PUSH TO TALK ====================

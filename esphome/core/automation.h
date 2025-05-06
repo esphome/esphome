@@ -1,10 +1,11 @@
 #pragma once
 
-#include <vector>
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <utility>
+#include <vector>
 
 namespace esphome {
 
@@ -27,7 +28,7 @@ template<typename T, typename... X> class TemplatableValue {
   TemplatableValue() : type_(NONE) {}
 
   template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
-  TemplatableValue(F value) : type_(VALUE), value_(value) {}
+  TemplatableValue(F value) : type_(VALUE), value_(std::move(value)) {}
 
   template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F f) : type_(LAMBDA), f_(f) {}

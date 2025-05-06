@@ -54,7 +54,7 @@ manifest_parser = subparsers.add_parser(
 class DockerParams:
     build_to: str
     manifest_to: str
-    baseimgtype: str
+    build_type: str
     platform: str
     target: str
 
@@ -66,24 +66,19 @@ class DockerParams:
             TYPE_LINT: "esphome/esphome-lint",
         }[build_type]
         build_to = f"{prefix}-{arch}"
-        baseimgtype = {
-            TYPE_DOCKER: "docker",
-            TYPE_HA_ADDON: "hassio",
-            TYPE_LINT: "docker",
-        }[build_type]
         platform = {
             ARCH_AMD64: "linux/amd64",
             ARCH_AARCH64: "linux/arm64",
         }[arch]
         target = {
-            TYPE_DOCKER: "docker",
-            TYPE_HA_ADDON: "hassio",
+            TYPE_DOCKER: "final",
+            TYPE_HA_ADDON: "final",
             TYPE_LINT: "lint",
         }[build_type]
         return cls(
             build_to=build_to,
             manifest_to=prefix,
-            baseimgtype=baseimgtype,
+            build_type=build_type,
             platform=platform,
             target=target,
         )
@@ -145,7 +140,7 @@ def main():
             "buildx",
             "build",
             "--build-arg",
-            f"BASEIMGTYPE={params.baseimgtype}",
+            f"BUILD_TYPE={params.build_type}",
             "--build-arg",
             f"BUILD_VERSION={args.tag}",
             "--cache-from",

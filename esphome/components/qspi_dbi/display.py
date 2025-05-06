@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.const import CONF_DRAW_ROUNDING
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
@@ -24,7 +25,7 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 
-from . import CONF_DRAW_FROM_ORIGIN, CONF_DRAW_ROUNDING
+from . import CONF_DRAW_FROM_ORIGIN
 from .models import DriverChip
 
 DEPENDENCIES = ["spi"]
@@ -113,7 +114,7 @@ BASE_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
             cs_pin_required=False,
             default_mode="MODE0",
             default_data_rate=10e6,
-            quad=True,
+            mode=spi.TYPE_QUAD,
         )
     )
 )

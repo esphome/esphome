@@ -5,8 +5,7 @@ i2c:
 
 sensor:
   - platform: mlx90393
-    oversampling: 1
-    filter: 0
+    oversampling: 3
     gain: 1X
     temperature_compensation: true
     x_axis:

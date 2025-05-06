@@ -286,10 +286,21 @@ CONF_TRANSPARENCY = "transparency"
 IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
 
 SOURCE_LOCAL = "local"
-SOURCE_MDI = "mdi"
 SOURCE_WEB = "web"
 
+SOURCE_MDI = "mdi"
+SOURCE_MDIL = "mdil"
+SOURCE_MEMORY = "memory"
+
+MDI_SOURCES = {
+    SOURCE_MDI: "https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/",
+    SOURCE_MDIL: "https://raw.githubusercontent.com/Pictogrammers/MaterialDesignLight/refs/heads/master/svg/",
+    SOURCE_MEMORY: "https://raw.githubusercontent.com/Pictogrammers/Memory/refs/heads/main/src/svg/",
+}
+
 Image_ = image_ns.class_("Image")
+
+INSTANCE_TYPE = Image_
 
 
 def compute_local_image_path(value) -> Path:
@@ -311,12 +322,12 @@ def download_file(url, path):
     return str(path)
 
 
-def download_mdi(value):
+def download_gh_svg(value, source):
     mdi_id = value[CONF_ICON] if isinstance(value, dict) else value
-    base_dir = external_files.compute_local_file_dir(DOMAIN) / "mdi"
+    base_dir = external_files.compute_local_file_dir(DOMAIN) / source
     path = base_dir / f"{mdi_id}.svg"
 
-    url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
+    url = MDI_SOURCES[source] + mdi_id + ".svg"
     return download_file(url, path)
 
 
@@ -351,12 +362,12 @@ def validate_cairosvg_installed():
 
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
-    if value.startswith("mdi:"):
-        match = re.search(r"mdi:([a-zA-Z0-9\-]+)", value)
+    parts = value.strip().split(":")
+    if len(parts) == 2 and parts[0] in MDI_SOURCES:
+        match = re.match(r"[a-zA-Z0-9\-]+", parts[1])
         if match is None:
-            raise cv.Invalid("Could not parse mdi icon name.")
-        icon = match.group(1)
-        return download_mdi(icon)
+            raise cv.Invalid(f"Could not parse mdi icon name from '{value}'.")
+        return download_gh_svg(parts[1], parts[0])
 
     if value.startswith("http://") or value.startswith("https://"):
         return download_image(value)
@@ -372,12 +383,20 @@ LOCAL_SCHEMA = cv.All(
     local_path,
 )
 
-MDI_SCHEMA = cv.All(
-    {
-        cv.Required(CONF_ICON): cv.string,
-    },
-    download_mdi,
-)
+
+def mdi_schema(source):
+    def validate_mdi(value):
+        return download_gh_svg(value, source)
+
+    return cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_ICON): cv.string,
+            }
+        ),
+        validate_mdi,
+    )
+
 
 WEB_SCHEMA = cv.All(
     {
@@ -386,12 +405,13 @@ WEB_SCHEMA = cv.All(
     download_image,
 )
 
+
 TYPED_FILE_SCHEMA = cv.typed_schema(
     {
         SOURCE_LOCAL: LOCAL_SCHEMA,
-        SOURCE_MDI: MDI_SCHEMA,
         SOURCE_WEB: WEB_SCHEMA,
-    },
+    }
+    | {source: mdi_schema(source) for source in MDI_SOURCES},
     key=CONF_SOURCE,
 )
 
