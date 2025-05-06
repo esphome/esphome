@@ -1154,9 +1154,18 @@ def start_web_server(
     address: str | None,
     port: int | None,
     config_dir: str,
+    systemd_sock: bool = False,
 ) -> None:
     """Start the web server listener."""
-    if socket is None:
+
+    trash_path = trash_storage_path()
+    if os.path.exists(trash_path):
+        _LOGGER.info("Renaming 'trash' folder to 'archive'")
+        archive_path = archive_storage_path()
+        shutil.move(trash_path, archive_path)
+
+    # Bind to TCP socket unless a socket was provided or systemd socket activation is being used
+    if not (socket or systemd_sock):
         _LOGGER.info(
             "Starting dashboard web server on http://%s:%s and configuration dir %s...",
             address,
@@ -1166,11 +1175,35 @@ def start_web_server(
         app.listen(port, address)
         return
 
-    _LOGGER.info(
-        "Starting dashboard web server on unix socket %s and configuration dir %s...",
-        socket,
-        config_dir,
-    )
-    server = tornado.httpserver.HTTPServer(app)
-    socket = tornado.netutil.bind_unix_socket(socket, mode=0o666)
-    server.add_socket(socket)
+    # If a socket path was provided, bind to that path
+    if socket is None:
+        _LOGGER.info(
+            "Starting dashboard web server on unix socket %s and configuration dir %s...",
+            sock,
+            config_dir,
+        )
+        unix_sock = tornado.netutil.bind_unix_socket(sock, mode=0o666)
+        server = tornado.httpserver.HTTPServer(app)
+        server.add_socket(unix_sock)
+        return
+
+    num_passed_fds = int(os.getenv("LISTEN_FDS", "0"))
+    # If systemd socket activation was requested, ensure that exactly one FD was passed
+    # by systemd.
+    if systemd_sock and num_passed_fds == 1:
+        socket_fd_num = 3
+        _LOGGER.info(
+            "Starting dashboard web server on socket from file descriptor %d and configuration dir %s...",
+            socket_fd_num,
+            config_dir,
+        )
+
+        import socket as socket_module
+        unix_sock = socket_module.socket(fileno=socket_fd_num, type=socket_module.AF_UNIX)
+        server = tornado.httpserver.HTTPServer(app)
+        server.add_socket(unix_sock)
+    else:
+        raise OSError(
+            "Unable to start server due to an unexpected number of sockets being passed in for "
+            "socket activation."
+        )

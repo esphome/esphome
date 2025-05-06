@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import socket
 import threading
 import traceback
 from asyncio import events
@@ -135,11 +134,14 @@ async def async_start(args) -> None:
     """Start the dashboard."""
     dashboard = DASHBOARD
     await dashboard.async_setup()
-    sock: socket.socket | None = args.socket
+    sock: str | None = args.socket
     address: str | None = args.address
     port: int | None = args.port
+    systemd_sock: bool = args.systemd_socket
 
-    start_web_server(make_app(args.verbose), sock, address, port, settings.config_dir)
+    start_web_server(
+        make_app(args.verbose), sock, address, port, settings.config_dir, systemd_sock
+    )
 
     if args.open_ui:
         import webbrowser
