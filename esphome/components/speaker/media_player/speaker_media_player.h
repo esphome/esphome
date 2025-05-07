@@ -73,10 +73,6 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
 
   void play_file(audio::AudioFile *media_file, bool announcement, bool enqueue);
 
-  uint32_t get_playback_ms() const { return this->playback_ms_; }
-  uint32_t get_playback_us() const { return this->playback_us_; }
-  uint32_t get_decoded_playback_ms() const { return this->decoded_playback_ms_; }
-
   void set_playlist_delay_ms(AudioPipelineType pipeline_type, uint32_t delay_ms);
 
  protected:
@@ -141,13 +137,6 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   Trigger<> *mute_trigger_ = new Trigger<>();
   Trigger<> *unmute_trigger_ = new Trigger<>();
   Trigger<float> *volume_trigger_ = new Trigger<float>();
-
-  uint32_t decoded_playback_ms_{0};
-  uint32_t playback_us_{0};
-  uint32_t playback_ms_{0};
-  uint32_t remainder_us_{0};
-  uint32_t pending_ms_{0};
-  uint32_t last_audio_write_timestamp_{0};
 };
 
 }  // namespace speaker

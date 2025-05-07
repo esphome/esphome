@@ -43,13 +43,18 @@ void ResamplerSpeaker::setup() {
     return;
   }
 
-  this->output_speaker_->add_audio_output_callback(
-      [this](uint32_t new_playback_ms, uint32_t remainder_us, uint32_t pending_ms, uint32_t write_timestamp) {
-        int32_t adjustment = this->playback_differential_ms_;
-        this->playback_differential_ms_ -= adjustment;
-        int32_t adjusted_playback_ms = static_cast<int32_t>(new_playback_ms) + adjustment;
-        this->audio_output_callback_(adjusted_playback_ms, remainder_us, pending_ms, write_timestamp);
-      });
+  this->output_speaker_->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
+    if (this->audio_stream_info_.get_sample_rate() != this->target_stream_info_.get_sample_rate()) {
+      // Convert the number of frames from the target sample rate to the source sample rate. Track the remainder to
+      // avoid losing frames from integer division truncation.
+      const uint64_t numerator = new_frames * this->audio_stream_info_.get_sample_rate() + this->callback_remainder_;
+      const uint64_t denominator = this->target_stream_info_.get_sample_rate();
+      this->callback_remainder_ = numerator % denominator;
+      this->audio_output_callback_(numerator / denominator, write_timestamp);
+    } else {
+      this->audio_output_callback_(new_frames, write_timestamp);
+    }
+  });
 }
 
 void ResamplerSpeaker::loop() {
@@ -283,7 +288,6 @@ void ResamplerSpeaker::resample_task(void *params) {
     xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::ERR_ESP_NOT_SUPPORTED);
   }
 
-  this_resampler->playback_differential_ms_ = 0;
   while (err == ESP_OK) {
     uint32_t event_bits = xEventGroupGetBits(this_resampler->event_group_);
 
@@ -294,8 +298,6 @@ void ResamplerSpeaker::resample_task(void *params) {
     // Stop gracefully if the decoder is done
     int32_t ms_differential = 0;
     audio::AudioResamplerState resampler_state = resampler->resample(false, &ms_differential);
-
-    this_resampler->playback_differential_ms_ += ms_differential;
 
     if (resampler_state == audio::AudioResamplerState::FINISHED) {
       break;
