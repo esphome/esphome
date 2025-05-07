@@ -29,7 +29,7 @@ class UARTTransport : public packet_transport::PacketTransport, public UARTDevic
 
  protected:
   void write_byte_(uint8_t byte) const;
-  void send_packet(std::vector<uint8_t> &buf) const override;
+  void send_packet(const std::vector<uint8_t> &buf) const override;
   bool should_send() override { return true; };
   size_t get_max_packet_size() override { return MAX_PACKET_SIZE; }
   std::vector<uint8_t> receive_buffer_{};

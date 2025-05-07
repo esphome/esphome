@@ -16,7 +16,7 @@ class UDPTransport : public packet_transport::PacketTransport, public Parented<U
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
-  void send_packet(std::vector<uint8_t> &buf) const override;
+  void send_packet(const std::vector<uint8_t> &buf) const override;
   bool should_send() override;
   bool should_broadcast_{false};
   size_t get_max_packet_size() override { return MAX_PACKET_SIZE; }

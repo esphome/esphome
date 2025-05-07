@@ -101,12 +101,12 @@ class PacketTransport : public PollingComponent {
 
  protected:
   // child classes must implement this
-  virtual void send_packet(std::vector<uint8_t> &buf) const = 0;
+  virtual void send_packet(const std::vector<uint8_t> &buf) const = 0;
   virtual size_t get_max_packet_size() = 0;
   virtual bool should_send() { return true; }
 
   // to be called by child classes when a data packet is received.
-  void process_(std::vector<uint8_t> &data);
+  void process_(const std::vector<uint8_t> &data);
   void send_data_(bool all);
   void flush_();
   void add_data_(uint8_t key, const char *id, float data);
@@ -146,7 +146,6 @@ class PacketTransport : public PollingComponent {
   const char *platform_name_{""};
   void add_key_(const char *name, uint32_t key);
   void send_ping_pong_request_();
-  void process_ping_request_(const char *name, uint8_t *ptr, size_t len);
 
   inline bool is_encrypted_() { return !this->encryption_key_.empty(); }
 };
