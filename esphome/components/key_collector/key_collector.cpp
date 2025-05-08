@@ -45,6 +45,12 @@ void KeyCollector::set_provider(key_provider::KeyProvider *provider) {
   provider->add_on_key_callback([this](uint8_t key) { this->key_pressed_(key); });
 }
 
+void KeyCollector::set_enabled(bool enabled) {
+  this->enabled_ = enabled;
+  if (!enabled)
+    this->clear(false);
+}
+
 void KeyCollector::clear(bool progress_update) {
   this->result_.clear();
   this->start_key_ = 0;
@@ -55,6 +61,8 @@ void KeyCollector::clear(bool progress_update) {
 void KeyCollector::send_key(uint8_t key) { this->key_pressed_(key); }
 
 void KeyCollector::key_pressed_(uint8_t key) {
+  if (!this->enabled_)
+    return;
   this->last_key_time_ = millis();
   if (!this->start_keys_.empty() && !this->start_key_) {
     if (this->start_keys_.find(key) != std::string::npos) {
