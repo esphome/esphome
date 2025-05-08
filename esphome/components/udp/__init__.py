@@ -11,7 +11,14 @@ from esphome.components.packet_transport import (
     CONF_SENSORS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_DATA,
+    CONF_ENABLE_IPV6,
+    CONF_ID,
+    CONF_NETWORK,
+    CONF_PORT,
+    CONF_TRIGGER_ID,
+)
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import ExpressionStatement, MockObj
 import esphome.final_validate as fv
@@ -96,7 +103,7 @@ def is_relocated(option):
 
     return validator
 def _final_validate(config):
-    enable_ipv6 = fv.full_config.get().get("network").get("enable_ipv6")
+    enable_ipv6 = fv.full_config.get().get(CONF_NETWORK).get(CONF_ENABLE_IPV6)
     if not enable_ipv6:
         for address in config[CONF_ADDRESSES]:
             cv.ipv4address(address)
@@ -108,6 +115,14 @@ def require_internal_with_name(config):
     if CONF_NAME in config and CONF_INTERNAL not in config:
         raise cv.Invalid("Must provide internal: config when using name:")
     return config
+
+def is_relocated(option):
+    def validator(value):
+        raise cv.Invalid(
+            f"The '{option}' option should now be configured in the 'packet_transport' component"
+        )
+
+    return validator
 
 
 RELOCATED = {
