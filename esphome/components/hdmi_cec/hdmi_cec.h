@@ -4,6 +4,7 @@
 #include <queue>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
@@ -37,13 +38,12 @@ class CECTransmit {
  public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
-  void queue_for_send(const Message &&frame) {
-    LockGuard send_lock(send_mutex_);
-    send_queue_.push(std::move(frame));
-  }
+  void queue_for_send(const Message &&frame);
   bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
+  void set_pin_input_high();
+  void set_pin_output_low();
 
   /**
    * Transmit the message on the front of the send_queue out on the CEC line
@@ -65,10 +65,12 @@ class CECTransmit {
   void got_start_of_activity();
 
   /**
-   * Use the uart to immediatly write an 'ack' (Acknowledge) bit,
-   * by pulling the cec bus line low for the longer bit-0 time.
+   * The transmitter immediatly sends an acknowledge bit on behalf of
+   * the receiver, during the receipt of a message.
+   * This is either done by activating the UART, if configured and available,
+   * otherwise by direct GPIO pin manipulation.
    */
-  bool send_ack_with_uart();
+  void send_ack();
 
  protected:
   /**
@@ -155,6 +157,7 @@ class HDMICEC : public Component {
   void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
   void handle_received_message(const Message &frame);
 
+  HighFrequencyLoopRequester fast_loop_;
   InternalGPIOPin *pin_{nullptr};
   uint8_t address_;
   uint16_t physical_address_;

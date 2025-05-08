@@ -1,3 +1,4 @@
+#tested with Lilygo TDisplay S3
 substitutions:
   uart_pin: GPIO10
   cec_pin: GPIO12

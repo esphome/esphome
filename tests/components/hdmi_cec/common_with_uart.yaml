@@ -5,8 +5,8 @@ esphome:
     then:
       - delay: 50ms
       - lambda: !lambda |-
-          bool is_hw_uart = id(cec_uart)->get_hw_serial() != nullptr;
-          ESP_LOGD("UART", "UART is HW_SERIAL=%d", is_hw_uart);
+          // bool is_hw_uart = id(cec_uart)->get_hw_serial() != nullptr;  // not avail on esp8266
+          // ESP_LOGD("UART", "UART is HW_SERIAL=%d", is_hw_uart);
           // send 'Give Physical Address' message to myself: that shall give a reply message
           id(cec).send(0x1, id(cec).address(), {0x83});
           // generated the reply message is a broadcast, created by the component built-in handler
@@ -52,9 +52,7 @@ hdmi_cec:
     number: ${cec_pin}
     mode:
       input: true
-      output: true
       pullup: true
-      open_drain: true
 
   address: 0x5
   physical_address: 0x4000

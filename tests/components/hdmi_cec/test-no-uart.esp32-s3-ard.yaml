@@ -1,3 +1,4 @@
+#tested with Lilygo TDisplay S3
 substitutions:
   cec_pin: GPIO12
 

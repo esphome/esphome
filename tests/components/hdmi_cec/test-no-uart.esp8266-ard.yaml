@@ -1,0 +1,5 @@
+# tested with LOLIN D1 mini which has an esp8266ex
+substitutions:
+  cec_pin: GPIO14
+
+<<: !include common_no_uart.yaml

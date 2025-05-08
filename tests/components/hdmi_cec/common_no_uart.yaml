@@ -22,9 +22,7 @@ hdmi_cec:
     number: ${cec_pin}
     mode:
       input: true
-      output: true
       pullup: true
-      open_drain: true
 
   address: 0x5
   physical_address: 0x4000

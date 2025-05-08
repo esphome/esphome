@@ -171,6 +171,12 @@ void HDMICEC::loop() {
   if (!xmit_.is_idle()) {
     xmit_.transmit_message();
   }
+  // Need more frequent service to handle pending workload?
+  if (recv_.has_received_message() || !xmit_.is_idle()) {
+    fast_loop_.start();
+  } else {
+    fast_loop_.stop();
+  }
 }
 
 void HDMICEC::handle_received_message(const Message &frame) {
@@ -315,11 +321,18 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   return true;
 }
 
+inline void IRAM_ATTR CECTransmit::set_pin_input_high() { pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
+
+inline void IRAM_ATTR CECTransmit::set_pin_output_low() {
+  pin_->pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
+  pin_->digital_write(false);
+}
+
 void CECTransmit::setup(InternalGPIOPin *pin) {
   pin_ = pin;
-  pin_->pin_mode(PIN_MODE_FLAGS);
-  pin_->digital_write(true);  // make the 'open_drain' output high-impedance
+  set_pin_input_high();
   pin_->setup();
+  set_pin_input_high();
 
 #ifdef HAVE_UART
   if (uart_) {
@@ -342,10 +355,10 @@ void CECTransmit::dump_config() {
   ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
-// void CECTransmit::queue_for_send(const Message &&frame) {
-//   LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
-//   send_queue_.push(std::move(frame));
-// }
+void CECTransmit::queue_for_send(const Message &&frame) {
+  LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
+  send_queue_.push(std::move(frame));
+}
 
 void CECTransmit::transmit_message() {
   if (transmit_state_ != TransmitState::IDLE && send_queue_.empty()) {
@@ -488,6 +501,7 @@ void CECTransmit::transmit_message_on_gpio(const Message &frame) {
 }
 
 bool CECTransmit::send_start_bit() {
+  set_pin_input_high();
   bool value = pin_->digital_read();
   if (!value) {
     ESP_LOGD(TAG, "Bus occupied before start-bit on attempt %d", transmit_attempts_);
@@ -495,11 +509,11 @@ bool CECTransmit::send_start_bit() {
   }
   // The CEC line was not yet occupied (pulled low) by someone else
   // 1. pull low for the start-bit duration
-  pin_->digital_write(false);
+  set_pin_output_low();
   delay_microseconds_safe(START_BIT_NOM_US);
 
   // 2. let the line go high again, but test if no one else keeps it low
-  pin_->digital_write(true);
+  set_pin_input_high();
   delay_microseconds_safe(START_BIT_HIGH_US / 2);
   value &= pin_->digital_read();
   delay_microseconds_safe(START_BIT_HIGH_US / 2);
@@ -519,9 +533,9 @@ void IRAM_ATTR CECTransmit::send_bit(bool bit_value) {
   const uint32_t low_duration_us = (bit_value ? HIGH_BIT_US : LOW_BIT_US);
   const uint32_t high_duration_us = (TOTAL_BIT_US - low_duration_us);
 
-  pin_->digital_write(false);
+  set_pin_output_low();
   delay_microseconds_safe(low_duration_us);
-  pin_->digital_write(true);
+  set_pin_input_high();
   delay_microseconds_safe(high_duration_us);
 }
 
@@ -529,9 +543,9 @@ bool IRAM_ATTR CECTransmit::send_high_and_test() {
   uint32_t start_us = micros();
 
   // send a Logical 1
-  pin_->digital_write(false);
+  set_pin_output_low();
   delay_microseconds_safe(HIGH_BIT_US);
-  pin_->digital_write(true);
+  set_pin_input_high();
 
   // ...then wait up to the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
   static constexpr uint32_t SAFE_SAMPLE_US = 1050;
@@ -581,20 +595,25 @@ void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t 
   }
 }
 
-bool IRAM_ATTR CECTransmit::send_ack_with_uart() {
-// transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
-// So, the uart byte to send has its 2 least-significant bits 0.
-#ifdef HAVE_UART
-  if (transmit_state_ == TransmitState::IDLE) {
-    const uint8_t ack_byte = 0xfc;
-    uart_->write_byte(ack_byte);
-    return true;
-  }
-#endif
+void IRAM_ATTR CECTransmit::send_ack() {
   // This method is called by the receiver. When receiving a message, this transmitter
   // is expected to be idle. The only exception to that would be the rather abnormal case
   // where we transmit a message to ourselves (address_ == target_address).
-  return false;
+#ifdef HAVE_UART
+  if (transmit_state_ == TransmitState::IDLE) {
+    // transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
+    // So, the uart byte to send has its 2 least-significant bits 0.
+    const uint8_t ack_byte = 0xfc;
+    uart_->write_byte(ack_byte);
+    return;
+  }
+#endif
+  // send an ack bit by direct gpio pin manipulation
+  // This has the serious disadvantage that the receiver isr is kept
+  // busy for a serious amount of time. (Thus blocking other system interrupts.)
+  set_pin_output_low();
+  delay_microseconds_safe(LOW_BIT_US);
+  set_pin_input_high();
 }
 
 void IRAM_ATTR CECTransmit::got_start_of_activity() {
@@ -657,15 +676,9 @@ void IRAM_ATTR CECReceive::gpio_isr() {
 
     if (recv_ack_queued_ && !monitor_mode_) {
       // create Acknowledge bit on the CEC bus by stretching the 'low' period
+      // Use the Transmitter to immediatly send this ack bit
+      xmit_.send_ack();
       recv_ack_queued_ = false;
-      if (!(xmit_.has_uart() && xmit_.send_ack_with_uart())) {
-        // put the ack bit here on the gpio pin.
-        // Unfortunately, this keeps this isr function busy for a rather long time
-        // Alternatively, it would have been nice to use a hw timer, but that is not in the esphpome hal
-        isr_pin_.digital_write(false);
-        delay_microseconds_safe(LOW_BIT_US);
-        isr_pin_.digital_write(true);
-      }
     }
     return;
   }
