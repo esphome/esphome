@@ -212,8 +212,7 @@ void APIConnection::loop() {
     msg_size += 1 + ProtoSize::varint(to_send) + to_send;
     ProtoSize::add_bool_field(msg_size, 1, done);
 
-    auto buffer = this->create_buffer();
-    buffer.get_buffer()->reserve(msg_size);
+    auto buffer = this->create_buffer(msg_size);
     // fixed32 key = 1;
     buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
     // bytes data = 2;
@@ -1807,8 +1806,7 @@ bool APIConnection::try_send_log_message(int level, const char *tag, const char 
   msg_size += 1 + api::ProtoSize::varint(static_cast<uint32_t>(line_length)) + line_length;
 
   // Create a pre-sized buffer
-  auto buffer = this->create_buffer();
-  buffer.get_buffer()->reserve(msg_size);
+  auto buffer = this->create_buffer(msg_size);
 
   // Encode the message (SubscribeLogsResponse)
   buffer.encode_uint32(1, static_cast<uint32_t>(level));  // LogLevel level = 1

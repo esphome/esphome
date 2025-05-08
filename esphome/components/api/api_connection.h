@@ -312,9 +312,10 @@ class APIConnection : public APIServerConnection {
   void on_fatal_error() override;
   void on_unauthenticated_access() override;
   void on_no_setup_connection() override;
-  ProtoWriteBuffer create_buffer() override {
+  ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
     // FIXME: ensure no recursive writes can happen
     this->proto_write_buffer_.clear();
+    this->proto_write_buffer_.reserve(reserve_size);
     return {&this->proto_write_buffer_};
   }
   bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override;

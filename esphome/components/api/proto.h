@@ -311,7 +311,14 @@ class ProtoService {
   virtual void on_fatal_error() = 0;
   virtual void on_unauthenticated_access() = 0;
   virtual void on_no_setup_connection() = 0;
-  virtual ProtoWriteBuffer create_buffer() = 0;
+  /**
+   * Create a buffer with a reserved size.
+   * @param reserve_size The number of bytes to pre-allocate in the buffer. This is a hint
+   *                     to optimize memory usage and avoid reallocations during encoding.
+   *                     Implementations should aim to allocate at least this size.
+   * @return A ProtoWriteBuffer object with the reserved size.
+   */
+  virtual ProtoWriteBuffer create_buffer(uint32_t reserve_size) = 0;
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) = 0;
   virtual bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) = 0;
 
@@ -321,8 +328,7 @@ class ProtoService {
     msg.calculate_size(msg_size);
 
     // Create a pre-sized buffer
-    auto buffer = this->create_buffer();
-    buffer.get_buffer()->reserve(msg_size);
+    auto buffer = this->create_buffer(msg_size);
 
     // Encode message into the buffer
     msg.encode(buffer);
