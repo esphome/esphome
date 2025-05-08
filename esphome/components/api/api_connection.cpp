@@ -1794,12 +1794,26 @@ bool APIConnection::try_send_log_message(int level, const char *tag, const char 
   if (this->log_subscription_ < level)
     return false;
 
-  // Send raw so that we don't copy too much
+  // Pre-calculate message size to avoid reallocations
+  const size_t line_length = strlen(line);
+  uint32_t msg_size = 0;
+
+  // Add size for level field (field ID 1, varint type)
+  // 1 byte for field tag + size of the level varint
+  msg_size += 1 + api::ProtoSize::varint(static_cast<uint32_t>(level));
+
+  // Add size for string field (field ID 3, string type)
+  // 1 byte for field tag + size of length varint + string length
+  msg_size += 1 + api::ProtoSize::varint(static_cast<uint32_t>(line_length)) + line_length;
+
+  // Create a pre-sized buffer
   auto buffer = this->create_buffer();
-  // LogLevel level = 1;
-  buffer.encode_uint32(1, static_cast<uint32_t>(level));
-  // string message = 3;
-  buffer.encode_string(3, line, strlen(line));
+  buffer.get_buffer()->reserve(msg_size);
+
+  // Encode the message (SubscribeLogsResponse)
+  buffer.encode_uint32(1, static_cast<uint32_t>(level));  // LogLevel level = 1
+  buffer.encode_string(3, line, line_length);             // string message = 3
+
   // SubscribeLogsResponse - 29
   return this->send_buffer(buffer, 29);
 }
