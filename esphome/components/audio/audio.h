@@ -135,7 +135,7 @@ const char *audio_file_type_to_string(AudioFileType file_type);
 void scale_audio_samples(const int16_t *audio_samples, int16_t *output_buffer, int16_t scale_factor,
                          size_t samples_to_scale);
 
-/// @brief Unpacks a quantized audio sample into a Q31 fixed point number.
+/// @brief Unpacks a quantized audio sample into a Q31 fixed-point number.
 /// @param data Pointer to uint8_t array containing the audio sample
 /// @param bytes_per_sample The number of bytes per sample
 /// @return Q31 sample
@@ -158,6 +158,29 @@ inline int32_t unpack_audio_sample_to_q31(const uint8_t *data, size_t bytes_per_
   }
 
   return sample;
+}
+
+/// @brief Packs a Q31 fixed-point number as an audio sample with the specified number of bytes per sample.
+/// Packs the most significant bits - no dithering is applied.
+/// @param sample Q31 fixed-point number to pack
+/// @param data Pointer to data array to store
+/// @param bytes_per_sample The audio data's bytes per sample
+inline void pack_q31_as_audio_sample(int32_t sample, uint8_t *data, size_t bytes_per_sample) {
+  if (bytes_per_sample == 1) {
+    data[0] = static_cast<uint8_t>(sample >> 24);
+  } else if (bytes_per_sample == 2) {
+    data[0] = static_cast<uint8_t>(sample >> 16);
+    data[1] = static_cast<uint8_t>(sample >> 24);
+  } else if (bytes_per_sample == 3) {
+    data[0] = static_cast<uint8_t>(sample >> 8);
+    data[1] = static_cast<uint8_t>(sample >> 16);
+    data[2] = static_cast<uint8_t>(sample >> 24);
+  } else if (bytes_per_sample == 4) {
+    data[0] = static_cast<uint8_t>(sample);
+    data[1] = static_cast<uint8_t>(sample >> 8);
+    data[2] = static_cast<uint8_t>(sample >> 16);
+    data[3] = static_cast<uint8_t>(sample >> 24);
+  }
 }
 
 }  // namespace audio

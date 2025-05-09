@@ -35,8 +35,8 @@ class MicrophoneSource {
    * Note that this class cannot convert sample rates!
    */
  public:
-  MicrophoneSource(Microphone *mic, uint8_t bits_per_sample, int32_t gain_factor)
-      : mic_(mic), bits_per_sample_(bits_per_sample), gain_factor_(gain_factor) {}
+  MicrophoneSource(Microphone *mic, uint8_t bits_per_sample, int32_t gain_factor, bool passive)
+      : mic_(mic), bits_per_sample_(bits_per_sample), gain_factor_(gain_factor), passive_(passive) {}
 
   /// @brief Enables a channel to be processed through the callback.
   ///
@@ -59,8 +59,8 @@ class MicrophoneSource {
 
   void start();
   void stop();
-  bool is_running() const { return (this->mic_->is_running() && this->enabled_); }
-  bool is_stopped() const { return !this->enabled_; }
+  bool is_running() const { return (this->mic_->is_running() && (this->enabled_ || this->passive_)); }
+  bool is_stopped() const { return !this->is_running(); };
 
  protected:
   void process_audio_(const std::vector<uint8_t> &data, std::vector<uint8_t> &filtered_data);
@@ -72,6 +72,7 @@ class MicrophoneSource {
   std::bitset<8> channels_;
   int32_t gain_factor_;
   bool enabled_{false};
+  bool passive_{false};
 };
 
 }  // namespace microphone
