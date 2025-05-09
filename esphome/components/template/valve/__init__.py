@@ -35,23 +35,30 @@ RESTORE_MODES = {
 CONF_HAS_POSITION = "has_position"
 CONF_TOGGLE_ACTION = "toggle_action"
 
-CONFIG_SCHEMA = valve.VALVE_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TemplateValve),
-        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
-        cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
-        cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
-        cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
-            RESTORE_MODES, upper=True
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    valve.valve_schema(TemplateValve)
+    .extend(
+        {
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
+            cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
+            cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
+                RESTORE_MODES, upper=True
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
