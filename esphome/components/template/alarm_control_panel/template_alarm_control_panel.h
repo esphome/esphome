@@ -148,7 +148,6 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   bool supports_arm_home_ = false;
   bool supports_arm_night_ = false;
   bool sensors_ready_ = false;
-  bool sensors_ready_last_ = false;
   uint8_t next_store_index_ = 0;
   // check if the code is valid
   bool is_code_valid_(optional<std::string> code);

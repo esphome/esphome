@@ -176,13 +176,13 @@ void TemplateAlarmControlPanel::loop() {
       }
     }
   }
-  // Update all sensors not ready flag
-  this->sensors_ready_ = ((!instant_sensor_not_ready) && (!delayed_sensor_not_ready));
+  // Update all sensors ready flag
+  bool sensors_ready = !(instant_sensor_not_ready || delayed_sensor_not_ready);
 
   // Call the ready state change callback if there was a change
-  if (this->sensors_ready_ != this->sensors_ready_last_) {
+  if (this->sensors_ready_ != sensors_ready) {
+    this->sensors_ready_ = sensors_ready;
     this->ready_callback_.call();
-    this->sensors_ready_last_ = this->sensors_ready_;
   }
 
 #endif
