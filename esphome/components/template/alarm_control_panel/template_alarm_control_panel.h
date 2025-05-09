@@ -39,14 +39,11 @@ enum TemplateAlarmControlPanelRestoreMode {
   ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
 };
 
-struct SensorDataStore {
-  bool last_chime_state;
-};
-
 struct SensorInfo {
   uint16_t flags;
   AlarmSensorType type;
-  uint8_t store_index;
+  bool chime_active;
+  bool auto_bypassed;
 };
 
 class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel, public Component {
@@ -60,7 +57,6 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
   bool get_all_sensors_ready() { return this->sensors_ready_; };
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-  void bypass_before_arming();
 
 #ifdef USE_BINARY_SENSOR
   /** Add a binary_sensor to the alarm_panel.
@@ -123,9 +119,7 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   void control(const alarm_control_panel::AlarmControlPanelCall &call) override;
 #ifdef USE_BINARY_SENSOR
   // This maps a binary sensor to its alarm specific info
-  std::map<binary_sensor::BinarySensor *, SensorInfo> sensor_map_;
-  // a list of automatically bypassed sensors
-  std::vector<uint8_t> bypassed_sensor_indicies_;
+  std::map<binary_sensor::BinarySensor *, SensorInfo> sensors_;
 #endif
   TemplateAlarmControlPanelRestoreMode restore_mode_{};
 
@@ -142,17 +136,17 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   // a list of codes
   std::vector<std::string> codes_;
   // Per sensor data store
-  std::vector<SensorDataStore> sensor_data_;
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   bool supports_arm_home_ = false;
   bool supports_arm_night_ = false;
   bool sensors_ready_ = false;
-  uint8_t next_store_index_ = 0;
   // check if the code is valid
   bool is_code_valid_(optional<std::string> code);
 
   void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
+  void auto_bypass_sensors_();
+  void clear_auto_bypassed_sensors_();
 };
 
 }  // namespace template_
