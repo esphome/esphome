@@ -31,6 +31,18 @@ LockCondition = lock_ns.class_("LockCondition", Condition)
 LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template())
 LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
 
+LockState = lock_ns.enum("LockState")
+
+LOCK_STATES = {
+    "LOCKED": LockState.LOCK_STATE_LOCKED,
+    "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
+    "JAMMED": LockState.LOCK_STATE_JAMMED,
+    "LOCKING": LockState.LOCK_STATE_LOCKING,
+    "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
+}
+
+validate_lock_state = cv.enum(LOCK_STATES, upper=True)
+
 LOCK_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -79,7 +91,7 @@ async def register_lock(var, config):
 
 LOCK_ACTION_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(Lock),
+        cv.GenerateID(CONF_ID): cv.use_id(Lock),
     }
 )
 

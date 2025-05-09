@@ -17,17 +17,11 @@ from .. import template_ns
 
 TemplateLock = template_ns.class_("TemplateLock", lock.Lock, cg.Component)
 
-LockState = lock.lock_ns.enum("LockState")
-
-LOCK_STATES = {
-    "LOCKED": LockState.LOCK_STATE_LOCKED,
-    "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
-    "JAMMED": LockState.LOCK_STATE_JAMMED,
-    "LOCKING": LockState.LOCK_STATE_LOCKING,
-    "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
-}
-
-validate_lock_state = cv.enum(LOCK_STATES, upper=True)
+TemplateLockPublishAction = template_ns.class_(
+    "TemplateLockPublishAction",
+    automation.Action,
+    cg.Parented.template(TemplateLock),
+)
 
 
 def validate(config):
@@ -66,7 +60,7 @@ async def to_code(config):
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [], return_type=cg.optional.template(LockState)
+            config[CONF_LAMBDA], [], return_type=cg.optional.template(lock.LockState)
         )
         cg.add(var.set_state_lambda(template_))
     if CONF_UNLOCK_ACTION in config:
@@ -88,17 +82,18 @@ async def to_code(config):
 
 @automation.register_action(
     "lock.template.publish",
-    lock.LockPublishAction,
-    cv.Schema(
+    TemplateLockPublishAction,
+    cv.maybe_simple_value(
         {
-            cv.Required(CONF_ID): cv.use_id(lock.Lock),
-            cv.Required(CONF_STATE): cv.templatable(validate_lock_state),
-        }
+            cv.GenerateID(): cv.use_id(TemplateLock),
+            cv.Required(CONF_STATE): cv.templatable(lock.validate_lock_state),
+        },
+        key=CONF_STATE,
     ),
 )
 async def lock_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, LockState)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_STATE], args, lock.LockState)
     cg.add(var.set_state(template_))
     return var
