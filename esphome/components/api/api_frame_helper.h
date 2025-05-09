@@ -72,6 +72,12 @@ class APIFrameHelper {
   virtual APIError shutdown(int how) = 0;
   // Give this helper a name for logging
   virtual void set_log_info(std::string info) = 0;
+
+ protected:
+  // Common implementation for writing raw data to socket
+  template<typename StateEnum>
+  APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
+                      const std::string &info, StateEnum &state, StateEnum failed_state);
 };
 
 #ifdef USE_API_NOISE
@@ -103,7 +109,9 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
   APIError write_frame_(const uint8_t *data, size_t len);
-  APIError write_raw_(const struct iovec *iov, int iovcnt);
+  inline APIError write_raw_(const struct iovec *iov, int iovcnt) {
+    return APIFrameHelper::write_raw_(iov, iovcnt, socket_.get(), tx_buf_, info_, state_, State::FAILED);
+  }
   APIError init_handshake_();
   APIError check_handshake_finished_();
   void send_explicit_handshake_reject_(const std::string &reason);
@@ -164,7 +172,9 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
 
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
-  APIError write_raw_(const struct iovec *iov, int iovcnt);
+  inline APIError write_raw_(const struct iovec *iov, int iovcnt) {
+    return APIFrameHelper::write_raw_(iov, iovcnt, socket_.get(), tx_buf_, info_, state_, State::FAILED);
+  }
 
   std::unique_ptr<socket::Socket> socket_;
 
