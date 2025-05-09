@@ -37,16 +37,13 @@ AUDIO_COMPONENT_SCHEMA = cv.Schema(
 )
 
 
-_UNDEF = object()
-
-
 def set_stream_limits(
-    min_bits_per_sample: int = _UNDEF,
-    max_bits_per_sample: int = _UNDEF,
-    min_channels: int = _UNDEF,
-    max_channels: int = _UNDEF,
-    min_sample_rate: int = _UNDEF,
-    max_sample_rate: int = _UNDEF,
+    min_bits_per_sample: int = cv.UNDEFINED,
+    max_bits_per_sample: int = cv.UNDEFINED,
+    min_channels: int = cv.UNDEFINED,
+    max_channels: int = cv.UNDEFINED,
+    min_sample_rate: int = cv.UNDEFINED,
+    max_sample_rate: int = cv.UNDEFINED,
 ):
     """Sets the limits for the audio stream that audio component can handle
 
@@ -55,17 +52,17 @@ def set_stream_limits(
     """
 
     def set_limits_in_config(config):
-        if min_bits_per_sample is not _UNDEF:
+        if min_bits_per_sample is not cv.UNDEFINED:
             config[CONF_MIN_BITS_PER_SAMPLE] = min_bits_per_sample
-        if max_bits_per_sample is not _UNDEF:
+        if max_bits_per_sample is not cv.UNDEFINED:
             config[CONF_MAX_BITS_PER_SAMPLE] = max_bits_per_sample
-        if min_channels is not _UNDEF:
+        if min_channels is not cv.UNDEFINED:
             config[CONF_MIN_CHANNELS] = min_channels
-        if max_channels is not _UNDEF:
+        if max_channels is not cv.UNDEFINED:
             config[CONF_MAX_CHANNELS] = max_channels
-        if min_sample_rate is not _UNDEF:
+        if min_sample_rate is not cv.UNDEFINED:
             config[CONF_MIN_SAMPLE_RATE] = min_sample_rate
-        if max_sample_rate is not _UNDEF:
+        if max_sample_rate is not cv.UNDEFINED:
             config[CONF_MAX_SAMPLE_RATE] = max_sample_rate
 
     return set_limits_in_config
@@ -75,10 +72,10 @@ def final_validate_audio_schema(
     name: str,
     *,
     audio_device: str,
-    bits_per_sample: int = _UNDEF,
-    channels: int = _UNDEF,
-    sample_rate: int = _UNDEF,
-    enabled_channels: list[int] = _UNDEF,
+    bits_per_sample: int = cv.UNDEFINED,
+    channels: int = cv.UNDEFINED,
+    sample_rate: int = cv.UNDEFINED,
+    enabled_channels: list[int] = cv.UNDEFINED,
     audio_device_issue: bool = False,
 ):
     """Validates audio compatibility when passed between different components.
@@ -101,7 +98,7 @@ def final_validate_audio_schema(
     def validate_audio_compatiblity(audio_config):
         audio_schema = {}
 
-        if bits_per_sample is not _UNDEF:
+        if bits_per_sample is not cv.UNDEFINED:
             try:
                 cv.int_range(
                     min=audio_config.get(CONF_MIN_BITS_PER_SAMPLE),
@@ -114,7 +111,7 @@ def final_validate_audio_schema(
                     error_string = f"Invalid configuration for the {name} component. The {CONF_BITS_PER_SAMPLE} {str(exc)}"
                 raise cv.Invalid(error_string) from exc
 
-        if channels is not _UNDEF:
+        if channels is not cv.UNDEFINED:
             try:
                 cv.int_range(
                     min=audio_config.get(CONF_MIN_CHANNELS),
@@ -127,7 +124,7 @@ def final_validate_audio_schema(
                     error_string = f"Invalid configuration for the {name} component. The {CONF_NUM_CHANNELS} {str(exc)}"
                 raise cv.Invalid(error_string) from exc
 
-        if sample_rate is not _UNDEF:
+        if sample_rate is not cv.UNDEFINED:
             try:
                 cv.int_range(
                     min=audio_config.get(CONF_MIN_SAMPLE_RATE),
@@ -140,7 +137,7 @@ def final_validate_audio_schema(
                     error_string = f"Invalid configuration for the {name} component. The {CONF_SAMPLE_RATE} {str(exc)}"
                 raise cv.Invalid(error_string) from exc
 
-        if enabled_channels is not _UNDEF:
+        if enabled_channels is not cv.UNDEFINED:
             for channel in enabled_channels:
                 try:
                     # Channels are 0-indexed

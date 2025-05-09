@@ -196,16 +196,14 @@ NUMBER_SCHEMA = (
     )
 )
 
-_UNDEF = object()
-
 
 def number_schema(
     class_: MockObjClass,
     *,
-    icon: str = _UNDEF,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
-    unit_of_measurement: str = _UNDEF,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    unit_of_measurement: str = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {cv.GenerateID(): cv.declare_id(class_)}
 
@@ -215,7 +213,7 @@ def number_schema(
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
     return NUMBER_SCHEMA.extend(schema)

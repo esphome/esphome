@@ -123,11 +123,8 @@ def microphone_source_schema(
     )
 
 
-_UNDEF = object()
-
-
 def final_validate_microphone_source_schema(
-    component_name: str, sample_rate: int = _UNDEF
+    component_name: str, sample_rate: int = cv.UNDEFINED
 ):
     """Validates that the microphone source can provide audio in the correct format. In particular it validates the sample rate and the enabled channels.
 
@@ -141,7 +138,7 @@ def final_validate_microphone_source_schema(
     """
 
     def _validate_audio_compatability(config):
-        if sample_rate is not _UNDEF:
+        if sample_rate is not cv.UNDEFINED:
             # Issues require changing the microphone configuration
             #  - Verifies sample rates match
             audio.final_validate_audio_schema(

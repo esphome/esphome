@@ -87,15 +87,13 @@ _SWITCH_SCHEMA = (
     )
 )
 
-_UNDEF = object()
-
 
 def switch_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass = cv.UNDEFINED,
     *,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
-    icon: str = _UNDEF,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
     block_inverted: bool = False,
     default_restore_mode: str = "ALWAYS_OFF",
 ):
@@ -106,9 +104,9 @@ def switch_schema(
             ),
         }
     )
-    if class_ is not _UNDEF:
+    if class_ is not cv.UNDEFINED:
         schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
-    if entity_category is not _UNDEF:
+    if entity_category is not cv.UNDEFINED:
         schema = schema.extend(
             {
                 cv.Optional(
@@ -116,7 +114,7 @@ def switch_schema(
                 ): cv.entity_category
             }
         )
-    if device_class is not _UNDEF:
+    if device_class is not cv.UNDEFINED:
         schema = schema.extend(
             {
                 cv.Optional(
@@ -124,7 +122,7 @@ def switch_schema(
                 ): validate_device_class
             }
         )
-    if icon is not _UNDEF:
+    if icon is not cv.UNDEFINED:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if block_inverted:
         schema = schema.extend(
