@@ -299,6 +299,9 @@ class ESP32BLETracker : public Component,
   int discovered_{0};
   int searching_{0};
   int disconnecting_{0};
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+  bool coex_prefer_ble_{false};
+#endif
 };
 
 // NOLINTNEXTLINE
