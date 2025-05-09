@@ -136,6 +136,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_SELECT
   virtual void on_select_command_request(const SelectCommandRequest &value){};
 #endif
+#ifdef USE_SIREN
+  bool send_list_entities_siren_response(const ListEntitiesSirenResponse &msg);
+#endif
+#ifdef USE_SIREN
+  bool send_siren_state_response(const SirenStateResponse &msg);
+#endif
+#ifdef USE_SIREN
+  virtual void on_siren_command_request(const SirenCommandRequest &value){};
+#endif
 #ifdef USE_LOCK
   bool send_list_entities_lock_response(const ListEntitiesLockResponse &msg);
 #endif
@@ -364,17 +373,8 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_API_NOISE
   virtual NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) = 0;
 #endif
-#ifdef USE_COVER
-  virtual void cover_command(const CoverCommandRequest &msg) = 0;
-#endif
-#ifdef USE_FAN
-  virtual void fan_command(const FanCommandRequest &msg) = 0;
-#endif
-#ifdef USE_LIGHT
-  virtual void light_command(const LightCommandRequest &msg) = 0;
-#endif
-#ifdef USE_SWITCH
-  virtual void switch_command(const SwitchCommandRequest &msg) = 0;
+#ifdef USE_BUTTON
+  virtual void button_command(const ButtonCommandRequest &msg) = 0;
 #endif
 #ifdef USE_ESP32_CAMERA
   virtual void camera_image(const CameraImageRequest &msg) = 0;
@@ -382,38 +382,50 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_CLIMATE
   virtual void climate_command(const ClimateCommandRequest &msg) = 0;
 #endif
-#ifdef USE_NUMBER
-  virtual void number_command(const NumberCommandRequest &msg) = 0;
-#endif
-#ifdef USE_TEXT
-  virtual void text_command(const TextCommandRequest &msg) = 0;
-#endif
-#ifdef USE_SELECT
-  virtual void select_command(const SelectCommandRequest &msg) = 0;
-#endif
-#ifdef USE_BUTTON
-  virtual void button_command(const ButtonCommandRequest &msg) = 0;
-#endif
-#ifdef USE_LOCK
-  virtual void lock_command(const LockCommandRequest &msg) = 0;
-#endif
-#ifdef USE_VALVE
-  virtual void valve_command(const ValveCommandRequest &msg) = 0;
-#endif
-#ifdef USE_MEDIA_PLAYER
-  virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
+#ifdef USE_COVER
+  virtual void cover_command(const CoverCommandRequest &msg) = 0;
 #endif
 #ifdef USE_DATETIME_DATE
   virtual void date_command(const DateCommandRequest &msg) = 0;
 #endif
-#ifdef USE_DATETIME_TIME
-  virtual void time_command(const TimeCommandRequest &msg) = 0;
-#endif
 #ifdef USE_DATETIME_DATETIME
   virtual void datetime_command(const DateTimeCommandRequest &msg) = 0;
 #endif
+#ifdef USE_FAN
+  virtual void fan_command(const FanCommandRequest &msg) = 0;
+#endif
+#ifdef USE_LIGHT
+  virtual void light_command(const LightCommandRequest &msg) = 0;
+#endif
+#ifdef USE_LOCK
+  virtual void lock_command(const LockCommandRequest &msg) = 0;
+#endif
+#ifdef USE_MEDIA_PLAYER
+  virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
+#endif
+#ifdef USE_NUMBER
+  virtual void number_command(const NumberCommandRequest &msg) = 0;
+#endif
+#ifdef USE_SELECT
+  virtual void select_command(const SelectCommandRequest &msg) = 0;
+#endif
+#ifdef USE_SIREN
+  virtual void siren_command(const SirenCommandRequest &msg) = 0;
+#endif
+#ifdef USE_SWITCH
+  virtual void switch_command(const SwitchCommandRequest &msg) = 0;
+#endif
+#ifdef USE_TEXT
+  virtual void text_command(const TextCommandRequest &msg) = 0;
+#endif
+#ifdef USE_DATETIME_TIME
+  virtual void time_command(const TimeCommandRequest &msg) = 0;
+#endif
 #ifdef USE_UPDATE
   virtual void update_command(const UpdateCommandRequest &msg) = 0;
+#endif
+#ifdef USE_VALVE
+  virtual void valve_command(const ValveCommandRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
@@ -478,17 +490,8 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_API_NOISE
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) override;
 #endif
-#ifdef USE_COVER
-  void on_cover_command_request(const CoverCommandRequest &msg) override;
-#endif
-#ifdef USE_FAN
-  void on_fan_command_request(const FanCommandRequest &msg) override;
-#endif
-#ifdef USE_LIGHT
-  void on_light_command_request(const LightCommandRequest &msg) override;
-#endif
-#ifdef USE_SWITCH
-  void on_switch_command_request(const SwitchCommandRequest &msg) override;
+#ifdef USE_BUTTON
+  void on_button_command_request(const ButtonCommandRequest &msg) override;
 #endif
 #ifdef USE_ESP32_CAMERA
   void on_camera_image_request(const CameraImageRequest &msg) override;
@@ -496,38 +499,50 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_CLIMATE
   void on_climate_command_request(const ClimateCommandRequest &msg) override;
 #endif
-#ifdef USE_NUMBER
-  void on_number_command_request(const NumberCommandRequest &msg) override;
-#endif
-#ifdef USE_TEXT
-  void on_text_command_request(const TextCommandRequest &msg) override;
-#endif
-#ifdef USE_SELECT
-  void on_select_command_request(const SelectCommandRequest &msg) override;
-#endif
-#ifdef USE_BUTTON
-  void on_button_command_request(const ButtonCommandRequest &msg) override;
-#endif
-#ifdef USE_LOCK
-  void on_lock_command_request(const LockCommandRequest &msg) override;
-#endif
-#ifdef USE_VALVE
-  void on_valve_command_request(const ValveCommandRequest &msg) override;
-#endif
-#ifdef USE_MEDIA_PLAYER
-  void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
+#ifdef USE_COVER
+  void on_cover_command_request(const CoverCommandRequest &msg) override;
 #endif
 #ifdef USE_DATETIME_DATE
   void on_date_command_request(const DateCommandRequest &msg) override;
 #endif
-#ifdef USE_DATETIME_TIME
-  void on_time_command_request(const TimeCommandRequest &msg) override;
-#endif
 #ifdef USE_DATETIME_DATETIME
   void on_date_time_command_request(const DateTimeCommandRequest &msg) override;
 #endif
+#ifdef USE_FAN
+  void on_fan_command_request(const FanCommandRequest &msg) override;
+#endif
+#ifdef USE_LIGHT
+  void on_light_command_request(const LightCommandRequest &msg) override;
+#endif
+#ifdef USE_LOCK
+  void on_lock_command_request(const LockCommandRequest &msg) override;
+#endif
+#ifdef USE_MEDIA_PLAYER
+  void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
+#endif
+#ifdef USE_NUMBER
+  void on_number_command_request(const NumberCommandRequest &msg) override;
+#endif
+#ifdef USE_SELECT
+  void on_select_command_request(const SelectCommandRequest &msg) override;
+#endif
+#ifdef USE_SIREN
+  void on_siren_command_request(const SirenCommandRequest &msg) override;
+#endif
+#ifdef USE_SWITCH
+  void on_switch_command_request(const SwitchCommandRequest &msg) override;
+#endif
+#ifdef USE_TEXT
+  void on_text_command_request(const TextCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  void on_time_command_request(const TimeCommandRequest &msg) override;
+#endif
 #ifdef USE_UPDATE
   void on_update_command_request(const UpdateCommandRequest &msg) override;
+#endif
+#ifdef USE_VALVE
+  void on_valve_command_request(const ValveCommandRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;

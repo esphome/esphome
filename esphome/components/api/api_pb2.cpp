@@ -5377,6 +5377,307 @@ void SelectCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool ListEntitiesSirenResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 8: {
+      this->supports_duration = value.as_bool();
+      return true;
+    }
+    case 9: {
+      this->supports_volume = value.as_bool();
+      return true;
+    }
+    case 10: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesSirenResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    case 7: {
+      this->tones.push_back(value.as_string());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesSirenResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesSirenResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  for (auto &it : this->tones) {
+    buffer.encode_string(7, it, true);
+  }
+  buffer.encode_bool(8, this->supports_duration);
+  buffer.encode_bool(9, this->supports_volume);
+  buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
+}
+void ListEntitiesSirenResponse::calculate_size(uint32_t &total_size) const {
+  ProtoSize::add_string_field(total_size, 1, this->object_id, false);
+  ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
+  ProtoSize::add_string_field(total_size, 1, this->name, false);
+  ProtoSize::add_string_field(total_size, 1, this->unique_id, false);
+  ProtoSize::add_string_field(total_size, 1, this->icon, false);
+  ProtoSize::add_bool_field(total_size, 1, this->disabled_by_default, false);
+  if (!this->tones.empty()) {
+    for (const auto &it : this->tones) {
+      ProtoSize::add_string_field(total_size, 1, it, true);
+    }
+  }
+  ProtoSize::add_bool_field(total_size, 1, this->supports_duration, false);
+  ProtoSize::add_bool_field(total_size, 1, this->supports_volume, false);
+  ProtoSize::add_enum_field(total_size, 1, static_cast<uint32_t>(this->entity_category), false);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesSirenResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesSirenResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  for (const auto &it : this->tones) {
+    out.append("  tones: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  out.append("  supports_duration: ");
+  out.append(YESNO(this->supports_duration));
+  out.append("\n");
+
+  out.append("  supports_volume: ");
+  out.append(YESNO(this->supports_volume));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool SirenStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool SirenStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void SirenStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->state);
+}
+void SirenStateResponse::calculate_size(uint32_t &total_size) const {
+  ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
+  ProtoSize::add_bool_field(total_size, 1, this->state, false);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SirenStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("SirenStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append(YESNO(this->state));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool SirenCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->has_state = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->state = value.as_bool();
+      return true;
+    }
+    case 4: {
+      this->has_tone = value.as_bool();
+      return true;
+    }
+    case 6: {
+      this->has_duration = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->duration = value.as_uint32();
+      return true;
+    }
+    case 8: {
+      this->has_volume = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool SirenCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 5: {
+      this->tone = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool SirenCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 9: {
+      this->volume = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void SirenCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->has_state);
+  buffer.encode_bool(3, this->state);
+  buffer.encode_bool(4, this->has_tone);
+  buffer.encode_string(5, this->tone);
+  buffer.encode_bool(6, this->has_duration);
+  buffer.encode_uint32(7, this->duration);
+  buffer.encode_bool(8, this->has_volume);
+  buffer.encode_float(9, this->volume);
+}
+void SirenCommandRequest::calculate_size(uint32_t &total_size) const {
+  ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
+  ProtoSize::add_bool_field(total_size, 1, this->has_state, false);
+  ProtoSize::add_bool_field(total_size, 1, this->state, false);
+  ProtoSize::add_bool_field(total_size, 1, this->has_tone, false);
+  ProtoSize::add_string_field(total_size, 1, this->tone, false);
+  ProtoSize::add_bool_field(total_size, 1, this->has_duration, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->duration, false);
+  ProtoSize::add_bool_field(total_size, 1, this->has_volume, false);
+  ProtoSize::add_fixed_field<4>(total_size, 1, this->volume != 0.0f, false);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SirenCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("SirenCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_state: ");
+  out.append(YESNO(this->has_state));
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append(YESNO(this->state));
+  out.append("\n");
+
+  out.append("  has_tone: ");
+  out.append(YESNO(this->has_tone));
+  out.append("\n");
+
+  out.append("  tone: ");
+  out.append("'").append(this->tone).append("'");
+  out.append("\n");
+
+  out.append("  has_duration: ");
+  out.append(YESNO(this->has_duration));
+  out.append("\n");
+
+  out.append("  duration: ");
+  sprintf(buffer, "%" PRIu32, this->duration);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_volume: ");
+  out.append(YESNO(this->has_volume));
+  out.append("\n");
+
+  out.append("  volume: ");
+  sprintf(buffer, "%g", this->volume);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
 bool ListEntitiesLockResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {

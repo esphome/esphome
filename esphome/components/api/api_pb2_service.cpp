@@ -292,6 +292,24 @@ bool APIServerConnectionBase::send_select_state_response(const SelectStateRespon
 #endif
 #ifdef USE_SELECT
 #endif
+#ifdef USE_SIREN
+bool APIServerConnectionBase::send_list_entities_siren_response(const ListEntitiesSirenResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_siren_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesSirenResponse>(msg, 55);
+}
+#endif
+#ifdef USE_SIREN
+bool APIServerConnectionBase::send_siren_state_response(const SirenStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_siren_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<SirenStateResponse>(msg, 56);
+}
+#endif
+#ifdef USE_SIREN
+#endif
 #ifdef USE_LOCK
 bool APIServerConnectionBase::send_list_entities_lock_response(const ListEntitiesLockResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -906,6 +924,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 57: {
+#ifdef USE_SIREN
+      SirenCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_siren_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_siren_command_request(msg);
+#endif
+      break;
+    }
     case 60: {
 #ifdef USE_LOCK
       LockCommandRequest msg;
@@ -1369,8 +1398,8 @@ void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncrypt
   }
 }
 #endif
-#ifdef USE_COVER
-void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) {
+#ifdef USE_BUTTON
+void APIServerConnection::on_button_command_request(const ButtonCommandRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1379,46 +1408,7 @@ void APIServerConnection::on_cover_command_request(const CoverCommandRequest &ms
     this->on_unauthenticated_access();
     return;
   }
-  this->cover_command(msg);
-}
-#endif
-#ifdef USE_FAN
-void APIServerConnection::on_fan_command_request(const FanCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->fan_command(msg);
-}
-#endif
-#ifdef USE_LIGHT
-void APIServerConnection::on_light_command_request(const LightCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->light_command(msg);
-}
-#endif
-#ifdef USE_SWITCH
-void APIServerConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->switch_command(msg);
+  this->button_command(msg);
 }
 #endif
 #ifdef USE_ESP32_CAMERA
@@ -1447,8 +1437,8 @@ void APIServerConnection::on_climate_command_request(const ClimateCommandRequest
   this->climate_command(msg);
 }
 #endif
-#ifdef USE_NUMBER
-void APIServerConnection::on_number_command_request(const NumberCommandRequest &msg) {
+#ifdef USE_COVER
+void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1457,85 +1447,7 @@ void APIServerConnection::on_number_command_request(const NumberCommandRequest &
     this->on_unauthenticated_access();
     return;
   }
-  this->number_command(msg);
-}
-#endif
-#ifdef USE_TEXT
-void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->text_command(msg);
-}
-#endif
-#ifdef USE_SELECT
-void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->select_command(msg);
-}
-#endif
-#ifdef USE_BUTTON
-void APIServerConnection::on_button_command_request(const ButtonCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->button_command(msg);
-}
-#endif
-#ifdef USE_LOCK
-void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->lock_command(msg);
-}
-#endif
-#ifdef USE_VALVE
-void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->valve_command(msg);
-}
-#endif
-#ifdef USE_MEDIA_PLAYER
-void APIServerConnection::on_media_player_command_request(const MediaPlayerCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->media_player_command(msg);
+  this->cover_command(msg);
 }
 #endif
 #ifdef USE_DATETIME_DATE
@@ -1551,19 +1463,6 @@ void APIServerConnection::on_date_command_request(const DateCommandRequest &msg)
   this->date_command(msg);
 }
 #endif
-#ifdef USE_DATETIME_TIME
-void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->time_command(msg);
-}
-#endif
 #ifdef USE_DATETIME_DATETIME
 void APIServerConnection::on_date_time_command_request(const DateTimeCommandRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -1577,6 +1476,136 @@ void APIServerConnection::on_date_time_command_request(const DateTimeCommandRequ
   this->datetime_command(msg);
 }
 #endif
+#ifdef USE_FAN
+void APIServerConnection::on_fan_command_request(const FanCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->fan_command(msg);
+}
+#endif
+#ifdef USE_LIGHT
+void APIServerConnection::on_light_command_request(const LightCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->light_command(msg);
+}
+#endif
+#ifdef USE_LOCK
+void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->lock_command(msg);
+}
+#endif
+#ifdef USE_MEDIA_PLAYER
+void APIServerConnection::on_media_player_command_request(const MediaPlayerCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->media_player_command(msg);
+}
+#endif
+#ifdef USE_NUMBER
+void APIServerConnection::on_number_command_request(const NumberCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->number_command(msg);
+}
+#endif
+#ifdef USE_SELECT
+void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->select_command(msg);
+}
+#endif
+#ifdef USE_SIREN
+void APIServerConnection::on_siren_command_request(const SirenCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->siren_command(msg);
+}
+#endif
+#ifdef USE_SWITCH
+void APIServerConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->switch_command(msg);
+}
+#endif
+#ifdef USE_TEXT
+void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->text_command(msg);
+}
+#endif
+#ifdef USE_DATETIME_TIME
+void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->time_command(msg);
+}
+#endif
 #ifdef USE_UPDATE
 void APIServerConnection::on_update_command_request(const UpdateCommandRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -1588,6 +1617,19 @@ void APIServerConnection::on_update_command_request(const UpdateCommandRequest &
     return;
   }
   this->update_command(msg);
+}
+#endif
+#ifdef USE_VALVE
+void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->valve_command(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
