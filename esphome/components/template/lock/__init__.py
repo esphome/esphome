@@ -36,9 +36,9 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    lock.LOCK_SCHEMA.extend(
+    lock.lock_schema(TemplateLock)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateLock),
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
@@ -48,15 +48,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LOCK_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     validate,
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await lock.new_lock(config)
     await cg.register_component(var, config)
-    await lock.register_lock(var, config)
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(

@@ -4,6 +4,8 @@ import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_LOCK,
@@ -12,6 +14,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
@@ -43,7 +46,7 @@ LOCK_STATES = {
 
 validate_lock_state = cv.enum(LOCK_STATES, upper=True)
 
-LOCK_SCHEMA = (
+_LOCK_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -64,7 +67,28 @@ LOCK_SCHEMA = (
 )
 
 
-async def setup_lock_core_(var, config):
+def lock_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _LOCK_SCHEMA.extend(schema)
+
+
+async def _setup_lock_core(var, config):
     await setup_entity(var, config)
 
     for conf in config.get(CONF_ON_LOCK, []):
@@ -86,7 +110,13 @@ async def register_lock(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_lock(var))
-    await setup_lock_core_(var, config)
+    await _setup_lock_core(var, config)
+
+
+async def new_lock(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_lock(var, config)
+    return var
 
 
 LOCK_ACTION_SCHEMA = maybe_simple_id(
