@@ -80,19 +80,12 @@ void TemplateAlarmControlPanel::dump_config() {
 }
 
 void TemplateAlarmControlPanel::setup() {
-  switch (this->restore_mode_) {
-    case ALARM_CONTROL_PANEL_ALWAYS_DISARMED:
-      this->current_state_ = ACP_STATE_DISARMED;
-      break;
-    case ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED: {
-      uint8_t value;
-      this->pref_ = global_preferences->make_preference<uint8_t>(this->get_preference_hash());
-      if (this->pref_.load(&value)) {
-        this->current_state_ = static_cast<alarm_control_panel::AlarmControlPanelState>(value);
-      } else {
-        this->current_state_ = ACP_STATE_DISARMED;
-      }
-      break;
+  this->current_state_ = ACP_STATE_DISARMED;
+  if (this->restore_mode_ == ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED) {
+    uint8_t value;
+    this->pref_ = global_preferences->make_preference<uint8_t>(this->get_preference_hash());
+    if (this->pref_.load(&value)) {
+      this->current_state_ = static_cast<alarm_control_panel::AlarmControlPanelState>(value);
     }
   }
   this->desired_state_ = this->current_state_;
