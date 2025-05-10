@@ -119,8 +119,8 @@ void TemplateAlarmControlPanel::loop() {
     future_state = this->desired_state_;
   }
 
-  bool delayed_sensor_not_ready = false;
-  bool instant_sensor_not_ready = false;
+  bool delayed_sensor_faulted = false;
+  bool instant_sensor_faulted = false;
 
 #ifdef USE_BINARY_SENSOR
   // Test all of the sensors in the list regardless of the alarm panel state
@@ -137,7 +137,7 @@ void TemplateAlarmControlPanel::loop() {
       // Record the sensor state change
       this->sensor_data_[sensor_info.second.store_index].last_chime_state = sensor_info.first->state;
     }
-    // Check for triggered sensors
+    // Check for faulted sensors
     if (sensor_info.first->state) {  // Sensor triggered?
       // Skip if auto bypassed
       if (std::count(this->bypassed_sensor_indicies_.begin(), this->bypassed_sensor_indicies_.end(),
@@ -160,24 +160,24 @@ void TemplateAlarmControlPanel::loop() {
           future_state = ACP_STATE_TRIGGERED;
           [[fallthrough]];
         case ALARM_SENSOR_TYPE_INSTANT:
-          instant_sensor_not_ready = true;
+          instant_sensor_faulted = true;
           break;
         case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
           // Look to see if we are in the pending state
           if (this->current_state_ == ACP_STATE_PENDING) {
-            delayed_sensor_not_ready = true;
+            delayed_sensor_faulted = true;
           } else {
-            instant_sensor_not_ready = true;
+            instant_sensor_faulted = true;
           }
           break;
         case ALARM_SENSOR_TYPE_DELAYED:
         default:
-          delayed_sensor_not_ready = true;
+          delayed_sensor_faulted = true;
       }
     }
   }
   // Update all sensors ready flag
-  bool sensors_ready = !(instant_sensor_not_ready || delayed_sensor_not_ready);
+  bool sensors_ready = !(instant_sensor_faulted || delayed_sensor_faulted);
 
   // Call the ready state change callback if there was a change
   if (this->sensors_ready_ != sensors_ready) {
@@ -188,9 +188,9 @@ void TemplateAlarmControlPanel::loop() {
 #endif
   if (this->is_state_armed(future_state) && (!this->sensors_ready_)) {
     // Instant sensors
-    if (instant_sensor_not_ready) {
+    if (instant_sensor_faulted) {
       this->publish_state(ACP_STATE_TRIGGERED);
-    } else if (delayed_sensor_not_ready) {
+    } else if (delayed_sensor_faulted) {
       // Delayed sensors
       if ((this->pending_time_ > 0) && (this->current_state_ != ACP_STATE_TRIGGERED)) {
         this->publish_state(ACP_STATE_PENDING);
@@ -248,9 +248,9 @@ void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_p
 void TemplateAlarmControlPanel::bypass_before_arming() {
 #ifdef USE_BINARY_SENSOR
   for (auto sensor_info : this->sensor_map_) {
-    // Check for sensors left on and set to bypass automatically and remove them from monitoring
+    // Check for faulted bypass_auto sensors and remove them from monitoring
     if ((sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (sensor_info.first->state)) {
-      ESP_LOGW(TAG, "'%s' is left on and will be automatically bypassed", sensor_info.first->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' is faulted and will be automatically bypassed", sensor_info.first->get_name().c_str());
       this->bypassed_sensor_indicies_.push_back(sensor_info.second.store_index);
     }
   }
