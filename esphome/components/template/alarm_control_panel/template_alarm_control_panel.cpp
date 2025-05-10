@@ -85,14 +85,7 @@ void TemplateAlarmControlPanel::setup() {
 void TemplateAlarmControlPanel::loop() {
   // change from ARMING to ARMED_x after the arming_time_ has passed
   if (this->current_state_ == ACP_STATE_ARMING) {
-    auto delay = this->arming_away_time_;
-    if (this->desired_state_ == ACP_STATE_ARMED_HOME) {
-      delay = this->arming_home_time_;
-    }
-    if (this->desired_state_ == ACP_STATE_ARMED_NIGHT) {
-      delay = this->arming_night_time_;
-    }
-    if ((millis() - this->last_update_) > delay) {
+    if ((millis() - this->last_update_) > this->arming_delay_) {
       this->auto_bypass_sensors_();
       this->publish_state(this->desired_state_);
     }
@@ -222,18 +215,24 @@ uint32_t TemplateAlarmControlPanel::get_supported_features() const {
   return features;
 }
 
-void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state,
-                                     uint32_t delay) {
+void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state) {
   if (this->current_state_ != ACP_STATE_DISARMED) {
     ESP_LOGW(TAG, "Cannot arm when not disarmed");
     return;
   }
   if (this->requires_code_to_arm_ && !this->is_code_valid_(std::move(code))) {
-    ESP_LOGW(TAG, "Not arming code doesn't match");
+    ESP_LOGW(TAG, "Not arming as code doesn't match");
     return;
   }
   this->desired_state_ = state;
-  if (delay > 0) {
+  auto arming_delay = this->arming_away_time_;
+  if (state == ACP_STATE_ARMED_HOME) {
+    arming_delay = this->arming_home_time_;
+  } else if (state == ACP_STATE_ARMED_NIGHT) {
+    arming_delay = this->arming_night_time_;
+  }
+  if (arming_delay > 0) {
+    this->arming_delay_ = arming_delay;
     this->publish_state(ACP_STATE_ARMING);
   } else {
     this->auto_bypass_sensors_();
@@ -267,26 +266,27 @@ void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
   auto opt_state = call.get_state();
   if (opt_state) {
     auto state = *opt_state;
-    if (state == ACP_STATE_ARMED_AWAY) {
-      this->arm_(call.get_code(), ACP_STATE_ARMED_AWAY, this->arming_away_time_);
-    } else if (state == ACP_STATE_ARMED_HOME) {
-      this->arm_(call.get_code(), ACP_STATE_ARMED_HOME, this->arming_home_time_);
-    } else if (state == ACP_STATE_ARMED_NIGHT) {
-      this->arm_(call.get_code(), ACP_STATE_ARMED_NIGHT, this->arming_night_time_);
-    } else if (state == ACP_STATE_DISARMED) {
-      if (!this->is_code_valid_(call.get_code())) {
-        ESP_LOGW(TAG, "Not disarming code doesn't match");
-        return;
-      }
-      this->desired_state_ = ACP_STATE_DISARMED;
-      this->publish_state(ACP_STATE_DISARMED);
-      this->clear_auto_bypassed_sensors_();
-    } else if (state == ACP_STATE_TRIGGERED) {
-      this->publish_state(ACP_STATE_TRIGGERED);
-    } else if (state == ACP_STATE_PENDING) {
-      this->publish_state(ACP_STATE_PENDING);
-    } else {
-      ESP_LOGE(TAG, "State not yet implemented: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(state)));
+    switch (state) {
+      case ACP_STATE_ARMED_AWAY:
+      case ACP_STATE_ARMED_HOME:
+      case ACP_STATE_ARMED_NIGHT:
+        this->arm_(call.get_code(), state);
+        break;
+      case ACP_STATE_DISARMED:
+        if (!this->is_code_valid_(call.get_code())) {
+          ESP_LOGW(TAG, "Not disarming as code doesn't match");
+          return;
+        }
+        this->desired_state_ = ACP_STATE_DISARMED;
+        this->arming_delay_ = 0;
+        this->clear_auto_bypassed_sensors_();
+        [[fallthrough]];
+      case ACP_STATE_PENDING:
+      case ACP_STATE_TRIGGERED:
+        this->publish_state(state);
+        break;
+      default:
+        ESP_LOGE(TAG, "Transition to %s not yet implemented", LOG_STR_ARG(alarm_control_panel_state_to_string(state)));
     }
   }
 }

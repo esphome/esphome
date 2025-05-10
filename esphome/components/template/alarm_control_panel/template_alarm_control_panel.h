@@ -149,6 +149,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   uint32_t arming_home_time_{0};
   // the arming night delay
   uint32_t arming_night_time_{0};
+  // the arming delay corresponding to the desired_state_
+  uint32_t arming_delay_{0};
   // the trigger delay
   uint32_t pending_time_;
   // the time in trigger
@@ -163,7 +165,7 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   // check if the code is valid
   bool is_code_valid_(optional<std::string> code);
 
-  void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
+  void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state);
   void auto_bypass_sensors_();
   void clear_auto_bypassed_sensors_();
 };
