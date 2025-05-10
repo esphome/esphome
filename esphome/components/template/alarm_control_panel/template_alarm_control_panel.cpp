@@ -156,12 +156,11 @@ void TemplateAlarmControlPanel::loop() {
       }
 
       switch (sensor_info.second.type) {
+        case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
+          future_state = ACP_STATE_TRIGGERED;
+          [[fallthrough]];
         case ALARM_SENSOR_TYPE_INSTANT:
           instant_sensor_not_ready = true;
-          break;
-        case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
-          instant_sensor_not_ready = true;
-          future_state = ACP_STATE_TRIGGERED;
           break;
         case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
           // Look to see if we are in the pending state
