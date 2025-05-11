@@ -629,7 +629,16 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     std_slot_cfg =
         I2S_STD_MSB_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
   }
+#ifdef USE_ESP32_VARIANT_ESP32
+  // There seems to be a bug on the ESP32 (non-variant) platform where setting the slot bit width higher then the bits
+  // per sample causes the audio to play too fast. Setting the ws_width to the configured slot bit width seems to
+  // make it play at the correct speed while sending more bits per slot.
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    std_slot_cfg.ws_width = static_cast<uint32_t>(this->slot_bit_width_);
+  }
+#else
   std_slot_cfg.slot_bit_width = this->slot_bit_width_;
+#endif
   std_slot_cfg.slot_mask = slot_mask;
 
   pin_config.dout = this->dout_pin_;
