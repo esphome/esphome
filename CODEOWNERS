@@ -398,6 +398,7 @@ esphome/components/smt100/* @piechade
 esphome/components/sn74hc165/* @jesserockz
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
+esphome/components/sound_level/* @kahrendt
 esphome/components/speaker/* @jesserockz @kahrendt
 esphome/components/speaker/media_player/* @kahrendt @synesthesiam
 esphome/components/spi/* @clydebarrow @esphome/core

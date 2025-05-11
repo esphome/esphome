@@ -59,6 +59,7 @@ class MicrophoneSource {
 
   void start();
   void stop();
+  bool is_passive() const { return this->passive_; }
   bool is_running() const { return (this->mic_->is_running() && (this->enabled_ || this->passive_)); }
   bool is_stopped() const { return !this->is_running(); };
 
@@ -72,7 +73,7 @@ class MicrophoneSource {
   std::bitset<8> channels_;
   int32_t gain_factor_;
   bool enabled_{false};
-  bool passive_{false};
+  bool passive_;  // Only pass audio if ``mic_`` is already running
 };
 
 }  // namespace microphone
