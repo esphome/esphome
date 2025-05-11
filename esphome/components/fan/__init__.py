@@ -5,6 +5,8 @@ from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIRECTION,
+    CONF_DIRECTION_COMMAND_TOPIC,
+    CONF_DIRECTION_STATE_TOPIC,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_OFF_SPEED_CYCLE,
@@ -90,6 +92,12 @@ FAN_SCHEMA = (
                 RESTORE_MODES, upper=True, space="_"
             ),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
+            cv.Optional(CONF_DIRECTION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_DIRECTION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
             cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.publish_topic
             ),
@@ -193,6 +201,14 @@ async def setup_fan_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
+        if (
+            direction_state_topic := config.get(CONF_DIRECTION_STATE_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_direction_state_topic(direction_state_topic))
+        if (
+            direction_command_topic := config.get(CONF_DIRECTION_COMMAND_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_direction_command_topic(direction_command_topic))
         if (
             oscillation_state_topic := config.get(CONF_OSCILLATION_STATE_TOPIC)
         ) is not None:
