@@ -5,6 +5,7 @@
 #include "esphome/components/udp/udp_component.h"
 #include "esphome/components/time/real_time_clock.h"
 
+#ifdef USE_NETWORK
 namespace esphome {
 namespace syslog {
 class Syslog : public Component, public Parented<udp::UDPComponent> {
@@ -23,3 +24,4 @@ class Syslog : public Component, public Parented<udp::UDPComponent> {
 };
 }  // namespace syslog
 }  // namespace esphome
+#endif

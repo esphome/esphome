@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../udp_component.h"
+#ifdef USE_NETWORK
 #include "esphome/core/component.h"
 #include "esphome/components/packet_transport/packet_transport.h"
 #include <vector>
@@ -24,3 +25,4 @@ class UDPTransport : public packet_transport::PacketTransport, public Parented<U
 
 }  // namespace udp
 }  // namespace esphome
+#endif
