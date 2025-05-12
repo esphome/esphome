@@ -34,7 +34,7 @@ AirthingsWaveBase = airthings_wave_base_ns.class_(
 
 
 BASE_SCHEMA = (
-    sensor.SENSOR_SCHEMA.extend(
+    cv.Schema(
         {
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
