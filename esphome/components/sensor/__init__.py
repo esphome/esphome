@@ -264,7 +264,7 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = (
+_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -337,7 +337,12 @@ def sensor_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return SENSOR_SCHEMA.extend(schema)
+    return _SENSOR_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+SENSOR_SCHEMA = sensor_schema()
+SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("sensor"))
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))

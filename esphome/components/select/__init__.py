@@ -48,7 +48,7 @@ SELECT_OPERATION_OPTIONS = {
 }
 
 
-SELECT_SCHEMA = (
+_SELECT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -84,7 +84,12 @@ def select_schema(
         )
     if icon is not cv.UNDEFINED:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
-    return SELECT_SCHEMA.extend(schema)
+    return _SELECT_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+SELECT_SCHEMA = select_schema()
+SELECT_SCHEMA.add_extra(cv.deprecated_schema_constant("select"))
 
 
 async def setup_select_core_(var, config, *, options: list[str]):

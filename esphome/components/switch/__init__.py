@@ -135,7 +135,9 @@ def switch_schema(
     return schema
 
 
-SWITCH_SCHEMA = switch_schema()  # for compatibility
+# Remove before 2025.11.0
+SWITCH_SCHEMA = switch_schema()
+SWITCH_SCHEMA.add_extra(cv.deprecated_schema_constant("switch"))
 
 
 async def setup_switch_core_(var, config):

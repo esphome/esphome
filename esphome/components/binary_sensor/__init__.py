@@ -386,7 +386,7 @@ def validate_click_timing(value):
     return value
 
 
-BINARY_SENSOR_SCHEMA = (
+_BINARY_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -480,7 +480,12 @@ def binary_sensor_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return BINARY_SENSOR_SCHEMA.extend(schema)
+    return _BINARY_SENSOR_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+BINARY_SENSOR_SCHEMA = binary_sensor_schema()
+BINARY_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("binary_sensor"))
 
 
 async def setup_binary_sensor_core_(var, config):

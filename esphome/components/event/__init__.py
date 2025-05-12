@@ -41,7 +41,7 @@ EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-EVENT_SCHEMA = (
+_EVENT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -79,7 +79,12 @@ def event_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return EVENT_SCHEMA.extend(schema)
+    return _EVENT_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+EVENT_SCHEMA = event_schema()
+EVENT_SCHEMA.add_extra(cv.deprecated_schema_constant("event"))
 
 
 async def setup_event_core_(var, config, *, event_types: list[str]):

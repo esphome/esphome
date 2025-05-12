@@ -125,7 +125,7 @@ async def map_filter_to_code(config, filter_id):
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-TEXT_SENSOR_SCHEMA = (
+_TEXT_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -160,7 +160,7 @@ def text_sensor_schema(
     entity_category: str = cv.UNDEFINED,
     device_class: str = cv.UNDEFINED,
 ) -> cv.Schema:
-    schema = TEXT_SENSOR_SCHEMA
+    schema = _TEXT_SENSOR_SCHEMA
     if class_ is not cv.UNDEFINED:
         schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if icon is not cv.UNDEFINED:
@@ -182,6 +182,11 @@ def text_sensor_schema(
             }
         )
     return schema
+
+
+# Remove before 2025.11.0
+TEXT_SENSOR_SCHEMA = text_sensor_schema()
+TEXT_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("text_sensor"))
 
 
 async def build_filters(config):

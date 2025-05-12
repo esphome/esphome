@@ -170,7 +170,7 @@ NUMBER_OPERATION_OPTIONS = {
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.string_strict
 
-NUMBER_SCHEMA = (
+_NUMBER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -216,7 +216,12 @@ def number_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return NUMBER_SCHEMA.extend(schema)
+    return _NUMBER_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+NUMBER_SCHEMA = number_schema(Number)
+NUMBER_SCHEMA.add_extra(cv.deprecated_schema_constant("number"))
 
 
 async def setup_number_core_(

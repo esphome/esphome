@@ -44,7 +44,7 @@ ButtonPressTrigger = button_ns.class_(
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
-BUTTON_SCHEMA = (
+_BUTTON_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -78,7 +78,12 @@ def button_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return BUTTON_SCHEMA.extend(schema)
+    return _BUTTON_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+BUTTON_SCHEMA = button_schema(Button)
+BUTTON_SCHEMA.add_extra(cv.deprecated_schema_constant("button"))
 
 
 async def setup_button_core_(var, config):
