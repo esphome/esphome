@@ -79,6 +79,7 @@ DEFAULT = "DEFAULT"
 
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
+CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -181,6 +182,20 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
             cv.SplitDefault(
+                CONF_TASK_LOG_BUFFER_SIZE,
+                esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
+            ): cv.All(
+                cv.only_on_esp32,
+                cv.validate_bytes,
+                cv.Any(
+                    cv.int_(0),  # Disabled
+                    cv.int_range(
+                        min=640,  # Min: ~4-5 messages with 70-byte text plus thread names
+                        max=32768,  # Max: Depends on message sizes, typically ~300 messages with default size
+                    ),
+                ),
+            ),
+            cv.SplitDefault(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
@@ -238,6 +253,12 @@ async def to_code(config):
         baud_rate,
         config[CONF_TX_BUFFER_SIZE],
     )
+    if CORE.is_esp32:
+        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
+        if task_log_buffer_size > 0:
+            cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
+            cg.add(log.init_log_buffer(task_log_buffer_size))
+
     cg.add(log.set_log_level(initial_level))
     if CONF_HARDWARE_UART in config:
         cg.add(
