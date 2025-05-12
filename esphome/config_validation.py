@@ -2072,3 +2072,20 @@ def rename_key(old_key, new_key):
         return config
 
     return validator
+
+
+# Remove before 2025.11.0
+def deprecated_schema_constant(entity_type: str):
+    def validator(config):
+        _LOGGER.warning(
+            "Using `%s.%s_SCHEMA` is deprecated and will be removed in ESPHome 2025.11.0. "
+            "Please use `%s.%s_schema(...)` instead. "
+            "If you are seeing this, report an issue to the external_component author and ask them to update it.",
+            entity_type,
+            entity_type.upper(),
+            entity_type,
+            entity_type,
+        )
+        return config
+
+    return validator

@@ -126,6 +126,11 @@ def valve_schema(
     return _VALVE_SCHEMA.extend(schema)
 
 
+# Remove before 2025.11.0
+VALVE_SCHEMA = valve_schema()
+VALVE_SCHEMA.add_extra(cv.deprecated_schema_constant("valve"))
+
+
 async def _setup_valve_core(var, config):
     await setup_entity(var, config)
 
