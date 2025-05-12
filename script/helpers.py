@@ -5,6 +5,7 @@ import re
 import subprocess
 
 import colorama
+import helpers_zephyr
 
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
@@ -147,10 +148,14 @@ def load_idedata(environment):
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    stdout = subprocess.check_output(["pio", "run", "-t", "idedata", "-e", environment])
-    match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
-    data = json.loads(match.group())
-
+    if "nrf" in environment:
+        data = helpers_zephyr.load_idedata(environment, temp_folder, platformio_ini)
+    else:
+        stdout = subprocess.check_output(
+            ["pio", "run", "-t", "idedata", "-e", environment]
+        )
+        match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+        data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     return data
 

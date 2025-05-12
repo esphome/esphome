@@ -1,5 +1,4 @@
 #pragma once
-
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -27,6 +26,11 @@ using SPIInterface = SPIClass *;
 using SPIInterface = spi_host_device_t;
 
 #endif  // USE_ESP_IDF
+
+#ifdef USE_ZEPHYR
+// TODO supprse clang-tidy. Remove after SPI driver for nrf52 is added.
+using SPIInterface = void *;
+#endif
 
 /**
  * Implementation of SPI Controller mode.
