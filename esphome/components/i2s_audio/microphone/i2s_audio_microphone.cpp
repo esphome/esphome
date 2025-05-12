@@ -12,6 +12,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include "esphome/components/audio/audio.h"
+
 namespace esphome {
 namespace i2s_audio {
 
@@ -21,6 +23,9 @@ static const uint32_t READ_DURATION_MS = 16;
 
 static const size_t TASK_STACK_SIZE = 4096;
 static const ssize_t TASK_PRIORITY = 23;
+
+// Use an exponential moving average to correct a DC offset with weight factor 1/1000
+static const int32_t DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR = 1000;
 
 static const char *const TAG = "i2s_audio.microphone";
 
@@ -70,21 +75,11 @@ void I2SAudioMicrophone::setup() {
     this->mark_failed();
     return;
   }
+
+  this->configure_stream_settings_();
 }
 
-void I2SAudioMicrophone::start() {
-  if (this->is_failed())
-    return;
-
-  xSemaphoreTake(this->active_listeners_semaphore_, 0);
-}
-
-bool I2SAudioMicrophone::start_driver_() {
-  if (!this->parent_->try_lock()) {
-    return false;  // Waiting for another i2s to return lock
-  }
-  esp_err_t err;
-
+void I2SAudioMicrophone::configure_stream_settings_() {
   uint8_t channel_count = 1;
 #ifdef USE_I2S_LEGACY
   uint8_t bits_per_sample = this->bits_per_sample_;
@@ -93,10 +88,10 @@ bool I2SAudioMicrophone::start_driver_() {
     channel_count = 2;
   }
 #else
-  if (this->slot_bit_width_ == I2S_SLOT_BIT_WIDTH_AUTO) {
-    this->slot_bit_width_ = I2S_SLOT_BIT_WIDTH_16BIT;
+  uint8_t bits_per_sample = 16;
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    bits_per_sample = this->slot_bit_width_;
   }
-  uint8_t bits_per_sample = this->slot_bit_width_;
 
   if (this->slot_mode_ == I2S_SLOT_MODE_STEREO) {
     channel_count = 2;
@@ -113,6 +108,26 @@ bool I2SAudioMicrophone::start_driver_() {
     bits_per_sample = 32;
   }
 #endif
+
+  if (this->pdm_) {
+    bits_per_sample = 16;  // PDM mics are always 16 bits per sample
+  }
+
+  this->audio_stream_info_ = audio::AudioStreamInfo(bits_per_sample, channel_count, this->sample_rate_);
+}
+
+void I2SAudioMicrophone::start() {
+  if (this->is_failed())
+    return;
+
+  xSemaphoreTake(this->active_listeners_semaphore_, 0);
+}
+
+bool I2SAudioMicrophone::start_driver_() {
+  if (!this->parent_->try_lock()) {
+    return false;  // Waiting for another i2s to return lock
+  }
+  esp_err_t err;
 
 #ifdef USE_I2S_LEGACY
   i2s_driver_config_t config = {
@@ -202,8 +217,6 @@ bool I2SAudioMicrophone::start_driver_() {
   i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
 #if SOC_I2S_SUPPORTS_PDM_RX
   if (this->pdm_) {
-    bits_per_sample = 16;  // PDM mics are always 16 bits per sample with the IDF 5 driver
-
     i2s_pdm_rx_clk_config_t clk_cfg = {
         .sample_rate_hz = this->sample_rate_,
         .clk_src = clk_src,
@@ -277,10 +290,8 @@ bool I2SAudioMicrophone::start_driver_() {
   }
 #endif
 
-  this->audio_stream_info_ = audio::AudioStreamInfo(bits_per_sample, channel_count, this->sample_rate_);
-
   this->status_clear_error();
-
+  this->configure_stream_settings_();  // redetermine the settings in case some settings were changed after compilation
   return true;
 }
 
@@ -361,9 +372,12 @@ void I2SAudioMicrophone::mic_task(void *params) {
         samples.resize(bytes_to_read);
         size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * pdMS_TO_TICKS(READ_DURATION_MS));
         samples.resize(bytes_read);
+        if (this_microphone->correct_dc_offset_) {
+          this_microphone->fix_dc_offset_(samples);
+        }
         this_microphone->data_callbacks_.call(samples);
       } else {
-        delay(READ_DURATION_MS);
+        vTaskDelay(pdMS_TO_TICKS(READ_DURATION_MS));
       }
     }
   }
@@ -373,9 +387,32 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
   xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_STOPPED);
   while (true) {
-    // Continuously delay until the loop method delete the task
-    delay(10);
+    // Continuously delay until the loop method deletes the task
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
+}
+
+void I2SAudioMicrophone::fix_dc_offset_(std::vector<uint8_t> &data) {
+  const size_t bytes_per_sample = this->audio_stream_info_.samples_to_bytes(1);
+  const uint32_t total_samples = this->audio_stream_info_.bytes_to_samples(data.size());
+
+  if (total_samples == 0) {
+    return;
+  }
+
+  int64_t offset_accumulator = 0;
+  for (uint32_t sample_index = 0; sample_index < total_samples; ++sample_index) {
+    const uint32_t byte_index = sample_index * bytes_per_sample;
+    int32_t sample = audio::unpack_audio_sample_to_q31(&data[byte_index], bytes_per_sample);
+    offset_accumulator += sample;
+    sample -= this->dc_offset_;
+    audio::pack_q31_as_audio_sample(sample, &data[byte_index], bytes_per_sample);
+  }
+
+  const int32_t new_offset = offset_accumulator / total_samples;
+  this->dc_offset_ = new_offset / DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR +
+                     (DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR - 1) * this->dc_offset_ /
+                         DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR;
 }
 
 size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {
