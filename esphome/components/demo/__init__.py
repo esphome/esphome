@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_FORCE_UPDATE,
     CONF_ICON,
-    CONF_ID,
     CONF_INVERTED,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
@@ -153,9 +152,10 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            climate.CLIMATE_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
+            climate.climate_schema(DemoClimate)
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(
                 {
-                    cv.GenerateID(): cv.declare_id(DemoClimate),
                     cv.Required(CONF_TYPE): cv.enum(CLIMATE_TYPES, int=True),
                 }
             )
@@ -183,9 +183,10 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            cover.COVER_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
+            cover.cover_schema(DemoCover)
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(
                 {
-                    cv.GenerateID(): cv.declare_id(DemoCover),
                     cv.Required(CONF_TYPE): cv.enum(COVER_TYPES, int=True),
                 }
             )
@@ -211,9 +212,10 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            fan.FAN_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
+            fan.fan_schema(DemoFan)
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(
                 {
-                    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(DemoFan),
                     cv.Required(CONF_TYPE): cv.enum(FAN_TYPES, int=True),
                 }
             )
@@ -251,7 +253,9 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            light.RGB_LIGHT_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
+            light.light_schema(DemoLight, light.LightType.RGB)
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(
                 {
                     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(DemoLight),
                     cv.Required(CONF_TYPE): cv.enum(LIGHT_TYPES, int=True),
@@ -377,39 +381,33 @@ async def to_code(config):
         await cg.register_component(var, conf)
 
     for conf in config[CONF_CLIMATES]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await climate.new_climate(conf)
         await cg.register_component(var, conf)
-        await climate.register_climate(var, conf)
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_COVERS]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await cover.new_cover(conf)
         await cg.register_component(var, conf)
-        await cover.register_cover(var, conf)
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_FANS]:
-        var = cg.new_Pvariable(conf[CONF_OUTPUT_ID])
+        var = await fan.new_fan(conf)
         await cg.register_component(var, conf)
-        await fan.register_fan(var, conf)
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_LIGHTS]:
-        var = cg.new_Pvariable(conf[CONF_OUTPUT_ID])
+        var = await light.new_light(conf)
         await cg.register_component(var, conf)
-        await light.register_light(var, conf)
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_NUMBERS]:
-        var = cg.new_Pvariable(conf[CONF_ID])
-        await cg.register_component(var, conf)
-        await number.register_number(
-            var,
+        var = await number.new_number(
             conf,
             min_value=conf[CONF_MIN_VALUE],
             max_value=conf[CONF_MAX_VALUE],
             step=conf[CONF_STEP],
         )
+        await cg.register_component(var, conf)
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_SENSORS]:
