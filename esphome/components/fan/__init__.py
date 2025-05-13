@@ -7,6 +7,8 @@ from esphome.const import (
     CONF_DIRECTION,
     CONF_DIRECTION_COMMAND_TOPIC,
     CONF_DIRECTION_STATE_TOPIC,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_OFF_SPEED_CYCLE,
@@ -82,12 +84,11 @@ FanPresetSetTrigger = fan_ns.class_(
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
 FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.template())
 
-FAN_SCHEMA = (
+_FAN_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(Fan),
             cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
@@ -158,6 +159,37 @@ FAN_SCHEMA = (
         }
     )
 )
+
+
+def fan_schema(
+    class_: cg.Pvariable,
+    *,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+    default_restore_mode: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+        (
+            CONF_RESTORE_MODE,
+            default_restore_mode,
+            cv.enum(RESTORE_MODES, upper=True, space="_"),
+        ),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _FAN_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+FAN_SCHEMA = fan_schema(Fan)
+FAN_SCHEMA.add_extra(cv.deprecated_schema_constant("fan"))
 
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(cv.string_strict),
@@ -267,10 +299,9 @@ async def register_fan(var, config):
     await setup_fan_core_(var, config)
 
 
-async def create_fan_state(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_fan(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_fan(var, config)
-    await cg.register_component(var, config)
     return var
 
 

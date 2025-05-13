@@ -5,6 +5,8 @@ from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_OPEN,
@@ -31,6 +33,7 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
@@ -89,12 +92,11 @@ CoverClosedTrigger = cover_ns.class_(
 
 CONF_ON_CLOSED = "on_closed"
 
-COVER_SCHEMA = (
+_COVER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(Cover),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
             cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
@@ -122,6 +124,33 @@ COVER_SCHEMA = (
         }
     )
 )
+
+
+def cover_schema(
+    class_: MockObjClass,
+    *,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_DEVICE_CLASS, device_class, cv.one_of(*DEVICE_CLASSES, lower=True)),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _COVER_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+COVER_SCHEMA = cover_schema(Cover)
+COVER_SCHEMA.add_extra(cv.deprecated_schema_constant("cover"))
 
 
 async def setup_cover_core_(var, config):
@@ -161,6 +190,12 @@ async def register_cover(var, config):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_cover(var))
     await setup_cover_core_(var, config)
+
+
+async def new_cover(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_cover(var, config)
+    return var
 
 
 COVER_ACTION_SCHEMA = maybe_simple_id(
