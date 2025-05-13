@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_ENUM_DATAPOINT, CONF_OPTIMISTIC, CONF_OPTIONS
+from esphome.const import (
+    CONF_ENUM_DATAPOINT,
+    CONF_INT_DATAPOINT,
+    CONF_OPTIMISTIC,
+    CONF_OPTIONS,
+)
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
@@ -26,17 +31,19 @@ def ensure_option_map(value):
     return value
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     select.select_schema(TuyaSelect)
     .extend(
         {
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-            cv.Required(CONF_ENUM_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_ENUM_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_INT_DATAPOINT): cv.uint8_t,
             cv.Required(CONF_OPTIONS): ensure_option_map,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    cv.has_exactly_one_key(CONF_ENUM_DATAPOINT, CONF_INT_DATAPOINT),
 )
 
 
@@ -47,5 +54,8 @@ async def to_code(config):
     cg.add(var.set_select_mappings(list(options_map.keys())))
     parent = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(parent))
-    cg.add(var.set_select_id(config[CONF_ENUM_DATAPOINT]))
+    if enum_datapoint := config.get(CONF_ENUM_DATAPOINT, None) is not None:
+        cg.add(var.set_select_id(enum_datapoint, False))
+    if int_datapoint := config.get(CONF_INT_DATAPOINT, None) is not None:
+        cg.add(var.set_select_id(int_datapoint, True))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
