@@ -171,7 +171,7 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 
     bytes_available_before_processing = this->input_transfer_buffer_->available();
 
-    if ((this->potentially_failed_count_ > 10) && (bytes_read == 0)) {
+    if ((this->potentially_failed_count_ > 0) && (bytes_read == 0)) {
       // Failed to decode in last attempt and there is no new data
 
       if ((this->input_transfer_buffer_->free() == 0) && first_loop_iteration) {
