@@ -112,11 +112,11 @@ void TemplateAlarmControlPanel::loop() {
     this->publish_state(ACP_STATE_TRIGGERED);
     return;
   }
-  auto future_state = this->current_state_;
+  auto next_state = this->current_state_;
   // reset triggered if all clear
   if (this->current_state_ == ACP_STATE_TRIGGERED && this->trigger_time_ > 0 &&
       (millis() - this->last_update_) > this->trigger_time_) {
-    future_state = this->desired_state_;
+    next_state = this->desired_state_;
   }
 
   bool delayed_sensor_faulted = false;
@@ -157,7 +157,7 @@ void TemplateAlarmControlPanel::loop() {
 
       switch (sensor_info.second.type) {
         case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
-          future_state = ACP_STATE_TRIGGERED;
+          next_state = ACP_STATE_TRIGGERED;
           [[fallthrough]];
         case ALARM_SENSOR_TYPE_INSTANT:
           instant_sensor_faulted = true;
@@ -186,7 +186,7 @@ void TemplateAlarmControlPanel::loop() {
   }
 
 #endif
-  if (this->is_state_armed(future_state) && (!this->sensors_ready_)) {
+  if (this->is_state_armed(next_state) && (!this->sensors_ready_)) {
     // Instant sensors
     if (instant_sensor_faulted) {
       this->publish_state(ACP_STATE_TRIGGERED);
@@ -198,8 +198,8 @@ void TemplateAlarmControlPanel::loop() {
         this->publish_state(ACP_STATE_TRIGGERED);
       }
     }
-  } else if (future_state != this->current_state_) {
-    this->publish_state(future_state);
+  } else if (next_state != this->current_state_) {
+    this->publish_state(next_state);
   }
 }
 
