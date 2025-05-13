@@ -254,7 +254,7 @@ def climate_schema(
     icon: str = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {
-        cv.GenerateID(): cv.declare_id(Climate),
+        cv.GenerateID(): cv.declare_id(class_),
     }
 
     for key, default, validator in [
