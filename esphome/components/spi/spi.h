@@ -355,6 +355,12 @@ class SPIComponent : public Component {
 
   void setup() override;
   void dump_config() override;
+  size_t get_bus_width() const {
+    if (this->data_pins_.empty()) {
+      return 1;
+    }
+    return this->data_pins_.size();
+  }
 
  protected:
   GPIOPin *clk_pin_{nullptr};
