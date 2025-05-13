@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from esphome import pins
 import esphome.codegen as cg
@@ -64,8 +64,7 @@ def _lookup_pin(value):
 def _translate_pin(value):
     if isinstance(value, dict) or value is None:
         raise cv.Invalid(
-            "This variable only supports pin numbers, not full pin schemas "
-            "(with inverted and mode)."
+            "This variable only supports pin numbers, not full pin schemas (with inverted and mode)."
         )
     if isinstance(value, int) and not isinstance(value, bool):
         return value
@@ -82,29 +81,21 @@ def _translate_pin(value):
 
 @dataclass
 class ESP32ValidationFunctions:
-    pin_validation: Any
-    usage_validation: Any
+    pin_validation: Callable[[Any], Any]
+    usage_validation: Callable[[Any], Any]
 
 
 _esp32_validations = {
     VARIANT_ESP32: ESP32ValidationFunctions(
         pin_validation=esp32_validate_gpio_pin, usage_validation=esp32_validate_supports
     ),
-    VARIANT_ESP32S2: ESP32ValidationFunctions(
-        pin_validation=esp32_s2_validate_gpio_pin,
-        usage_validation=esp32_s2_validate_supports,
+    VARIANT_ESP32C2: ESP32ValidationFunctions(
+        pin_validation=esp32_c2_validate_gpio_pin,
+        usage_validation=esp32_c2_validate_supports,
     ),
     VARIANT_ESP32C3: ESP32ValidationFunctions(
         pin_validation=esp32_c3_validate_gpio_pin,
         usage_validation=esp32_c3_validate_supports,
-    ),
-    VARIANT_ESP32S3: ESP32ValidationFunctions(
-        pin_validation=esp32_s3_validate_gpio_pin,
-        usage_validation=esp32_s3_validate_supports,
-    ),
-    VARIANT_ESP32C2: ESP32ValidationFunctions(
-        pin_validation=esp32_c2_validate_gpio_pin,
-        usage_validation=esp32_c2_validate_supports,
     ),
     VARIANT_ESP32C6: ESP32ValidationFunctions(
         pin_validation=esp32_c6_validate_gpio_pin,
@@ -113,6 +104,14 @@ _esp32_validations = {
     VARIANT_ESP32H2: ESP32ValidationFunctions(
         pin_validation=esp32_h2_validate_gpio_pin,
         usage_validation=esp32_h2_validate_supports,
+    ),
+    VARIANT_ESP32S2: ESP32ValidationFunctions(
+        pin_validation=esp32_s2_validate_gpio_pin,
+        usage_validation=esp32_s2_validate_supports,
+    ),
+    VARIANT_ESP32S3: ESP32ValidationFunctions(
+        pin_validation=esp32_s3_validate_gpio_pin,
+        usage_validation=esp32_s3_validate_supports,
     ),
 }
 
