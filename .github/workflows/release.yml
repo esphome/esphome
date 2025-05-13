@@ -231,3 +231,25 @@ jobs:
                 content: description
               }
             })
+
+  deploy-esphome-schema:
+    if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
+    runs-on: ubuntu-latest
+    needs:
+      - init
+      - deploy-manifest
+    steps:
+      - name: Trigger Workflow
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ secrets.DEPLOY_ESPHOME_SCHEMA_REPO_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: "esphome",
+              repo: "esphome-schema",
+              workflow_id: "generate-schemas.yml",
+              ref: "main",
+              inputs: {
+                version: "${{ needs.init.outputs.tag }}",
+              }
+            })
