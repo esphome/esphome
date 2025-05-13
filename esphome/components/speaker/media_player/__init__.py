@@ -271,9 +271,8 @@ PIPELINE_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    media_player.MEDIA_PLAYER_SCHEMA.extend(
+    media_player.media_player_schema(SpeakerMediaPlayer).extend(
         {
-            cv.GenerateID(): cv.declare_id(SpeakerMediaPlayer),
             cv.Required(CONF_ANNOUNCEMENT_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_MEDIA_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
@@ -343,9 +342,8 @@ async def to_code(config):
         # Allocate wifi buffers in PSRAM
         esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
-    await media_player.register_media_player(var, config)
 
     cg.add_define("USE_OTA_STATE_CALLBACK")
 
