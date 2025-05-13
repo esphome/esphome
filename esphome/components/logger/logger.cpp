@@ -72,7 +72,8 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
 #endif  // !USE_ESP32
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-// Implementation for ESP8266 with flash string support
+// Implementation for ESP8266 with flash string support.
+// Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
 void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
   if (level > this->level_for(tag) || recursion_guard_)
@@ -89,8 +90,10 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   }
 
   // Buffer full from copying format
-  if (this->tx_buffer_at_ >= this->tx_buffer_size_)
+  if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
+    recursion_guard_ = false;  // Make sure to reset the recursion guard before returning
     return;
+  }
 
   // Save the offset before calling format_log_to_buffer_with_terminator_
   // since it will increment tx_buffer_at_ to the end of the formatted string
@@ -98,7 +101,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
                                               &this->tx_buffer_at_, this->tx_buffer_size_);
 
-  // No write console and callback starting at the msg_start
+  // Write to console and send callback starting at the msg_start
   if (this->baud_rate_ > 0) {
     this->write_msg_(this->tx_buffer_ + msg_start);
   }
