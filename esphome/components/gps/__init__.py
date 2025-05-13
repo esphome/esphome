@@ -25,6 +25,7 @@ GPS = gps_ns.class_("GPS", cg.Component, uart.UARTDevice)
 GPSListener = gps_ns.class_("GPSListener")
 
 CONF_GPS_ID = "gps_id"
+CONF_HDOP = "hdop"
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
-                accuracy_decimals=6,
+                accuracy_decimals=3,
             ),
             cv.Optional(CONF_COURSE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,
@@ -48,10 +49,14 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER,
-                accuracy_decimals=1,
+                accuracy_decimals=2,
             ),
             cv.Optional(CONF_SATELLITES): sensor.sensor_schema(
                 accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_HDOP): sensor.sensor_schema(
+                accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -91,6 +96,10 @@ async def to_code(config):
     if CONF_SATELLITES in config:
         sens = await sensor.new_sensor(config[CONF_SATELLITES])
         cg.add(var.set_satellites_sensor(sens))
+
+    if hdop_config := config.get(CONF_HDOP):
+        sens = await sensor.new_sensor(hdop_config)
+        cg.add(var.set_hdop_sensor(sens))
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus
     cg.add_library("mikalhart/TinyGPSPlus", "1.0.2")
