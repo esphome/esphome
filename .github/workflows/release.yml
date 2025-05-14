@@ -56,16 +56,14 @@ jobs:
         uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.x"
-      - name: Set up python environment
-        env:
-          ESPHOME_NO_VENV: 1
-        run: script/setup
       - name: Build
         run: |-
           pip3 install build
           python3 -m build
       - name: Publish
         uses: pypa/gh-action-pypi-publish@v1.12.4
+        with:
+          skip-existing: true
 
   deploy-docker:
     name: Build ESPHome ${{ matrix.platform.arch }}
