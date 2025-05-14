@@ -4,7 +4,6 @@ from esphome.components import climate
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FAN_MODE,
-    CONF_ID,
     CONF_PRESET,
     CONF_SUPPORTS_COOL,
     CONF_SUPPORTS_HEAT,
@@ -151,9 +150,9 @@ SWING_MODES = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(TuyaClimate)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TuyaClimate),
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
             cv.Optional(CONF_SUPPORTS_HEAT, default=True): cv.boolean,
             cv.Optional(CONF_SUPPORTS_COOL, default=False): cv.boolean,
@@ -186,7 +185,8 @@ CONFIG_SCHEMA = cv.All(
                 "'eco_temperature' has been moved inside of the 'eco' config block under 'preset' as 'temperature'"
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
     validate_temperature_multipliers,
     validate_cooling_values,
@@ -194,9 +194,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
 
     paren = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(paren))
