@@ -290,7 +290,7 @@ class ESP32BLETracker : public Component,
 #ifdef USE_PSRAM
   const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
 #else
-  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 16;
+  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 20;
 #endif  // USE_PSRAM
   esp_ble_gap_cb_param_t::ble_scan_result_evt_param *scan_result_buffer_;
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};

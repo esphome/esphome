@@ -56,6 +56,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void dump_config() override;
   void setup() override;
   void loop() override;
+  void flush_pending_advertisements();
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
   void register_connection(BluetoothConnection *connection) {

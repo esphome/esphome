@@ -51,35 +51,60 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
+static constexpr size_t FLUSH_BATCH_SIZE = 8;
+static std::vector<api::BluetoothLERawAdvertisement> &get_batch_buffer() {
+  static std::vector<api::BluetoothLERawAdvertisement> batch_buffer;
+  return batch_buffer;
+}
+
 bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || !this->raw_advertisements_)
     return false;
 
-  api::BluetoothLERawAdvertisementsResponse resp;
-  // Pre-allocate the advertisements vector to avoid reallocations
-  resp.advertisements.reserve(count);
+  // Get the batch buffer reference
+  auto &batch_buffer = get_batch_buffer();
 
+  // Reserve additional capacity if needed
+  size_t new_size = batch_buffer.size() + count;
+  if (batch_buffer.capacity() < new_size) {
+    batch_buffer.reserve(new_size);
+  }
+
+  // Add new advertisements to the batch buffer
   for (size_t i = 0; i < count; i++) {
     auto &result = advertisements[i];
-    api::BluetoothLERawAdvertisement adv;
+    uint8_t length = result.adv_data_len + result.scan_rsp_len;
+
+    batch_buffer.emplace_back();
+    auto &adv = batch_buffer.back();
     adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
     adv.rssi = result.rssi;
     adv.address_type = result.ble_addr_type;
+    adv.data.assign(&result.ble_adv[0], &result.ble_adv[length]);
 
-    uint8_t length = result.adv_data_len + result.scan_rsp_len;
-    adv.data.reserve(length);
-    // Use a bulk insert instead of individual push_backs
-    adv.data.insert(adv.data.end(), &result.ble_adv[0], &result.ble_adv[length]);
-
-    resp.advertisements.push_back(std::move(adv));
-
-    ESP_LOGV(TAG, "Proxying raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", result.bda[0],
+    ESP_LOGV(TAG, "Queuing raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", result.bda[0],
              result.bda[1], result.bda[2], result.bda[3], result.bda[4], result.bda[5], length, result.rssi);
   }
-  ESP_LOGV(TAG, "Proxying %d packets", count);
-  this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
+
+  // Only send if we've accumulated a good batch size to maximize batching efficiency
+  // https://github.com/esphome/backlog/issues/21
+  if (batch_buffer.size() >= FLUSH_BATCH_SIZE) {
+    this->flush_pending_advertisements();
+  }
+
   return true;
 }
+
+void BluetoothProxy::flush_pending_advertisements() {
+  auto &batch_buffer = get_batch_buffer();
+  if (batch_buffer.empty() || !api::global_api_server->is_connected() || this->api_connection_ == nullptr)
+    return;
+
+  api::BluetoothLERawAdvertisementsResponse resp;
+  resp.advertisements.swap(batch_buffer);
+  this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
+}
+
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
@@ -91,28 +116,28 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
   // Pre-allocate vectors based on known sizes
   auto service_uuids = device.get_service_uuids();
   resp.service_uuids.reserve(service_uuids.size());
-  for (auto uuid : service_uuids) {
-    resp.service_uuids.push_back(uuid.to_string());
+  for (auto &uuid : service_uuids) {
+    resp.service_uuids.emplace_back(uuid.to_string());
   }
 
   // Pre-allocate service data vector
   auto service_datas = device.get_service_datas();
   resp.service_data.reserve(service_datas.size());
   for (auto &data : service_datas) {
-    api::BluetoothServiceData service_data;
+    resp.service_data.emplace_back();
+    auto &service_data = resp.service_data.back();
     service_data.uuid = data.uuid.to_string();
     service_data.data.assign(data.data.begin(), data.data.end());
-    resp.service_data.push_back(std::move(service_data));
   }
 
   // Pre-allocate manufacturer data vector
   auto manufacturer_datas = device.get_manufacturer_datas();
   resp.manufacturer_data.reserve(manufacturer_datas.size());
   for (auto &data : manufacturer_datas) {
-    api::BluetoothServiceData manufacturer_data;
+    resp.manufacturer_data.emplace_back();
+    auto &manufacturer_data = resp.manufacturer_data.back();
     manufacturer_data.uuid = data.uuid.to_string();
     manufacturer_data.data.assign(data.data.begin(), data.data.end());
-    resp.manufacturer_data.push_back(std::move(manufacturer_data));
   }
 
   this->api_connection_->send_bluetooth_le_advertisement(resp);
@@ -147,6 +172,18 @@ void BluetoothProxy::loop() {
       }
     }
     return;
+  }
+
+  // Flush any pending BLE advertisements that have been accumulated but not yet sent
+  if (this->raw_advertisements_) {
+    static uint32_t last_flush_time = 0;
+    uint32_t now = millis();
+
+    // Flush accumulated advertisements every 100ms
+    if (now - last_flush_time >= 100) {
+      this->flush_pending_advertisements();
+      last_flush_time = now;
+    }
   }
   for (auto *connection : this->connections_) {
     if (connection->send_service_ == connection->service_count_) {
