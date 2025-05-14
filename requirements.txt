@@ -12,7 +12,7 @@ pyserial==3.5
 platformio==6.1.18  # When updating platformio, also update /docker/Dockerfile
 esptool==4.8.1
 click==8.1.7
-esphome-dashboard==20250415.0
+esphome-dashboard==20250514.0
 aioesphomeapi==31.0.0
 zeroconf==0.147.0
 puremagic==1.29
