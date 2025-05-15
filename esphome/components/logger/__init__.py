@@ -254,6 +254,7 @@ async def to_code(config):
         config[CONF_TX_BUFFER_SIZE],
     )
     if CORE.is_esp32:
+        cg.add(log.create_pthread_key())
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")

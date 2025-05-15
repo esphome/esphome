@@ -14,20 +14,27 @@ namespace logger {
 static const char *const TAG = "logger";
 
 #ifdef USE_ESP32
-// Implementation for ESP32 (multi-core with atomic support)
-// Main thread: synchronous logging with direct buffer access
-// Other threads: console output with stack buffer, callbacks via async buffer
+// Implementation for ESP32 (multi-task platform with task-specific tracking)
+// Main task always uses direct buffer access for console output and callbacks
+// Other tasks:
+//  - With task log buffer: stack buffer for console output, async buffer for callbacks
+//  - Without task log buffer: only console output, no callbacks
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
-  if (level > this->level_for(tag) || recursion_guard_.load(std::memory_order_relaxed))
+  if (level > this->level_for(tag))
     return;
-  recursion_guard_.store(true, std::memory_order_relaxed);
 
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  bool is_main_task = (current_task == main_task_);
 
-  // For main task: call log_message_to_buffer_and_send_ which does console and callback logging
-  if (current_task == main_task_) {
+  // Check and set recursion guard - uses pthread TLS for per-task state
+  if (this->check_and_set_task_log_recursion_(is_main_task)) {
+    return;  // Recursion detected
+  }
+
+  // Main task uses the shared buffer for efficiency
+  if (is_main_task) {
     this->log_message_to_buffer_and_send_(level, tag, line, format, args);
-    recursion_guard_.store(false, std::memory_order_release);
+    this->reset_task_log_recursion_(is_main_task);
     return;
   }
 
@@ -51,23 +58,21 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
   }
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 
-  recursion_guard_.store(false, std::memory_order_release);
+  // Reset the recursion guard for this task
+  this->reset_task_log_recursion_(is_main_task);
 }
-#endif  // USE_ESP32
-
-#ifndef USE_ESP32
-// Implementation for platforms that do not support atomic operations
-// or have to consider logging in other tasks
+#else
+// Implementation for all other platforms
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
-  if (level > this->level_for(tag) || recursion_guard_)
+  if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  recursion_guard_ = true;
+  global_recursion_guard_ = true;
 
   // Format and send to both console and callbacks
   this->log_message_to_buffer_and_send_(level, tag, line, format, args);
 
-  recursion_guard_ = false;
+  global_recursion_guard_ = false;
 }
 #endif  // !USE_ESP32
 
@@ -76,10 +81,10 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
 // Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
 void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
-  if (level > this->level_for(tag) || recursion_guard_)
+  if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  recursion_guard_ = true;
+  global_recursion_guard_ = true;
   this->tx_buffer_at_ = 0;
 
   // Copy format string from progmem
@@ -91,7 +96,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
 
   // Buffer full from copying format
   if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
-    recursion_guard_ = false;  // Make sure to reset the recursion guard before returning
+    global_recursion_guard_ = false;  // Make sure to reset the recursion guard before returning
     return;
   }
 
@@ -107,7 +112,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   }
   this->call_log_callbacks_(level, tag, this->tx_buffer_ + msg_start);
 
-  recursion_guard_ = false;
+  global_recursion_guard_ = false;
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 

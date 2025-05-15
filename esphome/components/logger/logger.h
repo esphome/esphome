@@ -3,7 +3,7 @@
 #include <cstdarg>
 #include <map>
 #ifdef USE_ESP32
-#include <atomic>
+#include <pthread.h>
 #endif
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -84,6 +84,23 @@ enum UARTSelection {
 };
 #endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY
 
+/**
+ * @brief Logger component for all ESPHome logging.
+ *
+ * This class implements a multi-platform logging system with protection against recursion.
+ *
+ * Recursion Protection Strategy:
+ * - On ESP32: Uses task-specific recursion guards
+ *   * Main task: Uses a dedicated boolean member variable for efficiency
+ *   * Other tasks: Uses pthread TLS with a dynamically allocated key for task-specific state
+ * - On other platforms: Uses a simple global recursion guard
+ *
+ * We use pthread TLS via pthread_key_create to create a unique key for storing
+ * task-specific recursion state, which:
+ * 1. Efficiently handles multiple tasks without locks or mutexes
+ * 2. Works with ESP-IDF's pthread implementation that uses a linked list for TLS variables
+ * 3. Avoids the limitations of the fixed FreeRTOS task local storage slots
+ */
 class Logger : public Component {
  public:
   explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
@@ -101,6 +118,9 @@ class Logger : public Component {
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
+#endif
+#ifdef USE_ESP32
+  void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
@@ -222,18 +242,22 @@ class Logger : public Component {
   std::map<std::string, int> log_levels_{};
   CallbackManager<void(int, const char *, const char *)> log_callback_{};
   int current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
-#ifdef USE_ESP32
-  std::atomic<bool> recursion_guard_{false};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
 #endif
+#ifdef USE_ESP32
+  // Task-specific recursion guards:
+  // - Main task uses a dedicated member variable for efficiency
+  // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
+  bool main_task_recursion_guard_{false};
+  pthread_key_t log_recursion_key_;
 #else
-  bool recursion_guard_{false};
+  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
-  void *main_task_ = nullptr;
   CallbackManager<void(int)> level_callback_{};
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  void *main_task_ = nullptr;  // Only used for thread name identification
   const char *HOT get_thread_name_() {
     TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
     if (current_task == main_task_) {
@@ -245,6 +269,32 @@ class Logger : public Component {
       return pcTaskGetTaskName(current_task);
 #endif
     }
+  }
+#endif
+
+#ifdef USE_ESP32
+  inline bool HOT check_and_set_task_log_recursion_(bool is_main_task) {
+    if (is_main_task) {
+      const bool was_recursive = main_task_recursion_guard_;
+      main_task_recursion_guard_ = true;
+      return was_recursive;
+    }
+
+    intptr_t current = (intptr_t) pthread_getspecific(log_recursion_key_);
+    if (current != 0)
+      return true;
+
+    pthread_setspecific(log_recursion_key_, (void *) 1);
+    return false;
+  }
+
+  inline void HOT reset_task_log_recursion_(bool is_main_task) {
+    if (is_main_task) {
+      main_task_recursion_guard_ = false;
+      return;
+    }
+
+    pthread_setspecific(log_recursion_key_, (void *) 0);
   }
 #endif
 
