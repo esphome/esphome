@@ -43,7 +43,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import get_bool_env, indent, is_ip_address
-from esphome.log import Fore, color, setup_log
+from esphome.log import AnsiFore, color, setup_log
 from esphome.util import (
     get_serial_ports,
     list_yaml_files,
@@ -83,7 +83,7 @@ def choose_prompt(options, purpose: str = None):
                 raise ValueError
             break
         except ValueError:
-            safe_print(color(Fore.RED, f"Invalid option: '{opt}'"))
+            safe_print(color(AnsiFore.RED, f"Invalid option: '{opt}'"))
     return options[opt - 1][1]
 
 
@@ -596,30 +596,30 @@ def command_update_all(args):
         click.echo(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print(f"Updating {color(Fore.CYAN, f)}")
+        print(f"Updating {color(AnsiFore.CYAN, f)}")
         print("-" * twidth)
         print()
         rc = run_external_process(
             "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
-            print_bar(f"[{color(Fore.BOLD_GREEN, 'SUCCESS')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {f}")
             success[f] = True
         else:
-            print_bar(f"[{color(Fore.BOLD_RED, 'ERROR')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {f}")
             success[f] = False
 
         print()
         print()
         print()
 
-    print_bar(f"[{color(Fore.BOLD_WHITE, 'SUMMARY')}]")
+    print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
         if success[f]:
-            print(f"  - {f}: {color(Fore.GREEN, 'SUCCESS')}")
+            print(f"  - {f}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
-            print(f"  - {f}: {color(Fore.BOLD_RED, 'FAILED')}")
+            print(f"  - {f}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 
@@ -645,7 +645,7 @@ def command_rename(args, config):
         if c not in ALLOWED_NAME_CHARS:
             print(
                 color(
-                    Fore.BOLD_RED,
+                    AnsiFore.BOLD_RED,
                     f"'{c}' is an invalid character for names. Valid characters are: "
                     f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)",
                 )
@@ -658,7 +658,9 @@ def command_rename(args, config):
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
         print(
-            color(Fore.BOLD_RED, "Complex YAML files cannot be automatically renamed.")
+            color(
+                AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
+            )
         )
         return 1
     old_name = yaml[CONF_ESPHOME][CONF_NAME]
@@ -681,7 +683,7 @@ def command_rename(args, config):
             )
             > 1
         ):
-            print(color(Fore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            print(color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename"))
             return 1
 
         new_raw = re.sub(
@@ -693,7 +695,7 @@ def command_rename(args, config):
 
     new_path = os.path.join(CORE.config_dir, args.name + ".yaml")
     print(
-        f"Updating {color(Fore.CYAN, CORE.config_path)} to {color(Fore.CYAN, new_path)}"
+        f"Updating {color(AnsiFore.CYAN, CORE.config_path)} to {color(AnsiFore.CYAN, new_path)}"
     )
     print()
 
@@ -702,7 +704,7 @@ def command_rename(args, config):
 
     rc = run_external_process("esphome", "config", new_path)
     if rc != 0:
-        print(color(Fore.BOLD_RED, "Rename failed. Reverting changes."))
+        print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         os.remove(new_path)
         return 1
 
@@ -728,7 +730,7 @@ def command_rename(args, config):
     if CORE.config_path != new_path:
         os.remove(CORE.config_path)
 
-    print(color(Fore.BOLD_GREEN, "SUCCESS"))
+    print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
     return 0
 

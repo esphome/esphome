@@ -28,7 +28,7 @@ import esphome.core.config as core_config
 import esphome.final_validate as fv
 from esphome.helpers import indent
 from esphome.loader import ComponentManifest, get_component, get_platform
-from esphome.log import Fore, color
+from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -959,7 +959,7 @@ def line_info(config, path, highlight=True):
     if obj:
         mark = obj.start_mark
         source = f"[source {mark.document}:{mark.line + 1}]"
-        return color(Fore.CYAN, source)
+        return color(AnsiFore.CYAN, source)
     return "None"
 
 
@@ -983,7 +983,7 @@ def dump_dict(
     if at_root:
         error = config.get_error_for_path(path)
         if error is not None:
-            ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
+            ret += f"\n{color(AnsiFore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
     if isinstance(conf, (list, tuple)):
         multiline = True
@@ -995,11 +995,11 @@ def dump_dict(
             path_ = path + [i]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
+                ret += f"\n{color(AnsiFore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             sep = "- "
             if config.is_in_error_path(path_):
-                sep = color(Fore.RED, sep)
+                sep = color(AnsiFore.RED, sep)
             msg, _ = dump_dict(config, path_, at_root=False)
             msg = indent(msg)
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
@@ -1018,11 +1018,11 @@ def dump_dict(
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
+                ret += f"\n{color(AnsiFore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             st = f"{k}: "
             if config.is_in_error_path(path_):
-                st = color(Fore.RED, st)
+                st = color(AnsiFore.RED, st)
             msg, m = dump_dict(config, path_, at_root=False)
 
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
@@ -1044,7 +1044,7 @@ def dump_dict(
         if len(conf) > 80:
             conf = f"|-\n{indent(conf)}"
         error = config.get_error_for_path(path)
-        col = Fore.BOLD_RED if error else Fore.KEEP
+        col = AnsiFore.BOLD_RED if error else AnsiFore.KEEP
         ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
@@ -1052,13 +1052,13 @@ def dump_dict(
 
         conf = f"!lambda |-\n{indent(str(conf.value))}"
         error = config.get_error_for_path(path)
-        col = Fore.BOLD_RED if error else Fore.KEEP
+        col = AnsiFore.BOLD_RED if error else AnsiFore.KEEP
         ret += color(col, conf)
     elif conf is None:
         pass
     else:
         error = config.get_error_for_path(path)
-        col = Fore.BOLD_RED if error else Fore.KEEP
+        col = AnsiFore.BOLD_RED if error else AnsiFore.KEEP
         ret += color(col, str(conf))
         multiline = "\n" in ret
 
@@ -1100,13 +1100,13 @@ def read_config(command_line_substitutions):
         if not CORE.verbose:
             res = strip_default_ids(res)
 
-        safe_print(color(Fore.BOLD_RED, "Failed config"))
+        safe_print(color(AnsiFore.BOLD_RED, "Failed config"))
         safe_print("")
         for path, domain in res.output_paths:
             if not res.is_in_error_path(path):
                 continue
 
-            errstr = color(Fore.BOLD_RED, f"{domain}:")
+            errstr = color(AnsiFore.BOLD_RED, f"{domain}:")
             errline = line_info(res, path)
             if errline:
                 errstr += f" {errline}"
@@ -1121,7 +1121,7 @@ def read_config(command_line_substitutions):
             safe_print(indent("\n".join(split_dump[:i])))
 
         for err in res.errors:
-            safe_print(color(Fore.BOLD_RED, err.msg))
+            safe_print(color(AnsiFore.BOLD_RED, err.msg))
             safe_print("")
 
         return None
