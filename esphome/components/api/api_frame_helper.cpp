@@ -830,6 +830,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
   // read header
   while (!rx_header_parsed_) {
     uint8_t data;
+    // Reading one byte at a time is fastest in practice for ESP32 when
+    // there is no data on the wire (which is the common case).
+    // This results in faster failure detection compared to
+    // attempting to read multiple bytes at once.
     ssize_t received = socket_->read(&data, 1);
     if (received == -1) {
       if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -843,27 +847,60 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
       HELPER_LOG("Connection closed");
       return APIError::CONNECTION_CLOSED;
     }
-    rx_header_buf_.push_back(data);
 
-    // try parse header
-    if (rx_header_buf_[0] != 0x00) {
-      state_ = State::FAILED;
-      HELPER_LOG("Bad indicator byte %u", rx_header_buf_[0]);
-      return APIError::BAD_INDICATOR;
+    // Successfully read a byte
+
+    // Process byte according to current buffer position
+    if (rx_header_buf_pos_ == 0) {  // Case 1: First byte (indicator byte)
+      if (data != 0x00) {
+        state_ = State::FAILED;
+        HELPER_LOG("Bad indicator byte %u", data);
+        return APIError::BAD_INDICATOR;
+      }
+      // We don't store the indicator byte, just increment position
+      rx_header_buf_pos_ = 1;  // Set to 1 directly
+      continue;                // Need more bytes before we can parse
     }
 
-    size_t i = 1;
+    // Check buffer overflow before storing
+    if (rx_header_buf_pos_ == 5) {  // Case 2: Buffer would overflow (5 bytes is max allowed)
+      state_ = State::FAILED;
+      HELPER_LOG("Header buffer overflow");
+      return APIError::BAD_DATA_PACKET;
+    }
+
+    // Store byte in buffer (adjust index to account for skipped indicator byte)
+    rx_header_buf_[rx_header_buf_pos_ - 1] = data;
+
+    // Increment position after storing
+    rx_header_buf_pos_++;
+
+    // Case 3: If we only have one varint byte, we need more
+    if (rx_header_buf_pos_ == 2) {  // Have read indicator + 1 byte
+      continue;                     // Need more bytes before we can parse
+    }
+
+    // At this point, we have at least 3 bytes total:
+    //   - Validated indicator byte (0x00) but not stored
+    //   - At least 2 bytes in the buffer for the varints
+    // Buffer layout:
+    //   First 1-3 bytes: Message size varint (variable length)
+    //     - 2 bytes would only allow up to 16383, which is less than noise's 65535
+    //     - 3 bytes allows up to 2097151, ensuring we support at least as much as noise
+    //   Remaining 1-2 bytes: Message type varint (variable length)
+    // We now attempt to parse both varints. If either is incomplete,
+    // we'll continue reading more bytes.
+
     uint32_t consumed = 0;
-    auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[i], rx_header_buf_.size() - i, &consumed);
+    auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[0], rx_header_buf_pos_ - 1, &consumed);
     if (!msg_size_varint.has_value()) {
       // not enough data there yet
       continue;
     }
 
-    i += consumed;
     rx_header_parsed_len_ = msg_size_varint->as_uint32();
 
-    auto msg_type_varint = ProtoVarInt::parse(&rx_header_buf_[i], rx_header_buf_.size() - i, &consumed);
+    auto msg_type_varint = ProtoVarInt::parse(&rx_header_buf_[consumed], rx_header_buf_pos_ - 1 - consumed, &consumed);
     if (!msg_type_varint.has_value()) {
       // not enough data there yet
       continue;
@@ -909,7 +946,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
   // consume msg
   rx_buf_ = {};
   rx_buf_len_ = 0;
-  rx_header_buf_.clear();
+  rx_header_buf_pos_ = 0;
   rx_header_parsed_ = false;
   return APIError::OK;
 }
