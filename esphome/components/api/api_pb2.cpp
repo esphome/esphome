@@ -96,6 +96,8 @@ template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode v
       return "COLOR_MODE_UNKNOWN";
     case enums::COLOR_MODE_ON_OFF:
       return "COLOR_MODE_ON_OFF";
+    case enums::COLOR_MODE_LEGACY_BRIGHTNESS:
+      return "COLOR_MODE_LEGACY_BRIGHTNESS";
     case enums::COLOR_MODE_BRIGHTNESS:
       return "COLOR_MODE_BRIGHTNESS";
     case enums::COLOR_MODE_WHITE:
