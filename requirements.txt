@@ -19,7 +19,7 @@ puremagic==1.29
 ruamel.yaml==0.18.10 # dashboard_import
 esphome-glyphsets==0.2.0
 pillow==10.4.0
-cairosvg==2.8.1
+cairosvg==2.8.2
 freetype-py==2.5.1
 
 # esp-idf requires this, but doesn't bundle it by default
