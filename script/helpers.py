@@ -5,7 +5,6 @@ import re
 import subprocess
 
 import colorama
-import helpers_zephyr
 
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
@@ -149,7 +148,9 @@ def load_idedata(environment):
     Path(temp_folder).mkdir(exist_ok=True)
 
     if "nrf" in environment:
-        data = helpers_zephyr.load_idedata(environment, temp_folder, platformio_ini)
+        from helpers_zephyr import load_idedata as zephyr_load_idedata
+
+        data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
     else:
         stdout = subprocess.check_output(
             ["pio", "run", "-t", "idedata", "-e", environment]
