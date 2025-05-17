@@ -63,33 +63,33 @@ void DucoHumiditySensor::receive_response(const DucoMessage &message) {
 
 void DucoHumiditySensor::set_address(uint8_t address) { this->address_ = address; }
 
-void DucoHumidityTemperatureSensor::setup() {}
+void DucoTemperatureSensor::setup() {}
 
-void DucoHumidityTemperatureSensor::update() {
+void DucoTemperatureSensor::update() {
   DucoMessage message;
   message.function = 0x10;
   message.data = {0x01, address_, 0x00, 0x49, 0x04};
   this->parent_->send(message, this);
 }
 
-float DucoHumidityTemperatureSensor::get_setup_priority() const {
+float DucoTemperatureSensor::get_setup_priority() const {
   // After DUCO
   return setup_priority::BUS - 2.0f;
 }
 
-void DucoHumidityTemperatureSensor::receive_response(const DucoMessage &message) {
+void DucoTemperatureSensor::receive_response(const DucoMessage &message) {
   if (message.function == 0x12) {
-    uint16_t rh_value = (message.data[7] << 8) + message.data[6];
+    uint16_t temp_value = (message.data[3] << 8) + message.data[2];
     // only publish the state if the co2 value is below 10000
     // otherwise the value is likely invalid
-    if (rh_value <= 10000)
-      publish_state(rh_value / 100.0);
+    if (temp_value <= 1000)
+      publish_state(temp_value / 10.0);
 
     this->parent_->stop_waiting(message.id);
   }
 }
 
-void DucoHumidityTemperatureSensor::set_address(uint8_t address) { this->address_ = address; }
+void DucoTemperatureSensor::set_address(uint8_t address) { this->address_ = address; }
 
 void DucoFilterRemainingSensor::setup() {}
 

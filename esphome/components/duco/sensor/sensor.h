@@ -38,7 +38,7 @@ class DucoHumiditySensor : public DucoDevice, public PollingComponent, public se
   uint8_t address_;
 };
 
-class DucoHumidityTemperatureSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
+class DucoTemperatureSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
  public:
   void setup() override;
   void update() override;
