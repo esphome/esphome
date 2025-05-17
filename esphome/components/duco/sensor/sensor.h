@@ -23,6 +23,36 @@ class DucoCo2Sensor : public DucoDevice, public PollingComponent, public sensor:
   uint8_t address_;
 };
 
+class DucoHumiditySensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
+ public:
+  void setup() override;
+  void update() override;
+
+  float get_setup_priority() const override;
+
+  void receive_response(const DucoMessage &message) override;
+
+  void set_address(uint8_t address);
+
+ protected:
+  uint8_t address_;
+};
+
+class DucoHumidityTemperatureSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
+ public:
+  void setup() override;
+  void update() override;
+
+  float get_setup_priority() const override;
+
+  void receive_response(const DucoMessage &message) override;
+
+  void set_address(uint8_t address);
+
+ protected:
+  uint8_t address_;
+};
+
 class DucoFilterRemainingSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
  public:
   void setup() override;

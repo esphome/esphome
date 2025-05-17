@@ -4,11 +4,16 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_CO2,
+    CONF_HUMIDITY,
     CONF_ID,
+    CONF_TEMPERATURE,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
     UNIT_SECOND,
@@ -27,6 +32,12 @@ CONF_TIME_REMAINING = "time_remaining"
 
 duco_ns = cg.esphome_ns.namespace("duco")
 DucoCo2Sensor = duco_ns.class_("DucoCo2Sensor", cg.PollingComponent, sensor.Sensor)
+DucoHumiditySensor = duco_ns.class_(
+    "DucoHumiditySensor", cg.PollingComponent, sensor.Sensor
+)
+DucoHumidityTemperatureSensor = duco_ns.class_(
+    "DucoHumidityTemperatureSensor", cg.PollingComponent, sensor.Sensor
+)
 DucoFilterRemainingSensor = duco_ns.class_(
     "DucoFilterRemainingSensor", cg.PollingComponent, sensor.Sensor
 )
@@ -35,6 +46,36 @@ DucoFlowLevelSensor = duco_ns.class_(
 )
 DucoStateTimeRemainingSensor = duco_ns.class_(
     "DucoStateTimeRemainingSensor", cg.PollingComponent, sensor.Sensor
+)
+
+HUMIDITY_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PERCENT,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_HUMIDITY,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend(
+            {
+                cv.GenerateID(): cv.declare_id(DucoHumiditySensor),
+            }
+        )
+        .extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend(
+            {
+                cv.GenerateID(): cv.declare_id(DucoHumidityTemperatureSensor),
+            }
+        )
+        .extend(cv.polling_component_schema("60s")),
+        cv.Required(CONF_ADDRESS): cv.int_range(0, 68),
+    }
 )
 
 CONFIG_SCHEMA = cv.Schema(
@@ -54,6 +95,7 @@ CONFIG_SCHEMA = cv.Schema(
             )
             .extend(cv.polling_component_schema("60s"))
         ),
+        cv.Optional(CONF_HUMIDITY): cv.ensure_list(HUMIDITY_SCHEMA),
         cv.Optional(CONF_FILTER_REMAINING): sensor.sensor_schema(
             unit_of_measurement=UNIT_DAYS,
             accuracy_decimals=0,
@@ -84,12 +126,32 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_DUCO_ID])
-    for co2_sensor_config in config[CONF_CO2]:
-        sensvar = cg.new_Pvariable(co2_sensor_config[CONF_ID])
-        await cg.register_component(sensvar, co2_sensor_config)
-        await sensor.register_sensor(sensvar, co2_sensor_config)
-        cg.add(sensvar.set_parent(parent))
-        cg.add(sensvar.set_address(co2_sensor_config[CONF_ADDRESS]))
+
+    if CONF_CO2 in config:
+        for co2_sensor_config in config[CONF_CO2]:
+            sensvar = cg.new_Pvariable(co2_sensor_config[CONF_ID])
+            await cg.register_component(sensvar, co2_sensor_config)
+            await sensor.register_sensor(sensvar, co2_sensor_config)
+            cg.add(sensvar.set_parent(parent))
+            cg.add(sensvar.set_address(co2_sensor_config[CONF_ADDRESS]))
+
+    if CONF_HUMIDITY in config:
+        for humidity_config in config[CONF_HUMIDITY]:
+            if CONF_HUMIDITY in humidity_config:
+                humidity_sensor_config = humidity_config[CONF_HUMIDITY]
+                sensvar = cg.new_Pvariable(humidity_sensor_config[CONF_ID])
+                await cg.register_component(sensvar, humidity_sensor_config)
+                await sensor.register_sensor(sensvar, humidity_sensor_config)
+                cg.add(sensvar.set_parent(parent))
+                cg.add(sensvar.set_address(humidity_config[CONF_ADDRESS]))
+
+            if CONF_TEMPERATURE in humidity_config:
+                temperature_sensor_config = humidity_config[CONF_TEMPERATURE]
+                sensvar = cg.new_Pvariable(temperature_sensor_config[CONF_ID])
+                await cg.register_component(sensvar, temperature_sensor_config)
+                await sensor.register_sensor(sensvar, temperature_sensor_config)
+                cg.add(sensvar.set_parent(parent))
+                cg.add(sensvar.set_address(humidity_config[CONF_ADDRESS]))
 
     if CONF_FILTER_REMAINING in config:
         filter_remaining_config = config[CONF_FILTER_REMAINING]
