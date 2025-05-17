@@ -24,7 +24,8 @@ float DucoSerial::get_setup_priority() const {
 void DucoSerial::receive_response(const DucoMessage &message) {
   if (message.function == 0x12) {
     // Serial response received, parse it
-    std::string serial(message.data.begin() + 2, message.data.end());
+    auto null_pos = std::find(message.data.begin() + 2, message.data.end(), 0x00);
+    std::string serial(message.data.begin() + 2, null_pos);
     ESP_LOGD(TAG, "Box Serial: %s", serial.c_str());
 
     publish_state(serial);
