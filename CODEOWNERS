@@ -169,7 +169,7 @@ esphome/components/gp2y1010au0f/* @zry98
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
 esphome/components/gpio/one_wire/* @ssieb
-esphome/components/gps/* @coogle
+esphome/components/gps/* @coogle @ximex
 esphome/components/graph/* @synco
 esphome/components/graphical_display_menu/* @MrMDavidson
 esphome/components/gree/* @orestismers
@@ -282,6 +282,7 @@ esphome/components/microphone/* @jesserockz @kahrendt
 esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
+esphome/components/mipi_spi/* @clydebarrow
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mixer/speaker/* @kahrendt
 esphome/components/mlx90393/* @functionpointer
@@ -319,6 +320,7 @@ esphome/components/online_image/* @clydebarrow @guillempages
 esphome/components/opentherm/* @olegtarasov
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/packet_transport/* @clydebarrow
 esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
@@ -397,6 +399,7 @@ esphome/components/smt100/* @piechade
 esphome/components/sn74hc165/* @jesserockz
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
+esphome/components/sound_level/* @kahrendt
 esphome/components/speaker/* @jesserockz @kahrendt
 esphome/components/speaker/media_player/* @kahrendt @synesthesiam
 esphome/components/spi/* @clydebarrow @esphome/core
@@ -428,6 +431,7 @@ esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
+esphome/components/syslog/* @clydebarrow
 esphome/components/t6615/* @tylermenezes
 esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984
@@ -467,6 +471,7 @@ esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
 esphome/components/uart/* @esphome/core
 esphome/components/uart/button/* @ssieb
+esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/udp/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli

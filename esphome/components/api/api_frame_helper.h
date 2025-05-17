@@ -72,6 +72,12 @@ class APIFrameHelper {
   virtual APIError shutdown(int how) = 0;
   // Give this helper a name for logging
   virtual void set_log_info(std::string info) = 0;
+
+ protected:
+  // Common implementation for writing raw data to socket
+  template<typename StateEnum>
+  APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
+                      const std::string &info, StateEnum &state, StateEnum failed_state);
 };
 
 #ifdef USE_API_NOISE
@@ -103,7 +109,9 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
   APIError write_frame_(const uint8_t *data, size_t len);
-  APIError write_raw_(const struct iovec *iov, int iovcnt);
+  inline APIError write_raw_(const struct iovec *iov, int iovcnt) {
+    return APIFrameHelper::write_raw_(iov, iovcnt, socket_.get(), tx_buf_, info_, state_, State::FAILED);
+  }
   APIError init_handshake_();
   APIError check_handshake_finished_();
   void send_explicit_handshake_reject_(const std::string &reason);
@@ -111,6 +119,9 @@ class APINoiseFrameHelper : public APIFrameHelper {
   std::unique_ptr<socket::Socket> socket_;
 
   std::string info_;
+  // Fixed-size header buffer for noise protocol:
+  // 1 byte for indicator + 2 bytes for message size (16-bit value, not varint)
+  // Note: Maximum message size is 65535, with a limit of 128 bytes during handshake phase
   uint8_t rx_header_buf_[3];
   size_t rx_header_buf_len_ = 0;
   std::vector<uint8_t> rx_buf_;
@@ -164,12 +175,23 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
 
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
-  APIError write_raw_(const struct iovec *iov, int iovcnt);
+  inline APIError write_raw_(const struct iovec *iov, int iovcnt) {
+    return APIFrameHelper::write_raw_(iov, iovcnt, socket_.get(), tx_buf_, info_, state_, State::FAILED);
+  }
 
   std::unique_ptr<socket::Socket> socket_;
 
   std::string info_;
-  std::vector<uint8_t> rx_header_buf_;
+  // Fixed-size header buffer for plaintext protocol:
+  // We only need space for the two varints since we validate the indicator byte separately.
+  // To match noise protocol's maximum message size (65535), we need:
+  // 3 bytes for message size varint (supports up to 2097151) + 2 bytes for message type varint
+  //
+  // While varints could theoretically be up to 10 bytes each for 64-bit values,
+  // attempting to process messages with headers that large would likely crash the
+  // ESP32 due to memory constraints.
+  uint8_t rx_header_buf_[5];  // 5 bytes for varints (3 for size + 2 for type)
+  uint8_t rx_header_buf_pos_ = 0;
   bool rx_header_parsed_ = false;
   uint32_t rx_header_parsed_type_ = 0;
   uint32_t rx_header_parsed_len_ = 0;

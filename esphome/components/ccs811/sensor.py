@@ -32,14 +32,14 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CCS811Component),
-            cv.Required(CONF_ECO2): sensor.sensor_schema(
+            cv.Optional(CONF_ECO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_TVOC): sensor.sensor_schema(
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
@@ -64,10 +64,13 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    sens = await sensor.new_sensor(config[CONF_ECO2])
-    cg.add(var.set_co2(sens))
-    sens = await sensor.new_sensor(config[CONF_TVOC])
-    cg.add(var.set_tvoc(sens))
+    if eco2_config := config.get(CONF_ECO2):
+        sens = await sensor.new_sensor(eco2_config)
+        cg.add(var.set_co2(sens))
+
+    if tvoc_config := config.get(CONF_TVOC):
+        sens = await sensor.new_sensor(tvoc_config)
+        cg.add(var.set_tvoc(sens))
 
     if version_config := config.get(CONF_VERSION):
         sens = await text_sensor.new_text_sensor(version_config)

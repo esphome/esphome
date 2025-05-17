@@ -134,6 +134,15 @@ lvgl:
                   id: style_test
                   bg_color: blue
                   bg_opa: !lambda return 0.5;
+              - lvgl.image.update:
+                  id: lv_image
+                  zoom: !lambda return 512;
+                  angle: !lambda return 100;
+                  pivot_x: !lambda return 20;
+                  pivot_y: !lambda return 20;
+                  offset_x: !lambda return 20;
+                  offset_y: !lambda return 20;
+                  antialias: !lambda return true;
     - id: simple_msgbox
       title: Simple
 
@@ -203,7 +212,7 @@ lvgl:
         - animimg:
             height: 60
             id: anim_img
-            src: [cat_image, dog_image]
+            src: !lambda "return {dog_image, cat_image};"
             repeat_count: 10
             duration: 1s
             auto_start: true
@@ -215,6 +224,7 @@ lvgl:
                   id: anim_img
                   src: !lambda "return {dog_image, cat_image};"
                   duration: 2s
+              - lvgl.widget.refresh: anim_img
         - label:
             on_boot:
               lvgl.label.update:
@@ -486,6 +496,8 @@ lvgl:
             align: top_left
             y: "50"
             mode: real
+            zoom: 2.0
+            angle: 45
         - tileview:
             id: tileview_id
             scrollbar_mode: active
@@ -641,6 +653,8 @@ lvgl:
             knob:
               radius: 1
               width: "4"
+              pad_left: -5
+              pad_top: 5
               height: 10%
               bg_color: 0x000000
             width: 100%

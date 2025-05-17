@@ -8,7 +8,7 @@
 namespace esphome {
 namespace hm3301 {
 
-static const uint8_t SELECT_COMM_CMD = 0X88;
+static const uint8_t SELECT_COMM_CMD = 0x88;
 
 class HM3301Component : public PollingComponent, public i2c::I2CDevice {
  public:

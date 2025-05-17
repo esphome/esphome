@@ -21,6 +21,10 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+#include <esp_coexist.h>
+#endif
+
 #ifdef USE_ARDUINO
 #include <esp32-hal-bt.h>
 #endif
@@ -118,7 +122,7 @@ void ESP32BLETracker::loop() {
 
   if (this->scanner_state_ == ScannerState::RUNNING &&
       this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
-      xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
+      xSemaphoreTake(this->scan_result_lock_, 0)) {
     uint32_t index = this->scan_result_index_;
     if (index >= ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
       ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
@@ -194,9 +198,17 @@ void ESP32BLETracker::loop() {
     https://github.com/espressif/esp-idf/issues/6688
 
   */
-  if (this->scanner_state_ == ScannerState::IDLE && this->scan_continuous_ && !connecting && !disconnecting &&
-      !promote_to_connecting) {
-    this->start_scan_(false);  // first = false
+  if (this->scanner_state_ == ScannerState::IDLE && !connecting && !disconnecting && !promote_to_connecting) {
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+    if (this->coex_prefer_ble_) {
+      this->coex_prefer_ble_ = false;
+      ESP_LOGD(TAG, "Setting coexistence preference to balanced.");
+      esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);  // Reset to default
+    }
+#endif
+    if (this->scan_continuous_) {
+      this->start_scan_(false);  // first = false
+    }
   }
   // If there is a discovered client and no connecting
   // clients and no clients using the scanner to search for
@@ -213,6 +225,13 @@ void ESP32BLETracker::loop() {
           ESP_LOGD(TAG, "Promoting client to connect...");
           // We only want to promote one client at a time.
           // once the scanner is fully stopped.
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+          ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
+          if (!this->coex_prefer_ble_) {
+            this->coex_prefer_ble_ = true;
+            esp_coex_preference_set(ESP_COEX_PREFER_BT);  // Prioritize Bluetooth
+          }
+#endif
           client->set_state(ClientState::READY_TO_CONNECT);
         }
         break;
@@ -428,7 +447,7 @@ void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_
 void ESP32BLETracker::gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   ESP_LOGV(TAG, "gap_scan_result - event %d", param.search_evt);
   if (param.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
-    if (xSemaphoreTake(this->scan_result_lock_, 0L)) {
+    if (xSemaphoreTake(this->scan_result_lock_, 0)) {
       if (this->scan_result_index_ < ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
         this->scan_result_buffer_[this->scan_result_index_++] = param;
       }

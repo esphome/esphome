@@ -14,6 +14,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include "esp_timer.h"
+
 namespace esphome {
 namespace i2s_audio {
 
@@ -366,25 +368,15 @@ void I2SAudioSpeaker::speaker_task(void *params) {
                             bytes_to_write, &bytes_written, pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS * 5));
 #endif
 
-          uint32_t write_timestamp = micros();
+          int64_t now = esp_timer_get_time();
 
           if (bytes_written != bytes_to_write) {
             xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::ERR_ESP_INVALID_SIZE);
           }
-
           bytes_read -= bytes_written;
 
-          this_speaker->accumulated_frames_written_ += audio_stream_info.bytes_to_frames(bytes_written);
-          const uint32_t new_playback_ms =
-              audio_stream_info.frames_to_milliseconds_with_remainder(&this_speaker->accumulated_frames_written_);
-          const uint32_t remainder_us =
-              audio_stream_info.frames_to_microseconds(this_speaker->accumulated_frames_written_);
-
-          uint32_t pending_frames =
-              audio_stream_info.bytes_to_frames(bytes_read + this_speaker->audio_ring_buffer_->available());
-          const uint32_t pending_ms = audio_stream_info.frames_to_milliseconds_with_remainder(&pending_frames);
-
-          this_speaker->audio_output_callback_(new_playback_ms, remainder_us, pending_ms, write_timestamp);
+          this_speaker->audio_output_callback_(audio_stream_info.bytes_to_frames(bytes_written),
+                                               now + dma_buffers_duration_ms * 1000);
 
           tx_dma_underflow = false;
           last_data_received_time = millis();
@@ -637,7 +629,16 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     std_slot_cfg =
         I2S_STD_MSB_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
   }
+#ifdef USE_ESP32_VARIANT_ESP32
+  // There seems to be a bug on the ESP32 (non-variant) platform where setting the slot bit width higher then the bits
+  // per sample causes the audio to play too fast. Setting the ws_width to the configured slot bit width seems to
+  // make it play at the correct speed while sending more bits per slot.
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    std_slot_cfg.ws_width = static_cast<uint32_t>(this->slot_bit_width_);
+  }
+#else
   std_slot_cfg.slot_bit_width = this->slot_bit_width_;
+#endif
   std_slot_cfg.slot_mask = slot_mask;
 
   pin_config.dout = this->dout_pin_;

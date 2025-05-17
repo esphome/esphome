@@ -126,19 +126,29 @@ void APIServer::loop() {
     conn->start();
   }
 
-  // Partition clients into remove and active
-  auto new_end = std::partition(this->clients_.begin(), this->clients_.end(),
-                                [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
-  // print disconnection messages
-  for (auto it = new_end; it != this->clients_.end(); ++it) {
-    this->client_disconnected_trigger_->trigger((*it)->client_info_, (*it)->client_peername_);
-    ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
-  }
-  // resize vector
-  this->clients_.erase(new_end, this->clients_.end());
+  // Process clients and remove disconnected ones in a single pass
+  if (!this->clients_.empty()) {
+    size_t client_index = 0;
+    while (client_index < this->clients_.size()) {
+      auto &client = this->clients_[client_index];
 
-  for (auto &client : this->clients_) {
-    client->loop();
+      if (client->remove_) {
+        // Handle disconnection
+        this->client_disconnected_trigger_->trigger(client->client_info_, client->client_peername_);
+        ESP_LOGV(TAG, "Removing connection to %s", client->client_info_.c_str());
+
+        // Swap with the last element and pop (avoids expensive vector shifts)
+        if (client_index < this->clients_.size() - 1) {
+          std::swap(this->clients_[client_index], this->clients_.back());
+        }
+        this->clients_.pop_back();
+        // Don't increment client_index since we need to process the swapped element
+      } else {
+        // Process active client
+        client->loop();
+        client_index++;  // Move to next client
+      }
+    }
   }
 
   if (this->reboot_timeout_ != 0) {

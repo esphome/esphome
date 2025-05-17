@@ -43,6 +43,32 @@ void MQTTFanComponent::setup() {
     }
   });
 
+  if (this->state_->get_traits().supports_direction()) {
+    this->subscribe(this->get_direction_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      auto val = parse_on_off(payload.c_str(), "forward", "reverse");
+      switch (val) {
+        case PARSE_ON:
+          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", this->friendly_name().c_str());
+          this->state_->make_call().set_direction(fan::FanDirection::FORWARD).perform();
+          break;
+        case PARSE_OFF:
+          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", this->friendly_name().c_str());
+          this->state_->make_call().set_direction(fan::FanDirection::REVERSE).perform();
+          break;
+        case PARSE_TOGGLE:
+          this->state_->make_call()
+              .set_direction(this->state_->direction == fan::FanDirection::FORWARD ? fan::FanDirection::REVERSE
+                                                                                   : fan::FanDirection::FORWARD)
+              .perform();
+          break;
+        case PARSE_NONE:
+          ESP_LOGW(TAG, "Unknown direction Payload %s", payload.c_str());
+          this->status_momentary_warning("direction", 5000);
+          break;
+      }
+    });
+  }
+
   if (this->state_->get_traits().supports_oscillation()) {
     this->subscribe(this->get_oscillation_command_topic(),
                     [this](const std::string &topic, const std::string &payload) {
@@ -94,6 +120,10 @@ void MQTTFanComponent::setup() {
 void MQTTFanComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Fan '%s': ", this->state_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
+  if (this->state_->get_traits().supports_direction()) {
+    ESP_LOGCONFIG(TAG, "  Direction State Topic: '%s'", this->get_direction_state_topic().c_str());
+    ESP_LOGCONFIG(TAG, "  Direction Command Topic: '%s'", this->get_direction_command_topic().c_str());
+  }
   if (this->state_->get_traits().supports_oscillation()) {
     ESP_LOGCONFIG(TAG, "  Oscillation State Topic: '%s'", this->get_oscillation_state_topic().c_str());
     ESP_LOGCONFIG(TAG, "  Oscillation Command Topic: '%s'", this->get_oscillation_command_topic().c_str());
@@ -107,6 +137,10 @@ void MQTTFanComponent::dump_config() {
 bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
 
 void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  if (this->state_->get_traits().supports_direction()) {
+    root[MQTT_DIRECTION_COMMAND_TOPIC] = this->get_direction_command_topic();
+    root[MQTT_DIRECTION_STATE_TOPIC] = this->get_direction_state_topic();
+  }
   if (this->state_->get_traits().supports_oscillation()) {
     root[MQTT_OSCILLATION_COMMAND_TOPIC] = this->get_oscillation_command_topic();
     root[MQTT_OSCILLATION_STATE_TOPIC] = this->get_oscillation_state_topic();
@@ -122,6 +156,11 @@ bool MQTTFanComponent::publish_state() {
   ESP_LOGD(TAG, "'%s' Sending state %s.", this->state_->get_name().c_str(), state_s);
   this->publish(this->get_state_topic_(), state_s);
   bool failed = false;
+  if (this->state_->get_traits().supports_direction()) {
+    bool success = this->publish(this->get_direction_state_topic(),
+                                 this->state_->direction == fan::FanDirection::FORWARD ? "forward" : "reverse");
+    failed = failed || !success;
+  }
   if (this->state_->get_traits().supports_oscillation()) {
     bool success = this->publish(this->get_oscillation_state_topic(),
                                  this->state_->oscillating ? "oscillate_on" : "oscillate_off");

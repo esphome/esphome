@@ -1,14 +1,19 @@
 #pragma once
 
+#include "microphone.h"
+
+#include "esphome/components/audio/audio.h"
+
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <vector>
-#include "microphone.h"
 
 namespace esphome {
 namespace microphone {
+
+static const int32_t MAX_GAIN_FACTOR = 64;
 
 class MicrophoneSource {
   /*
@@ -30,8 +35,8 @@ class MicrophoneSource {
    * Note that this class cannot convert sample rates!
    */
  public:
-  MicrophoneSource(Microphone *mic, uint8_t bits_per_sample, int32_t gain_factor)
-      : mic_(mic), bits_per_sample_(bits_per_sample), gain_factor_(gain_factor) {}
+  MicrophoneSource(Microphone *mic, uint8_t bits_per_sample, int32_t gain_factor, bool passive)
+      : mic_(mic), bits_per_sample_(bits_per_sample), gain_factor_(gain_factor), passive_(passive) {}
 
   /// @brief Enables a channel to be processed through the callback.
   ///
@@ -44,19 +49,31 @@ class MicrophoneSource {
 
   void add_data_callback(std::function<void(const std::vector<uint8_t> &)> &&data_callback);
 
+  void set_gain_factor(int32_t gain_factor) { this->gain_factor_ = clamp<int32_t>(gain_factor, 1, MAX_GAIN_FACTOR); }
+  int32_t get_gain_factor() { return this->gain_factor_; }
+
+  /// @brief Gets the AudioStreamInfo of the data after processing
+  /// @return audio::AudioStreamInfo with the configured bits per sample, configured channel count, and source
+  ///         microphone's sample rate
+  audio::AudioStreamInfo get_audio_stream_info();
+
   void start();
   void stop();
-  bool is_running() const { return (this->mic_->is_running() && this->enabled_); }
-  bool is_stopped() const { return !this->enabled_; }
+  bool is_passive() const { return this->passive_; }
+  bool is_running() const { return (this->mic_->is_running() && (this->enabled_ || this->passive_)); }
+  bool is_stopped() const { return !this->is_running(); };
 
  protected:
-  std::vector<uint8_t> process_audio_(const std::vector<uint8_t> &data);
+  void process_audio_(const std::vector<uint8_t> &data, std::vector<uint8_t> &filtered_data);
+
+  std::shared_ptr<std::vector<uint8_t>> processed_samples_;
 
   Microphone *mic_;
   uint8_t bits_per_sample_;
   std::bitset<8> channels_;
   int32_t gain_factor_;
   bool enabled_{false};
+  bool passive_;  // Only pass audio if ``mic_`` is already running
 };
 
 }  // namespace microphone

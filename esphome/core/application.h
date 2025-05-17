@@ -97,6 +97,9 @@ class Application {
     this->compilation_time_ = compilation_time;
   }
 
+  void set_current_component(Component *component) { this->current_component_ = component; }
+  Component *get_current_component() { return this->current_component_; }
+
 #ifdef USE_BINARY_SENSOR
   void register_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
     this->binary_sensors_.push_back(binary_sensor);
@@ -547,6 +550,7 @@ class Application {
   uint32_t loop_interval_{16};
   size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
+  Component *current_component_{nullptr};
 };
 
 /// Global storage of Application pointer - only one Application can exist.

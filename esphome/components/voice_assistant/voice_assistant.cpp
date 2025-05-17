@@ -695,12 +695,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
-      if ((this->state_ == State::STARTING_PIPELINE) || (this->state_ == State::AWAITING_RESPONSE)) {
-        // Pipeline ended before starting microphone
-        // Or there wasn't a TTS start event ("nevermind")
-        this->set_state_(State::IDLE, State::IDLE);
-      } else if (this->state_ == State::STREAMING_MICROPHONE) {
-        this->ring_buffer_->reset();
+      if ((this->state_ == State::START_PIPELINE) || (this->state_ == State::STARTING_PIPELINE) ||
+          (this->state_ == State::STREAMING_MICROPHONE)) {
+        // Microphone is running, stop it
+        this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      } else if (this->state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event ("nevermind")
         this->set_state_(State::IDLE, State::IDLE);
       }
       this->defer([this]() { this->end_trigger_->trigger(); });

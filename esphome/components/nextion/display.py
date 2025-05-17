@@ -9,16 +9,17 @@ from esphome.const import (
     CONF_ON_TOUCH,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriod
 
 from . import Nextion, nextion_ns, nextion_ref
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
+    CONF_COMMAND_SPACING,
     CONF_EXIT_REPARSE_ON_START,
     CONF_ON_BUFFER_OVERFLOW,
-    CONF_ON_PAGE,
     CONF_ON_SETUP,
     CONF_ON_SLEEP,
+    CONF_ON_PAGE,
     CONF_ON_WAKE,
     CONF_SKIP_CONNECTION_HANDSHAKE,
     CONF_START_UP_PAGE,
@@ -88,6 +89,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
+            cv.Optional(CONF_COMMAND_SPACING): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(milliseconds=255)),
+            ),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -119,6 +124,10 @@ async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
+
+    if command_spacing := config.get(CONF_COMMAND_SPACING):
+        cg.add_define("USE_NEXTION_COMMAND_SPACING")
+        cg.add(var.set_command_spacing(command_spacing.total_milliseconds))
 
     if CONF_BRIGHTNESS in config:
         cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))

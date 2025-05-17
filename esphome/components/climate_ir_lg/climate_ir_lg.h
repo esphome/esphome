@@ -21,7 +21,7 @@ class LgIrClimate : public climate_ir::ClimateIR {
 
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override {
-    send_swing_cmd_ = call.get_swing_mode().has_value();
+    this->send_swing_cmd_ = call.get_swing_mode().has_value();
     // swing resets after unit powered off
     if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_OFF)
       this->swing_mode = climate::CLIMATE_SWING_OFF;

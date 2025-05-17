@@ -2,7 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, media_player
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MODE
+from esphome.const import CONF_MODE
 
 from .. import (
     CONF_I2S_AUDIO_ID,
@@ -57,16 +57,17 @@ def validate_esp32_variant(config):
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "internal": media_player.MEDIA_PLAYER_SCHEMA.extend(
+            "internal": media_player.media_player_schema(I2SAudioMediaPlayer)
+            .extend(
                 {
-                    cv.GenerateID(): cv.declare_id(I2SAudioMediaPlayer),
                     cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
                     cv.Required(CONF_MODE): cv.enum(INTERNAL_DAC_OPTIONS, lower=True),
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
-            "external": media_player.MEDIA_PLAYER_SCHEMA.extend(
+            )
+            .extend(cv.COMPONENT_SCHEMA),
+            "external": media_player.media_player_schema(I2SAudioMediaPlayer)
+            .extend(
                 {
-                    cv.GenerateID(): cv.declare_id(I2SAudioMediaPlayer),
                     cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
                     cv.Required(
                         CONF_I2S_DOUT_PIN
@@ -79,7 +80,8 @@ CONFIG_SCHEMA = cv.All(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
+            )
+            .extend(cv.COMPONENT_SCHEMA),
         },
         key=CONF_DAC_TYPE,
     ),
@@ -97,9 +99,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
-    await media_player.register_media_player(var, config)
 
     await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
 

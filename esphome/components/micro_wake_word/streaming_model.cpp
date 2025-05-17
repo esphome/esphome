@@ -159,12 +159,13 @@ void StreamingModel::reset_probabilities() {
   this->ignore_windows_ = -MIN_SLICES_BEFORE_DETECTION;
 }
 
-WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t probability_cutoff,
+WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t default_probability_cutoff,
                              size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
                              bool default_enabled, bool internal_only) {
   this->id_ = id;
   this->model_start_ = model_start;
-  this->probability_cutoff_ = probability_cutoff;
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_average_size;
   this->recent_streaming_probabilities_.resize(sliding_window_average_size, 0);
   this->wake_word_ = wake_word;
@@ -222,10 +223,11 @@ DetectionEvent WakeWordModel::determine_detected() {
   return detection_event;
 }
 
-VADModel::VADModel(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
+VADModel::VADModel(const uint8_t *model_start, uint8_t default_probability_cutoff, size_t sliding_window_size,
                    size_t tensor_arena_size) {
   this->model_start_ = model_start;
-  this->probability_cutoff_ = probability_cutoff;
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_size;
   this->recent_streaming_probabilities_.resize(sliding_window_size, 0);
   this->tensor_arena_size_ = tensor_arena_size;

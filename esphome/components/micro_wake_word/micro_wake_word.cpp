@@ -22,8 +22,6 @@ static const ssize_t DETECTION_QUEUE_LENGTH = 5;
 static const size_t DATA_TIMEOUT_MS = 50;
 
 static const uint32_t RING_BUFFER_DURATION_MS = 120;
-static const uint32_t RING_BUFFER_SAMPLES = RING_BUFFER_DURATION_MS * (AUDIO_SAMPLE_FREQUENCY / 1000);
-static const size_t RING_BUFFER_SIZE = RING_BUFFER_SAMPLES * sizeof(int16_t);
 
 static const uint32_t INFERENCE_TASK_STACK_SIZE = 3072;
 static const UBaseType_t INFERENCE_TASK_PRIORITY = 3;
@@ -141,13 +139,15 @@ void MicroWakeWord::inference_task(void *params) {
   xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_STARTING);
 
   {  // Ensures any C++ objects fall out of scope to deallocate before deleting the task
-    const size_t new_samples_to_read = this_mww->features_step_size_ * (AUDIO_SAMPLE_FREQUENCY / 1000);
+
+    const size_t new_bytes_to_process =
+        this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(this_mww->features_step_size_);
     std::unique_ptr<audio::AudioSourceTransferBuffer> audio_buffer;
     int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE];
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       // Allocate audio transfer buffer
-      audio_buffer = audio::AudioSourceTransferBuffer::create(new_samples_to_read * sizeof(int16_t));
+      audio_buffer = audio::AudioSourceTransferBuffer::create(new_bytes_to_process);
 
       if (audio_buffer == nullptr) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
@@ -156,7 +156,8 @@ void MicroWakeWord::inference_task(void *params) {
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       // Allocate ring buffer
-      std::shared_ptr<RingBuffer> temp_ring_buffer = RingBuffer::create(RING_BUFFER_SIZE);
+      std::shared_ptr<RingBuffer> temp_ring_buffer = RingBuffer::create(
+          this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
       if (temp_ring_buffer.use_count() == 0) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
       }
@@ -171,13 +172,13 @@ void MicroWakeWord::inference_task(void *params) {
       while (!(xEventGroupGetBits(this_mww->event_group_) & COMMAND_STOP)) {
         audio_buffer->transfer_data_from_source(pdMS_TO_TICKS(DATA_TIMEOUT_MS));
 
-        if (audio_buffer->available() < new_samples_to_read * sizeof(int16_t)) {
+        if (audio_buffer->available() < new_bytes_to_process) {
           // Insufficient data to generate new spectrogram features, read more next iteration
           continue;
         }
 
         // Generate new spectrogram features
-        size_t processed_samples = this_mww->generate_features_(
+        uint32_t processed_samples = this_mww->generate_features_(
             (int16_t *) audio_buffer->get_buffer_start(), audio_buffer->available() / sizeof(int16_t), features_buffer);
         audio_buffer->decrease_buffer_length(processed_samples * sizeof(int16_t));
 
@@ -297,7 +298,8 @@ void MicroWakeWord::loop() {
       if ((this->inference_task_handle_ == nullptr) && !this->status_has_error()) {
         // Setup preprocesor feature generator. If done in the task, it would lock the task to its initial core, as it
         // uses floating point operations.
-        if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_, AUDIO_SAMPLE_FREQUENCY)) {
+        if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
+                                   this->microphone_source_->get_audio_stream_info().get_sample_rate())) {
           this->status_momentary_error(
               "Failed to allocate buffers for spectrogram feature processor, attempting again in 1 second", 1000);
           return;

@@ -1,9 +1,10 @@
+from enum import Enum
 import logging
 
 from esphome.core import CORE
 
 
-class AnsiFore:
+class AnsiFore(Enum):
     KEEP = ""
     BLACK = "\033[30m"
     RED = "\033[31m"
@@ -26,7 +27,7 @@ class AnsiFore:
     BOLD_RESET = "\033[1;39m"
 
 
-class AnsiStyle:
+class AnsiStyle(Enum):
     BRIGHT = "\033[1m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
@@ -35,16 +36,10 @@ class AnsiStyle:
     RESET_ALL = "\033[0m"
 
 
-Fore = AnsiFore()
-Style = AnsiStyle()
-
-
-def color(col: str, msg: str, reset: bool = True) -> bool:
-    if col and not col.startswith("\033["):
-        raise ValueError("Color must be value from esphome.log.Fore")
-    s = str(col) + msg
+def color(col: AnsiFore, msg: str, reset: bool = True) -> str:
+    s = col.value + msg
     if reset and col:
-        s += str(Style.RESET_ALL)
+        s += AnsiStyle.RESET_ALL.value
     return s
 
 
@@ -54,20 +49,21 @@ class ESPHomeLogFormatter(logging.Formatter):
         fmt += "%(levelname)s %(message)s"
         super().__init__(fmt=fmt, style="%")
 
-    def format(self, record):
+    # @override
+    def format(self, record: logging.LogRecord) -> str:
         formatted = super().format(record)
         prefix = {
-            "DEBUG": Fore.CYAN,
-            "INFO": Fore.GREEN,
-            "WARNING": Fore.YELLOW,
-            "ERROR": Fore.RED,
-            "CRITICAL": Fore.RED,
+            "DEBUG": AnsiFore.CYAN.value,
+            "INFO": AnsiFore.GREEN.value,
+            "WARNING": AnsiFore.YELLOW.value,
+            "ERROR": AnsiFore.RED.value,
+            "CRITICAL": AnsiFore.RED.value,
         }.get(record.levelname, "")
-        return f"{prefix}{formatted}{Style.RESET_ALL}"
+        return f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
 
 
 def setup_log(
-    log_level=logging.INFO,
+    log_level: int = logging.INFO,
     include_timestamp: bool = False,
 ) -> None:
     import colorama

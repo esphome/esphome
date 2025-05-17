@@ -106,16 +106,6 @@ void SpeakerMediaPlayer::setup() {
       ESP_LOGE(TAG, "Failed to create media pipeline");
       this->mark_failed();
     }
-
-    // Setup callback to track the duration of audio played by the media pipeline
-    this->media_speaker_->add_audio_output_callback(
-        [this](uint32_t new_playback_ms, uint32_t remainder_us, uint32_t pending_ms, uint32_t write_timestamp) {
-          this->playback_ms_ += new_playback_ms;
-          this->remainder_us_ = remainder_us;
-          this->pending_ms_ = pending_ms;
-          this->last_audio_write_timestamp_ = write_timestamp;
-          this->playback_us_ = this->playback_ms_ * 1000 + this->remainder_us_;
-        });
   }
 
   ESP_LOGI(TAG, "Set up speaker media player");
@@ -321,7 +311,6 @@ void SpeakerMediaPlayer::loop() {
   AudioPipelineState old_media_pipeline_state = this->media_pipeline_state_;
   if (this->media_pipeline_ != nullptr) {
     this->media_pipeline_state_ = this->media_pipeline_->process_state();
-    this->decoded_playback_ms_ = this->media_pipeline_->get_playback_ms();
   }
 
   if (this->media_pipeline_state_ == AudioPipelineState::ERROR_READING) {
@@ -379,13 +368,6 @@ void SpeakerMediaPlayer::loop() {
       } else if (this->media_pipeline_state_ == AudioPipelineState::PLAYING) {
         this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
       } else if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-        // Reset playback durations
-        this->decoded_playback_ms_ = 0;
-        this->playback_us_ = 0;
-        this->playback_ms_ = 0;
-        this->remainder_us_ = 0;
-        this->pending_ms_ = 0;
-
         if (!media_playlist_.empty()) {
           uint32_t timeout_ms = 0;
           if (old_media_pipeline_state == AudioPipelineState::PLAYING) {

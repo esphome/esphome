@@ -5,6 +5,8 @@ import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MODE,
     CONF_MQTT_ID,
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@mauritskorse"]
@@ -39,7 +42,7 @@ TEXT_MODES = {
     "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
 }
 
-TEXT_SCHEMA = (
+_TEXT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -55,6 +58,34 @@ TEXT_SCHEMA = (
         }
     )
 )
+
+
+def text_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    mode: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_MODE, mode, cv.enum(TEXT_MODES, upper=True)),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _TEXT_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+TEXT_SCHEMA = text_schema()
+TEXT_SCHEMA.add_extra(cv.deprecated_schema_constant("text"))
 
 
 async def setup_text_core_(

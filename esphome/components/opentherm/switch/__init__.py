@@ -3,7 +3,6 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 
 from .. import const, generate, schema, validate
 
@@ -16,15 +15,14 @@ OpenthermSwitch = generate.opentherm_ns.class_(
 
 
 async def new_openthermswitch(config: dict[str, Any]) -> cg.Pvariable:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await switch.new_switch(config)
     await cg.register_component(var, config)
-    await switch.register_switch(var, config)
     return var
 
 
 def get_entity_validation_schema(entity: schema.SwitchSchema) -> cv.Schema:
-    return switch.SWITCH_SCHEMA.extend(
-        {cv.GenerateID(): cv.declare_id(OpenthermSwitch)}
+    return switch.switch_schema(
+        OpenthermSwitch, default_restore_mode=entity.default_mode
     ).extend(cv.COMPONENT_SCHEMA)
 
 

@@ -32,6 +32,7 @@ DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_ble_server"
 
 CONF_ADVERTISE = "advertise"
+CONF_APPEARANCE = "appearance"
 CONF_BROADCAST = "broadcast"
 CONF_CHARACTERISTICS = "characteristics"
 CONF_DESCRIPTION = "description"
@@ -421,6 +422,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BLEServer),
         cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
         cv.Optional(CONF_MANUFACTURER): value_schema("string", templatable=False),
+        cv.Optional(CONF_APPEARANCE, default=0): cv.uint16_t,
         cv.Optional(CONF_MODEL): value_schema("string", templatable=False),
         cv.Optional(CONF_FIRMWARE_VERSION): value_schema("string", templatable=False),
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
@@ -531,6 +533,7 @@ async def to_code(config):
     cg.add(parent.register_gatts_event_handler(var))
     cg.add(parent.register_ble_status_event_handler(var))
     cg.add(var.set_parent(parent))
+    cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     if CONF_MANUFACTURER_DATA in config:
         cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
     for service_config in config[CONF_SERVICES]:

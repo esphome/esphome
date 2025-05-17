@@ -18,13 +18,13 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .automation import disp_update, focused_widgets, update_to_code
+from .automation import disp_update, focused_widgets, refreshed_widgets, update_to_code
 from .defines import add_define
 from .encoders import (
     ENCODERS_CONFIG,
@@ -239,6 +239,13 @@ def final_validation(configs):
                 raise cv.Invalid(
                     "A non adjustable arc may not be focused",
                     path,
+                )
+        for w in refreshed_widgets:
+            path = global_config.get_path_for_id(w)
+            widget_conf = global_config.get_config_for_path(path[:-1])
+            if not any(isinstance(v, Lambda) for v in widget_conf.values()):
+                raise cv.Invalid(
+                    f"Widget '{w}' does not have any templated properties to refresh",
                 )
 
 

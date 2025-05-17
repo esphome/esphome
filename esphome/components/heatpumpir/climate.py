@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import climate_ir
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_PROTOCOL,
@@ -98,9 +97,8 @@ VERTICAL_DIRECTIONS = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+    climate_ir.climare_ir_with_receiver_schema(HeatpumpIRClimate).extend(
         {
-            cv.GenerateID(): cv.declare_id(HeatpumpIRClimate),
             cv.Required(CONF_PROTOCOL): cv.enum(PROTOCOLS),
             cv.Required(CONF_HORIZONTAL_DEFAULT): cv.enum(HORIZONTAL_DIRECTIONS),
             cv.Required(CONF_VERTICAL_DEFAULT): cv.enum(VERTICAL_DIRECTIONS),
@@ -112,8 +110,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def to_code(config):
+    var = await climate_ir.new_climate_ir(config)
     if CONF_VISUAL not in config:
         config[CONF_VISUAL] = {}
     visual = config[CONF_VISUAL]
@@ -121,7 +119,6 @@ def to_code(config):
         visual[CONF_MAX_TEMPERATURE] = config[CONF_MAX_TEMPERATURE]
     if CONF_MIN_TEMPERATURE not in visual:
         visual[CONF_MIN_TEMPERATURE] = config[CONF_MIN_TEMPERATURE]
-    yield climate_ir.register_climate_ir(var, config)
     cg.add(var.set_protocol(config[CONF_PROTOCOL]))
     cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))

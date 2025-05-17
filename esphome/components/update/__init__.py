@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_FORCE_UPDATE,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_WEB_SERVER,
@@ -14,6 +15,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@jesserockz"]
@@ -38,7 +40,7 @@ DEVICE_CLASSES = [
 
 CONF_ON_UPDATE_AVAILABLE = "on_update_available"
 
-UPDATE_SCHEMA = (
+_UPDATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -54,6 +56,34 @@ UPDATE_SCHEMA = (
         }
     )
 )
+
+
+def update_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    icon: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_DEVICE_CLASS, device_class, cv.one_of(*DEVICE_CLASSES, lower=True)),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _UPDATE_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+UPDATE_SCHEMA = update_schema()
+UPDATE_SCHEMA.add_extra(cv.deprecated_schema_constant("update"))
 
 
 async def setup_update_core_(var, config):
