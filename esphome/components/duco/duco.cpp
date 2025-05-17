@@ -173,6 +173,7 @@ void Duco::debug_hex_(std::vector<uint8_t> bytes, uint8_t separator) {
 
 const std::string DucoDiscovery::NODE_TYPE_UCBAT = "UCBAT";
 const std::string DucoDiscovery::NODE_TYPE_UC = "UC";
+const std::string DucoDiscovery::NODE_TYPE_UCRH = "UCRH";
 const std::string DucoDiscovery::NODE_TYPE_UCCO2 = "UCCO2";
 const std::string DucoDiscovery::NODE_TYPE_BOX = "BOX";
 const std::string DucoDiscovery::NODE_TYPE_SWITCH = "SWITCH";
@@ -184,6 +185,8 @@ std::string friendly_node_type(uint8_t type_code) {
       return DucoDiscovery::NODE_TYPE_UCBAT;
     case DucoDiscovery::NODE_TYPE_CODE_UC:
       return DucoDiscovery::NODE_TYPE_UC;
+    case DucoDiscovery::NODE_TYPE_CODE_UCRH:
+      return DucoDiscovery::NODE_TYPE_UCRH;
     case DucoDiscovery::NODE_TYPE_CODE_UCCO2:
       return DucoDiscovery::NODE_TYPE_UCCO2;
     case DucoDiscovery::NODE_TYPE_CODE_BOX:
