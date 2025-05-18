@@ -1,5 +1,5 @@
 async_timeout==5.0.1; python_version <= "3.10"
-cryptography==44.0.2
+cryptography==45.0.1
 voluptuous==0.15.2
 PyYAML==6.0.2
 paho-mqtt==1.6.1
