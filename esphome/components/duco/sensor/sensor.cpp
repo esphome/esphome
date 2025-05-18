@@ -91,6 +91,34 @@ void DucoTemperatureSensor::receive_response(const DucoMessage &message) {
 
 void DucoTemperatureSensor::set_address(uint8_t address) { this->address_ = address; }
 
+void DucoBoxTemperatureSensor::setup() {}
+
+void DucoBoxTemperatureSensor::update() {
+  DucoMessage message;
+  message.function = 0x24;
+  message.data = {0x00, type_, 0x09};
+  this->parent_->send(message, this);
+}
+
+float DucoBoxTemperatureSensor::get_setup_priority() const {
+  // After DUCO
+  return setup_priority::BUS - 2.0f;
+}
+
+void DucoBoxTemperatureSensor::receive_response(const DucoMessage &message) {
+  if (message.function == 0x26) {
+    uint16_t temp_value = (message.data[4] << 8) + message.data[3];
+    // only publish the state if the co2 value is below 10000
+    // otherwise the value is likely invalid
+    if (temp_value <= 1000)
+      publish_state(temp_value / 10.0);
+
+    this->parent_->stop_waiting(message.id);
+  }
+}
+
+void DucoBoxTemperatureSensor::set_type(uint8_t type) { this->type_ = type; }
+
 void DucoFilterRemainingSensor::setup() {}
 
 void DucoFilterRemainingSensor::update() {

@@ -30,6 +30,17 @@ CONF_FILTER_REMAINING = "filter_remaining"
 CONF_FLOW_LEVEL = "flow_level"
 CONF_TIME_REMAINING = "time_remaining"
 
+CONF_TEMPERATURE_ODA = "temperature_oda"
+CONF_TEMPERATURE_SUP = "temperature_sup"
+CONF_TEMPERATURE_ETA = "temperature_eta"
+CONF_TEMPERATURE_EHA = "temperature_eha"
+
+SENSOR_TYPE_ODA = 0
+SENSOR_TYPE_SUP = 1
+SENSOR_TYPE_ETA = 2
+SENSOR_TYPE_EHA = 3
+
+
 duco_ns = cg.esphome_ns.namespace("duco")
 DucoCo2Sensor = duco_ns.class_("DucoCo2Sensor", cg.PollingComponent, sensor.Sensor)
 DucoHumiditySensor = duco_ns.class_(
@@ -37,6 +48,9 @@ DucoHumiditySensor = duco_ns.class_(
 )
 DucoTemperatureSensor = duco_ns.class_(
     "DucoTemperatureSensor", cg.PollingComponent, sensor.Sensor
+)
+DucoBoxTemperatureSensor = duco_ns.class_(
+    "DucoBoxTemperatureSensor", cg.PollingComponent, sensor.Sensor
 )
 DucoFilterRemainingSensor = duco_ns.class_(
     "DucoFilterRemainingSensor", cg.PollingComponent, sensor.Sensor
@@ -119,6 +133,38 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend({cv.GenerateID(): cv.declare_id(DucoStateTimeRemainingSensor)})
         .extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_TEMPERATURE_ODA): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend({cv.GenerateID(): cv.declare_id(DucoBoxTemperatureSensor)})
+        .extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_TEMPERATURE_SUP): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend({cv.GenerateID(): cv.declare_id(DucoBoxTemperatureSensor)})
+        .extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_TEMPERATURE_ETA): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend({cv.GenerateID(): cv.declare_id(DucoBoxTemperatureSensor)})
+        .extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_TEMPERATURE_EHA): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend({cv.GenerateID(): cv.declare_id(DucoBoxTemperatureSensor)})
+        .extend(cv.polling_component_schema("60s")),
     }
 ).extend(DUCO_COMPONENT_SCHEMA)
 
@@ -170,3 +216,35 @@ async def to_code(config):
         await cg.register_component(sensvar, time_remaining_config)
         await sensor.register_sensor(sensvar, time_remaining_config)
         cg.add(sensvar.set_parent(parent))
+
+    if CONF_TEMPERATURE_ODA in config:
+        oda_temperature_config = config[CONF_TEMPERATURE_ODA]
+        sensvar = cg.new_Pvariable(oda_temperature_config[CONF_ID])
+        await cg.register_component(sensvar, oda_temperature_config)
+        await sensor.register_sensor(sensvar, oda_temperature_config)
+        cg.add(sensvar.set_parent(parent))
+        cg.add(sensvar.set_type(SENSOR_TYPE_ODA))
+
+    if CONF_TEMPERATURE_SUP in config:
+        sup_temperature_config = config[CONF_TEMPERATURE_SUP]
+        sensvar = cg.new_Pvariable(sup_temperature_config[CONF_ID])
+        await cg.register_component(sensvar, sup_temperature_config)
+        await sensor.register_sensor(sensvar, sup_temperature_config)
+        cg.add(sensvar.set_parent(parent))
+        cg.add(sensvar.set_type(SENSOR_TYPE_SUP))
+
+    if CONF_TEMPERATURE_ETA in config:
+        eta_temperature_config = config[CONF_TEMPERATURE_ETA]
+        sensvar = cg.new_Pvariable(eta_temperature_config[CONF_ID])
+        await cg.register_component(sensvar, eta_temperature_config)
+        await sensor.register_sensor(sensvar, eta_temperature_config)
+        cg.add(sensvar.set_parent(parent))
+        cg.add(sensvar.set_type(SENSOR_TYPE_ETA))
+
+    if CONF_TEMPERATURE_EHA in config:
+        eha_temperature_config = config[CONF_TEMPERATURE_EHA]
+        sensvar = cg.new_Pvariable(eha_temperature_config[CONF_ID])
+        await cg.register_component(sensvar, eha_temperature_config)
+        await sensor.register_sensor(sensvar, eha_temperature_config)
+        cg.add(sensvar.set_parent(parent))
+        cg.add(sensvar.set_type(SENSOR_TYPE_EHA))
