@@ -122,7 +122,7 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
  protected:
   void control(const alarm_control_panel::AlarmControlPanelCall &call) override;
 #ifdef USE_BINARY_SENSOR
-  // This maps a binary sensor to its type and attribute bits
+  // This maps a binary sensor to its alarm specific info
   std::map<binary_sensor::BinarySensor *, SensorInfo> sensor_map_;
   // a list of automatically bypassed sensors
   std::vector<uint8_t> bypassed_sensor_indicies_;
