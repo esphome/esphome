@@ -15,17 +15,21 @@ void BinarySensor::publish_state(bool state) {
   if (!this->publish_dedup_.next(state))
     return;
   if (this->filter_list_ == nullptr) {
-    this->send_state_internal(state);
+    this->send_state_internal(state, false);
   } else {
-    this->filter_list_->input(state);
+    this->filter_list_->input(state, false);
   }
 }
 void BinarySensor::publish_initial_state(bool state) {
-  this->has_state_ = false;
-  this->publish_state(state);
+  if (!this->publish_dedup_.next(state))
+    return;
+  if (this->filter_list_ == nullptr) {
+    this->send_state_internal(state, true);
+  } else {
+    this->filter_list_->input(state, true);
+  }
 }
-void BinarySensor::send_state_internal(bool state) {
-  bool is_initial = !this->has_state_;
+void BinarySensor::send_state_internal(bool state, bool is_initial) {
   if (is_initial) {
     ESP_LOGD(TAG, "'%s': Sending initial state %s", this->get_name().c_str(), ONOFF(state));
   } else {
