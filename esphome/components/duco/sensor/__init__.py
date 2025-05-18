@@ -29,7 +29,7 @@ UNIT_DAYS = "days"
 CONF_FILTER_REMAINING = "filter_remaining"
 CONF_FLOW_LEVEL = "flow_level"
 CONF_TIME_REMAINING = "time_remaining"
-
+CONF_BYPASS = "bypass"
 CONF_TEMPERATURE_ODA = "temperature_oda"
 CONF_TEMPERATURE_SUP = "temperature_sup"
 CONF_TEMPERATURE_ETA = "temperature_eta"
@@ -51,6 +51,9 @@ DucoTemperatureSensor = duco_ns.class_(
 )
 DucoBoxTemperatureSensor = duco_ns.class_(
     "DucoBoxTemperatureSensor", cg.PollingComponent, sensor.Sensor
+)
+DucoBypassSensor = duco_ns.class_(
+    "DucoBypassSensor", cg.PollingComponent, sensor.Sensor
 )
 DucoFilterRemainingSensor = duco_ns.class_(
     "DucoFilterRemainingSensor", cg.PollingComponent, sensor.Sensor
@@ -165,6 +168,14 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend({cv.GenerateID(): cv.declare_id(DucoBoxTemperatureSensor)})
         .extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_BYPASS): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PERCENT,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend({cv.GenerateID(): cv.declare_id(DucoBypassSensor)})
+        .extend(cv.polling_component_schema("60s")),
     }
 ).extend(DUCO_COMPONENT_SCHEMA)
 
@@ -248,3 +259,10 @@ async def to_code(config):
         await sensor.register_sensor(sensvar, eha_temperature_config)
         cg.add(sensvar.set_parent(parent))
         cg.add(sensvar.set_type(SENSOR_TYPE_EHA))
+
+    if CONF_BYPASS in config:
+        bypass_config = config[CONF_BYPASS]
+        sensvar = cg.new_Pvariable(bypass_config[CONF_ID])
+        await cg.register_component(sensvar, bypass_config)
+        await sensor.register_sensor(sensvar, bypass_config)
+        cg.add(sensvar.set_parent(parent))

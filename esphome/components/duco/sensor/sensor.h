@@ -69,6 +69,16 @@ class DucoBoxTemperatureSensor : public DucoDevice, public PollingComponent, pub
   uint8_t type_;
 };
 
+class DucoBypassSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
+ public:
+  void setup() override;
+  void update() override;
+
+  float get_setup_priority() const override;
+
+  void receive_response(const DucoMessage &message) override;
+};
+
 class DucoFilterRemainingSensor : public DucoDevice, public PollingComponent, public sensor::Sensor {
  public:
   void setup() override;

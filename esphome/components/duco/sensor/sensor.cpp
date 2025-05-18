@@ -119,6 +119,32 @@ void DucoBoxTemperatureSensor::receive_response(const DucoMessage &message) {
 
 void DucoBoxTemperatureSensor::set_type(uint8_t type) { this->type_ = type; }
 
+void DucoBypassSensor::setup() {}
+
+void DucoBypassSensor::update() {
+  DucoMessage message;
+  message.function = 0x24;
+  message.data = {0x00, 0x10, 0x09};
+  this->parent_->send(message, this);
+}
+
+float DucoBypassSensor::get_setup_priority() const {
+  // After DUCO
+  return setup_priority::BUS - 2.0f;
+}
+
+void DucoBypassSensor::receive_response(const DucoMessage &message) {
+  if (message.function == 0x26) {
+    uint16_t bypass_value = message.data[3];
+    // only publish the state if the co2 value is below 10000
+    // otherwise the value is likely invalid
+    if (bypass_value <= 100)
+      publish_state(bypass_value);
+
+    this->parent_->stop_waiting(message.id);
+  }
+}
+
 void DucoFilterRemainingSensor::setup() {}
 
 void DucoFilterRemainingSensor::update() {
