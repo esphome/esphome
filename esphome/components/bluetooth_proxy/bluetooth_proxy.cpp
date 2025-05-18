@@ -2,6 +2,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/macros.h"
+#include "esphome/core/application.h"
 
 #ifdef USE_ESP32
 
@@ -177,7 +178,7 @@ void BluetoothProxy::loop() {
   // Flush any pending BLE advertisements that have been accumulated but not yet sent
   if (this->raw_advertisements_) {
     static uint32_t last_flush_time = 0;
-    uint32_t now = millis();
+    uint32_t now = App.get_loop_component_start_time();
 
     // Flush accumulated advertisements every 100ms
     if (now - last_flush_time >= 100) {

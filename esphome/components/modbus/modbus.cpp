@@ -1,6 +1,7 @@
 #include "modbus.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace modbus {
@@ -13,7 +14,7 @@ void Modbus::setup() {
   }
 }
 void Modbus::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   while (this->available()) {
     uint8_t byte;

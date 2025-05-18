@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#include "esphome/core/application.h"
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -146,7 +147,7 @@ void APIConnection::loop() {
     }
     return;
   } else {
-    this->last_traffic_ = millis();
+    this->last_traffic_ = App.get_loop_component_start_time();
     // read a packet
     this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
     if (this->remove_)
@@ -165,7 +166,7 @@ void APIConnection::loop() {
   static uint32_t keepalive = 60000;
   static uint8_t max_ping_retries = 60;
   static uint16_t ping_retry_interval = 1000;
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (keepalive * 5) / 2) {

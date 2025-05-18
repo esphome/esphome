@@ -1,5 +1,6 @@
 #include "uart_switch.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace uart {
@@ -8,7 +9,7 @@ static const char *const TAG = "uart.switch";
 
 void UARTSwitch::loop() {
   if (this->send_every_) {
-    const uint32_t now = millis();
+    const uint32_t now = App.get_loop_component_start_time();
     if (now - this->last_transmission_ > this->send_every_) {
       this->write_command_(this->state);
       this->last_transmission_ = now;

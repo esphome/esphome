@@ -345,7 +345,7 @@ void MQTTClientComponent::loop() {
     this->disconnect_reason_.reset();
   }
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   switch (this->state_) {
     case MQTT_CLIENT_DISABLED:

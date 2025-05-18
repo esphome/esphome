@@ -1,6 +1,7 @@
 #include "daly_bms.h"
 #include <vector>
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace daly_bms {
@@ -32,7 +33,7 @@ void DalyBmsComponent::update() {
 }
 
 void DalyBmsComponent::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->receiving_ && (now - this->last_transmission_ >= 200)) {
     // last transmission too long ago. Reset RX index.
     ESP_LOGW(TAG, "Last transmission too long ago. Reset RX index.");

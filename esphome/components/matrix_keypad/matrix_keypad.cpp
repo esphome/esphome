@@ -1,5 +1,6 @@
 #include "matrix_keypad.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace matrix_keypad {
@@ -28,7 +29,7 @@ void MatrixKeypad::setup() {
 void MatrixKeypad::loop() {
   static uint32_t active_start = 0;
   static int active_key = -1;
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
   int key = -1;
   bool error = false;
   int pos = 0, row, col;

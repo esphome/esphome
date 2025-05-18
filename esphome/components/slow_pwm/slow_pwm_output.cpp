@@ -1,5 +1,6 @@
 #include "slow_pwm_output.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace slow_pwm {
@@ -39,7 +40,7 @@ void SlowPWMOutput::set_output_state_(bool new_state) {
 }
 
 void SlowPWMOutput::loop() {
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
   float scaled_state = this->state_ * this->period_;
 
   if (now - this->period_start_time_ >= this->period_) {

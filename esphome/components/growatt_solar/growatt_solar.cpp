@@ -1,5 +1,6 @@
 #include "growatt_solar.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace growatt_solar {
@@ -18,7 +19,7 @@ void GrowattSolar::loop() {
 
 void GrowattSolar::update() {
   // If our last send has had no reply yet, and it wasn't that long ago, do nothing.
-  uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_send_ < this->get_update_interval() / 2) {
     return;
   }

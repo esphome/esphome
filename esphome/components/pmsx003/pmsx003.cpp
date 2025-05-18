@@ -1,5 +1,6 @@
 #include "pmsx003.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace pmsx003 {
@@ -42,7 +43,7 @@ void PMSX003Component::dump_config() {
 }
 
 void PMSX003Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // If we update less often than it takes the device to stabilise, spin the fan down
   // rather than running it constantly. It does take some time to stabilise, so we

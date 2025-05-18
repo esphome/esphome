@@ -1,5 +1,6 @@
 #include "uponor_smatrix.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace uponor_smatrix {
@@ -35,7 +36,7 @@ void UponorSmatrixComponent::dump_config() {
 }
 
 void UponorSmatrixComponent::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Discard stale data
   if (!this->rx_buffer_.empty() && (now - this->last_rx_ > 50)) {

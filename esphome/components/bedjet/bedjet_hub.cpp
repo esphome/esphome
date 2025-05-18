@@ -3,6 +3,7 @@
 #include "bedjet_hub.h"
 #include "bedjet_child.h"
 #include "bedjet_const.h"
+#include "esphome/core/application.h"
 #include <cinttypes>
 
 namespace esphome {

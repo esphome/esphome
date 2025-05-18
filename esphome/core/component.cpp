@@ -240,10 +240,12 @@ void PollingComponent::stop_poller() {
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
-WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component)
-    : started_(millis()), component_(component) {}
-WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
-  uint32_t blocking_time = millis() - this->started_;
+WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
+    : started_(start_time), component_(component) {}
+uint32_t WarnIfComponentBlockingGuard::finish() {
+  uint32_t curr_time = millis();
+
+  uint32_t blocking_time = curr_time - this->started_;
   bool should_warn;
   if (this->component_ != nullptr) {
     should_warn = this->component_->should_warn_of_blocking(blocking_time);
@@ -254,8 +256,11 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
     ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms).", src, blocking_time);
     ESP_LOGW(TAG, "Components should block for at most 30 ms.");
-    ;
   }
+
+  return curr_time;
 }
+
+WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
 
 }  // namespace esphome

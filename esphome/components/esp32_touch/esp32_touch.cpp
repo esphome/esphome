@@ -288,7 +288,7 @@ uint32_t ESP32TouchComponent::component_touch_pad_read(touch_pad_t tp) {
 }
 
 void ESP32TouchComponent::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   bool should_print = this->setup_mode_ && now - this->setup_mode_last_log_print_ > 250;
   for (auto *child : this->children_) {
     child->value_ = this->component_touch_pad_read(child->get_touch_pad());

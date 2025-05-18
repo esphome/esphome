@@ -1,5 +1,6 @@
 #include "sds011.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace sds011 {
@@ -75,7 +76,7 @@ void SDS011Component::dump_config() {
 }
 
 void SDS011Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if ((now - this->last_transmission_ >= 500) && this->data_index_) {
     // last transmission too long ago. Reset RX index.
     ESP_LOGV(TAG, "Last transmission too long ago. Reset RX index.");

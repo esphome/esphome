@@ -6,6 +6,7 @@
  */
 #include "gcja5.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cstring>
 
 namespace esphome {
@@ -16,7 +17,7 @@ static const char *const TAG = "gcja5";
 void GCJA5Component::setup() { ESP_LOGCONFIG(TAG, "Setting up gcja5..."); }
 
 void GCJA5Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
     // last transmission too long ago. Reset RX index.
     this->rx_message_.clear();

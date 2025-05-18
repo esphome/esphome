@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "max7219font.h"
 
 #include <algorithm>
@@ -63,7 +64,7 @@ void MAX7219Component::dump_config() {
 }
 
 void MAX7219Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   const uint32_t millis_since_last_scroll = now - this->last_scroll_;
   const size_t first_line_size = this->max_displaybuffer_[0].size();
   // check if the buffer has shrunk past the current position since last update
