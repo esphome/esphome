@@ -175,6 +175,7 @@ const std::string DucoDiscovery::NODE_TYPE_UCBAT = "UCBAT";
 const std::string DucoDiscovery::NODE_TYPE_UC = "UC";
 const std::string DucoDiscovery::NODE_TYPE_UCRH = "UCRH";
 const std::string DucoDiscovery::NODE_TYPE_UCCO2 = "UCCO2";
+const std::string DucoDiscovery::NODE_TYPE_VLV = "VLV";
 const std::string DucoDiscovery::NODE_TYPE_BOX = "BOX";
 const std::string DucoDiscovery::NODE_TYPE_SWITCH = "SWITCH";
 const std::string DucoDiscovery::NODE_TYPE_UNKNOWN = "UNKNOWN";
@@ -189,6 +190,8 @@ std::string friendly_node_type(uint8_t type_code) {
       return DucoDiscovery::NODE_TYPE_UCRH;
     case DucoDiscovery::NODE_TYPE_CODE_UCCO2:
       return DucoDiscovery::NODE_TYPE_UCCO2;
+    case DucoDiscovery::NODE_TYPE_CODE_VLV:
+      return DucoDiscovery::NODE_TYPE_VLV;
     case DucoDiscovery::NODE_TYPE_CODE_BOX:
       return DucoDiscovery::NODE_TYPE_BOX;
     case DucoDiscovery::NODE_TYPE_CODE_SWITCH:
