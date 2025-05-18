@@ -1645,7 +1645,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     return false;
   }
 
-  APIError err = this->helper_->write_packet(message_type, buffer.get_buffer()->data(), buffer.get_buffer()->size());
+  APIError err = this->helper_->write_protobuf_packet(message_type, buffer);
   if (err == APIError::WOULD_BLOCK)
     return false;
   if (err != APIError::OK) {

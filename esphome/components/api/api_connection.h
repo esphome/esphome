@@ -405,7 +405,14 @@ class APIConnection : public APIServerConnection {
   ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
     // FIXME: ensure no recursive writes can happen
     this->proto_write_buffer_.clear();
-    this->proto_write_buffer_.reserve(reserve_size);
+    // Get header padding size - used for both reserve and insert
+    uint8_t header_padding = this->helper_->frame_header_padding();
+    // Reserve space for header padding + message + footer
+    // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
+    // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
+    this->proto_write_buffer_.reserve(reserve_size + header_padding + this->helper_->frame_footer_size());
+    // Insert header padding bytes so message encoding starts at the correct position
+    this->proto_write_buffer_.insert(this->proto_write_buffer_.begin(), header_padding, 0);
     return {&this->proto_write_buffer_};
   }
   bool try_to_clear_buffer(bool log_out_of_space);

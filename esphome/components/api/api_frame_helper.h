@@ -16,6 +16,8 @@
 namespace esphome {
 namespace api {
 
+class ProtoWriteBuffer;
+
 struct ReadPacketBuffer {
   std::vector<uint8_t> container;
   uint16_t type;
@@ -65,32 +67,46 @@ class APIFrameHelper {
   virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   virtual bool can_write_without_blocking() = 0;
-  virtual APIError write_packet(uint16_t type, const uint8_t *data, size_t len) = 0;
+  virtual APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) = 0;
   virtual std::string getpeername() = 0;
   virtual int getpeername(struct sockaddr *addr, socklen_t *addrlen) = 0;
   virtual APIError close() = 0;
   virtual APIError shutdown(int how) = 0;
   // Give this helper a name for logging
   virtual void set_log_info(std::string info) = 0;
+  // Get the frame header padding required by this protocol
+  virtual uint8_t frame_header_padding() = 0;
+  // Get the frame footer size required by this protocol
+  virtual uint8_t frame_footer_size() = 0;
 
  protected:
   // Common implementation for writing raw data to socket
   template<typename StateEnum>
   APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
                       const std::string &info, StateEnum &state, StateEnum failed_state);
+
+  uint8_t frame_header_padding_{0};
+  uint8_t frame_footer_size_{0};
 };
 
 #ifdef USE_API_NOISE
 class APINoiseFrameHelper : public APIFrameHelper {
  public:
   APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx)
-      : socket_(std::move(socket)), ctx_(std::move(std::move(ctx))) {}
+      : socket_(std::move(socket)), ctx_(std::move(ctx)) {
+    // Noise header structure:
+    // Pos 0: indicator (0x01)
+    // Pos 1-2: encrypted payload size (16-bit big-endian)
+    // Pos 3-6: encrypted type (16-bit) + data_len (16-bit)
+    // Pos 7+: actual payload data
+    frame_header_padding_ = 7;
+  }
   ~APINoiseFrameHelper() override;
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   bool can_write_without_blocking() override;
-  APIError write_packet(uint16_t type, const uint8_t *payload, size_t len) override;
+  APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
   std::string getpeername() override { return this->socket_->getpeername(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
     return this->socket_->getpeername(addr, addrlen);
@@ -99,6 +115,10 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError shutdown(int how) override;
   // Give this helper a name for logging
   void set_log_info(std::string info) override { info_ = std::move(info); }
+  // Get the frame header padding required by this protocol
+  uint8_t frame_header_padding() override { return frame_header_padding_; }
+  // Get the frame footer size required by this protocol
+  uint8_t frame_footer_size() override { return frame_footer_size_; }
 
  protected:
   struct ParsedFrame {
@@ -152,13 +172,20 @@ class APINoiseFrameHelper : public APIFrameHelper {
 #ifdef USE_API_PLAINTEXT
 class APIPlaintextFrameHelper : public APIFrameHelper {
  public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
+  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {
+    // Plaintext header structure (worst case):
+    // Pos 0: indicator (0x00)
+    // Pos 1-3: payload size varint (up to 3 bytes)
+    // Pos 4-5: message type varint (up to 2 bytes)
+    // Pos 6+: actual payload data
+    frame_header_padding_ = 6;
+  }
   ~APIPlaintextFrameHelper() override = default;
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   bool can_write_without_blocking() override;
-  APIError write_packet(uint16_t type, const uint8_t *payload, size_t len) override;
+  APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
   std::string getpeername() override { return this->socket_->getpeername(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
     return this->socket_->getpeername(addr, addrlen);
@@ -167,6 +194,10 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError shutdown(int how) override;
   // Give this helper a name for logging
   void set_log_info(std::string info) override { info_ = std::move(info); }
+  // Get the frame header padding required by this protocol
+  uint8_t frame_header_padding() override { return frame_header_padding_; }
+  // Get the frame footer size required by this protocol
+  uint8_t frame_footer_size() override { return frame_footer_size_; }
 
  protected:
   struct ParsedFrame {
