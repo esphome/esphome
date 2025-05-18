@@ -982,23 +982,32 @@ def uuid(value):
 
 
 METRIC_SUFFIXES = {
-    "E": 1e18,
-    "P": 1e15,
-    "T": 1e12,
-    "G": 1e9,
-    "M": 1e6,
-    "k": 1e3,
-    "da": 10,
-    "d": 1e-1,
-    "c": 1e-2,
-    "m": 0.001,
-    "µ": 1e-6,
-    "u": 1e-6,
-    "n": 1e-9,
-    "p": 1e-12,
-    "f": 1e-15,
-    "a": 1e-18,
-    "": 1,
+    "Q": 1e30,  # Quetta
+    "R": 1e27,  # Ronna
+    "Y": 1e24,  # Yotta
+    "Z": 1e21,  # Zetta
+    "E": 1e18,  # Exa
+    "P": 1e15,  # Peta
+    "T": 1e12,  # Tera
+    "G": 1e9,  # Giga
+    "M": 1e6,  # Mega
+    "k": 1e3,  # Kilo
+    "h": 1e2,  # Hecto
+    "da": 1e1,  # Deca
+    "": 1e0,  # No prefix
+    "d": 1e-1,  # Deci
+    "c": 1e-2,  # Centi
+    "m": 1e-3,  # Milli
+    "µ": 1e-6,  # Micro
+    "u": 1e-6,  # Micro (same as µ)
+    "n": 1e-9,  # Nano
+    "p": 1e-12,  # Pico
+    "f": 1e-15,  # Femto
+    "a": 1e-18,  # Atto
+    "z": 1e-21,  # Zepto
+    "y": 1e-24,  # Yocto
+    "r": 1e-27,  # Ronto
+    "q": 1e-30,  # Quecto
 }
 
 
