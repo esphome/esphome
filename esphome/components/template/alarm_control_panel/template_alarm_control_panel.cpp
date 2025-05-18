@@ -226,8 +226,6 @@ uint32_t TemplateAlarmControlPanel::get_supported_features() const {
   return features;
 }
 
-bool TemplateAlarmControlPanel::get_requires_code() const { return !this->codes_.empty(); }
-
 void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state,
                                      uint32_t delay) {
   if (this->current_state_ != ACP_STATE_DISARMED) {
