@@ -6,7 +6,7 @@ AUTO_LOAD = ["climate_ir"]
 hitachi_ac344_ns = cg.esphome_ns.namespace("hitachi_ac344")
 HitachiClimate = hitachi_ac344_ns.class_("HitachiClimate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(HitachiClimate)
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(HitachiClimate)
 
 
 async def to_code(config):

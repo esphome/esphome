@@ -6,7 +6,7 @@ AUTO_LOAD = ["climate_ir"]
 daikin_ns = cg.esphome_ns.namespace("daikin")
 DaikinClimate = daikin_ns.class_("DaikinClimate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(DaikinClimate)
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(DaikinClimate)
 
 
 async def to_code(config):

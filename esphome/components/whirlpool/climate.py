@@ -15,7 +15,7 @@ MODELS = {
     "DG11J1-91": Model.MODEL_DG11J1_91,
 }
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(WhirlpoolClimate).extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(WhirlpoolClimate).extend(
     {
         cv.Optional(CONF_MODEL, default="DG11J1-3A"): cv.enum(MODELS, upper=True),
     }

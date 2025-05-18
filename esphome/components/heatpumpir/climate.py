@@ -97,7 +97,7 @@ VERTICAL_DIRECTIONS = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    climate_ir.climare_ir_with_receiver_schema(HeatpumpIRClimate).extend(
+    climate_ir.climate_ir_with_receiver_schema(HeatpumpIRClimate).extend(
         {
             cv.Required(CONF_PROTOCOL): cv.enum(PROTOCOLS),
             cv.Required(CONF_HORIZONTAL_DEFAULT): cv.enum(HORIZONTAL_DIRECTIONS),

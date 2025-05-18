@@ -10,7 +10,7 @@ midea_ir_ns = cg.esphome_ns.namespace("midea_ir")
 MideaIR = midea_ir_ns.class_("MideaIR", climate_ir.ClimateIR)
 
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(MideaIR).extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(MideaIR).extend(
     {
         cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
     }

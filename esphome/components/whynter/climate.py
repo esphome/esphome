@@ -9,7 +9,7 @@ whynter_ns = cg.esphome_ns.namespace("whynter")
 Whynter = whynter_ns.class_("Whynter", climate_ir.ClimateIR)
 
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(Whynter).extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(Whynter).extend(
     {
         cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
     }

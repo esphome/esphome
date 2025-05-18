@@ -21,7 +21,7 @@ MODELS = {
     "yag": Model.GREE_YAG,
 }
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(GreeClimate).extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
     {
         cv.Required(CONF_MODEL): cv.enum(MODELS),
     }

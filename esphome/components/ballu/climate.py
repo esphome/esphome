@@ -7,7 +7,7 @@ CODEOWNERS = ["@bazuchan"]
 ballu_ns = cg.esphome_ns.namespace("ballu")
 BalluClimate = ballu_ns.class_("BalluClimate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(BalluClimate)
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(BalluClimate)
 
 
 async def to_code(config):

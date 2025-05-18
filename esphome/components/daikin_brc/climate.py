@@ -9,7 +9,7 @@ daikin_brc_ns = cg.esphome_ns.namespace("daikin_brc")
 DaikinBrcClimate = daikin_brc_ns.class_("DaikinBrcClimate", climate_ir.ClimateIR)
 
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(DaikinBrcClimate).extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(DaikinBrcClimate).extend(
     {
         cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
     }
