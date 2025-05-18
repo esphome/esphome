@@ -138,7 +138,7 @@ CONFIG_SCHEMA = cv.Schema(
         .extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_TEMPERATURE_ODA): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=0,
+            accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
         )
@@ -146,7 +146,7 @@ CONFIG_SCHEMA = cv.Schema(
         .extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_TEMPERATURE_SUP): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=0,
+            accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
         )
@@ -154,7 +154,7 @@ CONFIG_SCHEMA = cv.Schema(
         .extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_TEMPERATURE_ETA): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=0,
+            accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
         )
@@ -162,7 +162,7 @@ CONFIG_SCHEMA = cv.Schema(
         .extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_TEMPERATURE_EHA): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=0,
+            accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
         )
