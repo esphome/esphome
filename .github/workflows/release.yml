@@ -242,9 +242,8 @@ jobs:
   deploy-esphome-schema:
     if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
     runs-on: ubuntu-latest
-    needs:
-      - init
-      - deploy-manifest
+    needs: [init]
+    environment: ${{ needs.init.outputs.deploy_env }}
     steps:
       - name: Trigger Workflow
         uses: actions/github-script@v7.0.1
