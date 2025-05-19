@@ -18,7 +18,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       branch_build: ${{ steps.tag.outputs.branch_build }}
-      deploy_env: ${{ steps.tag.outputs.environment }}
+      deploy_env: ${{ steps.tag.outputs.deploy_env }}
     steps:
       - uses: actions/checkout@v4.1.7
       - name: Get tag
@@ -287,7 +287,7 @@ jobs:
           npx netlify-cli deploy \
             --dir api-docs \
             --no-build \
-            --alias ${{ needs.init.outputs.deploy_env }} \
+            --alias "${{ needs.init.outputs.deploy_env }}" \
             --message "Deploy API docs for ${{ needs.init.outputs.tag }}"
 
       - name: Deploy to netlify production
