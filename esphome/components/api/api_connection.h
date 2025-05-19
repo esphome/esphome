@@ -15,6 +15,9 @@
 namespace esphome {
 namespace api {
 
+// Keepalive timeout in milliseconds
+static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
+
 using send_message_t = bool (APIConnection::*)(void *);
 
 /*
