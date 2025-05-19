@@ -18,6 +18,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       branch_build: ${{ steps.tag.outputs.branch_build }}
+      deploy_env: ${{ steps.tag.outputs.environment }}
     steps:
       - uses: actions/checkout@v4.1.7
       - name: Get tag
@@ -27,6 +28,11 @@ jobs:
           if [[ "${{ github.event_name }}" = "release" ]]; then
             TAG="${{ github.event.release.tag_name}}"
             BRANCH_BUILD="false"
+            if [[ "${{ github.event.release.prerelease }}" = "true" ]]; then
+              ENVIRONMENT="beta"
+            else
+              ENVIRONMENT="production"
+            fi
           else
             TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
             today="$(date --utc '+%Y%m%d')"
@@ -35,12 +41,15 @@ jobs:
             if [[ "$BRANCH" != "dev" ]]; then
               TAG="${TAG}-${BRANCH}"
               BRANCH_BUILD="true"
+              ENVIRONMENT=""
             else
               BRANCH_BUILD="false"
+              ENVIRONMENT="dev"
             fi
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "branch_build=${BRANCH_BUILD}" >> $GITHUB_OUTPUT
+          echo "deploy_env=${ENVIRONMENT}" >> $GITHUB_OUTPUT
         # yamllint enable rule:line-length
 
   deploy-pypi:
@@ -251,3 +260,44 @@ jobs:
                 version: "${{ needs.init.outputs.tag }}",
               }
             })
+
+  deploy-api-docs:
+    if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
+    runs-on: ubuntu-latest
+    needs: [init]
+    environment: ${{ needs.init.outputs.deploy_env }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4.1.7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Generate docs
+        uses: mattnotmitt/doxygen-action@v1.12.0
+
+      - name: Deploy to netlify ${{ needs.init.outputs.deploy_env }}
+        if: needs.init.outputs.deploy_env != 'production'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          npx netlify-cli deploy \
+            --dir api-docs \
+            --no-build \
+            --alias ${{ needs.init.outputs.deploy_env }} \
+            --message "Deploy API docs for ${{ needs.init.outputs.tag }}"
+
+      - name: Deploy to netlify production
+        if: needs.init.outputs.deploy_env == 'production'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          npx netlify-cli deploy \
+            --dir api-docs \
+            --no-build \
+            --prod \
+            --message "Deploy API docs for ${{ needs.init.outputs.tag }}"
