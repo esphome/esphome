@@ -177,6 +177,7 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -185,12 +186,16 @@ jobs:
           # Minimize CI resource usage
           # by only running the Python version
           # version used for docker images on Windows and macOS
+          - python-version: "3.13"
+            os: windows-latest
           - python-version: "3.12"
             os: windows-latest
           - python-version: "3.10"
             os: windows-latest
           - python-version: "3.9"
             os: windows-latest
+          - python-version: "3.13"
+            os: macOS-latest
           - python-version: "3.12"
             os: macOS-latest
           - python-version: "3.10"
