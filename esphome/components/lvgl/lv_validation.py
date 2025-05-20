@@ -16,7 +16,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
-from esphome.cpp_types import ESPTime, uint32
+from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
@@ -261,6 +261,15 @@ def pixels_validator(value):
 
 
 pixels = LValidator(pixels_validator, uint32, retmapper=literal)
+
+
+def padding_validator(value):
+    if isinstance(value, str) and value.lower().endswith("px"):
+        value = value[:-2]
+    return cv.int_(value)
+
+
+padding = LValidator(padding_validator, int32, retmapper=literal)
 
 
 def zoom_validator(value):

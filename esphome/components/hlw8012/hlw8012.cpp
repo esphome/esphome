@@ -69,7 +69,7 @@ void HLW8012Component::update() {
 
   float power = cf_hz * this->power_multiplier_;
 
-  if (this->change_mode_at_ != 0) {
+  if (this->change_mode_at_ != 0 || this->change_mode_every_ == 0) {
     // Only read cf1 after one cycle. Apparently it's quite unstable after being changed.
     if (this->current_mode_) {
       float current = cf1_hz * this->current_multiplier_;

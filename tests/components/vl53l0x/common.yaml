@@ -10,3 +10,4 @@ sensor:
     enable_pin: 3
     timeout: 200us
     update_interval: 60s
+    timing_budget: 30000us

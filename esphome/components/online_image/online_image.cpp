@@ -111,7 +111,7 @@ void OnlineImage::update() {
     case ImageFormat::BMP:
       accept_mime_type = "image/bmp";
       break;
-#endif  // ONLINE_IMAGE_BMP_SUPPORT
+#endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
 #ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
     case ImageFormat::JPEG:
       accept_mime_type = "image/jpeg";
@@ -121,7 +121,7 @@ void OnlineImage::update() {
     case ImageFormat::PNG:
       accept_mime_type = "image/png";
       break;
-#endif  // ONLINE_IMAGE_PNG_SUPPORT
+#endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
     default:
       accept_mime_type = "image/*";
   }
@@ -159,7 +159,7 @@ void OnlineImage::update() {
     ESP_LOGD(TAG, "Allocating BMP decoder");
     this->decoder_ = make_unique<BmpDecoder>(this);
   }
-#endif  // ONLINE_IMAGE_BMP_SUPPORT
+#endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
 #ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
   if (this->format_ == ImageFormat::JPEG) {
     ESP_LOGD(TAG, "Allocating JPEG decoder");
@@ -171,7 +171,7 @@ void OnlineImage::update() {
     ESP_LOGD(TAG, "Allocating PNG decoder");
     this->decoder_ = make_unique<PngDecoder>(this);
   }
-#endif  // ONLINE_IMAGE_PNG_SUPPORT
+#endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
 
   if (!this->decoder_) {
     ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported: %d", this->format_);
@@ -185,7 +185,7 @@ void OnlineImage::update() {
     this->download_error_callback_.call();
     return;
   }
-  ESP_LOGI(TAG, "Downloading image (Size: %d)", total_size);
+  ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = ::time(nullptr);
 }
 

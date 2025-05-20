@@ -5,6 +5,10 @@ from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIRECTION,
+    CONF_DIRECTION_COMMAND_TOPIC,
+    CONF_DIRECTION_STATE_TOPIC,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_OFF_SPEED_CYCLE,
@@ -80,16 +84,21 @@ FanPresetSetTrigger = fan_ns.class_(
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
 FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.template())
 
-FAN_SCHEMA = (
+_FAN_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(Fan),
             cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
+            cv.Optional(CONF_DIRECTION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_DIRECTION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
             cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.publish_topic
             ),
@@ -151,6 +160,37 @@ FAN_SCHEMA = (
     )
 )
 
+
+def fan_schema(
+    class_: cg.Pvariable,
+    *,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+    default_restore_mode: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+        (
+            CONF_RESTORE_MODE,
+            default_restore_mode,
+            cv.enum(RESTORE_MODES, upper=True, space="_"),
+        ),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _FAN_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+FAN_SCHEMA = fan_schema(Fan)
+FAN_SCHEMA.add_extra(cv.deprecated_schema_constant("fan"))
+
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(cv.string_strict),
     cv.Length(min=1),
@@ -193,6 +233,14 @@ async def setup_fan_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
+        if (
+            direction_state_topic := config.get(CONF_DIRECTION_STATE_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_direction_state_topic(direction_state_topic))
+        if (
+            direction_command_topic := config.get(CONF_DIRECTION_COMMAND_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_direction_command_topic(direction_command_topic))
         if (
             oscillation_state_topic := config.get(CONF_OSCILLATION_STATE_TOPIC)
         ) is not None:
@@ -251,10 +299,9 @@ async def register_fan(var, config):
     await setup_fan_core_(var, config)
 
 
-async def create_fan_state(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_fan(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_fan(var, config)
-    await cg.register_component(var, config)
     return var
 
 

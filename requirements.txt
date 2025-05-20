@@ -1,5 +1,5 @@
 async_timeout==5.0.1; python_version <= "3.10"
-cryptography==44.0.2
+cryptography==45.0.1
 voluptuous==0.15.2
 PyYAML==6.0.2
 paho-mqtt==1.6.1
@@ -12,13 +12,14 @@ pyserial==3.5
 platformio==6.1.18  # When updating platformio, also update /docker/Dockerfile
 esptool==4.8.1
 click==8.1.7
-esphome-dashboard==20250415.0
-aioesphomeapi==30.0.1
-zeroconf==0.146.5
-puremagic==1.28
+esphome-dashboard==20250514.0
+aioesphomeapi==31.1.0
+zeroconf==0.147.0
+puremagic==1.29
 ruamel.yaml==0.18.10 # dashboard_import
 esphome-glyphsets==0.2.0
 pillow==10.4.0
+cairosvg==2.8.2
 freetype-py==2.5.1
 
 # esp-idf requires this, but doesn't bundle it by default

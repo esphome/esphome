@@ -1,6 +1,7 @@
 #include "current_based_cover.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cfloat>
 
 namespace esphome {
@@ -60,7 +61,7 @@ void CurrentBasedCover::loop() {
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   if (this->current_operation == COVER_OPERATION_OPENING) {
     if (this->malfunction_detection_ && this->is_closing_()) {  // Malfunction

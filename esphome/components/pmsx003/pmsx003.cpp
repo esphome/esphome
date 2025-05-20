@@ -1,62 +1,57 @@
 #include "pmsx003.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace pmsx003 {
 
 static const char *const TAG = "pmsx003";
 
-void PMSX003Component::set_pm_1_0_std_sensor(sensor::Sensor *pm_1_0_std_sensor) {
-  pm_1_0_std_sensor_ = pm_1_0_std_sensor;
-}
-void PMSX003Component::set_pm_2_5_std_sensor(sensor::Sensor *pm_2_5_std_sensor) {
-  pm_2_5_std_sensor_ = pm_2_5_std_sensor;
-}
-void PMSX003Component::set_pm_10_0_std_sensor(sensor::Sensor *pm_10_0_std_sensor) {
-  pm_10_0_std_sensor_ = pm_10_0_std_sensor;
-}
+static const uint8_t START_CHARACTER_1 = 0x42;
+static const uint8_t START_CHARACTER_2 = 0x4D;
 
-void PMSX003Component::set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { pm_1_0_sensor_ = pm_1_0_sensor; }
-void PMSX003Component::set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
-void PMSX003Component::set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }
+static const uint16_t PMS_STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on in ms
 
-void PMSX003Component::set_pm_particles_03um_sensor(sensor::Sensor *pm_particles_03um_sensor) {
-  pm_particles_03um_sensor_ = pm_particles_03um_sensor;
-}
-void PMSX003Component::set_pm_particles_05um_sensor(sensor::Sensor *pm_particles_05um_sensor) {
-  pm_particles_05um_sensor_ = pm_particles_05um_sensor;
-}
-void PMSX003Component::set_pm_particles_10um_sensor(sensor::Sensor *pm_particles_10um_sensor) {
-  pm_particles_10um_sensor_ = pm_particles_10um_sensor;
-}
-void PMSX003Component::set_pm_particles_25um_sensor(sensor::Sensor *pm_particles_25um_sensor) {
-  pm_particles_25um_sensor_ = pm_particles_25um_sensor;
-}
-void PMSX003Component::set_pm_particles_50um_sensor(sensor::Sensor *pm_particles_50um_sensor) {
-  pm_particles_50um_sensor_ = pm_particles_50um_sensor;
-}
-void PMSX003Component::set_pm_particles_100um_sensor(sensor::Sensor *pm_particles_100um_sensor) {
-  pm_particles_100um_sensor_ = pm_particles_100um_sensor;
-}
+static const uint16_t PMS_CMD_MEASUREMENT_MODE_PASSIVE =
+    0x0000;  // use `PMS_CMD_MANUAL_MEASUREMENT` to trigger a measurement
+static const uint16_t PMS_CMD_MEASUREMENT_MODE_ACTIVE = 0x0001;  // automatically perform measurements
+static const uint16_t PMS_CMD_SLEEP_MODE_SLEEP = 0x0000;         // go to sleep mode
+static const uint16_t PMS_CMD_SLEEP_MODE_WAKEUP = 0x0001;        // wake up from sleep mode
 
-void PMSX003Component::set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-  temperature_sensor_ = temperature_sensor;
-}
-void PMSX003Component::set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-void PMSX003Component::set_formaldehyde_sensor(sensor::Sensor *formaldehyde_sensor) {
-  formaldehyde_sensor_ = formaldehyde_sensor;
+void PMSX003Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "PMSX003:");
+  LOG_SENSOR("  ", "PM1.0STD", this->pm_1_0_std_sensor_);
+  LOG_SENSOR("  ", "PM2.5STD", this->pm_2_5_std_sensor_);
+  LOG_SENSOR("  ", "PM10.0STD", this->pm_10_0_std_sensor_);
+
+  LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
+  LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
+  LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
+
+  LOG_SENSOR("  ", "PM0.3um", this->pm_particles_03um_sensor_);
+  LOG_SENSOR("  ", "PM0.5um", this->pm_particles_05um_sensor_);
+  LOG_SENSOR("  ", "PM1.0um", this->pm_particles_10um_sensor_);
+  LOG_SENSOR("  ", "PM2.5um", this->pm_particles_25um_sensor_);
+  LOG_SENSOR("  ", "PM5.0um", this->pm_particles_50um_sensor_);
+  LOG_SENSOR("  ", "PM10.0um", this->pm_particles_100um_sensor_);
+
+  LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
+
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  this->check_uart_settings(9600);
 }
 
 void PMSX003Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // If we update less often than it takes the device to stabilise, spin the fan down
   // rather than running it constantly. It does take some time to stabilise, so we
   // need to keep track of what state we're in.
   if (this->update_interval_ > PMS_STABILISING_MS) {
     if (this->initialised_ == 0) {
-      this->send_command_(PMS_CMD_AUTO_MANUAL, 0);
-      this->send_command_(PMS_CMD_ON_STANDBY, 1);
+      this->send_command_(PMS_CMD_MEASUREMENT_MODE, PMS_CMD_MEASUREMENT_MODE_PASSIVE);
+      this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_WAKEUP);
       this->initialised_ = 1;
     }
     switch (this->state_) {
@@ -66,7 +61,7 @@ void PMSX003Component::loop() {
           return;
 
         this->state_ = PMSX003_STATE_STABILISING;
-        this->send_command_(PMS_CMD_ON_STANDBY, 1);
+        this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_WAKEUP);
         this->fan_on_time_ = now;
         return;
       case PMSX003_STATE_STABILISING:
@@ -77,7 +72,7 @@ void PMSX003Component::loop() {
         while (this->available())
           this->read_byte(&this->data_[0]);
         // Trigger a new read
-        this->send_command_(PMS_CMD_TRIG_MANUAL, 0);
+        this->send_command_(PMS_CMD_MANUAL_MEASUREMENT, 0);
         this->state_ = PMSX003_STATE_WAITING;
         break;
       case PMSX003_STATE_WAITING:
@@ -116,241 +111,211 @@ void PMSX003Component::loop() {
     }
   }
 }
-float PMSX003Component::get_setup_priority() const { return setup_priority::DATA; }
+
 optional<bool> PMSX003Component::check_byte_() {
-  uint8_t index = this->data_index_;
-  uint8_t byte = this->data_[index];
+  const uint8_t index = this->data_index_;
+  const uint8_t byte = this->data_[index];
 
-  if (index == 0)
-    return byte == 0x42;
-
-  if (index == 1)
-    return byte == 0x4D;
-
-  if (index == 2)
-    return true;
-
-  uint16_t payload_length = this->get_16_bit_uint_(2);
-  if (index == 3) {
-    bool length_matches = false;
-    switch (this->type_) {
-      case PMSX003_TYPE_X003:
-        length_matches = payload_length == 28 || payload_length == 20;
-        break;
-      case PMSX003_TYPE_5003T:
-      case PMSX003_TYPE_5003S:
-        length_matches = payload_length == 28;
-        break;
-      case PMSX003_TYPE_5003ST:
-        length_matches = payload_length == 36;
-        break;
+  if (index == 0 || index == 1) {
+    const uint8_t start_char = index == 0 ? START_CHARACTER_1 : START_CHARACTER_2;
+    if (byte == start_char) {
+      return true;
     }
 
-    if (!length_matches) {
-      ESP_LOGW(TAG, "PMSX003 length %u doesn't match. Are you using the correct PMSX003 type?", payload_length);
-      return false;
-    }
+    ESP_LOGW(TAG, "Start character %u mismatch: 0x%02X != 0x%02X", index + 1, byte, START_CHARACTER_1);
+    return false;
+  }
+
+  if (index == 2) {
     return true;
   }
 
-  // start (16bit) + length (16bit) + DATA (payload_length-2 bytes) + checksum (16bit)
-  uint8_t total_size = 4 + payload_length;
+  const uint16_t payload_length = this->get_16_bit_uint_(2);
+  if (index == 3) {
+    if (this->check_payload_length_(payload_length)) {
+      return true;
+    } else {
+      ESP_LOGW(TAG, "Payload length %u doesn't match. Are you using the correct PMSX003 type?", payload_length);
+      return false;
+    }
+  }
 
-  if (index < total_size - 1)
+  // start (16bit) + length (16bit) + DATA (payload_length - 16bit) + checksum (16bit)
+  const uint16_t total_size = 4 + payload_length;
+
+  if (index < total_size - 1) {
     return true;
+  }
 
   // checksum is without checksum bytes
   uint16_t checksum = 0;
-  for (uint8_t i = 0; i < total_size - 2; i++)
+  for (uint16_t i = 0; i < total_size - 2; i++) {
     checksum += this->data_[i];
+  }
 
-  uint16_t check = this->get_16_bit_uint_(total_size - 2);
+  const uint16_t check = this->get_16_bit_uint_(total_size - 2);
   if (checksum != check) {
-    ESP_LOGW(TAG, "PMSX003 checksum mismatch! 0x%02X!=0x%02X", checksum, check);
+    ESP_LOGW(TAG, "PMSX003 checksum mismatch! 0x%02X != 0x%02X", checksum, check);
     return false;
   }
 
   return {};
 }
 
-void PMSX003Component::send_command_(uint8_t cmd, uint16_t data) {
-  this->data_index_ = 0;
-  this->data_[data_index_++] = 0x42;
-  this->data_[data_index_++] = 0x4D;
-  this->data_[data_index_++] = cmd;
-  this->data_[data_index_++] = (data >> 8) & 0xFF;
-  this->data_[data_index_++] = (data >> 0) & 0xFF;
-  int sum = 0;
-  for (int i = 0; i < data_index_; i++) {
-    sum += this->data_[i];
+bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
+  switch (this->type_) {
+    case PMSX003_TYPE_X003:
+      // The expected payload length is typically 28 bytes.
+      // However, a 20-byte payload check was already present in the code.
+      // No official documentation was found confirming this.
+      // Retaining this check to avoid breaking existing behavior.
+      return payload_length == 28 || payload_length == 20;  // 2*13+2
+    case PMSX003_TYPE_5003T:
+    case PMSX003_TYPE_5003S:
+      return payload_length == 28;  // 2*13+2 (Data 13 not set/reserved)
+    case PMSX003_TYPE_5003ST:
+      return payload_length == 36;  // 2*17+2 (Data 16 not set/reserved)
   }
-  this->data_[data_index_++] = (sum >> 8) & 0xFF;
-  this->data_[data_index_++] = (sum >> 0) & 0xFF;
-  for (int i = 0; i < data_index_; i++) {
-    this->write_byte(this->data_[i]);
+  return false;
+}
+
+void PMSX003Component::send_command_(PMSX0003Command cmd, uint16_t data) {
+  uint8_t send_data[7] = {
+      START_CHARACTER_1,            // Start Byte 1
+      START_CHARACTER_2,            // Start Byte 2
+      cmd,                          // Command
+      uint8_t((data >> 8) & 0xFF),  // Data 1
+      uint8_t((data >> 0) & 0xFF),  // Data 2
+      0,                            // Verify Byte 1
+      0,                            // Verify Byte 2
+  };
+
+  // Calculate checksum
+  uint16_t checksum = 0;
+  for (uint8_t i = 0; i < 5; i++) {
+    checksum += send_data[i];
   }
-  this->data_index_ = 0;
+  send_data[5] = (checksum >> 8) & 0xFF;  // Verify Byte 1
+  send_data[6] = (checksum >> 0) & 0xFF;  // Verify Byte 2
+
+  for (auto send_byte : send_data) {
+    this->write_byte(send_byte);
+  }
 }
 
 void PMSX003Component::parse_data_() {
-  switch (this->type_) {
-    case PMSX003_TYPE_5003ST: {
-      float temperature = (int16_t) this->get_16_bit_uint_(30) / 10.0f;
-      float humidity = this->get_16_bit_uint_(32) / 10.0f;
+  // Particle Matter
+  const uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
+  const uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
+  const uint16_t pm_10_0_std_concentration = this->get_16_bit_uint_(8);
 
-      ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%%", temperature, humidity);
+  const uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
+  const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
+  const uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
 
-      if (this->temperature_sensor_ != nullptr)
-        this->temperature_sensor_->publish_state(temperature);
-      if (this->humidity_sensor_ != nullptr)
-        this->humidity_sensor_->publish_state(humidity);
-      // The rest of the PMS5003ST matches the PMS5003S, continue on
-    }
-    case PMSX003_TYPE_5003S: {
-      uint16_t formaldehyde = this->get_16_bit_uint_(28);
+  const uint16_t pm_particles_03um = this->get_16_bit_uint_(16);
+  const uint16_t pm_particles_05um = this->get_16_bit_uint_(18);
+  const uint16_t pm_particles_10um = this->get_16_bit_uint_(20);
+  const uint16_t pm_particles_25um = this->get_16_bit_uint_(22);
 
-      ESP_LOGD(TAG, "Got Formaldehyde: %u µg/m^3", formaldehyde);
+  ESP_LOGD(TAG,
+           "Got PM1.0 Standard Concentration: %u µg/m³, PM2.5 Standard Concentration %u µg/m³, PM10.0 Standard "
+           "Concentration: %u µg/m³, PM1.0 Concentration: %u µg/m³, PM2.5 Concentration %u µg/m³, PM10.0 "
+           "Concentration: %u µg/m³",
+           pm_1_0_std_concentration, pm_2_5_std_concentration, pm_10_0_std_concentration, pm_1_0_concentration,
+           pm_2_5_concentration, pm_10_0_concentration);
 
-      if (this->formaldehyde_sensor_ != nullptr)
-        this->formaldehyde_sensor_->publish_state(formaldehyde);
-      // The rest of the PMS5003S matches the PMS5003, continue on
-    }
-    case PMSX003_TYPE_X003: {
-      uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
-      uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
-      uint16_t pm_10_0_std_concentration = this->get_16_bit_uint_(8);
+  if (this->pm_1_0_std_sensor_ != nullptr)
+    this->pm_1_0_std_sensor_->publish_state(pm_1_0_std_concentration);
+  if (this->pm_2_5_std_sensor_ != nullptr)
+    this->pm_2_5_std_sensor_->publish_state(pm_2_5_std_concentration);
+  if (this->pm_10_0_std_sensor_ != nullptr)
+    this->pm_10_0_std_sensor_->publish_state(pm_10_0_std_concentration);
 
-      uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
-      uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
-      uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
+  if (this->pm_1_0_sensor_ != nullptr)
+    this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
+  if (this->pm_2_5_sensor_ != nullptr)
+    this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
+  if (this->pm_10_0_sensor_ != nullptr)
+    this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
 
-      uint16_t pm_particles_03um = this->get_16_bit_uint_(16);
-      uint16_t pm_particles_05um = this->get_16_bit_uint_(18);
-      uint16_t pm_particles_10um = this->get_16_bit_uint_(20);
-      uint16_t pm_particles_25um = this->get_16_bit_uint_(22);
-      uint16_t pm_particles_50um = this->get_16_bit_uint_(24);
-      uint16_t pm_particles_100um = this->get_16_bit_uint_(26);
+  if (this->pm_particles_03um_sensor_ != nullptr)
+    this->pm_particles_03um_sensor_->publish_state(pm_particles_03um);
+  if (this->pm_particles_05um_sensor_ != nullptr)
+    this->pm_particles_05um_sensor_->publish_state(pm_particles_05um);
+  if (this->pm_particles_10um_sensor_ != nullptr)
+    this->pm_particles_10um_sensor_->publish_state(pm_particles_10um);
+  if (this->pm_particles_25um_sensor_ != nullptr)
+    this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
 
-      ESP_LOGD(TAG,
-               "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3",
-               pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration);
+  if (this->type_ == PMSX003_TYPE_5003T) {
+    ESP_LOGD(TAG,
+             "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
+             "PM2.5 Particles %u Count/0.1L",
+             pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um);
+  } else {
+    // Note the pm particles 50um & 100um are not returned,
+    // as PMS5003T uses those data values for temperature and humidity.
+    const uint16_t pm_particles_50um = this->get_16_bit_uint_(24);
+    const uint16_t pm_particles_100um = this->get_16_bit_uint_(26);
 
-      if (this->pm_1_0_std_sensor_ != nullptr)
-        this->pm_1_0_std_sensor_->publish_state(pm_1_0_std_concentration);
-      if (this->pm_2_5_std_sensor_ != nullptr)
-        this->pm_2_5_std_sensor_->publish_state(pm_2_5_std_concentration);
-      if (this->pm_10_0_std_sensor_ != nullptr)
-        this->pm_10_0_std_sensor_->publish_state(pm_10_0_std_concentration);
+    ESP_LOGD(TAG,
+             "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
+             "PM2.5 Particles %u Count/0.1L, PM5.0 Particles: %u Count/0.1L, PM10.0 Particles %u Count/0.1L",
+             pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um, pm_particles_50um,
+             pm_particles_100um);
 
-      if (this->pm_1_0_sensor_ != nullptr)
-        this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
-      if (this->pm_2_5_sensor_ != nullptr)
-        this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-      if (this->pm_10_0_sensor_ != nullptr)
-        this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
+    if (this->pm_particles_50um_sensor_ != nullptr)
+      this->pm_particles_50um_sensor_->publish_state(pm_particles_50um);
+    if (this->pm_particles_100um_sensor_ != nullptr)
+      this->pm_particles_100um_sensor_->publish_state(pm_particles_100um);
+  }
 
-      if (this->pm_particles_03um_sensor_ != nullptr)
-        this->pm_particles_03um_sensor_->publish_state(pm_particles_03um);
-      if (this->pm_particles_05um_sensor_ != nullptr)
-        this->pm_particles_05um_sensor_->publish_state(pm_particles_05um);
-      if (this->pm_particles_10um_sensor_ != nullptr)
-        this->pm_particles_10um_sensor_->publish_state(pm_particles_10um);
-      if (this->pm_particles_25um_sensor_ != nullptr)
-        this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
-      if (this->pm_particles_50um_sensor_ != nullptr)
-        this->pm_particles_50um_sensor_->publish_state(pm_particles_50um);
-      if (this->pm_particles_100um_sensor_ != nullptr)
-        this->pm_particles_100um_sensor_->publish_state(pm_particles_100um);
-      break;
-    }
-    case PMSX003_TYPE_5003T: {
-      uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
-      uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
-      uint16_t pm_10_0_std_concentration = this->get_16_bit_uint_(8);
+  // Formaldehyde
+  if (this->type_ == PMSX003_TYPE_5003ST || this->type_ == PMSX003_TYPE_5003S) {
+    const uint16_t formaldehyde = this->get_16_bit_uint_(28);
 
-      uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
-      uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
-      uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
+    ESP_LOGD(TAG, "Got Formaldehyde: %u µg/m^3", formaldehyde);
 
-      uint16_t pm_particles_03um = this->get_16_bit_uint_(16);
-      uint16_t pm_particles_05um = this->get_16_bit_uint_(18);
-      uint16_t pm_particles_10um = this->get_16_bit_uint_(20);
-      uint16_t pm_particles_25um = this->get_16_bit_uint_(22);
-      // Note the pm particles 50um & 100um are not returned,
-      // as PMS5003T uses those data values for temperature and humidity.
+    if (this->formaldehyde_sensor_ != nullptr)
+      this->formaldehyde_sensor_->publish_state(formaldehyde);
+  }
 
-      float temperature = (int16_t) this->get_16_bit_uint_(24) / 10.0f;
-      float humidity = this->get_16_bit_uint_(26) / 10.0f;
+  // Temperature and Humidity
+  if (this->type_ == PMSX003_TYPE_5003ST || this->type_ == PMSX003_TYPE_5003T) {
+    const uint8_t temperature_offset = (this->type_ == PMSX003_TYPE_5003T) ? 24 : 30;
 
-      ESP_LOGD(TAG,
-               "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3, "
-               "Temperature: %.1f°C, Humidity: %.1f%%",
-               pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration, temperature, humidity);
+    const float temperature = static_cast<int16_t>(this->get_16_bit_uint_(temperature_offset)) / 10.0f;
+    const float humidity = this->get_16_bit_uint_(temperature_offset + 2) / 10.0f;
 
-      if (this->pm_1_0_std_sensor_ != nullptr)
-        this->pm_1_0_std_sensor_->publish_state(pm_1_0_std_concentration);
-      if (this->pm_2_5_std_sensor_ != nullptr)
-        this->pm_2_5_std_sensor_->publish_state(pm_2_5_std_concentration);
-      if (this->pm_10_0_std_sensor_ != nullptr)
-        this->pm_10_0_std_sensor_->publish_state(pm_10_0_std_concentration);
+    ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%%", temperature, humidity);
 
-      if (this->pm_1_0_sensor_ != nullptr)
-        this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
-      if (this->pm_2_5_sensor_ != nullptr)
-        this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-      if (this->pm_10_0_sensor_ != nullptr)
-        this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(temperature);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(humidity);
+  }
 
-      if (this->pm_particles_03um_sensor_ != nullptr)
-        this->pm_particles_03um_sensor_->publish_state(pm_particles_03um);
-      if (this->pm_particles_05um_sensor_ != nullptr)
-        this->pm_particles_05um_sensor_->publish_state(pm_particles_05um);
-      if (this->pm_particles_10um_sensor_ != nullptr)
-        this->pm_particles_10um_sensor_->publish_state(pm_particles_10um);
-      if (this->pm_particles_25um_sensor_ != nullptr)
-        this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
+  // Firmware Version and Error Code
+  if (this->type_ == PMSX003_TYPE_5003ST) {
+    const uint8_t firmware_version = this->data_[36];
+    const uint8_t error_code = this->data_[37];
 
-      if (this->temperature_sensor_ != nullptr)
-        this->temperature_sensor_->publish_state(temperature);
-      if (this->humidity_sensor_ != nullptr)
-        this->humidity_sensor_->publish_state(humidity);
-      break;
-    }
+    ESP_LOGD(TAG, "Got Firmware Version: 0x%02X, Error Code: 0x%02X", firmware_version, error_code);
   }
 
   // Spin down the sensor again if we aren't going to need it until more time has
   // passed than it takes to stabilise
   if (this->update_interval_ > PMS_STABILISING_MS) {
-    this->send_command_(PMS_CMD_ON_STANDBY, 0);
+    this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_SLEEP);
     this->state_ = PMSX003_STATE_IDLE;
   }
 
   this->status_clear_warning();
 }
+
 uint16_t PMSX003Component::get_16_bit_uint_(uint8_t start_index) {
   return (uint16_t(this->data_[start_index]) << 8) | uint16_t(this->data_[start_index + 1]);
-}
-void PMSX003Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "PMSX003:");
-  LOG_SENSOR("  ", "PM1.0STD", this->pm_1_0_std_sensor_);
-  LOG_SENSOR("  ", "PM2.5STD", this->pm_2_5_std_sensor_);
-  LOG_SENSOR("  ", "PM10.0STD", this->pm_10_0_std_sensor_);
-
-  LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
-  LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
-  LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-
-  LOG_SENSOR("  ", "PM0.3um", this->pm_particles_03um_sensor_);
-  LOG_SENSOR("  ", "PM0.5um", this->pm_particles_05um_sensor_);
-  LOG_SENSOR("  ", "PM1.0um", this->pm_particles_10um_sensor_);
-  LOG_SENSOR("  ", "PM2.5um", this->pm_particles_25um_sensor_);
-  LOG_SENSOR("  ", "PM5.0um", this->pm_particles_50um_sensor_);
-  LOG_SENSOR("  ", "PM10.0um", this->pm_particles_100um_sensor_);
-
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
-  this->check_uart_settings(9600);
 }
 
 }  // namespace pmsx003

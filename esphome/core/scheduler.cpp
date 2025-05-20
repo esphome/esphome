@@ -1,4 +1,6 @@
 #include "scheduler.h"
+
+#include "application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -215,6 +217,7 @@ void HOT Scheduler::call() {
         this->pop_raw_();
         continue;
       }
+      App.set_current_component(item->component);
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
       ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
@@ -226,8 +229,11 @@ void HOT Scheduler::call() {
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
       {
-        WarnIfComponentBlockingGuard guard{item->component};
+        uint32_t now_ms = millis();
+        WarnIfComponentBlockingGuard guard{item->component, now_ms};
         item->callback();
+        // Call finish to ensure blocking time is properly calculated and reported
+        guard.finish();
       }
     }
 

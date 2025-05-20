@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
+    CONF_SKIP_CERT_CN_CHECK,
     CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
@@ -67,7 +68,6 @@ def AUTO_LOAD():
 
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
-CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 
 
 def validate_message_just_topic(value):

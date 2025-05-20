@@ -28,6 +28,16 @@ sensor:
           value: 20.0
       - timeout:
           timeout: 1d
+      - to_ntc_resistance:
+          calibration:
+            - 10.0kOhm -> 25°C
+            - 27.219kOhm -> 0°C
+            - 14.674kOhm -> 15°C
+      - to_ntc_temperature:
+          calibration:
+            - 10.0kOhm -> 25°C
+            - 27.219kOhm -> 0°C
+            - 14.674kOhm -> 15°C
 
 esphome:
   on_boot:
@@ -164,6 +174,8 @@ valve:
       - logger.log: open_action
     close_action:
       - logger.log: close_action
+      - valve.template.publish:
+          state: CLOSED
     stop_action:
       - logger.log: stop_action
     optimistic: true

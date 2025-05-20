@@ -75,6 +75,7 @@ async def test_devices_page(dashboard: DashboardTestHelper) -> None:
     assert response.headers["content-type"] == "application/json"
     json_data = json.loads(response.body.decode())
     configured_devices = json_data["configured"]
+    assert len(configured_devices) != 0
     first_device = configured_devices[0]
     assert first_device["name"] == "pico"
     assert first_device["configuration"] == "pico.yaml"

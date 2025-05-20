@@ -97,6 +97,9 @@ class Application {
     this->compilation_time_ = compilation_time;
   }
 
+  void set_current_component(Component *component) { this->current_component_ = component; }
+  Component *get_current_component() { return this->current_component_; }
+
 #ifdef USE_BINARY_SENSOR
   void register_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
     this->binary_sensors_.push_back(binary_sensor);
@@ -214,6 +217,9 @@ class Application {
 
   std::string get_compilation_time() const { return this->compilation_time_; }
 
+  /// Get the cached time in milliseconds from when the current component started its loop execution
+  inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
+
   /** Set the target interval with which to run the loop() calls.
    * If the loop() method takes longer than the target interval, ESPHome won't
    * sleep in loop(), but if the time spent in loop() is small than the target, ESPHome
@@ -233,7 +239,7 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  void feed_wdt();
+  void feed_wdt(uint32_t time = 0);
 
   void reboot();
 
@@ -547,6 +553,8 @@ class Application {
   uint32_t loop_interval_{16};
   size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
+  Component *current_component_{nullptr};
+  uint32_t loop_component_start_time_{0};
 };
 
 /// Global storage of Application pointer - only one Application can exist.

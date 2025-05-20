@@ -92,7 +92,7 @@ void ESP32ImprovComponent::loop() {
 
   if (!this->incoming_data_.empty())
     this->process_incoming_data_();
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
 
   switch (this->state_) {
     case improv::STATE_STOPPED:

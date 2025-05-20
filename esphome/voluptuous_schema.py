@@ -15,7 +15,9 @@ class ExtraKeysInvalid(vol.Invalid):
 def ensure_multiple_invalid(err):
     if isinstance(err, vol.MultipleInvalid):
         return err
-    return vol.MultipleInvalid(err)
+    if isinstance(err, list):
+        return vol.MultipleInvalid(err)
+    return vol.MultipleInvalid([err])
 
 
 # pylint: disable=protected-access, unidiomatic-typecheck

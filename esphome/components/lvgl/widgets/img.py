@@ -10,7 +10,7 @@ from ..defines import (
     CONF_ZOOM,
     LvConstant,
 )
-from ..lv_validation import angle, lv_bool, lv_image, size, zoom
+from ..lv_validation import lv_angle, lv_bool, lv_image, size, zoom
 from ..lvcode import lv
 from ..types import lv_img_t
 from . import Widget, WidgetType
@@ -22,7 +22,7 @@ BASE_IMG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PIVOT_X): size,
         cv.Optional(CONF_PIVOT_Y): size,
-        cv.Optional(CONF_ANGLE): angle,
+        cv.Optional(CONF_ANGLE): lv_angle,
         cv.Optional(CONF_ZOOM): zoom,
         cv.Optional(CONF_OFFSET_X): size,
         cv.Optional(CONF_OFFSET_Y): size,
@@ -66,17 +66,19 @@ class ImgType(WidgetType):
         if (pivot_x := config.get(CONF_PIVOT_X)) and (
             pivot_y := config.get(CONF_PIVOT_Y)
         ):
-            lv.img_set_pivot(w.obj, pivot_x, pivot_y)
+            lv.img_set_pivot(
+                w.obj, await size.process(pivot_x), await size.process(pivot_y)
+            )
         if (cf_angle := config.get(CONF_ANGLE)) is not None:
-            lv.img_set_angle(w.obj, cf_angle)
+            lv.img_set_angle(w.obj, await lv_angle.process(cf_angle))
         if (img_zoom := config.get(CONF_ZOOM)) is not None:
-            lv.img_set_zoom(w.obj, img_zoom)
+            lv.img_set_zoom(w.obj, await zoom.process(img_zoom))
         if (offset := config.get(CONF_OFFSET_X)) is not None:
-            lv.img_set_offset_x(w.obj, offset)
+            lv.img_set_offset_x(w.obj, await size.process(offset))
         if (offset := config.get(CONF_OFFSET_Y)) is not None:
-            lv.img_set_offset_y(w.obj, offset)
+            lv.img_set_offset_y(w.obj, await size.process(offset))
         if CONF_ANTIALIAS in config:
-            lv.img_set_antialias(w.obj, config[CONF_ANTIALIAS])
+            lv.img_set_antialias(w.obj, await lv_bool.process(config[CONF_ANTIALIAS]))
         if mode := config.get(CONF_MODE):
             await w.set_property("size_mode", mode)
 

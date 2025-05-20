@@ -20,11 +20,6 @@
 
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
-#define USE_AUDIO_FLAC_SUPPORT
-#define USE_AUDIO_MP3_SUPPORT
-#define USE_API
-#define USE_API_NOISE
-#define USE_API_PLAINTEXT
 #define USE_BINARY_SENSOR
 #define USE_BUTTON
 #define USE_CLIMATE
@@ -79,20 +74,10 @@
 #define USE_LVGL_TEXTAREA
 #define USE_LVGL_TILEVIEW
 #define USE_LVGL_TOUCHSCREEN
-#define USE_MD5
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
-#define USE_MQTT
-#define USE_NETWORK
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
-#define USE_ONLINE_IMAGE_BMP_SUPPORT
-#define USE_ONLINE_IMAGE_PNG_SUPPORT
-#define USE_ONLINE_IMAGE_JPEG_SUPPORT
-#define USE_OTA
-#define USE_OTA_PASSWORD
-#define USE_OTA_STATE_CALLBACK
-#define USE_OTA_VERSION 2
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
@@ -107,14 +92,34 @@
 #define USE_UART_DEBUGGER
 #define USE_UPDATE
 #define USE_VALVE
+
+// Feature flags which do not work for zephyr
+#ifndef USE_ZEPHYR
+#define USE_AUDIO_FLAC_SUPPORT
+#define USE_AUDIO_MP3_SUPPORT
+#define USE_API
+#define USE_API_NOISE
+#define USE_API_PLAINTEXT
+#define USE_MD5
+#define USE_MQTT
+#define USE_NETWORK
+#define USE_ONLINE_IMAGE_BMP_SUPPORT
+#define USE_ONLINE_IMAGE_PNG_SUPPORT
+#define USE_ONLINE_IMAGE_JPEG_SUPPORT
+#define USE_OTA
+#define USE_OTA_PASSWORD
+#define USE_OTA_STATE_CALLBACK
+#define USE_OTA_VERSION 2
 #define USE_WIFI
 #define USE_WIFI_AP
 #define USE_WIREGUARD
+#endif
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
+#define USE_I2S_LEGACY
 #endif
 
 // IDF-specific feature flags
@@ -131,7 +136,6 @@
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
 #define USE_IMPROV
-#define USE_MICRO_WAKE_WORD_VAD
 #define USE_MICROPHONE
 #define USE_PSRAM
 #define USE_SOCKET_IMPL_BSD_SOCKETS
@@ -149,6 +153,8 @@
 
 #ifdef USE_ESP_IDF
 #define USE_ESP_IDF_VERSION_CODE VERSION_CODE(5, 1, 6)
+#define USE_MICRO_WAKE_WORD
+#define USE_MICRO_WAKE_WORD_VAD
 #endif
 
 #if defined(USE_ESP32_VARIANT_ESP32S2)

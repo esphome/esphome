@@ -9,7 +9,7 @@ import esphome.config_validation as cv
 from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
 from esphome.core import CORE
 from esphome.helpers import get_bool_env, write_file
-from esphome.log import Fore, color
+from esphome.log import AnsiFore, color
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_input, safe_print
 
@@ -219,7 +219,7 @@ def wizard_write(path, **kwargs):
         elif board in rtl87xx_boards.BOARDS:
             platform = "RTL87XX"
         else:
-            safe_print(color(Fore.RED, f'The board "{board}" is unknown.'))
+            safe_print(color(AnsiFore.RED, f'The board "{board}" is unknown.'))
             return False
         kwargs["platform"] = platform
     hardware = kwargs["platform"]
@@ -274,12 +274,12 @@ def wizard(path):
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
-            f"Please make your configuration file {color(Fore.CYAN, path)} have the extension .yaml or .yml"
+            f"Please make your configuration file {color(AnsiFore.CYAN, path)} have the extension .yaml or .yml"
         )
         return 1
     if os.path.exists(path):
         safe_print(
-            f"Uh oh, it seems like {color(Fore.CYAN, path)} already exists, please delete that file first or chose another configuration file."
+            f"Uh oh, it seems like {color(AnsiFore.CYAN, path)} already exists, please delete that file first or chose another configuration file."
         )
         return 2
 
@@ -298,17 +298,19 @@ def wizard(path):
     sleep(3.0)
     safe_print()
     safe_print_step(1, CORE_BIG)
-    safe_print(f"First up, please choose a {color(Fore.GREEN, 'name')} for your node.")
+    safe_print(
+        f"First up, please choose a {color(AnsiFore.GREEN, 'name')} for your node."
+    )
     safe_print(
         "It should be a unique name that can be used to identify the device later."
     )
     sleep(1)
     safe_print(
-        f"For example, I like calling the node in my living room {color(Fore.BOLD_WHITE, 'livingroom')}."
+        f"For example, I like calling the node in my living room {color(AnsiFore.BOLD_WHITE, 'livingroom')}."
     )
     safe_print()
     sleep(1)
-    name = safe_input(color(Fore.BOLD_WHITE, "(name): "))
+    name = safe_input(color(AnsiFore.BOLD_WHITE, "(name): "))
 
     while True:
         try:
@@ -317,7 +319,7 @@ def wizard(path):
         except vol.Invalid:
             safe_print(
                 color(
-                    Fore.RED,
+                    AnsiFore.RED,
                     f'Oh noes, "{name}" isn\'t a valid name. Names can only '
                     f"include numbers, lower-case letters and hyphens. ",
                 )
@@ -325,11 +327,13 @@ def wizard(path):
             name = strip_accents(name).lower().replace(" ", "-")
             name = strip_accents(name).lower().replace("_", "-")
             name = "".join(c for c in name if c in ALLOWED_NAME_CHARS)
-            safe_print(f'Shall I use "{color(Fore.CYAN, name)}" as the name instead?')
+            safe_print(
+                f'Shall I use "{color(AnsiFore.CYAN, name)}" as the name instead?'
+            )
             sleep(0.5)
             name = default_input("(name [{}]): ", name)
 
-    safe_print(f'Great! Your node is now called "{color(Fore.CYAN, name)}".')
+    safe_print(f'Great! Your node is now called "{color(AnsiFore.CYAN, name)}".')
     sleep(1)
     safe_print_step(2, ESP_BIG)
     safe_print(
@@ -346,7 +350,7 @@ def wizard(path):
         sleep(0.5)
         safe_print()
         platform = safe_input(
-            color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): ")
+            color(AnsiFore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): ")
         )
         try:
             platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
@@ -355,17 +359,19 @@ def wizard(path):
             safe_print(
                 f'Unfortunately, I can\'t find an espressif microcontroller called "{platform}". Please try again.'
             )
-    safe_print(f"Thanks! You've chosen {color(Fore.CYAN, platform)} as your platform.")
+    safe_print(
+        f"Thanks! You've chosen {color(AnsiFore.CYAN, platform)} as your platform."
+    )
     safe_print()
     sleep(1)
 
     if platform == "ESP32":
         board_link = (
-            "http://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
+            "https://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
         )
     elif platform == "ESP8266":
         board_link = (
-            "http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
+            "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
     elif platform == "RP2040":
         board_link = (
@@ -376,27 +382,29 @@ def wizard(path):
     else:
         raise NotImplementedError("Unknown platform!")
 
-    safe_print(f"Next, I need to know what {color(Fore.GREEN, 'board')} you're using.")
+    safe_print(
+        f"Next, I need to know what {color(AnsiFore.GREEN, 'board')} you're using."
+    )
     sleep(0.5)
-    safe_print(f"Please go to {color(Fore.GREEN, board_link)} and choose a board.")
+    safe_print(f"Please go to {color(AnsiFore.GREEN, board_link)} and choose a board.")
     if platform == "ESP32":
-        safe_print(f"(Type {color(Fore.GREEN, 'esp01_1m')} for Sonoff devices)")
+        safe_print(f"(Type {color(AnsiFore.GREEN, 'esp01_1m')} for Sonoff devices)")
     safe_print()
     # Don't sleep because user needs to copy link
     if platform == "ESP32":
-        safe_print(f'For example "{color(Fore.BOLD_WHITE, "nodemcu-32s")}".')
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "nodemcu-32s")}".')
         boards_list = esp32_boards.BOARDS.items()
     elif platform == "ESP8266":
-        safe_print(f'For example "{color(Fore.BOLD_WHITE, "nodemcuv2")}".')
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "nodemcuv2")}".')
         boards_list = esp8266_boards.BOARDS.items()
     elif platform == "BK72XX":
-        safe_print(f'For example "{color(Fore.BOLD_WHITE, "cb2s")}".')
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "cb2s")}".')
         boards_list = bk72xx_boards.BOARDS.items()
     elif platform == "RTL87XX":
-        safe_print(f'For example "{color(Fore.BOLD_WHITE, "wr3")}".')
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "wr3")}".')
         boards_list = rtl87xx_boards.BOARDS.items()
     elif platform == "RP2040":
-        safe_print(f'For example "{color(Fore.BOLD_WHITE, "rpipicow")}".')
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "rpipicow")}".')
         boards_list = rp2040_boards.BOARDS.items()
 
     else:
@@ -409,19 +417,21 @@ def wizard(path):
         boards.append(board_id)
 
     while True:
-        board = safe_input(color(Fore.BOLD_WHITE, "(board): "))
+        board = safe_input(color(AnsiFore.BOLD_WHITE, "(board): "))
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
         except vol.Invalid:
             safe_print(
-                color(Fore.RED, f'Sorry, I don\'t think the board "{board}" exists.')
+                color(
+                    AnsiFore.RED, f'Sorry, I don\'t think the board "{board}" exists.'
+                )
             )
             safe_print()
             sleep(0.25)
             safe_print()
 
-    safe_print(f"Way to go! You've chosen {color(Fore.CYAN, board)} as your board.")
+    safe_print(f"Way to go! You've chosen {color(AnsiFore.CYAN, board)} as your board.")
     safe_print()
     sleep(1)
 
@@ -432,19 +442,19 @@ def wizard(path):
         safe_print()
         sleep(1)
         safe_print(
-            f"First, what's the {color(Fore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
+            f"First, what's the {color(AnsiFore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
         )
         sleep(1.5)
-        safe_print(f'For example "{color(Fore.BOLD_WHITE, "Abraham Linksys")}".')
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "Abraham Linksys")}".')
         while True:
-            ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
+            ssid = safe_input(color(AnsiFore.BOLD_WHITE, "(ssid): "))
             try:
                 ssid = cv.ssid(ssid)
                 break
             except vol.Invalid:
                 safe_print(
                     color(
-                        Fore.RED,
+                        AnsiFore.RED,
                         f'Unfortunately, "{ssid}" doesn\'t seem to be a valid SSID. Please try again.',
                     )
                 )
@@ -452,18 +462,18 @@ def wizard(path):
                 sleep(1)
 
         safe_print(
-            f'Thank you very much! You\'ve just chosen "{color(Fore.CYAN, ssid)}" as your SSID.'
+            f'Thank you very much! You\'ve just chosen "{color(AnsiFore.CYAN, ssid)}" as your SSID.'
         )
         safe_print()
         sleep(0.75)
 
         safe_print(
-            f"Now please state the {color(Fore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
+            f"Now please state the {color(AnsiFore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
         )
         safe_print()
-        safe_print(f'For example "{color(Fore.BOLD_WHITE, "PASSWORD42")}"')
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "PASSWORD42")}"')
         sleep(0.5)
-        psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
+        psk = safe_input(color(AnsiFore.BOLD_WHITE, "(PSK): "))
         safe_print(
             "Perfect! WiFi is now set up (you can create static IPs and so on later)."
         )
@@ -475,12 +485,12 @@ def wizard(path):
             "(over the air) and integrates into Home Assistant with a native API."
         )
         safe_print(
-            f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(Fore.GREEN, 'password')} for connecting to this ESP?"
+            f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(AnsiFore.GREEN, 'password')} for connecting to this ESP?"
         )
         safe_print()
         sleep(0.25)
         safe_print("Press ENTER for no password")
-        password = safe_input(color(Fore.BOLD_WHITE, "(password): "))
+        password = safe_input(color(AnsiFore.BOLD_WHITE, "(password): "))
     else:
         ssid, password, psk = "", "", ""
 
@@ -497,8 +507,8 @@ def wizard(path):
 
     safe_print()
     safe_print(
-        color(Fore.CYAN, "DONE! I've now written a new configuration file to ")
-        + color(Fore.BOLD_CYAN, path)
+        color(AnsiFore.CYAN, "DONE! I've now written a new configuration file to ")
+        + color(AnsiFore.BOLD_CYAN, path)
     )
     safe_print()
     safe_print("Next steps:")

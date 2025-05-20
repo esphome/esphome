@@ -218,6 +218,7 @@ class ESP32BLETracker : public Component,
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
+  bool get_scan_active() const { return scan_active_; }
   void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
@@ -241,6 +242,11 @@ class ESP32BLETracker : public Component,
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void ble_before_disabled_event_handler() override;
 
+  void add_scanner_state_callback(std::function<void(ScannerState)> &&callback) {
+    this->scanner_state_callbacks_.add(std::move(callback));
+  }
+  ScannerState get_scanner_state() const { return this->scanner_state_; }
+
  protected:
   void stop_scan_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
@@ -255,6 +261,8 @@ class ESP32BLETracker : public Component,
   void gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param);
   /// Called when a `ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT` event is received.
   void gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
+  /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
+  void set_scanner_state_(ScannerState state);
 
   int app_id_{0};
 
@@ -273,6 +281,7 @@ class ESP32BLETracker : public Component,
   bool scan_continuous_;
   bool scan_active_;
   ScannerState scanner_state_{ScannerState::IDLE};
+  CallbackManager<void(ScannerState)> scanner_state_callbacks_;
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
@@ -281,7 +290,7 @@ class ESP32BLETracker : public Component,
 #ifdef USE_PSRAM
   const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
 #else
-  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 16;
+  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 20;
 #endif  // USE_PSRAM
   esp_ble_gap_cb_param_t::ble_scan_result_evt_param *scan_result_buffer_;
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
@@ -290,6 +299,9 @@ class ESP32BLETracker : public Component,
   int discovered_{0};
   int searching_{0};
   int disconnecting_{0};
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+  bool coex_prefer_ble_{false};
+#endif
 };
 
 // NOLINTNEXTLINE

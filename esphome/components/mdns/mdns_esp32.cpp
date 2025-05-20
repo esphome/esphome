@@ -31,11 +31,12 @@ void MDNSComponent::setup() {
       mdns_txt_item_t it{};
       // dup strings to ensure the pointer is valid even after the record loop
       it.key = strdup(record.key.c_str());
-      it.value = strdup(record.value.c_str());
+      it.value = strdup(const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
       txt_records.push_back(it);
     }
-    err = mdns_service_add(nullptr, service.service_type.c_str(), service.proto.c_str(), service.port,
-                           txt_records.data(), txt_records.size());
+    uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    err = mdns_service_add(nullptr, service.service_type.c_str(), service.proto.c_str(), port, txt_records.data(),
+                           txt_records.size());
 
     // free records
     for (const auto &it : txt_records) {

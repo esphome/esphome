@@ -58,6 +58,9 @@ void TemplateAlarmControlPanel::dump_config() {
       case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
         sensor_type = "delayed_follower";
         break;
+      case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
+        sensor_type = "instant_always";
+        break;
       case ALARM_SENSOR_TYPE_DELAYED:
       default:
         sensor_type = "delayed";
@@ -145,24 +148,25 @@ void TemplateAlarmControlPanel::loop() {
         continue;
       }
 
-      // If sensor type is of type instant
-      if (sensor_info.second.type == ALARM_SENSOR_TYPE_INSTANT) {
-        instant_sensor_not_ready = true;
-        break;
-      }
-      // If sensor type is of type interior follower
-      if (sensor_info.second.type == ALARM_SENSOR_TYPE_DELAYED_FOLLOWER) {
-        // Look to see if we are in the pending state
-        if (this->current_state_ == ACP_STATE_PENDING) {
-          delayed_sensor_not_ready = true;
-        } else {
+      switch (sensor_info.second.type) {
+        case ALARM_SENSOR_TYPE_INSTANT:
           instant_sensor_not_ready = true;
-        }
-      }
-      // If sensor type is of type delayed
-      if (sensor_info.second.type == ALARM_SENSOR_TYPE_DELAYED) {
-        delayed_sensor_not_ready = true;
-        break;
+          break;
+        case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
+          instant_sensor_not_ready = true;
+          future_state = ACP_STATE_TRIGGERED;
+          break;
+        case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
+          // Look to see if we are in the pending state
+          if (this->current_state_ == ACP_STATE_PENDING) {
+            delayed_sensor_not_ready = true;
+          } else {
+            instant_sensor_not_ready = true;
+          }
+          break;
+        case ALARM_SENSOR_TYPE_DELAYED:
+        default:
+          delayed_sensor_not_ready = true;
       }
     }
   }

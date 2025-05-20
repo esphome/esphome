@@ -41,7 +41,7 @@ EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-EVENT_SCHEMA = (
+_EVENT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -58,19 +58,17 @@ EVENT_SCHEMA = (
     )
 )
 
-_UNDEF = object()
-
 
 def event_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass = cv.UNDEFINED,
     *,
-    icon: str = _UNDEF,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
-    if class_ is not _UNDEF:
+    if class_ is not cv.UNDEFINED:
         schema[cv.GenerateID()] = cv.declare_id(class_)
 
     for key, default, validator in [
@@ -78,10 +76,15 @@ def event_schema(
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return EVENT_SCHEMA.extend(schema)
+    return _EVENT_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+EVENT_SCHEMA = event_schema()
+EVENT_SCHEMA.add_extra(cv.deprecated_schema_constant("event"))
 
 
 async def setup_event_core_(var, config, *, event_types: list[str]):

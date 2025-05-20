@@ -240,7 +240,7 @@ void EthernetComponent::setup() {
 }
 
 void EthernetComponent::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   switch (this->state_) {
     case EthernetComponentState::STOPPED:

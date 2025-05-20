@@ -17,7 +17,7 @@ runs:
   steps:
     - name: Set up Python ${{ inputs.python-version }}
       id: python
-      uses: actions/setup-python@v5.5.0
+      uses: actions/setup-python@v5.6.0
       with:
         python-version: ${{ inputs.python-version }}
     - name: Restore Python virtual environment
@@ -34,7 +34,7 @@ runs:
         python -m venv venv
         source venv/bin/activate
         python --version
-        pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+        pip install -r requirements.txt -r requirements_test.txt
         pip install -e .
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true' && runner.os == 'Windows'
@@ -43,5 +43,5 @@ runs:
         python -m venv venv
         ./venv/Scripts/activate
         python --version
-        pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+        pip install -r requirements.txt -r requirements_test.txt
         pip install -e .

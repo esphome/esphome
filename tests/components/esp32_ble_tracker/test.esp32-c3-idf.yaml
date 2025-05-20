@@ -2,3 +2,4 @@
 
 esp32_ble_tracker:
   max_connections: 9
+  software_coexistence: false

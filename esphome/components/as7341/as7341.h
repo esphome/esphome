@@ -7,7 +7,7 @@
 namespace esphome {
 namespace as7341 {
 
-static const uint8_t AS7341_CHIP_ID = 0X09;
+static const uint8_t AS7341_CHIP_ID = 0x09;
 
 static const uint8_t AS7341_CONFIG = 0x70;
 static const uint8_t AS7341_LED = 0x74;

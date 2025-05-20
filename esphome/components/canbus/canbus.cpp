@@ -86,6 +86,9 @@ void Canbus::loop() {
       data.push_back(can_message.data[i]);
     }
 
+    this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
+                            data);
+
     // fire all triggers
     for (auto *trigger : this->triggers_) {
       if ((trigger->can_id_ == (can_message.can_id & trigger->can_id_mask_)) &&

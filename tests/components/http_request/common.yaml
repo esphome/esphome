@@ -1,5 +1,4 @@
-substitutions:
-  verify_ssl: "true"
+<<: !include http_request.yaml
 
 wifi:
   ssid: MySSID
@@ -10,27 +9,30 @@ esphome:
     then:
       - http_request.get:
           url: https://esphome.io
-          headers:
+          request_headers:
             Content-Type: application/json
+          collect_headers:
+            - age
           on_error:
             logger.log: "Request failed"
           on_response:
             then:
               - logger.log:
-                  format: "Response status: %d, Duration: %lu ms"
+                  format: "Response status: %d, Duration: %lu ms, age: %s"
                   args:
                     - response->status_code
                     - (long) response->duration_ms
+                    - response->get_response_header("age").c_str()
       - http_request.post:
           url: https://esphome.io
-          headers:
+          request_headers:
             Content-Type: application/json
           json:
             key: value
       - http_request.send:
           method: PUT
           url: https://esphome.io
-          headers:
+          request_headers:
             Content-Type: application/json
           body: "Some data"
 

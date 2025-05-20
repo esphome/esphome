@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import itertools
 import logging
 import os
 from pathlib import Path
@@ -37,6 +38,7 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, HexInt, TimePeriod
+from esphome.cpp_generator import RawExpression
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
 
@@ -54,6 +56,12 @@ from .const import (  # noqa
     KEY_SUBMODULES,
     KEY_VARIANT,
     VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
@@ -70,7 +78,43 @@ CONF_RELEASE = "release"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 
 
+def get_cpu_frequencies(*frequencies):
+    return [str(x) + "MHZ" for x in frequencies]
+
+
+CPU_FREQUENCIES = {
+    VARIANT_ESP32: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32C2: get_cpu_frequencies(80, 120),
+    VARIANT_ESP32C3: get_cpu_frequencies(80, 160),
+    VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
+    VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
+}
+
+# Make sure not missed here if a new variant added.
+assert all(v in CPU_FREQUENCIES for v in VARIANTS)
+
+FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
+
+
 def set_core_data(config):
+    cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
+    variant = config[CONF_VARIANT]
+    # if not specified in config, set to 160MHz if supported, the fastest otherwise
+    if cpu_frequency is None:
+        choices = CPU_FREQUENCIES[variant]
+        if "160MHZ" in choices:
+            cpu_frequency = "160MHZ"
+        else:
+            cpu_frequency = choices[-1]
+        config[CONF_CPU_FREQUENCY] = cpu_frequency
+    elif cpu_frequency not in CPU_FREQUENCIES[variant]:
+        raise cv.Invalid(
+            f"Invalid CPU frequency '{cpu_frequency}' for {config[CONF_VARIANT]}",
+            path=[CONF_CPU_FREQUENCY],
+        )
+
     CORE.data[KEY_ESP32] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
@@ -83,6 +127,7 @@ def set_core_data(config):
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
+
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_VARIANT] = config[CONF_VARIANT]
     CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
@@ -553,11 +598,15 @@ FLASH_SIZES = [
 ]
 
 CONF_FLASH_SIZE = "flash_size"
+CONF_CPU_FREQUENCY = "cpu_frequency"
 CONF_PARTITIONS = "partitions"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
+            cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
+                *FULL_CPU_FREQUENCIES, upper=True
+            ),
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
@@ -598,6 +647,7 @@ async def to_code(config):
         os.path.join(os.path.dirname(__file__), "post_build.py.script"),
     )
 
+    freq = config[CONF_CPU_FREQUENCY][:-3]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -630,6 +680,9 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
+
+        # Set default CPU frequency
+        add_idf_sdkconfig_option(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{freq}", True)
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
         if CONF_PARTITIONS in config:
@@ -696,6 +749,7 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+        cg.add(RawExpression(f"setCpuFrequencyMhz({freq})"))
 
 
 APP_PARTITION_SIZES = {

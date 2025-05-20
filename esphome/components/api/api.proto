@@ -33,23 +33,24 @@ service APIConnection {
   rpc execute_service (ExecuteServiceRequest) returns (void) {}
   rpc noise_encryption_set_key (NoiseEncryptionSetKeyRequest) returns (NoiseEncryptionSetKeyResponse) {}
 
-  rpc cover_command (CoverCommandRequest) returns (void) {}
-  rpc fan_command (FanCommandRequest) returns (void) {}
-  rpc light_command (LightCommandRequest) returns (void) {}
-  rpc switch_command (SwitchCommandRequest) returns (void) {}
+  rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
-  rpc number_command (NumberCommandRequest) returns (void) {}
-  rpc text_command (TextCommandRequest) returns (void) {}
-  rpc select_command (SelectCommandRequest) returns (void) {}
-  rpc button_command (ButtonCommandRequest) returns (void) {}
-  rpc lock_command (LockCommandRequest) returns (void) {}
-  rpc valve_command (ValveCommandRequest) returns (void) {}
-  rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
+  rpc cover_command (CoverCommandRequest) returns (void) {}
   rpc date_command (DateCommandRequest) returns (void) {}
-  rpc time_command (TimeCommandRequest) returns (void) {}
   rpc datetime_command (DateTimeCommandRequest) returns (void) {}
+  rpc fan_command (FanCommandRequest) returns (void) {}
+  rpc light_command (LightCommandRequest) returns (void) {}
+  rpc lock_command (LockCommandRequest) returns (void) {}
+  rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
+  rpc number_command (NumberCommandRequest) returns (void) {}
+  rpc select_command (SelectCommandRequest) returns (void) {}
+  rpc siren_command (SirenCommandRequest) returns (void) {}
+  rpc switch_command (SwitchCommandRequest) returns (void) {}
+  rpc text_command (TextCommandRequest) returns (void) {}
+  rpc time_command (TimeCommandRequest) returns (void) {}
   rpc update_command (UpdateCommandRequest) returns (void) {}
+  rpc valve_command (ValveCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -61,6 +62,7 @@ service APIConnection {
   rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
   rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc bluetooth_scanner_set_mode(BluetoothScannerSetModeRequest) returns (void) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
   rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
@@ -430,7 +432,8 @@ message FanCommandRequest {
 enum ColorMode {
   COLOR_MODE_UNKNOWN = 0;
   COLOR_MODE_ON_OFF = 1;
-  COLOR_MODE_BRIGHTNESS = 2;
+  COLOR_MODE_LEGACY_BRIGHTNESS = 2;
+  COLOR_MODE_BRIGHTNESS = 3;
   COLOR_MODE_WHITE = 7;
   COLOR_MODE_COLOR_TEMPERATURE = 11;
   COLOR_MODE_COLD_WARM_WHITE = 19;
@@ -654,7 +657,7 @@ message SubscribeLogsResponse {
   option (no_delay) = false;
 
   LogLevel level = 1;
-  string message = 3;
+  bytes message = 3;
   bool send_failed = 4;
 }
 
@@ -910,6 +913,7 @@ message ClimateStateResponse {
   float target_temperature = 4;
   float target_temperature_low = 5;
   float target_temperature_high = 6;
+  // For older peers, equal to preset == CLIMATE_PRESET_AWAY
   bool unused_legacy_away = 7;
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
@@ -935,6 +939,7 @@ message ClimateCommandRequest {
   float target_temperature_low = 7;
   bool has_target_temperature_high = 8;
   float target_temperature_high = 9;
+  // legacy, for older peers, newer ones should use CLIMATE_PRESET_AWAY in preset
   bool unused_has_legacy_away = 10;
   bool unused_legacy_away = 11;
   bool has_fan_mode = 12;
@@ -1037,6 +1042,49 @@ message SelectCommandRequest {
   string state = 2;
 }
 
+// ==================== SIREN ====================
+message ListEntitiesSirenResponse {
+  option (id) = 55;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SIREN";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  repeated string tones = 7;
+  bool supports_duration = 8;
+  bool supports_volume = 9;
+  EntityCategory entity_category = 10;
+}
+message SirenStateResponse {
+  option (id) = 56;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SIREN";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool state = 2;
+}
+message SirenCommandRequest {
+  option (id) = 57;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SIREN";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool has_state = 2;
+  bool state = 3;
+  bool has_tone = 4;
+  string tone = 5;
+  bool has_duration = 6;
+  uint32 duration = 7;
+  bool has_volume = 8;
+  float volume = 9;
+}
 
 // ==================== LOCK ====================
 enum LockState {
@@ -1206,8 +1254,8 @@ message SubscribeBluetoothLEAdvertisementsRequest {
 
 message BluetoothServiceData {
   string uuid = 1;
-  repeated uint32 legacy_data = 2 [deprecated = true];
-  bytes data = 3; // Changed in proto version 1.7
+  repeated uint32 legacy_data = 2 [deprecated = true];  // Removed in api version 1.7
+  bytes data = 3;  // Added in api version 1.7
 }
 message BluetoothLEAdvertisementResponse {
   option (id) = 67;
@@ -1216,7 +1264,7 @@ message BluetoothLEAdvertisementResponse {
   option (no_delay) = true;
 
   uint64 address = 1;
-  string name = 2;
+  bytes name = 2;
   sint32 rssi = 3;
 
   repeated string service_uuids = 4;
@@ -1472,7 +1520,38 @@ message BluetoothDeviceClearCacheResponse {
   int32 error = 3;
 }
 
-// ==================== PUSH TO TALK ====================
+enum BluetoothScannerState {
+  BLUETOOTH_SCANNER_STATE_IDLE = 0;
+  BLUETOOTH_SCANNER_STATE_STARTING = 1;
+  BLUETOOTH_SCANNER_STATE_RUNNING = 2;
+  BLUETOOTH_SCANNER_STATE_FAILED = 3;
+  BLUETOOTH_SCANNER_STATE_STOPPING = 4;
+  BLUETOOTH_SCANNER_STATE_STOPPED = 5;
+}
+
+enum BluetoothScannerMode {
+  BLUETOOTH_SCANNER_MODE_PASSIVE = 0;
+  BLUETOOTH_SCANNER_MODE_ACTIVE = 1;
+}
+
+message BluetoothScannerStateResponse {
+  option(id) = 126;
+  option(source) = SOURCE_SERVER;
+  option(ifdef) = "USE_BLUETOOTH_PROXY";
+
+  BluetoothScannerState state = 1;
+  BluetoothScannerMode mode = 2;
+}
+
+message BluetoothScannerSetModeRequest {
+  option(id) = 127;
+  option(source) = SOURCE_CLIENT;
+  option(ifdef) = "USE_BLUETOOTH_PROXY";
+
+  BluetoothScannerMode mode = 1;
+}
+
+// ==================== VOICE ASSISTANT ====================
 enum VoiceAssistantSubscribeFlag {
   VOICE_ASSISTANT_SUBSCRIBE_NONE = 0;
   VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1;

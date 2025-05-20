@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_GAIN_FACTOR,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_OFFSET,
@@ -43,7 +44,6 @@ RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_ALGORITHM_TUNING = "algorithm_tuning"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
-CONF_GAIN_FACTOR = "gain_factor"
 CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
 CONF_INDEX_OFFSET = "index_offset"
 CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"

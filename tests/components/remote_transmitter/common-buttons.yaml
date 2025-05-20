@@ -1,5 +1,12 @@
 button:
   - platform: template
+    name: Beo4 audio mute
+    id: beo4_audio_mute
+    on_press:
+      remote_transmitter.transmit_beo4:
+        source: 0x01
+        command: 0x0C
+  - platform: template
     name: JVC Off
     id: living_room_lights_on
     on_press:

@@ -292,6 +292,7 @@ def highlight(s):
         "esphome/core/log.h",
         "esphome/components/socket/headers.h",
         "esphome/core/defines.h",
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_no_defines(fname, match):
@@ -317,7 +318,12 @@ def lint_no_long_delays(fname, match):
     )
 
 
-@lint_content_check(include=["esphome/const.py"])
+@lint_content_check(
+    include=[
+        "esphome/const.py",
+        "esphome/components/const/__init__.py",
+    ]
+)
 def lint_const_ordered(fname, content):
     """Lint that value in const.py are ordered.
 
@@ -552,6 +558,8 @@ def lint_relative_py_import(fname):
         "esphome/components/rp2040/core.cpp",
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
+        "esphome/components/zephyr/core.cpp",
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_namespace(fname, content):

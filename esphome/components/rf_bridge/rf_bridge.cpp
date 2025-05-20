@@ -1,5 +1,6 @@
 #include "rf_bridge.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cinttypes>
 #include <cstring>
 
@@ -128,7 +129,7 @@ void RFBridgeComponent::write_byte_str_(const std::string &codes) {
 }
 
 void RFBridgeComponent::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_bridge_byte_ > 50) {
     this->rx_buffer_.clear();
     this->last_bridge_byte_ = now;

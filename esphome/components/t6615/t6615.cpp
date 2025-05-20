@@ -63,7 +63,8 @@ void T6615Component::loop() {
     case T6615Command::GET_PPM: {
       const uint16_t ppm = encode_uint16(response_buffer[3], response_buffer[4]);
       ESP_LOGD(TAG, "T6615 Received CO₂=%uppm", ppm);
-      this->co2_sensor_->publish_state(ppm);
+      if (this->co2_sensor_ != nullptr)
+        this->co2_sensor_->publish_state(ppm);
       break;
     }
     default:

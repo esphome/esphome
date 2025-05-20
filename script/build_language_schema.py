@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse
 import glob
 import inspect
@@ -36,6 +37,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--output-path", default=".", help="Output path", type=os.path.abspath
 )
+parser.add_argument("--check", action="store_true", help="Check only for CI")
 
 args = parser.parse_args()
 
@@ -66,31 +68,42 @@ def get_component_names():
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor", "esp32", "esp8266"]
+    skip_components = []
 
     for d in os.listdir(CORE_COMPONENTS_PATH):
         if not d.startswith("__") and os.path.isdir(
             os.path.join(CORE_COMPONENTS_PATH, d)
         ):
-            if d not in component_names:
+            if d not in component_names and d not in skip_components:
                 component_names.append(d)
 
-    return component_names
+    return sorted(component_names)
 
 
 def load_components():
     from esphome.config import get_component
 
     for domain in get_component_names():
-        components[domain] = get_component(domain)
+        components[domain] = get_component(domain, exception=True)
+        assert components[domain] is not None
 
 
-# pylint: disable=wrong-import-position
-from esphome.const import CONF_TYPE, KEY_CORE, KEY_TARGET_PLATFORM  # noqa: E402
+from esphome.const import (  # noqa: E402
+    CONF_TYPE,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE  # noqa: E402
 
-# pylint: enable=wrong-import-position
+CORE.data[KEY_CORE] = {
+    KEY_TARGET_PLATFORM: "esp8266",
+    KEY_TARGET_FRAMEWORK: "arduino",
+    KEY_FRAMEWORK_VERSION: "0",
+}
 
-CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: None}
+
 load_components()
 
 # Import esphome after loading components (so schema is tracked)
@@ -98,7 +111,6 @@ load_components()
 from esphome import automation, pins  # noqa: E402
 from esphome.components import remote_base  # noqa: E402
 import esphome.config_validation as cv  # noqa: E402
-import esphome.core as esphome_core  # noqa: E402
 from esphome.helpers import write_file_if_changed  # noqa: E402
 from esphome.loader import CORE_COMPONENTS_PATH, get_platform  # noqa: E402
 from esphome.util import Registry  # noqa: E402
@@ -523,11 +535,14 @@ def shrink():
     # then are all simple types, integer and strings
     for x, paths in referenced_schemas.items():
         key_s = get_str_path_schema(x)
-        if key_s and key_s[S_TYPE] in ["enum", "registry", "integer", "string"]:
+        if key_s and key_s.get(S_TYPE) in ["enum", "registry", "integer", "string"]:
             if key_s[S_TYPE] == "registry":
                 print("Spreading registry: " + x)
             for target in paths:
                 target_s = get_arr_path_schema(target)
+                if S_SCHEMA not in target_s:
+                    print("skipping simple spread for " + ".".join(target))
+                    continue
                 assert target_s[S_SCHEMA][S_EXTENDS] == [x]
                 target_s.pop(S_SCHEMA)
                 target_s |= key_s
@@ -542,14 +557,14 @@ def shrink():
                     # an empty schema like speaker.SPEAKER_SCHEMA
                     target_s[S_EXTENDS].remove(x)
                     continue
-                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
+                assert x in target_s[S_SCHEMA][S_EXTENDS]
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
                 target_s["data_type"] = x.split(".")[1]
             # remove this dangling again
             pop_str_path_schema(x)
 
-    # remove dangling items (unreachable schemas)
+    # remove unreachable schemas
     for domain, domain_schemas in output.items():
         for schema_name in list(domain_schemas.get(S_SCHEMAS, {}).keys()):
             s = f"{domain}.{schema_name}"
@@ -558,7 +573,6 @@ def shrink():
                 and s not in referenced_schemas
                 and not is_platform_schema(s)
             ):
-                print(f"Removing {s}")
                 domain_schemas[S_SCHEMAS].pop(schema_name)
 
 
@@ -659,6 +673,9 @@ def build_schema():
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
 
+    if args.check:  # do not gen files
+        return
+
     for c, s in data.items():
         write_file(c, s)
     delete_extra_files(data.keys())
@@ -721,15 +738,8 @@ def convert(schema, config_var, path):
     # Extended schemas are tracked when the .extend() is used in a schema
     if repr_schema in ejs.extended_schemas:
         extended = ejs.extended_schemas.get(repr_schema)
-        # The midea actions are extending an empty schema (resulted in the templatize not templatizing anything)
-        # this causes a recursion in that this extended looks the same in extended schema as the extended[1]
-        if repr_schema == repr(extended[1]):
-            assert path.startswith("midea_ac/")
-            return
-
-        assert len(extended) == 2
-        convert(extended[0], config_var, path + "/extL")
-        convert(extended[1], config_var, path + "/extR")
+        for idx, ext in enumerate(extended):
+            convert(ext, config_var, f"{path}/ext{idx}")
         return
 
     if isinstance(schema, cv.All):
@@ -881,15 +891,22 @@ def convert(schema, config_var, path):
                 "class": "i2c::I2CBus",
                 "parents": ["Component"],
             }
-        elif path == "uart/CONFIG_SCHEMA/val 1/extL/all/id":
+        elif path == "uart/CONFIG_SCHEMA/val 1/ext0/all/id":
             config_var["id_type"] = {
                 "class": "uart::UARTComponent",
+                "parents": ["Component"],
+            }
+        elif path == "http_request/CONFIG_SCHEMA/val 1/ext0/all/id":
+            config_var["id_type"] = {
+                "class": "http_request::HttpRequestComponent",
                 "parents": ["Component"],
             }
         elif path == "pins/esp32/val 1/id":
             config_var["id_type"] = "pin"
         else:
-            raise TypeError("Cannot determine id_type for " + path)
+            print("Cannot determine id_type for " + path)
+
+            # raise TypeError("Cannot determine id_type for " + path)
 
     elif repr_schema in ejs.registry_schemas:
         solve_registry.append((ejs.registry_schemas[repr_schema], config_var))
@@ -965,9 +982,6 @@ def convert_keys(converted, schema, path):
             else:
                 converted["key_type"] = str(k)
 
-        esphome_core.CORE.data = {
-            esphome_core.KEY_CORE: {esphome_core.KEY_TARGET_PLATFORM: "esp8266"}
-        }
         if hasattr(k, "default") and str(k.default) != "...":
             default_value = k.default()
             if default_value is not None:

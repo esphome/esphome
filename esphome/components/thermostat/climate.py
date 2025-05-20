@@ -516,9 +516,9 @@ def validate_thermostat(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(ThermostatClimate)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(ThermostatClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
@@ -631,7 +631,8 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
         CONF_COOL_ACTION, CONF_DRY_ACTION, CONF_FAN_ONLY_ACTION, CONF_HEAT_ACTION
     ),
@@ -640,9 +641,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
 
     heat_cool_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
     two_points_available = CONF_HEAT_ACTION in config and (

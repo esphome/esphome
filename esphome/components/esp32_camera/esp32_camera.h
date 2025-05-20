@@ -106,7 +106,7 @@ class CameraImageReader {
 };
 
 /* ---------------- ESP32Camera class ---------------- */
-class ESP32Camera : public Component, public EntityBase {
+class ESP32Camera : public EntityBase, public Component {
  public:
   ESP32Camera();
 

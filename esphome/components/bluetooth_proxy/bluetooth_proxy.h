@@ -41,6 +41,7 @@ enum BluetoothProxyFeature : uint32_t {
   FEATURE_PAIRING = 1 << 3,
   FEATURE_CACHE_CLEARING = 1 << 4,
   FEATURE_RAW_ADVERTISEMENTS = 1 << 5,
+  FEATURE_STATE_AND_MODE = 1 << 6,
 };
 
 enum BluetoothProxySubscriptionFlag : uint32_t {
@@ -53,7 +54,9 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) override;
   void dump_config() override;
+  void setup() override;
   void loop() override;
+  void flush_pending_advertisements();
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
   void register_connection(BluetoothConnection *connection) {
@@ -84,6 +87,8 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void send_device_unpairing(uint64_t address, bool success, esp_err_t error = ESP_OK);
   void send_device_clear_cache(uint64_t address, bool success, esp_err_t error = ESP_OK);
 
+  void bluetooth_scanner_set_mode(bool active);
+
   static void uint64_to_bd_addr(uint64_t address, esp_bd_addr_t bd_addr) {
     bd_addr[0] = (address >> 40) & 0xff;
     bd_addr[1] = (address >> 32) & 0xff;
@@ -107,6 +112,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
     uint32_t flags = 0;
     flags |= BluetoothProxyFeature::FEATURE_PASSIVE_SCAN;
     flags |= BluetoothProxyFeature::FEATURE_RAW_ADVERTISEMENTS;
+    flags |= BluetoothProxyFeature::FEATURE_STATE_AND_MODE;
     if (this->active_) {
       flags |= BluetoothProxyFeature::FEATURE_ACTIVE_CONNECTIONS;
       flags |= BluetoothProxyFeature::FEATURE_REMOTE_CACHING;
@@ -124,6 +130,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
+  void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
 

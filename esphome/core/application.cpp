@@ -35,6 +35,8 @@ void Application::setup() {
   for (uint32_t i = 0; i < this->components_.size(); i++) {
     Component *component = this->components_[i];
 
+    // Update loop_component_start_time_ before calling each component during setup
+    this->loop_component_start_time_ = millis();
     component->call();
     this->scheduler.process_to_add();
     this->feed_wdt();
@@ -49,6 +51,8 @@ void Application::setup() {
       this->scheduler.call();
       this->feed_wdt();
       for (uint32_t j = 0; j <= i; j++) {
+        // Update loop_component_start_time_ right before calling each component
+        this->loop_component_start_time_ = millis();
         this->components_[j]->call();
         new_app_state |= this->components_[j]->get_component_state();
         this->app_state_ |= new_app_state;
@@ -67,21 +71,32 @@ void Application::loop() {
   uint32_t new_app_state = 0;
 
   this->scheduler.call();
-  this->feed_wdt();
+
+  // Get the initial loop time at the start
+  uint32_t last_op_end_time = millis();
+
+  // Feed WDT with time
+  this->feed_wdt(last_op_end_time);
+
   for (Component *component : this->looping_components_) {
+    // Update the cached time before each component runs
+    this->loop_component_start_time_ = last_op_end_time;
+
     {
-      WarnIfComponentBlockingGuard guard{component};
+      this->set_current_component(component);
+      WarnIfComponentBlockingGuard guard{component, last_op_end_time};
       component->call();
+      // Use the finish method to get the current time as the end time
+      last_op_end_time = guard.finish();
     }
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
-    this->feed_wdt();
+    this->feed_wdt(last_op_end_time);
   }
   this->app_state_ = new_app_state;
 
-  const uint32_t now = millis();
-
-  auto elapsed = now - this->last_loop_;
+  // Use the last component's end time instead of calling millis() again
+  auto elapsed = last_op_end_time - this->last_loop_;
   if (elapsed >= this->loop_interval_ || HighFrequencyLoopRequester::is_high_frequency()) {
     yield();
   } else {
@@ -93,7 +108,7 @@ void Application::loop() {
     delay_time = std::min(next_schedule, delay_time);
     delay(delay_time);
   }
-  this->last_loop_ = now;
+  this->last_loop_ = last_op_end_time;
 
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
@@ -108,10 +123,12 @@ void Application::loop() {
   }
 }
 
-void IRAM_ATTR HOT Application::feed_wdt() {
+void IRAM_ATTR HOT Application::feed_wdt(uint32_t time) {
   static uint32_t last_feed = 0;
-  uint32_t now = micros();
-  if (now - last_feed > 3000) {
+  // Use provided time if available, otherwise get current time
+  uint32_t now = time ? time : millis();
+  // Compare in milliseconds (3ms threshold)
+  if (now - last_feed > 3) {
     arch_feed_wdt();
     last_feed = now;
 #ifdef USE_STATUS_LED

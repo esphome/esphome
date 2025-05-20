@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import alarm_control_panel, binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_BINARY_SENSORS, CONF_ID, CONF_INPUT, CONF_RESTORE_MODE
+from esphome.const import CONF_BINARY_SENSORS, CONF_INPUT, CONF_RESTORE_MODE
 
 from .. import template_ns
 
@@ -51,6 +51,7 @@ ALARM_SENSOR_TYPES = {
     "DELAYED": AlarmSensorType.ALARM_SENSOR_TYPE_DELAYED,
     "INSTANT": AlarmSensorType.ALARM_SENSOR_TYPE_INSTANT,
     "DELAYED_FOLLOWER": AlarmSensorType.ALARM_SENSOR_TYPE_DELAYED_FOLLOWER,
+    "INSTANT_ALWAYS": AlarmSensorType.ALARM_SENSOR_TYPE_INSTANT_ALWAYS,
 }
 
 
@@ -76,9 +77,9 @@ TEMPLATE_ALARM_CONTROL_PANEL_BINARY_SENSOR_SCHEMA = cv.maybe_simple_value(
 )
 
 TEMPLATE_ALARM_CONTROL_PANEL_SCHEMA = (
-    alarm_control_panel.ALARM_CONTROL_PANEL_SCHEMA.extend(
+    alarm_control_panel.alarm_control_panel_schema(TemplateAlarmControlPanel)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateAlarmControlPanel),
             cv.Optional(CONF_CODES): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_REQUIRES_CODE_TO_ARM): cv.boolean,
             cv.Optional(CONF_ARMING_HOME_TIME): cv.positive_time_period_milliseconds,
@@ -99,7 +100,8 @@ TEMPLATE_ALARM_CONTROL_PANEL_SCHEMA = (
                 RESTORE_MODES, upper=True
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA)
+    )
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -109,9 +111,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await alarm_control_panel.new_alarm_control_panel(config)
     await cg.register_component(var, config)
-    await alarm_control_panel.register_alarm_control_panel(var, config)
     if CONF_CODES in config:
         for acode in config[CONF_CODES]:
             cg.add(var.add_code(acode))

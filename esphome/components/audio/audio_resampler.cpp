@@ -4,6 +4,8 @@
 
 #include "esphome/core/hal.h"
 
+#include <cstring>
+
 namespace esphome {
 namespace audio {
 
