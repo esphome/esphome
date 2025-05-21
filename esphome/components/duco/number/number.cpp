@@ -24,7 +24,9 @@ float DucoComfortTemperature::get_setup_priority() const {
 void DucoComfortTemperature::receive_response(const DucoMessage &message) {
   // the DUCO box responds with the same message, both for reading and setting the comfort temperature
   if (message.function == 0x26) {
-    publish_state(message.data[3] / 10.0);
+    // ignore invalid values below 100 (and above 255, since it's only one byte)
+    if (message.data[3] >= 100)
+      publish_state(message.data[3] / 10.0);
 
     this->parent_->stop_waiting(message.id);
   }
