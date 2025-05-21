@@ -24,7 +24,7 @@ from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
 
-UNIT_DAYS = "days"
+UNIT_DAYS = "d"
 
 CONF_FILTER_REMAINING = "filter_remaining"
 CONF_FLOW_LEVEL = "flow_level"
