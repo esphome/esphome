@@ -75,7 +75,7 @@ class PNGFormat(Format):
 
     def actions(self):
         cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
-        cg.add_library("pngle", "1.0.2")
+        cg.add_library("pngle", "1.1.0")
 
 
 IMAGE_FORMATS = {
