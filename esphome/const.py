@@ -1217,6 +1217,7 @@ DEVICE_CLASS_VOLUME_STORAGE = "volume_storage"
 DEVICE_CLASS_WATER = "water"
 DEVICE_CLASS_WEIGHT = "weight"
 DEVICE_CLASS_WINDOW = "window"
+DEVICE_CLASS_WIND_DIRECTION = "wind_direction"
 DEVICE_CLASS_WIND_SPEED = "wind_speed"
 
 # state classes
