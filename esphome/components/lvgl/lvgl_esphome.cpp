@@ -11,6 +11,8 @@ namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
 
+static const size_t MIN_BUFFER_FRAC = 8;
+
 static const char *const EVENT_NAMES[] = {
     "NONE",
     "PRESSED",
@@ -85,6 +87,7 @@ lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LVGL:");
   ESP_LOGCONFIG(TAG, "  Display width/height: %d x %d", this->disp_drv_.hor_res, this->disp_drv_.ver_res);
+  ESP_LOGCONFIG(TAG, "  Buffer size: %zu%%", 100 / this->buffer_frac_);
   ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation);
   ESP_LOGCONFIG(TAG, "  Draw rounding: %d", (int) this->draw_rounding);
 }
@@ -432,18 +435,28 @@ void LvglComponent::setup() {
   auto *display = this->displays_[0];
   auto width = display->get_width();
   auto height = display->get_height();
-  size_t buffer_pixels = width * height / this->buffer_frac_;
+  auto frac = this->buffer_frac_;
+  if (frac == 0)
+    frac = 1;
+  size_t buffer_pixels = width * height / frac;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
   void *buffer = nullptr;
-  if (this->buffer_frac_ >= 4)
+  if (this->buffer_frac_ >= MIN_BUFFER_FRAC / 2)
     buffer = malloc(buf_bytes);  // NOLINT
   if (buffer == nullptr)
     buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
+  // if specific buffer size not set and can't get 100%, try for a smaller one
+  if (buffer == nullptr && this->buffer_frac_ == 0) {
+    frac = MIN_BUFFER_FRAC;
+    buffer_pixels /= MIN_BUFFER_FRAC;
+    buffer = lv_custom_mem_alloc(buf_bytes / MIN_BUFFER_FRAC);  // NOLINT
+  }
   if (buffer == nullptr) {
-    this->mark_failed();
     this->status_set_error("Memory allocation failure");
+    this->mark_failed();
     return;
   }
+  this->buffer_frac_ = frac;
   lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buffer_pixels);
   this->disp_drv_.hor_res = width;
   this->disp_drv_.ver_res = height;
@@ -453,8 +466,8 @@ void LvglComponent::setup() {
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
-      this->mark_failed();
       this->status_set_error("Memory allocation failure");
+      this->mark_failed();
       return;
     }
   }
