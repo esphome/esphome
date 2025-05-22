@@ -247,11 +247,13 @@ FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
 def part_schema(parts):
     """
     Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
-    :param parts:  The parts to include in the schema
+    :param parts:  The parts to include
     :return: The schema
     """
-    return cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts}).extend(
-        STATE_SCHEMA
+    return (
+        cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts})
+        .extend(STATE_SCHEMA)
+        .extend(FLAG_SCHEMA)
     )
 
 
@@ -288,22 +290,18 @@ def base_update_schema(widget_type, parts):
     :param parts:  The allowable parts to specify
     :return:
     """
-    return (
-        part_schema(parts)
-        .extend(
-            {
-                cv.Required(CONF_ID): cv.ensure_list(
-                    cv.maybe_simple_value(
-                        {
-                            cv.Required(CONF_ID): cv.use_id(widget_type),
-                        },
-                        key=CONF_ID,
-                    )
-                ),
-                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-            }
-        )
-        .extend(FLAG_SCHEMA)
+    return part_schema(parts).extend(
+        {
+            cv.Required(CONF_ID): cv.ensure_list(
+                cv.maybe_simple_value(
+                    {
+                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                    },
+                    key=CONF_ID,
+                )
+            ),
+            cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+        }
     )
 
 
@@ -321,7 +319,6 @@ def obj_schema(widget_type: WidgetType):
     """
     return (
         part_schema(widget_type.parts)
-        .extend(FLAG_SCHEMA)
         .extend(LAYOUT_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
         .extend(automation_schema(widget_type.w_type))
