@@ -887,7 +887,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     //   - At least 2 bytes in the buffer for the varints
     // Buffer layout:
     //   First 1-3 bytes: Message size varint (variable length)
-    //     - 2 bytes would only allow up to 16383, which is less than noise's 65535
+    //     - 2 bytes would only allow up to 16383, which is less than noise's UINT16_MAX (65535)
     //     - 3 bytes allows up to 2097151, ensuring we support at least as much as noise
     //   Remaining 1-2 bytes: Message type varint (variable length)
     // We now attempt to parse both varints. If either is incomplete,
@@ -900,9 +900,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
       continue;
     }
 
-    if (msg_size_varint->as_uint32() > 65535) {
+    if (msg_size_varint->as_uint32() > std::numeric_limits<uint16_t>::max()) {
       state_ = State::FAILED;
-      HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum 65535", msg_size_varint->as_uint32());
+      HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u", msg_size_varint->as_uint32(),
+                 std::numeric_limits<uint16_t>::max());
       return APIError::BAD_DATA_PACKET;
     }
     rx_header_parsed_len_ = msg_size_varint->as_uint16();
@@ -912,9 +913,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
       // not enough data there yet
       continue;
     }
-    if (msg_type_varint->as_uint32() > 65535) {
+    if (msg_type_varint->as_uint32() > std::numeric_limits<uint16_t>::max()) {
       state_ = State::FAILED;
-      HELPER_LOG("Bad packet: message type %" PRIu32 " exceeds maximum 65535", msg_type_varint->as_uint32());
+      HELPER_LOG("Bad packet: message type %" PRIu32 " exceeds maximum %u", msg_type_varint->as_uint32(),
+                 std::numeric_limits<uint16_t>::max());
       return APIError::BAD_DATA_PACKET;
     }
     rx_header_parsed_type_ = msg_type_varint->as_uint16();
