@@ -2,6 +2,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
     VARIANT_ESP32,
     add_idf_sdkconfig_option,
@@ -50,18 +51,23 @@ SPIRAM_SPEEDS = {
 
 
 def validate_psram_mode(config):
-    if config[CONF_MODE] == TYPE_OCTAL and config[CONF_SPEED] == 120e6:
-        esp32_config = fv.full_config.get()[PLATFORM_ESP32]
-        if (
-            esp32_config[CONF_FRAMEWORK]
-            .get(CONF_ADVANCED, {})
-            .get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES)
-        ):
-            _LOGGER.warning(
-                "120MHz PSRAM in octal mode is an experimental feature - use at your own risk"
+    esp32_config = fv.full_config.get()[PLATFORM_ESP32]
+    if config[CONF_SPEED] == 120e6:
+        if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
+            raise cv.Invalid(
+                "PSRAM 120MHz requires 240MHz CPU frequency (set in esp32 component)"
             )
-        else:
-            raise cv.Invalid("PSRAM 120MHz is not supported in octal mode")
+        if config[CONF_MODE] == TYPE_OCTAL:
+            if (
+                esp32_config[CONF_FRAMEWORK]
+                .get(CONF_ADVANCED, {})
+                .get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES)
+            ):
+                _LOGGER.warning(
+                    "120MHz PSRAM in octal mode is an experimental feature - use at your own risk"
+                )
+            else:
+                raise cv.Invalid("PSRAM 120MHz is not supported in octal mode")
     if config[CONF_MODE] != TYPE_OCTAL and config[CONF_ENABLE_ECC]:
         raise cv.Invalid("ECC is only available in octal mode.")
     if config[CONF_MODE] == TYPE_OCTAL:
@@ -112,7 +118,7 @@ async def to_code(config):
         add_idf_sdkconfig_option(f"{SPIRAM_MODES[config[CONF_MODE]]}", True)
         add_idf_sdkconfig_option(f"{SPIRAM_SPEEDS[config[CONF_SPEED]]}", True)
         if config[CONF_MODE] == TYPE_OCTAL and config[CONF_SPEED] == 120e6:
-            add_idf_sdkconfig_option("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240", True)
+            add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
             if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
                 add_idf_sdkconfig_option(
                     "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
