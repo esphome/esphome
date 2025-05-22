@@ -147,7 +147,11 @@ bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCES
       this->recent_streaming_probabilities_[this->last_n_index_] = output->data.uint8[0];  // probability;
       this->unprocessed_probability_status_ = true;
     }
-    this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
+    if (this->recent_streaming_probabilities_[this->last_n_index_] < this->probability_cutoff_) {
+      // Only increment ignore windows if less than the probability cutoff; this forces the model to "cool-off" from a
+      // previous detection and calling ``reset_probabilities`` so it avoids duplicate detections
+      this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
+    }
   }
   return true;
 }
