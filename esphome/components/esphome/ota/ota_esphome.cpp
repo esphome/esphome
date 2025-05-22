@@ -111,6 +111,8 @@ void ESPHomeOTAComponent::handle_() {
   int err = client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
   if (err != 0) {
     ESP_LOGW(TAG, "Socket could not enable TCP nodelay, errno %d", errno);
+    client_->close();
+    client_ = nullptr;
     return;
   }
 
