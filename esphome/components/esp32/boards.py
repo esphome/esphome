@@ -4,6 +4,7 @@ from .const import (
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -1631,6 +1632,14 @@ BOARDS = {
     "esp32-h2-devkitm-1": {
         "name": "Espressif ESP32-H2-DevKit",
         "variant": VARIANT_ESP32H2,
+    },
+    "esp32-p4": {
+        "name": "Espressif ESP32-P4 generic",
+        "variant": VARIANT_ESP32P4,
+    },
+    "esp32-p4-evboard": {
+        "name": "Espressif ESP32-P4 Function EV Board",
+        "variant": VARIANT_ESP32P4,
     },
     "esp32-pico-devkitm-2": {
         "name": "Espressif ESP32-PICO-DevKitM-2",

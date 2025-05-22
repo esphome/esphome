@@ -10,6 +10,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -89,6 +90,7 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32C2: [UART0, UART1],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -206,6 +208,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32_c3_idf=USB_SERIAL_JTAG,
                 esp32_c6_arduino=USB_CDC,
                 esp32_c6_idf=USB_SERIAL_JTAG,
+                esp32_p4_idf=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 rtl87xx=DEFAULT,

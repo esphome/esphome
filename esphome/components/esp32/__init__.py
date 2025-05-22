@@ -59,6 +59,7 @@ from .const import (  # noqa
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_FRIENDLY,
@@ -89,6 +90,7 @@ CPU_FREQUENCIES = {
     VARIANT_ESP32C3: get_cpu_frequencies(80, 160),
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
+    VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
 }
 
 # Make sure not missed here if a new variant added.
