@@ -7,11 +7,7 @@ import sys
 
 
 def find_and_activate_virtualenv():
-    if (
-        ("VIRTUAL_ENV" in os.environ)
-        or os.environ.get("DEVCONTAINER")
-        or os.environ.get("ESPHOME_NO_VENV")
-    ):
+    if "VIRTUAL_ENV" in os.environ:
         return
 
     try:
