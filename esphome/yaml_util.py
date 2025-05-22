@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import fnmatch
 import functools
 import inspect
@@ -8,7 +9,7 @@ from ipaddress import _BaseAddress
 import logging
 import math
 import os
-from typing import Any, Callable
+from typing import Any
 import uuid
 
 import yaml

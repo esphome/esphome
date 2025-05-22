@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 import datetime
 import functools
 import gzip
@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import urlparse
 
 import tornado

@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Home Automation",
 ]
-requires-python = ">=3.9.0"
+requires-python = ">=3.10.0"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
@@ -62,7 +62,7 @@ addopts = [
 ]
 
 [tool.pylint.MAIN]
-py-version = "3.9"
+py-version = "3.10"
 ignore = [
   "api_pb2.py",
 ]
@@ -106,7 +106,7 @@ expected-line-ending-format = "LF"
 
 [tool.ruff]
 required-version = ">=0.5.0"
-target-version = "py39"
+target-version = "py310"
 exclude = ['generated']
 
 [tool.ruff.lint]

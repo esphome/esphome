@@ -2,7 +2,7 @@
 # inputs of the OpenTherm component.
 
 from dataclasses import dataclass
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -61,11 +61,11 @@ TSchema = TypeVar("TSchema", bound=EntitySchema)
 class SensorSchema(EntitySchema):
     accuracy_decimals: int
     state_class: str
-    unit_of_measurement: Optional[str] = None
-    icon: Optional[str] = None
-    device_class: Optional[str] = None
+    unit_of_measurement: str | None = None
+    icon: str | None = None
+    device_class: str | None = None
     disabled_by_default: bool = False
-    order: Optional[int] = None
+    order: int | None = None
 
 
 SENSORS: dict[str, SensorSchema] = {
@@ -461,9 +461,9 @@ SENSORS: dict[str, SensorSchema] = {
 
 @dataclass
 class BinarySensorSchema(EntitySchema):
-    icon: Optional[str] = None
-    device_class: Optional[str] = None
-    order: Optional[int] = None
+    icon: str | None = None
+    device_class: str | None = None
+    order: int | None = None
 
 
 BINARY_SENSORS: dict[str, BinarySensorSchema] = {
@@ -654,7 +654,7 @@ BINARY_SENSORS: dict[str, BinarySensorSchema] = {
 
 @dataclass
 class SwitchSchema(EntitySchema):
-    default_mode: Optional[str] = None
+    default_mode: str | None = None
 
 
 SWITCHES: dict[str, SwitchSchema] = {
@@ -721,9 +721,9 @@ class InputSchema(EntitySchema):
     unit_of_measurement: str
     step: float
     range: tuple[int, int]
-    icon: Optional[str] = None
-    auto_max_value: Optional[AutoConfigure] = None
-    auto_min_value: Optional[AutoConfigure] = None
+    icon: str | None = None
+    auto_max_value: AutoConfigure | None = None
+    auto_min_value: AutoConfigure | None = None
 
 
 INPUTS: dict[str, InputSchema] = {
@@ -834,7 +834,7 @@ class SettingSchema(EntitySchema):
     backing_type: str
     validation_schema: cv.Schema
     default_value: Any
-    order: Optional[int] = None
+    order: int | None = None
 
 
 SETTINGS: dict[str, SettingSchema] = {

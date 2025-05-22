@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import re
 import subprocess
-from typing import Union
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
@@ -73,7 +72,7 @@ FILTER_PLATFORMIO_LINES = [
 ]
 
 
-def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
+def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ.setdefault(
@@ -93,7 +92,7 @@ def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     return run_external_command(platformio.__main__.main, *cmd, **kwargs)
 
 
-def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
+def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
     command = ["run", "-d", CORE.build_path]
     if verbose:
         command += ["-v"]

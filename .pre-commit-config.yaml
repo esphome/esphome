@@ -28,10 +28,10 @@ repos:
           - --branch=release
           - --branch=beta
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.2
+    rev: v3.19.1
     hooks:
       - id: pyupgrade
-        args: [--py39-plus]
+        args: [--py310-plus]
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.37.1
     hooks:

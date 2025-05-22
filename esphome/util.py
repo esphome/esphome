@@ -6,7 +6,6 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import Union
 
 from esphome import const
 
@@ -162,7 +161,7 @@ class RedirectText:
 
 def run_external_command(
     func, *cmd, capture_stdout: bool = False, filter_lines: str = None
-) -> Union[int, str]:
+) -> int | str:
     """
     Run a function from an external package that acts like a main method.
 

@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg

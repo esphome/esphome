@@ -7,7 +7,7 @@ import functools
 import heapq
 import logging
 import re
-from typing import Any, Union
+from typing import Any
 
 import voluptuous as vol
 
@@ -63,7 +63,7 @@ def iter_component_configs(config):
                 yield p_name, platform, p_config
 
 
-ConfigPath = list[Union[str, int]]
+ConfigPath = list[str | int]
 path_context = contextvars.ContextVar("Config path")
 
 

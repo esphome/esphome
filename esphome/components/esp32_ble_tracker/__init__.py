@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
