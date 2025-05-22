@@ -55,6 +55,7 @@ class ProtoVarInt {
     return {};  // Incomplete or invalid varint
   }
 
+  uint16_t as_uint16() const { return this->value_; }
   uint32_t as_uint32() const { return this->value_; }
   uint64_t as_uint64() const { return this->value_; }
   bool as_bool() const { return this->value_; }
