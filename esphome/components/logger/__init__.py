@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_HARDWARE_UART,
     CONF_ID,
     CONF_LEVEL,
+    CONF_LOGGER,
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
@@ -250,6 +251,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
+    CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
     log = cg.new_Pvariable(
         config[CONF_ID],
