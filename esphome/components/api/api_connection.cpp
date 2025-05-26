@@ -4,11 +4,11 @@
 #include <cinttypes>
 #include <utility>
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
-#include "esphome/core/application.h"
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -153,7 +153,11 @@ void APIConnection::loop() {
   } else {
     this->last_traffic_ = App.get_loop_component_start_time();
     // read a packet
-    this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
+    if (buffer.data_len > 0) {
+      this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
+    } else {
+      this->read_message(0, buffer.type, nullptr);
+    }
     if (this->remove_)
       return;
   }
