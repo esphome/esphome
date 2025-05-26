@@ -2,6 +2,7 @@ from .const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
@@ -1592,6 +1593,10 @@ BOARDS = {
     "esp32-c3-m1i-kit": {
         "name": "Ai-Thinker ESP-C3-M1-I-Kit",
         "variant": VARIANT_ESP32C3,
+    },
+    "esp32-c5-devkitc-1": {
+        "name": "Espressif ESP32-C5-DevKitC-1",
+        "variant": VARIANT_ESP32C5,
     },
     "esp32-c6-devkitc-1": {
         "name": "Espressif ESP32-C6-DevKitC-1",
