@@ -126,8 +126,8 @@ on_raw:
 on_rc5:
   then:
     - logger.log:
-        format: "on_rc5: %u %u %u"
-        args: ["x.address", "x.command", "x.toggle"]
+        format: "on_rc5: %u %u %s"
+        args: ["x.address", "x.command", "YESNO(x.toggle)"]
 on_rc6:
   then:
     - logger.log:
