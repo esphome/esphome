@@ -416,7 +416,9 @@ class LineComment(Statement):
         self.value = value
 
     def __str__(self):
-        parts = re.sub(r"\\\s*\n", r"<cont>\n", self.value, re.MULTILINE).split("\n")
+        parts = re.sub(r"\\\s*\n", r"<cont>\n", self.value, flags=re.MULTILINE).split(
+            "\n"
+        )
         parts = [f"// {x}" for x in parts]
         return "\n".join(parts)
 
