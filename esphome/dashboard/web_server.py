@@ -601,10 +601,12 @@ class DownloadListRequestHandler(BaseHandler):
         loop = asyncio.get_running_loop()
         try:
             downloads_json = await loop.run_in_executor(None, self._get, configuration)
-        except vol.Invalid:
+        except vol.Invalid as exc:
+            _LOGGER.exception("Error while fetching downloads", exc_info=exc)
             self.send_error(404)
             return
         if downloads_json is None:
+            _LOGGER.error("Configuration %s not found", configuration)
             self.send_error(404)
             return
         self.set_status(200)
@@ -618,14 +620,17 @@ class DownloadListRequestHandler(BaseHandler):
         if storage_json is None:
             return None
 
-        config = yaml_util.load_yaml(settings.rel_path(configuration))
+        try:
+            config = yaml_util.load_yaml(settings.rel_path(configuration))
 
-        if const.CONF_EXTERNAL_COMPONENTS in config:
-            from esphome.components.external_components import (
-                do_external_components_pass,
-            )
+            if const.CONF_EXTERNAL_COMPONENTS in config:
+                from esphome.components.external_components import (
+                    do_external_components_pass,
+                )
 
-            do_external_components_pass(config)
+                do_external_components_pass(config)
+        except vol.Invalid:
+            _LOGGER.info("Could not parse `external_components`, skipping")
 
         from esphome.components.esp32 import VARIANTS as ESP32_VARIANTS
 
