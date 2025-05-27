@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+import logging
 from pathlib import Path
 import platform
 import signal
@@ -38,6 +39,29 @@ from .types import (
     RunCompiledFunction,
     RunFunction,
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def enable_aioesphomeapi_debug_logging():
+    """Enable debug logging for aioesphomeapi to help diagnose connection issues."""
+    # Get the aioesphomeapi logger
+    logger = logging.getLogger("aioesphomeapi")
+    # Save the original level
+    original_level = logger.level
+    # Set to DEBUG level
+    logger.setLevel(logging.DEBUG)
+    # Also ensure we have a handler that outputs to console
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    yield
+    # Restore original level
+    logger.setLevel(original_level)
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@
 
 # Network constants
 DEFAULT_API_PORT = 6053
-LOCALHOST = "localhost"
+LOCALHOST = "127.0.0.1"
 
 # Timeout constants
 API_CONNECTION_TIMEOUT = 30.0  # seconds
