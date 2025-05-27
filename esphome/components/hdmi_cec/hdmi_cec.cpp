@@ -353,8 +353,8 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   }
 
   Message frame(source, destination, data_bytes);
-  ESP_LOGD(TAG, "Queing frame to send: %s", frame.to_string().c_str());
-  { xmit_.queue_for_send(std::move(frame)); }
+  // ESP_LOGD(TAG, "Queing frame to send: %s", frame.to_string().c_str());
+  xmit_.queue_for_send(std::move(frame));
   return true;
 }
 
@@ -425,6 +425,7 @@ void CECTransmit::transmit_message() {
   }
 
   if (transmit_state_ == TransmitState::EOM_CONFIRMED) {
+    // the Frame which is on the queue.front is confirmed to be fully sent out
     const Message &frame = send_queue_.front();
     uint8_t n_acks_expected = frame.is_broadcast() ? 0 : frame.size();  // for broadcast, acknowledge is bad
     bool sent_ok = (n_bytes_received_ == frame.size()) && (n_acks_received_ == n_acks_expected);
@@ -610,7 +611,7 @@ void CECTransmit::transmit_message_on_uart(const Message &frame) {
 
 void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom) {
   // 5 uart-bits create the nominal 2.4ms cec bit period, with our baudrate of 2083 bits/sec.
-  // 10 uart-bits are made with an (always-0) uart start bit, then 8 data bit, and last an (always 1) uart stop bit.
+  // 10 uart-bits are made with an (always 0) uart start bit, then 8 data bit, and an (always 1) uart stop bit.
   // transmitting a '0' data bit gets translated to a uart 3xlow, 2xhigh on the cec line
   // transmitting a '1' data bit gets translated to a uart 1xlow, 4xhigh on the cec line
   // Note that a CEC 'header/data block' byte is sent MSB (Most Significant Bit) first,
@@ -633,7 +634,7 @@ void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t 
 }
 
 void IRAM_ATTR CECTransmit::send_ack() {
-  // This method is called by the receiver. When receiving a message, this transmitter
+  // This method is called by the receiver (gpio_isr). When receiving a message, this transmitter
   // is expected to be idle. The only exception to that would be the rather abnormal case
   // where we transmit a message to ourselves (address_ == target_address).
 #ifdef HAVE_UART
@@ -641,7 +642,7 @@ void IRAM_ATTR CECTransmit::send_ack() {
     // transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
     // So, the uart byte to send has its 2 least-significant bits 0.
     const uint8_t ack_byte = 0xfc;
-    uart_->write_byte(ack_byte);
+    uart_->write_byte(ack_byte);  // issue on the uart, don't wait on completion
     return;
   }
 #endif
