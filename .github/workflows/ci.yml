@@ -214,12 +214,12 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           ./venv/Scripts/activate
-          pytest -vv --cov-report=xml --tb=native tests
+          pytest -vv --cov-report=xml --tb=native -n auto tests
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --cov-report=xml --tb=native tests
+          pytest -vv --cov-report=xml --tb=native -n auto tests
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5.4.3
         with:

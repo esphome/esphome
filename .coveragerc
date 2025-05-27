@@ -1,2 +1,4 @@
 [run]
-omit = esphome/components/*
+omit = 
+    esphome/components/*
+    tests/integration/*
