@@ -129,6 +129,44 @@ std::string Message::to_string() const {
   return result;
 }
 
+template<bool have_data> void MessageQueue<have_data>::setup() {
+  // Note that the queue_ container was 'sized()' in the constructor
+  if (have_data) {
+    // initialize container as empty, but keep the preallocated memory area
+    queue_.clear();
+  } else {
+    // initialise container with filled positions, containing allocated empty messages
+    for (auto &m : queue_) {
+      m = new Message;
+      m->reserve(Message::MAX_LENGTH);
+    }
+  }
+}
+
+template<bool have_data> void MessageQueue<have_data>::push(Message *&m) {
+  if (m) {
+    InterruptLock lock;  // prevent simultaneous queue modification from the gpio_isr
+    queue_.push_back(m);
+    m = nullptr;  // prevent further use of the pointed message in the caller context
+  }
+}
+
+template<bool have_data> Message *MessageQueue<have_data>::pop() {
+  if (queue_.size() == 0) {
+    return nullptr;
+  }
+  Message *t = queue_.front();
+  {
+    InterruptLock lock;  // prevent simultaneous queue modification from the gpio_isr
+    queue_.erase(queue_.begin());
+  }
+  if (!have_data) {
+    // deliver empty Messages, discard old content
+    t->clear();
+  }
+  return t;
+}
+
 void HDMICEC::setup() {
   xmit_.setup(pin_);
   recv_.setup(pin_, address_);
@@ -162,38 +200,37 @@ void HDMICEC::dump_config() {
 }
 
 void HDMICEC::loop() {
-  if (recv_.has_received_message()) {
-    // handle one inbound message
-    // handle 1 message per loop(), to avoid taking too much time
-    Message mesg = recv_.take_received_message();
-    handle_received_message(mesg);
+  if (Message *msg = recv_.received_frames_.pop()) {
+    // handle 1 inbound message per loop(), to avoid taking too much time
+    handle_received_message(msg);
+    recv_.recycle_frames_.push(msg);
   }
   if (!xmit_.is_idle()) {
     xmit_.transmit_message();
   }
   // Need more frequent service to handle pending workload?
-  if (recv_.has_received_message() || !xmit_.is_idle()) {
+  if (recv_.received_frames_.size() > 0 || !xmit_.is_idle()) {
     fast_loop_.start();
   } else {
     fast_loop_.stop();
   }
 }
 
-void HDMICEC::handle_received_message(const Message &frame) {
-  const uint8_t src_addr = frame.initiator_addr();
-  const uint8_t dest_addr = frame.destination_addr();
-  const uint8_t opcode = frame.opcode();
+void HDMICEC::handle_received_message(const Message *frame) {
+  const uint8_t src_addr = frame->initiator_addr();
+  const uint8_t dest_addr = frame->destination_addr();
+  const uint8_t opcode = frame->opcode();
 
-  if (frame.size() == 1) {
+  if (frame->size() == 1) {
     // don't process pings. they're already dealt with by the acknowledgement mechanism
     ESP_LOGD(TAG, "ping received: 0x%01X -> 0x%01X", src_addr, dest_addr);
     return;
   }
 
-  auto frame_str = frame.to_string();
+  auto frame_str = frame->to_string();
   ESP_LOGD(TAG, "frame received: %s", frame_str.c_str());
 
-  std::vector<uint8_t> data(frame.begin() + 1, frame.end());
+  std::vector<uint8_t> data(frame->begin() + 1, frame->end());
 
   // Process on_message triggers
   bool handled_by_trigger = false;
@@ -644,6 +681,8 @@ void CECReceive::setup(InternalGPIOPin *pin, uint8_t address) {
   address_ = address;
   pin->attach_interrupt(CECReceive::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
   isr_pin_ = pin->to_isr();
+  received_frames_.setup();
+  recycle_frames_.setup();
   reset_state_variables();
 }
 
@@ -652,18 +691,17 @@ void CECReceive::dump_config() {
   ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
 }
 
-Message CECReceive::take_received_message() {
-  InterruptLock lock;  // prevent simultaneous queue modification from the gpio_isr
-  Message msg = recv_queue_.front();
-  recv_queue_.pop();
-  return msg;
-}
-
 void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) { self->gpio_isr(); }
 
 void IRAM_ATTR CECReceive::gpio_isr() {
   const uint32_t now = micros();
   const bool level = isr_pin_.digital_read();
+
+  if (level == prev_pin_level_) {
+    // spurious interrupt, probably triggered by a mode-change of the cec gpio
+    return;
+  }
+  prev_pin_level_ = level;
 
   // on falling edge, store current time as the start of the low pulse
   if (level == false) {
@@ -694,6 +732,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
     // start bit detected. reset everything and start receiving
     reset_state_variables();  // abort any previously gathered (unfinished) state
     receiver_state_ = ReceiverState::RECEIVING_BYTE;
+    recv_frame_buffer_ = recycle_frames_.pop();
     return;
   }
 
@@ -706,7 +745,9 @@ void IRAM_ATTR CECReceive::gpio_isr() {
       recv_bit_counter_++;
       if (recv_bit_counter_ >= 8) {
         // if we reached eight bits, push the current byte to the frame buffer
-        recv_frame_buffer_.push_back((uint8_t) (recv_byte_buffer_));
+        if (recv_frame_buffer_) {
+          recv_frame_buffer_->push_back((uint8_t) (recv_byte_buffer_));
+        }
         recv_bit_counter_ = 0;
         recv_byte_buffer_ = 0;
         receiver_state_ = ReceiverState::WAITING_FOR_EOM;  // expect 9th bit of block: EOM
@@ -716,7 +757,8 @@ void IRAM_ATTR CECReceive::gpio_isr() {
 
     case ReceiverState::WAITING_FOR_EOM: {
       // check if we need to acknowledge this byte on the next 'ack' bit (10th bit of block)
-      if (!recv_frame_buffer_.is_broadcast() && recv_frame_buffer_.destination_addr() == address_) {
+      if (recv_frame_buffer_ && !recv_frame_buffer_->is_broadcast() &&
+          recv_frame_buffer_->destination_addr() == address_) {
         recv_ack_queued_ = true;
       }
       bool isEOM = (value == 1);
@@ -732,11 +774,14 @@ void IRAM_ATTR CECReceive::gpio_isr() {
 
     case ReceiverState::WAITING_FOR_EOM_ACK: {
       xmit_.got_byte_eom_ack(true, value);  // pass time of received byte, eom and ack, to transmitter
-      if (promiscuous_mode_ ||
-          (recv_frame_buffer_.is_broadcast() && (recv_frame_buffer_.initiator_addr() != address_)) ||
-          (recv_frame_buffer_.destination_addr() == address_)) {
-        // the application could be interested in this message
-        recv_queue_.push(recv_frame_buffer_);
+      // Check if the application could be interested in this message
+      if (recv_frame_buffer_ &&
+          (promiscuous_mode_ ||
+           (recv_frame_buffer_->is_broadcast() && (recv_frame_buffer_->initiator_addr() != address_)) ||
+           (recv_frame_buffer_->destination_addr() == address_))) {
+        received_frames_.push(recv_frame_buffer_);
+      } else {
+        recycle_frames_.push(recv_frame_buffer_);
       }
       reset_state_variables();
       break;
@@ -754,8 +799,6 @@ void IRAM_ATTR CECReceive::reset_state_variables() {
   recv_bit_counter_ = 0;
   recv_byte_buffer_ = 0;
   recv_ack_queued_ = false;
-  recv_frame_buffer_.clear();
-  recv_frame_buffer_.reserve(MAX_FRAME_LENGTH_BYTES);
 }
 
 }  // namespace hdmi_cec

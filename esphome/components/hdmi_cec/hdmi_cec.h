@@ -26,6 +26,33 @@ class Message : public std::vector<uint8_t> {
   uint8_t opcode() const { return (this->size() >= 2) ? this->at(1) : 0; }
   bool is_broadcast() const { return this->destination_addr() == 0xf; }
   std::string to_string() const;
+  constexpr static int MAX_LENGTH = 16;  // from HDMI CEC standard 1.4
+};
+
+/**
+ * class to manage a queue of pointers to Messages.
+ * To be used in a pair:
+ *  - one provides pre-allocated (but empty) Messages to be filled with data
+ *  - the other is to re-cycle handled Messages for later re-use of their allocated space.
+ * After initialization, their run-time operation does NOT use dynamic memory allocation:
+ * not for the container itself, nor for the managed Messages.
+ * Therefor these are safe use in an isr, unlike the std::queue.
+ */
+template<bool have_data> class MessageQueue {
+ public:
+  MessageQueue(unsigned int capacity) : queue_{capacity, nullptr} {};
+  ~MessageQueue() {
+    for (auto &m : queue_) {
+      free(m);
+    }
+  }
+  void setup();
+  void push(Message *&t);
+  Message *pop();
+  int size() const { return queue_.size(); }
+
+ protected:
+  std::vector<Message *> queue_;
 };
 
 class CECTransmit {
@@ -103,14 +130,16 @@ class CECReceive {
   enum class ReceiverState : uint8_t { IDLE, RECEIVING_BYTE, WAITING_FOR_EOM, WAITING_FOR_ACK, WAITING_FOR_EOM_ACK };
 
  public:
-  CECReceive(CECTransmit &xmit) : xmit_(xmit) {}
+  constexpr static int RECEIVE_QUEUE_CAPACITY = 4;
+  CECReceive(CECTransmit &xmit)
+      : xmit_(xmit), received_frames_(RECEIVE_QUEUE_CAPACITY), recycle_frames_(RECEIVE_QUEUE_CAPACITY) {}
   void setup(InternalGPIOPin *pin, uint8_t address);
   void dump_config();
   void set_promiscuous_mode(bool promiscuous) { promiscuous_mode_ = promiscuous; }
   void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
   bool get_monitor_mode() const { return monitor_mode_; }
-  bool has_received_message() const { return !recv_queue_.empty(); }
-  Message take_received_message();
+  MessageQueue<true> received_frames_;
+  MessageQueue<false> recycle_frames_;
 
  protected:
   static void gpio_isr_s(CECReceive *self);
@@ -121,15 +150,15 @@ class CECReceive {
   ISRInternalGPIOPin isr_pin_;
   bool promiscuous_mode_{false};
   bool monitor_mode_{false};
-  uint32_t last_falling_edge_us_{0};
-  ReceiverState receiver_state_{ReceiverState::IDLE};
+  bool recv_ack_queued_{false};
+  bool prev_pin_level_{true};
   volatile uint8_t recv_bit_counter_{0};
   volatile uint8_t recv_byte_buffer_{0};
   uint8_t num_acks_{0};  // numer of 'low' acknowledge bits received in the current message
-  bool recv_ack_queued_{false};
   uint8_t address_{0};
-  Message recv_frame_buffer_;
-  std::queue<Message> recv_queue_;
+  uint32_t last_falling_edge_us_{0};
+  ReceiverState receiver_state_{ReceiverState::IDLE};
+  Message *recv_frame_buffer_{nullptr};
 };
 
 class HDMICEC : public Component {
@@ -155,7 +184,7 @@ class HDMICEC : public Component {
 
  protected:
   void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
-  void handle_received_message(const Message &frame);
+  void handle_received_message(const Message *frame);
 
   HighFrequencyLoopRequester fast_loop_;
   InternalGPIOPin *pin_{nullptr};
