@@ -11,11 +11,9 @@ from typing import Protocol
 from aioesphomeapi import APIClient
 
 ConfigWriter = Callable[[str, str | None], Awaitable[Path]]
-CompileFunction = Callable[[Path], Awaitable[None]]
+CompileFunction = Callable[[Path], Awaitable[Path]]
 RunFunction = Callable[[Path], Awaitable[asyncio.subprocess.Process]]
-RunCompiledFunction = Callable[
-    [str, str | None], AbstractAsyncContextManager[asyncio.subprocess.Process]
-]
+RunCompiledFunction = Callable[[str, str | None], AbstractAsyncContextManager[None]]
 WaitFunction = Callable[[APIClient, float], Awaitable[bool]]
 
 
