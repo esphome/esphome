@@ -28,14 +28,14 @@ inline double deg2rad(double degrees) {
 
 void Rtttl::dump_config() {
   ESP_LOGCONFIG(TAG, "Rtttl:");
-  ESP_LOGCONFIG(TAG, "  Gain: %f", gain_);
+  ESP_LOGCONFIG(TAG, "  Gain: %f", this->gain_);
 }
 
 void Rtttl::play(std::string rtttl) {
   if (this->state_ != State::STATE_STOPPED && this->state_ != State::STATE_STOPPING) {
     int pos = this->rtttl_.find(':');
     auto name = this->rtttl_.substr(0, pos);
-    ESP_LOGW(TAG, "RTTTL Component is already playing: %s", name.c_str());
+    ESP_LOGW(TAG, "Already playing: %s", name.c_str());
     return;
   }
 
@@ -49,11 +49,11 @@ void Rtttl::play(std::string rtttl) {
   uint8_t num;
 
   // Get name
-  this->position_ = rtttl_.find(':');
+  this->position_ = this->rtttl_.find(':');
 
   // it's somewhat documented to be up to 10 characters but let's be a bit flexible here
   if (this->position_ == std::string::npos || this->position_ > 15) {
-    ESP_LOGE(TAG, "Missing ':' when looking for name.");
+    ESP_LOGE(TAG, "Unable to determine name; missing ':'");
     return;
   }
 
@@ -203,7 +203,7 @@ void Rtttl::loop() {
   if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_)
     return;
 #endif
-  if (!this->rtttl_[position_]) {
+  if (!this->rtttl_[this->position_]) {
     this->finish_();
     return;
   }
@@ -271,7 +271,7 @@ void Rtttl::loop() {
     scale = this->default_octave_;
 
   if (scale < 4 || scale > 7) {
-    ESP_LOGE(TAG, "Octave out of valid range. Should be between 4 and 7. (Octave: %d)", scale);
+    ESP_LOGE(TAG, "Octave must be between 4 and 7 (it is %d)", scale);
     this->finish_();
     return;
   }
@@ -281,7 +281,7 @@ void Rtttl::loop() {
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
-      ESP_LOGE(TAG, "Note out of valid range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
+      ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
                (int) sizeof(NOTES));
       this->finish_();
       return;
@@ -387,7 +387,7 @@ static const LogString *state_to_string(State state) {
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
+  ESP_LOGV(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
            LOG_STR_ARG(state_to_string(state)));
 }
 
