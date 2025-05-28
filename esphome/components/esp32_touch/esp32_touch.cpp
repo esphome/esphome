@@ -13,7 +13,7 @@ namespace esp32_touch {
 static const char *const TAG = "esp32_touch";
 
 void ESP32TouchComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ESP32 Touch Hub...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   touch_pad_init();
 // set up and enable/start filtering based on ESP32 variant
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)

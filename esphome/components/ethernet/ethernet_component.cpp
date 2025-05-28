@@ -38,7 +38,7 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
     // Delay here to allow power to stabilise before Ethernet is initialized.
     delay(300);  // NOLINT

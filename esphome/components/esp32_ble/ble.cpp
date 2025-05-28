@@ -28,7 +28,7 @@ static RAMAllocator<BLEEvent> EVENT_ALLOCATOR(  // NOLINT(cppcoreguidelines-avoi
 
 void ESP32BLE::setup() {
   global_ble = this;
-  ESP_LOGCONFIG(TAG, "Setting up BLE...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (!ble_pre_setup_()) {
     ESP_LOGE(TAG, "BLE could not be prepared for configuration");

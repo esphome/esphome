@@ -22,7 +22,7 @@ static const uint8_t RMT_CLK_DIV = 2;
 #endif
 
 void ESP32RMTLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ESP32 LED Strip...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   size_t buffer_size = this->get_buffer_size_();
 
