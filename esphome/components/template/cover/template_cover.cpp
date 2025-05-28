@@ -16,7 +16,7 @@ TemplateCover::TemplateCover()
       position_trigger_(new Trigger<float>()),
       tilt_trigger_(new Trigger<float>()) {}
 void TemplateCover::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up template cover '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   switch (this->restore_mode_) {
     case COVER_NO_RESTORE:
       break;

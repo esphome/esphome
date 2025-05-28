@@ -61,7 +61,7 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MR24HPC1...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->check_uart_settings(115200);
 
   if (this->custom_mode_number_ != nullptr) {

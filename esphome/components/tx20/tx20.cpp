@@ -15,7 +15,7 @@ static const char *const DIRECTIONS[] = {"N", "NNE", "NE", "ENE", "E", "ESE", "S
                                          "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
 
 void Tx20Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Tx20");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
 
   this->store_.buffer = new uint16_t[MAX_BUFFER_SIZE];

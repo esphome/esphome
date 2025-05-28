@@ -10,7 +10,7 @@ static const char *const TAG = "veml3235.sensor";
 void VEML3235Sensor::setup() {
   uint8_t device_id[] = {0, 0};
 
-  ESP_LOGCONFIG(TAG, "Setting up VEML3235 '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
 
   if (!this->refresh_config_reg()) {
     ESP_LOGE(TAG, "Unable to write configuration");

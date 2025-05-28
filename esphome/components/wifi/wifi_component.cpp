@@ -45,7 +45,7 @@ static const char *const TAG = "wifi";
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up WiFi...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->wifi_pre_setup_();
   if (this->enable_on_boot_) {
     this->start();

@@ -12,9 +12,8 @@ void TemplateText::setup() {
       return;
   }
 
-  std::string value;
-  ESP_LOGD(TAG, "Setting up Template Text Input");
-  value = this->initial_value_;
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
+  std::string value = this->initial_value_;
   if (!this->pref_) {
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());
   } else {

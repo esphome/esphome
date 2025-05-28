@@ -78,7 +78,7 @@ static const char *get_gain_str(Gain gain) {
 }
 
 void VEML7700Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up VEML7700/6030...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   auto err = this->configure_();
   if (err != i2c::ERROR_OK) {

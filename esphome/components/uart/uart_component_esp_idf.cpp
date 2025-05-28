@@ -85,12 +85,12 @@ void IDFUARTComponent::setup() {
 #endif  // USE_LOGGER
 
   if (next_uart_num >= SOC_UART_NUM) {
-    ESP_LOGW(TAG, "Maximum number of UART components created already.");
+    ESP_LOGW(TAG, "Maximum number of UART components created already");
     this->mark_failed();
     return;
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
-  ESP_LOGCONFIG(TAG, "Setting up UART %u...", this->uart_num_);
+  ESP_LOGCONFIG(TAG, "Running setup for UART %u", this->uart_num_);
 
   this->lock_ = xSemaphoreCreateMutex();
 

@@ -26,7 +26,7 @@ void TMP117Component::update() {
   }
 }
 void TMP117Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TMP117...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (!this->write_config_(this->config_)) {
     this->mark_failed();

@@ -15,7 +15,7 @@ namespace sntp {
 static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SNTP...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 #if defined(USE_ESP_IDF)
   if (esp_sntp_enabled()) {
     esp_sntp_stop();

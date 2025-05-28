@@ -53,7 +53,7 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
 }
 
 void StatusLEDLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Status LED...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (this->pin_ != nullptr) {
     this->pin_->setup();

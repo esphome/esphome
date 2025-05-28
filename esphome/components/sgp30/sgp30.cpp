@@ -33,7 +33,7 @@ const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 3600;
 const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 void SGP30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SGP30...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Serial Number identification
   uint16_t raw_serial_number[3];

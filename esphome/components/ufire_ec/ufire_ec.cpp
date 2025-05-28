@@ -7,7 +7,7 @@ namespace ufire_ec {
 static const char *const TAG = "ufire_ec";
 
 void UFireECComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up uFire_ec...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint8_t version;
   if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {

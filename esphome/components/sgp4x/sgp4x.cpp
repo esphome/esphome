@@ -9,7 +9,7 @@ namespace sgp4x {
 static const char *const TAG = "sgp4x";
 
 void SGP4xComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SGP4x...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Serial Number identification
   uint16_t raw_serial_number[3];

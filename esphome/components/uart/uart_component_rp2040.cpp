@@ -52,7 +52,7 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up UART bus...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint16_t config = get_config();
 

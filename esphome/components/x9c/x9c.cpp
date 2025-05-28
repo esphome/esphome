@@ -34,7 +34,7 @@ void X9cOutput::trim_value(int change_amount) {
 }
 
 void X9cOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up X9C Potentiometer with initial value of %f", this->initial_value_);
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   this->inc_pin_->get_pin();
   this->inc_pin_->setup();
