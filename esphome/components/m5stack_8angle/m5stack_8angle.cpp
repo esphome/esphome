@@ -8,7 +8,7 @@ namespace m5stack_8angle {
 static const char *const TAG = "m5stack_8angle";
 
 void M5Stack8AngleComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up M5STACK_8ANGLE...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   i2c::ErrorCode err;
 
   err = this->read(nullptr, 0);

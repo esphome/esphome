@@ -28,7 +28,7 @@ static const uint8_t MY9231_CMD_SCATTER_APDM = 0x0 << 0;
 static const uint8_t MY9231_CMD_SCATTER_PWM = 0x1 << 0;
 
 void MY9231OutputComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MY9231OutputComponent...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_di_->setup();
   this->pin_di_->digital_write(false);
   this->pin_dcki_->setup();

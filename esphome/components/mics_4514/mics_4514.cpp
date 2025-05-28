@@ -12,7 +12,7 @@ static const uint8_t SENSOR_REGISTER = 0x04;
 static const uint8_t POWER_MODE_REGISTER = 0x0a;
 
 void MICS4514Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MICS 4514...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t power_mode;
   this->read_register(POWER_MODE_REGISTER, &power_mode, 1);
   if (power_mode == 0x00) {

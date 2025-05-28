@@ -78,11 +78,8 @@ void LD2410Component::dump_config() {
 }
 
 void LD2410Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LD2410...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->read_all_info();
-  ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
-  ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
-  ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
 }
 
 void LD2410Component::read_all_info() {

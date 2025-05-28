@@ -18,7 +18,7 @@ void MAX6675Sensor::update() {
 }
 
 void MAX6675Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX6675Sensor '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   this->spi_setup();
 }
 void MAX6675Sensor::dump_config() {

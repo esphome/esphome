@@ -27,7 +27,7 @@ static const uint8_t MLX90614_ID4 = 0x3F;
 static const char *const TAG = "mlx90614";
 
 void MLX90614Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MLX90614...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_emissivity_()) {
     ESP_LOGE(TAG, "Communication with MLX90614 failed!");
     this->mark_failed();

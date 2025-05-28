@@ -8,7 +8,7 @@ namespace mpl3115a2 {
 static const char *const TAG = "mpl3115a2";
 
 void MPL3115A2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MPL3115A2...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint8_t whoami = 0xFF;
   if (!this->read_byte(MPL3115A2_WHOAMI, &whoami, false)) {

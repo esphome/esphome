@@ -11,7 +11,7 @@ static const char *const TAG = "max31856";
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 
 void MAX31856Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX31856Sensor '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   this->spi_setup();
 
   // assert on any fault
@@ -23,8 +23,6 @@ void MAX31856Sensor::setup() {
 
   this->set_thermocouple_type_();
   this->set_noise_filter_();
-
-  ESP_LOGCONFIG(TAG, "Completed setting up MAX31856Sensor '%s'...", this->name_.c_str());
 }
 
 void MAX31856Sensor::dump_config() {

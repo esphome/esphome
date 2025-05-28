@@ -28,7 +28,7 @@ static const uint8_t MCP9600_REGISTER_ALERT4_LIMIT = 0x13;
 static const uint8_t MCP9600_REGISTER_DEVICE_ID = 0x20;
 
 void MCP9600Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MCP9600...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint16_t dev_id = 0;
   this->read_byte_16(MCP9600_REGISTER_DEVICE_ID, &dev_id);

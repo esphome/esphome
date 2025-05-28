@@ -111,7 +111,7 @@ int LD2420Component::get_firmware_int_(const char *version_string) {
 }
 
 void LD2420Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LD2420...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
     this->mark_failed();
