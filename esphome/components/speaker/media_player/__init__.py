@@ -48,6 +48,7 @@ CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_STREAM = "stream"
 CONF_VOLUME_INCREMENT = "volume_increment"
+CONF_VOLUME_INITIAL = "volume_initial"
 CONF_VOLUME_MIN = "volume_min"
 CONF_VOLUME_MAX = "volume_max"
 
@@ -282,6 +283,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
+            cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
             cv.Optional(CONF_VOLUME_MIN, default=0.0): cv.percentage,
             cv.Optional(CONF_ON_MUTE): automation.validate_automation(single=True),
@@ -356,6 +358,7 @@ async def to_code(config):
         )
 
     cg.add(var.set_volume_increment(config[CONF_VOLUME_INCREMENT]))
+    cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))
     cg.add(var.set_volume_max(config[CONF_VOLUME_MAX]))
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
 

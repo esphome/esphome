@@ -48,8 +48,6 @@ static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
 static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 
-static const float FIRST_BOOT_DEFAULT_VOLUME = 0.5f;
-
 static const char *const TAG = "speaker_media_player";
 
 void SpeakerMediaPlayer::setup() {
@@ -64,7 +62,7 @@ void SpeakerMediaPlayer::setup() {
     this->set_volume_(volume_restore_state.volume);
     this->set_mute_state_(volume_restore_state.is_muted);
   } else {
-    this->set_volume_(FIRST_BOOT_DEFAULT_VOLUME);
+    this->set_volume_(this->volume_initial_);
     this->set_mute_state_(false);
   }
 
