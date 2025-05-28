@@ -26,7 +26,7 @@ void PylontechComponent::dump_config() {
 }
 
 void PylontechComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up pylontech...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   while (this->available() != 0) {
     this->read();
   }

@@ -11,7 +11,7 @@ static const char *const TAG = "npi19";
 static const uint8_t READ_COMMAND = 0xAC;
 
 void NPI19Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up NPI19...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint16_t raw_temperature(0);
   uint16_t raw_pressure(0);

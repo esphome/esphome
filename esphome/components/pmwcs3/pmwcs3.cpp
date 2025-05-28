@@ -51,7 +51,7 @@ void PMWCS3Component::water_calibration() {
   ESP_LOGW(TAG, "Start water calibration during the next 300s");
 }
 
-void PMWCS3Component::setup() { ESP_LOGCONFIG(TAG, "Setting up PMWCS3..."); }
+void PMWCS3Component::setup() { ESP_LOGCONFIG(TAG, "Running setup"); }
 
 void PMWCS3Component::update() { this->read_data_(); }
 

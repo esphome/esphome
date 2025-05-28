@@ -7,7 +7,7 @@ namespace pcf8574 {
 static const char *const TAG = "pcf8574";
 
 void PCF8574Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCF8574...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_gpio_()) {
     ESP_LOGE(TAG, "PCF8574 not available under 0x%02X", this->address_);
     this->mark_failed();

@@ -348,7 +348,7 @@ void QMP6988Component::calculate_pressure_() {
 }
 
 void QMP6988Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up QMP6988");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   bool ret;
   ret = this->device_check_();

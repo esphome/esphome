@@ -6,7 +6,7 @@ namespace esphome {
 namespace rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up RPI_DPI_RGB");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->reset_display_();
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;

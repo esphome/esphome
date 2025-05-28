@@ -26,7 +26,7 @@ static const uint8_t PCA9685_MODE1_AUTOINC = 0b00100000;
 static const uint8_t PCA9685_MODE1_SLEEP = 0b00010000;
 
 void PCA9685Output::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCA9685OutputComponent...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   ESP_LOGV(TAG, "  Resetting devices...");
   if (!this->write_bytes(PCA9685_REGISTER_SOFTWARE_RESET, nullptr, 0)) {

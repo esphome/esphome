@@ -13,7 +13,7 @@ const uint8_t CONFIG_REG = 3;
 static const char *const TAG = "pca9554";
 
 void PCA9554Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCA9554/PCA9554A...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->reg_width_ = (this->pin_count_ + 7) / 8;
   // Test to see if device exists
   if (!this->read_inputs_()) {

@@ -52,8 +52,8 @@ static const uint8_t POWER_PGA_CAP_EN = 0x80;
 static const uint8_t DEVICE_REV = 0x1F;
 
 void NAU7802Sensor::setup() {
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   i2c::I2CRegister pu_ctrl = this->reg(PU_CTRL_REG);
-  ESP_LOGCONFIG(TAG, "Setting up NAU7802 '%s'...", this->name_.c_str());
   uint8_t rev;
 
   if (this->read_register(DEVICE_REV | READ_BIT, &rev, 1)) {

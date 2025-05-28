@@ -10,7 +10,7 @@ namespace pcf85063 {
 static const char *const TAG = "pcf85063";
 
 void PCF85063Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCF85063...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_rtc_()) {
     this->mark_failed();
   }

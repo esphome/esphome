@@ -15,7 +15,7 @@ namespace pn532 {
 static const char *const TAG = "pn532";
 
 void PN532::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PN532...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {

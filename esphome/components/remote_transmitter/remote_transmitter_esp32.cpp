@@ -11,7 +11,7 @@ namespace remote_transmitter {
 static const char *const TAG = "remote_transmitter";
 
 void RemoteTransmitterComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Remote Transmitter...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->inverted_ = this->pin_->is_inverted();
   this->configure_rmt_();
 }
