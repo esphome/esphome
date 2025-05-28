@@ -18,7 +18,7 @@ namespace i2c {
 static const char *const TAG = "i2c.idf";
 
 void IDFI2CBus::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up I2C bus...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   static i2c_port_t next_port = I2C_NUM_0;
   port_ = next_port;
 #if SOC_HP_I2C_NUM > 1

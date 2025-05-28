@@ -50,7 +50,7 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 }
 
 void INA2XX::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up INA2xx...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (!this->reset_config_()) {
     ESP_LOGE(TAG, "Reset failed, check connection");

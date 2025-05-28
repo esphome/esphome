@@ -25,7 +25,7 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 void GT911Touchscreen::setup() {
   i2c::ErrorCode err;
-  ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);

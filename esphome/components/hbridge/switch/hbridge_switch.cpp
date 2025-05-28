@@ -10,7 +10,7 @@ static const char *const TAG = "switch.hbridge";
 
 float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void HBridgeSwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up H-Bridge Switch '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
 
   optional<bool> initial_state = this->get_initial_state_with_restore_mode();
 

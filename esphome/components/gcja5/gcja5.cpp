@@ -14,7 +14,7 @@ namespace gcja5 {
 
 static const char *const TAG = "gcja5";
 
-void GCJA5Component::setup() { ESP_LOGCONFIG(TAG, "Setting up gcja5..."); }
+void GCJA5Component::setup() { ESP_LOGCONFIG(TAG, "Running setup"); }
 
 void GCJA5Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();

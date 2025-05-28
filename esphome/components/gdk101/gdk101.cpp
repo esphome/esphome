@@ -34,7 +34,7 @@ void GDK101Component::update() {
 
 void GDK101Component::setup() {
   uint8_t data[2];
-  ESP_LOGCONFIG(TAG, "Setting up GDK101...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // first, reset the sensor
   if (!this->reset_sensor_(data)) {
     this->status_set_error("Reset failed!");
