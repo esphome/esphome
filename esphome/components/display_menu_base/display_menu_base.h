@@ -24,6 +24,11 @@ class DisplayMenuComponent : public Component {
   void set_root_item(MenuItemMenu *item) { this->displayed_item_ = this->root_item_ = item; }
   void set_active(bool active) { this->active_ = active; }
   void set_mode(MenuMode mode) { this->mode_ = mode; }
+
+  /** Set whether the "right" input should be used to enter menu options.
+   * @param opt True to enable "right" input for menu entry, false to disable.
+   */
+  void set_right_for_menu_enter_opt(bool opt) { this->right_for_menu_enter_opt_ = opt; }
   void set_rows(uint8_t rows) { this->rows_ = rows; }
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -33,6 +38,7 @@ class DisplayMenuComponent : public Component {
   void left();
   void right();
   void enter();
+  void back();
 
   void show_main();
   void show();
@@ -68,6 +74,7 @@ class DisplayMenuComponent : public Component {
   uint8_t rows_;
   bool active_;
   MenuMode mode_;
+  bool right_for_menu_enter_opt_{true};
   MenuItemMenu *root_item_{nullptr};
 
   MenuItemMenu *displayed_item_{nullptr};

@@ -29,6 +29,7 @@ display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
 
 CONF_ROTARY = "rotary"
 CONF_JOYSTICK = "joystick"
+CONF_RIGHT_FOR_MENU_ENTER = "right_for_menu_enter"
 CONF_LABEL = "label"
 CONF_MENU = "menu"
 CONF_BACK = "back"
@@ -62,6 +63,7 @@ RightAction = display_menu_base_ns.class_("RightAction", automation.Action)
 EnterAction = display_menu_base_ns.class_("EnterAction", automation.Action)
 ShowAction = display_menu_base_ns.class_("ShowAction", automation.Action)
 HideAction = display_menu_base_ns.class_("HideAction", automation.Action)
+BackAction = display_menu_base_ns.class_("BackAction", automation.Action)
 ShowMainAction = display_menu_base_ns.class_("ShowMainAction", automation.Action)
 
 IsActiveCondition = display_menu_base_ns.class_(
@@ -267,6 +269,7 @@ DISPLAY_MENU_BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
         cv.GenerateID(CONF_ROOT_ITEM_ID): cv.declare_id(MenuItemMenu),
         cv.Optional(CONF_MODE, default=CONF_ROTARY): cv.enum(MENU_MODES),
+        cv.Optional(CONF_RIGHT_FOR_MENU_ENTER, default=True): cv.boolean,
         cv.Optional(CONF_ON_ENTER): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -332,6 +335,12 @@ async def menu_show_to_code(config, action_id, template_arg, args):
 
 @automation.register_action("display_menu.hide", HideAction, MENU_ACTION_SCHEMA)
 async def menu_hide_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action("display_menu.back", BackAction, MENU_ACTION_SCHEMA)
+async def menu_back_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -418,6 +427,7 @@ async def display_menu_to_code(menu, config):
     root_item = cg.new_Pvariable(config[CONF_ROOT_ITEM_ID])
     cg.add(menu.set_root_item(root_item))
     cg.add(menu.set_mode(config[CONF_MODE]))
+    cg.add(menu.set_right_for_menu_enter_opt(config[CONF_RIGHT_FOR_MENU_ENTER]))
     for c in config[CONF_ITEMS]:
         await menu_item_to_code(menu, c, root_item)
     for conf in config.get(CONF_ON_ENTER, []):

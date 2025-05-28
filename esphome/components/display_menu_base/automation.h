@@ -76,6 +76,16 @@ template<typename... Ts> class HideAction : public Action<Ts...> {
   DisplayMenuComponent *menu_;
 };
 
+template<typename... Ts> class BackAction : public Action<Ts...> {
+ public:
+  explicit BackAction(DisplayMenuComponent *menu) : menu_(menu) {}
+
+  void play(Ts... x) override { this->menu_->back(); }
+
+ protected:
+  DisplayMenuComponent *menu_;
+};
+
 template<typename... Ts> class ShowMainAction : public Action<Ts...> {
  public:
   explicit ShowMainAction(DisplayMenuComponent *menu) : menu_(menu) {}

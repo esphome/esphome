@@ -102,9 +102,36 @@ void DisplayMenuComponent::right() {
         }
         break;
       case MENU_ITEM_MENU:
-        changed = this->enter_menu_();
+        if (right_for_menu_enter_opt_)
+          changed = this->enter_menu_();
         break;
       default:
+        break;
+    }
+
+    if (changed)
+      this->draw_and_update();
+  }
+}
+
+void DisplayMenuComponent::back() {
+  if (this->check_healthy_and_active_()) {
+    bool changed = false;
+
+    switch (this->get_selected_item_()->get_type()) {
+      case MENU_ITEM_SELECT:
+      case MENU_ITEM_SWITCH:
+      case MENU_ITEM_NUMBER:
+      case MENU_ITEM_CUSTOM:
+        if (this->editing_) {
+          this->finish_editing_();
+          changed = true;
+        } else {
+          changed = this->leave_menu_();
+        }
+        break;
+      default:
+        changed = this->leave_menu_();
         break;
     }
 
