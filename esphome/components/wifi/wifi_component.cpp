@@ -122,7 +122,7 @@ void WiFiComponent::start() {
 
 void WiFiComponent::loop() {
   this->wifi_loop_();
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   if (this->has_sta()) {
     if (this->is_connected() != this->handled_connected_state_) {
