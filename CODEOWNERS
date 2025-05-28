@@ -139,6 +139,7 @@ esphome/components/es7210/* @kahrendt
 esphome/components/es7243e/* @kbx81
 esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
+esphome/components/es8388/* @P4uLT
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @Rapsssito @jesserockz
 esphome/components/esp32_ble_client/* @jesserockz
