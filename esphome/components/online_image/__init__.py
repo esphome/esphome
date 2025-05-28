@@ -213,7 +213,7 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(bool, "cached")], conf)
 
     for conf in config.get(CONF_ON_ERROR, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

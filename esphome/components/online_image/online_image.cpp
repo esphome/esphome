@@ -3,6 +3,10 @@
 #include "esphome/core/log.h"
 
 static const char *const TAG = "online_image";
+static const char *const ETAG_HEADER_NAME = "etag";
+static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
+static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
+static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 
 #include "image_decoder.h"
 
@@ -60,6 +64,8 @@ void OnlineImage::release() {
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
+    this->last_modified_ = "";
+    this->etag_ = "";
     this->end_connection_();
   }
 }
@@ -127,9 +133,17 @@ void OnlineImage::update() {
   }
   accept_header.value = accept_mime_type + ",*/*;q=0.8";
 
+  if (!this->etag_.empty()) {
+    headers.push_back(http_request::Header{IF_NONE_MATCH_HEADER_NAME, this->etag_});
+  }
+
+  if (!this->last_modified_.empty()) {
+    headers.push_back(http_request::Header{IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
+  }
+
   headers.push_back(accept_header);
 
-  this->downloader_ = this->parent_->get(this->url_, headers);
+  this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME});
 
   if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
@@ -141,7 +155,9 @@ void OnlineImage::update() {
   int http_code = this->downloader_->status_code;
   if (http_code == HTTP_CODE_NOT_MODIFIED) {
     // Image hasn't changed on server. Skip download.
+    ESP_LOGI(TAG, "Server returned HTTP 304 (Not Modified). Download skipped.");
     this->end_connection_();
+    this->download_finished_callback_.call(true);
     return;
   }
   if (http_code != HTTP_CODE_OK) {
@@ -201,8 +217,10 @@ void OnlineImage::loop() {
     ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d", this->downloader_->get_bytes_read(),
              this->width_, this->height_);
     ESP_LOGD(TAG, "Total time: %lds", ::time(nullptr) - this->start_time_);
+    this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
+    this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+    this->download_finished_callback_.call(false);
     this->end_connection_();
-    this->download_finished_callback_.call();
     return;
   }
   if (this->downloader_ == nullptr) {
@@ -325,7 +343,7 @@ bool OnlineImage::validate_url_(const std::string &url) {
   return true;
 }
 
-void OnlineImage::add_on_finished_callback(std::function<void()> &&callback) {
+void OnlineImage::add_on_finished_callback(std::function<void(bool)> &&callback) {
   this->download_finished_callback_.add(std::move(callback));
 }
 
