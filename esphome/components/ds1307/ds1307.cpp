@@ -10,7 +10,7 @@ namespace ds1307 {
 static const char *const TAG = "ds1307";
 
 void DS1307Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up DS1307...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_rtc_()) {
     this->mark_failed();
   }

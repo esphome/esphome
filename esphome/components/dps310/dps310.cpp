@@ -12,7 +12,7 @@ void DPS310Component::setup() {
   auto timer = DPS310_INIT_TIMEOUT;
   uint8_t reg = 0;
 
-  ESP_LOGCONFIG(TAG, "Setting up DPS310...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // first, reset the sensor
   if (!this->write_byte(DPS310_REG_RESET, DPS310_CMD_RESET)) {
     this->mark_failed();

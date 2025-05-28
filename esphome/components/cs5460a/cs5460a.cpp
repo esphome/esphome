@@ -52,7 +52,7 @@ bool CS5460AComponent::softreset_() {
 }
 
 void CS5460AComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CS5460A...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   float current_full_scale = (pga_gain_ == CS5460A_PGA_GAIN_10X) ? 0.25 : 0.10;
   float voltage_full_scale = 0.25;

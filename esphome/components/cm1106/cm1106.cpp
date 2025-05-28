@@ -20,7 +20,7 @@ uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
 }
 
 void CM1106Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CM1106...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t response[8] = {0};
   if (!this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))) {
     ESP_LOGE(TAG, "Communication with CM1106 failed!");

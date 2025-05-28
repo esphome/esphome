@@ -4,7 +4,7 @@ namespace esphome {
 namespace chsc6x {
 
 void CHSC6XTouchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CHSC6X Touchscreen...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);

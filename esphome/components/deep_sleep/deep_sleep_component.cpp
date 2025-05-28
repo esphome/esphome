@@ -10,7 +10,7 @@ static const char *const TAG = "deep_sleep";
 bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void DeepSleepComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   global_has_deep_sleep = true;
 
   const optional<uint32_t> run_duration = get_run_duration_();
@@ -23,7 +23,7 @@ void DeepSleepComponent::setup() {
 }
 
 void DeepSleepComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
+  ESP_LOGCONFIG(TAG, "Deep sleep:");
   if (this->sleep_duration_.has_value()) {
     uint32_t duration = *this->sleep_duration_ / 1000;
     ESP_LOGCONFIG(TAG, "  Sleep Duration: %" PRIu32 " ms", duration);
