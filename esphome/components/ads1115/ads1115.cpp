@@ -10,7 +10,7 @@ static const uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
 static const uint8_t ADS1115_REGISTER_CONFIG = 0x01;
 
 void ADS1115Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint16_t value;
   if (!this->read_byte_16(ADS1115_REGISTER_CONVERSION, &value)) {
     this->mark_failed();
@@ -68,7 +68,7 @@ void ADS1115Component::setup() {
   this->prev_config_ = config;
 }
 void ADS1115Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
+  ESP_LOGCONFIG(TAG, "ADS1115:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with ADS1115 failed!");

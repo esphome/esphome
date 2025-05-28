@@ -23,7 +23,7 @@ static const uint16_t ZP_CURRENT = 0x0000;
 static const uint16_t ZP_DEFAULT = 0xFFFF;
 
 void AGS10Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ags10...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   auto version = this->read_version_();
   if (version) {

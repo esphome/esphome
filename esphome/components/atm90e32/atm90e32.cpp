@@ -108,7 +108,7 @@ void ATM90E32Component::update() {
 }
 
 void ATM90E32Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ATM90E32 Component...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
 
   uint16_t mmode0 = 0x87;  // 3P4W 50Hz

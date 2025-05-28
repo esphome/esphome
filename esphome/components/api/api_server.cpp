@@ -27,7 +27,7 @@ APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 APIServer::APIServer() { global_api_server = this; }
 
 void APIServer::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->setup_controller();
 
 #ifdef USE_API_NOISE

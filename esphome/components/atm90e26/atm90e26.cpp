@@ -41,7 +41,7 @@ void ATM90E26Component::update() {
 }
 
 void ATM90E26Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ATM90E26 Component...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
 
   uint16_t mmode = 0x422;  // default values for everything but L/N line current gains

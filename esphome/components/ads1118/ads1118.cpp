@@ -8,7 +8,7 @@ static const char *const TAG = "ads1118";
 static const uint8_t ADS1118_DATA_RATE_860_SPS = 0b111;
 
 void ADS1118::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ads1118");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
 
   this->config_ = 0;

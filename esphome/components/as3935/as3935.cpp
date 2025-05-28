@@ -7,7 +7,7 @@ namespace as3935 {
 static const char *const TAG = "as3935";
 
 void AS3935Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AS3935...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   this->irq_pin_->setup();
   LOG_PIN("  IRQ Pin: ", this->irq_pin_);
