@@ -26,7 +26,7 @@ void ESPHomeOTAComponent::setup() {
   ota::register_ota_platform(this);
 #endif
 
-  server_ = socket::socket_ip(SOCK_STREAM, 0);
+  server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (server_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");
     this->mark_failed();
@@ -100,9 +100,12 @@ void ESPHomeOTAComponent::handle_() {
 #endif
 
   if (client_ == nullptr) {
-    struct sockaddr_storage source_addr;
-    socklen_t addr_len = sizeof(source_addr);
-    client_ = server_->accept((struct sockaddr *) &source_addr, &addr_len);
+    // Check if the server socket is ready before accepting
+    if (this->server_->ready()) {
+      struct sockaddr_storage source_addr;
+      socklen_t addr_len = sizeof(source_addr);
+      client_ = server_->accept((struct sockaddr *) &source_addr, &addr_len);
+    }
   }
   if (client_ == nullptr)
     return;

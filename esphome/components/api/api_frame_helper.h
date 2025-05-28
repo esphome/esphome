@@ -13,6 +13,7 @@
 
 #include "api_noise_context.h"
 #include "esphome/components/socket/socket.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace api {
@@ -90,6 +91,8 @@ class APIFrameHelper {
   virtual uint8_t frame_header_padding() = 0;
   // Get the frame footer size required by this protocol
   virtual uint8_t frame_footer_size() = 0;
+  // Check if socket has data ready to read
+  bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
 
  protected:
   // Struct for holding parsed frame data

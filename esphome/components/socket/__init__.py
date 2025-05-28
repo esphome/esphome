@@ -35,5 +35,7 @@ async def to_code(config):
         cg.add_define("USE_SOCKET_IMPL_LWIP_TCP")
     elif impl == IMPLEMENTATION_LWIP_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_LWIP_SOCKETS")
+        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
+        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
