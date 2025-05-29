@@ -15,10 +15,10 @@ void DeepSleepComponent::setup() {
 
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
-    ESP_LOGI(TAG, "Scheduling Deep Sleep to start in %" PRIu32 " ms", *run_duration);
+    ESP_LOGI(TAG, "Scheduling in %" PRIu32 " ms", *run_duration);
     this->set_timeout(*run_duration, [this]() { this->begin_sleep(); });
   } else {
-    ESP_LOGD(TAG, "Not scheduling Deep Sleep, as no run duration is configured.");
+    ESP_LOGD(TAG, "Not scheduling; no run duration configured");
   }
 }
 
@@ -57,7 +57,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     return;
   }
 
-  ESP_LOGI(TAG, "Beginning Deep Sleep");
+  ESP_LOGI(TAG, "Beginning sleep");
   if (this->sleep_duration_.has_value()) {
     ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
   }

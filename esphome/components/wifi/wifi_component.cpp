@@ -58,7 +58,7 @@ void WiFiComponent::setup() {
 }
 
 void WiFiComponent::start() {
-  ESP_LOGCONFIG(TAG, "Starting WiFi...");
+  ESP_LOGCONFIG(TAG, "Starting");
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   this->last_connected_ = millis();
 
@@ -71,7 +71,7 @@ void WiFiComponent::start() {
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
-    ESP_LOGD(TAG, "Loaded saved wifi settings: %s", save.ssid);
+    ESP_LOGD(TAG, "Loaded saved settings: %s", save.ssid);
 
     WiFiAP sta{};
     sta.set_ssid(save.ssid);
@@ -160,7 +160,7 @@ void WiFiComponent::loop() {
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
         if (!this->is_connected()) {
-          ESP_LOGW(TAG, "WiFi Connection lost... Reconnecting...");
+          ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
         } else {
@@ -201,7 +201,7 @@ void WiFiComponent::loop() {
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "Can't connect to WiFi, rebooting...");
+        ESP_LOGE(TAG, "Can't connect; rebooting");
         App.reboot();
       }
     }
@@ -310,7 +310,7 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
-  ESP_LOGI(TAG, "WiFi Connecting to '%s'...", ap.get_ssid().c_str());
+  ESP_LOGI(TAG, "Connecting to '%s'", ap.get_ssid().c_str());
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
   ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
@@ -427,7 +427,7 @@ void WiFiComponent::print_connect_params_() {
 
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   if (this->is_disabled()) {
-    ESP_LOGCONFIG(TAG, "  WiFi is disabled!");
+    ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
@@ -459,7 +459,7 @@ void WiFiComponent::enable() {
   if (this->state_ != WIFI_COMPONENT_STATE_DISABLED)
     return;
 
-  ESP_LOGD(TAG, "Enabling WIFI...");
+  ESP_LOGD(TAG, "Enabling");
   this->error_from_callback_ = false;
   this->state_ = WIFI_COMPONENT_STATE_OFF;
   this->start();
@@ -469,7 +469,7 @@ void WiFiComponent::disable() {
   if (this->state_ == WIFI_COMPONENT_STATE_DISABLED)
     return;
 
-  ESP_LOGD(TAG, "Disabling WIFI...");
+  ESP_LOGD(TAG, "Disabling");
   this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
@@ -614,7 +614,7 @@ void WiFiComponent::check_connecting_finished() {
     // We won't retry hidden networks unless a reconnect fails more than three times again
     this->retry_hidden_ = false;
 
-    ESP_LOGI(TAG, "WiFi Connected!");
+    ESP_LOGI(TAG, "Connected");
     this->print_connect_params_();
 
     if (this->has_ap()) {
@@ -644,7 +644,7 @@ void WiFiComponent::check_connecting_finished() {
 
   uint32_t now = millis();
   if (now - this->action_started_ > 30000) {
-    ESP_LOGW(TAG, "Timeout while connecting to WiFi.");
+    ESP_LOGW(TAG, "Connection timeout");
     this->retry_connect();
     return;
   }
@@ -660,18 +660,18 @@ void WiFiComponent::check_connecting_finished() {
   }
 
   if (status == WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND) {
-    ESP_LOGW(TAG, "WiFi network can not be found anymore.");
+    ESP_LOGW(TAG, "Network no longer found");
     this->retry_connect();
     return;
   }
 
   if (status == WiFiSTAConnectStatus::ERROR_CONNECT_FAILED) {
-    ESP_LOGW(TAG, "Connecting to WiFi network failed. Are the credentials wrong?");
+    ESP_LOGW(TAG, "Connection failed. Check credentials");
     this->retry_connect();
     return;
   }
 
-  ESP_LOGW(TAG, "WiFi Unknown connection status %d", (int) status);
+  ESP_LOGW(TAG, "Unknown connection status %d", (int) status);
   this->retry_connect();
 }
 

@@ -28,7 +28,7 @@ void IDFI2CBus::setup() {
 #endif
 
   if (port_ == I2C_NUM_MAX) {
-    ESP_LOGE(TAG, "Too many I2C buses configured. Max %u supported.", SOC_HP_I2C_NUM);
+    ESP_LOGE(TAG, "No more than %u buses supported", SOC_HP_I2C_NUM);
     this->mark_failed();
     return;
   }
@@ -99,13 +99,13 @@ void IDFI2CBus::dump_config() {
       break;
   }
   if (this->scan_) {
-    ESP_LOGI(TAG, "Results from i2c bus scan:");
+    ESP_LOGI(TAG, "Results from bus scan:");
     if (scan_results_.empty()) {
-      ESP_LOGI(TAG, "Found no i2c devices!");
+      ESP_LOGI(TAG, "Found no devices");
     } else {
       for (const auto &s : scan_results_) {
         if (s.second) {
-          ESP_LOGI(TAG, "Found i2c device at address 0x%02X", s.first);
+          ESP_LOGI(TAG, "Found device at address 0x%02X", s.first);
         } else {
           ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
         }
@@ -257,7 +257,7 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
 void IDFI2CBus::recover_() {
-  ESP_LOGI(TAG, "Performing I2C bus recovery");
+  ESP_LOGI(TAG, "Performing bus recovery");
 
   const gpio_num_t scl_pin = static_cast<gpio_num_t>(scl_pin_);
   const gpio_num_t sda_pin = static_cast<gpio_num_t>(sda_pin_);
@@ -294,7 +294,7 @@ void IDFI2CBus::recover_() {
   // with the SCL line. In that case, the I2C bus cannot be recovered.
   delayMicroseconds(half_period_usec);
   if (gpio_get_level(scl_pin) == 0) {
-    ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
+    ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the bus");
     recovery_result_ = RECOVERY_FAILED_SCL_LOW;
     return;
   }

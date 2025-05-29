@@ -50,7 +50,7 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   bool ret = WiFi.mode(static_cast<wifi_mode_t>(mode));
 
   if (!ret) {
-    ESP_LOGW(TAG, "Setting WiFi mode failed!");
+    ESP_LOGW(TAG, "Setting mode failed");
   }
 
   return ret;

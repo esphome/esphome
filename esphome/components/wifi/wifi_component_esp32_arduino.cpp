@@ -91,7 +91,7 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   bool ret = WiFiClass::mode(set_mode);
 
   if (!ret) {
-    ESP_LOGW(TAG, "Setting WiFi mode failed!");
+    ESP_LOGW(TAG, "Setting mode failed");
     return false;
   }
 

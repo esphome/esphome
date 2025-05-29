@@ -157,7 +157,7 @@ void APIServer::loop() {
     const uint32_t now = millis();
     if (!this->is_connected()) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "No client connected to API. Rebooting...");
+        ESP_LOGE(TAG, "No client connected; rebooting");
         App.reboot();
       }
       this->status_set_warning();
