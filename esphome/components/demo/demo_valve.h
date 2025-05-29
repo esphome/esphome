@@ -27,19 +27,23 @@ class DemoValve : public valve::Valve {
  protected:
   void control(const valve::ValveCall &call) override {
     if (call.get_position().has_value()) {
-      this->publish_state(*call.get_position());
+      this->position = *call.get_position();
+      this->publish_state();
       return;
     } else if (call.get_toggle().has_value()) {
       if (call.get_toggle().value()) {
         if (this->position == valve::VALVE_OPEN) {
-          this->publish_state(valve::VALVE_CLOSED);
+          this->position = valve::VALVE_CLOSED;
+          this->publish_state();
         } else {
-          this->publish_state(valve::VALVE_OPEN);
+          this->position = valve::VALVE_OPEN;
+          this->publish_state();
         }
       }
       return;
     } else if (call.get_stop()) {
-      this->publish_state(this->position);  // Keep the current position
+      this->current_operation = valve::VALVE_OPERATION_IDLE;
+      this->publish_state();  // Keep the current position
       return;
     }
   }

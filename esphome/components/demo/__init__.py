@@ -154,10 +154,6 @@ NUMBER_TYPES = {
     2: DemoNumberType.TYPE_2,
     3: DemoNumberType.TYPE_3,
 }
-SELECT_TYPES = {
-    1: DemoSelectType.TYPE_1,
-    2: DemoSelectType.TYPE_2,
-}
 TEXT_TYPES = {
     1: DemoTextType.TYPE_1,
     2: DemoTextType.TYPE_2,
@@ -439,18 +435,15 @@ CONFIG_SCHEMA = cv.Schema(
                 {
                     CONF_NAME: "Demo Select 1",
                     CONF_OPTIONS: ["Option 1", "Option 2", "Option 3"],
-                    CONF_TYPE: 1,
                 },
                 {
                     CONF_NAME: "Demo Select 2",
                     CONF_OPTIONS: ["Option A", "Option B", "Option C"],
-                    CONF_TYPE: 2,
                 },
             ],
         ): [
             select.select_schema(DemoSelect).extend(
                 {
-                    cv.Required(CONF_TYPE): cv.enum(SELECT_TYPES, int=True),
                     cv.Required(CONF_OPTIONS): cv.ensure_list(cv.string_strict),
                 }
             )
@@ -560,6 +553,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     for conf in config[CONF_ALARM_CONTROL_PANELS]:
         var = await alarm_control_panel.new_alarm_control_panel(conf)
+        cg.add(var.set_type(conf[CONF_TYPE]))
         await cg.register_component(var, conf)
 
     for conf in config[CONF_BINARY_SENSORS]:
