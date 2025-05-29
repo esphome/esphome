@@ -604,6 +604,10 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.id)
         return self.represent_stringify(value.id)
 
+    # The below override configures this dumper to indent output YAML properly:
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
 
 ESPHomeDumper.add_multi_representer(
     dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
