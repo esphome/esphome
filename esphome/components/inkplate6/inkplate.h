@@ -1,9 +1,9 @@
 #pragma once
 
+#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/i2c/i2c.h"
-#include "esphome/components/display/display_buffer.h"
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
@@ -92,6 +92,9 @@ class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
     if (this->is_ready())
       this->initialize_();
   }
+  void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
+  void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
+
   void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
   void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
@@ -221,6 +224,8 @@ class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
 
   bool block_partial_{true};
   bool greyscale_;
+  bool mirror_y_{false};
+  bool mirror_x_{false};
   bool partial_updating_;
 
   InkplateModel model_;
