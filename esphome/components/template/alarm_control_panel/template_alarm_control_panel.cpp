@@ -49,6 +49,7 @@ void TemplateAlarmControlPanel::dump_config() {
                   TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME));
     ESP_LOGCONFIG(TAG, "    Armed night bypass: %s",
                   TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT));
+    ESP_LOGCONFIG(TAG, "    Auto bypass: %s", TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_AUTO));
     ESP_LOGCONFIG(TAG, "    Chime mode: %s", TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME));
     const char *sensor_type;
     switch (sensor_info.second.type) {
@@ -101,6 +102,15 @@ void TemplateAlarmControlPanel::loop() {
       delay = this->arming_night_time_;
     }
     if ((millis() - this->last_update_) > delay) {
+#ifdef USE_BINARY_SENSOR
+      for (auto sensor_info : this->sensor_map_) {
+        // Check for sensors left on and set to bypass automatically and remove them from monitoring
+        if ((sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (sensor_info.first->state)) {
+          ESP_LOGW(TAG, "%s is left on and will be automatically bypassed", sensor_info.first->get_name().c_str());
+          this->bypassed_sensor_indicies_.push_back(sensor_info.second.store_index);
+        }
+      }
+#endif
       this->publish_state(this->desired_state_);
     }
     return;
@@ -137,6 +147,11 @@ void TemplateAlarmControlPanel::loop() {
     }
     // Check for triggered sensors
     if (sensor_info.first->state) {  // Sensor triggered?
+      // Skip if auto bypassed
+      if (std::count(this->bypassed_sensor_indicies_.begin(), this->bypassed_sensor_indicies_.end(),
+                     sensor_info.second.store_index) == 1) {
+        continue;
+      }
       // Skip if bypass armed home
       if (this->current_state_ == ACP_STATE_ARMED_HOME &&
           (sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME)) {
@@ -255,6 +270,9 @@ void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
       }
       this->desired_state_ = ACP_STATE_DISARMED;
       this->publish_state(ACP_STATE_DISARMED);
+#ifdef USE_BINARY_SENSOR
+      this->bypassed_sensor_indicies_.clear();
+#endif
     } else if (call.get_state() == ACP_STATE_TRIGGERED) {
       this->publish_state(ACP_STATE_TRIGGERED);
     } else if (call.get_state() == ACP_STATE_PENDING) {
