@@ -58,7 +58,7 @@ void QwiicPIRComponent::setup() {
 void QwiicPIRComponent::loop() {
   // Read Event Register
   if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
-    ESP_LOGW(TAG, "Failed to communicate with sensor");
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
 
     return;
   }

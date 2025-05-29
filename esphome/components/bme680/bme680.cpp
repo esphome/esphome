@@ -215,7 +215,7 @@ void BME680Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME680:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with BME680 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
@@ -307,7 +307,7 @@ void BME680Component::read_data_() {
       this->humidity_sensor_->publish_state(NAN);
     if (this->gas_resistance_sensor_ != nullptr)
       this->gas_resistance_sensor_->publish_state(NAN);
-    ESP_LOGW(TAG, "Communication with BME680 failed!");
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }

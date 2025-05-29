@@ -36,7 +36,7 @@ void STS3XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "STS3x:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with ST3x failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 

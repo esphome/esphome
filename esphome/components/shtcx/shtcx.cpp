@@ -60,7 +60,7 @@ void SHTCXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Model: %s (%04x)", to_string(this->type_), this->sensor_id_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with SHTCx failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 

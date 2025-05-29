@@ -59,7 +59,7 @@ void PMWCS3Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMWCS3");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication failed");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "e25", this->e25_sensor_);

@@ -127,7 +127,7 @@ void NAU7802Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with NAU7802 failed earlier, during setup");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
     return;
   }
   // Note these may differ from the values on the device if calbration has been run

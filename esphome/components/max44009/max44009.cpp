@@ -48,7 +48,7 @@ void MAX44009Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX44009:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MAX44009 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

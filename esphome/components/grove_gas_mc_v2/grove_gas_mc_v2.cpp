@@ -67,17 +67,17 @@ void GroveGasMultichannelV2Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case APP_INVALID:
-        ESP_LOGW(TAG, "Sensor reported invalid APP installed.");
+        ESP_LOGW(TAG, "Sensor reported invalid APP installed");
         break;
       case APP_START_FAILED:
-        ESP_LOGW(TAG, "Sensor reported APP start failed.");
+        ESP_LOGW(TAG, "Sensor reported APP start failed");
         break;
       case UNKNOWN:
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   }

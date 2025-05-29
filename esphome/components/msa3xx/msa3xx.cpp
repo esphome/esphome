@@ -159,7 +159,7 @@ void MSA3xxComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MSA3xx:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MSA3xx failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   ESP_LOGCONFIG(TAG, "  Model: %s", model_to_string(this->model_));
   ESP_LOGCONFIG(TAG, "  Power Mode: %s", power_mode_to_string(this->power_mode_));

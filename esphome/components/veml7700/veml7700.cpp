@@ -109,7 +109,7 @@ void VEML7700Component::dump_config() {
   LOG_SENSOR("  ", "Actual integration time", this->actual_integration_time_sensor_);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with I2C VEML7700/6030 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

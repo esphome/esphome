@@ -97,7 +97,7 @@ void APDS9306::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, "Communication with APDS9306 failed!");
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case WRONG_ID:
         ESP_LOGE(TAG, "APDS9306 has invalid id!");

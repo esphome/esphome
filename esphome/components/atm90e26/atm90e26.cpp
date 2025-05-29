@@ -135,7 +135,7 @@ void ATM90E26Component::dump_config() {
   ESP_LOGCONFIG("", "ATM90E26:");
   LOG_PIN("  CS Pin: ", this->cs_);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with ATM90E26 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage A", this->voltage_sensor_);

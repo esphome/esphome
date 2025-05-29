@@ -1,5 +1,7 @@
 #pragma once
 
+#include "log_const_en.h"
+
 #include <cassert>
 #include <cstdarg>
 // for PRIu32 and friends

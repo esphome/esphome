@@ -17,12 +17,10 @@ void NPI19Component::setup() {
   uint16_t raw_pressure(0);
   i2c::ErrorCode err = this->read_(raw_temperature, raw_pressure);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGCONFIG(TAG, "    I2C Communication Failed...");
+    ESP_LOGCONFIG(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
-
-  ESP_LOGCONFIG(TAG, "    Success...");
 }
 
 void NPI19Component::dump_config() {
@@ -90,7 +88,7 @@ void NPI19Component::update() {
   i2c::ErrorCode err = this->read_(raw_temperature, raw_pressure);
 
   if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "I2C Communication Failed");
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }

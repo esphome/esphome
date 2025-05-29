@@ -22,7 +22,7 @@ void PCF8574Component::dump_config() {
   LOG_I2C_DEVICE(this)
   ESP_LOGCONFIG(TAG, "  Is PCF8575: %s", YESNO(this->pcf8575_));
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PCF8574 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 bool PCF8574Component::digital_read(uint8_t pin) {

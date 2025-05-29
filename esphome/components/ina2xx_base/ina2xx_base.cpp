@@ -203,7 +203,7 @@ void INA2XX::dump_config() {
              this->dev_id_);
   }
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with INA2xx failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Shunt resistance = %f Ohm", this->shunt_resistance_ohm_);

@@ -20,7 +20,7 @@ void MCP4725::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with MCP4725 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

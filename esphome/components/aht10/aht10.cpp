@@ -55,7 +55,7 @@ void AHT10Component::setup() {
       break;
   }
   if (error_code != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication failed");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -64,7 +64,7 @@ void AHT10Component::setup() {
   while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
     if (this->read(&data, 1) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "Communication failed");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->mark_failed();
       return;
     }
@@ -117,7 +117,7 @@ void AHT10Component::read_data_() {
     } else {
       ESP_LOGD(TAG, "Invalid humidity, retrying...");
       if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-        this->status_set_warning("Communication failed");
+        this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       }
       this->restart_read_();
       return;
@@ -148,7 +148,7 @@ void AHT10Component::update() {
     return;
   this->start_time_ = millis();
   if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-    this->status_set_warning("Communication failed");
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   this->restart_read_();
@@ -160,7 +160,7 @@ void AHT10Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AHT10:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication failed");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

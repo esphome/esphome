@@ -41,7 +41,7 @@ void TSL2561Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TSL2561 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 
   int gain = this->gain_ == TSL2561_GAIN_1X ? 1 : 16;

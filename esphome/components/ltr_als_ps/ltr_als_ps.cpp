@@ -105,7 +105,7 @@ void LTRAlsPsComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with I2C LTR-303/329/55x/659 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

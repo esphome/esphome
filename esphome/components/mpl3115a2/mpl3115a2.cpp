@@ -37,7 +37,7 @@ void MPL3115A2Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, "Communication with MPL3115A2 failed!");
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case WRONG_ID:
         ESP_LOGE(TAG, "MPL3115A2 has invalid id");

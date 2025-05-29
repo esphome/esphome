@@ -26,7 +26,7 @@ void PCF8574LCDDisplay::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with LCD Display failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 void PCF8574LCDDisplay::write_n_bits(uint8_t value, uint8_t n) {

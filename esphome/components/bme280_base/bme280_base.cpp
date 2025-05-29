@@ -182,7 +182,7 @@ void BME280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with BME280 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case WRONG_CHIP_ID:
       ESP_LOGE(TAG, "BME280 has wrong chip ID! Is it a BME280?");

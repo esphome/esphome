@@ -65,7 +65,7 @@ void AGS10Component::dump_config() {
     case NONE:
       break;
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with AGS10 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case CRC_CHECK_FAILED:
       ESP_LOGE(TAG, "The crc check failed");

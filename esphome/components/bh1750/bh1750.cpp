@@ -118,7 +118,7 @@ void BH1750Sensor::dump_config() {
   LOG_SENSOR("", "BH1750", this);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with BH1750 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
   }
 
   LOG_UPDATE_INTERVAL(this);

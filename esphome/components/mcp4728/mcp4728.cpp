@@ -21,7 +21,7 @@ void MCP4728Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP4728:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MCP4728 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

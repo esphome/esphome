@@ -59,7 +59,7 @@ void SHT4XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHT4x:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with SHT4x failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

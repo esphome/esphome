@@ -79,7 +79,7 @@ void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with MMC5603 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   } else if (this->error_code_ == ID_REGISTERS) {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }

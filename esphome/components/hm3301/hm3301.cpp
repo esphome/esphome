@@ -23,7 +23,7 @@ void HM3301Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HM3301:");
   LOG_I2C_DEVICE(this);
   if (error_code_ == ERROR_COMM) {
-    ESP_LOGE(TAG, "Communication with HM3301 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 
   LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);

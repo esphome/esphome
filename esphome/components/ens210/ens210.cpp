@@ -163,7 +163,7 @@ void ENS210Component::update() {
 
     // Read T_VAL and H_VAL
     if (!this->read_bytes(ENS210_REGISTER_T_VAL, data, 6)) {
-      ESP_LOGE(TAG, "Communication with ENS210 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->status_set_warning();
       return;
     }

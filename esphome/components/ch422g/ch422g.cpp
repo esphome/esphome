@@ -37,7 +37,7 @@ void CH422GComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "CH422G:");
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with CH422G failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

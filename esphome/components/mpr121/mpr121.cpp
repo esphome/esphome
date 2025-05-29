@@ -72,7 +72,7 @@ void MPR121Component::dump_config() {
   LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with MPR121 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case WRONG_CHIP_STATE:
       ESP_LOGE(TAG, "MPR121 has wrong default value for CONFIG2?");

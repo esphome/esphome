@@ -17,8 +17,6 @@ void ADS1115Component::setup() {
     return;
   }
 
-  ESP_LOGCONFIG(TAG, "Configuring ADS1115...");
-
   uint16_t config = 0;
   // Clear single-shot bit
   //        0b0xxxxxxxxxxxxxxx
@@ -71,7 +69,7 @@ void ADS1115Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ADS1115:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with ADS1115 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1115Gain gain,

@@ -57,7 +57,7 @@ void CSE7761Component::setup() {
 void CSE7761Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CSE7761:");
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with CSE7761 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   this->check_uart_settings(38400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);

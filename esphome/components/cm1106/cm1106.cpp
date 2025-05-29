@@ -23,7 +23,7 @@ void CM1106Component::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t response[8] = {0};
   if (!this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))) {
-    ESP_LOGE(TAG, "Communication with CM1106 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -104,7 +104,7 @@ void CM1106Component::dump_config() {
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   this->check_uart_settings(9600);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with CM1106 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

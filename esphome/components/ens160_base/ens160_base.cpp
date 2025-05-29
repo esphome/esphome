@@ -279,7 +279,7 @@ void ENS160Component::dump_config() {
 
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication failed! Is the sensor connected?");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case READ_FAILED:
       ESP_LOGE(TAG, "Error reading from register");

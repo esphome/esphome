@@ -91,7 +91,7 @@ void DPS310Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Revision ID: %u", (this->prod_rev_id_ >> 4) & 0x0F);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with DPS310 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

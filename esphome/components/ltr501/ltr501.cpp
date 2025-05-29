@@ -113,7 +113,7 @@ void LTRAlsPs501Component::dump_config() {
   LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with I2C LTR-501/301/558 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 
