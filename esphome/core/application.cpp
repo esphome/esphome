@@ -160,6 +160,10 @@ void Application::loop() {
       int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
 #endif
 
+      // Process select() result:
+      // ret < 0: error (except EINTR which is normal)
+      // ret > 0: socket(s) have data ready - normal and expected
+      // ret == 0: timeout occurred - normal and expected
       if (ret < 0) {
         if (errno == EINTR) {
           // Interrupted by signal - this is normal, just continue
@@ -170,11 +174,6 @@ void Application::loop() {
           ESP_LOGW(TAG, "select() failed with errno %d", errno);
           delay(delay_time);
         }
-      } else if (ret > 0) {
-        ESP_LOGVV(TAG, "select() woke early: %d socket(s) ready (saved up to %ums)", ret, delay_time);
-      } else {
-        // ret == 0: timeout occurred (normal)
-        ESP_LOGVV(TAG, "select() timeout after %ums (no sockets ready)", delay_time);
       }
     } else {
       // No sockets registered, use regular delay
