@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -147,6 +148,10 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_WATCHDOG_TIMEOUT, default="8388ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=8388)),
+            ),
         }
     ),
     set_core_data,
@@ -188,6 +193,8 @@ async def to_code(config):
         "USE_ARDUINO_VERSION_CODE",
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
     )
+
+    cg.add_define("USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT])
 
 
 def add_pio_file(component: str, key: str, data: str):

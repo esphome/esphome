@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_URL,
+    CONF_WATCHDOG_TIMEOUT,
     PLATFORM_HOST,
     __version__,
 )
@@ -43,7 +44,6 @@ CONF_USERAGENT = "useragent"
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
-CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
