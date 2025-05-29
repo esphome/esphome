@@ -90,7 +90,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
-    if (this->role == ModbusRole::SERVER && (function_code == 0x3 || function_code == 0x4)) {
+    if (this->role == ModbusRole::SERVER && (function_code == 0x1 || function_code == 0x3 || function_code == 0x4)) {
       data_offset = 2;
       data_len = 4;
     }
