@@ -1,7 +1,9 @@
 #pragma once
 
+#include <array>
 #include <vector>
 #include <queue>
+#include <atomic>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -30,29 +32,55 @@ class Message : public std::vector<uint8_t> {
 };
 
 /**
- * class to manage a queue of pointers to Messages.
- * To be used in a pair:
- *  - one provides pre-allocated (but empty) Messages to be filled with data
- *  - the other is to re-cycle handled Messages for later re-use of their allocated space.
- * After initialization, their run-time operation does NOT use dynamic memory allocation:
- * not for the container itself, nor for the managed Messages.
- * Therefor these are safe use in an isr, unlike the std::queue.
+ * The MessageRingBuffer is a container for Frames to queue data in a consumer-producer
+ * application. The use of std::Atomics allows safe multi-thread operation when used with
+ * a single producer and single consumer thread, where each Atomic index is updated
+ * by one thread only.
+ * After initialization, it operates without dynamic memmory allocation.
+ * This allows the gpio isr to safely and efficiently pick-up and pass Frames.
+ * Due to its fixed memory size, it might return NULL pointers in case the buffer is full or empty.
  */
-template<bool have_data> class MessageQueue {
+template<unsigned int SIZE> class MessageRingBuffer {
  public:
-  MessageQueue(unsigned int capacity) : queue_{capacity, nullptr} {};
-  ~MessageQueue() {
-    for (auto &m : queue_) {
-      free(m);
+  MessageRingBuffer() : front_inx_{0}, back_inx_{0}, store_{} {
+    for (auto &t : store_) {
+      t = new Message;
+      t->reserve(Message::MAX_LENGTH);
     }
   }
-  void setup();
-  void push(Message *&t);
-  Message *pop();
-  int size() const { return queue_.size(); }
+  ~MessageRingBuffer() {
+    for (auto &t : store_) {
+      delete t;
+    }
+  }
+  // 'front' is used to access data, use that, and recycle its memory space for later use.
+  Message *front() const { return is_empty() ? nullptr : store_[front_inx_]; }
+  void push_front() { cyclic_incr(front_inx_); }
+  // 'back' is used to fetch a free Frame, fill with data, and queue for later pick-up
+  Message *back() const { return is_full() ? nullptr : (store_[back_inx_]->clear(), store_[back_inx_]); }
+  void push_back() { cyclic_incr(back_inx_); }
+  bool is_empty() const { return count() == 0; }
+  bool is_full() const { return count() == SIZE; }  // using safe wrap-around of unsignd int
+  void reset() {
+    front_inx_ = 0;
+    back_inx_ = 0;
+  }
 
  protected:
-  std::vector<Message *> queue_;
+  using Index = std::atomic<unsigned int>;
+  // this simple increment scheme is sufficiently 'atomic' if the front and back are each used by
+  // one thread only. (So, at most one reader thread and one writer thread in the application.)
+  int count() const {
+    int n = (int) (back_inx_ - front_inx_);
+    if (n < 0)
+      n += SIZE + 1;
+    return n;
+  }
+  void cyclic_incr(Index &inx) { inx = (inx == SIZE) ? 0 : (inx + 1); }
+  Index front_inx_;  // ranging 0 .. SIZE
+  Index back_inx_;   // ranging 0 .. SIZE
+  // if front_inx_ == back_inx_ the store is considered empty, so it can hold at most SIZE elements
+  std::array<Message *, SIZE + 1> store_;
 };
 
 class CECTransmit {
@@ -130,16 +158,14 @@ class CECReceive {
   enum class ReceiverState : uint8_t { IDLE, RECEIVING_BYTE, WAITING_FOR_EOM, WAITING_FOR_ACK, WAITING_FOR_EOM_ACK };
 
  public:
-  constexpr static int RECEIVE_QUEUE_CAPACITY = 4;
-  CECReceive(CECTransmit &xmit)
-      : xmit_(xmit), received_frames_(RECEIVE_QUEUE_CAPACITY), recycle_frames_(RECEIVE_QUEUE_CAPACITY) {}
+  constexpr static int MAX_FRAMES_QUEUED = 4;
+  CECReceive(CECTransmit &xmit) : xmit_(xmit) {}
   void setup(InternalGPIOPin *pin, uint8_t address);
   void dump_config();
   void set_promiscuous_mode(bool promiscuous) { promiscuous_mode_ = promiscuous; }
   void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
   bool get_monitor_mode() const { return monitor_mode_; }
-  MessageQueue<true> received_frames_;
-  MessageQueue<false> recycle_frames_;
+  MessageRingBuffer<MAX_FRAMES_QUEUED> frames_queue_;
 
  protected:
   static void gpio_isr_s(CECReceive *self);
