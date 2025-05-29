@@ -9,7 +9,6 @@ namespace gcja5 {
 
 class GCJA5Component : public Component, public uart::UARTDevice {
  public:
-  void setup() override;
   void dump_config() override;
   void loop() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
