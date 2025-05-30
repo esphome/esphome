@@ -3,3 +3,4 @@ substitutions:
   sda_pin: GPIO21
 
 <<: !include common.yaml
+
