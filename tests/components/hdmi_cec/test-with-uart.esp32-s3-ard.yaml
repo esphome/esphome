@@ -2,5 +2,6 @@
 substitutions:
   uart_pin: GPIO10
   cec_pin: GPIO12
+  has_hw_uart: id(cec_uart)->get_hw_serial() != nullptr
 
 <<: !include common_with_uart.yaml
