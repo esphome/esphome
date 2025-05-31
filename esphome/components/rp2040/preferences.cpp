@@ -114,7 +114,7 @@ class RP2040Preferences : public ESPPreferences {
     if (s_prevent_write)
       return false;
 
-    ESP_LOGD(TAG, "Saving preferences to flash...");
+    ESP_LOGD(TAG, "Saving");
 
     {
       InterruptLock lock;
@@ -129,7 +129,7 @@ class RP2040Preferences : public ESPPreferences {
   }
 
   bool reset() override {
-    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    ESP_LOGD(TAG, "Erasing storage");
     {
       InterruptLock lock;
       ::rp2040.idleOtherCore();
