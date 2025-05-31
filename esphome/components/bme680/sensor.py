@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     ICON_GAS_CYLINDER,
     STATE_CLASS_MEASUREMENT,
@@ -71,7 +71,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HECTOPASCAL,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
+                device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
