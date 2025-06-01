@@ -181,17 +181,19 @@ optional<bool> PMSX003Component::check_byte_() {
 
 bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
   switch (this->type_) {
+    case Type::PMS1003:
+    case Type::PMS3003:
+      return payload_length == 20;  // PMS1003: 2*13+2, PMS3003: 2*9+2 (Data 7/8/9 not set/reserved)
     case Type::PMSX003:
-      // The expected payload length is typically 28 bytes.
-      // However, a 20-byte payload check was already present in the code.
-      // No official documentation was found confirming this.
-      // Retaining this check to avoid breaking existing behavior.
-      return payload_length == 28 || payload_length == 20;  // 2*13+2
+      // Deprecated: Length 20 is for PMS3003 backwards compatibility
+      return payload_length == 28 || payload_length == 20;  // 2*13+2 (Data 13 not set/reserved)
     case Type::PMS5003S:
     case Type::PMS5003T:
       return payload_length == 28;  // 2*13+2 (Data 13 not set/reserved)
     case Type::PMS5003ST:
       return payload_length == 36;  // 2*17+2 (Data 16 not set/reserved)
+    case Type::PMS9003M:
+      return payload_length == 28;  // 2*13+2
   }
   return false;
 }
@@ -321,9 +323,10 @@ void PMSX003Component::parse_data_() {
   }
 
   // Firmware Version and Error Code
-  if (this->type_ == Type::PMS5003ST) {
-    const uint8_t firmware_version = this->data_[36];
-    const uint8_t error_code = this->data_[37];
+  if (this->type_ == Type::PMS1003 || this->type_ == Type::PMS5003ST || this->type_ == Type::PMS9003M) {
+    const uint8_t firmware_error_code_offset = (this->type_ == Type::PMS5003ST) ? 36 : 28;
+    const uint8_t firmware_version = this->data_[firmware_error_code_offset];
+    const uint8_t error_code = this->data_[firmware_error_code_offset + 1];
 
     ESP_LOGD(TAG, "Got Firmware Version: 0x%02X, Error Code: 0x%02X", firmware_version, error_code);
   }
