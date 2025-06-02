@@ -212,9 +212,9 @@ class Logger : public Component {
   }
 
   // Format string to explicit buffer with varargs
-  inline void printf_to_buffer_(const char *format, char *buffer, int *buffer_at, int buffer_size, ...) {
+  inline void printf_to_buffer_(char *buffer, int *buffer_at, int buffer_size, const char *format, ...) {
     va_list arg;
-    va_start(arg, buffer_size);
+    va_start(arg, format);
     this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, arg);
     va_end(arg);
   }
@@ -312,13 +312,13 @@ class Logger : public Component {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
     if (thread_name != nullptr) {
       // Non-main task with thread name
-      this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", buffer, buffer_at, buffer_size, color, letter, tag, line,
+      this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
                               ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
       return;
     }
 #endif
     // Main task or non ESP32/LibreTiny platform
-    this->printf_to_buffer_("%s[%s][%s:%03u]: ", buffer, buffer_at, buffer_size, color, letter, tag, line);
+    this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]: ", color, letter, tag, line);
   }
 
   inline void HOT format_body_to_buffer_(char *buffer, int *buffer_at, int buffer_size, const char *format,
