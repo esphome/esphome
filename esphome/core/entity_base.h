@@ -85,4 +85,11 @@ class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
   const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
 };
 
+// Entity information allocated dynamically
+struct EntityBaseInfo {
+  std::string name;
+  std::string object_id;
+  std::string icon;
+};
+
 }  // namespace esphome

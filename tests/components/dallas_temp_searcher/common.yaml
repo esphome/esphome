@@ -1,0 +1,9 @@
+one_wire:
+  id: one_wire1_id
+  platform: gpio
+  pin: 4
+
+dallas_temp_searcher:
+  id: dallas_searcher_id
+  one_wire_id: one_wire1_id
+  update_interval: 20s
