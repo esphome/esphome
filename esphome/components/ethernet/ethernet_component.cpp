@@ -79,7 +79,12 @@ void EthernetComponent::setup() {
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "ETH netif init error");
   err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "ETH event loop error");
+  // Errcode ESP_ERR_INVALID_STATE meaning: Default event loop has already been created
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
@@ -234,9 +239,11 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "GOT IPv6 event handler register error");
 #endif /* USE_NETWORK_IPV6 */
 
-  /* start Ethernet driver state machine */
-  err = esp_eth_start(this->eth_handle_);
-  ESPHL_ERROR_CHECK(err, "ETH start error");
+  if (this->enable_on_boot_ == false) {
+    ESP_LOGCONFIG(TAG, "Ethernet is disabled");
+    return;
+  }
+  start_interface();
 }
 
 void EthernetComponent::loop() {
@@ -323,8 +330,10 @@ void EthernetComponent::dump_config() {
       break;
   }
 
-  ESP_LOGCONFIG(TAG, "Ethernet:");
-  this->dump_connect_params_();
+  if (this->connected_) {
+    ESP_LOGCONFIG(TAG, "Ethernet:");
+    this->dump_connect_params_();
+  }
 #ifdef USE_ETHERNET_SPI
   ESP_LOGCONFIG(TAG, "  CLK Pin: %u", this->clk_pin_);
   ESP_LOGCONFIG(TAG, "  MISO Pin: %u", this->miso_pin_);
@@ -353,7 +362,7 @@ void EthernetComponent::dump_config() {
 
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
-bool EthernetComponent::can_proceed() { return this->is_connected(); }
+bool EthernetComponent::can_proceed() { return !this->enable_on_boot_ || this->is_connected(); }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
@@ -613,6 +622,12 @@ bool EthernetComponent::powerdown() {
     return false;
   }
   return true;
+}
+
+void EthernetComponent::start_interface() {
+  /* start Ethernet driver state machine */
+  esp_err_t err = esp_eth_start(this->eth_handle_);
+  ESPHL_ERROR_CHECK(err, "ETH start error");
 }
 
 #ifndef USE_ETHERNET_SPI

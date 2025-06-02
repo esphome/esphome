@@ -152,7 +152,8 @@ void WiFiComponent::wifi_pre_setup_() {
     return;
   }
   err = esp_event_loop_create_default();
-  if (err != ERR_OK) {
+  // Errcode ESP_ERR_INVALID_STATE meaning: Default event loop has already been created
+  if (err != ERR_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
     return;
   }

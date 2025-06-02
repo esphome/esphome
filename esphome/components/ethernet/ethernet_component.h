@@ -91,6 +91,9 @@ class EthernetComponent : public Component {
   eth_speed_t get_link_speed();
   bool powerdown();
 
+  void start_interface();
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -133,6 +136,7 @@ class EthernetComponent : public Component {
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
+  bool enable_on_boot_{true};
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
 #endif /* LWIP_IPV6 */

@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_ENABLE_ON_BOOT,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -39,7 +40,6 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriodMilliseconds, coroutine_with_priority
 import esphome.final_validate as fv
 
-CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
@@ -162,6 +162,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+        cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional("enable_mdns"): cv.invalid(
             "This option has been removed. Please use the [disabled] option under the "
             "new mdns component instead."
@@ -317,6 +318,7 @@ async def to_code(config):
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
 
     if CONF_MANUAL_IP in config:
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))

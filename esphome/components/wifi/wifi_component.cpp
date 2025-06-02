@@ -71,12 +71,13 @@ void WiFiComponent::start() {
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
-    ESP_LOGD(TAG, "Loaded saved wifi settings: %s", save.ssid);
-
-    WiFiAP sta{};
-    sta.set_ssid(save.ssid);
-    sta.set_password(save.password);
-    this->set_sta(sta);
+    if (strlen(save.ssid) > 0) {
+      ESP_LOGD(TAG, "Loaded saved wifi settings: %s", save.ssid);
+      WiFiAP sta{};
+      sta.set_ssid(save.ssid);
+      sta.set_password(save.password);
+      this->set_sta(sta);
+    }
   }
 
   if (this->has_sta()) {
