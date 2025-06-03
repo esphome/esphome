@@ -169,7 +169,7 @@ class ESP8266Preferences : public ESPPreferences {
 
   void setup() {
     s_flash_storage = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT
-    ESP_LOGVV(TAG, "Loading preferences from flash...");
+    ESP_LOGVV(TAG, "Loading preferences from flash");
 
     {
       InterruptLock lock;

@@ -48,7 +48,7 @@ void OtaHttpRequestComponent::flash() {
     return;
   }
 
-  ESP_LOGI(TAG, "Starting update...");
+  ESP_LOGI(TAG, "Starting update");
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
 #endif

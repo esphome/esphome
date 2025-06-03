@@ -29,7 +29,7 @@ void MPU6050Component::setup() {
     return;
   }
 
-  ESP_LOGV(TAG, "  Setting up Power Management...");
+  ESP_LOGV(TAG, "  Setting up Power Management");
   // Setup power management
   uint8_t power_management;
   if (!this->read_byte(MPU6050_REGISTER_POWER_MANAGEMENT_1, &power_management)) {
@@ -50,7 +50,7 @@ void MPU6050Component::setup() {
     return;
   }
 
-  ESP_LOGV(TAG, "  Setting up Gyro Config...");
+  ESP_LOGV(TAG, "  Setting up Gyro Config");
   // Set scale - 2000DPS
   uint8_t gyro_config;
   if (!this->read_byte(MPU6050_REGISTER_GYRO_CONFIG, &gyro_config)) {
@@ -66,7 +66,7 @@ void MPU6050Component::setup() {
     return;
   }
 
-  ESP_LOGV(TAG, "  Setting up Accel Config...");
+  ESP_LOGV(TAG, "  Setting up Accel Config");
   // Set range - 2G
   uint8_t accel_config;
   if (!this->read_byte(MPU6050_REGISTER_ACCEL_CONFIG, &accel_config)) {
@@ -99,7 +99,7 @@ void MPU6050Component::dump_config() {
 }
 
 void MPU6050Component::update() {
-  ESP_LOGV(TAG, "    Updating MPU6050...");
+  ESP_LOGV(TAG, "Updating");
   uint16_t raw_data[7];
   if (!this->read_bytes_16(MPU6050_REGISTER_ACCEL_XOUT_H, raw_data, 7)) {
     this->status_set_warning();

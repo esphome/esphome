@@ -260,7 +260,7 @@ void WiFiComponent::setup_ap_config_() {
     this->ap_.set_ssid(name);
   }
 
-  ESP_LOGCONFIG(TAG, "Setting up AP...");
+  ESP_LOGCONFIG(TAG, "Setting up AP");
 
   ESP_LOGCONFIG(TAG, "  AP SSID: '%s'", this->ap_.get_ssid().c_str());
   ESP_LOGCONFIG(TAG, "  AP Password: '%s'", this->ap_.get_password().c_str());
@@ -479,7 +479,7 @@ bool WiFiComponent::is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_
 
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
-  ESP_LOGD(TAG, "Starting scan...");
+  ESP_LOGD(TAG, "Starting scan");
   this->wifi_scan_start_(this->passive_scan_);
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
 }
@@ -623,7 +623,7 @@ void WiFiComponent::check_connecting_finished() {
         captive_portal::global_captive_portal->end();
       }
 #endif
-      ESP_LOGD(TAG, "Disabling AP...");
+      ESP_LOGD(TAG, "Disabling AP");
       this->wifi_mode_({}, false);
     }
 #ifdef USE_IMPROV
@@ -687,14 +687,14 @@ void WiFiComponent::retry_connect() {
       (this->num_retried_ > 3 || this->error_from_callback_)) {
     if (this->num_retried_ > 5) {
       // If retry failed for more than 5 times, let's restart STA
-      ESP_LOGW(TAG, "Restarting WiFi adapter...");
+      ESP_LOGW(TAG, "Restarting WiFi adapter");
       this->wifi_mode_(false, {});
       delay(100);  // NOLINT
       this->num_retried_ = 0;
       this->retry_hidden_ = false;
     } else {
       // Try hidden networks after 3 failed retries
-      ESP_LOGD(TAG, "Retrying with hidden networks...");
+      ESP_LOGD(TAG, "Retrying with hidden networks");
       this->retry_hidden_ = true;
       this->num_retried_++;
     }

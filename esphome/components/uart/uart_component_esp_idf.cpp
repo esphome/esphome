@@ -234,7 +234,7 @@ int IDFUARTComponent::available() {
 }
 
 void IDFUARTComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   xSemaphoreTake(this->lock_, portMAX_DELAY);
   uart_wait_tx_done(this->uart_num_, portMAX_DELAY);
   xSemaphoreGive(this->lock_);

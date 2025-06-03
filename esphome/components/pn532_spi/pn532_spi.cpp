@@ -51,7 +51,7 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
   delay(2);
   this->write_byte(0x03);
 
-  ESP_LOGV(TAG, "Reading data...");
+  ESP_LOGV(TAG, "Reading data");
 
   data.resize(len);
   this->read_array(data.data(), len);

@@ -686,7 +686,7 @@ void ATM90E32Component::restore_power_offset_calibrations_() {
 }
 
 void ATM90E32Component::clear_gain_calibrations() {
-  ESP_LOGI(TAG, "[CALIBRATION] Clearing stored gain calibrations and restoring config-defined values...");
+  ESP_LOGI(TAG, "[CALIBRATION] Clearing stored gain calibrations and restoring config-defined values");
 
   for (int phase = 0; phase < 3; phase++) {
     gain_phase_[phase].voltage_gain = this->phase_[phase].voltage_gain_;

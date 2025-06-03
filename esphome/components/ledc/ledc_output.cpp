@@ -139,7 +139,7 @@ void LEDCOutput::write_state(float state) {
 }
 
 void LEDCOutput::setup() {
-  ESP_LOGV(TAG, "Entering setup...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 #ifdef USE_ARDUINO
   this->update_frequency(this->frequency_);
   this->turn_off();
@@ -207,14 +207,14 @@ void LEDCOutput::update_frequency(float frequency) {
   this->bit_depth_ = bit_depth_opt.value_or(8);
   this->frequency_ = frequency;
 #ifdef USE_ARDUINO
-  ESP_LOGV(TAG, "Using Arduino API - Trying to define channel, frequency and bit depth...");
+  ESP_LOGV(TAG, "Using Arduino API - Trying to define channel, frequency and bit depth");
   u_int32_t configured_frequency = 0;
 
   // Configure LEDC channel, frequency and bit depth with fallback
   int attempt_count_max = SETUP_ATTEMPT_COUNT_MAX;
   while (attempt_count_max > 0 && configured_frequency == 0) {
-    ESP_LOGV(TAG, "Initializing channel %u with frequency %.1f and bit depth of %u...", this->channel_,
-             this->frequency_, this->bit_depth_);
+    ESP_LOGV(TAG, "Initializing channel %u with frequency %.1f and bit depth of %u", this->channel_, this->frequency_,
+             this->bit_depth_);
     configured_frequency = ledcSetup(this->channel_, frequency, this->bit_depth_);
     if (configured_frequency != 0) {
       this->initialized_ = true;

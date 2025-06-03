@@ -527,7 +527,7 @@ void BedJetHub::dispatch_status_() {
     }
 
     if (this->timeout_ > 0 && diff > this->timeout_ && this->parent()->enabled) {
-      ESP_LOGW(TAG, "[%s] Timed out after %" PRId32 " sec. Retrying...", this->get_name().c_str(), this->timeout_);
+      ESP_LOGW(TAG, "[%s] Timed out after %" PRId32 " sec. Retrying", this->get_name().c_str(), this->timeout_);
       // set_enabled(false) will only close the connection if state != IDLE.
       this->parent()->set_state(espbt::ClientState::CONNECTING);
       this->parent()->set_enabled(false);

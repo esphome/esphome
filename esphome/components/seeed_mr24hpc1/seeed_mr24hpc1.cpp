@@ -533,7 +533,7 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       this->custom_mode_number_->publish_state(0);
     }
     if (this->custom_mode_end_text_sensor_ != nullptr) {
-      this->custom_mode_end_text_sensor_->publish_state("Setup in progress...");
+      this->custom_mode_end_text_sensor_->publish_state("Setup in progress");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x81) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);

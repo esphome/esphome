@@ -306,7 +306,7 @@ void LTRAlsPs501Component::configure_als_() {
 
   uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGV(TAG, "Waiting for ALS device to become active...");
+    ESP_LOGV(TAG, "Waiting for ALS device to become active");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (!als_ctrl.als_mode_active && tries--);  // while active mode is not set - keep waiting

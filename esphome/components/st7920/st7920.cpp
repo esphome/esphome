@@ -129,7 +129,7 @@ void HOT ST7920::draw_absolute_pixel_internal(int x, int y, Color color) {
 }
 
 void ST7920::display_init_() {
-  ESP_LOGD(TAG, "Initializing display...");
+  ESP_LOGD(TAG, "Initializing display");
   this->command_(LCD_BASIC);      // 8bit mode
   this->command_(LCD_BASIC);      // 8bit mode
   this->command_(LCD_CLS);        // clear screen

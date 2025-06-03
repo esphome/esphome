@@ -99,7 +99,7 @@ void ESP8266UartComponent::setup() {
 }
 
 void ESP8266UartComponent::load_settings(bool dump_config) {
-  ESP_LOGCONFIG(TAG, "Loading UART bus settings...");
+  ESP_LOGCONFIG(TAG, "Loading UART bus settings");
   if (this->hw_serial_ != nullptr) {
     SerialConfig config = static_cast<SerialConfig>(get_config());
     this->hw_serial_->begin(this->baud_rate_, config);
@@ -193,7 +193,7 @@ int ESP8266UartComponent::available() {
   }
 }
 void ESP8266UartComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   if (this->hw_serial_ != nullptr) {
     this->hw_serial_->flush();
   } else {

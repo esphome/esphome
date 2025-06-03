@@ -830,7 +830,7 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
 
     switch (this->next_task_) {
       case EP_CLEAN:
-        ESP_LOGD(TAG, "  Tag cleaning...");
+        ESP_LOGD(TAG, "  Tag cleaning");
         if (this->clean_endpoint_(working_endpoint.tag->get_uid()) != nfc::STATUS_OK) {
           ESP_LOGE(TAG, "  Tag cleaning incomplete");
         }
@@ -838,7 +838,7 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
         break;
 
       case EP_FORMAT:
-        ESP_LOGD(TAG, "  Tag formatting...");
+        ESP_LOGD(TAG, "  Tag formatting");
         if (this->format_endpoint_(working_endpoint.tag->get_uid()) != nfc::STATUS_OK) {
           ESP_LOGE(TAG, "Error formatting tag as NDEF");
         }
@@ -847,8 +847,8 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
 
       case EP_WRITE:
         if (this->next_task_message_to_write_ != nullptr) {
-          ESP_LOGD(TAG, "  Tag writing...");
-          ESP_LOGD(TAG, "  Tag formatting...");
+          ESP_LOGD(TAG, "  Tag writing");
+          ESP_LOGD(TAG, "  Tag formatting");
           if (this->format_endpoint_(working_endpoint.tag->get_uid()) != nfc::STATUS_OK) {
             ESP_LOGE(TAG, "  Tag could not be formatted for writing");
           } else {

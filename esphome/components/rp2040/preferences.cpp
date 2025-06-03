@@ -87,7 +87,7 @@ class RP2040Preferences : public ESPPreferences {
   RP2040Preferences() : eeprom_sector_(&_EEPROM_start) {}
   void setup() {
     s_flash_storage = new uint8_t[RP2040_FLASH_STORAGE_SIZE];  // NOLINT
-    ESP_LOGVV(TAG, "Loading preferences from flash...");
+    ESP_LOGVV(TAG, "Loading preferences from flash");
     memcpy(s_flash_storage, this->eeprom_sector_, RP2040_FLASH_STORAGE_SIZE);
   }
 

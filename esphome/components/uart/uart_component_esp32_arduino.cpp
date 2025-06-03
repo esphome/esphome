@@ -191,7 +191,7 @@ bool ESP32ArduinoUARTComponent::read_array(uint8_t *data, size_t len) {
 
 int ESP32ArduinoUARTComponent::available() { return this->hw_serial_->available(); }
 void ESP32ArduinoUARTComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   this->hw_serial_->flush();
 }
 

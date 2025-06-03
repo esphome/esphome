@@ -75,7 +75,7 @@ void IDFI2CBus::setup() {
   }
   initialized_ = true;
   if (this->scan_) {
-    ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
+    ESP_LOGV(TAG, "Scanning bus for active devices");
     this->i2c_scan_();
   }
 }

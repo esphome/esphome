@@ -249,7 +249,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     ESP_LOGV(TAG, "Connection closed");
     return this->upload_end_(false);
   } else {
-    ESP_LOGV(TAG, "File size check passed. Proceeding...");
+    ESP_LOGV(TAG, "File size check passed. Proceeding");
   }
   this->content_length_ = this->tft_size_;
 

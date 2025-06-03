@@ -38,7 +38,7 @@ void CM1106Component::update() {
   }
 
   if (response[0] != 0x16 || response[1] != 0x05 || response[2] != 0x01) {
-    ESP_LOGW(TAG, "Got wrong UART response from CM1106: %02X %02X %02X %02X...", response[0], response[1], response[2],
+    ESP_LOGW(TAG, "Got wrong UART response from CM1106: %02X %02X %02X %02X", response[0], response[1], response[2],
              response[3]);
     this->status_set_warning();
     return;

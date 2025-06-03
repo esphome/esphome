@@ -119,7 +119,7 @@ void ESPHomeOTAComponent::handle_() {
     return;
   }
 
-  ESP_LOGD(TAG, "Starting update from %s...", this->client_->getpeername().c_str());
+  ESP_LOGD(TAG, "Starting update from %s", this->client_->getpeername().c_str());
   this->status_set_warning();
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);

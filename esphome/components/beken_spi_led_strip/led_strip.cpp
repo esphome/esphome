@@ -256,7 +256,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->last_refresh_ = now;
   this->mark_shown_();
 
-  ESP_LOGVV(TAG, "Writing RGB values to bus...");
+  ESP_LOGVV(TAG, "Writing RGB values to bus");
 
   if (spi_data == nullptr) {
     ESP_LOGE(TAG, "SPI not initialized");

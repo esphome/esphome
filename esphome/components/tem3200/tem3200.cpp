@@ -43,7 +43,6 @@ void TEM3200Component::setup() {
       this->status_set_warning();
       break;
   }
-  ESP_LOGCONFIG(TAG, "    Success...");
 }
 
 void TEM3200Component::dump_config() {

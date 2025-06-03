@@ -15,7 +15,7 @@ void RemoteTransmitterComponent::setup() {
 }
 
 void RemoteTransmitterComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Remote Transmitter...");
+  ESP_LOGCONFIG(TAG, "Remote Transmitter:");
   ESP_LOGCONFIG(TAG, "  Carrier Duty: %u%%", this->carrier_duty_percent_);
   LOG_PIN("  Pin: ", this->pin_);
 }
@@ -74,7 +74,7 @@ void RemoteTransmitterComponent::space_(uint32_t usec) {
 }
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
-  ESP_LOGD(TAG, "Sending remote code...");
+  ESP_LOGD(TAG, "Sending remote code");
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   this->target_time_ = 0;

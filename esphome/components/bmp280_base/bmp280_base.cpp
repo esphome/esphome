@@ -155,7 +155,7 @@ inline uint8_t oversampling_to_time(BMP280Oversampling over_sampling) { return (
 
 void BMP280Component::update() {
   // Enable sensor
-  ESP_LOGV(TAG, "Sending conversion request...");
+  ESP_LOGV(TAG, "Sending conversion request");
   uint8_t meas_value = 0;
   meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_value |= (this->pressure_oversampling_ & 0b111) << 2;

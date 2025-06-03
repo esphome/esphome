@@ -28,7 +28,7 @@ static const uint8_t PCA9685_MODE1_SLEEP = 0b00010000;
 void PCA9685Output::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
 
-  ESP_LOGV(TAG, "  Resetting devices...");
+  ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_bytes(PCA9685_REGISTER_SOFTWARE_RESET, nullptr, 0)) {
     this->mark_failed();
     return;

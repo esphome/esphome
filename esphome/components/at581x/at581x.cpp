@@ -75,7 +75,7 @@ void AT581XComponent::setup() { ESP_LOGCONFIG(TAG, "Running setup"); }
 void AT581XComponent::dump_config() { LOG_I2C_DEVICE(this); }
 #define ARRAY_SIZE(X) (sizeof(X) / sizeof((X)[0]))
 bool AT581XComponent::i2c_write_config() {
-  ESP_LOGCONFIG(TAG, "Writing new config for AT581X...");
+  ESP_LOGCONFIG(TAG, "Writing new config for AT581X");
   ESP_LOGCONFIG(TAG, "Frequency: %dMHz", this->freq_);
   ESP_LOGCONFIG(TAG, "Sensing distance: %d", this->delta_);
   ESP_LOGCONFIG(TAG, "Power: %dµA", this->power_);

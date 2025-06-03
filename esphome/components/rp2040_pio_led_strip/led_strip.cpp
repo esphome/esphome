@@ -138,7 +138,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
-  ESP_LOGVV(TAG, "Writing state...");
+  ESP_LOGVV(TAG, "Writing state");
 
   if (this->is_failed()) {
     ESP_LOGW(TAG, "Light is in failed state, not writing state.");

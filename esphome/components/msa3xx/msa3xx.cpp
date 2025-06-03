@@ -248,10 +248,10 @@ void MSA3xxComponent::loop() {
 }
 
 void MSA3xxComponent::update() {
-  ESP_LOGV(TAG, "Updating MSA3xx...");
+  ESP_LOGV(TAG, "Updating");
 
   if (!this->is_ready()) {
-    ESP_LOGV(TAG, "Component MSA3xx not ready for update");
+    ESP_LOGV(TAG, "Not ready for update");
     return;
   }
   ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}; ", this->data_.x, this->data_.y,

@@ -84,7 +84,7 @@ class ESP32Preferences : public ESPPreferences {
     if (err == 0)
       return;
 
-    ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS...", esp_err_to_name(err));
+    ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS", esp_err_to_name(err));
     nvs_flash_deinit();
     nvs_flash_erase();
     nvs_flash_init();

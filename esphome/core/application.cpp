@@ -45,8 +45,8 @@ void Application::register_component_(Component *comp) {
   this->components_.push_back(comp);
 }
 void Application::setup() {
-  ESP_LOGI(TAG, "Running through setup()...");
-  ESP_LOGV(TAG, "Sorting components by setup priority...");
+  ESP_LOGI(TAG, "Running through setup()");
+  ESP_LOGV(TAG, "Sorting components by setup priority");
   std::stable_sort(this->components_.begin(), this->components_.end(), [](const Component *a, const Component *b) {
     return a->get_actual_setup_priority() > b->get_actual_setup_priority();
   });
@@ -215,14 +215,14 @@ void IRAM_ATTR HOT Application::feed_wdt(uint32_t time) {
   }
 }
 void Application::reboot() {
-  ESP_LOGI(TAG, "Forcing a reboot...");
+  ESP_LOGI(TAG, "Forcing a reboot");
   for (auto it = this->components_.rbegin(); it != this->components_.rend(); ++it) {
     (*it)->on_shutdown();
   }
   arch_restart();
 }
 void Application::safe_reboot() {
-  ESP_LOGI(TAG, "Rebooting safely...");
+  ESP_LOGI(TAG, "Rebooting safely");
   run_safe_shutdown_hooks();
   arch_restart();
 }

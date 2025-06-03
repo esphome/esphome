@@ -115,7 +115,7 @@ void AHT10Component::read_data_() {
     if (this->humidity_sensor_ == nullptr) {
       ESP_LOGV(TAG, "Invalid humidity (reading not required)");
     } else {
-      ESP_LOGD(TAG, "Invalid humidity, retrying...");
+      ESP_LOGD(TAG, "Invalid humidity, retrying");
       if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
         this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       }

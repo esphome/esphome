@@ -13,7 +13,7 @@ void ST7567::setup() {
 }
 
 void ST7567::display_init_() {
-  ESP_LOGD(TAG, "Initializing ST7567 display...");
+  ESP_LOGD(TAG, "Initializing display");
   this->display_init_registers_();
   this->clear();
   this->write_display_data();
@@ -42,7 +42,7 @@ void ST7567::display_init_registers_() {
 }
 
 void ST7567::display_sw_refresh_() {
-  ESP_LOGD(TAG, "Performing refresh sequence...");
+  ESP_LOGD(TAG, "Performing refresh sequence");
   this->command(ST7567_SW_REFRESH);
   this->display_init_registers_();
 }
