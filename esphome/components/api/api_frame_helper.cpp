@@ -780,7 +780,7 @@ extern "C" {
 // declare how noise generates random bytes (here with a good HWRNG based on the RF system)
 void noise_rand_bytes(void *output, size_t len) {
   if (!esphome::random_bytes(reinterpret_cast<uint8_t *>(output), len)) {
-    ESP_LOGE(TAG, "Failed to acquire random bytes, rebooting!");
+    ESP_LOGE(TAG, "Acquiring random bytes failed; rebooting");
     arch_restart();
   }
 }
