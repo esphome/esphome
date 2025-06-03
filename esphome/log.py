@@ -59,7 +59,13 @@ class ESPHomeLogFormatter(logging.Formatter):
             "ERROR": AnsiFore.RED.value,
             "CRITICAL": AnsiFore.RED.value,
         }.get(record.levelname, "")
-        return f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
+        message = f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
+        if CORE.dashboard:
+            try:
+                message = message.replace("\033", "\\033")
+            except UnicodeEncodeError:
+                pass
+        return message
 
 
 def setup_log(
