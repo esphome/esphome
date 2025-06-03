@@ -13,13 +13,15 @@ from esphome.const import (
     CONF_TIME,
     CONF_TRIGGER_ID,
     CONF_TYPE,
+    CONF_X,
+    CONF_Y,
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, CONF_X, CONF_Y, LV_GRAD_DIR
+from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import LvglComponent, lv_event_t_ptr
@@ -354,8 +356,8 @@ ALIGN_TO_SCHEMA = {
         {
             cv.Required(CONF_ID): cv.use_id(lv_obj_t),
             cv.Required(df.CONF_ALIGN): df.ALIGN_ALIGNMENTS.one_of,
-            cv.Optional(df.CONF_X, default=0): lvalid.pixels_or_percent,
-            cv.Optional(df.CONF_Y, default=0): lvalid.pixels_or_percent,
+            cv.Optional(CONF_X, default=0): lvalid.pixels_or_percent,
+            cv.Optional(CONF_Y, default=0): lvalid.pixels_or_percent,
         }
     )
 }
