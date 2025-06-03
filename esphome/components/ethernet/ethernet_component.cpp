@@ -245,33 +245,33 @@ void EthernetComponent::loop() {
   switch (this->state_) {
     case EthernetComponentState::STOPPED:
       if (this->started_) {
-        ESP_LOGI(TAG, "Starting ethernet connection");
+        ESP_LOGI(TAG, "Starting connection");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       }
       break;
     case EthernetComponentState::CONNECTING:
       if (!this->started_) {
-        ESP_LOGI(TAG, "Stopped ethernet connection");
+        ESP_LOGI(TAG, "Stopped connection");
         this->state_ = EthernetComponentState::STOPPED;
       } else if (this->connected_) {
         // connection established
-        ESP_LOGI(TAG, "Connected via Ethernet!");
+        ESP_LOGI(TAG, "Connected");
         this->state_ = EthernetComponentState::CONNECTED;
 
         this->dump_connect_params_();
         this->status_clear_warning();
       } else if (now - this->connect_begin_ > 15000) {
-        ESP_LOGW(TAG, "Connecting via ethernet failed! Re-connecting...");
+        ESP_LOGW(TAG, "Connecting failed; reconnecting");
         this->start_connect_();
       }
       break;
     case EthernetComponentState::CONNECTED:
       if (!this->started_) {
-        ESP_LOGI(TAG, "Stopped ethernet connection");
+        ESP_LOGI(TAG, "Stopped connection");
         this->state_ = EthernetComponentState::STOPPED;
       } else if (!this->connected_) {
-        ESP_LOGW(TAG, "Connection via Ethernet lost! Re-connecting...");
+        ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       }
