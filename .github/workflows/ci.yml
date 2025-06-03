@@ -296,7 +296,7 @@ jobs:
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR
             pio_cache_key: tidy-zephyr
-            ignore_errors: true
+            ignore_errors: false
 
     steps:
       - name: Check out code from GitHub
