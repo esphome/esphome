@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
+from esphome.components.const import CONF_REQUEST_HEADERS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
@@ -51,7 +52,6 @@ CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
 CONF_ON_RESPONSE = "on_response"
 CONF_HEADERS = "headers"
-CONF_REQUEST_HEADERS = "request_headers"
 CONF_COLLECT_HEADERS = "collect_headers"
 CONF_BODY = "body"
 CONF_JSON = "json"
