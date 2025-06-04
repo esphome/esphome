@@ -281,6 +281,7 @@ display:
     id: main_lcd
     update_interval: 5s
     command_spacing: 5ms
+    max_queue_size: 50
     on_sleep:
       then:
         lambda: 'ESP_LOGD("display","Display went to sleep");'

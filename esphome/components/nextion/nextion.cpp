@@ -173,6 +173,10 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_COMMAND_SPACING
   ESP_LOGCONFIG(TAG, "  Command spacing:  %" PRIu8 "ms", this->command_pacer_.get_spacing());
 #endif  // USE_NEXTION_COMMAND_SPACING
+
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  ESP_LOGCONFIG(TAG, "  Max queue size:   %zu", this->max_queue_size_);
+#endif
 }
 
 float Nextion::get_setup_priority() const { return setup_priority::DATA; }
@@ -998,11 +1002,24 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
 }
 
 /**
- * @brief
+ * @brief Add a command to the Nextion queue that expects no response.
  *
- * @param variable_name Name for the queue
+ * This is typically used for write-only operations such as variable assignments or component updates
+ * where no return value or acknowledgment is expected from the display.
+ *
+ * If the `max_queue_size` limit is configured and reached, the command will be skipped.
+ *
+ * @param variable_name Name of the variable or component associated with the command.
  */
 void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
+    ESP_LOGW(TAG, "Nextion queue full (%zu entries), dropping NORESULT command: %s", this->nextion_queue_.size(),
+             variable_name.c_str());
+    return;
+  }
+#endif
+
   ExternalRAMAllocator<nextion::NextionQueue> allocator(ExternalRAMAllocator<nextion::NextionQueue>::ALLOW_FAILURE);
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);
   if (nextion_queue == nullptr) {
@@ -1138,9 +1155,26 @@ void Nextion::add_no_result_to_queue_with_set_internal_(const std::string &varia
                                             state_value.c_str());
 }
 
+/**
+ * @brief Queue a GET command for a component that expects a response from the Nextion display.
+ *
+ * This method is used for querying values such as sensor states, text content, or switch status.
+ * The component will be added to the Nextion queue only if the display is already set up,
+ * the queue has not reached the configured maximum size (if set), and the command is sent successfully.
+ *
+ * @param component Pointer to the Nextion component that will handle the response.
+ */
 void Nextion::add_to_get_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->ignore_is_setup_))
     return;
+
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
+    ESP_LOGW(TAG, "Nextion queue full (%zu entries), dropping GET for \"%s\"", this->nextion_queue_.size(),
+             component->get_variable_name().c_str());
+    return;
+  }
+#endif
 
   ExternalRAMAllocator<nextion::NextionQueue> allocator(ExternalRAMAllocator<nextion::NextionQueue>::ALLOW_FAILURE);
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);

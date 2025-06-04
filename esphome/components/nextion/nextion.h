@@ -75,6 +75,20 @@ class NextionCommandPacer {
 
 class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  /**
+   * @brief Set the maximum allowed queue size
+   * @param size Max number of entries allowed in nextion_queue_
+   */
+  inline void set_max_queue_size(size_t size) { this->max_queue_size_ = size; }
+
+  /**
+   * @brief Get the maximum allowed queue size
+   * @return Current limit (0 = unlimited)
+   */
+  inline size_t get_max_queue_size() const { return this->max_queue_size_; }
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
+
 #ifdef USE_NEXTION_COMMAND_SPACING
   /**
    * @brief Set the command spacing for the display
@@ -1273,6 +1287,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool is_connected() { return this->is_connected_; }
 
  protected:
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  size_t max_queue_size_{0};
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
 #ifdef USE_NEXTION_COMMAND_SPACING
   NextionCommandPacer command_pacer_{0};
 #endif  // USE_NEXTION_COMMAND_SPACING
