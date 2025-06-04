@@ -188,17 +188,17 @@ void APIConnection::loop() {
     ESP_LOGVV(TAG, "Sending keepalive PING");
     this->sent_ping_ = this->send_ping_request(PingRequest());
     if (!this->sent_ping_) {
-      char warn_str[38];
       this->next_ping_retry_ = now + ping_retry_interval;
       this->ping_retries_++;
-      sprintf(warn_str, "Sending keepalive failed %u time(s); ", this->ping_retries_);
+      std::string warn_str = str_sprintf("%s: Sending keepalive failed %u time(s);",
+                                         this->client_combined_info_.c_str(), this->ping_retries_);
       if (this->ping_retries_ >= max_ping_retries) {
         on_fatal_error();
-        ESP_LOGE(TAG, "%s: %sdisconnecting", this->client_combined_info_.c_str(), warn_str);
+        ESP_LOGE(TAG, "%s disconnecting", warn_str.c_str());
       } else if (this->ping_retries_ >= 10) {
-        ESP_LOGW(TAG, "%s: %sretrying in %u ms", this->client_combined_info_.c_str(), warn_str, ping_retry_interval);
+        ESP_LOGW(TAG, "%s retrying in %u ms", warn_str.c_str(), ping_retry_interval);
       } else {
-        ESP_LOGD(TAG, "%s: %sretrying in %u ms", this->client_combined_info_.c_str(), warn_str, ping_retry_interval);
+        ESP_LOGD(TAG, "%s retrying in %u ms", warn_str.c_str(), ping_retry_interval);
       }
     }
   }
