@@ -1,87 +1,20 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
-#include <map>
+#include <array>
 
 #ifdef HAVE_UART
 #include "esphome/components/uart/uart_component.h"
 #endif
 #include "hdmi_cec.h"
 
+#define USE_DECODER
+#ifdef USE_DECODER
+#include "cec_decoder.h"
+#endif
+
 namespace esphome {
 namespace hdmi_cec {
-
-static const std::map<uint8_t, const char *> cec_opcode_name{{0x82, "Active Source"},
-                                                             {0x04, "Image View On"},
-                                                             {0x0D, "Text View On"},
-                                                             {0x9D, "Inactive Source"},
-                                                             {0x85, "Request Active Source"},
-                                                             {0x80, "Routing Change"},
-                                                             {0x81, "Routing Information"},
-                                                             {0x86, "Set Stream Path"},
-                                                             {0x36, "Standby"},
-                                                             {0x0B, "Record Off"},
-                                                             {0x09, "Record On"},
-                                                             {0x0A, "Record Status"},
-                                                             {0x0F, "Record TV Screen"},
-                                                             {0x33, "Clear Analogue Timer"},
-                                                             {0x99, "Clear Digital Timer"},
-                                                             {0xA1, "Clear External Timer"},
-                                                             {0x34, "Set Analogue Timer"},
-                                                             {0x97, "Set Digital Timer"},
-                                                             {0xA2, "Set External Timer"},
-                                                             {0x67, "Set Timer Program Title"},
-                                                             {0x43, "Timer Cleared Status"},
-                                                             {0x35, "Timer Status"},
-                                                             {0x9E, "CEC Version"},
-                                                             {0x9F, "Get CEC Version"},
-                                                             {0x83, "Give Physical Address"},
-                                                             {0x91, "Get Menu Language"},
-                                                             {0x84, "Report Physical Address"},
-                                                             {0x32, "Set Menu Language"},
-                                                             {0x42, "Deck Control"},
-                                                             {0x1B, "Deck Status"},
-                                                             {0x1A, "Give Deck Status"},
-                                                             {0x41, "Play"},
-                                                             {0x08, "Give Tuner Device Status"},
-                                                             {0x92, "Select Analogue Service"},
-                                                             {0x93, "Select Digital Service"},
-                                                             {0x07, "Tuner Device Status"},
-                                                             {0x06, "Tuner Step Decrement"},
-                                                             {0x05, "Tuner Step Increment"},
-                                                             {0x87, "Device Vendor ID"},
-                                                             {0x8C, "Give Device Vendor ID"},
-                                                             {0x89, "Vendor Command"},
-                                                             {0xA0, "Vendor Command With ID"},
-                                                             {0x8A, "Vendor Remote Button Down"},
-                                                             {0x8B, "Vendor Remote Button Up"},
-                                                             {0x64, "Set OSD String"},
-                                                             {0x46, "Give OSD Name"},
-                                                             {0x47, "Set OSD Name"},
-                                                             {0x8D, "Menu Request"},
-                                                             {0x8E, "Menu Status"},
-                                                             {0x44, "User Control Pressed"},
-                                                             {0x45, "User Control Released"},
-                                                             {0x8F, "Give Device Power Status"},
-                                                             {0x90, "Report Power Status"},
-                                                             {0x00, "Feature Abort"},
-                                                             {0xFF, "Abort"},
-                                                             {0x71, "Give Audio Status"},
-                                                             {0x7D, "Give System Audio Mode Status"},
-                                                             {0x7A, "Report Audio Status"},
-                                                             {0xA3, "Report Short Audio Descriptor"},
-                                                             {0xA4, "Request Short Audio Descriptor"},
-                                                             {0x72, "Set System Audio Mode"},
-                                                             {0x70, "System Audio Mode Request"},
-                                                             {0x7E, "System Audio Mode Status"},
-                                                             {0x9A, "Set Audio Rate"},
-                                                             {0xC0, "Initiate ARC"},
-                                                             {0xC1, "Report ARC Initiated"},
-                                                             {0xC2, "Report ARC Terminated"},
-                                                             {0xC3, "Request ARC Initiation"},
-                                                             {0xC4, "Request ARC Termination"},
-                                                             {0xC5, "Terminate ARC"},
-                                                             {0xF8, "CDC Message"}};
 
 // CEC protocol constants as stated in standard:
 static constexpr uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // max frame (message) length in bytes
@@ -121,11 +54,9 @@ std::string Message::to_string() const {
       result += ":";
     }
   }
-  auto it = cec_opcode_name.find(this->opcode());
-  const char *opcode_name = (it != cec_opcode_name.end()) ? it->second : "?";
-  result += " <";
-  result += opcode_name;
-  result += ">";
+#ifdef USE_DECODER
+  result += " " + decoder::decode(this);
+#endif
   return result;
 }
 
