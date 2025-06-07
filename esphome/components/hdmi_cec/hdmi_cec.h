@@ -27,7 +27,7 @@ class Message : public std::vector<uint8_t> {
   uint8_t destination_addr() const { return this->at(0) & 0xf; }
   uint8_t opcode() const { return (this->size() >= 2) ? this->at(1) : 0; }
   bool is_broadcast() const { return this->destination_addr() == 0xf; }
-  std::string to_string() const;
+  std::string to_string(uint8_t my_address) const;
   constexpr static int MAX_LENGTH = 16;  // from HDMI CEC standard 1.4
 };
 

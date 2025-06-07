@@ -42,7 +42,7 @@ Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<
   std::memcpy(this->data() + 1, payload.data(), payload.size());
 }
 
-std::string Message::to_string() const {
+std::string Message::to_string(uint8_t my_address) const {
   std::string result;
   char part_buffer[3];
   for (auto it = this->cbegin(); it != this->cend(); it++) {
@@ -55,7 +55,8 @@ std::string Message::to_string() const {
     }
   }
 #ifdef USE_DECODER
-  result += " " + decoder::decode(this);
+  Decoder decoder(*this);
+  result += " " + decoder.decode(my_address);
 #endif
   return result;
 }
@@ -120,7 +121,7 @@ void HDMICEC::handle_received_message(const Message *frame) {
     return;
   }
 
-  auto frame_str = frame->to_string();
+  auto frame_str = frame->to_string(address_);
   ESP_LOGD(TAG, "frame received: %s", frame_str.c_str());
 
   std::vector<uint8_t> data(frame->begin() + 1, frame->end());
@@ -246,7 +247,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   }
 
   Message frame(source, destination, data_bytes);
-  ESP_LOGV(TAG, "Queing frame to send: %s", frame.to_string().c_str());
+  ESP_LOGV(TAG, "Queing frame to send: %s", frame.to_string(address_).c_str());
   xmit_.queue_for_send(std::move(frame));
   return true;
 }
@@ -369,7 +370,7 @@ void CECTransmit::transmit_message() {
   transmit_state_ = TransmitState::BUSY;
   transmit_attempts_++;
   if (transmit_attempts_ <= 1) {
-    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
+    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string(frame.initiator_addr()).c_str());
   }
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
