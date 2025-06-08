@@ -71,12 +71,28 @@ from .const import (  # noqa
 from .gpio import esp32_pin_to_code  # noqa
 
 _LOGGER = logging.getLogger(__name__)
-CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["preferences"]
+CODEOWNERS = ["@esphome/core"]
 IS_TARGET_PLATFORM = True
 
-CONF_RELEASE = "release"
+CONF_ASSERTION_LEVEL = "assertion_level"
+CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
+CONF_RELEASE = "release"
+
+ASSERTION_LEVELS = {
+    "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
+    "ENABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE",
+    "SILENT": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT",
+}
+
+COMPILER_OPTIMIZATIONS = {
+    "DEBUG": "CONFIG_COMPILER_OPTIMIZATION_DEBUG",
+    "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
+    "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
+    "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
+}
 
 
 def get_cpu_frequencies(*frequencies):
@@ -554,11 +570,18 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             },
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
+                    cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
+                        *ASSERTION_LEVELS, upper=True
+                    ),
+                    cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
+                        *COMPILER_OPTIMIZATIONS, upper=True
+                    ),
+                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
+                    cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
                     cv.Optional(
                         CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
                     ): cv.boolean,
                     cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
-                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -672,8 +695,6 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv"
         )
-        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
-        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
 
         # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
         add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
@@ -693,8 +714,19 @@ async def to_code(config):
                 "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
             )
 
-        for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
-            add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+        if assertion_level := conf[CONF_ADVANCED].get(CONF_ASSERTION_LEVEL):
+            for key, flag in ASSERTION_LEVELS.items():
+                add_idf_sdkconfig_option(flag, assertion_level == key)
+
+        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
+        compiler_optimization = conf[CONF_ADVANCED].get(CONF_COMPILER_OPTIMIZATION)
+        for key, flag in COMPILER_OPTIMIZATIONS.items():
+            add_idf_sdkconfig_option(flag, compiler_optimization == key)
+
+        add_idf_sdkconfig_option(
+            "CONFIG_LWIP_ESP_LWIP_ASSERT",
+            conf[CONF_ADVANCED][CONF_ENABLE_LWIP_ASSERT],
+        )
 
         if conf[CONF_ADVANCED].get(CONF_IGNORE_EFUSE_MAC_CRC):
             add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
@@ -718,6 +750,9 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+
+        for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
+            add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
         for component in conf[CONF_COMPONENTS]:
             source = component[CONF_SOURCE]
