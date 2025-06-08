@@ -40,6 +40,7 @@ struct ISRPinArg {
   volatile uint32_t *mode_set_reg;
   volatile uint32_t *mode_clr_reg;
   volatile uint32_t *func_reg;
+  volatile uint32_t *control_reg;
   uint32_t mask;
 };
 
@@ -54,6 +55,7 @@ ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
     arg->mode_set_reg = &GPES;
     arg->mode_clr_reg = &GPEC;
     arg->func_reg = &GPF(this->pin_);
+    arg->control_reg = &GPC(this->pin_);
     arg->mask = 1 << this->pin_;
   } else {
     arg->in_reg = &GP16I;
@@ -62,6 +64,7 @@ ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
     arg->mode_set_reg = &GP16E;
     arg->mode_clr_reg = nullptr;
     arg->func_reg = &GPF16;
+    arg->control_reg = nullptr;
     arg->mask = 1;
   }
   return ISRInternalGPIOPin((void *) arg);
@@ -143,11 +146,17 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   if (arg->pin < 16) {
     if (flags & gpio::FLAG_OUTPUT) {
       *arg->mode_set_reg = arg->mask;
-    } else {
+      if (flags & gpio::FLAG_OPEN_DRAIN) {
+        *arg->control_reg |= 1 << GPCD;
+      } else {
+        *arg->control_reg &= ~(1 << GPCD);
+      }
+    } else if (flags & gpio::FLAG_INPUT) {
       *arg->mode_clr_reg = arg->mask;
     }
     if (flags & gpio::FLAG_PULLUP) {
       *arg->func_reg |= 1 << GPFPU;
+      *arg->control_reg |= 1 << GPCD;
     } else {
       *arg->func_reg &= ~(1 << GPFPU);
     }

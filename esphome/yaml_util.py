@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import fnmatch
 import functools
 import inspect
@@ -8,7 +9,7 @@ from ipaddress import _BaseAddress
 import logging
 import math
 import os
-from typing import Any, Callable
+from typing import Any
 import uuid
 
 import yaml
@@ -602,6 +603,10 @@ class ESPHomeDumper(yaml.SafeDumper):
         if is_secret(value.id):
             return self.represent_secret(value.id)
         return self.represent_stringify(value.id)
+
+    # The below override configures this dumper to indent output YAML properly:
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
 
 
 ESPHomeDumper.add_multi_representer(

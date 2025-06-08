@@ -55,6 +55,9 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   // Percentage to increase or decrease the volume for volume up or volume down commands
   void set_volume_increment(float volume_increment) { this->volume_increment_ = volume_increment; }
 
+  // Volume used initially on first boot when no volume had been previously saved
+  void set_volume_initial(float volume_initial) { this->volume_initial_ = volume_initial; }
+
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
@@ -127,6 +130,9 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
 
   // The amount to change the volume on volume up/down commands
   float volume_increment_;
+
+  // The initial volume used by Setup when no previous volume was saved
+  float volume_initial_;
 
   float volume_max_;
   float volume_min_;

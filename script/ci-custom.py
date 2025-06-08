@@ -663,6 +663,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/valve/valve.h",
         "esphome/core/component.h",
         "esphome/core/gpio.h",
+        "esphome/core/log_const_en.h",
         "esphome/core/log.h",
         "tests/custom.h",
     ],

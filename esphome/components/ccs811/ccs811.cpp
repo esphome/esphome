@@ -163,7 +163,7 @@ void CCS811Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case INVALID_ID:
         ESP_LOGW(TAG, "Sensor reported an invalid ID. Is this a CCS811?");

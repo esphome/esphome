@@ -11,6 +11,13 @@ online_image:
     format: PNG
     type: BINARY
     resize: 50x50
+    on_download_finished:
+      lambda: |-
+        if (cached) {
+          ESP_LOGD("online_image", "Cache hit: using cached image");
+        } else {
+          ESP_LOGD("online_image", "Cache miss: fresh download");
+        }
   - id: online_binary_transparent_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
     type: BINARY

@@ -23,7 +23,7 @@ static const uint8_t REGISTER_AGC = 0x1A;        // 8 bytes  / R
 static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 
 void AS5600Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AS5600...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (!this->read_byte(REGISTER_STATUS).has_value()) {
     this->mark_failed();
@@ -91,7 +91,7 @@ void AS5600Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AS5600 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 

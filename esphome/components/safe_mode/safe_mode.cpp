@@ -19,14 +19,13 @@ void SafeModeComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Boot considered successful after %" PRIu32 " seconds",
                 this->safe_mode_boot_is_good_after_ / 1000);  // because milliseconds
   ESP_LOGCONFIG(TAG, "  Invoke after %u boot attempts", this->safe_mode_num_attempts_);
-  ESP_LOGCONFIG(TAG, "  Remain in safe mode for %" PRIu32 " seconds",
+  ESP_LOGCONFIG(TAG, "  Remain for %" PRIu32 " seconds",
                 this->safe_mode_enable_time_ / 1000);  // because milliseconds
 
   if (this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
     auto remaining_restarts = this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_;
     if (remaining_restarts) {
-      ESP_LOGW(TAG, "Last reset occurred too quickly; safe mode will be invoked in %" PRIu32 " restarts",
-               remaining_restarts);
+      ESP_LOGW(TAG, "Last reset occurred too quickly; will be invoked in %" PRIu32 " restarts", remaining_restarts);
     } else {
       ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
     }
@@ -48,7 +47,7 @@ void SafeModeComponent::set_safe_mode_pending(const bool &pending) {
   uint32_t current_rtc = this->read_rtc_();
 
   if (pending && current_rtc != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
-    ESP_LOGI(TAG, "Device will enter safe mode on next boot");
+    ESP_LOGI(TAG, "Device will enter on next boot");
     this->write_rtc_(SafeModeComponent::ENTER_SAFE_MODE_MAGIC);
   }
 
@@ -83,7 +82,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
     this->clean_rtc();
 
     if (!is_manual_safe_mode) {
-      ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode");
+      ESP_LOGE(TAG, "Boot loop detected. Proceeding");
     }
 
     this->status_set_error();

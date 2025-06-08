@@ -204,7 +204,7 @@ void VoiceAssistant::loop() {
       break;
     }
     case State::START_PIPELINE: {
-      ESP_LOGD(TAG, "Requesting start...");
+      ESP_LOGD(TAG, "Requesting start");
       uint32_t flags = 0;
       if (!this->continue_conversation_ && this->use_wake_word_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD;
@@ -577,7 +577,7 @@ void VoiceAssistant::signal_stop_() {
   if (this->api_client_ == nullptr) {
     return;
   }
-  ESP_LOGD(TAG, "Signaling stop...");
+  ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
   this->api_client_->send_voice_assistant_request(msg);

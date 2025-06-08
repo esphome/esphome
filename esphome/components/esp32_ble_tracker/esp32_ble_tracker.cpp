@@ -172,7 +172,7 @@ void ESP32BLETracker::loop() {
       (this->scan_set_param_failed_ && this->scanner_state_ == ScannerState::RUNNING)) {
     this->stop_scan_();
     if (this->scan_start_fail_count_ == std::numeric_limits<uint8_t>::max()) {
-      ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after %d attempts, rebooting to restore BLE stack...",
+      ESP_LOGE(TAG, "Scan could not restart after %d attempts, rebooting to restore stack (IDF)",
                std::numeric_limits<uint8_t>::max());
       App.reboot();
     }
@@ -219,10 +219,10 @@ void ESP32BLETracker::loop() {
     for (auto *client : this->clients_) {
       if (client->state() == ClientState::DISCOVERED) {
         if (this->scanner_state_ == ScannerState::RUNNING) {
-          ESP_LOGD(TAG, "Stopping scan to make connection...");
+          ESP_LOGD(TAG, "Stopping scan to make connection");
           this->stop_scan_();
         } else if (this->scanner_state_ == ScannerState::IDLE) {
-          ESP_LOGD(TAG, "Promoting client to connect...");
+          ESP_LOGD(TAG, "Promoting client to connect");
           // We only want to promote one client at a time.
           // once the scanner is fully stopped.
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
@@ -306,7 +306,7 @@ void ESP32BLETracker::start_scan_(bool first) {
 
   // Start timeout before scan is started. Otherwise scan never starts if any error.
   this->set_timeout("scan", this->scan_duration_ * 2000, []() {
-    ESP_LOGE(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
+    ESP_LOGE(TAG, "Scan never terminated, rebooting to restore stack (IDF)");
     App.reboot();
   });
 

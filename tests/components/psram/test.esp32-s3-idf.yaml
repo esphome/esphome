@@ -1,4 +1,5 @@
 esp32:
+  cpu_frequency: 240MHz
   framework:
     type: esp-idf
     advanced:

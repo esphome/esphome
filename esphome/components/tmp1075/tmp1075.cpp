@@ -44,7 +44,7 @@ void TMP1075Sensor::update() {
 void TMP1075Sensor::dump_config() {
   LOG_SENSOR("", "TMP1075 Sensor", this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication with TMP1075 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   ESP_LOGCONFIG(TAG, "  limit low  : %.4f °C", alert_limit_low_);

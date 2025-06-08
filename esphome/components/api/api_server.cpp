@@ -27,7 +27,7 @@ APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 APIServer::APIServer() { global_api_server = this; }
 
 void APIServer::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->setup_controller();
 
 #ifdef USE_API_NOISE
@@ -43,7 +43,7 @@ void APIServer::setup() {
   }
 #endif
 
-  this->socket_ = socket::socket_ip(SOCK_STREAM, 0);
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (this->socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");
     this->mark_failed();
@@ -112,18 +112,20 @@ void APIServer::setup() {
 }
 
 void APIServer::loop() {
-  // Accept new clients
-  while (true) {
-    struct sockaddr_storage source_addr;
-    socklen_t addr_len = sizeof(source_addr);
-    auto sock = this->socket_->accept((struct sockaddr *) &source_addr, &addr_len);
-    if (!sock)
-      break;
-    ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
+  // Accept new clients only if the socket has incoming connections
+  if (this->socket_->ready()) {
+    while (true) {
+      struct sockaddr_storage source_addr;
+      socklen_t addr_len = sizeof(source_addr);
+      auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
+      if (!sock)
+        break;
+      ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
 
-    auto *conn = new APIConnection(std::move(sock), this);
-    this->clients_.emplace_back(conn);
-    conn->start();
+      auto *conn = new APIConnection(std::move(sock), this);
+      this->clients_.emplace_back(conn);
+      conn->start();
+    }
   }
 
   // Process clients and remove disconnected ones in a single pass
@@ -155,7 +157,7 @@ void APIServer::loop() {
     const uint32_t now = millis();
     if (!this->is_connected()) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "No client connected to API. Rebooting...");
+        ESP_LOGE(TAG, "No client connected; rebooting");
         App.reboot();
       }
       this->status_set_warning();

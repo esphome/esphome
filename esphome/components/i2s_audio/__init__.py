@@ -4,6 +4,7 @@ from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -74,6 +75,7 @@ I2S_PORTS = {
     VARIANT_ESP32S2: 1,
     VARIANT_ESP32S3: 2,
     VARIANT_ESP32C3: 1,
+    VARIANT_ESP32P4: 3,
 }
 
 i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")

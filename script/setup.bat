@@ -1,8 +1,6 @@
 @echo off
 
-if defined DEVCONTAINER goto :install
 if defined VIRTUAL_ENV goto :install
-if defined ESPHOME_NO_VENV goto :install
 
 echo Starting the Virtual Environment
 python -m venv venv

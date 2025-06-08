@@ -31,7 +31,7 @@ static const uint8_t MMC56X3_CTRL2_REG = 0x1D;
 static const uint8_t MMC5603_ODR_REG = 0x1A;
 
 void MMC5603Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MMC5603...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id = 0;
   if (!this->read_byte(MMC56X3_PRODUCT_ID, &id)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -79,7 +79,7 @@ void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with MMC5603 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   } else if (this->error_code_ == ID_REGISTERS) {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }

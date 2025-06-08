@@ -7,7 +7,7 @@ namespace ssd1327_i2c {
 static const char *const TAG = "ssd1327_i2c";
 
 void I2CSSD1327::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up I2C SSD1327...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);
@@ -27,7 +27,7 @@ void I2CSSD1327::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with SSD1327 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 void I2CSSD1327::command(uint8_t value) { this->write_byte(0x00, value); }

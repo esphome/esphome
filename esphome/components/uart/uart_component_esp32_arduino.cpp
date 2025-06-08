@@ -74,7 +74,7 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
 }
 
 void ESP32ArduinoUARTComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up UART...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
@@ -191,7 +191,7 @@ bool ESP32ArduinoUARTComponent::read_array(uint8_t *data, size_t len) {
 
 int ESP32ArduinoUARTComponent::available() { return this->hw_serial_->available(); }
 void ESP32ArduinoUARTComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   this->hw_serial_->flush();
 }
 

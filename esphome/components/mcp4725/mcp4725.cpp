@@ -7,7 +7,7 @@ namespace mcp4725 {
 static const char *const TAG = "mcp4725";
 
 void MCP4725::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MCP4725 (0x%02X)...", this->address_);
+  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -20,7 +20,7 @@ void MCP4725::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with MCP4725 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

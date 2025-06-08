@@ -75,7 +75,7 @@ class PNGFormat(Format):
 
     def actions(self):
         cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
-        cg.add_library("pngle", "1.0.2")
+        cg.add_library("pngle", "1.1.0")
 
 
 IMAGE_FORMATS = {
@@ -213,7 +213,7 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(bool, "cached")], conf)
 
     for conf in config.get(CONF_ON_ERROR, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

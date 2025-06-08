@@ -20,9 +20,9 @@ static const uint8_t DAC7678_REG_INTERNAL_REF_0 = 0x80;
 static const uint8_t DAC7678_REG_INTERNAL_REF_1 = 0x90;
 
 void DAC7678Output::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up DAC7678OutputComponent...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
-  ESP_LOGV(TAG, "Resetting device...");
+  ESP_LOGV(TAG, "Resetting device");
 
   // Reset device
   if (!this->write_byte_16(DAC7678_REG_SOFTWARE_RESET, 0x0000)) {

@@ -26,14 +26,14 @@ const float TEMPERATURE_SENSITIVITY = 326.8;
 const float TEMPERATURE_OFFSET = 25.0;
 
 void MPU6886Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MPU6886...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t who_am_i;
   if (!this->read_byte(MPU6886_REGISTER_WHO_AM_I, &who_am_i) || who_am_i != MPU6886_WHO_AM_I_IDENTIFIER) {
     this->mark_failed();
     return;
   }
 
-  ESP_LOGV(TAG, "  Setting up Power Management...");
+  ESP_LOGV(TAG, "  Setting up Power Management");
   // Setup power management
   uint8_t power_management;
   if (!this->read_byte(MPU6886_REGISTER_POWER_MANAGEMENT_1, &power_management)) {
@@ -54,7 +54,7 @@ void MPU6886Component::setup() {
     return;
   }
 
-  ESP_LOGV(TAG, "  Setting up Gyroscope Config...");
+  ESP_LOGV(TAG, "  Setting up Gyroscope Config");
   // Set scale - 2000DPS
   uint8_t gyro_config;
   if (!this->read_byte(MPU6886_REGISTER_GYRO_CONFIG, &gyro_config)) {
@@ -70,7 +70,7 @@ void MPU6886Component::setup() {
     return;
   }
 
-  ESP_LOGV(TAG, "  Setting up Accelerometer Config...");
+  ESP_LOGV(TAG, "  Setting up Accelerometer Config");
   // Set range - 2G
   uint8_t accel_config;
   if (!this->read_byte(MPU6886_REGISTER_ACCEL_CONFIG, &accel_config)) {
@@ -91,7 +91,7 @@ void MPU6886Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPU6886:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MPU6886 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Acceleration X", this->accel_x_sensor_);
@@ -104,7 +104,7 @@ void MPU6886Component::dump_config() {
 }
 
 void MPU6886Component::update() {
-  ESP_LOGV(TAG, "    Updating MPU6886...");
+  ESP_LOGV(TAG, "    Updating");
   uint16_t raw_data[7];
   if (!this->read_bytes_16(MPU6886_REGISTER_ACCEL_XOUT_H, raw_data, 7)) {
     this->status_set_warning();

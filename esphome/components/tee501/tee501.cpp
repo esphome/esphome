@@ -7,7 +7,7 @@ namespace tee501 {
 static const char *const TAG = "tee501";
 
 void TEE501Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TEE501...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t address[] = {0x70, 0x29};
   this->write(address, 2, false);
   uint8_t identification[9];
@@ -25,7 +25,7 @@ void TEE501Component::dump_config() {
   LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with TEE501 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case CRC_CHECK_FAILED:
       ESP_LOGE(TAG, "The crc check failed");

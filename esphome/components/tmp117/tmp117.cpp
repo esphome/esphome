@@ -26,7 +26,7 @@ void TMP117Component::update() {
   }
 }
 void TMP117Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TMP117...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (!this->write_config_(this->config_)) {
     this->mark_failed();
@@ -43,7 +43,7 @@ void TMP117Component::dump_config() {
   ESP_LOGD(TAG, "TMP117:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TMP117 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this);
 }

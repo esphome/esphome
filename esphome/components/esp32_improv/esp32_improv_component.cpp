@@ -324,10 +324,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->incoming_data_.clear();
     }
   } else if (this->incoming_data_.size() - 2 > length) {
-    ESP_LOGV(TAG, "Too much data received or data malformed; resetting buffer...");
+    ESP_LOGV(TAG, "Too much data received or data malformed; resetting buffer");
     this->incoming_data_.clear();
   } else {
-    ESP_LOGV(TAG, "Waiting for split data packets...");
+    ESP_LOGV(TAG, "Waiting for split data packets");
   }
 }
 

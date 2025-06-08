@@ -43,7 +43,11 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 #endif
 
  protected:
+  /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current setttings.
+  /// @return True if succesful, false otherwise
   bool start_driver_();
+
+  /// @brief Stops the I2S driver.
   void stop_driver_();
 
   /// @brief Attempts to correct a microphone DC offset; e.g., a microphones silent level is offset from 0. Applies a

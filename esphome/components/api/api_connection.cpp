@@ -4,11 +4,11 @@
 #include <cinttypes>
 #include <utility>
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
-#include "esphome/core/application.h"
 
 #ifdef USE_DEEP_SLEEP
 namespace esphome::deep_sleep {
@@ -120,7 +120,7 @@ void APIConnection::loop() {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
-    ESP_LOGW(TAG, "%s: Network unavailable, disconnecting", this->client_combined_info_.c_str());
+    ESP_LOGW(TAG, "%s: Network unavailable; disconnecting", this->client_combined_info_.c_str());
     return;
   }
   if (this->next_close_) {
@@ -137,27 +137,35 @@ void APIConnection::loop() {
              api_error_to_str(err), errno);
     return;
   }
-  ReadPacketBuffer buffer;
-  err = this->helper_->read_packet(&buffer);
-  if (err == APIError::WOULD_BLOCK) {
-    // pass
-  } else if (err != APIError::OK) {
-    on_fatal_error();
-    if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
-    } else if (err == APIError::CONNECTION_CLOSED) {
-      ESP_LOGW(TAG, "%s: Connection closed", this->client_combined_info_.c_str());
-    } else {
-      ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
-               errno);
-    }
-    return;
-  } else {
-    this->last_traffic_ = App.get_loop_component_start_time();
-    // read a packet
-    this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
-    if (this->remove_)
+
+  // Check if socket has data ready before attempting to read
+  if (this->helper_->is_socket_ready()) {
+    ReadPacketBuffer buffer;
+    err = this->helper_->read_packet(&buffer);
+    if (err == APIError::WOULD_BLOCK) {
+      // pass
+    } else if (err != APIError::OK) {
+      on_fatal_error();
+      if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
+        ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
+      } else if (err == APIError::CONNECTION_CLOSED) {
+        ESP_LOGW(TAG, "%s: Connection closed", this->client_combined_info_.c_str());
+      } else {
+        ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
+                 errno);
+      }
       return;
+    } else {
+      this->last_traffic_ = App.get_loop_component_start_time();
+      // read a packet
+      if (buffer.data_len > 0) {
+        this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
+      } else {
+        this->read_message(0, buffer.type, nullptr);
+      }
+      if (this->remove_)
+        return;
+    }
   }
 
   if (!this->deferred_message_queue_.empty() && this->helper_->can_write_without_blocking()) {
@@ -176,24 +184,23 @@ void APIConnection::loop() {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (KEEPALIVE_TIMEOUT_MS * 5) / 2) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_combined_info_.c_str());
+      ESP_LOGW(TAG, "%s is unresponsive; disconnecting", this->client_combined_info_.c_str());
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && now > this->next_ping_retry_) {
-    ESP_LOGVV(TAG, "Sending keepalive PING...");
+    ESP_LOGVV(TAG, "Sending keepalive PING");
     this->sent_ping_ = this->send_ping_request(PingRequest());
     if (!this->sent_ping_) {
       this->next_ping_retry_ = now + ping_retry_interval;
       this->ping_retries_++;
+      std::string warn_str = str_sprintf("%s: Sending keepalive failed %u time(s);",
+                                         this->client_combined_info_.c_str(), this->ping_retries_);
       if (this->ping_retries_ >= max_ping_retries) {
         on_fatal_error();
-        ESP_LOGE(TAG, "%s: Sending keepalive failed %d time(s). Disconnecting...", this->client_combined_info_.c_str(),
-                 this->ping_retries_);
+        ESP_LOGE(TAG, "%s disconnecting", warn_str.c_str());
       } else if (this->ping_retries_ >= 10) {
-        ESP_LOGW(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
-                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+        ESP_LOGW(TAG, "%s retrying in %u ms", warn_str.c_str(), ping_retry_interval);
       } else {
-        ESP_LOGD(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
-                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+        ESP_LOGD(TAG, "%s retrying in %u ms", warn_str.c_str(), ping_retry_interval);
       }
     }
   }
@@ -264,7 +271,7 @@ DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s requested disconnected", this->client_combined_info_.c_str());
+  ESP_LOGD(TAG, "%s disconnected", this->client_combined_info_.c_str());
   this->next_close_ = true;
   DisconnectResponse resp;
   return resp;
@@ -1466,7 +1473,7 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
       update->check();
       break;
     case enums::UPDATE_COMMAND_NONE:
-      ESP_LOGE(TAG, "UPDATE_COMMAND_NONE not handled. Check client is sending the correct command");
+      ESP_LOGE(TAG, "UPDATE_COMMAND_NONE not handled; confirm command is correct");
       break;
     default:
       ESP_LOGW(TAG, "Unknown update command: %" PRIu32, msg.command);
@@ -1528,7 +1535,7 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   // bool invalid_password = 1;
   resp.invalid_password = !correct;
   if (correct) {
-    ESP_LOGD(TAG, "%s: Connected successfully", this->client_combined_info_.c_str());
+    ESP_LOGD(TAG, "%s connected", this->client_combined_info_.c_str());
     this->connection_state_ = ConnectionState::AUTHENTICATED;
     this->parent_->get_client_connected_trigger()->trigger(this->client_info_, this->client_peername_);
 #ifdef USE_HOMEASSISTANT_TIME
@@ -1599,7 +1606,7 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
     }
   }
   if (!found) {
-    ESP_LOGV(TAG, "Could not find matching service!");
+    ESP_LOGV(TAG, "Could not find service");
   }
 }
 #ifdef USE_API_NOISE
@@ -1668,11 +1675,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
 }
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s: tried to access without authentication.", this->client_combined_info_.c_str());
+  ESP_LOGD(TAG, "%s requested access without authentication", this->client_combined_info_.c_str());
 }
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s: tried to access without full connection.", this->client_combined_info_.c_str());
+  ESP_LOGD(TAG, "%s requested access without full connection", this->client_combined_info_.c_str());
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();

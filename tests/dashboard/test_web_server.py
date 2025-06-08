@@ -53,6 +53,8 @@ async def dashboard() -> DashboardTestHelper:
     assert DASHBOARD.settings.on_ha_addon is True
     assert DASHBOARD.settings.using_auth is False
     task = asyncio.create_task(DASHBOARD.async_run())
+    # Wait for initial device loading to complete
+    await DASHBOARD.entries.async_request_update_entries()
     client = AsyncHTTPClient()
     io_loop = IOLoop(make_current=False)
     yield DashboardTestHelper(io_loop, client, port)

@@ -20,8 +20,7 @@ std::string build_json(const json_build_t &f) {
     ESP_LOGV(TAG, "Attempting to allocate %zu bytes for JSON serialization", request_size);
     DynamicJsonDocument json_document(request_size);
     if (json_document.capacity() == 0) {
-      ESP_LOGE(TAG,
-               "Could not allocate memory for JSON document! Requested %zu bytes, largest free heap block: %zu bytes",
+      ESP_LOGE(TAG, "Could not allocate memory for document! Requested %zu bytes, largest free heap block: %zu bytes",
                request_size, free_heap);
       return "{}";
     }
@@ -29,7 +28,7 @@ std::string build_json(const json_build_t &f) {
     f(root);
     if (json_document.overflowed()) {
       if (request_size == free_heap) {
-        ESP_LOGE(TAG, "Could not allocate memory for JSON document! Overflowed largest free heap block: %zu bytes",
+        ESP_LOGE(TAG, "Could not allocate memory for document! Overflowed largest free heap block: %zu bytes",
                  free_heap);
         return "{}";
       }
@@ -54,7 +53,7 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
   while (true) {
     DynamicJsonDocument json_document(request_size);
     if (json_document.capacity() == 0) {
-      ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %zu bytes, free heap: %zu", request_size,
+      ESP_LOGE(TAG, "Could not allocate memory for document! Requested %zu bytes, free heap: %zu", request_size,
                free_heap);
       return false;
     }
@@ -74,7 +73,7 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
       request_size *= 2;
       continue;
     } else {
-      ESP_LOGE(TAG, "JSON parse error: %s", err.c_str());
+      ESP_LOGE(TAG, "Parse error: %s", err.c_str());
       return false;
     }
   };

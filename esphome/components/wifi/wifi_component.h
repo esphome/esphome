@@ -483,14 +483,16 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
     // Enable WiFi
     global_wifi_component->enable();
     // Set timeout for the connection
-    this->set_timeout("wifi-connect-timeout", this->connection_timeout_.value(x...), [this]() {
-      this->connecting_ = false;
+    this->set_timeout("wifi-connect-timeout", this->connection_timeout_.value(x...), [this, x...]() {
       // If the timeout is reached, stop connecting and revert to the old AP
       global_wifi_component->disable();
       global_wifi_component->save_wifi_sta(old_sta_.get_ssid(), old_sta_.get_password());
       global_wifi_component->enable();
-      // Callback to notify the user that the connection failed
-      this->error_trigger_->trigger();
+      // Start a timeout for the fallback if the connection to the old AP fails
+      this->set_timeout("wifi-fallback-timeout", this->connection_timeout_.value(x...), [this]() {
+        this->connecting_ = false;
+        this->error_trigger_->trigger();
+      });
     });
   }
 
@@ -503,6 +505,7 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
     if (global_wifi_component->is_connected()) {
       // The WiFi is connected, stop the timeout and reset the connecting flag
       this->cancel_timeout("wifi-connect-timeout");
+      this->cancel_timeout("wifi-fallback-timeout");
       this->connecting_ = false;
       if (global_wifi_component->wifi_ssid() == this->new_sta_.get_ssid()) {
         // Callback to notify the user that the connection was successful

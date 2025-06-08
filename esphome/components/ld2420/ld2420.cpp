@@ -111,7 +111,7 @@ int LD2420Component::get_firmware_int_(const char *version_string) {
 }
 
 void LD2420Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LD2420...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
     this->mark_failed();
@@ -158,7 +158,7 @@ void LD2420Component::apply_config_action() {
     ESP_LOGCONFIG(TAG, "No configuration change detected");
     return;
   }
-  ESP_LOGCONFIG(TAG, "Reconfiguring LD2420...");
+  ESP_LOGCONFIG(TAG, "Reconfiguring LD2420");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
     this->mark_failed();
@@ -180,7 +180,7 @@ void LD2420Component::apply_config_action() {
 }
 
 void LD2420Component::factory_reset_action() {
-  ESP_LOGCONFIG(TAG, "Setting factory defaults...");
+  ESP_LOGCONFIG(TAG, "Setting factory defaults");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
     this->mark_failed();
@@ -209,7 +209,7 @@ void LD2420Component::factory_reset_action() {
 }
 
 void LD2420Component::restart_module_action() {
-  ESP_LOGCONFIG(TAG, "Restarting LD2420 module...");
+  ESP_LOGCONFIG(TAG, "Restarting LD2420 module");
   this->send_module_restart();
   this->set_timeout(250, [this]() {
     this->set_config_mode(true);

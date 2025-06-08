@@ -27,9 +27,9 @@ static const uint8_t MLX90614_ID4 = 0x3F;
 static const char *const TAG = "mlx90614";
 
 void MLX90614Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MLX90614...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_emissivity_()) {
-    ESP_LOGE(TAG, "Communication with MLX90614 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -79,7 +79,7 @@ void MLX90614Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MLX90614:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MLX90614 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Ambient", this->ambient_sensor_);

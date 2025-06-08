@@ -7,7 +7,7 @@ namespace power_supply {
 static const char *const TAG = "power_supply";
 
 void PowerSupply::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Power Supply...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   this->pin_->setup();
   this->pin_->digital_write(false);

@@ -5,7 +5,7 @@ namespace esphome {
 namespace mipi_spi {
 
 void MipiSpi::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MIPI SPI");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
   if (this->dc_pin_ != nullptr) {
     this->dc_pin_->setup();

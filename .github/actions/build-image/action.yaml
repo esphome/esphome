@@ -47,7 +47,7 @@ runs:
 
     - name: Build and push to ghcr by digest
       id: build-ghcr
-      uses: docker/build-push-action@v6.17.0
+      uses: docker/build-push-action@v6.18.0
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false
@@ -73,7 +73,7 @@ runs:
 
     - name: Build and push to dockerhub by digest
       id: build-dockerhub
-      uses: docker/build-push-action@v6.17.0
+      uses: docker/build-push-action@v6.18.0
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false

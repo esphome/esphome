@@ -15,10 +15,6 @@ namespace debug {
 static const char *const TAG = "debug";
 
 void DebugComponent::dump_config() {
-#ifndef ESPHOME_LOG_HAS_DEBUG
-  return;  // Can't log below if debug logging is disabled
-#endif
-
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);

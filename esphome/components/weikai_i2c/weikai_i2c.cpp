@@ -96,7 +96,7 @@ void WeikaiRegisterI2C::read_fifo(uint8_t *data, size_t length) const {
 #endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...", address,
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X", address,
              this->channel_, (int) error, length, data[0]);
   }
 }
@@ -131,8 +131,8 @@ void WeikaiRegisterI2C::write_fifo(uint8_t *data, size_t length) {
 #endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X...", address,
-             this->channel_, (int) error, length, data[0]);
+    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X", address, this->channel_,
+             (int) error, length, data[0]);
   }
 }
 
@@ -142,7 +142,7 @@ void WeikaiRegisterI2C::write_fifo(uint8_t *data, size_t length) {
 void WeikaiComponentI2C::setup() {
   // before any manipulation we store the address to base_address_ for future use
   this->base_address_ = this->address_;
-  ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
+  ESP_LOGCONFIG(TAG, "Running setup for '%s' with %d UARTs at @%02X", this->get_name(), this->children_.size(),
                 this->base_address_);
 
   // enable all channels

@@ -1,6 +1,5 @@
 from importlib import resources
 import logging
-from typing import Optional
 
 import tzlocal
 
@@ -40,7 +39,7 @@ SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Co
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 
-def _load_tzdata(iana_key: str) -> Optional[bytes]:
+def _load_tzdata(iana_key: str) -> bytes | None:
     # From https://tzdata.readthedocs.io/en/latest/#examples
     try:
         package_loc, resource = iana_key.rsplit("/", 1)

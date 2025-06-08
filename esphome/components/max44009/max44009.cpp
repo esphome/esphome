@@ -21,7 +21,7 @@ static const uint8_t MAX44009_ERROR_HIGH_BYTE = -30;
 static const uint8_t MAX44009_ERROR_LOW_BYTE = -31;
 
 void MAX44009Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX44009...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   bool state_ok = false;
   if (this->mode_ == MAX44009Mode::MAX44009_MODE_LOW_POWER) {
     state_ok = this->set_low_power_mode();
@@ -48,7 +48,7 @@ void MAX44009Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX44009:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MAX44009 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

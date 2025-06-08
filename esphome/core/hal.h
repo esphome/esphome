@@ -24,6 +24,11 @@
 #define PROGMEM ICACHE_RODATA_ATTR
 #endif
 
+#elif defined(USE_RP2040)
+
+#define IRAM_ATTR __attribute__((noinline, long_call, section(".time_critical")))
+#define PROGMEM
+
 #else
 
 #define IRAM_ATTR

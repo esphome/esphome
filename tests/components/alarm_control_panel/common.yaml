@@ -19,6 +19,7 @@ alarm_control_panel:
       - input: bin1
         bypass_armed_home: true
         bypass_armed_night: true
+        bypass_auto: true
     on_state:
       then:
         - lambda: !lambda |-
@@ -38,6 +39,7 @@ alarm_control_panel:
       - input: bin1
         bypass_armed_home: true
         bypass_armed_night: true
+        bypass_auto: true
     on_disarmed:
       then:
         - logger.log: "### DISARMED ###"

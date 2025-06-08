@@ -72,22 +72,22 @@ void BMP581Component::dump_config() {
     case NONE:
       break;
     case ERROR_COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "  Communication with BMP581 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case ERROR_WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "  BMP581 has wrong chip ID - please verify you are using a BMP 581");
+      ESP_LOGE(TAG, "Unknown chip ID");
       break;
     case ERROR_SENSOR_RESET:
-      ESP_LOGE(TAG, "  BMP581 failed to reset");
+      ESP_LOGE(TAG, "Reset failed");
       break;
     case ERROR_SENSOR_STATUS:
-      ESP_LOGE(TAG, "  BMP581 sensor status failed, there were NVM problems");
+      ESP_LOGE(TAG, "Get status failed");
       break;
     case ERROR_PRIME_IIR_FAILED:
-      ESP_LOGE(TAG, "  BMP581's IIR Filter failed to prime with an initial measurement");
+      ESP_LOGE(TAG, "IIR Filter failed to prime with initial measurement");
       break;
     default:
-      ESP_LOGE(TAG, "  BMP581 error code %d", (int) this->error_code_);
+      ESP_LOGE(TAG, "Error %d", (int) this->error_code_);
       break;
   }
 
@@ -122,7 +122,7 @@ void BMP581Component::setup() {
    */
 
   this->error_code_ = NONE;
-  ESP_LOGCONFIG(TAG, "Setting up BMP581...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   ////////////////////
   // 1) Soft reboot //
@@ -130,7 +130,7 @@ void BMP581Component::setup() {
 
   // Power-On-Reboot bit is asserted if sensor successfully reset
   if (!this->reset_()) {
-    ESP_LOGE(TAG, "BMP581 failed to reset");
+    ESP_LOGE(TAG, "Reset failed");
 
     this->error_code_ = ERROR_SENSOR_RESET;
     this->mark_failed();
@@ -146,7 +146,7 @@ void BMP581Component::setup() {
 
   // read chip id from sensor
   if (!this->read_byte(BMP581_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, "Failed to read chip id");
+    ESP_LOGE(TAG, "Read chip ID failed");
 
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
@@ -156,7 +156,7 @@ void BMP581Component::setup() {
 
   // verify id
   if (chip_id != BMP581_ASIC_ID) {
-    ESP_LOGE(TAG, "Unknown chip ID, is this a BMP581?");
+    ESP_LOGE(TAG, "Unknown chip ID");
 
     this->error_code_ = ERROR_WRONG_CHIP_ID;
     this->mark_failed();
@@ -179,7 +179,7 @@ void BMP581Component::setup() {
 
   // verify status_nvm_rdy bit (it is asserted if boot was successful)
   if (!(this->status_.bit.status_nvm_rdy)) {
-    ESP_LOGE(TAG, "NVM not ready after boot");
+    ESP_LOGE(TAG, "NVM not ready");
 
     this->error_code_ = ERROR_SENSOR_STATUS;
     this->mark_failed();
@@ -189,7 +189,7 @@ void BMP581Component::setup() {
 
   // verify status_nvm_err bit (it is asserted if an error is detected)
   if (this->status_.bit.status_nvm_err) {
-    ESP_LOGE(TAG, "NVM error detected on boot");
+    ESP_LOGE(TAG, "NVM error detected");
 
     this->error_code_ = ERROR_SENSOR_STATUS;
     this->mark_failed();
@@ -254,7 +254,7 @@ void BMP581Component::setup() {
     }
 
     if (!this->prime_iir_filter_()) {
-      ESP_LOGE(TAG, "Failed to prime the IIR filter with an intiial measurement");
+      ESP_LOGE(TAG, "Failed to prime the IIR filter with an initial measurement");
 
       this->error_code_ = ERROR_PRIME_IIR_FAILED;
       this->mark_failed();
@@ -286,10 +286,10 @@ void BMP581Component::update() {
   // 1) Request a measurement //
   //////////////////////////////
 
-  ESP_LOGVV(TAG, "Requesting a measurement from sensor");
+  ESP_LOGVV(TAG, "Requesting measurement");
 
   if (!this->start_measurement_()) {
-    ESP_LOGW(TAG, "Failed to request forced measurement of sensor");
+    ESP_LOGW(TAG, "Requesting forced measurement failed");
     this->status_set_warning();
 
     return;
@@ -299,7 +299,7 @@ void BMP581Component::update() {
   // 2) Wait for measurement to finish (based on oversampling rates) //
   //////////////////////////////////////////////////////////////////////
 
-  ESP_LOGVV(TAG, "Measurement is expected to take %d ms to complete", this->conversion_time_);
+  ESP_LOGVV(TAG, "Measurement should take %d ms", this->conversion_time_);
 
   this->set_timeout("measurement", this->conversion_time_, [this]() {
     float temperature = 0.0;
@@ -311,14 +311,14 @@ void BMP581Component::update() {
 
     if (this->pressure_sensor_) {
       if (!this->read_temperature_and_pressure_(temperature, pressure)) {
-        ESP_LOGW(TAG, "Failed to read temperature and pressure measurements, skipping update");
+        ESP_LOGW(TAG, "Failed to read temperature and pressure; skipping update");
         this->status_set_warning();
 
         return;
       }
     } else {
       if (!this->read_temperature_(temperature)) {
-        ESP_LOGW(TAG, "Failed to read temperature measurement, skipping update");
+        ESP_LOGW(TAG, "Failed to read temperature; skipping update");
         this->status_set_warning();
 
         return;
@@ -349,7 +349,7 @@ bool BMP581Component::check_data_readiness_() {
   //   - returns data readiness state
 
   if (this->odr_config_.bit.pwr_mode == STANDBY_MODE) {
-    ESP_LOGD(TAG, "Data is not ready, sensor is in standby mode");
+    ESP_LOGD(TAG, "Data not ready, sensor is in standby mode");
     return false;
   }
 
@@ -443,7 +443,7 @@ bool BMP581Component::read_temperature_(float &temperature) {
   //    - the measured temperature (in degrees Celsius)
 
   if (!this->check_data_readiness_()) {
-    ESP_LOGW(TAG, "Data from sensor isn't ready, skipping this update");
+    ESP_LOGW(TAG, "Data not ready, skipping this update");
     this->status_set_warning();
 
     return false;
@@ -451,7 +451,7 @@ bool BMP581Component::read_temperature_(float &temperature) {
 
   uint8_t data[3];
   if (!this->read_bytes(BMP581_MEASUREMENT_DATA, &data[0], 3)) {
-    ESP_LOGW(TAG, "Failed to read sensor's measurement data");
+    ESP_LOGW(TAG, "Failed to read measurement");
     this->status_set_warning();
 
     return false;
@@ -472,7 +472,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   //    - the measured pressure (in Pa)
 
   if (!this->check_data_readiness_()) {
-    ESP_LOGW(TAG, "Data from sensor isn't ready, skipping this update");
+    ESP_LOGW(TAG, "Data not ready, skipping this update");
     this->status_set_warning();
 
     return false;
@@ -480,7 +480,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
 
   uint8_t data[6];
   if (!this->read_bytes(BMP581_MEASUREMENT_DATA, &data[0], 6)) {
-    ESP_LOGW(TAG, "Failed to read sensor's measurement data");
+    ESP_LOGW(TAG, "Failed to read measurement");
     this->status_set_warning();
 
     return false;

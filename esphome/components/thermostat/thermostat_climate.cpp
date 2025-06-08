@@ -537,7 +537,7 @@ void ThermostatClimate::switch_to_supplemental_action_(climate::ClimateAction ac
     default:
       return;
   }
-  ESP_LOGVV(TAG, "Updating supplemental action...");
+  ESP_LOGVV(TAG, "Updating supplemental action");
   this->supplemental_action_ = action;
   this->trigger_supplemental_action_();
 }

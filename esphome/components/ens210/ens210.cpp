@@ -87,7 +87,7 @@ static uint32_t crc7(uint32_t value) {
 }
 
 void ENS210Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ENS210...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[2];
   uint16_t part_id = 0;
   // Reset
@@ -163,7 +163,7 @@ void ENS210Component::update() {
 
     // Read T_VAL and H_VAL
     if (!this->read_bytes(ENS210_REGISTER_T_VAL, data, 6)) {
-      ESP_LOGE(TAG, "Communication with ENS210 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->status_set_warning();
       return;
     }

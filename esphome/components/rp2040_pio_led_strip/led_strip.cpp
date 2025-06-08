@@ -40,7 +40,7 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up RP2040 LED Strip...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   size_t buffer_size = this->get_buffer_size_();
 
@@ -138,7 +138,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
-  ESP_LOGVV(TAG, "Writing state...");
+  ESP_LOGVV(TAG, "Writing state");
 
   if (this->is_failed()) {
     ESP_LOGW(TAG, "Light is in failed state, not writing state.");
