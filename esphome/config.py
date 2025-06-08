@@ -389,6 +389,7 @@ class LoadValidationStep(ConfigValidationStep):
                 result.add_str_error(f"Platform not found: '{p_domain}'", path)
                 continue
             CORE.loaded_integrations.add(p_name)
+            CORE.loaded_platforms.add(f"{self.domain}/{p_name}")
 
             # Process AUTO_LOAD
             for load in platform.auto_load:
