@@ -34,6 +34,7 @@ class APIServer : public Component, public Controller {
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
+  bool teardown() override;
   bool check_password(const std::string &password) const;
   bool uses_password() const;
   void set_port(uint16_t port);
@@ -136,6 +137,7 @@ class APIServer : public Component, public Controller {
   }
 
  protected:
+  bool shutting_down_ = false;
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};

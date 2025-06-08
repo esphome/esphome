@@ -110,6 +110,12 @@ class Component {
   virtual void on_shutdown() {}
   virtual void on_safe_shutdown() {}
 
+  /** Called during teardown to allow component to gracefully finish operations.
+   *
+   * @return true if teardown is complete, false if more time is needed
+   */
+  virtual bool teardown() { return true; }
+
   uint32_t get_component_state() const;
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.

@@ -275,7 +275,8 @@ DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
   return resp;
 }
 void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
-  // pass
+  this->helper_->close();
+  this->remove_ = true;
 }
 
 #ifdef USE_BINARY_SENSOR

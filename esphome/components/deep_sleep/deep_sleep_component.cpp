@@ -6,6 +6,8 @@ namespace esphome {
 namespace deep_sleep {
 
 static const char *const TAG = "deep_sleep";
+// 5 seconds for deep sleep to ensure clean disconnect from Home Assistant
+static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 
 bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -62,6 +64,9 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
   }
   App.run_safe_shutdown_hooks();
+  // It's critical to teardown components cleanly for deep sleep to ensure
+  // Home Assistant sees a clean disconnect instead of marking the device unavailable
+  App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
 
   this->deep_sleep_();
 }

@@ -79,6 +79,12 @@
 
 namespace esphome {
 
+// Teardown timeout constant (in milliseconds)
+// For reboots, it's more important to shut down quickly than disconnect cleanly
+// since we're not entering deep sleep. The only consequence of not shutting down
+// cleanly is a warning in the log.
+static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
+
 class Application {
  public:
   void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &area,
@@ -250,6 +256,12 @@ class Application {
   void safe_reboot();
 
   void run_safe_shutdown_hooks();
+
+  /** Teardown all components with a timeout.
+   *
+   * @param timeout_ms Maximum time to wait for teardown in milliseconds
+   */
+  void teardown_components(uint32_t timeout_ms);
 
   uint32_t get_app_state() const { return this->app_state_; }
 
@@ -492,6 +504,9 @@ class Application {
   void calculate_looping_components_();
 
   void feed_wdt_arch_();
+
+  /// Perform a delay while also monitoring socket file descriptors for readiness
+  void delay_with_select_(uint32_t delay_ms);
 
   std::vector<Component *> components_{};
   std::vector<Component *> looping_components_{};

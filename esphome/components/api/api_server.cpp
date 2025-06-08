@@ -88,6 +88,12 @@ void APIServer::setup() {
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
+      if (this->shutting_down_) {
+        // Don't try to send logs during shutdown
+        // as it could result in a recursion and
+        // we would be filling a buffer we are trying to clear
+        return;
+      }
       for (auto &c : this->clients_) {
         if (!c->remove_)
           c->try_send_log_message(level, tag, message);
@@ -112,8 +118,8 @@ void APIServer::setup() {
 }
 
 void APIServer::loop() {
-  // Accept new clients only if the socket has incoming connections
-  if (this->socket_->ready()) {
+  // Accept new clients only if the socket exists and has incoming connections
+  if (this->socket_ && this->socket_->ready()) {
     while (true) {
       struct sockaddr_storage source_addr;
       socklen_t addr_len = sizeof(source_addr);
@@ -474,10 +480,32 @@ void APIServer::request_time() {
 bool APIServer::is_connected() const { return !this->clients_.empty(); }
 
 void APIServer::on_shutdown() {
-  for (auto &c : this->clients_) {
-    c->send_disconnect_request(DisconnectRequest());
+  this->shutting_down_ = true;
+
+  // Close the listening socket to prevent new connections
+  if (this->socket_) {
+    this->socket_->close();
+    this->socket_ = nullptr;
   }
-  delay(10);
+
+  // Send disconnect requests to all connected clients
+  for (auto &c : this->clients_) {
+    if (!c->send_disconnect_request(DisconnectRequest())) {
+      // If we can't send the disconnect request, mark for immediate closure
+      c->next_close_ = true;
+    }
+  }
+}
+
+bool APIServer::teardown() {
+  // If network is disconnected, no point trying to flush buffers
+  if (!network::is_connected()) {
+    return true;
+  }
+  this->loop();
+
+  // Return true only when all clients have been torn down
+  return this->clients_.empty();
 }
 
 }  // namespace api

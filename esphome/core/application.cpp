@@ -126,63 +126,7 @@ void Application::loop() {
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-    if (!this->socket_fds_.empty()) {
-      // Use select() with timeout when we have sockets to monitor
-
-      // Update fd_set if socket list has changed
-      if (this->socket_fds_changed_) {
-        FD_ZERO(&this->base_read_fds_);
-        for (int fd : this->socket_fds_) {
-          if (fd >= 0 && fd < FD_SETSIZE) {
-            FD_SET(fd, &this->base_read_fds_);
-          }
-        }
-        this->socket_fds_changed_ = false;
-      }
-
-      // Copy base fd_set before each select
-      this->read_fds_ = this->base_read_fds_;
-
-      // Convert delay_time (milliseconds) to timeval
-      struct timeval tv;
-      tv.tv_sec = delay_time / 1000;
-      tv.tv_usec = (delay_time - tv.tv_sec * 1000) * 1000;
-
-      // Call select with timeout
-#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || (defined(USE_ESP32) && defined(USE_SOCKET_IMPL_BSD_SOCKETS))
-      // Use lwip_select() on platforms with lwIP - it's faster
-      // Note: On ESP32 with BSD sockets, select() is already mapped to lwip_select() via macros,
-      // but we explicitly call lwip_select() for clarity and to ensure we get the optimized version
-      int ret = lwip_select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#else
-      // Use standard select() on other platforms (e.g., host/native builds)
-      int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#endif
-
-      // Process select() result:
-      // ret < 0: error (except EINTR which is normal)
-      // ret > 0: socket(s) have data ready - normal and expected
-      // ret == 0: timeout occurred - normal and expected
-      if (ret < 0) {
-        if (errno == EINTR) {
-          // Interrupted by signal - this is normal, just continue
-          // No need to delay as some time has already passed
-          ESP_LOGVV(TAG, "select() interrupted by signal");
-        } else {
-          // Actual error - log and fall back to delay
-          ESP_LOGW(TAG, "select() failed with errno %d", errno);
-          delay(delay_time);
-        }
-      }
-    } else {
-      // No sockets registered, use regular delay
-      delay(delay_time);
-    }
-#else
-    // No select support, use regular delay
-    delay(delay_time);
-#endif
+    this->delay_with_select_(delay_time);
   }
   this->last_loop_ = last_op_end_time;
 
@@ -224,6 +168,7 @@ void Application::reboot() {
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely");
   run_safe_shutdown_hooks();
+  teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
   arch_restart();
 }
 
@@ -233,6 +178,49 @@ void Application::run_safe_shutdown_hooks() {
   }
   for (auto it = this->components_.rbegin(); it != this->components_.rend(); ++it) {
     (*it)->on_shutdown();
+  }
+}
+
+void Application::teardown_components(uint32_t timeout_ms) {
+  uint32_t start_time = millis();
+
+  // Copy all components in reverse order using reverse iterators
+  // Reverse order matches the behavior of run_safe_shutdown_hooks() above and ensures
+  // components are torn down in the opposite order of their setup_priority (which is
+  // used to sort components during Application::setup())
+  std::vector<Component *> pending_components(this->components_.rbegin(), this->components_.rend());
+
+  uint32_t now = start_time;
+  while (!pending_components.empty() && (now - start_time) < timeout_ms) {
+    // Feed watchdog during teardown to prevent triggering
+    this->feed_wdt(now);
+
+    // Use iterator to safely erase elements
+    for (auto it = pending_components.begin(); it != pending_components.end();) {
+      if ((*it)->teardown()) {
+        // Component finished teardown, erase it
+        it = pending_components.erase(it);
+      } else {
+        // Component still needs time
+        ++it;
+      }
+    }
+
+    // Give some time for I/O operations if components are still pending
+    if (!pending_components.empty()) {
+      this->delay_with_select_(1);
+    }
+
+    // Update time for next iteration
+    now = millis();
+  }
+
+  if (!pending_components.empty()) {
+    // Note: At this point, connections are either disconnected or in a bad state,
+    // so this warning will only appear via serial rather than being transmitted to clients
+    for (auto *component : pending_components) {
+      ESP_LOGW(TAG, "%s did not complete teardown within %u ms", component->get_component_source(), timeout_ms);
+    }
   }
 }
 
@@ -303,6 +291,54 @@ bool Application::is_socket_ready(int fd) const {
   return FD_ISSET(fd, &this->read_fds_);
 }
 #endif
+
+void Application::delay_with_select_(uint32_t delay_ms) {
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  if (!this->socket_fds_.empty()) {
+    // Update fd_set if socket list has changed
+    if (this->socket_fds_changed_) {
+      FD_ZERO(&this->base_read_fds_);
+      for (int fd : this->socket_fds_) {
+        if (fd >= 0 && fd < FD_SETSIZE) {
+          FD_SET(fd, &this->base_read_fds_);
+        }
+      }
+      this->socket_fds_changed_ = false;
+    }
+
+    // Copy base fd_set before each select
+    this->read_fds_ = this->base_read_fds_;
+
+    // Convert delay_ms to timeval
+    struct timeval tv;
+    tv.tv_sec = delay_ms / 1000;
+    tv.tv_usec = (delay_ms - tv.tv_sec * 1000) * 1000;
+
+    // Call select with timeout
+#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || (defined(USE_ESP32) && defined(USE_SOCKET_IMPL_BSD_SOCKETS))
+    int ret = lwip_select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
+#else
+    int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
+#endif
+
+    // Process select() result:
+    // ret < 0: error (except EINTR which is normal)
+    // ret > 0: socket(s) have data ready - normal and expected
+    // ret == 0: timeout occurred - normal and expected
+    if (ret < 0 && errno != EINTR) {
+      // Actual error - log and fall back to delay
+      ESP_LOGW(TAG, "select() failed with errno %d", errno);
+      delay(delay_ms);
+    }
+  } else {
+    // No sockets registered, use regular delay
+    delay(delay_ms);
+  }
+#else
+  // No select support, use regular delay
+  delay(delay_ms);
+#endif
+}
 
 Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
