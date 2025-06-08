@@ -16,7 +16,7 @@ namespace tca9555 {
 static const char *const TAG = "tca9555";
 
 void TCA9555Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TCA9555...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_gpio_modes_()) {
     this->mark_failed();
     return;
@@ -30,7 +30,7 @@ void TCA9555Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9555:");
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TCA9555 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {

@@ -21,8 +21,10 @@ from esphome.const import (
     CONF_WEB_SERVER,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -33,6 +35,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -54,6 +57,7 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
@@ -68,6 +72,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -78,8 +83,10 @@ CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -90,6 +97,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -111,6 +119,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
@@ -125,6 +134,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 ]
 IS_PLATFORM_COMPONENT = True
@@ -170,7 +180,7 @@ NUMBER_OPERATION_OPTIONS = {
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.string_strict
 
-NUMBER_SCHEMA = (
+_NUMBER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -196,16 +206,14 @@ NUMBER_SCHEMA = (
     )
 )
 
-_UNDEF = object()
-
 
 def number_schema(
     class_: MockObjClass,
     *,
-    icon: str = _UNDEF,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
-    unit_of_measurement: str = _UNDEF,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    unit_of_measurement: str = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {cv.GenerateID(): cv.declare_id(class_)}
 
@@ -215,10 +223,15 @@ def number_schema(
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return NUMBER_SCHEMA.extend(schema)
+    return _NUMBER_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+NUMBER_SCHEMA = number_schema(Number)
+NUMBER_SCHEMA.add_extra(cv.deprecated_schema_constant("number"))
 
 
 async def setup_number_core_(

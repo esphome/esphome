@@ -1,6 +1,7 @@
 #pragma once
 
 #include "udp_component.h"
+#ifdef USE_NETWORK
 #include "esphome/core/automation.h"
 
 #include <vector>
@@ -36,3 +37,4 @@ template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Par
 
 }  // namespace udp
 }  // namespace esphome
+#endif

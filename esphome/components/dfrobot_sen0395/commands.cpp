@@ -21,7 +21,7 @@ uint8_t Command::execute(DfrobotSen0395Component *parent) {
         if (this->retries_left_ > 0) {
           this->retries_left_ -= 1;
           this->cmd_sent_ = false;
-          ESP_LOGD(TAG, "Retrying...");
+          ESP_LOGD(TAG, "Retrying");
           return 0;
         } else {
           this->parent_->find_prompt_();
@@ -33,7 +33,7 @@ uint8_t Command::execute(DfrobotSen0395Component *parent) {
         if (this->retries_left_ > 0) {
           this->retries_left_ -= 1;
           this->cmd_sent_ = false;
-          ESP_LOGD(TAG, "Retrying...");
+          ESP_LOGD(TAG, "Retrying");
           return 0;
         } else {
           this->parent_->find_prompt_();
@@ -51,7 +51,7 @@ uint8_t Command::execute(DfrobotSen0395Component *parent) {
       if (this->retries_left_ > 0) {
         this->retries_left_ -= 1;
         this->cmd_sent_ = false;
-        ESP_LOGD(TAG, "Retrying...");
+        ESP_LOGD(TAG, "Retrying");
       } else {
         return 1;  // Command done
       }

@@ -84,7 +84,7 @@ class ESP32Preferences : public ESPPreferences {
     if (err == 0)
       return;
 
-    ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS...", esp_err_to_name(err));
+    ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS", esp_err_to_name(err));
     nvs_flash_deinit();
     nvs_flash_erase();
     nvs_flash_init();
@@ -111,7 +111,7 @@ class ESP32Preferences : public ESPPreferences {
     if (s_pending_save.empty())
       return true;
 
-    ESP_LOGD(TAG, "Saving %d preferences to flash...", s_pending_save.size());
+    ESP_LOGV(TAG, "Saving %d items...", s_pending_save.size());
     // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     esp_err_t last_err = ESP_OK;
@@ -139,10 +139,10 @@ class ESP32Preferences : public ESPPreferences {
       }
       s_pending_save.erase(s_pending_save.begin() + i);
     }
-    ESP_LOGD(TAG, "Saving %d preferences to flash: %d cached, %d written, %d failed", cached + written + failed, cached,
-             written, failed);
+    ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
     if (failed > 0) {
-      ESP_LOGE(TAG, "Error saving %d preferences to flash. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
+      ESP_LOGE(TAG, "Writing %d items failed. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
                last_key.c_str());
     }
 
@@ -173,7 +173,7 @@ class ESP32Preferences : public ESPPreferences {
   }
 
   bool reset() override {
-    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    ESP_LOGD(TAG, "Erasing storage");
     s_pending_save.clear();
 
     nvs_flash_deinit();

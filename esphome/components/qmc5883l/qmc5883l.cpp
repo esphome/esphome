@@ -24,7 +24,7 @@ static const uint8_t QMC5883L_REGISTER_CONTROL_2 = 0x0A;
 static const uint8_t QMC5883L_REGISTER_PERIOD = 0x0B;
 
 void QMC5883LComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up QMC5883L...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // Soft Reset
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -69,7 +69,7 @@ void QMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "QMC5883L:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with QMC5883L failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 

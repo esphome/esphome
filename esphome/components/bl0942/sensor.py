@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LINE_FREQUENCY,
     CONF_POWER,
+    CONF_RESET,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -27,7 +28,6 @@ from esphome.const import (
 CONF_CURRENT_REFERENCE = "current_reference"
 CONF_ENERGY_REFERENCE = "energy_reference"
 CONF_POWER_REFERENCE = "power_reference"
-CONF_RESET = "reset"
 CONF_VOLTAGE_REFERENCE = "voltage_reference"
 
 DEPENDENCIES = ["uart"]

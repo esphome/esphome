@@ -29,8 +29,9 @@ static const uint8_t SETUP_DELAY = 4;         // Wait 2 integration periods.
 static const float VOUT_LSB = 14.0 / 1000.0;  // 14mV/LSB
 static const float TEMP_LSB = 0.48;           // 0.48C/LSB
 static const float MICRO_VOLTS_PER_VOLT = 1000000.0;
+
 void MAX9611Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up max9611...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // Perform dummy-read
   uint8_t value;
   this->read(&value, 1);
@@ -41,17 +42,17 @@ void MAX9611Component::setup() {
   const uint8_t fast_mode_dat[] = {CONTROL_REGISTER_1_ADRR, MAX9611Multiplexer::MAX9611_MULTIPLEXER_FAST_MODE};
 
   if (this->write(reinterpret_cast<const uint8_t *>(&setup_dat), sizeof(setup_dat)) != ErrorCode::ERROR_OK) {
-    ESP_LOGE(TAG, "Failed to setup Max9611 during GAIN SET");
+    ESP_LOGE(TAG, "GAIN SET failed");
     return;
   }
   delay(SETUP_DELAY);
   if (this->write(reinterpret_cast<const uint8_t *>(&fast_mode_dat), sizeof(fast_mode_dat)) != ErrorCode::ERROR_OK) {
-    ESP_LOGE(TAG, "Failed to setup Max9611 during FAST MODE SET");
+    ESP_LOGE(TAG, "FAST MODE SET failed");
     return;
   }
 }
 void MAX9611Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "Dump Config max9611...");
+  ESP_LOGCONFIG(TAG, "MAX9611:");
   ESP_LOGCONFIG(TAG, "    CSA Gain Register: %x", gain_);
   LOG_I2C_DEVICE(this);
 }
@@ -62,7 +63,7 @@ void MAX9611Component::update() {
   // Just read the entire register map in a bulk read, faster than individually querying register.
   const ErrorCode read_result = this->read(register_map_, sizeof(register_map_));
   if (write_result != ErrorCode::ERROR_OK || read_result != ErrorCode::ERROR_OK) {
-    ESP_LOGW(TAG, "MAX9611 Update FAILED!");
+    ESP_LOGW(TAG, "Update failed");
     return;
   }
   uint16_t csa_register = ((register_map_[CSA_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[CSA_DATA_BYTE_LSB_ADRR])) >> 4;

@@ -7,7 +7,7 @@ namespace st7567_spi {
 static const char *const TAG = "st7567_spi";
 
 void SPIST7567::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI ST7567 display...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
   this->dc_pin_->setup();
   if (this->cs_)

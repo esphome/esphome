@@ -8,7 +8,7 @@ namespace esp8266 {
 
 static const char *const TAG = "esp8266";
 
-static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
+static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
@@ -34,12 +34,39 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
 struct ISRPinArg {
   uint8_t pin;
   bool inverted;
+  volatile uint32_t *in_reg;
+  volatile uint32_t *out_set_reg;
+  volatile uint32_t *out_clr_reg;
+  volatile uint32_t *mode_set_reg;
+  volatile uint32_t *mode_clr_reg;
+  volatile uint32_t *func_reg;
+  volatile uint32_t *control_reg;
+  uint32_t mask;
 };
 
 ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
   auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->pin = pin_;
-  arg->inverted = inverted_;
+  arg->pin = this->pin_;
+  arg->inverted = this->inverted_;
+  if (this->pin_ < 16) {
+    arg->in_reg = &GPI;
+    arg->out_set_reg = &GPOS;
+    arg->out_clr_reg = &GPOC;
+    arg->mode_set_reg = &GPES;
+    arg->mode_clr_reg = &GPEC;
+    arg->func_reg = &GPF(this->pin_);
+    arg->control_reg = &GPC(this->pin_);
+    arg->mask = 1 << this->pin_;
+  } else {
+    arg->in_reg = &GP16I;
+    arg->out_set_reg = &GP16O;
+    arg->out_clr_reg = nullptr;
+    arg->mode_set_reg = &GP16E;
+    arg->mode_clr_reg = nullptr;
+    arg->func_reg = &GPF16;
+    arg->control_reg = nullptr;
+    arg->mask = 1;
+  }
   return ISRInternalGPIOPin((void *) arg);
 }
 
@@ -88,20 +115,63 @@ void ESP8266GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
 using namespace esp8266;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  return bool(digitalRead(arg->pin)) != arg->inverted;  // NOLINT
+  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
+  return bool(*arg->in_reg & arg->mask) != arg->inverted;
 }
+
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);  // NOLINT
+  if (arg->pin < 16) {
+    if (value != arg->inverted) {
+      *arg->out_set_reg = arg->mask;
+    } else {
+      *arg->out_clr_reg = arg->mask;
+    }
+  } else {
+    if (value != arg->inverted) {
+      *arg->out_set_reg |= 1;
+    } else {
+      *arg->out_set_reg &= ~1;
+    }
+  }
 }
+
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
   GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << arg->pin);
 }
+
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  pinMode(arg->pin, flags_to_mode(flags, arg->pin));  // NOLINT
+  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
+  if (arg->pin < 16) {
+    if (flags & gpio::FLAG_OUTPUT) {
+      *arg->mode_set_reg = arg->mask;
+      if (flags & gpio::FLAG_OPEN_DRAIN) {
+        *arg->control_reg |= 1 << GPCD;
+      } else {
+        *arg->control_reg &= ~(1 << GPCD);
+      }
+    } else if (flags & gpio::FLAG_INPUT) {
+      *arg->mode_clr_reg = arg->mask;
+    }
+    if (flags & gpio::FLAG_PULLUP) {
+      *arg->func_reg |= 1 << GPFPU;
+      *arg->control_reg |= 1 << GPCD;
+    } else {
+      *arg->func_reg &= ~(1 << GPFPU);
+    }
+  } else {
+    if (flags & gpio::FLAG_OUTPUT) {
+      *arg->mode_set_reg |= 1;
+    } else {
+      *arg->mode_set_reg &= ~1;
+    }
+    if (flags & gpio::FLAG_PULLDOWN) {
+      *arg->func_reg |= 1 << GP16FPD;
+    } else {
+      *arg->func_reg &= ~(1 << GP16FPD);
+    }
+  }
 }
 
 }  // namespace esphome

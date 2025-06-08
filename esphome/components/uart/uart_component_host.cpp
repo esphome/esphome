@@ -109,7 +109,7 @@ HostUartComponent::~HostUartComponent() {
 }
 
 void HostUartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Opening UART port...");
+  ESP_LOGCONFIG(TAG, "Opening UART port");
   speed_t baud = get_baud(this->baud_rate_);
   if (baud == B0) {
     ESP_LOGE(TAG, "Unsupported baud rate: %d", this->baud_rate_);
@@ -283,7 +283,7 @@ void HostUartComponent::flush() {
     return;
   }
   tcflush(this->file_descriptor_, TCIOFLUSH);
-  ESP_LOGV(TAG, "    Flushing...");
+  ESP_LOGV(TAG, "    Flushing");
 }
 
 void HostUartComponent::update_error_(const std::string &error) {

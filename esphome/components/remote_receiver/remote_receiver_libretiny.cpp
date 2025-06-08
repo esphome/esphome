@@ -31,7 +31,7 @@ void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverCompone
 }
 
 void RemoteReceiverComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Remote Receiver...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
   auto &s = this->store_;
   s.filter_us = this->filter_us_;

@@ -25,8 +25,12 @@ static const uint16_t SEN5X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
 static const uint16_t SEN5X_CMD_VOC_ALGORITHM_STATE = 0x6181;
 static const uint16_t SEN5X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 
+static const int8_t SEN5X_INDEX_SCALE_FACTOR = 10;                            // used for VOC and NOx index values
+static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
+static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
+
 void SEN5XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sen5x...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
@@ -88,8 +92,9 @@ void SEN5XComponent::setup() {
           product_name_.push_back(current_char);
           // second char
           current_char = *current_int & 0xFF;
-          if (current_char)
+          if (current_char) {
             product_name_.push_back(current_char);
+          }
         }
         current_int++;
       } while (current_char && --max);
@@ -240,10 +245,10 @@ void SEN5XComponent::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+        ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case SERIAL_NUMBER_IDENTIFICATION_FAILED:
         ESP_LOGW(TAG, "Unable to read sensor serial id");
@@ -255,7 +260,7 @@ void SEN5XComponent::dump_config() {
         ESP_LOGW(TAG, "Unable to read sensor firmware version");
         break;
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   }
@@ -271,10 +276,10 @@ void SEN5XComponent::dump_config() {
         ESP_LOGCONFIG(TAG, "  Low RH/T acceleration mode");
         break;
       case MEDIUM_ACCELERATION:
-        ESP_LOGCONFIG(TAG, "  Medium RH/T accelertion mode");
+        ESP_LOGCONFIG(TAG, "  Medium RH/T acceleration mode");
         break;
       case HIGH_ACCELERATION:
-        ESP_LOGCONFIG(TAG, "  High RH/T accelertion mode");
+        ESP_LOGCONFIG(TAG, "  High RH/T acceleration mode");
         break;
     }
   }
@@ -337,47 +342,61 @@ void SEN5XComponent::update() {
       ESP_LOGD(TAG, "read data error (%d)", this->last_error_);
       return;
     }
-    float pm_1_0 = measurements[0] / 10.0;
-    if (measurements[0] == 0xFFFF)
-      pm_1_0 = NAN;
-    float pm_2_5 = measurements[1] / 10.0;
-    if (measurements[1] == 0xFFFF)
-      pm_2_5 = NAN;
-    float pm_4_0 = measurements[2] / 10.0;
-    if (measurements[2] == 0xFFFF)
-      pm_4_0 = NAN;
-    float pm_10_0 = measurements[3] / 10.0;
-    if (measurements[3] == 0xFFFF)
-      pm_10_0 = NAN;
-    float humidity = measurements[4] / 100.0;
-    if (measurements[4] == 0xFFFF)
-      humidity = NAN;
-    float temperature = (int16_t) measurements[5] / 200.0;
-    if (measurements[5] == 0xFFFF)
-      temperature = NAN;
-    float voc = measurements[6] / 10.0;
-    if (measurements[6] == 0xFFFF)
-      voc = NAN;
-    float nox = measurements[7] / 10.0;
-    if (measurements[7] == 0xFFFF)
-      nox = NAN;
 
-    if (this->pm_1_0_sensor_ != nullptr)
+    ESP_LOGVV(TAG, "pm_1_0 = 0x%.4x", measurements[0]);
+    float pm_1_0 = measurements[0] == UINT16_MAX ? NAN : measurements[0] / 10.0f;
+
+    ESP_LOGVV(TAG, "pm_2_5 = 0x%.4x", measurements[1]);
+    float pm_2_5 = measurements[1] == UINT16_MAX ? NAN : measurements[1] / 10.0f;
+
+    ESP_LOGVV(TAG, "pm_4_0 = 0x%.4x", measurements[2]);
+    float pm_4_0 = measurements[2] == UINT16_MAX ? NAN : measurements[2] / 10.0f;
+
+    ESP_LOGVV(TAG, "pm_10_0 = 0x%.4x", measurements[3]);
+    float pm_10_0 = measurements[3] == UINT16_MAX ? NAN : measurements[3] / 10.0f;
+
+    ESP_LOGVV(TAG, "humidity = 0x%.4x", measurements[4]);
+    float humidity = measurements[4] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[4]) / 100.0f;
+
+    ESP_LOGVV(TAG, "temperature = 0x%.4x", measurements[5]);
+    float temperature = measurements[5] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[5]) / 200.0f;
+
+    ESP_LOGVV(TAG, "voc = 0x%.4x", measurements[6]);
+    int16_t voc_idx = static_cast<int16_t>(measurements[6]);
+    float voc = (voc_idx < SEN5X_MIN_INDEX_VALUE || voc_idx > SEN5X_MAX_INDEX_VALUE)
+                    ? NAN
+                    : static_cast<float>(voc_idx) / 10.0f;
+
+    ESP_LOGVV(TAG, "nox = 0x%.4x", measurements[7]);
+    int16_t nox_idx = static_cast<int16_t>(measurements[7]);
+    float nox = (nox_idx < SEN5X_MIN_INDEX_VALUE || nox_idx > SEN5X_MAX_INDEX_VALUE)
+                    ? NAN
+                    : static_cast<float>(nox_idx) / 10.0f;
+
+    if (this->pm_1_0_sensor_ != nullptr) {
       this->pm_1_0_sensor_->publish_state(pm_1_0);
-    if (this->pm_2_5_sensor_ != nullptr)
+    }
+    if (this->pm_2_5_sensor_ != nullptr) {
       this->pm_2_5_sensor_->publish_state(pm_2_5);
-    if (this->pm_4_0_sensor_ != nullptr)
+    }
+    if (this->pm_4_0_sensor_ != nullptr) {
       this->pm_4_0_sensor_->publish_state(pm_4_0);
-    if (this->pm_10_0_sensor_ != nullptr)
+    }
+    if (this->pm_10_0_sensor_ != nullptr) {
       this->pm_10_0_sensor_->publish_state(pm_10_0);
-    if (this->temperature_sensor_ != nullptr)
+    }
+    if (this->temperature_sensor_ != nullptr) {
       this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
+    }
+    if (this->humidity_sensor_ != nullptr) {
       this->humidity_sensor_->publish_state(humidity);
-    if (this->voc_sensor_ != nullptr)
+    }
+    if (this->voc_sensor_ != nullptr) {
       this->voc_sensor_->publish_state(voc);
-    if (this->nox_sensor_ != nullptr)
+    }
+    if (this->nox_sensor_ != nullptr) {
       this->nox_sensor_->publish_state(nox);
+    }
     this->status_clear_warning();
   });
 }

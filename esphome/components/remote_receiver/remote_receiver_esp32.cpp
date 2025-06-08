@@ -40,7 +40,7 @@ static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_r
 #endif
 
 void RemoteReceiverComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Remote Receiver...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 #if ESP_IDF_VERSION_MAJOR >= 5
   rmt_rx_channel_config_t channel;
   memset(&channel, 0, sizeof(channel));

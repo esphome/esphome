@@ -11,7 +11,7 @@ static const uint16_t SFA30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0006;
 static const uint16_t SFA30_CMD_READ_MEASUREMENT = 0x0327;
 
 void SFA30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sfa30...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Serial Number identification
   uint16_t raw_device_marking[16];

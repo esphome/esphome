@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "max7219font.h"
 
 #include <algorithm>
@@ -25,7 +26,7 @@ constexpr uint8_t MAX7219_DISPLAY_TEST = 0x01;
 float MAX7219Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void MAX7219Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX7219_DIGITS...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
   this->stepsleft_ = 0;
   for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
@@ -63,7 +64,7 @@ void MAX7219Component::dump_config() {
 }
 
 void MAX7219Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   const uint32_t millis_since_last_scroll = now - this->last_scroll_;
   const size_t first_line_size = this->max_displaybuffer_[0].size();
   // check if the buffer has shrunk past the current position since last update

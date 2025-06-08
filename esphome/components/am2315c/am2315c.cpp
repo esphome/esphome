@@ -90,7 +90,7 @@ bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
 }
 
 void AM2315C::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AM2315C...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // get status
   uint8_t status = 0;
@@ -188,7 +188,7 @@ void AM2315C::dump_config() {
   ESP_LOGCONFIG(TAG, "AM2315C:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AM2315C failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

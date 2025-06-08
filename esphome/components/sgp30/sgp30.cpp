@@ -33,7 +33,7 @@ const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 3600;
 const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 void SGP30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SGP30...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Serial Number identification
   uint16_t raw_serial_number[3];
@@ -232,19 +232,19 @@ void SGP30Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+        ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case INVALID_ID:
         ESP_LOGW(TAG, "Sensor reported an invalid ID. Is this an SGP30?");
         break;
       case UNSUPPORTED_ID:
-        ESP_LOGW(TAG, "Sensor reported an unsupported ID (SGPC3).");
+        ESP_LOGW(TAG, "Sensor reported an unsupported ID (SGPC3)");
         break;
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   } else {

@@ -12,7 +12,7 @@ void DPS310Component::setup() {
   auto timer = DPS310_INIT_TIMEOUT;
   uint8_t reg = 0;
 
-  ESP_LOGCONFIG(TAG, "Setting up DPS310...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // first, reset the sensor
   if (!this->write_byte(DPS310_REG_RESET, DPS310_CMD_RESET)) {
     this->mark_failed();
@@ -91,7 +91,7 @@ void DPS310Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Revision ID: %u", (this->prod_rev_id_ >> 4) & 0x0F);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with DPS310 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

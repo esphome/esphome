@@ -1,0 +1,38 @@
+spi:
+  - id: spi_single
+    clk_pin:
+      number: ${clk_pin}
+      allow_other_uses: true
+    mosi_pin:
+      number: ${mosi_pin}
+
+display:
+  - platform: mipi_spi
+    spi_16: true
+    pixel_mode: 18bit
+    model: ili9488
+    dc_pin: ${dc_pin}
+    cs_pin: ${cs_pin}
+    reset_pin: ${reset_pin}
+    data_rate: 20MHz
+    invert_colors: true
+    show_test_card: true
+    spi_mode: mode0
+    draw_rounding: 8
+    use_axis_flips: true
+    init_sequence:
+      - [0xd0, 1, 2, 3]
+      - delay 10ms
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: true
+    dimensions:
+      width: 100
+      height: 200
+    enable_pin:
+      - number: ${clk_pin}
+        allow_other_uses: true
+      - number: ${enable_pin}
+    bus_mode: single
+

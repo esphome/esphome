@@ -118,7 +118,7 @@ const char *orientation_xy_to_string(OrientationXY orientation) {
 const char *orientation_z_to_string(bool orientation) { return orientation ? "Downwards looking" : "Upwards looking"; }
 
 void MSA3xxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MSA3xx...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint8_t part_id{0xff};
   if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA_3XX_PART_ID)) {
@@ -159,7 +159,7 @@ void MSA3xxComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MSA3xx:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MSA3xx failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   ESP_LOGCONFIG(TAG, "  Model: %s", model_to_string(this->model_));
   ESP_LOGCONFIG(TAG, "  Power Mode: %s", power_mode_to_string(this->power_mode_));
@@ -248,10 +248,10 @@ void MSA3xxComponent::loop() {
 }
 
 void MSA3xxComponent::update() {
-  ESP_LOGV(TAG, "Updating MSA3xx...");
+  ESP_LOGV(TAG, "Updating");
 
   if (!this->is_ready()) {
-    ESP_LOGV(TAG, "Component MSA3xx not ready for update");
+    ESP_LOGV(TAG, "Not ready for update");
     return;
   }
   ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}; ", this->data_.x, this->data_.y,

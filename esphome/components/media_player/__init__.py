@@ -2,6 +2,8 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_ON_IDLE,
     CONF_ON_STATE,
@@ -10,6 +12,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@jesserockz"]
@@ -103,7 +106,13 @@ async def register_media_player(var, config):
     await setup_media_player_core_(var, config)
 
 
-MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+async def new_media_player(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_media_player(var, config)
+    return var
+
+
+_MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {
@@ -132,6 +141,29 @@ MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         ),
     }
 )
+
+
+def media_player_schema(
+    class_: MockObjClass,
+    *,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {cv.GenerateID(CONF_ID): cv.declare_id(class_)}
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _MEDIA_PLAYER_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+MEDIA_PLAYER_SCHEMA = media_player_schema(MediaPlayer)
+MEDIA_PLAYER_SCHEMA.add_extra(cv.deprecated_schema_constant("media_player"))
 
 
 MEDIA_PLAYER_ACTION_SCHEMA = automation.maybe_simple_id(

@@ -4,17 +4,48 @@
 #include <cstring>
 #include <string>
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace socket {
 
 Socket::~Socket() {}
 
+bool Socket::ready() const {
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  if (!loop_monitored_) {
+    // Non-monitored sockets always return true (assume data may be available)
+    return true;
+  }
+
+  // For loop-monitored sockets, check with the Application's select() results
+  int fd = this->get_fd();
+  if (fd < 0) {
+    // No valid file descriptor, assume ready (fallback behavior)
+    return true;
+  }
+
+  return App.is_socket_ready(fd);
+#else
+  // Without select() support, we can't monitor sockets in the loop
+  // Always return true (assume data may be available)
+  return true;
+#endif
+}
+
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #if USE_NETWORK_IPV6
   return socket(AF_INET6, type, protocol);
 #else
   return socket(AF_INET, type, protocol);
+#endif /* USE_NETWORK_IPV6 */
+}
+
+std::unique_ptr<Socket> socket_ip_loop_monitored(int type, int protocol) {
+#if USE_NETWORK_IPV6
+  return socket_loop_monitored(AF_INET6, type, protocol);
+#else
+  return socket_loop_monitored(AF_INET, type, protocol);
 #endif /* USE_NETWORK_IPV6 */
 }
 

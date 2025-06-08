@@ -6,6 +6,8 @@ from esphome.const import (
     CONF_DISTANCE,
     CONF_RESOLUTION,
     CONF_SPEED,
+    CONF_X,
+    CONF_Y,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
     UNIT_DEGREES,
@@ -19,8 +21,6 @@ DEPENDENCIES = ["ld2450"]
 CONF_MOVING_TARGET_COUNT = "moving_target_count"
 CONF_STILL_TARGET_COUNT = "still_target_count"
 CONF_TARGET_COUNT = "target_count"
-CONF_X = "x"
-CONF_Y = "y"
 
 ICON_ACCOUNT_GROUP = "mdi:account-group"
 ICON_ACCOUNT_SWITCH = "mdi:account-switch"

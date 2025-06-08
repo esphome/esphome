@@ -109,7 +109,7 @@ static inline std::string format_version(uint8_t *buffer) {
 LD2450Component::LD2450Component() {}
 
 void LD2450Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up HLK-LD2450...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
     this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_object_id_hash());

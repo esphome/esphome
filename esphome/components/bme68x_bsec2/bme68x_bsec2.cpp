@@ -1,4 +1,5 @@
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -20,7 +21,7 @@ static const char *const TAG = "bme68x_bsec2.sensor";
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 void BME68xBSEC2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BME68X via BSEC2...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {

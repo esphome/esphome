@@ -39,7 +39,7 @@ void HydreonRGxxComponent::dump_config() {
 }
 
 void HydreonRGxxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up hydreon_rgxx...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   while (this->available() != 0) {
     this->read();
   }

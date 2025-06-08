@@ -26,7 +26,7 @@ static const uint16_t SCD30_CMD_TEMPERATURE_OFFSET = 0x5403;
 static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 
 void SCD30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up scd30...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
 #ifdef USE_ESP8266
   Wire.setClockStretchLimit(150000);
@@ -122,16 +122,16 @@ void SCD30Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+        ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case FIRMWARE_IDENTIFICATION_FAILED:
         ESP_LOGW(TAG, "Unable to read sensor firmware version");
         break;
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   }

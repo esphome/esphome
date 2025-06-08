@@ -22,7 +22,7 @@ static const uint8_t RMT_CLK_DIV = 2;
 #endif
 
 void ESP32RMTLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ESP32 LED Strip...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   size_t buffer_size = this->get_buffer_size_();
 
@@ -143,7 +143,7 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   this->last_refresh_ = now;
   this->mark_shown_();
 
-  ESP_LOGVV(TAG, "Writing RGB values to bus...");
+  ESP_LOGVV(TAG, "Writing RGB values to bus");
 
 #if ESP_IDF_VERSION_MAJOR >= 5
   esp_err_t error = rmt_tx_wait_all_done(this->channel_, 1000);

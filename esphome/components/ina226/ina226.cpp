@@ -37,7 +37,7 @@ static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
 
 void INA226Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up INA226...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   ConfigurationRegister config;
 
@@ -88,7 +88,7 @@ void INA226Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with INA226 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   LOG_UPDATE_INTERVAL(this);

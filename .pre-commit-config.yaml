@@ -4,7 +4,7 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.11.0
+    rev: v0.11.10
     hooks:
       # Run the linter.
       - id: ruff
@@ -28,12 +28,12 @@ repos:
           - --branch=release
           - --branch=beta
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.2
+    rev: v3.20.0
     hooks:
       - id: pyupgrade
-        args: [--py39-plus]
+        args: [--py310-plus]
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.35.1
+    rev: v1.37.1
     hooks:
       - id: yamllint
   - repo: https://github.com/pre-commit/mirrors-clang-format

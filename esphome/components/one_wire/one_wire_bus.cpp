@@ -17,8 +17,15 @@ const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
 
 const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; }
 
+bool OneWireBus::reset_() {
+  int res = this->reset_int();
+  if (res == -1)
+    ESP_LOGE(TAG, "1-wire bus is held low");
+  return res == 1;
+}
+
 bool IRAM_ATTR OneWireBus::select(uint64_t address) {
-  if (!this->reset())
+  if (!this->reset_())
     return false;
   this->write8(ONE_WIRE_ROM_SELECT);
   this->write64(address);
@@ -31,16 +38,13 @@ void OneWireBus::search() {
   this->reset_search();
   uint64_t address;
   while (true) {
-    {
-      InterruptLock lock;
-      if (!this->reset()) {
-        // Reset failed or no devices present
-        return;
-      }
-
-      this->write8(ONE_WIRE_ROM_SEARCH);
-      address = this->search_int();
+    if (!this->reset_()) {
+      // Reset failed or no devices present
+      return;
     }
+
+    this->write8(ONE_WIRE_ROM_SEARCH);
+    address = this->search_int();
     if (address == 0)
       break;
     auto *address8 = reinterpret_cast<uint8_t *>(&address);

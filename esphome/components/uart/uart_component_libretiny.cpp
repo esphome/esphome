@@ -46,7 +46,7 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up UART...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
@@ -145,7 +145,7 @@ bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
 
 int LibreTinyUARTComponent::available() { return this->serial_->available(); }
 void LibreTinyUARTComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
 }
 

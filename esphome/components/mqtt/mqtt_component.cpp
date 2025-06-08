@@ -64,11 +64,11 @@ bool MQTTComponent::send_discovery_() {
   const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
 
   if (discovery_info.clean) {
-    ESP_LOGV(TAG, "'%s': Cleaning discovery...", this->friendly_name().c_str());
+    ESP_LOGV(TAG, "'%s': Cleaning discovery", this->friendly_name().c_str());
     return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
   }
 
-  ESP_LOGV(TAG, "'%s': Sending discovery...", this->friendly_name().c_str());
+  ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name().c_str());
 
   return global_mqtt_client->publish_json(
       this->get_discovery_topic_(discovery_info),

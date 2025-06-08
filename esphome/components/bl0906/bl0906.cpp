@@ -100,7 +100,7 @@ void BL0906::handle_actions_() {
   for (int i = 0; i < this->action_queue_.size(); i++) {
     ptr_func = this->action_queue_[i];
     if (ptr_func) {
-      ESP_LOGI(TAG, "HandleActionCallback[%d]...", i);
+      ESP_LOGI(TAG, "HandleActionCallback[%d]", i);
       (this->*ptr_func)();
     }
   }

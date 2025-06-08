@@ -9,6 +9,10 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#include <sys/select.h>
+#endif
+
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -217,6 +221,9 @@ class Application {
 
   std::string get_compilation_time() const { return this->compilation_time_; }
 
+  /// Get the cached time in milliseconds from when the current component started its loop execution
+  inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
+
   /** Set the target interval with which to run the loop() calls.
    * If the loop() method takes longer than the target interval, ESPHome won't
    * sleep in loop(), but if the time spent in loop() is small than the target, ESPHome
@@ -236,7 +243,7 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  void feed_wdt();
+  void feed_wdt(uint32_t time = 0);
 
   void reboot();
 
@@ -464,6 +471,19 @@ class Application {
 
   Scheduler scheduler;
 
+  /// Register/unregister a socket file descriptor to be monitored for read events.
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  /// These functions update the fd_set used by select() in the main loop.
+  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
+  /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
+  /// @return true if registration was successful, false if fd exceeds limits
+  bool register_socket_fd(int fd);
+  void unregister_socket_fd(int fd);
+  /// Check if there's data available on a socket without blocking
+  /// This function is thread-safe for reading, but should be called after select() has run
+  bool is_socket_ready(int fd) const;
+#endif
+
  protected:
   friend Component;
 
@@ -551,6 +571,16 @@ class Application {
   size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
   Component *current_component_{nullptr};
+  uint32_t loop_component_start_time_{0};
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  // Socket select management
+  std::vector<int> socket_fds_;     // Vector of all monitored socket file descriptors
+  bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
+  int max_fd_{-1};                  // Highest file descriptor number for select()
+  fd_set base_read_fds_{};          // Cached fd_set rebuilt only when socket_fds_ changes
+  fd_set read_fds_{};               // Working fd_set for select(), copied from base_read_fds_
+#endif
 };
 
 /// Global storage of Application pointer - only one Application can exist.

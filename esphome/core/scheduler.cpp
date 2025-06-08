@@ -229,8 +229,11 @@ void HOT Scheduler::call() {
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
       {
-        WarnIfComponentBlockingGuard guard{item->component};
+        uint32_t now_ms = millis();
+        WarnIfComponentBlockingGuard guard{item->component, now_ms};
         item->callback();
+        // Call finish to ensure blocking time is properly calculated and reported
+        guard.finish();
       }
     }
 

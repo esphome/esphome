@@ -15,8 +15,6 @@ namespace micro_wake_word {
 static const uint8_t PREPROCESSOR_FEATURE_SIZE = 40;
 // Duration of each slice used as input into the preprocessor
 static const uint8_t FEATURE_DURATION_MS = 30;
-// Audio sample frequency in hertz
-static const uint16_t AUDIO_SAMPLE_FREQUENCY = 16000;
 
 static const float FILTERBANK_LOWER_BAND_LIMIT = 125.0;
 static const float FILTERBANK_UPPER_BAND_LIMIT = 7500.0;

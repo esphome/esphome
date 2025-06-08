@@ -57,7 +57,7 @@ static const uint8_t EMC2101_POLARITY_BIT = 1 << 4;
 float Emc2101Component::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void Emc2101Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Emc2101 sensor...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // make sure we're talking to the right chip
   uint8_t chip_id = reg(EMC2101_REGISTER_WHOAMI).get();
@@ -94,7 +94,7 @@ void Emc2101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Emc2101 component:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with EMC2101 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? "DAC" : "PWM");
   if (this->dac_mode_) {
@@ -110,7 +110,7 @@ void Emc2101Component::set_duty_cycle(float value) {
   uint8_t duty_cycle = remap(value, 0.0f, 1.0f, (uint8_t) 0, this->max_output_value_);
   ESP_LOGD(TAG, "Setting duty fan setting to %02X", duty_cycle);
   if (!this->write_byte(EMC2101_REGISTER_FAN_SETTING, duty_cycle)) {
-    ESP_LOGE(TAG, "Communication with EMC2101 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }
@@ -119,7 +119,7 @@ void Emc2101Component::set_duty_cycle(float value) {
 float Emc2101Component::get_duty_cycle() {
   uint8_t duty_cycle;
   if (!this->read_byte(EMC2101_REGISTER_FAN_SETTING, &duty_cycle)) {
-    ESP_LOGE(TAG, "Communication with EMC2101 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return NAN;
   }
@@ -129,7 +129,7 @@ float Emc2101Component::get_duty_cycle() {
 float Emc2101Component::get_internal_temperature() {
   uint8_t temperature;
   if (!this->read_byte(EMC2101_REGISTER_INTERNAL_TEMP, &temperature)) {
-    ESP_LOGE(TAG, "Communication with EMC2101 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return NAN;
   }
@@ -141,7 +141,7 @@ float Emc2101Component::get_external_temperature() {
   uint8_t lsb, msb;
   if (!this->read_byte(EMC2101_REGISTER_EXTERNAL_TEMP_MSB, &msb) ||
       !this->read_byte(EMC2101_REGISTER_EXTERNAL_TEMP_LSB, &lsb)) {
-    ESP_LOGE(TAG, "Communication with EMC2101 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return NAN;
   }
@@ -155,7 +155,7 @@ float Emc2101Component::get_speed() {
   // Read **LSB** first to match 'Data Read Interlock' behavior from 6.1 of datasheet
   uint8_t lsb, msb;
   if (!this->read_byte(EMC2101_REGISTER_TACH_LSB, &lsb) || !this->read_byte(EMC2101_REGISTER_TACH_MSB, &msb)) {
-    ESP_LOGE(TAG, "Communication with EMC2101 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return NAN;
   }

@@ -11,9 +11,11 @@ from esphome.const import (
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
+    CONF_ENTITY_CATEGORY,
     CONF_FAN_MODE,
     CONF_FAN_MODE_COMMAND_TOPIC,
     CONF_FAN_MODE_STATE_TOPIC,
+    CONF_ICON,
     CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -46,6 +48,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
@@ -151,12 +154,11 @@ ControlTrigger = climate_ns.class_(
     "ControlTrigger", automation.Trigger.template(ClimateCall.operator("ref"))
 )
 
-CLIMATE_SCHEMA = (
+_CLIMATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(Climate),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
@@ -243,6 +245,31 @@ CLIMATE_SCHEMA = (
         }
     )
 )
+
+
+def climate_schema(
+    class_: MockObjClass,
+    *,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _CLIMATE_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+CLIMATE_SCHEMA = climate_schema(Climate)
+CLIMATE_SCHEMA.add_extra(cv.deprecated_schema_constant("climate"))
 
 
 async def setup_climate_core_(var, config):
@@ -417,6 +444,12 @@ async def register_climate(var, config):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_climate(var))
     await setup_climate_core_(var, config)
+
+
+async def new_climate(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_climate(var, config)
+    return var
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(

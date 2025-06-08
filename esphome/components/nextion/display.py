@@ -16,6 +16,7 @@ from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
     CONF_EXIT_REPARSE_ON_START,
+    CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
     CONF_ON_SETUP,
     CONF_ON_SLEEP,
@@ -93,6 +94,7 @@ CONFIG_SCHEMA = (
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
+            cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -124,6 +126,10 @@ async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
+
+    if max_queue_size := config.get(CONF_MAX_QUEUE_SIZE):
+        cg.add_define("USE_NEXTION_MAX_QUEUE_SIZE")
+        cg.add(var.set_max_queue_size(max_queue_size))
 
     if command_spacing := config.get(CONF_COMMAND_SPACING):
         cg.add_define("USE_NEXTION_COMMAND_SPACING")

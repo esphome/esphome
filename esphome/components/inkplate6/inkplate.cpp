@@ -1,7 +1,7 @@
 #include "inkplate.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
@@ -155,6 +155,12 @@ void Inkplate6::update() {
 void HOT Inkplate6::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
+
+  if (this->mirror_y_)
+    y = this->get_height_internal() - y - 1;
+
+  if (this->mirror_x_)
+    x = this->get_width_internal() - x - 1;
 
   if (this->greyscale_) {
     int x1 = x / 2;

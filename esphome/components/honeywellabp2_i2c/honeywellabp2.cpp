@@ -14,7 +14,7 @@ static const char *const TAG = "honeywellabp2";
 
 void HONEYWELLABP2Sensor::read_sensor_data() {
   if (this->read(raw_data_, 7) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with ABP2 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning("couldn't read sensor data");
     return;
   }
@@ -30,7 +30,7 @@ void HONEYWELLABP2Sensor::read_sensor_data() {
 
 void HONEYWELLABP2Sensor::start_measurement() {
   if (this->write(i2c_cmd_, 3) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with ABP2 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning("couldn't start measurement");
     return;
   }
@@ -39,7 +39,7 @@ void HONEYWELLABP2Sensor::start_measurement() {
 
 bool HONEYWELLABP2Sensor::is_measurement_ready() {
   if (this->read(raw_data_, 1) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with ABP2 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning("couldn't check measurement");
     return false;
   }

@@ -174,6 +174,16 @@ AudioPipelineState AudioPipeline::process_state() {
     }
   }
 
+  if ((event_bits & EventGroupBits::READER_MESSAGE_ERROR)) {
+    xEventGroupClearBits(this->event_group_, EventGroupBits::READER_MESSAGE_ERROR);
+    return AudioPipelineState::ERROR_READING;
+  }
+
+  if ((event_bits & EventGroupBits::DECODER_MESSAGE_ERROR)) {
+    xEventGroupClearBits(this->event_group_, EventGroupBits::DECODER_MESSAGE_ERROR);
+    return AudioPipelineState::ERROR_DECODING;
+  }
+
   if ((event_bits & EventGroupBits::READER_MESSAGE_FINISHED) &&
       (!(event_bits & EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE) &&
        (event_bits & EventGroupBits::DECODER_MESSAGE_FINISHED))) {
@@ -201,16 +211,6 @@ AudioPipelineState AudioPipeline::process_state() {
     }
     this->is_playing_ = false;
     return AudioPipelineState::STOPPED;
-  }
-
-  if ((event_bits & EventGroupBits::READER_MESSAGE_ERROR)) {
-    xEventGroupClearBits(this->event_group_, EventGroupBits::READER_MESSAGE_ERROR);
-    return AudioPipelineState::ERROR_READING;
-  }
-
-  if ((event_bits & EventGroupBits::DECODER_MESSAGE_ERROR)) {
-    xEventGroupClearBits(this->event_group_, EventGroupBits::DECODER_MESSAGE_ERROR);
-    return AudioPipelineState::ERROR_DECODING;
   }
 
   if (this->pause_state_) {

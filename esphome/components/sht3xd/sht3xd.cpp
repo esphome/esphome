@@ -25,7 +25,7 @@ static const uint16_t SHT3XD_COMMAND_POLLING_H = 0x2400;
 static const uint16_t SHT3XD_COMMAND_FETCH_DATA = 0xE000;
 
 void SHT3XDComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SHT3xD...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint16_t raw_serial_number[2];
   if (!this->get_register(SHT3XD_COMMAND_READ_SERIAL_NUMBER_CLOCK_STRETCHING, raw_serial_number, 2)) {
     this->error_code_ = READ_SERIAL_STRETCHED_FAILED;

@@ -13,7 +13,7 @@ static const uint8_t HDC1080_CMD_TEMPERATURE = 0x00;
 static const uint8_t HDC1080_CMD_HUMIDITY = 0x01;
 
 void HDC1080Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up HDC1080...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   const uint8_t data[2] = {
       0b00000000,  // resolution 14bit for both humidity and temperature
@@ -31,7 +31,7 @@ void HDC1080Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HDC1080:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with HDC1080 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);

@@ -52,7 +52,7 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up UART bus...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint16_t config = get_config();
 
@@ -174,7 +174,7 @@ bool RP2040UartComponent::read_array(uint8_t *data, size_t len) {
 }
 int RP2040UartComponent::available() { return this->serial_->available(); }
 void RP2040UartComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
 }
 

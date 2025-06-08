@@ -27,7 +27,7 @@ APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 APIServer::APIServer() { global_api_server = this; }
 
 void APIServer::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->setup_controller();
 
 #ifdef USE_API_NOISE
@@ -43,7 +43,7 @@ void APIServer::setup() {
   }
 #endif
 
-  this->socket_ = socket::socket_ip(SOCK_STREAM, 0);
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (this->socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");
     this->mark_failed();
@@ -112,40 +112,52 @@ void APIServer::setup() {
 }
 
 void APIServer::loop() {
-  // Accept new clients
-  while (true) {
-    struct sockaddr_storage source_addr;
-    socklen_t addr_len = sizeof(source_addr);
-    auto sock = this->socket_->accept((struct sockaddr *) &source_addr, &addr_len);
-    if (!sock)
-      break;
-    ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
+  // Accept new clients only if the socket has incoming connections
+  if (this->socket_->ready()) {
+    while (true) {
+      struct sockaddr_storage source_addr;
+      socklen_t addr_len = sizeof(source_addr);
+      auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
+      if (!sock)
+        break;
+      ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
 
-    auto *conn = new APIConnection(std::move(sock), this);
-    this->clients_.emplace_back(conn);
-    conn->start();
+      auto *conn = new APIConnection(std::move(sock), this);
+      this->clients_.emplace_back(conn);
+      conn->start();
+    }
   }
 
-  // Partition clients into remove and active
-  auto new_end = std::partition(this->clients_.begin(), this->clients_.end(),
-                                [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
-  // print disconnection messages
-  for (auto it = new_end; it != this->clients_.end(); ++it) {
-    this->client_disconnected_trigger_->trigger((*it)->client_info_, (*it)->client_peername_);
-    ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
-  }
-  // resize vector
-  this->clients_.erase(new_end, this->clients_.end());
+  // Process clients and remove disconnected ones in a single pass
+  if (!this->clients_.empty()) {
+    size_t client_index = 0;
+    while (client_index < this->clients_.size()) {
+      auto &client = this->clients_[client_index];
 
-  for (auto &client : this->clients_) {
-    client->loop();
+      if (client->remove_) {
+        // Handle disconnection
+        this->client_disconnected_trigger_->trigger(client->client_info_, client->client_peername_);
+        ESP_LOGV(TAG, "Removing connection to %s", client->client_info_.c_str());
+
+        // Swap with the last element and pop (avoids expensive vector shifts)
+        if (client_index < this->clients_.size() - 1) {
+          std::swap(this->clients_[client_index], this->clients_.back());
+        }
+        this->clients_.pop_back();
+        // Don't increment client_index since we need to process the swapped element
+      } else {
+        // Process active client
+        client->loop();
+        client_index++;  // Move to next client
+      }
+    }
   }
 
   if (this->reboot_timeout_ != 0) {
     const uint32_t now = millis();
     if (!this->is_connected()) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "No client connected to API. Rebooting...");
+        ESP_LOGE(TAG, "No client connected; rebooting");
         App.reboot();
       }
       this->status_set_warning();

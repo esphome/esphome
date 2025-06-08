@@ -125,7 +125,7 @@ async def map_filter_to_code(config, filter_id):
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-TEXT_SENSOR_SCHEMA = (
+_TEXT_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -152,38 +152,33 @@ TEXT_SENSOR_SCHEMA = (
     )
 )
 
-_UNDEF = object()
-
 
 def text_sensor_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass = cv.UNDEFINED,
     *,
-    icon: str = _UNDEF,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
 ) -> cv.Schema:
-    schema = TEXT_SENSOR_SCHEMA
-    if class_ is not _UNDEF:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
-    if icon is not _UNDEF:
-        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
-    if device_class is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_DEVICE_CLASS, default=device_class
-                ): validate_device_class
-            }
-        )
-    if entity_category is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=entity_category
-                ): cv.entity_category
-            }
-        )
-    return schema
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _TEXT_SENSOR_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+TEXT_SENSOR_SCHEMA = text_sensor_schema()
+TEXT_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("text_sensor"))
 
 
 async def build_filters(config):

@@ -43,8 +43,10 @@ from esphome.const import (
     CONF_WINDOW_SIZE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -56,6 +58,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -77,6 +80,7 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
@@ -92,6 +96,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
@@ -104,8 +109,10 @@ CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CONDUCTIVITY,
@@ -117,6 +124,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
     DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
@@ -138,6 +146,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SOUND_PRESSURE,
@@ -153,6 +162,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 ]
 
@@ -264,7 +274,7 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = (
+_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -309,22 +319,20 @@ SENSOR_SCHEMA = (
     )
 )
 
-_UNDEF = object()
-
 
 def sensor_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass = cv.UNDEFINED,
     *,
-    unit_of_measurement: str = _UNDEF,
-    icon: str = _UNDEF,
-    accuracy_decimals: int = _UNDEF,
-    device_class: str = _UNDEF,
-    state_class: str = _UNDEF,
-    entity_category: str = _UNDEF,
+    unit_of_measurement: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+    accuracy_decimals: int = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    state_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
-    if class_ is not _UNDEF:
+    if class_ is not cv.UNDEFINED:
         # Not optional.
         schema[cv.GenerateID()] = cv.declare_id(class_)
 
@@ -336,10 +344,15 @@ def sensor_schema(
         (CONF_STATE_CLASS, state_class, validate_state_class),
         (CONF_ENTITY_CATEGORY, entity_category, sensor_entity_category),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return SENSOR_SCHEMA.extend(schema)
+    return _SENSOR_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+SENSOR_SCHEMA = sensor_schema()
+SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("sensor"))
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
@@ -811,7 +824,9 @@ async def setup_sensor_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if (expire_after := config.get(CONF_EXPIRE_AFTER, _UNDEF)) is not _UNDEF:
+        if (
+            expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED)
+        ) is not cv.UNDEFINED:
             if expire_after is None:
                 cg.add(mqtt_.disable_expire_after())
             else:

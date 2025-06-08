@@ -17,7 +17,7 @@ static const uint8_t TM1651_BRIGHTNESS_MEDIUM_HW = 2;
 static const uint8_t TM1651_BRIGHTNESS_HIGH_HW = 7;
 
 void TM1651Display::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TM1651...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint8_t clk = clk_pin_->get_pin();
   uint8_t dio = dio_pin_->get_pin();

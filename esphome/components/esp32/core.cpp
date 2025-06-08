@@ -15,8 +15,9 @@
 #ifdef USE_ARDUINO
 #include <Esp.h>
 #else
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_clk_tree.h>
-
+#endif
 void setup();
 void loop();
 #endif
@@ -63,7 +64,13 @@ uint32_t arch_get_cpu_cycle_count() { return cpu_hal_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() {
   uint32_t freq = 0;
 #ifdef USE_ESP_IDF
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
   esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_CPU, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &freq);
+#else
+  rtc_cpu_freq_config_t config;
+  rtc_clk_cpu_freq_get_config(&config);
+  freq = config.freq_mhz * 1000000U;
+#endif
 #elif defined(USE_ARDUINO)
   freq = ESP.getCpuFreqMHz() * 1000000;
 #endif

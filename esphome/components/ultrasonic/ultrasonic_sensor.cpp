@@ -8,7 +8,7 @@ namespace ultrasonic {
 static const char *const TAG = "ultrasonic.sensor";
 
 void UltrasonicSensorComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->trigger_pin_->setup();
   this->trigger_pin_->digital_write(false);
   this->echo_pin_->setup();

@@ -348,7 +348,7 @@ void QMP6988Component::calculate_pressure_() {
 }
 
 void QMP6988Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up QMP6988");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   bool ret;
   ret = this->device_check_();
@@ -368,7 +368,7 @@ void QMP6988Component::dump_config() {
   ESP_LOGCONFIG(TAG, "QMP6988:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with QMP6988 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 

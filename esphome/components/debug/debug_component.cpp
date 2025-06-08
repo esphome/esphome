@@ -15,10 +15,6 @@ namespace debug {
 static const char *const TAG = "debug";
 
 void DebugComponent::dump_config() {
-#ifndef ESPHOME_LOG_HAS_DEBUG
-  return;  // Can't log below if debug logging is disabled
-#endif
-
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
@@ -70,7 +66,7 @@ void DebugComponent::loop() {
 #ifdef USE_SENSOR
   // calculate loop time - from last call to this one
   if (this->loop_time_sensor_ != nullptr) {
-    uint32_t now = millis();
+    uint32_t now = App.get_loop_component_start_time();
     uint32_t loop_time = now - this->last_loop_timetag_;
     this->max_loop_time_ = std::max(this->max_loop_time_, loop_time);
     this->last_loop_timetag_ = now;

@@ -781,6 +781,13 @@ lvgl:
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
         - tabview:
             id: tabview_id
+            tab_style:
+              border_color: 0x00FF00
+              border_width: 6
+              items:
+                text_color: 0x0000FF
+            content_style:
+              scrollable: false
             width: 100%
             height: 80%
             position: top

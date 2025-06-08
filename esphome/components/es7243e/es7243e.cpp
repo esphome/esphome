@@ -34,7 +34,7 @@ void ES7243E::dump_config() {
 }
 
 void ES7243E::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ES7243E...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_CLOCK_MGR_REG01, 0x3A));
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_RESET_REG00, 0x80));

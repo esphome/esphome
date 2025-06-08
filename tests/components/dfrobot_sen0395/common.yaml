@@ -26,3 +26,17 @@ dfrobot_sen0395:
 binary_sensor:
   - platform: dfrobot_sen0395
     id: mmwave_detected
+
+switch:
+  - platform: dfrobot_sen0395
+    type: sensor_active
+    id: mmwave_sensor_active
+  - platform: dfrobot_sen0395
+    type: turn_on_led
+    id: mmwave_turn_on_led
+  - platform: dfrobot_sen0395
+    type: presence_via_uart
+    id: mmwave_presence_via_uart
+  - platform: dfrobot_sen0395
+    type: start_after_boot
+    id: mmwave_start_after_boot

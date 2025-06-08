@@ -15,7 +15,7 @@ static const char *const DIRECTIONS[] = {"N", "NNE", "NE", "ENE", "E", "ESE", "S
                                          "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
 
 void Tx20Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Tx20");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
 
   this->store_.buffer = new uint16_t[MAX_BUFFER_SIZE];
@@ -44,7 +44,7 @@ float Tx20Component::get_setup_priority() const { return setup_priority::DATA; }
 std::string Tx20Component::get_wind_cardinal_direction() const { return this->wind_cardinal_direction_; }
 
 void Tx20Component::decode_and_publish_() {
-  ESP_LOGVV(TAG, "Decode Tx20...");
+  ESP_LOGVV(TAG, "Decode Tx20");
 
   std::string string_buffer;
   std::string string_buffer_2;

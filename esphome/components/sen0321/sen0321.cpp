@@ -8,7 +8,7 @@ namespace sen0321_sensor {
 static const char *const TAG = "sen0321_sensor.sensor";
 
 void Sen0321Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sen0321...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_byte(SENSOR_MODE_REGISTER, SENSOR_MODE_AUTO)) {
     ESP_LOGW(TAG, "Error setting measurement mode.");
     this->mark_failed();
@@ -21,7 +21,7 @@ void Sen0321Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "DF Robot Ozone Sensor sen0321:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with sen0321 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 }

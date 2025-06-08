@@ -74,7 +74,7 @@ void UARTTransport::write_byte_(uint8_t byte) const {
   this->parent_->write_byte(byte);
 }
 
-void UARTTransport::send_packet(std::vector<uint8_t> &buf) const {
+void UARTTransport::send_packet(const std::vector<uint8_t> &buf) const {
   this->parent_->write_byte(FLAG_BYTE);
   for (uint8_t byte : buf) {
     this->write_byte_(byte);

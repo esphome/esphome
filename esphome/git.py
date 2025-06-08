@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
@@ -5,7 +6,6 @@ import logging
 from pathlib import Path
 import re
 import subprocess
-from typing import Callable, Optional
 import urllib.parse
 
 import esphome.config_validation as cv
@@ -45,12 +45,12 @@ def clone_or_update(
     *,
     url: str,
     ref: str = None,
-    refresh: Optional[TimePeriodSeconds],
+    refresh: TimePeriodSeconds | None,
     domain: str,
     username: str = None,
     password: str = None,
-    submodules: Optional[list[str]] = None,
-) -> tuple[Path, Optional[Callable[[], None]]]:
+    submodules: list[str] | None = None,
+) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
 
     if username is not None and password is not None:
