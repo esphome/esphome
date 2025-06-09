@@ -67,7 +67,7 @@ void TSL2561Sensor::update() {
 
 float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
   if ((ch0 == 0xFFFF) || (ch1 == 0xFFFF)) {
-    ESP_LOGW(TAG, "TSL2561 sensor is saturated.");
+    ESP_LOGW(TAG, "Sensor is saturated");
     return NAN;
   }
 
