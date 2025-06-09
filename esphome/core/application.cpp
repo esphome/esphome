@@ -285,6 +285,8 @@ bool Application::is_socket_ready(int fd) const {
   // This function is thread-safe for reading the result of select()
   // However, it should only be called after select() has been executed in the main loop
   // The read_fds_ is only modified by select() in the main loop
+  if (HighFrequencyLoopRequester::is_high_frequency())
+    return true;  // fd sets via select are not updated in high frequency looping - so force true fallback behavior
   if (fd < 0 || fd >= FD_SETSIZE)
     return false;
 
