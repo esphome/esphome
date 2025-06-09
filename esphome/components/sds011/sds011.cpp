@@ -67,9 +67,11 @@ void SDS011Component::set_working_state(bool working_state) {
 }
 
 void SDS011Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "SDS011:");
-  ESP_LOGCONFIG(TAG, "  Update Interval: %u min", this->update_interval_min_);
-  ESP_LOGCONFIG(TAG, "  RX-only mode: %s", ONOFF(this->rx_mode_only_));
+  ESP_LOGCONFIG(TAG,
+                "SDS011:\n"
+                "  Update Interval: %u min\n"
+                "  RX-only mode: %s",
+                this->update_interval_min_, ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
   this->check_uart_settings(9600);

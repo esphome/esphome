@@ -199,12 +199,15 @@ light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t inde
 }
 
 void RP2040PIOLEDStripLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "RP2040 PIO LED Strip Light Output:");
-  ESP_LOGCONFIG(TAG, "  Pin: GPIO%d", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Number of LEDs: %d", this->num_leds_);
-  ESP_LOGCONFIG(TAG, "  RGBW: %s", YESNO(this->is_rgbw_));
-  ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order_to_string(this->rgb_order_));
-  ESP_LOGCONFIG(TAG, "  Max Refresh Rate: %f Hz", this->max_refresh_rate_);
+  ESP_LOGCONFIG(TAG,
+                "RP2040 PIO LED Strip Light Output:\n"
+                "  Pin: GPIO%d\n"
+                "  Number of LEDs: %d\n"
+                "  RGBW: %s\n"
+                "  RGB Order: %s\n"
+                "  Max Refresh Rate: %f Hz",
+                this->pin_, this->num_leds_, YESNO(this->is_rgbw_), rgb_order_to_string(this->rgb_order_),
+                this->max_refresh_rate_);
 }
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

@@ -221,12 +221,16 @@ float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; 
 static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 
 void Logger::dump_config() {
-  ESP_LOGCONFIG(TAG, "Logger:");
-  ESP_LOGCONFIG(TAG, "  Max Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
-  ESP_LOGCONFIG(TAG, "  Initial Level: %s", LOG_LEVELS[this->current_level_]);
+  ESP_LOGCONFIG(TAG,
+                "Logger:\n"
+                "  Max Level: %s\n"
+                "  Initial Level: %s",
+                LOG_LEVELS[ESPHOME_LOG_LEVEL], LOG_LEVELS[this->current_level_]);
 #ifndef USE_HOST
-  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Hardware UART: %s", get_uart_selection_());
+  ESP_LOGCONFIG(TAG,
+                "  Log Baud Rate: %" PRIu32 "\n"
+                "  Hardware UART: %s",
+                this->baud_rate_, get_uart_selection_());
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   if (this->log_buffer_) {

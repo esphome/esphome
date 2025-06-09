@@ -19,12 +19,16 @@ void RemoteTransmitterComponent::setup() {
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Transmitter:");
 #if ESP_IDF_VERSION_MAJOR >= 5
-  ESP_LOGCONFIG(TAG, "  Clock resolution: %" PRIu32 " hz", this->clock_resolution_);
-  ESP_LOGCONFIG(TAG, "  RMT symbols: %" PRIu32, this->rmt_symbols_);
+  ESP_LOGCONFIG(TAG,
+                "  Clock resolution: %" PRIu32 " hz\n"
+                "  RMT symbols: %" PRIu32,
+                this->clock_resolution_, this->rmt_symbols_);
 #else
-  ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
-  ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
-  ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
+  ESP_LOGCONFIG(TAG,
+                "  Channel: %d\n"
+                "  RMT memory blocks: %d\n"
+                "  Clock divider: %u",
+                this->channel_, this->mem_block_num_, this->clock_divider_);
 #endif
   LOG_PIN("  Pin: ", this->pin_);
 

@@ -162,10 +162,12 @@ void IDFUARTComponent::dump_config() {
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %" PRIu32 " baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
-  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  ESP_LOGCONFIG(TAG,
+                "  Baud Rate: %" PRIu32 " baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u",
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   this->check_logger_conflict();
 }
 

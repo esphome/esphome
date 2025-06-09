@@ -111,8 +111,10 @@ void TLC59208FOutput::setup() {
 }
 
 void TLC59208FOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "TLC59208F:");
-  ESP_LOGCONFIG(TAG, "  Mode: 0x%02X", this->mode_);
+  ESP_LOGCONFIG(TAG,
+                "TLC59208F:\n"
+                "  Mode: 0x%02X",
+                this->mode_);
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up TLC59208F failed!");

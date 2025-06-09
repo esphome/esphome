@@ -165,8 +165,10 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
-  ESP_LOGCONFIG(TAG, "  Send Wait Time: %d ms", this->send_wait_time_);
-  ESP_LOGCONFIG(TAG, "  CRC Disabled: %s", YESNO(this->disable_crc_));
+  ESP_LOGCONFIG(TAG,
+                "  Send Wait Time: %d ms\n"
+                "  CRC Disabled: %s",
+                this->send_wait_time_, YESNO(this->disable_crc_));
 }
 float Modbus::get_setup_priority() const {
   // After UART bus

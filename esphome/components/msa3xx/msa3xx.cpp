@@ -161,13 +161,17 @@ void MSA3xxComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Model: %s", model_to_string(this->model_));
-  ESP_LOGCONFIG(TAG, "  Power Mode: %s", power_mode_to_string(this->power_mode_));
-  ESP_LOGCONFIG(TAG, "  Bandwidth: %s", bandwidth_to_string(this->bandwidth_));
-  ESP_LOGCONFIG(TAG, "  Range: %s", range_to_string(this->range_));
-  ESP_LOGCONFIG(TAG, "  Resolution: %s", res_to_string(this->resolution_));
-  ESP_LOGCONFIG(TAG, "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}", this->offset_x_, this->offset_y_, this->offset_z_);
-  ESP_LOGCONFIG(TAG, "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}", YESNO(this->swap_.x_polarity),
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Power Mode: %s\n"
+                "  Bandwidth: %s\n"
+                "  Range: %s\n"
+                "  Resolution: %s\n"
+                "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
+                "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
+                model_to_string(this->model_), power_mode_to_string(this->power_mode_),
+                bandwidth_to_string(this->bandwidth_), range_to_string(this->range_), res_to_string(this->resolution_),
+                this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->swap_.x_polarity),
                 YESNO(this->swap_.y_polarity), YESNO(this->swap_.z_polarity), YESNO(this->swap_.x_y_swap));
   LOG_UPDATE_INTERVAL(this);
 

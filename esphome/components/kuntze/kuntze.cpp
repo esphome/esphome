@@ -77,8 +77,10 @@ void Kuntze::loop() {
 void Kuntze::update() { this->state_ = 1; }
 
 void Kuntze::dump_config() {
-  ESP_LOGCONFIG(TAG, "Kuntze:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "Kuntze:\n"
+                "  Address: 0x%02X",
+                this->address_);
   LOG_SENSOR("", "pH", this->ph_sensor_);
   LOG_SENSOR("", "temperature", this->temperature_sensor_);
   LOG_SENSOR("", "DIS1", this->dis1_sensor_);

@@ -181,10 +181,12 @@ void LEDCOutput::setup() {
 void LEDCOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Output:");
   LOG_PIN("  Pin ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
-  ESP_LOGCONFIG(TAG, "  PWM Frequency: %.1f Hz", this->frequency_);
-  ESP_LOGCONFIG(TAG, "  Phase angle: %.1f°", this->phase_angle_);
-  ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
+  ESP_LOGCONFIG(TAG,
+                "  Channel: %u\n"
+                "  PWM Frequency: %.1f Hz\n"
+                "  Phase angle: %.1f°\n"
+                "  Bit depth: %u",
+                this->channel_, this->frequency_, this->phase_angle_, this->bit_depth_);
   ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
   ESP_LOGV(TAG, "  Min frequency for bit depth: %f",
            ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));

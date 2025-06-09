@@ -11,15 +11,19 @@ namespace esphome {
 namespace micro_wake_word {
 
 void WakeWordModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "    - Wake Word: %s", this->wake_word_.c_str());
-  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.2f", this->probability_cutoff_ / 255.0f);
-  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG,
+                "    - Wake Word: %s\n"
+                "      Probability cutoff: %.2f\n"
+                "      Sliding window size: %d",
+                this->wake_word_.c_str(), this->probability_cutoff_ / 255.0f, this->sliding_window_size_);
 }
 
 void VADModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "    - VAD Model");
-  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.2f", this->probability_cutoff_ / 255.0f);
-  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG,
+                "    - VAD Model\n"
+                "      Probability cutoff: %.2f\n"
+                "      Sliding window size: %d",
+                this->probability_cutoff_ / 255.0f, this->sliding_window_size_);
 }
 
 bool StreamingModel::load_model_() {

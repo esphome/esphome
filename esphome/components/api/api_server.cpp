@@ -175,8 +175,10 @@ void APIServer::loop() {
 }
 
 void APIServer::dump_config() {
-  ESP_LOGCONFIG(TAG, "API Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
+  ESP_LOGCONFIG(TAG,
+                "API Server:\n"
+                "  Address: %s:%u",
+                network::get_use_address().c_str(), this->port_);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Using noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {

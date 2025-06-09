@@ -83,13 +83,17 @@ void PCA9685Output::setup() {
 }
 
 void PCA9685Output::dump_config() {
-  ESP_LOGCONFIG(TAG, "PCA9685:");
-  ESP_LOGCONFIG(TAG, "  Mode: 0x%02X", this->mode_);
+  ESP_LOGCONFIG(TAG,
+                "PCA9685:\n"
+                "  Mode: 0x%02X",
+                this->mode_);
   if (this->extclk_) {
     ESP_LOGCONFIG(TAG, "  EXTCLK: enabled");
   } else {
-    ESP_LOGCONFIG(TAG, "  EXTCLK: disabled");
-    ESP_LOGCONFIG(TAG, "  Frequency: %.0f Hz", this->frequency_);
+    ESP_LOGCONFIG(TAG,
+                  "  EXTCLK: disabled\n"
+                  "  Frequency: %.0f Hz",
+                  this->frequency_);
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up PCA9685 failed!");

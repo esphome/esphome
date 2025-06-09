@@ -51,14 +51,17 @@ void MAX7219Component::setup() {
 
 void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
-  ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
-  ESP_LOGCONFIG(TAG, "  Number of Chips Lines: %u", this->num_chip_lines_);
-  ESP_LOGCONFIG(TAG, "  Chips Lines Style : %u", this->chip_lines_style_);
-  ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
-  ESP_LOGCONFIG(TAG, "  Scroll Mode: %u", this->scroll_mode_);
-  ESP_LOGCONFIG(TAG, "  Scroll Speed: %u", this->scroll_speed_);
-  ESP_LOGCONFIG(TAG, "  Scroll Dwell: %u", this->scroll_dwell_);
-  ESP_LOGCONFIG(TAG, "  Scroll Delay: %u", this->scroll_delay_);
+  ESP_LOGCONFIG(TAG,
+                "  Number of Chips: %u\n"
+                "  Number of Chips Lines: %u\n"
+                "  Chips Lines Style : %u\n"
+                "  Intensity: %u\n"
+                "  Scroll Mode: %u\n"
+                "  Scroll Speed: %u\n"
+                "  Scroll Dwell: %u\n"
+                "  Scroll Delay: %u",
+                this->num_chips_, this->num_chip_lines_, this->chip_lines_style_, this->intensity_, this->scroll_mode_,
+                this->scroll_speed_, this->scroll_dwell_, this->scroll_delay_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }

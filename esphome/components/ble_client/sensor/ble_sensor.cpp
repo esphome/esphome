@@ -15,11 +15,14 @@ void BLESensor::loop() {}
 
 void BLESensor::dump_config() {
   LOG_SENSOR("", "BLE Sensor", this);
-  ESP_LOGCONFIG(TAG, "  MAC address        : %s", this->parent()->address_str().c_str());
-  ESP_LOGCONFIG(TAG, "  Service UUID       : %s", this->service_uuid_.to_string().c_str());
-  ESP_LOGCONFIG(TAG, "  Characteristic UUID: %s", this->char_uuid_.to_string().c_str());
-  ESP_LOGCONFIG(TAG, "  Descriptor UUID    : %s", this->descr_uuid_.to_string().c_str());
-  ESP_LOGCONFIG(TAG, "  Notifications      : %s", YESNO(this->notify_));
+  ESP_LOGCONFIG(TAG,
+                "  MAC address        : %s\n"
+                "  Service UUID       : %s\n"
+                "  Characteristic UUID: %s\n"
+                "  Descriptor UUID    : %s\n"
+                "  Notifications      : %s",
+                this->parent()->address_str().c_str(), this->service_uuid_.to_string().c_str(),
+                this->char_uuid_.to_string().c_str(), this->descr_uuid_.to_string().c_str(), YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 

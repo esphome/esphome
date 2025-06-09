@@ -346,10 +346,12 @@ size_t ModbusController::create_register_ranges_() {
 }
 
 void ModbusController::dump_config() {
-  ESP_LOGCONFIG(TAG, "ModbusController:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
-  ESP_LOGCONFIG(TAG, "  Max Command Retries: %d", this->max_cmd_retries_);
-  ESP_LOGCONFIG(TAG, "  Offline Skip Updates: %d", this->offline_skip_updates_);
+  ESP_LOGCONFIG(TAG,
+                "ModbusController:\n"
+                "  Address: 0x%02X\n"
+                "  Max Command Retries: %d\n"
+                "  Offline Skip Updates: %d",
+                this->address_, this->max_cmd_retries_, this->offline_skip_updates_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : this->sensorset_) {

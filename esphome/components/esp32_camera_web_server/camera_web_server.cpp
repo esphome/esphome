@@ -85,8 +85,10 @@ void CameraWebServer::on_shutdown() {
 }
 
 void CameraWebServer::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP32 Camera Web Server:");
-  ESP_LOGCONFIG(TAG, "  Port: %d", this->port_);
+  ESP_LOGCONFIG(TAG,
+                "ESP32 Camera Web Server:\n"
+                "  Port: %d",
+                this->port_);
   if (this->mode_ == STREAM) {
     ESP_LOGCONFIG(TAG, "  Mode: stream");
   } else {

@@ -99,8 +99,10 @@ void QwiicPIRComponent::dump_config() {
     debounce_mode_str = HYBRID;
   }
 
-  ESP_LOGCONFIG(TAG, "Qwiic PIR:");
-  ESP_LOGCONFIG(TAG, "  Debounce Mode: %s", debounce_mode_str);
+  ESP_LOGCONFIG(TAG,
+                "Qwiic PIR:\n"
+                "  Debounce Mode: %s",
+                debounce_mode_str);
   if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
     ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
   }

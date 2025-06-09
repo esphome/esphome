@@ -345,8 +345,10 @@ light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index
 }
 
 void BekenSPILEDStripLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Beken SPI LED Strip:");
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  ESP_LOGCONFIG(TAG,
+                "Beken SPI LED Strip:\n"
+                "  Pin: %u",
+                this->pin_);
   const char *rgb_order;
   switch (this->rgb_order_) {
     case ORDER_RGB:
@@ -371,9 +373,11 @@ void BekenSPILEDStripLightOutput::dump_config() {
       rgb_order = "UNKNOWN";
       break;
   }
-  ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
-  ESP_LOGCONFIG(TAG, "  Max refresh rate: %" PRIu32, *this->max_refresh_rate_);
-  ESP_LOGCONFIG(TAG, "  Number of LEDs: %u", this->num_leds_);
+  ESP_LOGCONFIG(TAG,
+                "  RGB Order: %s\n"
+                "  Max refresh rate: %" PRIu32 "\n"
+                "  Number of LEDs: %u",
+                rgb_order, *this->max_refresh_rate_, this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

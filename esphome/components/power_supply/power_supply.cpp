@@ -17,8 +17,10 @@ void PowerSupply::setup() {
 void PowerSupply::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Supply:");
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Time to enable: %" PRIu32 " ms", this->enable_time_);
-  ESP_LOGCONFIG(TAG, "  Keep on time: %.1f s", this->keep_on_time_ / 1000.0f);
+  ESP_LOGCONFIG(TAG,
+                "  Time to enable: %" PRIu32 " ms\n"
+                "  Keep on time: %.1f s",
+                this->enable_time_, this->keep_on_time_ / 1000.0f);
   if (this->enable_on_boot_)
     ESP_LOGCONFIG(TAG, "  Enabled at startup: True");
 }

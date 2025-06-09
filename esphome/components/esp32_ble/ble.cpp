@@ -408,10 +408,12 @@ void ESP32BLE::dump_config() {
         io_capability_s = "invalid";
         break;
     }
-    ESP_LOGCONFIG(TAG, "ESP32 BLE:");
-    ESP_LOGCONFIG(TAG, "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X", mac_address[0], mac_address[1], mac_address[2],
-                  mac_address[3], mac_address[4], mac_address[5]);
-    ESP_LOGCONFIG(TAG, "  IO Capability: %s", io_capability_s);
+    ESP_LOGCONFIG(TAG,
+                  "ESP32 BLE:\n"
+                  "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n"
+                  "  IO Capability: %s",
+                  mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5],
+                  io_capability_s);
   } else {
     ESP_LOGCONFIG(TAG, "ESP32 BLE: bluetooth stack is not enabled");
   }

@@ -24,8 +24,10 @@ void GPIOLCDDisplay::setup() {
   LCDDisplay::setup();
 }
 void GPIOLCDDisplay::dump_config() {
-  ESP_LOGCONFIG(TAG, "GPIO LCD Display:");
-  ESP_LOGCONFIG(TAG, "  Columns: %u, Rows: %u", this->columns_, this->rows_);
+  ESP_LOGCONFIG(TAG,
+                "GPIO LCD Display:\n"
+                "  Columns: %u, Rows: %u",
+                this->columns_, this->rows_);
   LOG_PIN("  RS Pin: ", this->rs_pin_);
   LOG_PIN("  RW Pin: ", this->rw_pin_);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);

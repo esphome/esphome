@@ -115,11 +115,15 @@ void SCD4XComponent::dump_config() {
                   this->ambient_pressure_source_->get_name().c_str());
   } else {
     if (this->ambient_pressure_compensation_) {
-      ESP_LOGCONFIG(TAG, "  Altitude compensation disabled");
-      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %dmBar", this->ambient_pressure_);
+      ESP_LOGCONFIG(TAG,
+                    "  Altitude compensation disabled\n"
+                    "  Ambient pressure compensation: %dmBar",
+                    this->ambient_pressure_);
     } else {
-      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation disabled");
-      ESP_LOGCONFIG(TAG, "  Altitude compensation: %dm", this->altitude_compensation_);
+      ESP_LOGCONFIG(TAG,
+                    "  Ambient pressure compensation disabled\n"
+                    "  Altitude compensation: %dm",
+                    this->altitude_compensation_);
     }
   }
   switch (this->measurement_mode_) {

@@ -289,9 +289,11 @@ void SGP4xComponent::dump_config() {
         break;
     }
   } else {
-    ESP_LOGCONFIG(TAG, "  Type: %s", sgp_type_ == SGP41 ? "SGP41" : "SPG40");
-    ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
-    ESP_LOGCONFIG(TAG, "  Minimum Samples: %f", GasIndexAlgorithm_INITIAL_BLACKOUT);
+    ESP_LOGCONFIG(TAG,
+                  "  Type: %s\n"
+                  "  Serial number: %" PRIu64 "\n"
+                  "  Minimum Samples: %f",
+                  sgp_type_ == SGP41 ? "SGP41" : "SPG40", this->serial_number_, GasIndexAlgorithm_INITIAL_BLACKOUT);
   }
   LOG_UPDATE_INTERVAL(this);
 

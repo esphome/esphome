@@ -146,9 +146,11 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
 
 void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "Bluetooth Proxy:");
-  ESP_LOGCONFIG(TAG, "  Active: %s", YESNO(this->active_));
-  ESP_LOGCONFIG(TAG, "  Connections: %d", this->connections_.size());
-  ESP_LOGCONFIG(TAG, "  Raw advertisements: %s", YESNO(this->raw_advertisements_));
+  ESP_LOGCONFIG(TAG,
+                "  Active: %s\n"
+                "  Connections: %d\n"
+                "  Raw advertisements: %s",
+                YESNO(this->active_), this->connections_.size(), YESNO(this->raw_advertisements_));
 }
 
 int BluetoothProxy::get_bluetooth_connections_free() {

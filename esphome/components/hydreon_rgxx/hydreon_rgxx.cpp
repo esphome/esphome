@@ -18,8 +18,10 @@ void HydreonRGxxComponent::dump_config() {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
   }
   if (model_ == RG9) {
-    ESP_LOGCONFIG(TAG, "  Model: RG9");
-    ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
+    ESP_LOGCONFIG(TAG,
+                  "  Model: RG9\n"
+                  "  Disable Led: %s",
+                  TRUEFALSE(this->disable_led_));
   } else {
     ESP_LOGCONFIG(TAG, "  Model: RG15");
     if (this->resolution_ == FORCE_HIGH) {

@@ -103,10 +103,12 @@ ClimateTraits AirConditioner::traits() {
 }
 
 void AirConditioner::dump_config() {
-  ESP_LOGCONFIG(Constants::TAG, "MideaDongle:");
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Period: %dms", this->base_.getPeriod());
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Response timeout: %dms", this->base_.getTimeout());
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Request attempts: %d", this->base_.getNumAttempts());
+  ESP_LOGCONFIG(Constants::TAG,
+                "MideaDongle:\n"
+                "  [x] Period: %dms\n"
+                "  [x] Response timeout: %dms\n"
+                "  [x] Request attempts: %d",
+                this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
   ESP_LOGCONFIG(Constants::TAG, "  [x] Using RemoteTransmitter");
 #endif

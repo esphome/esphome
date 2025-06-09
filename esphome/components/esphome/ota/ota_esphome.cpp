@@ -70,9 +70,11 @@ void ESPHomeOTAComponent::setup() {
 }
 
 void ESPHomeOTAComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Over-The-Air updates:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
-  ESP_LOGCONFIG(TAG, "  Version: %d", USE_OTA_VERSION);
+  ESP_LOGCONFIG(TAG,
+                "Over-The-Air updates:\n"
+                "  Address: %s:%u\n"
+                "  Version: %d",
+                network::get_use_address().c_str(), this->port_, USE_OTA_VERSION);
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");

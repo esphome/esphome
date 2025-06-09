@@ -121,16 +121,22 @@ void MQTTFanComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Fan '%s': ", this->state_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
   if (this->state_->get_traits().supports_direction()) {
-    ESP_LOGCONFIG(TAG, "  Direction State Topic: '%s'", this->get_direction_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Direction Command Topic: '%s'", this->get_direction_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Direction State Topic: '%s'\n"
+                  "  Direction Command Topic: '%s'",
+                  this->get_direction_state_topic().c_str(), this->get_direction_command_topic().c_str());
   }
   if (this->state_->get_traits().supports_oscillation()) {
-    ESP_LOGCONFIG(TAG, "  Oscillation State Topic: '%s'", this->get_oscillation_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Oscillation Command Topic: '%s'", this->get_oscillation_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Oscillation State Topic: '%s'\n"
+                  "  Oscillation Command Topic: '%s'",
+                  this->get_oscillation_state_topic().c_str(), this->get_oscillation_command_topic().c_str());
   }
   if (this->state_->get_traits().supports_speed()) {
-    ESP_LOGCONFIG(TAG, "  Speed Level State Topic: '%s'", this->get_speed_level_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Speed Level Command Topic: '%s'", this->get_speed_level_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Speed Level State Topic: '%s'\n"
+                  "  Speed Level Command Topic: '%s'",
+                  this->get_speed_level_state_topic().c_str(), this->get_speed_level_command_topic().c_str());
   }
 }
 

@@ -84,8 +84,10 @@ void HONEYWELLABP2Sensor::update() {
 }
 
 void HONEYWELLABP2Sensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "  Min Pressure Range: %0.1f", this->min_pressure_);
-  ESP_LOGCONFIG(TAG, "  Max Pressure Range: %0.1f", this->max_pressure_);
+  ESP_LOGCONFIG(TAG,
+                "  Min Pressure Range: %0.1f\n"
+                "  Max Pressure Range: %0.1f",
+                this->min_pressure_, this->max_pressure_);
   if (this->transfer_function_ == ABP2_TRANS_FUNC_A) {
     ESP_LOGCONFIG(TAG, "  Transfer function A");
   } else {

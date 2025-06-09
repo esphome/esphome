@@ -123,9 +123,11 @@ void TSL2591Component::dump_config() {
   TSL2591IntegrationTime raw_timing = this->integration_time_;
   int timing_ms = (1 + raw_timing) * 100;
   ESP_LOGCONFIG(TAG, "  Integration Time: %d ms", timing_ms);
-  ESP_LOGCONFIG(TAG, "  Power save mode enabled: %s", ONOFF(this->power_save_mode_enabled_));
-  ESP_LOGCONFIG(TAG, "  Device factor: %f", this->device_factor_);
-  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+  ESP_LOGCONFIG(TAG,
+                "  Power save mode enabled: %s\n"
+                "  Device factor: %f\n"
+                "  Glass attenuation factor: %f",
+                ONOFF(this->power_save_mode_enabled_), this->device_factor_, this->glass_attenuation_factor_);
   LOG_SENSOR("  ", "Full spectrum:", this->full_spectrum_sensor_);
   LOG_SENSOR("  ", "Infrared:", this->infrared_sensor_);
   LOG_SENSOR("  ", "Visible:", this->visible_sensor_);

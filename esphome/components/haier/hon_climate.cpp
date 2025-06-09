@@ -339,13 +339,20 @@ void HonClimate::set_handlers() {
 
 void HonClimate::dump_config() {
   HaierClimateBase::dump_config();
-  ESP_LOGCONFIG(TAG, "  Protocol version: hOn");
-  ESP_LOGCONFIG(TAG, "  Control method: %d", (uint8_t) this->control_method_);
+  ESP_LOGCONFIG(TAG,
+                "  Protocol version: hOn\n"
+                "  Control method: %d",
+                (uint8_t) this->control_method_);
   if (this->hvac_hardware_info_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Device protocol version: %s", this->hvac_hardware_info_.value().protocol_version_.c_str());
-    ESP_LOGCONFIG(TAG, "  Device software version: %s", this->hvac_hardware_info_.value().software_version_.c_str());
-    ESP_LOGCONFIG(TAG, "  Device hardware version: %s", this->hvac_hardware_info_.value().hardware_version_.c_str());
-    ESP_LOGCONFIG(TAG, "  Device name: %s", this->hvac_hardware_info_.value().device_name_.c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Device protocol version: %s\n"
+                  "  Device software version: %s\n"
+                  "  Device hardware version: %s\n"
+                  "  Device name: %s",
+                  this->hvac_hardware_info_.value().protocol_version_.c_str(),
+                  this->hvac_hardware_info_.value().software_version_.c_str(),
+                  this->hvac_hardware_info_.value().hardware_version_.c_str(),
+                  this->hvac_hardware_info_.value().device_name_.c_str());
     ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
                   (this->hvac_hardware_info_.value().functions_[0] ? " interactive" : ""),
                   (this->hvac_hardware_info_.value().functions_[1] ? " controller-device" : ""),

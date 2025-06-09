@@ -63,9 +63,11 @@ void MY9231OutputComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MY9231:");
   LOG_PIN("  DI Pin: ", this->pin_di_);
   LOG_PIN("  DCKI Pin: ", this->pin_dcki_);
-  ESP_LOGCONFIG(TAG, "  Total number of channels: %u", this->num_channels_);
-  ESP_LOGCONFIG(TAG, "  Number of chips: %u", this->num_chips_);
-  ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
+  ESP_LOGCONFIG(TAG,
+                "  Total number of channels: %u\n"
+                "  Number of chips: %u\n"
+                "  Bit depth: %u",
+                this->num_channels_, this->num_chips_, this->bit_depth_);
 }
 void MY9231OutputComponent::loop() {
   if (!this->update_)

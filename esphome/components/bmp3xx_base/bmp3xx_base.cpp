@@ -148,8 +148,10 @@ void BMP3XXComponent::setup() {
 }
 
 void BMP3XXComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "BMP3XX:");
-  ESP_LOGCONFIG(TAG, "  Type: %s (0x%X)", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
+  ESP_LOGCONFIG(TAG,
+                "BMP3XX:\n"
+                "  Type: %s (0x%X)",
+                LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
   switch (this->error_code_) {
     case NONE:
       break;

@@ -29,8 +29,10 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
 
 void TemplateAlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "TemplateAlarmControlPanel:");
-  ESP_LOGCONFIG(TAG, "  Current State: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(this->current_state_)));
-  ESP_LOGCONFIG(TAG, "  Number of Codes: %u", this->codes_.size());
+  ESP_LOGCONFIG(TAG,
+                "  Current State: %s\n"
+                "  Number of Codes: %u",
+                LOG_STR_ARG(alarm_control_panel_state_to_string(this->current_state_)), this->codes_.size());
   if (!this->codes_.empty())
     ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", YESNO(this->requires_code_to_arm_));
   ESP_LOGCONFIG(TAG, "  Arming Away Time: %" PRIu32 "s", (this->arming_away_time_ / 1000));
@@ -38,19 +40,25 @@ void TemplateAlarmControlPanel::dump_config() {
     ESP_LOGCONFIG(TAG, "  Arming Home Time: %" PRIu32 "s", (this->arming_home_time_ / 1000));
   if (this->arming_night_time_ != 0)
     ESP_LOGCONFIG(TAG, "  Arming Night Time: %" PRIu32 "s", (this->arming_night_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Pending Time: %" PRIu32 "s", (this->pending_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Trigger Time: %" PRIu32 "s", (this->trigger_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Supported Features: %" PRIu32, this->get_supported_features());
+  ESP_LOGCONFIG(TAG,
+                "  Pending Time: %" PRIu32 "s\n"
+                "  Trigger Time: %" PRIu32 "s\n"
+                "  Supported Features: %" PRIu32,
+                (this->pending_time_ / 1000), (this->trigger_time_ / 1000), this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
   for (auto sensor_info : this->sensor_map_) {
     ESP_LOGCONFIG(TAG, "  Binary Sensor:");
-    ESP_LOGCONFIG(TAG, "    Name: %s", sensor_info.first->get_name().c_str());
-    ESP_LOGCONFIG(TAG, "    Armed home bypass: %s",
-                  TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME));
-    ESP_LOGCONFIG(TAG, "    Armed night bypass: %s",
-                  TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT));
-    ESP_LOGCONFIG(TAG, "    Auto bypass: %s", TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_AUTO));
-    ESP_LOGCONFIG(TAG, "    Chime mode: %s", TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME));
+    ESP_LOGCONFIG(TAG,
+                  "    Name: %s\n"
+                  "    Armed home bypass: %s\n"
+                  "    Armed night bypass: %s\n"
+                  "    Auto bypass: %s\n"
+                  "    Chime mode: %s",
+                  sensor_info.first->get_name().c_str(),
+                  TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME),
+                  TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT),
+                  TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_AUTO),
+                  TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME));
     const char *sensor_type;
     switch (sensor_info.second.type) {
       case ALARM_SENSOR_TYPE_INSTANT:

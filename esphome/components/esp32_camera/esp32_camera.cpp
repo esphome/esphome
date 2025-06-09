@@ -46,17 +46,20 @@ void ESP32Camera::setup() {
 
 void ESP32Camera::dump_config() {
   auto conf = this->config_;
-  ESP_LOGCONFIG(TAG, "ESP32 Camera:");
-  ESP_LOGCONFIG(TAG, "  Name: %s", this->name_.c_str());
-  ESP_LOGCONFIG(TAG, "  Internal: %s", YESNO(this->internal_));
-  ESP_LOGCONFIG(TAG, "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d", conf.pin_d0, conf.pin_d1,
-                conf.pin_d2, conf.pin_d3, conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7);
-  ESP_LOGCONFIG(TAG, "  VSYNC Pin: %d", conf.pin_vsync);
-  ESP_LOGCONFIG(TAG, "  HREF Pin: %d", conf.pin_href);
-  ESP_LOGCONFIG(TAG, "  Pixel Clock Pin: %d", conf.pin_pclk);
-  ESP_LOGCONFIG(TAG, "  External Clock: Pin:%d Frequency:%u", conf.pin_xclk, conf.xclk_freq_hz);
-  ESP_LOGCONFIG(TAG, "  I2C Pins: SDA:%d SCL:%d", conf.pin_sccb_sda, conf.pin_sccb_scl);
-  ESP_LOGCONFIG(TAG, "  Reset Pin: %d", conf.pin_reset);
+  ESP_LOGCONFIG(TAG,
+                "ESP32 Camera:\n"
+                "  Name: %s\n"
+                "  Internal: %s\n"
+                "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d\n"
+                "  VSYNC Pin: %d\n"
+                "  HREF Pin: %d\n"
+                "  Pixel Clock Pin: %d\n"
+                "  External Clock: Pin:%d Frequency:%u\n"
+                "  I2C Pins: SDA:%d SCL:%d\n"
+                "  Reset Pin: %d",
+                this->name_.c_str(), YESNO(this->internal_), conf.pin_d0, conf.pin_d1, conf.pin_d2, conf.pin_d3,
+                conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7, conf.pin_vsync, conf.pin_href, conf.pin_pclk,
+                conf.pin_xclk, conf.xclk_freq_hz, conf.pin_sccb_sda, conf.pin_sccb_scl, conf.pin_reset);
   switch (this->config_.frame_size) {
     case FRAMESIZE_QQVGA:
       ESP_LOGCONFIG(TAG, "  Resolution: 160x120 (QQVGA)");
@@ -123,24 +126,29 @@ void ESP32Camera::dump_config() {
 
   sensor_t *s = esp_camera_sensor_get();
   auto st = s->status;
-  ESP_LOGCONFIG(TAG, "  JPEG Quality: %u", st.quality);
-  ESP_LOGCONFIG(TAG, "  Framebuffer Count: %u", conf.fb_count);
-  ESP_LOGCONFIG(TAG, "  Contrast: %d", st.contrast);
-  ESP_LOGCONFIG(TAG, "  Brightness: %d", st.brightness);
-  ESP_LOGCONFIG(TAG, "  Saturation: %d", st.saturation);
-  ESP_LOGCONFIG(TAG, "  Vertical Flip: %s", ONOFF(st.vflip));
-  ESP_LOGCONFIG(TAG, "  Horizontal Mirror: %s", ONOFF(st.hmirror));
-  ESP_LOGCONFIG(TAG, "  Special Effect: %u", st.special_effect);
-  ESP_LOGCONFIG(TAG, "  White Balance Mode: %u", st.wb_mode);
+  ESP_LOGCONFIG(TAG,
+                "  JPEG Quality: %u\n"
+                "  Framebuffer Count: %u\n"
+                "  Contrast: %d\n"
+                "  Brightness: %d\n"
+                "  Saturation: %d\n"
+                "  Vertical Flip: %s\n"
+                "  Horizontal Mirror: %s\n"
+                "  Special Effect: %u\n"
+                "  White Balance Mode: %u",
+                st.quality, conf.fb_count, st.contrast, st.brightness, st.saturation, ONOFF(st.vflip),
+                ONOFF(st.hmirror), st.special_effect, st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Control: %u", st.aec);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Control 2: %u", st.aec2);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Level: %d", st.ae_level);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
-  ESP_LOGCONFIG(TAG, "  AGC: %u", st.agc);
-  ESP_LOGCONFIG(TAG, "  AGC Gain: %u", st.agc_gain);
-  ESP_LOGCONFIG(TAG, "  Gain Ceiling: %u", st.gainceiling);
+  ESP_LOGCONFIG(TAG,
+                "  Auto Exposure Control: %u\n"
+                "  Auto Exposure Control 2: %u\n"
+                "  Auto Exposure Level: %d\n"
+                "  Auto Exposure Value: %u\n"
+                "  AGC: %u\n"
+                "  AGC Gain: %u\n"
+                "  Gain Ceiling: %u",
+                st.aec, st.aec2, st.ae_level, st.aec_value, st.agc, st.agc_gain, st.gainceiling);
   // ESP_LOGCONFIG(TAG, "  BPC: %u", st.bpc);
   // ESP_LOGCONFIG(TAG, "  WPC: %u", st.wpc);
   // ESP_LOGCONFIG(TAG, "  RAW_GMA: %u", st.raw_gma);

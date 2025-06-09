@@ -27,8 +27,10 @@ inline double deg2rad(double degrees) {
 }
 
 void Rtttl::dump_config() {
-  ESP_LOGCONFIG(TAG, "Rtttl:");
-  ESP_LOGCONFIG(TAG, "  Gain: %f", this->gain_);
+  ESP_LOGCONFIG(TAG,
+                "Rtttl:\n"
+                "  Gain: %f",
+                this->gain_);
 }
 
 void Rtttl::play(std::string rtttl) {

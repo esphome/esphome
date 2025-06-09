@@ -16,10 +16,12 @@ static const char *const TAG = "safe_mode";
 
 void SafeModeComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Safe Mode:");
-  ESP_LOGCONFIG(TAG, "  Boot considered successful after %" PRIu32 " seconds",
-                this->safe_mode_boot_is_good_after_ / 1000);  // because milliseconds
-  ESP_LOGCONFIG(TAG, "  Invoke after %u boot attempts", this->safe_mode_num_attempts_);
-  ESP_LOGCONFIG(TAG, "  Remain for %" PRIu32 " seconds",
+  ESP_LOGCONFIG(TAG,
+                "  Boot considered successful after %" PRIu32 " seconds\n"
+                "  Invoke after %u boot attempts\n"
+                "  Remain for %" PRIu32 " seconds",
+                this->safe_mode_boot_is_good_after_ / 1000,  // because milliseconds
+                this->safe_mode_num_attempts_,
                 this->safe_mode_enable_time_ / 1000);  // because milliseconds
 
   if (this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {

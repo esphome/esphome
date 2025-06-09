@@ -13,13 +13,17 @@ namespace sensor {
 
 #define LOG_SENSOR(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, \
+                  "%s%s '%s'\n" \
+                  "%s  State Class: '%s'\n" \
+                  "%s  Unit of Measurement: '%s'\n" \
+                  "%s  Accuracy Decimals: %d", \
+                  prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str(), prefix, \
+                  state_class_to_string((obj)->get_state_class()).c_str(), prefix, \
+                  (obj)->get_unit_of_measurement().c_str(), prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->get_state_class()).c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \

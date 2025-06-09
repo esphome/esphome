@@ -117,8 +117,10 @@ void MDNSComponent::compile_records_() {
 }
 
 void MDNSComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "mDNS:");
-  ESP_LOGCONFIG(TAG, "  Hostname: %s", this->hostname_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "mDNS:\n"
+                "  Hostname: %s",
+                this->hostname_.c_str());
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
     ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(),

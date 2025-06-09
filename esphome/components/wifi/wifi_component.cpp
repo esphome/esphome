@@ -58,8 +58,10 @@ void WiFiComponent::setup() {
 }
 
 void WiFiComponent::start() {
-  ESP_LOGCONFIG(TAG, "Starting");
-  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
+  ESP_LOGCONFIG(TAG,
+                "Starting\n"
+                "  Local MAC: %s",
+                get_mac_address_pretty().c_str());
   this->last_connected_ = millis();
 
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
@@ -262,13 +264,17 @@ void WiFiComponent::setup_ap_config_() {
 
   ESP_LOGCONFIG(TAG, "Setting up AP");
 
-  ESP_LOGCONFIG(TAG, "  AP SSID: '%s'", this->ap_.get_ssid().c_str());
-  ESP_LOGCONFIG(TAG, "  AP Password: '%s'", this->ap_.get_password().c_str());
+  ESP_LOGCONFIG(TAG,
+                "  AP SSID: '%s'\n"
+                "  AP Password: '%s'",
+                this->ap_.get_ssid().c_str(), this->ap_.get_password().c_str());
   if (this->ap_.get_manual_ip().has_value()) {
     auto manual = *this->ap_.get_manual_ip();
-    ESP_LOGCONFIG(TAG, "  AP Static IP: '%s'", manual.static_ip.str().c_str());
-    ESP_LOGCONFIG(TAG, "  AP Gateway: '%s'", manual.gateway.str().c_str());
-    ESP_LOGCONFIG(TAG, "  AP Subnet: '%s'", manual.subnet.str().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  AP Static IP: '%s'\n"
+                  "  AP Gateway: '%s'\n"
+                  "  AP Subnet: '%s'",
+                  manual.static_ip.str().c_str(), manual.gateway.str().c_str(), manual.subnet.str().c_str());
   }
 
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
@@ -436,22 +442,29 @@ void WiFiComponent::print_connect_params_() {
       ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
     }
   }
-  ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
-                bssid[4], bssid[5]);
-  ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
   int8_t rssi = wifi_rssi();
-  ESP_LOGCONFIG(TAG, "  Signal strength: %d dB %s", rssi, LOG_STR_ARG(get_signal_bars(rssi)));
+  ESP_LOGCONFIG(TAG,
+                "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X") "\n"
+                                                                        "  Hostname: '%s'\n"
+                                                                        "  Signal strength: %d dB %s",
+                bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], App.get_name().c_str(), rssi,
+                LOG_STR_ARG(get_signal_bars(rssi)));
   if (this->selected_ap_.get_bssid().has_value()) {
     ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));
   }
-  ESP_LOGCONFIG(TAG, "  Channel: %" PRId32, get_wifi_channel());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", wifi_subnet_mask_().str().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", wifi_gateway_ip_().str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", wifi_dns_ip_(0).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", wifi_dns_ip_(1).str().c_str());
+  ESP_LOGCONFIG(TAG,
+                "  Channel: %" PRId32 "\n"
+                "  Subnet: %s\n"
+                "  Gateway: %s\n"
+                "  DNS1: %s\n"
+                "  DNS2: %s",
+                get_wifi_channel(), wifi_subnet_mask_().str().c_str(), wifi_gateway_ip_().str().c_str(),
+                wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
 #ifdef USE_WIFI_11KV_SUPPORT
-  ESP_LOGCONFIG(TAG, "  BTM: %s", this->btm_ ? "enabled" : "disabled");
-  ESP_LOGCONFIG(TAG, "  RRM: %s", this->rrm_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG,
+                "  BTM: %s\n"
+                "  RRM: %s",
+                this->btm_ ? "enabled" : "disabled", this->rrm_ ? "enabled" : "disabled");
 #endif
 }
 

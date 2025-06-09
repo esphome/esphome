@@ -381,9 +381,11 @@ void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   }
 }
 void USBClient::dump_config() {
-  ESP_LOGCONFIG(TAG, "USBClient");
-  ESP_LOGCONFIG(TAG, "  Vendor id %04X", this->vid_);
-  ESP_LOGCONFIG(TAG, "  Product id %04X", this->pid_);
+  ESP_LOGCONFIG(TAG,
+                "USBClient\n"
+                "  Vendor id %04X\n"
+                "  Product id %04X",
+                this->vid_, this->pid_);
 }
 void USBClient::release_trq(TransferRequest *trq) { this->trq_pool_.push_back(trq); }
 

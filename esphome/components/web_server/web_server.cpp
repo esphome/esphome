@@ -282,8 +282,10 @@ void WebServer::loop() {
   this->events_.loop();
 }
 void WebServer::dump_config() {
-  ESP_LOGCONFIG(TAG, "Web Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
+  ESP_LOGCONFIG(TAG,
+                "Web Server:\n"
+                "  Address: %s:%u",
+                network::get_use_address().c_str(), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 

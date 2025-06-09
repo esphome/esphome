@@ -43,8 +43,10 @@ void TM1638Component::setup() {
 }
 
 void TM1638Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "TM1638:");
-  ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
+  ESP_LOGCONFIG(TAG,
+                "TM1638:\n"
+                "  Intensity: %u",
+                this->intensity_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
   LOG_PIN("  STB Pin: ", this->stb_pin_);

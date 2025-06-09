@@ -131,8 +131,10 @@ void NAU7802Sensor::dump_config() {
     return;
   }
   // Note these may differ from the values on the device if calbration has been run
-  ESP_LOGCONFIG(TAG, "  Offset Calibration: %s", to_string(this->offset_calibration_).c_str());
-  ESP_LOGCONFIG(TAG, "  Gain Calibration: %f", this->gain_calibration_);
+  ESP_LOGCONFIG(TAG,
+                "  Offset Calibration: %s\n"
+                "  Gain Calibration: %f",
+                to_string(this->offset_calibration_).c_str(), this->gain_calibration_);
 
   std::string voltage = "unknown";
   switch (this->ldo_) {

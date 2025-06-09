@@ -94,16 +94,21 @@ void LTRAlsPs501Component::dump_config() {
   };
 
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Device type: %s", get_device_type(this->ltr_type_));
-  ESP_LOGCONFIG(TAG, "  Automatic mode: %s", ONOFF(this->automatic_mode_enabled_));
-  ESP_LOGCONFIG(TAG, "  Gain: %.0fx", get_gain_coeff(this->gain_));
-  ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
-  ESP_LOGCONFIG(TAG, "  Measurement repeat rate: %d ms", get_meas_time_ms(this->repeat_rate_));
-  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
-  ESP_LOGCONFIG(TAG, "  Proximity gain: %.0fx", get_ps_gain_coeff(this->ps_gain_));
-  ESP_LOGCONFIG(TAG, "  Proximity cooldown time: %d s", this->ps_cooldown_time_s_);
-  ESP_LOGCONFIG(TAG, "  Proximity high threshold: %d", this->ps_threshold_high_);
-  ESP_LOGCONFIG(TAG, "  Proximity low threshold: %d", this->ps_threshold_low_);
+  ESP_LOGCONFIG(TAG,
+                "  Device type: %s\n"
+                "  Automatic mode: %s\n"
+                "  Gain: %.0fx\n"
+                "  Integration time: %d ms\n"
+                "  Measurement repeat rate: %d ms\n"
+                "  Glass attenuation factor: %f\n"
+                "  Proximity gain: %.0fx\n"
+                "  Proximity cooldown time: %d s\n"
+                "  Proximity high threshold: %d\n"
+                "  Proximity low threshold: %d",
+                get_device_type(this->ltr_type_), ONOFF(this->automatic_mode_enabled_), get_gain_coeff(this->gain_),
+                get_itime_ms(this->integration_time_), get_meas_time_ms(this->repeat_rate_),
+                this->glass_attenuation_factor_, get_ps_gain_coeff(this->ps_gain_), this->ps_cooldown_time_s_,
+                this->ps_threshold_high_, this->ps_threshold_low_);
 
   LOG_UPDATE_INTERVAL(this);
 

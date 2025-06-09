@@ -122,16 +122,20 @@ void UDPComponent::loop() {
 }
 
 void UDPComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "UDP:");
-  ESP_LOGCONFIG(TAG, "  Listen Port: %u", this->listen_port_);
-  ESP_LOGCONFIG(TAG, "  Broadcast Port: %u", this->broadcast_port_);
+  ESP_LOGCONFIG(TAG,
+                "UDP:\n"
+                "  Listen Port: %u\n"
+                "  Broadcast Port: %u",
+                this->listen_port_, this->broadcast_port_);
   for (const auto &address : this->addresses_)
     ESP_LOGCONFIG(TAG, "  Address: %s", address.c_str());
   if (this->listen_address_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str().c_str());
   }
-  ESP_LOGCONFIG(TAG, "  Broadcasting: %s", YESNO(this->should_broadcast_));
-  ESP_LOGCONFIG(TAG, "  Listening: %s", YESNO(this->should_listen_));
+  ESP_LOGCONFIG(TAG,
+                "  Broadcasting: %s\n"
+                "  Listening: %s",
+                YESNO(this->should_broadcast_), YESNO(this->should_listen_));
 }
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
