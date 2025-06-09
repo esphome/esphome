@@ -558,6 +558,10 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
 )
 
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
+CONF_ENABLE_LWIP_DHCP_SERVER = "enable_lwip_dhcp_server"
+CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
+CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
+
 ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -582,6 +586,18 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                         CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
                     ): cv.boolean,
                     cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
+                    # DHCP server is needed for WiFi AP mode. When WiFi component is used,
+                    # it will handle disabling DHCP server when AP is not configured.
+                    # Default to false (disabled) when WiFi is not used.
+                    cv.OnlyWithout(
+                        CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=False
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
+                    ): cv.boolean,
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -664,7 +680,7 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
-    if CONF_ADVANCED in conf and conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
+    if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
     add_extra_script(
@@ -708,18 +724,32 @@ async def to_code(config):
         # Set default CPU frequency
         add_idf_sdkconfig_option(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{freq}", True)
 
+        # Apply LWIP optimization settings
+        advanced = conf[CONF_ADVANCED]
+        # DHCP server: only disable if explicitly set to false
+        # WiFi component handles its own optimization when AP mode is not used
+        if (
+            CONF_ENABLE_LWIP_DHCP_SERVER in advanced
+            and not advanced[CONF_ENABLE_LWIP_DHCP_SERVER]
+        ):
+            add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+        if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, False):
+            add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
+        if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
+            add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
         if CONF_PARTITIONS in config:
             add_extra_build_file(
                 "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
             )
 
-        if assertion_level := conf[CONF_ADVANCED].get(CONF_ASSERTION_LEVEL):
+        if assertion_level := advanced.get(CONF_ASSERTION_LEVEL):
             for key, flag in ASSERTION_LEVELS.items():
                 add_idf_sdkconfig_option(flag, assertion_level == key)
 
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
-        compiler_optimization = conf[CONF_ADVANCED].get(CONF_COMPILER_OPTIMIZATION)
+        compiler_optimization = advanced.get(CONF_COMPILER_OPTIMIZATION)
         for key, flag in COMPILER_OPTIMIZATIONS.items():
             add_idf_sdkconfig_option(flag, compiler_optimization == key)
 
@@ -728,7 +758,7 @@ async def to_code(config):
             conf[CONF_ADVANCED][CONF_ENABLE_LWIP_ASSERT],
         )
 
-        if conf[CONF_ADVANCED].get(CONF_IGNORE_EFUSE_MAC_CRC):
+        if advanced.get(CONF_IGNORE_EFUSE_MAC_CRC):
             add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
             if (framework_ver.major, framework_ver.minor) >= (4, 4):
                 add_idf_sdkconfig_option(
@@ -738,7 +768,7 @@ async def to_code(config):
                 add_idf_sdkconfig_option(
                     "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
                 )
-        if conf[CONF_ADVANCED].get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
+        if advanced.get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
             _LOGGER.warning(
                 "Using experimental features in ESP-IDF may result in unexpected failures."
             )
