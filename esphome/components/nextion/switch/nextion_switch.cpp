@@ -13,7 +13,7 @@ void NextionSwitch::process_bool(const std::string &variable_name, bool on) {
   if (this->variable_name_ == variable_name) {
     this->publish_state(on);
 
-    ESP_LOGD(TAG, "Processed switch \"%s\" state %s", variable_name.c_str(), state ? "ON" : "OFF");
+    ESP_LOGD(TAG, "Switch: %s=%s", variable_name.c_str(), ONOFF(on));
   }
 }
 
@@ -43,7 +43,7 @@ void NextionSwitch::set_state(bool state, bool publish, bool send_to_nextion) {
 
   this->update_component_settings();
 
-  ESP_LOGN(TAG, "Updated switch \"%s\" state %s", this->variable_name_.c_str(), ONOFF(state));
+  ESP_LOGN(TAG, "Write: %s=%s", this->variable_name_.c_str(), ONOFF(state));
 }
 
 void NextionSwitch::write_state(bool state) { this->set_state(state); }
