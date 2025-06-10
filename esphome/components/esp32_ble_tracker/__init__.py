@@ -9,6 +9,7 @@ import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import (
+    BTLoggers,
     bt_uuid,
     bt_uuid16_format,
     bt_uuid32_format,
@@ -259,6 +260,9 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    # Register the loggers this component needs
+    esp32_ble.register_bt_logger(BTLoggers.BLE_SCAN)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

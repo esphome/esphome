@@ -1,6 +1,7 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_client, esp32_ble_tracker
+from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_ID
 
@@ -77,6 +78,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Register the loggers this component needs
+    esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.L2CAP, BTLoggers.SMP)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
