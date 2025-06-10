@@ -162,21 +162,24 @@ void Nextion::dump_config() {
                 "  Wake On Touch:  %s\n"
                 "  Exit reparse:   %s",
                 YESNO(this->auto_wake_on_touch_), YESNO(this->exit_reparse_on_start_));
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+  ESP_LOGCONFIG(TAG, "  Max commands per loop: %u", this->max_commands_per_loop_);
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
   if (this->touch_sleep_timeout_ != 0) {
     ESP_LOGCONFIG(TAG, "  Touch Timeout:  %" PRIu32, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page:   %" PRId16, this->wake_up_page_);
+    ESP_LOGCONFIG(TAG, "  Wake Up Page:   %d", this->wake_up_page_);
   }
 
   if (this->start_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page:  %" PRId16, this->start_up_page_);
+    ESP_LOGCONFIG(TAG, "  Start Up Page:  %d", this->start_up_page_);
   }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  ESP_LOGCONFIG(TAG, "  Cmd spacing:      %" PRIu8 "ms", this->command_pacer_.get_spacing());
+  ESP_LOGCONFIG(TAG, "  Cmd spacing:      %u ms", this->command_pacer_.get_spacing());
 #endif  // USE_NEXTION_COMMAND_SPACING
 
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
@@ -370,6 +373,10 @@ void Nextion::process_nextion_commands_() {
     return;
   }
 
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+  size_t commands_processed = 0;
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
+
 #ifdef USE_NEXTION_COMMAND_SPACING
   if (!this->command_pacer_.can_send()) {
     return;  // Will try again in next loop iteration
@@ -384,6 +391,12 @@ void Nextion::process_nextion_commands_() {
   this->print_queue_members_();
 #endif
   while ((to_process_length = this->command_data_.find(COMMAND_DELIMITER)) != std::string::npos) {
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+    if (++commands_processed > this->max_commands_per_loop_) {
+      ESP_LOGW(TAG, "Command processing limit exceeded");
+      break;
+    }
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
     ESP_LOGN(TAG, "queue size: %zu", this->nextion_queue_.size());
     while (to_process_length + COMMAND_DELIMITER.length() < this->command_data_.length() &&
            static_cast<uint8_t>(this->command_data_[to_process_length + COMMAND_DELIMITER.length()]) == 0xFF) {
@@ -798,8 +811,6 @@ void Nextion::process_nextion_commands_() {
 
     // ESP_LOGN(TAG, "nextion_event_ deleting from 0 to %d", to_process_length + COMMAND_DELIMITER.length() + 1);
     this->command_data_.erase(0, to_process_length + COMMAND_DELIMITER.length() + 1);
-    // App.feed_wdt(); Remove before master merge
-    this->process_serial_();
   }
 
   uint32_t ms = millis();
@@ -840,7 +851,7 @@ void Nextion::process_nextion_commands_() {
   ESP_LOGN(TAG, "Loop end");
   // App.feed_wdt(); Remove before master merge
   this->process_serial_();
-}  // namespace nextion
+}  // Nextion::process_nextion_commands_()
 
 void Nextion::set_nextion_sensor_state(int queue_type, const std::string &name, float state) {
   this->set_nextion_sensor_state(static_cast<NextionQueueType>(queue_type), name, state);
