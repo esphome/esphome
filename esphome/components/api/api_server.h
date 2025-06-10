@@ -40,6 +40,11 @@ class APIServer : public Component, public Controller {
   void set_port(uint16_t port);
   void set_password(const std::string &password);
   void set_reboot_timeout(uint32_t reboot_timeout);
+  void set_batch_delay(uint32_t batch_delay);
+  uint32_t get_batch_delay() const { return batch_delay_; }
+
+  // Get reference to shared buffer for API connections
+  std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
@@ -141,9 +146,11 @@ class APIServer : public Component, public Controller {
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};
+  uint32_t batch_delay_{100};
   uint32_t last_connected_{0};
   std::vector<std::unique_ptr<APIConnection>> clients_;
   std::string password_;
+  std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;
   Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();

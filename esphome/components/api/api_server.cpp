@@ -24,7 +24,11 @@ static const char *const TAG = "api";
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-APIServer::APIServer() { global_api_server = this; }
+APIServer::APIServer() {
+  global_api_server = this;
+  // Pre-allocate shared write buffer
+  shared_write_buffer_.reserve(64);
+}
 
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
@@ -227,7 +231,7 @@ void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_binary_sensor_state(obj, state);
+    c->send_binary_sensor_state(obj);
 }
 #endif
 
@@ -263,7 +267,7 @@ void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_sensor_state(obj, state);
+    c->send_sensor_state(obj);
 }
 #endif
 
@@ -272,7 +276,7 @@ void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_switch_state(obj, state);
+    c->send_switch_state(obj);
 }
 #endif
 
@@ -281,7 +285,7 @@ void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_text_sensor_state(obj, state);
+    c->send_text_sensor_state(obj);
 }
 #endif
 
@@ -299,7 +303,7 @@ void APIServer::on_number_update(number::Number *obj, float state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_number_state(obj, state);
+    c->send_number_state(obj);
 }
 #endif
 
@@ -335,7 +339,7 @@ void APIServer::on_text_update(text::Text *obj, const std::string &state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_text_state(obj, state);
+    c->send_text_state(obj);
 }
 #endif
 
@@ -344,7 +348,7 @@ void APIServer::on_select_update(select::Select *obj, const std::string &state, 
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_select_state(obj, state);
+    c->send_select_state(obj);
 }
 #endif
 
@@ -353,7 +357,7 @@ void APIServer::on_lock_update(lock::Lock *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_lock_state(obj, obj->state);
+    c->send_lock_state(obj);
 }
 #endif
 
@@ -403,6 +407,8 @@ float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI;
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 
 void APIServer::set_password(const std::string &password) { this->password_ = password; }
+
+void APIServer::set_batch_delay(uint32_t batch_delay) { this->batch_delay_ = batch_delay; }
 
 void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
   for (auto &client : this->clients_) {
@@ -462,7 +468,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
       ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
       this->set_noise_psk(psk);
       for (auto &c : this->clients_) {
-        c->send_disconnect_request(DisconnectRequest());
+        c->send_message(DisconnectRequest());
       }
     });
   }
@@ -492,7 +498,7 @@ void APIServer::on_shutdown() {
 
   // Send disconnect requests to all connected clients
   for (auto &c : this->clients_) {
-    if (!c->send_disconnect_request(DisconnectRequest())) {
+    if (!c->send_message(DisconnectRequest())) {
       // If we can't send the disconnect request, mark for immediate closure
       c->next_close_ = true;
     }

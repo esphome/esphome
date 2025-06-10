@@ -73,7 +73,7 @@ bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
-  return this->client_->send_list_entities_services_response(resp);
+  return this->client_->send_message(resp);
 }
 
 #ifdef USE_ESP32_CAMERA

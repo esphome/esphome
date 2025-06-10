@@ -255,6 +255,11 @@ enum UpdateCommand : uint32_t {
 
 class HelloRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 1;
+  static constexpr uint16_t ESTIMATED_SIZE = 17;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "hello_request"; }
+#endif
   std::string client_info{};
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
@@ -270,6 +275,11 @@ class HelloRequest : public ProtoMessage {
 };
 class HelloResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 2;
+  static constexpr uint16_t ESTIMATED_SIZE = 26;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "hello_response"; }
+#endif
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
   std::string server_info{};
@@ -286,6 +296,11 @@ class HelloResponse : public ProtoMessage {
 };
 class ConnectRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 3;
+  static constexpr uint16_t ESTIMATED_SIZE = 9;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "connect_request"; }
+#endif
   std::string password{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -298,6 +313,11 @@ class ConnectRequest : public ProtoMessage {
 };
 class ConnectResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 4;
+  static constexpr uint16_t ESTIMATED_SIZE = 2;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "connect_response"; }
+#endif
   bool invalid_password{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -310,6 +330,11 @@ class ConnectResponse : public ProtoMessage {
 };
 class DisconnectRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 5;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "disconnect_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -320,6 +345,11 @@ class DisconnectRequest : public ProtoMessage {
 };
 class DisconnectResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 6;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "disconnect_response"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -330,6 +360,11 @@ class DisconnectResponse : public ProtoMessage {
 };
 class PingRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 7;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "ping_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -340,6 +375,11 @@ class PingRequest : public ProtoMessage {
 };
 class PingResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 8;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "ping_response"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -350,6 +390,11 @@ class PingResponse : public ProtoMessage {
 };
 class DeviceInfoRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 9;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "device_info_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -360,6 +405,11 @@ class DeviceInfoRequest : public ProtoMessage {
 };
 class DeviceInfoResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 10;
+  static constexpr uint16_t ESTIMATED_SIZE = 129;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "device_info_response"; }
+#endif
   bool uses_password{false};
   std::string name{};
   std::string mac_address{};
@@ -391,6 +441,11 @@ class DeviceInfoResponse : public ProtoMessage {
 };
 class ListEntitiesRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 11;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -401,6 +456,11 @@ class ListEntitiesRequest : public ProtoMessage {
 };
 class ListEntitiesDoneResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 19;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_done_response"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -411,6 +471,11 @@ class ListEntitiesDoneResponse : public ProtoMessage {
 };
 class SubscribeStatesRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 20;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_states_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -421,6 +486,11 @@ class SubscribeStatesRequest : public ProtoMessage {
 };
 class ListEntitiesBinarySensorResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 12;
+  static constexpr uint16_t ESTIMATED_SIZE = 56;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_binary_sensor_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -443,6 +513,11 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
 };
 class BinarySensorStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 21;
+  static constexpr uint16_t ESTIMATED_SIZE = 9;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "binary_sensor_state_response"; }
+#endif
   uint32_t key{0};
   bool state{false};
   bool missing_state{false};
@@ -458,6 +533,11 @@ class BinarySensorStateResponse : public ProtoMessage {
 };
 class ListEntitiesCoverResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 13;
+  static constexpr uint16_t ESTIMATED_SIZE = 62;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_cover_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -483,6 +563,11 @@ class ListEntitiesCoverResponse : public ProtoMessage {
 };
 class CoverStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 22;
+  static constexpr uint16_t ESTIMATED_SIZE = 19;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "cover_state_response"; }
+#endif
   uint32_t key{0};
   enums::LegacyCoverState legacy_state{};
   float position{0.0f};
@@ -500,6 +585,11 @@ class CoverStateResponse : public ProtoMessage {
 };
 class CoverCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 30;
+  static constexpr uint16_t ESTIMATED_SIZE = 25;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "cover_command_request"; }
+#endif
   uint32_t key{0};
   bool has_legacy_command{false};
   enums::LegacyCoverCommand legacy_command{};
@@ -520,6 +610,11 @@ class CoverCommandRequest : public ProtoMessage {
 };
 class ListEntitiesFanResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 14;
+  static constexpr uint16_t ESTIMATED_SIZE = 73;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_fan_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -545,6 +640,11 @@ class ListEntitiesFanResponse : public ProtoMessage {
 };
 class FanStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 23;
+  static constexpr uint16_t ESTIMATED_SIZE = 26;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "fan_state_response"; }
+#endif
   uint32_t key{0};
   bool state{false};
   bool oscillating{false};
@@ -565,6 +665,11 @@ class FanStateResponse : public ProtoMessage {
 };
 class FanCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 31;
+  static constexpr uint16_t ESTIMATED_SIZE = 38;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "fan_command_request"; }
+#endif
   uint32_t key{0};
   bool has_state{false};
   bool state{false};
@@ -591,6 +696,11 @@ class FanCommandRequest : public ProtoMessage {
 };
 class ListEntitiesLightResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 15;
+  static constexpr uint16_t ESTIMATED_SIZE = 85;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_light_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -619,6 +729,11 @@ class ListEntitiesLightResponse : public ProtoMessage {
 };
 class LightStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 24;
+  static constexpr uint16_t ESTIMATED_SIZE = 63;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "light_state_response"; }
+#endif
   uint32_t key{0};
   bool state{false};
   float brightness{0.0f};
@@ -645,6 +760,11 @@ class LightStateResponse : public ProtoMessage {
 };
 class LightCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 32;
+  static constexpr uint16_t ESTIMATED_SIZE = 107;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "light_command_request"; }
+#endif
   uint32_t key{0};
   bool has_state{false};
   bool state{false};
@@ -685,6 +805,11 @@ class LightCommandRequest : public ProtoMessage {
 };
 class ListEntitiesSensorResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 16;
+  static constexpr uint16_t ESTIMATED_SIZE = 73;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_sensor_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -711,6 +836,11 @@ class ListEntitiesSensorResponse : public ProtoMessage {
 };
 class SensorStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 25;
+  static constexpr uint16_t ESTIMATED_SIZE = 12;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "sensor_state_response"; }
+#endif
   uint32_t key{0};
   float state{0.0f};
   bool missing_state{false};
@@ -726,6 +856,11 @@ class SensorStateResponse : public ProtoMessage {
 };
 class ListEntitiesSwitchResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 17;
+  static constexpr uint16_t ESTIMATED_SIZE = 56;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_switch_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -748,6 +883,11 @@ class ListEntitiesSwitchResponse : public ProtoMessage {
 };
 class SwitchStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 26;
+  static constexpr uint16_t ESTIMATED_SIZE = 7;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "switch_state_response"; }
+#endif
   uint32_t key{0};
   bool state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -762,6 +902,11 @@ class SwitchStateResponse : public ProtoMessage {
 };
 class SwitchCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 33;
+  static constexpr uint16_t ESTIMATED_SIZE = 7;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "switch_command_request"; }
+#endif
   uint32_t key{0};
   bool state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -776,6 +921,11 @@ class SwitchCommandRequest : public ProtoMessage {
 };
 class ListEntitiesTextSensorResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 18;
+  static constexpr uint16_t ESTIMATED_SIZE = 54;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_text_sensor_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -797,6 +947,11 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
 };
 class TextSensorStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 27;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "text_sensor_state_response"; }
+#endif
   uint32_t key{0};
   std::string state{};
   bool missing_state{false};
@@ -813,6 +968,11 @@ class TextSensorStateResponse : public ProtoMessage {
 };
 class SubscribeLogsRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 28;
+  static constexpr uint16_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_logs_request"; }
+#endif
   enums::LogLevel level{};
   bool dump_config{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -826,6 +986,11 @@ class SubscribeLogsRequest : public ProtoMessage {
 };
 class SubscribeLogsResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 29;
+  static constexpr uint16_t ESTIMATED_SIZE = 13;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_logs_response"; }
+#endif
   enums::LogLevel level{};
   std::string message{};
   bool send_failed{false};
@@ -841,6 +1006,11 @@ class SubscribeLogsResponse : public ProtoMessage {
 };
 class NoiseEncryptionSetKeyRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 124;
+  static constexpr uint16_t ESTIMATED_SIZE = 9;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "noise_encryption_set_key_request"; }
+#endif
   std::string key{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -853,6 +1023,11 @@ class NoiseEncryptionSetKeyRequest : public ProtoMessage {
 };
 class NoiseEncryptionSetKeyResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 125;
+  static constexpr uint16_t ESTIMATED_SIZE = 2;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "noise_encryption_set_key_response"; }
+#endif
   bool success{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -865,6 +1040,11 @@ class NoiseEncryptionSetKeyResponse : public ProtoMessage {
 };
 class SubscribeHomeassistantServicesRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 34;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_homeassistant_services_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -888,6 +1068,11 @@ class HomeassistantServiceMap : public ProtoMessage {
 };
 class HomeassistantServiceResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 35;
+  static constexpr uint16_t ESTIMATED_SIZE = 113;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "homeassistant_service_response"; }
+#endif
   std::string service{};
   std::vector<HomeassistantServiceMap> data{};
   std::vector<HomeassistantServiceMap> data_template{};
@@ -905,6 +1090,11 @@ class HomeassistantServiceResponse : public ProtoMessage {
 };
 class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 38;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_home_assistant_states_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -915,6 +1105,11 @@ class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
 };
 class SubscribeHomeAssistantStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 39;
+  static constexpr uint16_t ESTIMATED_SIZE = 20;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_home_assistant_state_response"; }
+#endif
   std::string entity_id{};
   std::string attribute{};
   bool once{false};
@@ -930,6 +1125,11 @@ class SubscribeHomeAssistantStateResponse : public ProtoMessage {
 };
 class HomeAssistantStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 40;
+  static constexpr uint16_t ESTIMATED_SIZE = 27;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "home_assistant_state_response"; }
+#endif
   std::string entity_id{};
   std::string state{};
   std::string attribute{};
@@ -944,6 +1144,11 @@ class HomeAssistantStateResponse : public ProtoMessage {
 };
 class GetTimeRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 36;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "get_time_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -954,6 +1159,11 @@ class GetTimeRequest : public ProtoMessage {
 };
 class GetTimeResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 37;
+  static constexpr uint16_t ESTIMATED_SIZE = 5;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "get_time_response"; }
+#endif
   uint32_t epoch_seconds{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -980,6 +1190,11 @@ class ListEntitiesServicesArgument : public ProtoMessage {
 };
 class ListEntitiesServicesResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 41;
+  static constexpr uint16_t ESTIMATED_SIZE = 48;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_services_response"; }
+#endif
   std::string name{};
   uint32_t key{0};
   std::vector<ListEntitiesServicesArgument> args{};
@@ -1017,6 +1232,11 @@ class ExecuteServiceArgument : public ProtoMessage {
 };
 class ExecuteServiceRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 42;
+  static constexpr uint16_t ESTIMATED_SIZE = 39;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "execute_service_request"; }
+#endif
   uint32_t key{0};
   std::vector<ExecuteServiceArgument> args{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1031,6 +1251,11 @@ class ExecuteServiceRequest : public ProtoMessage {
 };
 class ListEntitiesCameraResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 43;
+  static constexpr uint16_t ESTIMATED_SIZE = 45;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_camera_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1051,6 +1276,11 @@ class ListEntitiesCameraResponse : public ProtoMessage {
 };
 class CameraImageResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 44;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "camera_image_response"; }
+#endif
   uint32_t key{0};
   std::string data{};
   bool done{false};
@@ -1067,6 +1297,11 @@ class CameraImageResponse : public ProtoMessage {
 };
 class CameraImageRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 45;
+  static constexpr uint16_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "camera_image_request"; }
+#endif
   bool single{false};
   bool stream{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1080,6 +1315,11 @@ class CameraImageRequest : public ProtoMessage {
 };
 class ListEntitiesClimateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 46;
+  static constexpr uint16_t ESTIMATED_SIZE = 151;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_climate_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1118,6 +1358,11 @@ class ListEntitiesClimateResponse : public ProtoMessage {
 };
 class ClimateStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 47;
+  static constexpr uint16_t ESTIMATED_SIZE = 65;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "climate_state_response"; }
+#endif
   uint32_t key{0};
   enums::ClimateMode mode{};
   float current_temperature{0.0f};
@@ -1146,6 +1391,11 @@ class ClimateStateResponse : public ProtoMessage {
 };
 class ClimateCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 48;
+  static constexpr uint16_t ESTIMATED_SIZE = 83;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "climate_command_request"; }
+#endif
   uint32_t key{0};
   bool has_mode{false};
   enums::ClimateMode mode{};
@@ -1182,6 +1432,11 @@ class ClimateCommandRequest : public ProtoMessage {
 };
 class ListEntitiesNumberResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 49;
+  static constexpr uint16_t ESTIMATED_SIZE = 80;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_number_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1208,6 +1463,11 @@ class ListEntitiesNumberResponse : public ProtoMessage {
 };
 class NumberStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 50;
+  static constexpr uint16_t ESTIMATED_SIZE = 12;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "number_state_response"; }
+#endif
   uint32_t key{0};
   float state{0.0f};
   bool missing_state{false};
@@ -1223,6 +1483,11 @@ class NumberStateResponse : public ProtoMessage {
 };
 class NumberCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 51;
+  static constexpr uint16_t ESTIMATED_SIZE = 10;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "number_command_request"; }
+#endif
   uint32_t key{0};
   float state{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1236,6 +1501,11 @@ class NumberCommandRequest : public ProtoMessage {
 };
 class ListEntitiesSelectResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 52;
+  static constexpr uint16_t ESTIMATED_SIZE = 63;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_select_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1257,6 +1527,11 @@ class ListEntitiesSelectResponse : public ProtoMessage {
 };
 class SelectStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 53;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "select_state_response"; }
+#endif
   uint32_t key{0};
   std::string state{};
   bool missing_state{false};
@@ -1273,6 +1548,11 @@ class SelectStateResponse : public ProtoMessage {
 };
 class SelectCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 54;
+  static constexpr uint16_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "select_command_request"; }
+#endif
   uint32_t key{0};
   std::string state{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1287,6 +1567,11 @@ class SelectCommandRequest : public ProtoMessage {
 };
 class ListEntitiesSirenResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 55;
+  static constexpr uint16_t ESTIMATED_SIZE = 67;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_siren_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1310,6 +1595,11 @@ class ListEntitiesSirenResponse : public ProtoMessage {
 };
 class SirenStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 56;
+  static constexpr uint16_t ESTIMATED_SIZE = 7;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "siren_state_response"; }
+#endif
   uint32_t key{0};
   bool state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1324,6 +1614,11 @@ class SirenStateResponse : public ProtoMessage {
 };
 class SirenCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 57;
+  static constexpr uint16_t ESTIMATED_SIZE = 33;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "siren_command_request"; }
+#endif
   uint32_t key{0};
   bool has_state{false};
   bool state{false};
@@ -1346,6 +1641,11 @@ class SirenCommandRequest : public ProtoMessage {
 };
 class ListEntitiesLockResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 58;
+  static constexpr uint16_t ESTIMATED_SIZE = 60;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_lock_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1370,6 +1670,11 @@ class ListEntitiesLockResponse : public ProtoMessage {
 };
 class LockStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 59;
+  static constexpr uint16_t ESTIMATED_SIZE = 7;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "lock_state_response"; }
+#endif
   uint32_t key{0};
   enums::LockState state{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1384,6 +1689,11 @@ class LockStateResponse : public ProtoMessage {
 };
 class LockCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 60;
+  static constexpr uint16_t ESTIMATED_SIZE = 18;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "lock_command_request"; }
+#endif
   uint32_t key{0};
   enums::LockCommand command{};
   bool has_code{false};
@@ -1401,6 +1711,11 @@ class LockCommandRequest : public ProtoMessage {
 };
 class ListEntitiesButtonResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 61;
+  static constexpr uint16_t ESTIMATED_SIZE = 54;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_button_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1422,6 +1737,11 @@ class ListEntitiesButtonResponse : public ProtoMessage {
 };
 class ButtonCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 62;
+  static constexpr uint16_t ESTIMATED_SIZE = 5;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "button_command_request"; }
+#endif
   uint32_t key{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1451,6 +1771,11 @@ class MediaPlayerSupportedFormat : public ProtoMessage {
 };
 class ListEntitiesMediaPlayerResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 63;
+  static constexpr uint16_t ESTIMATED_SIZE = 81;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_media_player_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -1473,6 +1798,11 @@ class ListEntitiesMediaPlayerResponse : public ProtoMessage {
 };
 class MediaPlayerStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 64;
+  static constexpr uint16_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "media_player_state_response"; }
+#endif
   uint32_t key{0};
   enums::MediaPlayerState state{};
   float volume{0.0f};
@@ -1489,6 +1819,11 @@ class MediaPlayerStateResponse : public ProtoMessage {
 };
 class MediaPlayerCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 65;
+  static constexpr uint16_t ESTIMATED_SIZE = 31;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "media_player_command_request"; }
+#endif
   uint32_t key{0};
   bool has_command{false};
   enums::MediaPlayerCommand command{};
@@ -1511,6 +1846,11 @@ class MediaPlayerCommandRequest : public ProtoMessage {
 };
 class SubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 66;
+  static constexpr uint16_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_bluetooth_le_advertisements_request"; }
+#endif
   uint32_t flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1538,6 +1878,11 @@ class BluetoothServiceData : public ProtoMessage {
 };
 class BluetoothLEAdvertisementResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 67;
+  static constexpr uint16_t ESTIMATED_SIZE = 107;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_le_advertisement_response"; }
+#endif
   uint64_t address{0};
   std::string name{};
   int32_t rssi{0};
@@ -1573,6 +1918,11 @@ class BluetoothLERawAdvertisement : public ProtoMessage {
 };
 class BluetoothLERawAdvertisementsResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 93;
+  static constexpr uint16_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_le_raw_advertisements_response"; }
+#endif
   std::vector<BluetoothLERawAdvertisement> advertisements{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1585,6 +1935,11 @@ class BluetoothLERawAdvertisementsResponse : public ProtoMessage {
 };
 class BluetoothDeviceRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 68;
+  static constexpr uint16_t ESTIMATED_SIZE = 12;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_device_request"; }
+#endif
   uint64_t address{0};
   enums::BluetoothDeviceRequestType request_type{};
   bool has_address_type{false};
@@ -1600,6 +1955,11 @@ class BluetoothDeviceRequest : public ProtoMessage {
 };
 class BluetoothDeviceConnectionResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 69;
+  static constexpr uint16_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_device_connection_response"; }
+#endif
   uint64_t address{0};
   bool connected{false};
   uint32_t mtu{0};
@@ -1615,6 +1975,11 @@ class BluetoothDeviceConnectionResponse : public ProtoMessage {
 };
 class BluetoothGATTGetServicesRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 70;
+  static constexpr uint16_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_get_services_request"; }
+#endif
   uint64_t address{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1671,6 +2036,11 @@ class BluetoothGATTService : public ProtoMessage {
 };
 class BluetoothGATTGetServicesResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 71;
+  static constexpr uint16_t ESTIMATED_SIZE = 38;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_get_services_response"; }
+#endif
   uint64_t address{0};
   std::vector<BluetoothGATTService> services{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1685,6 +2055,11 @@ class BluetoothGATTGetServicesResponse : public ProtoMessage {
 };
 class BluetoothGATTGetServicesDoneResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 72;
+  static constexpr uint16_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_get_services_done_response"; }
+#endif
   uint64_t address{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1697,6 +2072,11 @@ class BluetoothGATTGetServicesDoneResponse : public ProtoMessage {
 };
 class BluetoothGATTReadRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 73;
+  static constexpr uint16_t ESTIMATED_SIZE = 8;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_read_request"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1710,6 +2090,11 @@ class BluetoothGATTReadRequest : public ProtoMessage {
 };
 class BluetoothGATTReadResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 74;
+  static constexpr uint16_t ESTIMATED_SIZE = 17;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_read_response"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   std::string data{};
@@ -1725,6 +2110,11 @@ class BluetoothGATTReadResponse : public ProtoMessage {
 };
 class BluetoothGATTWriteRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 75;
+  static constexpr uint16_t ESTIMATED_SIZE = 19;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_write_request"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   bool response{false};
@@ -1741,6 +2131,11 @@ class BluetoothGATTWriteRequest : public ProtoMessage {
 };
 class BluetoothGATTReadDescriptorRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 76;
+  static constexpr uint16_t ESTIMATED_SIZE = 8;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_read_descriptor_request"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1754,6 +2149,11 @@ class BluetoothGATTReadDescriptorRequest : public ProtoMessage {
 };
 class BluetoothGATTWriteDescriptorRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 77;
+  static constexpr uint16_t ESTIMATED_SIZE = 17;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_write_descriptor_request"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   std::string data{};
@@ -1769,6 +2169,11 @@ class BluetoothGATTWriteDescriptorRequest : public ProtoMessage {
 };
 class BluetoothGATTNotifyRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 78;
+  static constexpr uint16_t ESTIMATED_SIZE = 10;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_notify_request"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   bool enable{false};
@@ -1783,6 +2188,11 @@ class BluetoothGATTNotifyRequest : public ProtoMessage {
 };
 class BluetoothGATTNotifyDataResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 79;
+  static constexpr uint16_t ESTIMATED_SIZE = 17;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_notify_data_response"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   std::string data{};
@@ -1798,6 +2208,11 @@ class BluetoothGATTNotifyDataResponse : public ProtoMessage {
 };
 class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 80;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_bluetooth_connections_free_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1808,6 +2223,11 @@ class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {
 };
 class BluetoothConnectionsFreeResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 81;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_connections_free_response"; }
+#endif
   uint32_t free{0};
   uint32_t limit{0};
   std::vector<uint64_t> allocated{};
@@ -1822,6 +2242,11 @@ class BluetoothConnectionsFreeResponse : public ProtoMessage {
 };
 class BluetoothGATTErrorResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 82;
+  static constexpr uint16_t ESTIMATED_SIZE = 12;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_error_response"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   int32_t error{0};
@@ -1836,6 +2261,11 @@ class BluetoothGATTErrorResponse : public ProtoMessage {
 };
 class BluetoothGATTWriteResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 83;
+  static constexpr uint16_t ESTIMATED_SIZE = 8;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_write_response"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1849,6 +2279,11 @@ class BluetoothGATTWriteResponse : public ProtoMessage {
 };
 class BluetoothGATTNotifyResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 84;
+  static constexpr uint16_t ESTIMATED_SIZE = 8;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_gatt_notify_response"; }
+#endif
   uint64_t address{0};
   uint32_t handle{0};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1862,6 +2297,11 @@ class BluetoothGATTNotifyResponse : public ProtoMessage {
 };
 class BluetoothDevicePairingResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 85;
+  static constexpr uint16_t ESTIMATED_SIZE = 10;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_device_pairing_response"; }
+#endif
   uint64_t address{0};
   bool paired{false};
   int32_t error{0};
@@ -1876,6 +2316,11 @@ class BluetoothDevicePairingResponse : public ProtoMessage {
 };
 class BluetoothDeviceUnpairingResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 86;
+  static constexpr uint16_t ESTIMATED_SIZE = 10;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_device_unpairing_response"; }
+#endif
   uint64_t address{0};
   bool success{false};
   int32_t error{0};
@@ -1890,6 +2335,11 @@ class BluetoothDeviceUnpairingResponse : public ProtoMessage {
 };
 class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 87;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "unsubscribe_bluetooth_le_advertisements_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1900,6 +2350,11 @@ class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
 };
 class BluetoothDeviceClearCacheResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 88;
+  static constexpr uint16_t ESTIMATED_SIZE = 10;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_device_clear_cache_response"; }
+#endif
   uint64_t address{0};
   bool success{false};
   int32_t error{0};
@@ -1914,6 +2369,11 @@ class BluetoothDeviceClearCacheResponse : public ProtoMessage {
 };
 class BluetoothScannerStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 126;
+  static constexpr uint16_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_scanner_state_response"; }
+#endif
   enums::BluetoothScannerState state{};
   enums::BluetoothScannerMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1927,6 +2387,11 @@ class BluetoothScannerStateResponse : public ProtoMessage {
 };
 class BluetoothScannerSetModeRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 127;
+  static constexpr uint16_t ESTIMATED_SIZE = 2;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "bluetooth_scanner_set_mode_request"; }
+#endif
   enums::BluetoothScannerMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1939,6 +2404,11 @@ class BluetoothScannerSetModeRequest : public ProtoMessage {
 };
 class SubscribeVoiceAssistantRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 89;
+  static constexpr uint16_t ESTIMATED_SIZE = 6;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "subscribe_voice_assistant_request"; }
+#endif
   bool subscribe{false};
   uint32_t flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1967,6 +2437,11 @@ class VoiceAssistantAudioSettings : public ProtoMessage {
 };
 class VoiceAssistantRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 90;
+  static constexpr uint16_t ESTIMATED_SIZE = 41;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_request"; }
+#endif
   bool start{false};
   std::string conversation_id{};
   uint32_t flags{0};
@@ -1984,6 +2459,11 @@ class VoiceAssistantRequest : public ProtoMessage {
 };
 class VoiceAssistantResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 91;
+  static constexpr uint16_t ESTIMATED_SIZE = 6;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_response"; }
+#endif
   uint32_t port{0};
   bool error{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2010,6 +2490,11 @@ class VoiceAssistantEventData : public ProtoMessage {
 };
 class VoiceAssistantEventResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 92;
+  static constexpr uint16_t ESTIMATED_SIZE = 36;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_event_response"; }
+#endif
   enums::VoiceAssistantEvent event_type{};
   std::vector<VoiceAssistantEventData> data{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2024,6 +2509,11 @@ class VoiceAssistantEventResponse : public ProtoMessage {
 };
 class VoiceAssistantAudio : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 106;
+  static constexpr uint16_t ESTIMATED_SIZE = 11;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_audio"; }
+#endif
   std::string data{};
   bool end{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2038,6 +2528,11 @@ class VoiceAssistantAudio : public ProtoMessage {
 };
 class VoiceAssistantTimerEventResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 115;
+  static constexpr uint16_t ESTIMATED_SIZE = 30;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_timer_event_response"; }
+#endif
   enums::VoiceAssistantTimerEvent event_type{};
   std::string timer_id{};
   std::string name{};
@@ -2056,6 +2551,11 @@ class VoiceAssistantTimerEventResponse : public ProtoMessage {
 };
 class VoiceAssistantAnnounceRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 119;
+  static constexpr uint16_t ESTIMATED_SIZE = 29;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_announce_request"; }
+#endif
   std::string media_id{};
   std::string text{};
   std::string preannounce_media_id{};
@@ -2072,6 +2572,11 @@ class VoiceAssistantAnnounceRequest : public ProtoMessage {
 };
 class VoiceAssistantAnnounceFinished : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 120;
+  static constexpr uint16_t ESTIMATED_SIZE = 2;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_announce_finished"; }
+#endif
   bool success{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -2098,6 +2603,11 @@ class VoiceAssistantWakeWord : public ProtoMessage {
 };
 class VoiceAssistantConfigurationRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 121;
+  static constexpr uint16_t ESTIMATED_SIZE = 0;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_configuration_request"; }
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2108,6 +2618,11 @@ class VoiceAssistantConfigurationRequest : public ProtoMessage {
 };
 class VoiceAssistantConfigurationResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 122;
+  static constexpr uint16_t ESTIMATED_SIZE = 56;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_configuration_response"; }
+#endif
   std::vector<VoiceAssistantWakeWord> available_wake_words{};
   std::vector<std::string> active_wake_words{};
   uint32_t max_active_wake_words{0};
@@ -2123,6 +2638,11 @@ class VoiceAssistantConfigurationResponse : public ProtoMessage {
 };
 class VoiceAssistantSetConfiguration : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 123;
+  static constexpr uint16_t ESTIMATED_SIZE = 18;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "voice_assistant_set_configuration"; }
+#endif
   std::vector<std::string> active_wake_words{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -2135,6 +2655,11 @@ class VoiceAssistantSetConfiguration : public ProtoMessage {
 };
 class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 94;
+  static constexpr uint16_t ESTIMATED_SIZE = 53;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_alarm_control_panel_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2158,6 +2683,11 @@ class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
 };
 class AlarmControlPanelStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 95;
+  static constexpr uint16_t ESTIMATED_SIZE = 7;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "alarm_control_panel_state_response"; }
+#endif
   uint32_t key{0};
   enums::AlarmControlPanelState state{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2172,6 +2702,11 @@ class AlarmControlPanelStateResponse : public ProtoMessage {
 };
 class AlarmControlPanelCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 96;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "alarm_control_panel_command_request"; }
+#endif
   uint32_t key{0};
   enums::AlarmControlPanelStateCommand command{};
   std::string code{};
@@ -2188,6 +2723,11 @@ class AlarmControlPanelCommandRequest : public ProtoMessage {
 };
 class ListEntitiesTextResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 97;
+  static constexpr uint16_t ESTIMATED_SIZE = 64;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_text_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2212,6 +2752,11 @@ class ListEntitiesTextResponse : public ProtoMessage {
 };
 class TextStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 98;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "text_state_response"; }
+#endif
   uint32_t key{0};
   std::string state{};
   bool missing_state{false};
@@ -2228,6 +2773,11 @@ class TextStateResponse : public ProtoMessage {
 };
 class TextCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 99;
+  static constexpr uint16_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "text_command_request"; }
+#endif
   uint32_t key{0};
   std::string state{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2242,6 +2792,11 @@ class TextCommandRequest : public ProtoMessage {
 };
 class ListEntitiesDateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 100;
+  static constexpr uint16_t ESTIMATED_SIZE = 45;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_date_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2262,6 +2817,11 @@ class ListEntitiesDateResponse : public ProtoMessage {
 };
 class DateStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 101;
+  static constexpr uint16_t ESTIMATED_SIZE = 19;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "date_state_response"; }
+#endif
   uint32_t key{0};
   bool missing_state{false};
   uint32_t year{0};
@@ -2279,6 +2839,11 @@ class DateStateResponse : public ProtoMessage {
 };
 class DateCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 102;
+  static constexpr uint16_t ESTIMATED_SIZE = 17;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "date_command_request"; }
+#endif
   uint32_t key{0};
   uint32_t year{0};
   uint32_t month{0};
@@ -2295,6 +2860,11 @@ class DateCommandRequest : public ProtoMessage {
 };
 class ListEntitiesTimeResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 103;
+  static constexpr uint16_t ESTIMATED_SIZE = 45;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_time_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2315,6 +2885,11 @@ class ListEntitiesTimeResponse : public ProtoMessage {
 };
 class TimeStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 104;
+  static constexpr uint16_t ESTIMATED_SIZE = 19;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "time_state_response"; }
+#endif
   uint32_t key{0};
   bool missing_state{false};
   uint32_t hour{0};
@@ -2332,6 +2907,11 @@ class TimeStateResponse : public ProtoMessage {
 };
 class TimeCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 105;
+  static constexpr uint16_t ESTIMATED_SIZE = 17;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "time_command_request"; }
+#endif
   uint32_t key{0};
   uint32_t hour{0};
   uint32_t minute{0};
@@ -2348,6 +2928,11 @@ class TimeCommandRequest : public ProtoMessage {
 };
 class ListEntitiesEventResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 107;
+  static constexpr uint16_t ESTIMATED_SIZE = 72;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_event_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2370,6 +2955,11 @@ class ListEntitiesEventResponse : public ProtoMessage {
 };
 class EventResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 108;
+  static constexpr uint16_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "event_response"; }
+#endif
   uint32_t key{0};
   std::string event_type{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2384,6 +2974,11 @@ class EventResponse : public ProtoMessage {
 };
 class ListEntitiesValveResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 109;
+  static constexpr uint16_t ESTIMATED_SIZE = 60;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_valve_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2408,6 +3003,11 @@ class ListEntitiesValveResponse : public ProtoMessage {
 };
 class ValveStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 110;
+  static constexpr uint16_t ESTIMATED_SIZE = 12;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "valve_state_response"; }
+#endif
   uint32_t key{0};
   float position{0.0f};
   enums::ValveOperation current_operation{};
@@ -2423,6 +3023,11 @@ class ValveStateResponse : public ProtoMessage {
 };
 class ValveCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 111;
+  static constexpr uint16_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "valve_command_request"; }
+#endif
   uint32_t key{0};
   bool has_position{false};
   float position{0.0f};
@@ -2439,6 +3044,11 @@ class ValveCommandRequest : public ProtoMessage {
 };
 class ListEntitiesDateTimeResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 112;
+  static constexpr uint16_t ESTIMATED_SIZE = 45;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_date_time_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2459,6 +3069,11 @@ class ListEntitiesDateTimeResponse : public ProtoMessage {
 };
 class DateTimeStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 113;
+  static constexpr uint16_t ESTIMATED_SIZE = 12;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "date_time_state_response"; }
+#endif
   uint32_t key{0};
   bool missing_state{false};
   uint32_t epoch_seconds{0};
@@ -2474,6 +3089,11 @@ class DateTimeStateResponse : public ProtoMessage {
 };
 class DateTimeCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 114;
+  static constexpr uint16_t ESTIMATED_SIZE = 10;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "date_time_command_request"; }
+#endif
   uint32_t key{0};
   uint32_t epoch_seconds{0};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2487,6 +3107,11 @@ class DateTimeCommandRequest : public ProtoMessage {
 };
 class ListEntitiesUpdateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 116;
+  static constexpr uint16_t ESTIMATED_SIZE = 54;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "list_entities_update_response"; }
+#endif
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
@@ -2508,6 +3133,11 @@ class ListEntitiesUpdateResponse : public ProtoMessage {
 };
 class UpdateStateResponse : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 117;
+  static constexpr uint16_t ESTIMATED_SIZE = 61;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "update_state_response"; }
+#endif
   uint32_t key{0};
   bool missing_state{false};
   bool in_progress{false};
@@ -2531,6 +3161,11 @@ class UpdateStateResponse : public ProtoMessage {
 };
 class UpdateCommandRequest : public ProtoMessage {
  public:
+  static constexpr uint16_t MESSAGE_TYPE = 118;
+  static constexpr uint16_t ESTIMATED_SIZE = 7;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  static constexpr const char *message_name() { return "update_command_request"; }
+#endif
   uint32_t key{0};
   enums::UpdateCommand command{};
   void encode(ProtoWriteBuffer buffer) const override;
