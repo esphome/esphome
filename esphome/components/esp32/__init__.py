@@ -467,8 +467,8 @@ def _parse_platform_version(value):
         if ver.major >= 50:  # a pioarduino version
             if "-" in value:
                 # maybe a release candidate?...definitely not our default, just use it as-is...
-                return f"https://github.com/pioarduino/platform-espressif32.git#{value}"
-            return f"https://github.com/pioarduino/platform-espressif32.git#{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
+                return f"https://github.com/pioarduino/platform-espressif32/releases/download/{value}/platform-espressif32.zip"
+            return f"https://github.com/pioarduino/platform-espressif32/releases/download/{ver.major}.{ver.minor:02d}.{ver.patch:02d}/platform-espressif32.zip"
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
         return f"platformio/espressif32@{value}"
