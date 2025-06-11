@@ -314,9 +314,5 @@ void PMSX003Component::parse_data_() {
   this->status_clear_warning();
 }
 
-uint16_t PMSX003Component::get_16_bit_uint_(uint8_t start_index) {
-  return (uint16_t(this->data_[start_index]) << 8) | uint16_t(this->data_[start_index + 1]);
-}
-
 }  // namespace pmsx003
 }  // namespace esphome

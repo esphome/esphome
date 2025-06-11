@@ -1,7 +1,7 @@
 #include "esphome/core/defines.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "lvgl_hal.h"
 #include "lvgl_esphome.h"
 

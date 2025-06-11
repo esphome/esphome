@@ -1,8 +1,8 @@
 #include "max7219digit.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "max7219font.h"
 
 #include <algorithm>

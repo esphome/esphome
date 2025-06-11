@@ -1,4 +1,5 @@
 #include "ags10.h"
+#include "esphome/core/helpers.h"
 
 #include <cinttypes>
 

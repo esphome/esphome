@@ -31,9 +31,9 @@
   -----
 */
 
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"

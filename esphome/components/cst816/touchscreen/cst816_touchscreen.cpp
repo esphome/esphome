@@ -1,4 +1,5 @@
 #include "cst816_touchscreen.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace cst816 {

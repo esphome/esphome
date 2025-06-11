@@ -32,11 +32,11 @@ extern "C" {
 #endif
 }
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/util.h"
-#include "esphome/core/application.h"
 
 namespace esphome {
 namespace wifi {

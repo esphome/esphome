@@ -1,5 +1,6 @@
 #include "ft5x06_touchscreen.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {

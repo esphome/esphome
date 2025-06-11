@@ -2,8 +2,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome {
 namespace switch_ {

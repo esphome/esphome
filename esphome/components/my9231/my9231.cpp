@@ -1,6 +1,6 @@
 #include "my9231.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace my9231 {

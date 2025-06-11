@@ -1,9 +1,9 @@
 #include "api_frame_helper.h"
 #ifdef USE_API
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include "proto.h"
 #include "api_pb2_size.h"
 #include <cstring>

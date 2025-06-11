@@ -1,7 +1,7 @@
 #include "remote_receiver.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_LIBRETINY
 

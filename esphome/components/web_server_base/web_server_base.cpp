@@ -1,8 +1,8 @@
 #include "web_server_base.h"
 #ifdef USE_NETWORK
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ARDUINO
 #include <StreamString.h>

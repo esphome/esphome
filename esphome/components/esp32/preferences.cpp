@@ -1,8 +1,8 @@
 #ifdef USE_ESP32
 
-#include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include <nvs_flash.h>
 #include <cstring>
 #include <cinttypes>

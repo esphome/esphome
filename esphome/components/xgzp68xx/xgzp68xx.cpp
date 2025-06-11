@@ -1,7 +1,7 @@
 #include "xgzp68xx.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
 
 #include <cinttypes>

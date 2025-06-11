@@ -1,6 +1,6 @@
 #include "honeywellabp2.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace honeywellabp2_i2c {

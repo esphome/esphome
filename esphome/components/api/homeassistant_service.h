@@ -3,8 +3,8 @@
 #include "api_server.h"
 #ifdef USE_API
 #include "api_pb2.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include <vector>
 
 namespace esphome {

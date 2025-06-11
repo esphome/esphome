@@ -1,9 +1,9 @@
 #ifdef USE_ARDUINO
 
 #include "i2c_bus_arduino.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <Arduino.h>
 #include <cstring>
 

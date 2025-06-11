@@ -1,5 +1,6 @@
 #include "proto.h"
 #include <cinttypes>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {

@@ -13,9 +13,9 @@
 // results making successive requests; the current implementation makes 3 attempts with a delay of 30ms each time.
 
 #include "aht10.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace aht10 {

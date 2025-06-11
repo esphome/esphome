@@ -1,4 +1,5 @@
 #include "seeed_mr60fda2.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>

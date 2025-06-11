@@ -1,8 +1,8 @@
 #include "tm1638.h"
 #include "sevenseg.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tm1638 {

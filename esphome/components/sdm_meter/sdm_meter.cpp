@@ -1,5 +1,6 @@
 #include "sdm_meter.h"
 #include "sdm_meter_registers.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
