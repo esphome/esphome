@@ -60,7 +60,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
     mode_validator=validate_mode,
-    invertable=True,
+    invertible=True,
 ).extend(
     {
         cv.Required(CONF_MCP23XXX): cv.use_id(MCP23XXXBase),
