@@ -67,6 +67,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   // It's critical to teardown components cleanly for deep sleep to ensure
   // Home Assistant sees a clean disconnect instead of marking the device unavailable
   App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
+  App.run_powerdown_hooks();
 
   this->deep_sleep_();
 }

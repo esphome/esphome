@@ -116,6 +116,13 @@ class Component {
    */
   virtual bool teardown() { return true; }
 
+  /** Called after teardown is complete to power down hardware.
+   *
+   * This is called after all components have finished their teardown process,
+   * making it safe to power down hardware like ethernet PHY.
+   */
+  virtual void on_powerdown() {}
+
   uint32_t get_component_state() const;
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.

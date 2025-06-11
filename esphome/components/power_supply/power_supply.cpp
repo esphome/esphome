@@ -52,7 +52,7 @@ void PowerSupply::unrequest_high_power() {
     });
   }
 }
-void PowerSupply::on_shutdown() {
+void PowerSupply::on_powerdown() {
   this->active_requests_ = 0;
   this->pin_->digital_write(false);
 }

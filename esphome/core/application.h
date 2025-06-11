@@ -257,6 +257,8 @@ class Application {
 
   void run_safe_shutdown_hooks();
 
+  void run_powerdown_hooks();
+
   /** Teardown all components with a timeout.
    *
    * @param timeout_ms Maximum time to wait for teardown in milliseconds

@@ -169,6 +169,7 @@ void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely");
   run_safe_shutdown_hooks();
   teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
+  run_powerdown_hooks();
   arch_restart();
 }
 
@@ -178,6 +179,12 @@ void Application::run_safe_shutdown_hooks() {
   }
   for (auto it = this->components_.rbegin(); it != this->components_.rend(); ++it) {
     (*it)->on_shutdown();
+  }
+}
+
+void Application::run_powerdown_hooks() {
+  for (auto it = this->components_.rbegin(); it != this->components_.rend(); ++it) {
+    (*it)->on_powerdown();
   }
 }
 

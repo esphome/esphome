@@ -32,7 +32,7 @@ class PowerSupply : public Component {
   /// Hardware setup priority (+1).
   float get_setup_priority() const override;
 
-  void on_shutdown() override;
+  void on_powerdown() override;
 
  protected:
   GPIOPin *pin_;

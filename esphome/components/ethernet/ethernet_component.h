@@ -56,7 +56,7 @@ class EthernetComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   bool can_proceed() override;
-  void on_shutdown() override { powerdown(); }
+  void on_powerdown() override { powerdown(); }
   bool is_connected();
 
 #ifdef USE_ETHERNET_SPI
