@@ -554,6 +554,7 @@ async def register_binary_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_binary_sensor(var))
+    CORE.register_platform_component("binary_sensor", var)
     await setup_binary_sensor_core_(var, config)
 
 

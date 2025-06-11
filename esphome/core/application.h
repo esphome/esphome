@@ -198,6 +198,73 @@ class Application {
   void register_update(update::UpdateEntity *update) { this->updates_.push_back(update); }
 #endif
 
+  /// Reserve space for components to avoid memory fragmentation
+  void reserve_components(size_t count) { this->components_.reserve(count); }
+
+#ifdef USE_BINARY_SENSOR
+  void reserve_binary_sensor(size_t count) { this->binary_sensors_.reserve(count); }
+#endif
+#ifdef USE_SWITCH
+  void reserve_switch(size_t count) { this->switches_.reserve(count); }
+#endif
+#ifdef USE_BUTTON
+  void reserve_button(size_t count) { this->buttons_.reserve(count); }
+#endif
+#ifdef USE_SENSOR
+  void reserve_sensor(size_t count) { this->sensors_.reserve(count); }
+#endif
+#ifdef USE_TEXT_SENSOR
+  void reserve_text_sensor(size_t count) { this->text_sensors_.reserve(count); }
+#endif
+#ifdef USE_FAN
+  void reserve_fan(size_t count) { this->fans_.reserve(count); }
+#endif
+#ifdef USE_COVER
+  void reserve_cover(size_t count) { this->covers_.reserve(count); }
+#endif
+#ifdef USE_CLIMATE
+  void reserve_climate(size_t count) { this->climates_.reserve(count); }
+#endif
+#ifdef USE_LIGHT
+  void reserve_light(size_t count) { this->lights_.reserve(count); }
+#endif
+#ifdef USE_NUMBER
+  void reserve_number(size_t count) { this->numbers_.reserve(count); }
+#endif
+#ifdef USE_DATETIME_DATE
+  void reserve_date(size_t count) { this->dates_.reserve(count); }
+#endif
+#ifdef USE_DATETIME_TIME
+  void reserve_time(size_t count) { this->times_.reserve(count); }
+#endif
+#ifdef USE_DATETIME_DATETIME
+  void reserve_datetime(size_t count) { this->datetimes_.reserve(count); }
+#endif
+#ifdef USE_SELECT
+  void reserve_select(size_t count) { this->selects_.reserve(count); }
+#endif
+#ifdef USE_TEXT
+  void reserve_text(size_t count) { this->texts_.reserve(count); }
+#endif
+#ifdef USE_LOCK
+  void reserve_lock(size_t count) { this->locks_.reserve(count); }
+#endif
+#ifdef USE_VALVE
+  void reserve_valve(size_t count) { this->valves_.reserve(count); }
+#endif
+#ifdef USE_MEDIA_PLAYER
+  void reserve_media_player(size_t count) { this->media_players_.reserve(count); }
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  void reserve_alarm_control_panel(size_t count) { this->alarm_control_panels_.reserve(count); }
+#endif
+#ifdef USE_EVENT
+  void reserve_event(size_t count) { this->events_.reserve(count); }
+#endif
+#ifdef USE_UPDATE
+  void reserve_update(size_t count) { this->updates_.reserve(count); }
+#endif
+
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");

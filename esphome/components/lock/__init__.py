@@ -115,6 +115,7 @@ async def register_lock(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_lock(var))
+    CORE.register_platform_component("lock", var)
     await _setup_lock_core(var, config)
 
 

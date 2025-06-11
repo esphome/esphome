@@ -329,6 +329,12 @@ async def _add_automations(config):
         await automation.build_automation(trigger, [], conf)
 
 
+@coroutine_with_priority(-100.0)
+async def _add_platform_reserves() -> None:
+    for platform_name, count in sorted(CORE.platform_counts.items()):
+        cg.add(cg.RawStatement(f"App.reserve_{platform_name}({count});"), prepend=True)
+
+
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(cg.global_ns.namespace("esphome").using)
@@ -347,6 +353,12 @@ async def to_code(config):
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
+    # Reserve space for components to avoid reallocation during registration
+    cg.add(
+        cg.RawStatement(f"App.reserve_components({len(CORE.component_ids)});"),
+    )
+
+    CORE.add_job(_add_platform_reserves)
 
     CORE.add_job(_add_automations, config)
 

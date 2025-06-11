@@ -103,6 +103,7 @@ async def register_media_player(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_media_player(var))
+    CORE.register_platform_component("media_player", var)
     await setup_media_player_core_(var, config)
 
 

@@ -443,6 +443,7 @@ async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_climate(var))
+    CORE.register_platform_component("climate", var)
     await setup_climate_core_(var, config)
 
 

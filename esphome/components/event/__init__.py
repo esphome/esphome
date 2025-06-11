@@ -113,6 +113,7 @@ async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_event(var))
+    CORE.register_platform_component("event", var)
     await setup_event_core_(var, config, event_types=event_types)
 
 

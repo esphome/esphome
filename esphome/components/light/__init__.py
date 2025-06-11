@@ -37,7 +37,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WHITE,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
@@ -270,6 +270,7 @@ async def setup_light_core_(light_var, output_var, config):
 async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], output_var)
     cg.add(cg.App.register_light(light_var))
+    CORE.register_platform_component("light", light_var)
     await cg.register_component(light_var, config)
     await setup_light_core_(light_var, output_var, config)
 

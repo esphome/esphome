@@ -111,6 +111,7 @@ async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_select(var))
+    CORE.register_platform_component("select", var)
     await setup_select_core_(var, config, options=options)
 
 

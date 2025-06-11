@@ -158,7 +158,9 @@ async def setup_datetime_core_(var, config):
 async def register_datetime(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(getattr(cg.App, f"register_{config[CONF_TYPE].lower()}")(var))
+    entity_type = config[CONF_TYPE].lower()
+    cg.add(getattr(cg.App, f"register_{entity_type}")(var))
+    CORE.register_platform_component(entity_type, var)
     await setup_datetime_core_(var, config)
     cg.add_define(f"USE_DATETIME_{config[CONF_TYPE]}")
 
