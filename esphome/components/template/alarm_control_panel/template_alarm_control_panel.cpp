@@ -25,6 +25,20 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
   this->sensor_data_.push_back(sd);
   this->sensor_map_[sensor].store_index = this->next_store_index_++;
 };
+
+static const LogString *sensor_type_to_string(AlarmSensorType type) {
+  switch (type) {
+    case ALARM_SENSOR_TYPE_INSTANT:
+      return LOG_STR("instant");
+    case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
+      return LOG_STR("delayed_follower");
+    case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
+      return LOG_STR("instant_always");
+    case ALARM_SENSOR_TYPE_DELAYED:
+    default:
+      return LOG_STR("delayed");
+  }
+}
 #endif
 
 void TemplateAlarmControlPanel::dump_config() {
@@ -47,33 +61,19 @@ void TemplateAlarmControlPanel::dump_config() {
                 (this->pending_time_ / 1000), (this->trigger_time_ / 1000), this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
   for (auto const &[sensor, info] : this->sensor_map_) {
-    ESP_LOGCONFIG(TAG, "  Binary Sensor:");
     ESP_LOGCONFIG(TAG,
+                  "  Binary Sensor:\n"
                   "    Name: %s\n"
+                  "    Type: %s\n"
                   "    Armed home bypass: %s\n"
                   "    Armed night bypass: %s\n"
                   "    Auto bypass: %s\n"
                   "    Chime mode: %s",
-                  sensor->get_name().c_str(), TRUEFALSE(info.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME),
+                  sensor->get_name().c_str(), LOG_STR_ARG(sensor_type_to_string(info.type)),
+                  TRUEFALSE(info.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME),
                   TRUEFALSE(info.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT),
                   TRUEFALSE(info.flags & BINARY_SENSOR_MODE_BYPASS_AUTO),
                   TRUEFALSE(info.flags & BINARY_SENSOR_MODE_CHIME));
-    const char *sensor_type;
-    switch (info.type) {
-      case ALARM_SENSOR_TYPE_INSTANT:
-        sensor_type = "instant";
-        break;
-      case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
-        sensor_type = "delayed_follower";
-        break;
-      case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
-        sensor_type = "instant_always";
-        break;
-      case ALARM_SENSOR_TYPE_DELAYED:
-      default:
-        sensor_type = "delayed";
-    }
-    ESP_LOGCONFIG(TAG, "    Sensor type: %s", sensor_type);
   }
 #endif
 }
