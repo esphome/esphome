@@ -1,6 +1,6 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import esp32_rmt, remote_base
+from esphome.components import esp32, esp32_rmt, remote_base
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CARRIER_DUTY_PERCENT,
@@ -45,13 +45,21 @@ CONFIG_SCHEMA = cv.Schema(
             cv.only_on_esp32, cv.only_with_arduino, cv.int_range(min=1, max=255)
         ),
         cv.Optional(CONF_EOT_LEVEL): cv.All(cv.only_with_esp_idf, cv.boolean),
-        cv.Optional(CONF_USE_DMA): cv.All(cv.only_with_esp_idf, cv.boolean),
+        cv.Optional(CONF_USE_DMA): cv.All(
+            esp32.only_on_variant(
+                supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+            ),
+            cv.only_with_esp_idf,
+            cv.boolean,
+        ),
         cv.SplitDefault(
             CONF_RMT_SYMBOLS,
             esp32_idf=64,
             esp32_s2_idf=64,
             esp32_s3_idf=48,
+            esp32_p4_idf=48,
             esp32_c3_idf=48,
+            esp32_c5_idf=48,
             esp32_c6_idf=48,
             esp32_h2_idf=48,
         ): cv.All(cv.only_with_esp_idf, cv.int_range(min=2)),

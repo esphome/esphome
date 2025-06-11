@@ -131,7 +131,9 @@ CONFIG_SCHEMA = cv.All(
                 esp32_idf=192,
                 esp32_s2_idf=192,
                 esp32_s3_idf=192,
+                esp32_p4_idf=192,
                 esp32_c3_idf=96,
+                esp32_c5_idf=96,
                 esp32_c6_idf=96,
                 esp32_h2_idf=96,
             ): cv.All(only_with_new_rmt_driver, cv.int_range(min=2)),
@@ -140,7 +142,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
             cv.Optional(CONF_USE_DMA): cv.All(
-                esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32S3]),
+                esp32.only_on_variant(
+                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                ),
                 cv.only_with_esp_idf,
                 cv.boolean,
             ),

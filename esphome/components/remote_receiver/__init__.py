@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32_rmt, remote_base
+from esphome.components import esp32, esp32_rmt, remote_base
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -128,7 +128,9 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 esp32_idf=192,
                 esp32_s2_idf=192,
                 esp32_s3_idf=192,
+                esp32_p4_idf=192,
                 esp32_c3_idf=96,
+                esp32_c5_idf=96,
                 esp32_c6_idf=96,
                 esp32_h2_idf=96,
             ): cv.All(cv.only_with_esp_idf, cv.int_range(min=2)),
@@ -139,7 +141,13 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 CONF_RECEIVE_SYMBOLS,
                 esp32_idf=192,
             ): cv.All(cv.only_with_esp_idf, cv.int_range(min=2)),
-            cv.Optional(CONF_USE_DMA): cv.All(cv.only_with_esp_idf, cv.boolean),
+            cv.Optional(CONF_USE_DMA): cv.All(
+                esp32.only_on_variant(
+                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                ),
+                cv.only_with_esp_idf,
+                cv.boolean,
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )
