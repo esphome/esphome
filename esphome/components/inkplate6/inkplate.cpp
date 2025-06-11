@@ -3,9 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-
-#include <esp32-hal-gpio.h>
+#include <hal/gpio_hal.h>
 
 namespace esphome {
 namespace inkplate6 {
@@ -723,5 +721,3 @@ void Inkplate6::pins_as_outputs_() {
 
 }  // namespace inkplate6
 }  // namespace esphome
-
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
