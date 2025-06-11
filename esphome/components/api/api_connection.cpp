@@ -1886,6 +1886,12 @@ uint16_t APIConnection::try_send_list_info_done(EntityBase *entity, APIConnectio
   return encode_message_to_buffer(resp, ListEntitiesDoneResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
+uint16_t APIConnection::try_send_disconnect_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                    bool is_single) {
+  DisconnectRequest req;
+  return encode_message_to_buffer(req, DisconnectRequest::MESSAGE_TYPE, conn, remaining_size, is_single);
+}
+
 uint16_t APIConnection::get_estimated_message_size(uint16_t message_type) {
   // Use generated ESTIMATED_SIZE constants from each message type
   switch (message_type) {
@@ -2021,6 +2027,8 @@ uint16_t APIConnection::get_estimated_message_size(uint16_t message_type) {
       return ListEntitiesServicesResponse::ESTIMATED_SIZE;
     case ListEntitiesDoneResponse::MESSAGE_TYPE:
       return ListEntitiesDoneResponse::ESTIMATED_SIZE;
+    case DisconnectRequest::MESSAGE_TYPE:
+      return DisconnectRequest::ESTIMATED_SIZE;
     default:
       // Fallback for unknown message types
       return 24;

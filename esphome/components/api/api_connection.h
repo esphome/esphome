@@ -426,6 +426,10 @@ class APIConnection : public APIServerConnection {
   static uint16_t try_send_list_info_done(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                           bool is_single);
 
+  // Method for DisconnectRequest batching
+  static uint16_t try_send_disconnect_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                              bool is_single);
+
   // Helper function to get estimated message size for buffer pre-allocation
   static uint16_t get_estimated_message_size(uint16_t message_type);
 
