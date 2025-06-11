@@ -1,34 +1,34 @@
 #include "esphome/core/defines.h"
 #if defined(USE_OPENTHREAD) && defined(USE_ESP_IDF)
-#include "openthread.h"
 #include <openthread/logging.h>
+#include "openthread.h"
 
+#include "esp_log.h"
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
-#include "esp_log.h"
 
+#include "esp_task_wdt.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esp_task_wdt.h"
 
-#include "esp_openthread_cli.h"
-#include "esp_openthread_netif_glue.h"
+#include "esp_err.h"
 #include "esp_event.h"
-#include "nvs_flash.h"
-#include "esp_vfs_eventfd.h"
 #include "esp_netif.h"
 #include "esp_netif_types.h"
-#include "esp_err.h"
+#include "esp_openthread_cli.h"
+#include "esp_openthread_netif_glue.h"
+#include "esp_vfs_eventfd.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs_flash.h"
 
-#define TAG "openthread"
+static const char *const TAG = "openthread";
 
 namespace esphome {
 namespace openthread {
 
 void OpenThreadComponent::setup() {
-  ESP_LOGI(TAG, "Setting up OpenThread...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // Used eventfds:
   // * netif
   // * ot task queue
@@ -47,8 +47,6 @@ void OpenThreadComponent::setup() {
         vTaskDelete(nullptr);
       },
       "ot_main", 10240, this, 5, nullptr);
-
-  ESP_LOGI(TAG, "OpenThread started");
 }
 
 static esp_netif_t *init_openthread_netif(const esp_openthread_platform_config_t *config) {
@@ -150,7 +148,7 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
   return {};
 }
 
-std::optional<InstanceLock> InstanceLock::acquire() {
+InstanceLock InstanceLock::acquire() {
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }

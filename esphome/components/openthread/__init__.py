@@ -8,7 +8,6 @@ from esphome.components.esp32 import (
 from esphome.components.mdns import MDNSComponent
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID
-from esphome.core import CORE
 import esphome.final_validate as fv
 
 from .const import (
@@ -140,7 +139,6 @@ async def to_code(config):
     await cg.register_component(ot, config)
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])
-    cg.add(srp.set_host_name(cg.RawExpression(f'"{CORE.name}"')))
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
     cg.add(srp.set_mdns(mdns_component))
     await cg.register_component(srp, config)
