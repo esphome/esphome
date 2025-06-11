@@ -335,7 +335,7 @@ void MR60FDA2Component::set_install_height(uint8_t index) {
 
 void MR60FDA2Component::set_height_threshold(uint8_t index) {
   uint8_t send_data[13] = {0x01, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x08, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00};
-  float_to_bytes(INSTALL_HEIGHT[index], &send_data[8]);
+  float_to_bytes(HEIGHT_THRESHOLD[index], &send_data[8]);
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
   ESP_LOGV(TAG, "SEND HEIGHT THRESHOLD: %s", format_hex_pretty(send_data, 13).c_str());
