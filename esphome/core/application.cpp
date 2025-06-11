@@ -226,7 +226,8 @@ void Application::teardown_components(uint32_t timeout_ms) {
     // Note: At this point, connections are either disconnected or in a bad state,
     // so this warning will only appear via serial rather than being transmitted to clients
     for (auto *component : pending_components) {
-      ESP_LOGW(TAG, "%s did not complete teardown within %u ms", component->get_component_source(), timeout_ms);
+      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", component->get_component_source(),
+               timeout_ms);
     }
   }
 }
