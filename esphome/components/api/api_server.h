@@ -54,7 +54,7 @@ class APIServer : public Component, public Controller {
 
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
 #endif
 #ifdef USE_COVER
   void on_cover_update(cover::Cover *obj) override;

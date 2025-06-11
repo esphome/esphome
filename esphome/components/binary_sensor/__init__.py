@@ -1,7 +1,10 @@
+from logging import getLogger
+
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+from esphome.components.const import CONF_ON_STATE_CHANGE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -98,6 +101,7 @@ IS_PLATFORM_COMPONENT = True
 
 CONF_TIME_OFF = "time_off"
 CONF_TIME_ON = "time_on"
+CONF_TRIGGER_ON_INITIAL_STATE = "trigger_on_initial_state"
 
 DEFAULT_DELAY = "1s"
 DEFAULT_TIME_OFF = "100ms"
@@ -127,8 +131,16 @@ MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 StateTrigger = binary_sensor_ns.class_(
     "StateTrigger", automation.Trigger.template(bool)
 )
+StateChangeTrigger = binary_sensor_ns.class_(
+    "StateChangeTrigger",
+    automation.Trigger.template(cg.optional.template(bool), cg.optional.template(bool)),
+)
+
 BinarySensorPublishAction = binary_sensor_ns.class_(
     "BinarySensorPublishAction", automation.Action
+)
+BinarySensorInvalidateAction = binary_sensor_ns.class_(
+    "BinarySensorInvalidateAction", automation.Action
 )
 
 # Condition
@@ -143,6 +155,8 @@ InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter, cg.Component)
+
+_LOGGER = getLogger(__name__)
 
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
@@ -386,6 +400,14 @@ def validate_click_timing(value):
     return value
 
 
+def validate_publish_initial_state(value):
+    value = cv.boolean(value)
+    _LOGGER.warning(
+        "The 'publish_initial_state' option has been replaced by 'trigger_on_initial_state' and will be removed in a future release"
+    )
+    return value
+
+
 _BINARY_SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
@@ -395,7 +417,12 @@ _BINARY_SENSOR_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTBinarySensorComponent
             ),
-            cv.Optional(CONF_PUBLISH_INITIAL_STATE): cv.boolean,
+            cv.Exclusive(
+                CONF_PUBLISH_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
+            ): validate_publish_initial_state,
+            cv.Exclusive(
+                CONF_TRIGGER_ON_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
+            ): cv.boolean,
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation(
@@ -454,6 +481,11 @@ _BINARY_SENSOR_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
                 }
             ),
+            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateChangeTrigger),
+                }
+            ),
         }
     )
 )
@@ -493,8 +525,10 @@ async def setup_binary_sensor_core_(var, config):
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
-    if publish_initial_state := config.get(CONF_PUBLISH_INITIAL_STATE):
-        cg.add(var.set_publish_initial_state(publish_initial_state))
+    trigger = config.get(CONF_TRIGGER_ON_INITIAL_STATE, False) or config.get(
+        CONF_PUBLISH_INITIAL_STATE, False
+    )
+    cg.add(var.set_trigger_on_initial_state(trigger))
     if inverted := config.get(CONF_INVERTED):
         cg.add(var.set_inverted(inverted))
     if filters_config := config.get(CONF_FILTERS):
@@ -541,6 +575,17 @@ async def setup_binary_sensor_core_(var, config):
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(bool, "x")], conf)
+
+    for conf in config.get(CONF_ON_STATE_CHANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.optional.template(bool), "x_previous"),
+                (cg.optional.template(bool), "x"),
+            ],
+            conf,
+        )
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -591,3 +636,18 @@ async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args)
 async def to_code(config):
     cg.add_define("USE_BINARY_SENSOR")
     cg.add_global(binary_sensor_ns.using)
+
+
+@automation.register_action(
+    "binary_sensor.invalidate_state",
+    BinarySensorInvalidateAction,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(BinarySensor),
+        },
+        key=CONF_ID,
+    ),
+)
+async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

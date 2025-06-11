@@ -63,7 +63,7 @@ binary_sensor:
     id: lvgl_pressbutton
     name: Pressbutton
     widget: spin_up
-    publish_initial_state: true
+    trigger_on_initial_state: true
   - platform: lvgl
     name: ButtonMatrix button
     widget: button_a

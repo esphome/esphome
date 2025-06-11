@@ -555,7 +555,7 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 #endif
 
 #ifdef USE_BINARY_SENSOR
-void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
+void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", binary_sensor_state_json_generator);
