@@ -2,12 +2,14 @@ import re
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -287,7 +289,15 @@ def spi_mode_schema(mode):
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
+    onlys = [cv.only_on([PLATFORM_ESP32]), cv.only_with_esp_idf]
+    if pin_count == 8:
+        onlys.append(
+            only_on_variant(
+                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+            )
+        )
     return cv.All(
+        *onlys,
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(TYPE_CLASS[mode]),
@@ -308,8 +318,6 @@ def spi_mode_schema(mode):
                 ),
             }
         ),
-        cv.only_on([PLATFORM_ESP32]),
-        cv.only_with_esp_idf,
     )
 
 
