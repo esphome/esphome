@@ -11,6 +11,9 @@ online_image:
     format: PNG
     type: BINARY
     resize: 50x50
+    request_headers:
+      X-Test1: 'Test1'
+      X-Test2: !lambda 'static int x; return to_string(x++);'
     on_download_finished:
       lambda: |-
         if (cached) {

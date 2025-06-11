@@ -143,6 +143,10 @@ void OnlineImage::update() {
 
   headers.push_back(accept_header);
 
+  for (auto &header : this->request_headers_) {
+    headers.push_back(http_request::Header{header.first, header.second.value()});
+  }
+
   this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME});
 
   if (this->downloader_ == nullptr) {
