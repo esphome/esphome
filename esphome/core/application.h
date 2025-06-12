@@ -575,7 +575,7 @@ class Application {
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
-  void delay_with_select_(uint32_t delay_ms);
+  void yield_with_select_(uint32_t delay_ms);
 
   std::vector<Component *> components_{};
   std::vector<Component *> looping_components_{};

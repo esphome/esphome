@@ -117,7 +117,9 @@ void Application::loop() {
   // Use the last component's end time instead of calling millis() again
   auto elapsed = last_op_end_time - this->last_loop_;
   if (elapsed >= this->loop_interval_ || HighFrequencyLoopRequester::is_high_frequency()) {
-    yield();
+    // Even if we overran the loop interval, we still need to select()
+    // to know if any sockets have data ready
+    this->yield_with_select_(0);
   } else {
     uint32_t delay_time = this->loop_interval_ - elapsed;
     uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
@@ -126,7 +128,7 @@ void Application::loop() {
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
 
-    this->delay_with_select_(delay_time);
+    this->yield_with_select_(delay_time);
   }
   this->last_loop_ = last_op_end_time;
 
@@ -215,7 +217,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
     // Give some time for I/O operations if components are still pending
     if (!pending_components.empty()) {
-      this->delay_with_select_(1);
+      this->yield_with_select_(1);
     }
 
     // Update time for next iteration
@@ -293,8 +295,6 @@ bool Application::is_socket_ready(int fd) const {
   // This function is thread-safe for reading the result of select()
   // However, it should only be called after select() has been executed in the main loop
   // The read_fds_ is only modified by select() in the main loop
-  if (HighFrequencyLoopRequester::is_high_frequency())
-    return true;  // fd sets via select are not updated in high frequency looping - so force true fallback behavior
   if (fd < 0 || fd >= FD_SETSIZE)
     return false;
 
@@ -302,7 +302,9 @@ bool Application::is_socket_ready(int fd) const {
 }
 #endif
 
-void Application::delay_with_select_(uint32_t delay_ms) {
+void Application::yield_with_select_(uint32_t delay_ms) {
+  // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run
+  // since select() with 0 timeout only polls without yielding.
 #ifdef USE_SOCKET_SELECT_SUPPORT
   if (!this->socket_fds_.empty()) {
     // Update fd_set if socket list has changed
@@ -339,6 +341,10 @@ void Application::delay_with_select_(uint32_t delay_ms) {
       // Actual error - log and fall back to delay
       ESP_LOGW(TAG, "select() failed with errno %d", errno);
       delay(delay_ms);
+    }
+    // When delay_ms is 0, we need to yield since select(0) doesn't yield
+    if (delay_ms == 0) {
+      yield();
     }
   } else {
     // No sockets registered, use regular delay
