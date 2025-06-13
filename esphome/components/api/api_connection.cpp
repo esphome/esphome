@@ -260,7 +260,7 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint16_t mes
     return 0;  // Doesn't fit
   }
 
-  // Allocate exact buffer space needed (just the payload, not the overhead)
+  // Allocate buffer space - pass payload size, allocation functions add header/footer space
   ProtoWriteBuffer buffer =
       is_single ? conn->allocate_single_message_buffer(size) : conn->allocate_batch_message_buffer(size);
 
