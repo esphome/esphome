@@ -110,15 +110,7 @@ void TemplateAlarmControlPanel::loop() {
       delay = this->arming_night_time_;
     }
     if ((millis() - this->last_update_) > delay) {
-#ifdef USE_BINARY_SENSOR
-      for (auto sensor_info : this->sensor_map_) {
-        // Check for sensors left on and set to bypass automatically and remove them from monitoring
-        if ((sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (sensor_info.first->state)) {
-          ESP_LOGW(TAG, "%s is left on and will be automatically bypassed", sensor_info.first->get_name().c_str());
-          this->bypassed_sensor_indicies_.push_back(sensor_info.second.store_index);
-        }
-      }
-#endif
+      this->bypass_before_arming();
       this->publish_state(this->desired_state_);
     }
     return;
@@ -259,8 +251,21 @@ void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_p
   if (delay > 0) {
     this->publish_state(ACP_STATE_ARMING);
   } else {
+    this->bypass_before_arming();
     this->publish_state(state);
   }
+}
+
+void TemplateAlarmControlPanel::bypass_before_arming() {
+#ifdef USE_BINARY_SENSOR
+  for (auto sensor_info : this->sensor_map_) {
+    // Check for sensors left on and set to bypass automatically and remove them from monitoring
+    if ((sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (sensor_info.first->state)) {
+      ESP_LOGW(TAG, "'%s' is left on and will be automatically bypassed", sensor_info.first->get_name().c_str());
+      this->bypassed_sensor_indicies_.push_back(sensor_info.second.store_index);
+    }
+  }
+#endif
 }
 
 void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
