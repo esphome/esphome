@@ -153,7 +153,7 @@ bool MQTTComponent::send_discovery_() {
         if (node_friendly_name.empty()) {
           node_friendly_name = node_name;
         }
-        const std::string &node_area = App.get_area();
+        std::string node_area = App.get_area();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         const auto mac = get_mac_address();

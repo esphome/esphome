@@ -87,8 +87,8 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &area,
-                 const char *comment, const char *compilation_time, bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, const char *area, const char *comment,
+                 const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -285,7 +285,7 @@ class Application {
   const std::string &get_friendly_name() const { return this->friendly_name_; }
 
   /// Get the area of this Application set by pre_setup().
-  const std::string &get_area() const { return this->area_; }
+  std::string get_area() const { return this->area_ == nullptr ? "" : this->area_; }
 
   /// Get the comment of this Application set by pre_setup().
   std::string get_comment() const { return this->comment_; }
@@ -646,7 +646,7 @@ class Application {
 
   std::string name_;
   std::string friendly_name_;
-  std::string area_;
+  const char *area_{nullptr};
   const char *comment_{nullptr};
   const char *compilation_time_{nullptr};
   bool name_add_mac_suffix_;
