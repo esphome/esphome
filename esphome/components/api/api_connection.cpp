@@ -1807,7 +1807,7 @@ void APIConnection::process_batch_() {
   this->batch_first_message_ = true;
 
   size_t items_processed = 0;
-  uint32_t remaining_size = MAX_PACKET_SIZE;
+  uint16_t remaining_size = std::numeric_limits<uint16_t>::max();
 
   // Track where each message's header padding begins in the buffer
   // For plaintext: this is where the 6-byte header padding starts
@@ -1832,11 +1832,15 @@ void APIConnection::process_batch_() {
     packet_info.emplace_back(item.message_type, current_offset, proto_payload_size);
 
     // Update tracking variables
+    items_processed++;
+    // After first message, set remaining size to MAX_PACKET_SIZE to avoid fragmentation
+    if (items_processed == 1) {
+      remaining_size = MAX_PACKET_SIZE;
+    }
     remaining_size -= payload_size;
     // Calculate where the next message's header padding will start
     // Current buffer size + footer space (that prepare_message_buffer will add for this message)
     current_offset = this->parent_->get_shared_buffer_ref().size() + footer_size;
-    items_processed++;
   }
 
   if (items_processed == 0) {

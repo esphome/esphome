@@ -15,7 +15,7 @@ import sys
 import tempfile
 from typing import TextIO
 
-from aioesphomeapi import APIClient, APIConnectionError, ReconnectLogic
+from aioesphomeapi import APIClient, APIConnectionError, LogParser, ReconnectLogic
 import pytest
 import pytest_asyncio
 
@@ -365,11 +365,21 @@ async def _read_stream_lines(
     stream: asyncio.StreamReader, lines: list[str], output_stream: TextIO
 ) -> None:
     """Read lines from a stream, append to list, and echo to output stream."""
+    log_parser = LogParser()
     while line := await stream.readline():
-        decoded_line = line.decode("utf-8", errors="replace")
+        decoded_line = (
+            line.replace(b"\r", b"")
+            .replace(b"\n", b"")
+            .decode("utf8", "backslashreplace")
+        )
         lines.append(decoded_line.rstrip())
         # Echo to stdout/stderr in real-time
-        print(decoded_line.rstrip(), file=output_stream, flush=True)
+        # Print without newline to avoid double newlines
+        print(
+            log_parser.parse_line(decoded_line, timestamp=""),
+            file=output_stream,
+            flush=True,
+        )
 
 
 @asynccontextmanager
