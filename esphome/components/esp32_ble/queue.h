@@ -45,6 +45,17 @@ template<class T> class Queue {
     return element;
   }
 
+  size_t size() const {
+    // Lock-free size check. While std::queue::size() is not thread-safe, we intentionally
+    // avoid locking here to prevent blocking the BLE callback thread. The size is only
+    // used to decide whether to drop incoming events when the queue is near capacity.
+    // With a queue limit of 40-64 events and normal processing, dropping events should
+    // be extremely rare. When it does approach capacity, being off by 1-2 events is
+    // acceptable to avoid blocking the BLE stack's time-sensitive callbacks.
+    // Trade-off: We prefer occasional dropped events over potential BLE stack delays.
+    return q_.size();
+  }
+
  protected:
   std::queue<T *> q_;
   SemaphoreHandle_t m_;

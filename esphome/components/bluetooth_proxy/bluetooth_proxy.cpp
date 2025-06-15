@@ -58,7 +58,7 @@ static std::vector<api::BluetoothLERawAdvertisement> &get_batch_buffer() {
   return batch_buffer;
 }
 
-bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
+bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || !this->raw_advertisements_)
     return false;
 
@@ -73,7 +73,7 @@ bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_p
 
   // Add new advertisements to the batch buffer
   for (size_t i = 0; i < count; i++) {
-    auto &result = advertisements[i];
+    auto &result = scan_results[i];
     uint8_t length = result.adv_data_len + result.scan_rsp_len;
 
     batch_buffer.emplace_back();

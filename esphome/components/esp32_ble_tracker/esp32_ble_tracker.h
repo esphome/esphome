@@ -62,7 +62,7 @@ class ESPBLEiBeacon {
 
 class ESPBTDevice {
  public:
-  void parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
+  void parse_scan_rst(const BLEScanResult &scan_result);
 
   std::string address_str() const;
 
@@ -84,8 +84,6 @@ class ESPBTDevice {
 
   const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
 
-  const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &get_scan_result() const { return scan_result_; }
-
   bool resolve_irk(const uint8_t *irk) const;
 
   optional<ESPBLEiBeacon> get_ibeacon() const {
@@ -98,7 +96,7 @@ class ESPBTDevice {
   }
 
  protected:
-  void parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
+  void parse_adv_(const uint8_t *payload, uint8_t len);
 
   esp_bd_addr_t address_{
       0,
@@ -112,7 +110,6 @@ class ESPBTDevice {
   std::vector<ESPBTUUID> service_uuids_{};
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};
-  esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_result_{};
 };
 
 class ESP32BLETracker;
@@ -121,9 +118,7 @@ class ESPBTDeviceListener {
  public:
   virtual void on_scan_end() {}
   virtual bool parse_device(const ESPBTDevice &device) = 0;
-  virtual bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
-    return false;
-  };
+  virtual bool parse_devices(const BLEScanResult *scan_results, size_t count) { return false; };
   virtual AdvertisementParserType get_advertisement_parser_type() {
     return AdvertisementParserType::PARSED_ADVERTISEMENTS;
   };
@@ -210,6 +205,7 @@ class ESPBTClient : public ESPBTDeviceListener {
 
 class ESP32BLETracker : public Component,
                         public GAPEventHandler,
+                        public GAPScanEventHandler,
                         public GATTcEventHandler,
                         public BLEStatusEventHandler,
                         public Parented<ESP32BLE> {
@@ -240,6 +236,7 @@ class ESP32BLETracker : public Component,
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+  void gap_scan_event_handler(const BLEScanResult &scan_result) override;
   void ble_before_disabled_event_handler() override;
 
   void add_scanner_state_callback(std::function<void(ScannerState)> &&callback) {
@@ -287,12 +284,7 @@ class ESP32BLETracker : public Component,
   bool parse_advertisements_{false};
   SemaphoreHandle_t scan_result_lock_;
   size_t scan_result_index_{0};
-#ifdef USE_PSRAM
-  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
-#else
-  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 20;
-#endif  // USE_PSRAM
-  esp_ble_gap_cb_param_t::ble_scan_result_evt_param *scan_result_buffer_;
+  BLEScanResult *scan_result_buffer_;
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
   int connecting_{0};

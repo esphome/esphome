@@ -116,7 +116,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   if (this->baud_rate_ > 0) {
     this->write_msg_(this->tx_buffer_ + msg_start);
   }
-  this->call_log_callbacks_(level, tag, this->tx_buffer_ + msg_start);
+  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start);
 
   global_recursion_guard_ = false;
 }
@@ -127,19 +127,6 @@ inline int Logger::level_for(const char *tag) {
   if (it != this->log_levels_.end())
     return it->second;
   return this->current_level_;
-}
-
-void HOT Logger::call_log_callbacks_(int level, const char *tag, const char *msg) {
-#ifdef USE_ESP32
-  // Suppress network-logging if memory constrained
-  // In some configurations (eg BLE enabled) there may be some transient
-  // memory exhaustion, and trying to log when OOM can lead to a crash. Skipping
-  // here usually allows the stack to recover instead.
-  // See issue #1234 for analysis.
-  if (xPortGetFreeHeapSize() < 2048)
-    return;
-#endif
-  this->log_callback_.call(level, tag, msg);
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
@@ -189,7 +176,7 @@ void Logger::loop() {
                                   this->tx_buffer_size_);
       this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
       this->tx_buffer_[this->tx_buffer_at_] = '\0';
-      this->call_log_callbacks_(message->level, message->tag, this->tx_buffer_);
+      this->log_callback_.call(message->level, message->tag, this->tx_buffer_);
       // At this point all the data we need from message has been transferred to the tx_buffer
       // so we can release the message to allow other tasks to use it as soon as possible.
       this->log_buffer_->release_message_main_loop(received_token);
