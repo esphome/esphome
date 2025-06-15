@@ -317,15 +317,18 @@ void I2SAudioMicrophone::stop_driver_() {
     ESP_LOGW(TAG, "Error uninstalling I2S driver - it may not have started: %s", esp_err_to_name(err));
   }
 #else
-  /* Have to stop the channel before deleting it */
-  err = i2s_channel_disable(this->rx_handle_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error stopping I2S microphone - it may not have started: %s", esp_err_to_name(err));
-  }
-  /* If the handle is not needed any more, delete it to release the channel resources */
-  err = i2s_del_channel(this->rx_handle_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error deleting I2S channel - it may not have started: %s", esp_err_to_name(err));
+  if (this->rx_handle_ != nullptr) {
+    /* Have to stop the channel before deleting it */
+    err = i2s_channel_disable(this->rx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error stopping I2S microphone - it may not have started: %s", esp_err_to_name(err));
+    }
+    /* If the handle is not needed any more, delete it to release the channel resources */
+    err = i2s_del_channel(this->rx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error deleting I2S channel - it may not have started: %s", esp_err_to_name(err));
+    }
+    this->rx_handle_ = nullptr;
   }
 #endif
   this->parent_->unlock();
