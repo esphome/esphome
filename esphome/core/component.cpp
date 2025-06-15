@@ -1,6 +1,7 @@
 #include "esphome/core/component.h"
 
 #include <cinttypes>
+#include <limits>
 #include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -41,8 +42,8 @@ const uint8_t STATUS_LED_OK = 0x00;
 const uint8_t STATUS_LED_WARNING = 0x04;  // Bit 2
 const uint8_t STATUS_LED_ERROR = 0x08;    // Bit 3
 
-const uint32_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
-const uint32_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
+const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
+const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
 
 uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -122,7 +123,13 @@ const char *Component::get_component_source() const {
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   if (blocking_time > this->warn_if_blocking_over_) {
-    this->warn_if_blocking_over_ = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    // Prevent overflow when adding increment - if we're about to overflow, just max out
+    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
+        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
+      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
+    } else {
+      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
+    }
     return true;
   }
   return false;
