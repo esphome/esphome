@@ -301,7 +301,7 @@ uint16_t APIConnection::try_send_binary_sensor_state(EntityBase *entity, APIConn
   BinarySensorStateResponse resp;
   resp.state = binary_sensor->state;
   resp.missing_state = !binary_sensor->has_state();
-  resp.key = binary_sensor->get_object_id_hash();
+  fill_entity_state_base(binary_sensor, resp);
   return encode_message_to_buffer(resp, BinarySensorStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -335,7 +335,7 @@ uint16_t APIConnection::try_send_cover_state(EntityBase *entity, APIConnection *
   if (traits.get_supports_tilt())
     msg.tilt = cover->tilt;
   msg.current_operation = static_cast<enums::CoverOperation>(cover->current_operation);
-  msg.key = cover->get_object_id_hash();
+  fill_entity_state_base(cover, msg);
   return encode_message_to_buffer(msg, CoverStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -403,7 +403,7 @@ uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *co
     msg.direction = static_cast<enums::FanDirection>(fan->direction);
   if (traits.supports_preset_modes())
     msg.preset_mode = fan->preset_mode;
-  msg.key = fan->get_object_id_hash();
+  fill_entity_state_base(fan, msg);
   return encode_message_to_buffer(msg, FanStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -470,7 +470,7 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
   resp.warm_white = values.get_warm_white();
   if (light->supports_effects())
     resp.effect = light->get_effect_name();
-  resp.key = light->get_object_id_hash();
+  fill_entity_state_base(light, resp);
   return encode_message_to_buffer(resp, LightStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -552,7 +552,7 @@ uint16_t APIConnection::try_send_sensor_state(EntityBase *entity, APIConnection 
   SensorStateResponse resp;
   resp.state = sensor->state;
   resp.missing_state = !sensor->has_state();
-  resp.key = sensor->get_object_id_hash();
+  fill_entity_state_base(sensor, resp);
   return encode_message_to_buffer(resp, SensorStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -586,7 +586,7 @@ uint16_t APIConnection::try_send_switch_state(EntityBase *entity, APIConnection 
   auto *a_switch = static_cast<switch_::Switch *>(entity);
   SwitchStateResponse resp;
   resp.state = a_switch->state;
-  resp.key = a_switch->get_object_id_hash();
+  fill_entity_state_base(a_switch, resp);
   return encode_message_to_buffer(resp, SwitchStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -629,7 +629,7 @@ uint16_t APIConnection::try_send_text_sensor_state(EntityBase *entity, APIConnec
   TextSensorStateResponse resp;
   resp.state = text_sensor->state;
   resp.missing_state = !text_sensor->has_state();
-  resp.key = text_sensor->get_object_id_hash();
+  fill_entity_state_base(text_sensor, resp);
   return encode_message_to_buffer(resp, TextSensorStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_text_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -653,7 +653,7 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
                                                bool is_single) {
   auto *climate = static_cast<climate::Climate *>(entity);
   ClimateStateResponse resp;
-  resp.key = climate->get_object_id_hash();
+  fill_entity_state_base(climate, resp);
   auto traits = climate->get_traits();
   resp.mode = static_cast<enums::ClimateMode>(climate->mode);
   resp.action = static_cast<enums::ClimateAction>(climate->action);
@@ -762,7 +762,7 @@ uint16_t APIConnection::try_send_number_state(EntityBase *entity, APIConnection 
   NumberStateResponse resp;
   resp.state = number->state;
   resp.missing_state = !number->has_state();
-  resp.key = number->get_object_id_hash();
+  fill_entity_state_base(number, resp);
   return encode_message_to_buffer(resp, NumberStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -803,7 +803,7 @@ uint16_t APIConnection::try_send_date_state(EntityBase *entity, APIConnection *c
   resp.year = date->year;
   resp.month = date->month;
   resp.day = date->day;
-  resp.key = date->get_object_id_hash();
+  fill_entity_state_base(date, resp);
   return encode_message_to_buffer(resp, DateStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::send_date_info(datetime::DateEntity *date) {
@@ -840,7 +840,7 @@ uint16_t APIConnection::try_send_time_state(EntityBase *entity, APIConnection *c
   resp.hour = time->hour;
   resp.minute = time->minute;
   resp.second = time->second;
-  resp.key = time->get_object_id_hash();
+  fill_entity_state_base(time, resp);
   return encode_message_to_buffer(resp, TimeStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::send_time_info(datetime::TimeEntity *time) {
@@ -879,7 +879,7 @@ uint16_t APIConnection::try_send_datetime_state(EntityBase *entity, APIConnectio
     ESPTime state = datetime->state_as_esptime();
     resp.epoch_seconds = state.timestamp;
   }
-  resp.key = datetime->get_object_id_hash();
+  fill_entity_state_base(datetime, resp);
   return encode_message_to_buffer(resp, DateTimeStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
@@ -918,7 +918,7 @@ uint16_t APIConnection::try_send_text_state(EntityBase *entity, APIConnection *c
   TextStateResponse resp;
   resp.state = text->state;
   resp.missing_state = !text->has_state();
-  resp.key = text->get_object_id_hash();
+  fill_entity_state_base(text, resp);
   return encode_message_to_buffer(resp, TextStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -959,7 +959,7 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
   SelectStateResponse resp;
   resp.state = select->state;
   resp.missing_state = !select->has_state();
-  resp.key = select->get_object_id_hash();
+  fill_entity_state_base(select, resp);
   return encode_message_to_buffer(resp, SelectStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -1019,7 +1019,7 @@ uint16_t APIConnection::try_send_lock_state(EntityBase *entity, APIConnection *c
   auto *a_lock = static_cast<lock::Lock *>(entity);
   LockStateResponse resp;
   resp.state = static_cast<enums::LockState>(a_lock->state);
-  resp.key = a_lock->get_object_id_hash();
+  fill_entity_state_base(a_lock, resp);
   return encode_message_to_buffer(resp, LockStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -1063,7 +1063,7 @@ uint16_t APIConnection::try_send_valve_state(EntityBase *entity, APIConnection *
   ValveStateResponse resp;
   resp.position = valve->position;
   resp.current_operation = static_cast<enums::ValveOperation>(valve->current_operation);
-  resp.key = valve->get_object_id_hash();
+  fill_entity_state_base(valve, resp);
   return encode_message_to_buffer(resp, ValveStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::send_valve_info(valve::Valve *valve) {
@@ -1111,7 +1111,7 @@ uint16_t APIConnection::try_send_media_player_state(EntityBase *entity, APIConne
   resp.state = static_cast<enums::MediaPlayerState>(report_state);
   resp.volume = media_player->volume;
   resp.muted = media_player->is_muted();
-  resp.key = media_player->get_object_id_hash();
+  fill_entity_state_base(media_player, resp);
   return encode_message_to_buffer(resp, MediaPlayerStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
@@ -1375,7 +1375,7 @@ uint16_t APIConnection::try_send_alarm_control_panel_state(EntityBase *entity, A
   auto *a_alarm_control_panel = static_cast<alarm_control_panel::AlarmControlPanel *>(entity);
   AlarmControlPanelStateResponse resp;
   resp.state = static_cast<enums::AlarmControlPanelState>(a_alarm_control_panel->get_state());
-  resp.key = a_alarm_control_panel->get_object_id_hash();
+  fill_entity_state_base(a_alarm_control_panel, resp);
   return encode_message_to_buffer(resp, AlarmControlPanelStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
@@ -1439,7 +1439,7 @@ uint16_t APIConnection::try_send_event_response(event::Event *event, const std::
                                                 uint32_t remaining_size, bool is_single) {
   EventResponse resp;
   resp.event_type = event_type;
-  resp.key = event->get_object_id_hash();
+  fill_entity_state_base(event, resp);
   return encode_message_to_buffer(resp, EventResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -1477,7 +1477,7 @@ uint16_t APIConnection::try_send_update_state(EntityBase *entity, APIConnection 
     resp.release_summary = update->update_info.summary;
     resp.release_url = update->update_info.release_url;
   }
-  resp.key = update->get_object_id_hash();
+  fill_entity_state_base(update, resp);
   return encode_message_to_buffer(resp, UpdateStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::send_update_info(update::UpdateEntity *update) {
@@ -1538,7 +1538,7 @@ bool APIConnection::try_send_log_message(int level, const char *tag, const char 
   buffer.encode_string(3, line, line_length);             // string message = 3
 
   // SubscribeLogsResponse - 29
-  return this->send_buffer(buffer, 29);
+  return this->send_buffer(buffer, SubscribeLogsResponse::MESSAGE_TYPE);
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
@@ -1685,7 +1685,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   return false;
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) {
-  if (!this->try_to_clear_buffer(message_type != 29)) {  // SubscribeLogsResponse
+  if (!this->try_to_clear_buffer(message_type != SubscribeLogsResponse::MESSAGE_TYPE)) {  // SubscribeLogsResponse
     return false;
   }
 

@@ -628,6 +628,7 @@ template<> const char *proto_enum_to_string<enums::UpdateCommand>(enums::UpdateC
   }
 }
 #endif
+
 bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {

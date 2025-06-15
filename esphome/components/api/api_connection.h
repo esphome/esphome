@@ -282,8 +282,8 @@ class APIConnection : public APIServerConnection {
   ProtoWriteBuffer allocate_batch_message_buffer(uint16_t size);
 
  protected:
-  // Helper function to fill common entity fields
-  template<typename ResponseT> static void fill_entity_info_base(esphome::EntityBase *entity, ResponseT &response) {
+  // Helper function to fill common entity info fields
+  static void fill_entity_info_base(esphome::EntityBase *entity, InfoResponseProtoMessage &response) {
     // Set common fields that are shared by all entity types
     response.key = entity->get_object_id_hash();
     response.object_id = entity->get_object_id();
@@ -295,6 +295,11 @@ class APIConnection : public APIServerConnection {
     response.icon = entity->get_icon();
     response.disabled_by_default = entity->is_disabled_by_default();
     response.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
+  }
+
+  // Helper function to fill common entity state fields
+  static void fill_entity_state_base(esphome::EntityBase *entity, StateResponseProtoMessage &response) {
+    response.key = entity->get_object_id_hash();
   }
 
   // Non-template helper to encode any ProtoMessage

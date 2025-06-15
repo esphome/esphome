@@ -253,6 +253,27 @@ enum UpdateCommand : uint32_t {
 
 }  // namespace enums
 
+class InfoResponseProtoMessage : public ProtoMessage {
+ public:
+  ~InfoResponseProtoMessage() override = default;
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
+
+ protected:
+};
+
+class StateResponseProtoMessage : public ProtoMessage {
+ public:
+  ~StateResponseProtoMessage() override = default;
+  uint32_t key{0};
+
+ protected:
+};
 class HelloRequest : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 1;
@@ -484,22 +505,15 @@ class SubscribeStatesRequest : public ProtoMessage {
 
  protected:
 };
-class ListEntitiesBinarySensorResponse : public ProtoMessage {
+class ListEntitiesBinarySensorResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 12;
   static constexpr uint16_t ESTIMATED_SIZE = 56;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_binary_sensor_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
   std::string device_class{};
   bool is_status_binary_sensor{false};
-  bool disabled_by_default{false};
-  std::string icon{};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -511,14 +525,13 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class BinarySensorStateResponse : public ProtoMessage {
+class BinarySensorStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 21;
   static constexpr uint16_t ESTIMATED_SIZE = 9;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "binary_sensor_state_response"; }
 #endif
-  uint32_t key{0};
   bool state{false};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -531,24 +544,17 @@ class BinarySensorStateResponse : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesCoverResponse : public ProtoMessage {
+class ListEntitiesCoverResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 13;
   static constexpr uint16_t ESTIMATED_SIZE = 62;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_cover_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
   bool assumed_state{false};
   bool supports_position{false};
   bool supports_tilt{false};
   std::string device_class{};
-  bool disabled_by_default{false};
-  std::string icon{};
-  enums::EntityCategory entity_category{};
   bool supports_stop{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -561,14 +567,13 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class CoverStateResponse : public ProtoMessage {
+class CoverStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 22;
   static constexpr uint16_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "cover_state_response"; }
 #endif
-  uint32_t key{0};
   enums::LegacyCoverState legacy_state{};
   float position{0.0f};
   float tilt{0.0f};
@@ -608,24 +613,17 @@ class CoverCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesFanResponse : public ProtoMessage {
+class ListEntitiesFanResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 14;
   static constexpr uint16_t ESTIMATED_SIZE = 73;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_fan_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
   bool supports_oscillation{false};
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  bool disabled_by_default{false};
-  std::string icon{};
-  enums::EntityCategory entity_category{};
   std::vector<std::string> supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -638,14 +636,13 @@ class ListEntitiesFanResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class FanStateResponse : public ProtoMessage {
+class FanStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 23;
   static constexpr uint16_t ESTIMATED_SIZE = 26;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "fan_state_response"; }
 #endif
-  uint32_t key{0};
   bool state{false};
   bool oscillating{false};
   enums::FanSpeed speed{};
@@ -694,17 +691,13 @@ class FanCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesLightResponse : public ProtoMessage {
+class ListEntitiesLightResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 15;
   static constexpr uint16_t ESTIMATED_SIZE = 85;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_light_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
   std::vector<enums::ColorMode> supported_color_modes{};
   bool legacy_supports_brightness{false};
   bool legacy_supports_rgb{false};
@@ -713,9 +706,6 @@ class ListEntitiesLightResponse : public ProtoMessage {
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
-  bool disabled_by_default{false};
-  std::string icon{};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -727,14 +717,13 @@ class ListEntitiesLightResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class LightStateResponse : public ProtoMessage {
+class LightStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 24;
   static constexpr uint16_t ESTIMATED_SIZE = 63;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "light_state_response"; }
 #endif
-  uint32_t key{0};
   bool state{false};
   float brightness{0.0f};
   enums::ColorMode color_mode{};
@@ -803,26 +792,19 @@ class LightCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesSensorResponse : public ProtoMessage {
+class ListEntitiesSensorResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 16;
   static constexpr uint16_t ESTIMATED_SIZE = 73;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_sensor_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
   std::string unit_of_measurement{};
   int32_t accuracy_decimals{0};
   bool force_update{false};
   std::string device_class{};
   enums::SensorStateClass state_class{};
   enums::SensorLastResetType legacy_last_reset_type{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -834,14 +816,13 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class SensorStateResponse : public ProtoMessage {
+class SensorStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 25;
   static constexpr uint16_t ESTIMATED_SIZE = 12;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "sensor_state_response"; }
 #endif
-  uint32_t key{0};
   float state{0.0f};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -854,21 +835,14 @@ class SensorStateResponse : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesSwitchResponse : public ProtoMessage {
+class ListEntitiesSwitchResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 17;
   static constexpr uint16_t ESTIMATED_SIZE = 56;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_switch_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
   bool assumed_state{false};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -881,14 +855,13 @@ class ListEntitiesSwitchResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class SwitchStateResponse : public ProtoMessage {
+class SwitchStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 26;
   static constexpr uint16_t ESTIMATED_SIZE = 7;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "switch_state_response"; }
 #endif
-  uint32_t key{0};
   bool state{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -919,20 +892,13 @@ class SwitchCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesTextSensorResponse : public ProtoMessage {
+class ListEntitiesTextSensorResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 18;
   static constexpr uint16_t ESTIMATED_SIZE = 54;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_text_sensor_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -945,14 +911,13 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class TextSensorStateResponse : public ProtoMessage {
+class TextSensorStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 27;
   static constexpr uint16_t ESTIMATED_SIZE = 16;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "text_sensor_state_response"; }
 #endif
-  uint32_t key{0};
   std::string state{};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1249,20 +1214,13 @@ class ExecuteServiceRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ListEntitiesCameraResponse : public ProtoMessage {
+class ListEntitiesCameraResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 43;
   static constexpr uint16_t ESTIMATED_SIZE = 45;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_camera_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  bool disabled_by_default{false};
-  std::string icon{};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1313,17 +1271,13 @@ class CameraImageRequest : public ProtoMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesClimateResponse : public ProtoMessage {
+class ListEntitiesClimateResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 46;
   static constexpr uint16_t ESTIMATED_SIZE = 151;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_climate_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
   bool supports_current_temperature{false};
   bool supports_two_point_target_temperature{false};
   std::vector<enums::ClimateMode> supported_modes{};
@@ -1337,9 +1291,6 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<std::string> supported_custom_fan_modes{};
   std::vector<enums::ClimatePreset> supported_presets{};
   std::vector<std::string> supported_custom_presets{};
-  bool disabled_by_default{false};
-  std::string icon{};
-  enums::EntityCategory entity_category{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
@@ -1356,14 +1307,13 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ClimateStateResponse : public ProtoMessage {
+class ClimateStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 47;
   static constexpr uint16_t ESTIMATED_SIZE = 65;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "climate_state_response"; }
 #endif
-  uint32_t key{0};
   enums::ClimateMode mode{};
   float current_temperature{0.0f};
   float target_temperature{0.0f};
@@ -1430,23 +1380,16 @@ class ClimateCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesNumberResponse : public ProtoMessage {
+class ListEntitiesNumberResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 49;
   static constexpr uint16_t ESTIMATED_SIZE = 80;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_number_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
   float min_value{0.0f};
   float max_value{0.0f};
   float step{0.0f};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   std::string unit_of_measurement{};
   enums::NumberMode mode{};
   std::string device_class{};
@@ -1461,14 +1404,13 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class NumberStateResponse : public ProtoMessage {
+class NumberStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 50;
   static constexpr uint16_t ESTIMATED_SIZE = 12;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "number_state_response"; }
 #endif
-  uint32_t key{0};
   float state{0.0f};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1499,21 +1441,14 @@ class NumberCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
-class ListEntitiesSelectResponse : public ProtoMessage {
+class ListEntitiesSelectResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 52;
   static constexpr uint16_t ESTIMATED_SIZE = 63;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_select_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
   std::vector<std::string> options{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1525,14 +1460,13 @@ class ListEntitiesSelectResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class SelectStateResponse : public ProtoMessage {
+class SelectStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 53;
   static constexpr uint16_t ESTIMATED_SIZE = 16;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "select_state_response"; }
 #endif
-  uint32_t key{0};
   std::string state{};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1565,23 +1499,16 @@ class SelectCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ListEntitiesSirenResponse : public ProtoMessage {
+class ListEntitiesSirenResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 55;
   static constexpr uint16_t ESTIMATED_SIZE = 67;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_siren_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
   std::vector<std::string> tones{};
   bool supports_duration{false};
   bool supports_volume{false};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1593,14 +1520,13 @@ class ListEntitiesSirenResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class SirenStateResponse : public ProtoMessage {
+class SirenStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 56;
   static constexpr uint16_t ESTIMATED_SIZE = 7;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "siren_state_response"; }
 #endif
-  uint32_t key{0};
   bool state{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1639,20 +1565,13 @@ class SirenCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesLockResponse : public ProtoMessage {
+class ListEntitiesLockResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 58;
   static constexpr uint16_t ESTIMATED_SIZE = 60;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_lock_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   bool assumed_state{false};
   bool supports_open{false};
   bool requires_code{false};
@@ -1668,14 +1587,13 @@ class ListEntitiesLockResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class LockStateResponse : public ProtoMessage {
+class LockStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 59;
   static constexpr uint16_t ESTIMATED_SIZE = 7;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "lock_state_response"; }
 #endif
-  uint32_t key{0};
   enums::LockState state{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1709,20 +1627,13 @@ class LockCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesButtonResponse : public ProtoMessage {
+class ListEntitiesButtonResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 61;
   static constexpr uint16_t ESTIMATED_SIZE = 54;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_button_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1769,20 +1680,13 @@ class MediaPlayerSupportedFormat : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesMediaPlayerResponse : public ProtoMessage {
+class ListEntitiesMediaPlayerResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 63;
   static constexpr uint16_t ESTIMATED_SIZE = 81;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_media_player_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   bool supports_pause{false};
   std::vector<MediaPlayerSupportedFormat> supported_formats{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1796,14 +1700,13 @@ class ListEntitiesMediaPlayerResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class MediaPlayerStateResponse : public ProtoMessage {
+class MediaPlayerStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 64;
   static constexpr uint16_t ESTIMATED_SIZE = 14;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "media_player_state_response"; }
 #endif
-  uint32_t key{0};
   enums::MediaPlayerState state{};
   float volume{0.0f};
   bool muted{false};
@@ -2653,20 +2556,13 @@ class VoiceAssistantSetConfiguration : public ProtoMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
+class ListEntitiesAlarmControlPanelResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 94;
   static constexpr uint16_t ESTIMATED_SIZE = 53;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_alarm_control_panel_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   uint32_t supported_features{0};
   bool requires_code{false};
   bool requires_code_to_arm{false};
@@ -2681,14 +2577,13 @@ class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class AlarmControlPanelStateResponse : public ProtoMessage {
+class AlarmControlPanelStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 95;
   static constexpr uint16_t ESTIMATED_SIZE = 7;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "alarm_control_panel_state_response"; }
 #endif
-  uint32_t key{0};
   enums::AlarmControlPanelState state{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -2721,20 +2616,13 @@ class AlarmControlPanelCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesTextResponse : public ProtoMessage {
+class ListEntitiesTextResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 97;
   static constexpr uint16_t ESTIMATED_SIZE = 64;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_text_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   uint32_t min_length{0};
   uint32_t max_length{0};
   std::string pattern{};
@@ -2750,14 +2638,13 @@ class ListEntitiesTextResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class TextStateResponse : public ProtoMessage {
+class TextStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 98;
   static constexpr uint16_t ESTIMATED_SIZE = 16;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "text_state_response"; }
 #endif
-  uint32_t key{0};
   std::string state{};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2790,20 +2677,13 @@ class TextCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ListEntitiesDateResponse : public ProtoMessage {
+class ListEntitiesDateResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 100;
   static constexpr uint16_t ESTIMATED_SIZE = 45;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_date_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2815,14 +2695,13 @@ class ListEntitiesDateResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class DateStateResponse : public ProtoMessage {
+class DateStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 101;
   static constexpr uint16_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "date_state_response"; }
 #endif
-  uint32_t key{0};
   bool missing_state{false};
   uint32_t year{0};
   uint32_t month{0};
@@ -2858,20 +2737,13 @@ class DateCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesTimeResponse : public ProtoMessage {
+class ListEntitiesTimeResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 103;
   static constexpr uint16_t ESTIMATED_SIZE = 45;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_time_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2883,14 +2755,13 @@ class ListEntitiesTimeResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class TimeStateResponse : public ProtoMessage {
+class TimeStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 104;
   static constexpr uint16_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "time_state_response"; }
 #endif
-  uint32_t key{0};
   bool missing_state{false};
   uint32_t hour{0};
   uint32_t minute{0};
@@ -2926,20 +2797,13 @@ class TimeCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesEventResponse : public ProtoMessage {
+class ListEntitiesEventResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 107;
   static constexpr uint16_t ESTIMATED_SIZE = 72;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_event_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   std::string device_class{};
   std::vector<std::string> event_types{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2953,14 +2817,13 @@ class ListEntitiesEventResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class EventResponse : public ProtoMessage {
+class EventResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 108;
   static constexpr uint16_t ESTIMATED_SIZE = 14;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "event_response"; }
 #endif
-  uint32_t key{0};
   std::string event_type{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -2972,20 +2835,13 @@ class EventResponse : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ListEntitiesValveResponse : public ProtoMessage {
+class ListEntitiesValveResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 109;
   static constexpr uint16_t ESTIMATED_SIZE = 60;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_valve_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   std::string device_class{};
   bool assumed_state{false};
   bool supports_position{false};
@@ -3001,14 +2857,13 @@ class ListEntitiesValveResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ValveStateResponse : public ProtoMessage {
+class ValveStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 110;
   static constexpr uint16_t ESTIMATED_SIZE = 12;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "valve_state_response"; }
 #endif
-  uint32_t key{0};
   float position{0.0f};
   enums::ValveOperation current_operation{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -3042,20 +2897,13 @@ class ValveCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class ListEntitiesDateTimeResponse : public ProtoMessage {
+class ListEntitiesDateTimeResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 112;
   static constexpr uint16_t ESTIMATED_SIZE = 45;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_date_time_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3067,14 +2915,13 @@ class ListEntitiesDateTimeResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class DateTimeStateResponse : public ProtoMessage {
+class DateTimeStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 113;
   static constexpr uint16_t ESTIMATED_SIZE = 12;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "date_time_state_response"; }
 #endif
-  uint32_t key{0};
   bool missing_state{false};
   uint32_t epoch_seconds{0};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -3105,20 +2952,13 @@ class DateTimeCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
-class ListEntitiesUpdateResponse : public ProtoMessage {
+class ListEntitiesUpdateResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 116;
   static constexpr uint16_t ESTIMATED_SIZE = 54;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_update_response"; }
 #endif
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -3131,14 +2971,13 @@ class ListEntitiesUpdateResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class UpdateStateResponse : public ProtoMessage {
+class UpdateStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 117;
   static constexpr uint16_t ESTIMATED_SIZE = 61;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "update_state_response"; }
 #endif
-  uint32_t key{0};
   bool missing_state{false};
   bool in_progress{false};
   bool has_progress{false};
