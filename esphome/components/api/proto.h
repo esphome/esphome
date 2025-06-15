@@ -216,7 +216,7 @@ class ProtoWriteBuffer {
     this->buffer_->insert(this->buffer_->end(), data, data + len);
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
-    this->encode_string(field_id, value.data(), value.size());
+    this->encode_string(field_id, value.data(), value.size(), force);
   }
   void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
     this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
