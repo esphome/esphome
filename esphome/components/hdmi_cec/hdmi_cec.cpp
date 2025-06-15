@@ -110,6 +110,8 @@ void HDMICEC::loop() {
   }
 }
 
+std::string HDMICEC::get_state() const { return recv_.get_state() + "; " + xmit_.get_state(); }
+
 void HDMICEC::handle_received_message(const Frame *frame) {
   const uint8_t src_addr = frame->initiator_addr();
   const uint8_t dest_addr = frame->destination_addr();
@@ -289,6 +291,13 @@ void CECTransmit::dump_config() {
 void CECTransmit::queue_for_send(const Frame &&frame) {
   LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
   send_queue_.push(std::move(frame));
+}
+
+std::string CECTransmit::get_state() const {
+  char line[64];
+  const static std::array<const char *, 3> names = {"IDLE", "BUSY", "EOM_CONFIRMED"};
+  sprintf(line, "Tx State=%s", names[(int) (transmit_state_)]);
+  return std::string(line);
 }
 
 void CECTransmit::transmit_message() {
@@ -585,6 +594,15 @@ void CECReceive::dump_config() {
   ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
 }
 
+std::string CECReceive::get_state() const {
+  char line[128];
+  const static std::array<const char *, 5> names = {"IDLE", "RECEIVING_BYTE", "WAITING_FOR_EOM", "WAITING_FOR_ACK",
+                                                    "WAITING_FOR_EOM_ACK"};
+  sprintf(line, "Rx State=%s, bytecnt=%d + bitcnt=%d", names[(int) (receiver_state_)], recv_frame_buffer_->size(),
+          recv_bit_counter_);
+  return std::string(line);
+}
+
 void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) { self->gpio_isr(); }
 
 void IRAM_ATTR CECReceive::gpio_isr() {
@@ -599,6 +617,11 @@ void IRAM_ATTR CECReceive::gpio_isr() {
 
   // on falling edge, store current time as the start of the low pulse
   if (level == false) {
+    if (now - last_falling_edge_us_ > START_BIT_NOM_US + TOTAL_BIT_US) {
+      // there was a very long period of silence on the bus: reset state
+      reset_state_variables();
+    }
+
     last_falling_edge_us_ = now;
 
     if (receiver_state_ == ReceiverState::IDLE) {

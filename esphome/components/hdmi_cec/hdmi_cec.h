@@ -99,6 +99,7 @@ class CECTransmit {
   bool has_uart() const { return uart_ != nullptr; }
   void set_pin_input_high();
   void set_pin_output_low();
+  std::string get_state() const;  // merely for debugging
 
   /**
    * Transmit the message on the front of the send_queue out on the CEC line
@@ -166,6 +167,7 @@ class CECReceive {
   void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
   bool get_monitor_mode() const { return monitor_mode_; }
   FrameRingBuffer<MAX_FRAMES_QUEUED> frames_queue_;
+  std::string get_state() const;  // merely for debugging
 
  protected:
   static void gpio_isr_s(CECReceive *self);
@@ -198,6 +200,7 @@ class HDMICEC : public Component {
   void set_osd_name_bytes(const std::vector<uint8_t> &osd_name_bytes) { osd_name_bytes_ = osd_name_bytes; }
   void set_uart(uart::UARTComponent *uart) { xmit_.set_uart(uart); }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
+  std::string get_state() const;  // merely for debugging
 
   bool send(uint8_t destination, const std::vector<uint8_t> &data_bytes);
   bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
