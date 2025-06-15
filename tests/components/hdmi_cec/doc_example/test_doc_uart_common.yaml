@@ -1,0 +1,106 @@
+# Test hdmi_cec example as shown in the 'esphome doc' for this component
+# This includes wifi and Home Assistant connections, which is not in the basic component tests
+
+# Enable Home Assistant API
+api:
+  id: api_id
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_pw
+
+wifi:
+  reboot_timeout: 0s
+  networks:
+    - ssid: !secret wifi_home_ssid
+      password: !secret wifi_home_pw
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "TestCEC Fallback Hotspot"
+    password: "66FTMlSxkf38"
+
+captive_portal:
+
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - delay: 200ms
+      - lambda: !lambda |-
+          bool is_hw_uart = ${has_hw_uart};
+          ESP_LOGD("UART", "UART is HW: %s", (is_hw_uart ? "yes" : "NO!"));
+          id(cec).send(id(cec).address(), 0xf, {0x90, 0x00});  // Power status On
+
+esp32:
+  board: ${board}
+  framework:
+    type: arduino
+#    type: esp-idf
+
+# Enable logging
+logger:
+  level: DEBUG
+
+uart:
+  id: cec_uart
+  tx_pin: ${uart_pin}
+  baud_rate: 115200
+
+button:
+  - platform: template
+    name: "Standby All"
+    on_press:
+      - hdmi_cec.send:
+          # "source" can optionally be set, like if you want to spoof another device's address
+          destination: 0xF  # broadcast to all hdmi devices
+          data: [0x36]  # "Standby" opcode
+  - platform: template
+    name: "TV Power On"
+    on_press:
+      - hdmi_cec.send:
+          destination: 0x0  # to TV
+          data: [0x44, 0x6D]  # UI (RC) command, "Power On"
+  - platform: template
+    name: "TV Volume Up"
+    on_press:
+      - hdmi_cec.send:
+          destination: 0x0  # to TV
+          data: [0x44, 0x41]  # UI command, "Volume Up"
+  - platform: template
+    name: "TV Volume Down"
+    on_press:
+      - hdmi_cec.send:
+          destination: 0x0  # to TV
+          data: [0x44, 0x42]  # UI command, "Volume Down"
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: ${hpd_pin}
+      mode:
+        # hpd high denotes hdmi is plugged-in
+        input: true
+        pulldown: true
+    id: hdmi_hpd
+    name: "Hdmi TV Detect"
+    on_press:
+      then:
+        - logger.log: "HDMI Power Detect On"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: my_ip_address
+      name: "TestCEC IP"
+      icon: mdi:ip-network
+
+hdmi_cec:
+  id: cec
+  pin: ${cec_pin}  # to HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
+  address: 0xe
+  physical_address: 0x2000
+  uart_id: cec_uart

@@ -1,0 +1,10 @@
+# test demo example on esp32c3
+substitutions:
+  name: test_cec_c3
+  board: seeed_xiao_esp32c3
+  cec_pin: GPIO10
+  hpd_pin: GPIO9
+  uart_pin: GPIO8
+  has_hw_uart: id(cec_uart)->get_hw_serial() != nullptr
+
+<<: !include test_doc_uart_common.yaml

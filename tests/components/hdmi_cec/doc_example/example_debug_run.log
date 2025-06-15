@@ -1,0 +1,224 @@
+Hard resetting via RTS pin...
+INFO Successfully uploaded program.
+INFO Starting log output from /dev/ttyACM0 with baud rate 115200
+[19:44:30][I][logger:171]: Log initialized
+[19:44:30][C][safe_mode:079]: There have been 1 suspected unsuccessful boot attempts
+[19:44:30][D][esp32.preferences:114]: Saving 1 preferences to flash...
+[19:44:30][D][esp32.preferences:143]: Saving 1 preferences to flash: 0 cached, 1 written, 0 failed
+[19:44:30][I][app:029]: Running through setup()...
+[19:44:30][C][uart.arduino_esp32:077]: Setting up UART...
+[19:44:30][D][esp32:117]: rtc: 1
+[19:44:30][D][binary_sensor:034]: 'Hdmi TV Detect': Sending initial state OFF
+[19:44:30][D][esp32:117]: rtc: 1
+[19:44:30][   205][E][HardwareSerial.cpp:525] setRxBufferSize(): RX Buffer can't be resized when Serial is already running.
+[19:44:30]
+[19:44:30][D][hdmi_cec:279]: Set uart configuration for CEC
+[19:44:30][C][wifi:048]: Setting up WiFi...
+[19:44:30][C][wifi:061]: Starting WiFi...
+[19:44:30][C][wifi:062]:   Local MAC: D8:3B:DA:46:F1:A8
+[19:44:30][D][wifi:482]: Starting scan...
+[19:44:30][W][component:167]: Component wifi set Warning flag: scanning for networks
+[19:44:36][D][wifi:497]: Found networks:
+[19:44:36][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:36][D][wifi:542]:     Channel: 2
+[19:44:36][D][wifi:543]:     RSSI: -49 dB
+[19:44:36][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:16:86) ▂▄▆█
+[19:44:36][D][wifi:542]:     Channel: 2
+[19:44:36][D][wifi:543]:     RSSI: -61 dB
+[19:44:36][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (EE:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:B6:E8) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (CE:D4:2E:EB:B6:E8) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:A8:38) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (CE:D4:2E:EB:A8:38) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:16:86) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (EE:FA:C4:B8:16:86) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:86) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Ziggo' (5A:D3:43:F4:62:81) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (AA:D3:43:F4:62:81) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (42:84:6A:96:67:36) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:67:36) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'H369A8DE377' (34:DA:B7:8D:E3:77) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:16:7E) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:7E) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (EE:FA:C4:B8:16:7E) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'VRV9517945DC4' (64:CC:22:94:5D:C4) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Rainshower28_Guest' (D6:32:E5:D3:6D:D1) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Cuba@20' (38:43:7D:49:53:BC) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'ziggo-ap-6407292' (C8:D1:2A:29:32:20) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Ziggo' (3A:43:1D:49:53:BC) ▂▄▆█
+[19:44:36][D][wifi:546]: - '' (CC:32:E5:D3:6D:D1) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Rainshower28' (D2:32:E5:D3:6D:D1) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:63:6E) ▂▄▆█
+[19:44:36][D][wifi:546]: - 'Ons-netwerk' (F4:06:8D:58:70:AC) ▂▄▆█
+[19:44:36][I][wifi:313]: WiFi Connecting to 'vaneijndhoven'...
+[19:44:37][W][wifi:674]: WiFi Unknown connection status 0
+[19:44:37][I][wifi:313]: WiFi Connecting to 'vaneijndhoven'...
+[19:44:37][W][wifi:669]: Connecting to WiFi network failed. Are the credentials wrong?
+[19:44:42][D][wifi:482]: Starting scan...
+[19:44:49][D][wifi:497]: Found networks:
+[19:44:49][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:16:86) ▂▄▆█
+[19:44:49][D][wifi:542]:     Channel: 2
+[19:44:49][D][wifi:543]:     RSSI: -61 dB
+[19:44:49][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:49][D][wifi:542]:     Channel: 2
+[19:44:49][D][wifi:543]:     RSSI: -50 dB
+[19:44:49][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (EE:FA:C4:B8:44:2E) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:B6:E8) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (CE:D4:2E:EB:B6:E8) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:A8:38) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (CE:D4:2E:EB:A8:38) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (EE:FA:C4:B8:16:86) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Ziggo0140308' (48:D3:43:F4:62:81) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:16:86) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:86) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Ziggo' (5A:D3:43:F4:62:81) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (AA:D3:43:F4:62:81) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (42:84:6A:96:67:36) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:67:36) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:7E) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (EE:FA:C4:B8:16:7E) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'H369A8DE377' (34:DA:B7:8D:E3:77) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'VRV9517945DC4' (64:CC:22:94:5D:C4) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'ziggo-ap-6407292' (C8:D1:2A:29:32:20) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Rainshower28' (D2:32:E5:D3:6D:D1) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Rainshower28_Guest' (D6:32:E5:D3:6D:D1) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:63:6E) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Cuba@20' (38:43:7D:49:53:BC) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Ziggo' (3A:43:1D:49:53:BC) ▂▄▆█
+[19:44:49][D][wifi:546]: - '' (CC:32:E5:D3:6D:D1) ▂▄▆█
+[19:44:49][D][wifi:546]: - 'Beganegrond' (3C:A6:2F:1C:A3:27) ▂▄▆█
+[19:44:49][I][wifi:313]: WiFi Connecting to 'vaneijndhoven'...
+[19:44:51][I][wifi:617]: WiFi Connected!
+[19:44:51][C][wifi:428]:   Local MAC: D8:3B:DA:46:F1:A8
+[19:44:51][C][wifi:433]:   SSID: 'vaneijndhoven'
+[19:44:51][C][wifi:436]:   IP Address: 192.168.178.120
+[19:44:51][C][wifi:440]:   BSSID: E4:FA:C4:B8:16:86
+[19:44:51][C][wifi:441]:   Hostname: 'test_cec_s3'
+[19:44:51][C][wifi:443]:   Signal strength: -60 dB ▂▄▆█
+[19:44:51][C][wifi:447]:   Channel: 2
+[19:44:51][C][wifi:448]:   Subnet: 255.255.255.0
+[19:44:51][C][wifi:449]:   Gateway: 192.168.178.1
+[19:44:51][C][wifi:450]:   DNS1: 192.168.123.1
+[19:44:51][C][wifi:451]:   DNS2: 192.168.178.1
+[19:44:51][D][wifi:626]: Disabling AP...
+[19:44:51][C][api:030]: Setting up Home Assistant API server...
+[19:44:51][I][app:066]: setup() finished successfully!
+[19:44:51][W][component:182]: Component wifi cleared Warning flag
+[19:44:51][W][component:167]: Component api set Warning flag: unspecified
+[19:44:51][I][app:115]: ESPHome version 2025.6.0-dev compiled on Jun 15 2025, 19:44:17
+[19:44:51][C][wifi:600]: WiFi:
+[19:44:51][C][wifi:428]:   Local MAC: D8:3B:DA:46:F1:A8
+[19:44:51][C][wifi:433]:   SSID: 'vaneijndhoven'
+[19:44:51][C][wifi:436]:   IP Address: 192.168.178.120
+[19:44:51][C][wifi:440]:   BSSID: E4:FA:C4:B8:16:86
+[19:44:51][C][wifi:441]:   Hostname: 'test_cec_s3'
+[19:44:51][C][wifi:443]:   Signal strength: -60 dB ▂▄▆█
+[19:44:51][C][wifi:447]:   Channel: 2
+[19:44:51][C][wifi:448]:   Subnet: 255.255.255.0
+[19:44:51][C][wifi:449]:   Gateway: 192.168.178.1
+[19:44:51][C][wifi:450]:   DNS1: 192.168.123.1
+[19:44:51][C][wifi:451]:   DNS2: 192.168.178.1
+[19:44:51][C][logger:224]: Logger:
+[19:44:51][C][logger:225]:   Max Level: DEBUG
+[19:44:51][C][logger:226]:   Initial Level: DEBUG
+[19:44:51][C][logger:228]:   Log Baud Rate: 115200
+[19:44:51][C][logger:229]:   Hardware UART: USB_CDC
+[19:44:51][C][logger:233]:   Task Log Buffer Size: 768
+[19:44:51][C][uart.arduino_esp32:151]: UART Bus 0:
+[19:44:51][C][uart.arduino_esp32:152]:   TX Pin: GPIO7
+[19:44:51][C][uart.arduino_esp32:157]:   Baud Rate: 2083 baud
+[19:44:51][C][uart.arduino_esp32:158]:   Data Bits: 8
+[19:44:51][C][uart.arduino_esp32:159]:   Parity: NONE
+[19:44:51][C][uart.arduino_esp32:160]:   Stop bits: 1
+[19:44:51][C][gpio.binary_sensor:015]: GPIO Binary Sensor 'Hdmi TV Detect'
+[19:44:51][C][gpio.binary_sensor:016]:   Pin: GPIO8
+[19:44:51][C][hdmi_cec:089]: HDMI-CEC
+[19:44:51][C][hdmi_cec:090]:   address: 0xe
+[19:44:51][C][hdmi_cec:091]:   physical address: 0x2000
+[19:44:51][C][hdmi_cec:287]:   pin: GPIO9
+[19:44:51][C][hdmi_cec:288]:   has UART: yes
+[19:44:51][C][hdmi_cec:593]:   monitor mode: no
+[19:44:51][C][hdmi_cec:594]:   promiscuous mode: no
+[19:44:51][C][captive_portal:089]: Captive Portal:
+[19:44:51][C][mdns:120]: mDNS:
+[19:44:51][C][mdns:121]:   Hostname: test_cec_s3
+[19:44:51][C][esphome.ota:073]: Over-The-Air updates:
+[19:44:51][C][esphome.ota:074]:   Address: test_cec_s3.local:3232
+[19:44:51][C][esphome.ota:075]:   Version: 2
+[19:44:51][C][esphome.ota:078]:   Password configured
+[19:44:51][D][text_sensor:064]: 'TestCEC IP': Sending state '192.168.178.120'
+[19:44:51][C][safe_mode:018]: Safe Mode:
+[19:44:51][C][safe_mode:020]:   Boot considered successful after 60 seconds
+[19:44:51][C][safe_mode:021]:   Invoke after 10 boot attempts
+[19:44:51][C][safe_mode:023]:   Remain in safe mode for 300 seconds
+[19:44:51][C][api:170]: API Server:
+[19:44:51][C][api:171]:   Address: test_cec_s3.local:6053
+[19:44:51][C][api:173]:   Using noise encryption: YES
+[19:44:51][C][wifi_info:010]: WifiInfo IPAddress 'TestCEC IP'
+[19:44:51][C][wifi_info:010]:   Icon: 'mdi:ip-network'
+[19:44:51][D][UART:035]: UART is HW: yes
+[19:44:51][D][hdmi_cec:382]: Send message from queue: EF:90:00 => SpecificUse to All: <Report Power Status>[On]
+[19:44:52][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:44:59][D][api:122]: Accepted 192.168.178.194
+[19:44:59][W][component:182]: Component api cleared Warning flag
+[19:44:59][D][api.connection:1533]: Home Assistant 2025.6.1 (192.168.178.194): Connected successfully
+[19:45:30][I][safe_mode:041]: Boot seems successful; resetting boot loop counter
+[19:45:30][D][esp32.preferences:114]: Saving 1 preferences to flash...
+[19:45:30][D][esp32.preferences:143]: Saving 1 preferences to flash: 0 cached, 1 written, 0 failed
+[19:45:59][D][binary_sensor:036]: 'Hdmi TV Detect': Sending state ON
+[19:45:59][D][main:399]: HDMI Power Detect On
+[19:46:01][D][hdmi_cec:127]: frame received: 0E:83 => TV to SpecificUse: <Give Physical Address>[]
+[19:46:01][D][hdmi_cec:382]: Send message from queue: EF:84:20:00:04 => SpecificUse to All: <Report Physical Address>[2.0.0.0][Playback Device]
+[19:46:02][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:46:02][D][hdmi_cec:127]: frame received: 4F:84:40:00:04 => PlaybackDev1 to All: <Report Physical Address>[4.0.0.0][Playback Device]
+[19:46:02][D][hdmi_cec:127]: frame received: 0E:46 => TV to SpecificUse: <Give OSD Name>[]
+[19:46:02][D][hdmi_cec:382]: Send message from queue: E0:47:65:73:70:68:6F:6D:65 => SpecificUse to TV: <Set OSD Name>[esphome]
+[19:46:02][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:46:03][D][hdmi_cec:127]: frame received: 0E:8C => TV to SpecificUse: <Give Device Vendor ID>[]
+[19:46:03][D][hdmi_cec:382]: Send message from queue: E0:00:8C:00 => SpecificUse to TV: <Feature Abort>[Give Device Vendor ID][Unrecognized opcode]
+[19:46:03][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:46:03][D][hdmi_cec:127]: frame received: 4F:87:08:00:46 => PlaybackDev1 to All: <Device Vendor ID>[Sony]
+[19:46:37][D][hdmi_cec:127]: frame received: 0E:8F => TV to SpecificUse: <Give Device Power Status>[]
+[19:46:37][D][hdmi_cec:382]: Send message from queue: E0:90:00 => SpecificUse to TV: <Report Power Status>[On]
+[19:46:37][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:46:56][D][button:010]: 'TV Volume Down' Pressed.
+[19:46:56][D][hdmi_cec:382]: Send message from queue: E0:44:42 => SpecificUse to TV: <User Control Pressed>[Volume Down]
+[19:46:56][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:03][D][button:010]: 'TV Volume Up' Pressed.
+[19:47:03][D][hdmi_cec:382]: Send message from queue: E0:44:41 => SpecificUse to TV: <User Control Pressed>[Volume Up]
+[19:47:03][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:09][D][button:010]: 'Standby All' Pressed.
+[19:47:09][D][hdmi_cec:382]: Send message from queue: EF:36 => SpecificUse to All: <Standby>[]
+[19:47:09][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:10][D][hdmi_cec:127]: frame received: 0F:A0:08:00:46:00:09:00:01 => TV to All: <Vendor Command With ID>[Sony][.]
+[19:47:21][D][button:010]: 'TV Power On' Pressed.
+[19:47:21][D][hdmi_cec:382]: Send message from queue: E0:44:6D => SpecificUse to TV: <User Control Pressed>[Power On Function]
+[19:47:21][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:22][D][hdmi_cec:127]: frame received: 0F:84:00:00:00 => TV to All: <Report Physical Address>[0.0.0.0][TV]]
+[19:47:22][D][hdmi_cec:127]: frame received: 0F:87:08:00:46 => TV to All: <Device Vendor ID>[Sony]
+[19:47:22][D][hdmi_cec:127]: frame received: 0F:82:00:00 => TV to All: <Active Source>[0.0.0.0]
+[19:47:23][D][hdmi_cec:127]: frame received: 0F:A0:08:00:46:00:13:00:10:00:90:01:00:00:00:00 => TV to All: <Vendor Command With ID>[Sony][.]
+[19:47:24][D][hdmi_cec:127]: frame received: 0E:83 => TV to SpecificUse: <Give Physical Address>[]
+[19:47:24][D][hdmi_cec:382]: Send message from queue: EF:84:20:00:04 => SpecificUse to All: <Report Physical Address>[2.0.0.0][Playback Device]
+[19:47:25][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:25][D][hdmi_cec:127]: frame received: 4F:84:40:00:04 => PlaybackDev1 to All: <Report Physical Address>[4.0.0.0][Playback Device]
+[19:47:25][D][hdmi_cec:127]: frame received: 4F:84:40:00:04 => PlaybackDev1 to All: <Report Physical Address>[4.0.0.0][Playback Device]
+[19:47:25][D][hdmi_cec:127]: frame received: 0E:46 => TV to SpecificUse: <Give OSD Name>[]
+[19:47:25][D][hdmi_cec:382]: Send message from queue: E0:47:65:73:70:68:6F:6D:65 => SpecificUse to TV: <Set OSD Name>[esphome]
+[19:47:25][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:26][D][hdmi_cec:127]: frame received: 0E:8C => TV to SpecificUse: <Give Device Vendor ID>[]
+[19:47:26][D][hdmi_cec:382]: Send message from queue: E0:00:8C:00 => SpecificUse to TV: <Feature Abort>[Give Device Vendor ID][Unrecognized opcode]
+[19:47:26][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:26][D][hdmi_cec:127]: frame received: 4F:87:08:00:46 => PlaybackDev1 to All: <Device Vendor ID>[Sony]
+[19:47:26][D][hdmi_cec:127]: frame received: 0E:8F => TV to SpecificUse: <Give Device Power Status>[]
+[19:47:26][D][hdmi_cec:382]: Send message from queue: E0:90:00 => SpecificUse to TV: <Report Power Status>[On]
+[19:47:26][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:27][D][hdmi_cec:127]: frame received: 0E:8F => TV to SpecificUse: <Give Device Power Status>[]
+[19:47:27][D][hdmi_cec:382]: Send message from queue: E0:90:00 => SpecificUse to TV: <Report Power Status>[On]
+[19:47:27][D][hdmi_cec:346]: Send frame success in 1 attempt
+[19:47:43][D][binary_sensor:036]: 'Hdmi TV Detect': Sending state OFF
+
