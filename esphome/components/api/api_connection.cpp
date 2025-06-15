@@ -248,25 +248,41 @@ void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
 uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint16_t message_type, APIConnection *conn,
                                                  uint32_t remaining_size, bool is_single) {
   // Calculate size
-  uint32_t size = 0;
-  msg.calculate_size(size);
+  uint32_t calculated_size = 0;
+  msg.calculate_size(calculated_size);
+
+  // Cache frame sizes to avoid repeated virtual calls
+  const uint8_t header_padding = conn->helper_->frame_header_padding();
+  const uint8_t footer_size = conn->helper_->frame_footer_size();
 
   // Calculate total size with padding for buffer allocation
-  uint16_t total_size =
-      static_cast<uint16_t>(size) + conn->helper_->frame_header_padding() + conn->helper_->frame_footer_size();
+  size_t total_calculated_size = calculated_size + header_padding + footer_size;
 
   // Check if it fits
-  if (total_size > remaining_size) {
+  if (total_calculated_size > remaining_size) {
     return 0;  // Doesn't fit
   }
 
   // Allocate buffer space - pass payload size, allocation functions add header/footer space
-  ProtoWriteBuffer buffer =
-      is_single ? conn->allocate_single_message_buffer(size) : conn->allocate_batch_message_buffer(size);
+  ProtoWriteBuffer buffer = is_single ? conn->allocate_single_message_buffer(calculated_size)
+                                      : conn->allocate_batch_message_buffer(calculated_size);
+
+  // Get buffer size after allocation (which includes header padding)
+  std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
+  size_t size_before_encode = shared_buf.size();
 
   // Encode directly into buffer
   msg.encode(buffer);
-  return total_size;
+
+  // Calculate actual encoded size (not including header that was already added)
+  size_t actual_payload_size = shared_buf.size() - size_before_encode;
+
+  // Return actual total size (header + actual payload + footer)
+  size_t actual_total_size = header_padding + actual_payload_size + footer_size;
+
+  // Verify that calculate_size() returned the correct value
+  assert(calculated_size == actual_payload_size);
+  return static_cast<uint16_t>(actual_total_size);
 }
 
 #ifdef USE_BINARY_SENSOR
