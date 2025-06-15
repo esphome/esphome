@@ -23,9 +23,6 @@ namespace esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
-// Maximum size of the BLE event queue
-static constexpr size_t MAX_BLE_QUEUE_SIZE = SCAN_RESULT_BUFFER_SIZE * 2;
-
 static RAMAllocator<BLEEvent> EVENT_ALLOCATOR(  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     RAMAllocator<BLEEvent>::ALLOW_FAILURE | RAMAllocator<BLEEvent>::ALLOC_INTERNAL);
 
@@ -360,21 +357,38 @@ void ESP32BLE::loop() {
   if (this->advertising_ != nullptr) {
     this->advertising_->loop();
   }
+
+  // Log dropped events periodically
+  size_t dropped = this->ble_events_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %zu BLE events due to buffer overflow", dropped);
+  }
 }
 
 template<typename... Args> void enqueue_ble_event(Args... args) {
-  if (global_ble->ble_events_.size() >= MAX_BLE_QUEUE_SIZE) {
-    ESP_LOGD(TAG, "Event queue full (%zu), dropping event", MAX_BLE_QUEUE_SIZE);
+  // Check if queue is full before allocating
+  if (global_ble->ble_events_.full()) {
+    // Queue is full, drop the event
+    global_ble->ble_events_.increment_dropped_count();
     return;
   }
 
   BLEEvent *new_event = EVENT_ALLOCATOR.allocate(1);
   if (new_event == nullptr) {
     // Memory too fragmented to allocate new event. Can only drop it until memory comes back
+    global_ble->ble_events_.increment_dropped_count();
     return;
   }
   new (new_event) BLEEvent(args...);
-  global_ble->ble_events_.push(new_event);
+
+  // Push the event - since we're the only producer and we checked full() above,
+  // this should always succeed unless we have a bug
+  if (!global_ble->ble_events_.push(new_event)) {
+    // This should not happen in SPSC queue with single producer
+    ESP_LOGE(TAG, "BLE queue push failed unexpectedly");
+    new_event->~BLEEvent();
+    EVENT_ALLOCATOR.deallocate(new_event, 1);
+  }
 }  // NOLINT(clang-analyzer-unix.Malloc)
 
 // Explicit template instantiations for the friend function
