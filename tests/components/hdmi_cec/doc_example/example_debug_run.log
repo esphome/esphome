@@ -19,78 +19,7 @@ INFO Starting log output from /dev/ttyACM0 with baud rate 115200
 [19:44:30][D][wifi:482]: Starting scan...
 [19:44:30][W][component:167]: Component wifi set Warning flag: scanning for networks
 [19:44:36][D][wifi:497]: Found networks:
-[19:44:36][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:36][D][wifi:542]:     Channel: 2
-[19:44:36][D][wifi:543]:     RSSI: -49 dB
-[19:44:36][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:16:86) ▂▄▆█
-[19:44:36][D][wifi:542]:     Channel: 2
-[19:44:36][D][wifi:543]:     RSSI: -61 dB
-[19:44:36][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (EE:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:B6:E8) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (CE:D4:2E:EB:B6:E8) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:A8:38) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (CE:D4:2E:EB:A8:38) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:16:86) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (EE:FA:C4:B8:16:86) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:86) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Ziggo' (5A:D3:43:F4:62:81) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (AA:D3:43:F4:62:81) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (42:84:6A:96:67:36) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:67:36) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'H369A8DE377' (34:DA:B7:8D:E3:77) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:16:7E) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:7E) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (EE:FA:C4:B8:16:7E) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'VRV9517945DC4' (64:CC:22:94:5D:C4) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Rainshower28_Guest' (D6:32:E5:D3:6D:D1) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Cuba@20' (38:43:7D:49:53:BC) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'ziggo-ap-6407292' (C8:D1:2A:29:32:20) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Ziggo' (3A:43:1D:49:53:BC) ▂▄▆█
-[19:44:36][D][wifi:546]: - '' (CC:32:E5:D3:6D:D1) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Rainshower28' (D2:32:E5:D3:6D:D1) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:63:6E) ▂▄▆█
-[19:44:36][D][wifi:546]: - 'Ons-netwerk' (F4:06:8D:58:70:AC) ▂▄▆█
-[19:44:36][I][wifi:313]: WiFi Connecting to 'vaneijndhoven'...
-[19:44:37][W][wifi:674]: WiFi Unknown connection status 0
-[19:44:37][I][wifi:313]: WiFi Connecting to 'vaneijndhoven'...
-[19:44:37][W][wifi:669]: Connecting to WiFi network failed. Are the credentials wrong?
-[19:44:42][D][wifi:482]: Starting scan...
-[19:44:49][D][wifi:497]: Found networks:
-[19:44:49][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:16:86) ▂▄▆█
-[19:44:49][D][wifi:542]:     Channel: 2
-[19:44:49][D][wifi:543]:     RSSI: -61 dB
-[19:44:49][I][wifi:541]: - 'vaneijndhoven' (E4:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:49][D][wifi:542]:     Channel: 2
-[19:44:49][D][wifi:543]:     RSSI: -50 dB
-[19:44:49][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (EE:FA:C4:B8:44:2E) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:B6:E8) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (CE:D4:2E:EB:B6:E8) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'H369A8DE377' (CC:D4:2E:DB:A8:38) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (CE:D4:2E:EB:A8:38) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (EE:FA:C4:B8:16:86) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Ziggo0140308' (48:D3:43:F4:62:81) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'vaneijndhoven_guest' (EA:FA:C4:B8:16:86) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:86) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Ziggo' (5A:D3:43:F4:62:81) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (AA:D3:43:F4:62:81) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (42:84:6A:96:67:36) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:67:36) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'vaneijndhoven_iot' (F2:FA:C4:B8:16:7E) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (EE:FA:C4:B8:16:7E) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'H369A8DE377' (34:DA:B7:8D:E3:77) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'VRV9517945DC4' (64:CC:22:94:5D:C4) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'ziggo-ap-6407292' (C8:D1:2A:29:32:20) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Rainshower28' (D2:32:E5:D3:6D:D1) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Rainshower28_Guest' (D6:32:E5:D3:6D:D1) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Ziggo6161341' (3C:84:6A:96:63:6E) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Cuba@20' (38:43:7D:49:53:BC) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Ziggo' (3A:43:1D:49:53:BC) ▂▄▆█
-[19:44:49][D][wifi:546]: - '' (CC:32:E5:D3:6D:D1) ▂▄▆█
-[19:44:49][D][wifi:546]: - 'Beganegrond' (3C:A6:2F:1C:A3:27) ▂▄▆█
+...
 [19:44:49][I][wifi:313]: WiFi Connecting to 'vaneijndhoven'...
 [19:44:51][I][wifi:617]: WiFi Connected!
 [19:44:51][C][wifi:428]:   Local MAC: D8:3B:DA:46:F1:A8
