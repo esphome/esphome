@@ -7,6 +7,7 @@
 #include "esphome/components/sensor/filter.h"
 
 #include <vector>
+#include <memory>
 
 namespace esphome {
 namespace sensor {
@@ -149,8 +150,8 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   void internal_send_state_to_frontend(float state);
 
  protected:
-  CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
-  CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
+  std::unique_ptr<CallbackManager<void(float)>> raw_callback_;  ///< Storage for raw state callbacks (lazy allocated).
+  CallbackManager<void(float)> callback_;                       ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 

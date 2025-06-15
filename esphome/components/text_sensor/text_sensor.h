@@ -6,6 +6,7 @@
 #include "esphome/components/text_sensor/filter.h"
 
 #include <vector>
+#include <memory>
 
 namespace esphome {
 namespace text_sensor {
@@ -33,6 +34,8 @@ namespace text_sensor {
 
 class TextSensor : public EntityBase, public EntityBase_DeviceClass {
  public:
+  TextSensor() = default;
+
   /// Getter-syntax for .state.
   std::string get_state() const;
   /// Getter-syntax for .raw_state
@@ -70,8 +73,9 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
-  CallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
-  CallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
+  std::unique_ptr<CallbackManager<void(std::string)>>
+      raw_callback_;                             ///< Storage for raw state callbacks (lazy allocated).
+  CallbackManager<void(std::string)> callback_;  ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 };
