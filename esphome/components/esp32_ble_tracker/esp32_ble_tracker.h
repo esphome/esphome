@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 
 #include <array>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -282,9 +283,16 @@ class ESP32BLETracker : public Component,
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
-  SemaphoreHandle_t scan_result_lock_;
-  size_t scan_result_index_{0};
-  BLEScanResult *scan_result_buffer_;
+
+  // Lock-free Single-Producer Single-Consumer (SPSC) ring buffer for scan results
+  // Producer: ESP-IDF Bluetooth stack callback (gap_scan_event_handler)
+  // Consumer: ESPHome main loop (loop() method)
+  // This design ensures zero blocking in the BT callback and prevents scan result loss
+  BLEScanResult *scan_ring_buffer_;
+  std::atomic<size_t> ring_write_index_{0};      // Written only by BT callback (producer)
+  std::atomic<size_t> ring_read_index_{0};       // Written only by main loop (consumer)
+  std::atomic<size_t> scan_results_dropped_{0};  // Tracks buffer overflow events
+
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
   int connecting_{0};
