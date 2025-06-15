@@ -19,20 +19,20 @@ namespace hdmi_cec {
 
 class MessageTrigger;
 
-class Message : public std::vector<uint8_t> {
+class Frame : public std::vector<uint8_t> {
  public:
-  Message() = default;
-  Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
+  Frame() = default;
+  Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
   uint8_t initiator_addr() const { return (this->at(0) >> 4) & 0xf; }
   uint8_t destination_addr() const { return this->at(0) & 0xf; }
   uint8_t opcode() const { return (this->size() >= 2) ? this->at(1) : 0; }
   bool is_broadcast() const { return this->destination_addr() == 0xf; }
-  std::string to_string(uint8_t my_address) const;
+  std::string to_string() const;
   constexpr static int MAX_LENGTH = 16;  // from HDMI CEC standard 1.4
 };
 
 /**
- * The MessageRingBuffer is a container for Frames to queue data in a consumer-producer
+ * The FrameRingBuffer is a container for Frames to queue data in a consumer-producer
  * application. The use of std::Atomics allows safe multi-thread operation when used with
  * a single producer and single consumer thread, where each Atomic index is updated
  * by one thread only.
@@ -40,24 +40,24 @@ class Message : public std::vector<uint8_t> {
  * This allows the gpio isr to safely and efficiently pick-up and pass Frames.
  * Due to its fixed memory size, it might return NULL pointers in case the buffer is full or empty.
  */
-template<unsigned int SIZE> class MessageRingBuffer {
+template<unsigned int SIZE> class FrameRingBuffer {
  public:
-  MessageRingBuffer() : front_inx_{0}, back_inx_{0}, store_{} {
+  FrameRingBuffer() : front_inx_{0}, back_inx_{0}, store_{} {
     for (auto &t : store_) {
-      t = new Message;
-      t->reserve(Message::MAX_LENGTH);
+      t = new Frame;
+      t->reserve(Frame::MAX_LENGTH);
     }
   }
-  ~MessageRingBuffer() {
+  ~FrameRingBuffer() {
     for (auto &t : store_) {
       delete t;
     }
   }
   // 'front' is used to access data, use that, and recycle its memory space for later use.
-  Message *front() const { return is_empty() ? nullptr : store_[front_inx_]; }
+  Frame *front() const { return is_empty() ? nullptr : store_[front_inx_]; }
   void push_front() { cyclic_incr(front_inx_); }
   // 'back' is used to fetch a free Frame, fill with data, and queue for later pick-up
-  Message *back() const { return is_full() ? nullptr : (store_[back_inx_]->clear(), store_[back_inx_]); }
+  Frame *back() const { return is_full() ? nullptr : (store_[back_inx_]->clear(), store_[back_inx_]); }
   void push_back() { cyclic_incr(back_inx_); }
   bool is_empty() const { return count() == 0; }
   bool is_full() const { return count() == SIZE; }  // using safe wrap-around of unsignd int
@@ -80,7 +80,7 @@ template<unsigned int SIZE> class MessageRingBuffer {
   Index front_inx_;  // ranging 0 .. SIZE
   Index back_inx_;   // ranging 0 .. SIZE
   // if front_inx_ == back_inx_ the store is considered empty, so it can hold at most SIZE elements
-  std::array<Message *, SIZE + 1> store_;
+  std::array<Frame *, SIZE + 1> store_;
 };
 
 class CECTransmit {
@@ -93,7 +93,7 @@ class CECTransmit {
  public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
-  void queue_for_send(const Message &&frame);
+  void queue_for_send(const Frame &&frame);
   bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
@@ -136,12 +136,12 @@ class CECTransmit {
   bool send_start_bit();
   void send_bit(bool bit_value);
   bool send_high_and_test();
-  void transmit_message_on_gpio(const Message &frame);
-  void transmit_message_on_uart(const Message &frame);
+  void transmit_message_on_gpio(const Frame &frame);
+  void transmit_message_on_uart(const Frame &frame);
   void convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom);
   bool transmit_my_address(const uint8_t address);  // send 4 bits with my address and check for bus collision
 
-  std::queue<Message> send_queue_;
+  std::queue<Frame> send_queue_;
   uint8_t transmit_attempts_{0};
   volatile bool receiver_is_busy_{false};
   volatile TransmitState transmit_state_{TransmitState::IDLE};
@@ -165,7 +165,7 @@ class CECReceive {
   void set_promiscuous_mode(bool promiscuous) { promiscuous_mode_ = promiscuous; }
   void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
   bool get_monitor_mode() const { return monitor_mode_; }
-  MessageRingBuffer<MAX_FRAMES_QUEUED> frames_queue_;
+  FrameRingBuffer<MAX_FRAMES_QUEUED> frames_queue_;
 
  protected:
   static void gpio_isr_s(CECReceive *self);
@@ -184,7 +184,7 @@ class CECReceive {
   uint8_t address_{0};
   uint32_t last_falling_edge_us_{0};
   ReceiverState receiver_state_{ReceiverState::IDLE};
-  Message *recv_frame_buffer_{nullptr};
+  Frame *recv_frame_buffer_{nullptr};
 };
 
 class HDMICEC : public Component {
@@ -210,7 +210,7 @@ class HDMICEC : public Component {
 
  protected:
   void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
-  void handle_received_message(const Message *frame);
+  void handle_received_message(const Frame *frame);
 
   HighFrequencyLoopRequester fast_loop_;
   InternalGPIOPin *pin_{nullptr};

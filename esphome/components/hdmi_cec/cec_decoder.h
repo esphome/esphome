@@ -11,14 +11,23 @@
 namespace esphome {
 namespace hdmi_cec {
 
+/**
+ * This Decoder class interprets a binary CEC Frame to create a textual representation.
+ * The information to create this decoder is mostly extracted from the HDMI 1.3a standard document,
+ * from its section "Supplement 1 Consumer Electronics Control (CEC)".
+ * Some further details were found in the Linux kernel source code of the "v4l-utils" repository,
+ * such as the "ARC" related functionality of HDMI-CEC 1.4, and the HDMI vendor ID names.
+ * Details on the digital audio format decoding came from the wikipedia page on
+ * "Extended Display Identification Data (EDID)"
+ */
 class Decoder {
  public:
-  Decoder(const Message &frame) : frame_(frame), length_(0), offset_(2) {}
-  std::string decode(uint8_t my_address);
+  Decoder(const Frame &frame) : frame_(frame), length_(0), offset_(2) {}
+  std::string decode();
 
  protected:
   const char *find_opcode_name(uint32_t opcode) const;
-  std::string address_decode(uint8_t my_address) const;
+  std::string address_decode() const;
 
   /**
    * Generic operand decode method, later specialised with operand-type-specific methods
@@ -38,7 +47,7 @@ class Decoder {
   using CecOpcodeTable = const std::map<uint8_t, FrameType>;
   const static CecOpcodeTable cec_opcode_table;
 
-  const Message &frame_;
+  const Frame &frame_;
   std::array<char, 256> line_;  // to hold the text of the decoded frame
   unsigned int length_;         // currently accumulated length of output text in 'line'
   unsigned int offset_;  // current offset in frame to process next operand byte(s) (frame[0] and [1] are skipped)
@@ -121,11 +130,7 @@ class Decoder {
   /**
    * Helper function to implement the 'do_operand' methods
    */
-  bool append_operand(const char *word, uint8_t offset_incr = 1) {
-    length_ += snprintf(&line_[length_], (line_.size() - length_), "[%s]", word);
-    offset_ += offset_incr;
-    return (length_ < line_.size()) && (offset_ < frame_.size());
-  }
+  bool append_operand(const char *word, uint8_t offset_incr = 1);
 
   template<uint32_t N_STRINGS> bool append_operand(const std::array<const char *, N_STRINGS> &strings) {
     uint32_t operand_value = frame_[offset_];

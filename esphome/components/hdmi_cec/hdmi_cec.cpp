@@ -36,13 +36,13 @@ static const char *const TAG = "hdmi_cec";
 static constexpr gpio::Flags PIN_MODE_FLAGS =
     gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
-Message::Message(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)
+Frame::Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)
     : std::vector<uint8_t>(1 + payload.size(), (uint8_t) (0)) {
   this->at(0) = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
   std::memcpy(this->data() + 1, payload.data(), payload.size());
 }
 
-std::string Message::to_string(uint8_t my_address) const {
+std::string Frame::to_string() const {
   std::string result;
   char part_buffer[3];
   for (auto it = this->cbegin(); it != this->cend(); it++) {
@@ -56,7 +56,7 @@ std::string Message::to_string(uint8_t my_address) const {
   }
 #ifdef USE_DECODER
   Decoder decoder(*this);
-  result += " " + decoder.decode(my_address);
+  result += " => " + decoder.decode();
 #endif
   return result;
 }
@@ -94,7 +94,7 @@ void HDMICEC::dump_config() {
 }
 
 void HDMICEC::loop() {
-  if (const Message *msg = recv_.frames_queue_.front()) {
+  if (const Frame *msg = recv_.frames_queue_.front()) {
     // handle 1 inbound message per loop(), to avoid taking too much time
     handle_received_message(msg);
     recv_.frames_queue_.push_front();
@@ -110,7 +110,7 @@ void HDMICEC::loop() {
   }
 }
 
-void HDMICEC::handle_received_message(const Message *frame) {
+void HDMICEC::handle_received_message(const Frame *frame) {
   const uint8_t src_addr = frame->initiator_addr();
   const uint8_t dest_addr = frame->destination_addr();
   const uint8_t opcode = frame->opcode();
@@ -121,7 +121,7 @@ void HDMICEC::handle_received_message(const Message *frame) {
     return;
   }
 
-  auto frame_str = frame->to_string(address_);
+  auto frame_str = frame->to_string();
   ESP_LOGD(TAG, "frame received: %s", frame_str.c_str());
 
   std::vector<uint8_t> data(frame->begin() + 1, frame->end());
@@ -246,8 +246,8 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
     return false;
   }
 
-  Message frame(source, destination, data_bytes);
-  ESP_LOGV(TAG, "Queing frame to send: %s", frame.to_string(address_).c_str());
+  Frame frame(source, destination, data_bytes);
+  ESP_LOGV(TAG, "Queing frame to send: %s", frame.to_string().c_str());
   xmit_.queue_for_send(std::move(frame));
   return true;
 }
@@ -286,7 +286,7 @@ void CECTransmit::dump_config() {
   ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
-void CECTransmit::queue_for_send(const Message &&frame) {
+void CECTransmit::queue_for_send(const Frame &&frame) {
   LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
   send_queue_.push(std::move(frame));
 }
@@ -320,7 +320,7 @@ void CECTransmit::transmit_message() {
 
   if (transmit_state_ == TransmitState::EOM_CONFIRMED) {
     // the Frame which is on the queue.front is confirmed to be fully sent out
-    const Message &frame = send_queue_.front();
+    const Frame &frame = send_queue_.front();
     uint8_t n_acks_expected = frame.is_broadcast() ? 0 : frame.size();  // for broadcast, acknowledge is bad
     bool sent_ok = (n_bytes_received_ == frame.size()) && (n_acks_received_ == n_acks_expected);
     // Create log message for debugging
@@ -366,11 +366,11 @@ void CECTransmit::transmit_message() {
   }
 
   // Launch the transmit of the frame that is on the front of the queue
-  const Message &frame = send_queue_.front();
+  const Frame &frame = send_queue_.front();
   transmit_state_ = TransmitState::BUSY;
   transmit_attempts_++;
   if (transmit_attempts_ <= 1) {
-    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string(frame.initiator_addr()).c_str());
+    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
   }
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
@@ -410,7 +410,7 @@ bool CECTransmit::transmit_my_address(const uint8_t initiator_addr) {
   return ok;
 }
 
-void CECTransmit::transmit_message_on_gpio(const Message &frame) {
+void CECTransmit::transmit_message_on_gpio(const Frame &frame) {
   // for each byte of the frame:
   for (auto it = frame.begin(); it != frame.end(); ++it) {
     uint8_t current_byte = *it;
@@ -423,7 +423,7 @@ void CECTransmit::transmit_message_on_gpio(const Message &frame) {
       send_bit(bit_value);
     }
 
-    // 2. send EOM (End Of Message) bit (logic 1 if this is the last byte of the frame)
+    // 2. send EOM (End Of Frame) bit (logic 1 if this is the last byte of the frame)
     bool is_eom = (it == (frame.end() - 1));
     send_bit(is_eom);
 
@@ -492,7 +492,7 @@ bool IRAM_ATTR CECTransmit::send_high_and_test() {
   return value;
 }
 
-void CECTransmit::transmit_message_on_uart(const Message &frame) {
+void CECTransmit::transmit_message_on_uart(const Frame &frame) {
   std::vector<uint8_t> uart_data;
   uart_data.reserve(5 * frame.size());  // the UART is used with 5x oversampling (5 uart bytes per cec byte)
   for (int i = 0; i < frame.size(); i++) {

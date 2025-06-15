@@ -207,7 +207,7 @@ template<> bool Decoder::do_operand<Decoder::FeatureOpcode>() {
 
 template<> bool Decoder::do_operand<Decoder::OsdString>() {
   char line[20];  // frame size() is at most 16
-  // copy with typecast and append '\0' char
+  // copy with typecast and append '\0' char to terminate string
   std::snprintf(line, frame_.size() - offset_ + 1, "%s", reinterpret_cast<const char *>(frame_.data() + offset_));
   offset_ = frame_.size();
   return append_operand(line);
@@ -222,8 +222,9 @@ template<> bool Decoder::do_operand<Decoder::PhysicalAddress>() {
   if (offset_ + 1 >= frame_.size()) {
     return append_operand("?", 2);
   }
-  char line[16];
-  std::sprintf(line, "PA=%02x%02x", frame_[offset_], frame_[offset_ + 1]);
+  char line[12];
+  std::sprintf(line, "%1x.%1x.%1x.%1x", (frame_[offset_] >> 4) & 0xF, frame_[offset_] & 0xF,
+               (frame_[offset_ + 1] >> 4) & 0xF, frame_[offset_ + 1] & 0xF);
   return append_operand(line, 2);
 }
 
@@ -313,11 +314,17 @@ template<> bool Decoder::do_operand<Decoder::VendorId>() {
   return append_operand(it->second, 3);
 }
 
+template<> bool Decoder::do_operand<Decoder::CecVersion>() {
+  const static std::array<const char *, 9> names = {"?", "1.2", "1.2a", "1.3", "1.3a", "1.4", "2.0", "2.x", "2.x"};
+  return append_operand<names.size()>(names);
+}
+
 const Decoder::CecOpcodeTable Decoder::cec_opcode_table = {
-    // opcode,   name,     operands
+    // opcode,   name,       operands
     {0x04, {"Image View On", &Decoder::do_operand<None>}},
     {0x00, {"Feature Abort", &Decoder::do_operand<Two(FeatureOpcode, AbortReason)>}},
     {0x0D, {"Text View On", &Decoder::do_operand<None>}},
+    {0x82, {"Active Source", &Decoder::do_operand<PhysicalAddress>}},
     {0x9D, {"Inactive Source", &Decoder::do_operand<PhysicalAddress>}},
     {0x85, {"Request Active Source", &Decoder::do_operand<None>}},
     {0x80, {"Routing Change", &Decoder::do_operand<Two(PhysicalAddress, PhysicalAddress)>}},
@@ -397,12 +404,13 @@ const std::map<uint32_t, const char *> Decoder::vendor_ids = {
     {0x00E091, "LG"},      {0x08001F, "Sharp"},       {0x080046, "Sony"},          {0x18C086, "Broadcom"},
     {0x534850, "Sharp"},   {0x6B746D, "Vizio"},       {0x8065E9, "Benq"},          {0x9C645E, "Harman Kardon"}};
 
-std::string Decoder::address_decode(uint8_t my_address) const {
-  auto addr2str = [my_address](int addr) -> std::string {
-    return (addr == my_address) ? "ME" : (addr == 0) ? "TV" : std::to_string(addr);
-  };
-  std::string dest = (frame_.is_broadcast()) ? std::string("ALL") : addr2str(frame_.destination_addr());
-  return std::string("(") + addr2str(frame_.initiator_addr()) + "->" + dest + ")";
+std::string Decoder::address_decode() const {
+  const static std::array<const char *, 16> names = {"TV",           "RecordingDev1", "RecordingDev2", "Tuner1",
+                                                     "PlaybackDev1", "AudioSystem",   "Tuner2",        "Tuner3",
+                                                     "PlaybackDev2", "RecordingDev3", "Tuner4",        "PlaybackDev3",
+                                                     "Reserved",     "Reserved",      "SpecificUse",   "Unregistered"};
+  const char *dest = (frame_.is_broadcast()) ? "All" : names[frame_.destination_addr()];
+  return std::string(names[frame_.initiator_addr()]) + " to " + dest + ": ";
 }
 
 const char *Decoder::find_opcode_name(uint32_t opcode) const {
@@ -414,16 +422,33 @@ const char *Decoder::find_opcode_name(uint32_t opcode) const {
 }
 
 /**
+ * Helper function to implement the 'do_operand' methods, to gather a textual representation.
+ * @return true if a further operand can be decoded, false otherwise
+ */
+bool Decoder::append_operand(const char *word, uint8_t offset_incr /* default 1 */) {
+  length_ += snprintf(&line_[length_], (line_.size() - length_), "[%s]", word);
+  offset_ += offset_incr;
+  return (length_ < line_.size()) && (offset_ < frame_.size());
+}
+
+/**
  * Entry function 'decode' to call for full decode of a CEC frame
  */
-std::string Decoder::decode(uint8_t my_address) {
+std::string Decoder::decode() {
   // src and dest fields
-  std::string result = address_decode(my_address);
+  std::string result = address_decode();
   // opcode field
+
+  if (frame_.size() <= 1) {
+    // Missing frame operation field?
+    return result + "Ping";
+  }
+
   auto it = cec_opcode_table.find(frame_.opcode());
   if (it == cec_opcode_table.end()) {
-    return std::string("<?>");
+    return result + std::string("<?>");
   }
+
   result += std::string("<") + it->second.name + ">";
   // operand fields
   length_ = 0;  // currently accumulated length of text of operands
