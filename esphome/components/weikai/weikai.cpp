@@ -102,7 +102,7 @@ WeikaiRegister &WeikaiRegister::operator|=(uint8_t value) {
 // The WeikaiComponent methods
 ///////////////////////////////////////////////////////////////////////////////
 void WeikaiComponent::loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP)
+  if (!this->is_in_loop_state())
     return;
 
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers

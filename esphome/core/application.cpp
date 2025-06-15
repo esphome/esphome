@@ -66,7 +66,7 @@ void Application::setup() {
                      [](Component *a, Component *b) { return a->get_loop_priority() > b->get_loop_priority(); });
 
     do {
-      uint32_t new_app_state = STATUS_LED_WARNING;
+      uint8_t new_app_state = STATUS_LED_WARNING;
       this->scheduler.call();
       this->feed_wdt();
       for (uint32_t j = 0; j <= i; j++) {
@@ -87,7 +87,7 @@ void Application::setup() {
   this->calculate_looping_components_();
 }
 void Application::loop() {
-  uint32_t new_app_state = 0;
+  uint8_t new_app_state = 0;
 
   this->scheduler.call();
 

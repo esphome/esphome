@@ -53,15 +53,15 @@ static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
     ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
   }
 
-extern const uint32_t COMPONENT_STATE_MASK;
-extern const uint32_t COMPONENT_STATE_CONSTRUCTION;
-extern const uint32_t COMPONENT_STATE_SETUP;
-extern const uint32_t COMPONENT_STATE_LOOP;
-extern const uint32_t COMPONENT_STATE_FAILED;
-extern const uint32_t STATUS_LED_MASK;
-extern const uint32_t STATUS_LED_OK;
-extern const uint32_t STATUS_LED_WARNING;
-extern const uint32_t STATUS_LED_ERROR;
+extern const uint8_t COMPONENT_STATE_MASK;
+extern const uint8_t COMPONENT_STATE_CONSTRUCTION;
+extern const uint8_t COMPONENT_STATE_SETUP;
+extern const uint8_t COMPONENT_STATE_LOOP;
+extern const uint8_t COMPONENT_STATE_FAILED;
+extern const uint8_t STATUS_LED_MASK;
+extern const uint8_t STATUS_LED_OK;
+extern const uint8_t STATUS_LED_WARNING;
+extern const uint8_t STATUS_LED_ERROR;
 
 enum class RetryResult { DONE, RETRY };
 
@@ -123,7 +123,19 @@ class Component {
    */
   virtual void on_powerdown() {}
 
-  uint32_t get_component_state() const;
+  uint8_t get_component_state() const;
+
+  /** Reset this component back to the construction state to allow setup to run again.
+   *
+   * This can be used by components that have recoverable failures to attempt setup again.
+   */
+  void reset_to_construction_state();
+
+  /** Check if this component has completed setup and is in the loop state.
+   *
+   * @return True if in loop state, false otherwise.
+   */
+  bool is_in_loop_state() const;
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
@@ -298,7 +310,12 @@ class Component {
   /// Cancel a defer callback using the specified name, name must not be empty.
   bool cancel_defer(const std::string &name);  // NOLINT
 
-  uint32_t component_state_{0x0000};  ///< State of this component.
+  /// State of this component - each bit has a purpose:
+  /// Bits 0-1: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED)
+  /// Bit 2: STATUS_LED_WARNING
+  /// Bit 3: STATUS_LED_ERROR
+  /// Bits 4-7: Unused - reserved for future expansion (50% of the bits are free)
+  uint8_t component_state_{0x00};
   float setup_priority_override_{NAN};
   const char *component_source_{nullptr};
   uint32_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};

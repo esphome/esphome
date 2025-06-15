@@ -19,9 +19,8 @@ void KMeterISOComponent::setup() {
 
   // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
   // and when they come back on, the COMPONENT_STATE_FAILED bit must be unset on the component.
-  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
-    this->component_state_ &= ~COMPONENT_STATE_MASK;
-    this->component_state_ |= COMPONENT_STATE_CONSTRUCTION;
+  if (this->is_failed()) {
+    this->reset_to_construction_state();
   }
 
   auto err = this->bus_->writev(this->address_, nullptr, 0);

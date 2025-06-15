@@ -332,7 +332,7 @@ class Application {
    */
   void teardown_components(uint32_t timeout_ms);
 
-  uint32_t get_app_state() const { return this->app_state_; }
+  uint8_t get_app_state() const { return this->app_state_; }
 
 #ifdef USE_BINARY_SENSOR
   const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() { return this->binary_sensors_; }
@@ -653,7 +653,7 @@ class Application {
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
   size_t dump_config_at_{SIZE_MAX};
-  uint32_t app_state_{0};
+  uint8_t app_state_{0};
   Component *current_component_{nullptr};
   uint32_t loop_component_start_time_{0};
 

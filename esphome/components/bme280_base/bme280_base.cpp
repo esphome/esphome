@@ -93,9 +93,8 @@ void BME280Component::setup() {
 
   // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
   // and when they come back on, the COMPONENT_STATE_FAILED bit must be unset on the component.
-  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
-    this->component_state_ &= ~COMPONENT_STATE_MASK;
-    this->component_state_ |= COMPONENT_STATE_CONSTRUCTION;
+  if (this->is_failed()) {
+    this->reset_to_construction_state();
   }
 
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
