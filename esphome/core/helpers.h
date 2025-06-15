@@ -438,7 +438,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 }
 
 /// Return values for parse_on_off().
-enum ParseOnOffState {
+enum ParseOnOffState : uint8_t {
   PARSE_NONE = 0,
   PARSE_ON,
   PARSE_OFF,
