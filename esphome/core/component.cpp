@@ -85,7 +85,8 @@ void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
   this->dump_config();
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(), this->error_message_.c_str());
+    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(),
+             this->error_message_ ? this->error_message_ : "unspecified");
   }
 }
 
