@@ -140,9 +140,6 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    */
   float raw_state;
 
-  /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
-  bool has_state() const;
-
   /** Override this method to set the unique ID of this sensor.
    *
    * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
@@ -160,7 +157,6 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
   optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override
   bool force_update_{false};                            ///< Force update mode
-  bool has_state_{false};
 };
 
 }  // namespace sensor

@@ -37,7 +37,7 @@ void NextionTextSensor::set_state(const std::string &state, bool publish, bool s
     this->publish_state(state);
   } else {
     this->state = state;
-    this->has_state_ = true;
+    this->set_has_state(true);
   }
 
   this->update_component_settings();

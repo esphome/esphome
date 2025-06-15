@@ -28,8 +28,6 @@ enum UpdateState : uint8_t {
 
 class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
  public:
-  bool has_state() const { return this->has_state_; }
-
   void publish_state();
 
   void perform() { this->perform(false); }
@@ -44,7 +42,6 @@ class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
  protected:
   UpdateState state_{UPDATE_STATE_UNKNOWN};
   UpdateInfo update_info_;
-  bool has_state_{false};
 
   CallbackManager<void()> state_callback_{};
 };

@@ -57,7 +57,7 @@ void ESP32Camera::dump_config() {
                 "  External Clock: Pin:%d Frequency:%u\n"
                 "  I2C Pins: SDA:%d SCL:%d\n"
                 "  Reset Pin: %d",
-                this->name_.c_str(), YESNO(this->internal_), conf.pin_d0, conf.pin_d1, conf.pin_d2, conf.pin_d3,
+                this->name_.c_str(), YESNO(this->is_internal()), conf.pin_d0, conf.pin_d1, conf.pin_d2, conf.pin_d3,
                 conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7, conf.pin_vsync, conf.pin_href, conf.pin_pclk,
                 conf.pin_xclk, conf.xclk_freq_hz, conf.pin_sccb_sda, conf.pin_sccb_scl, conf.pin_reset);
   switch (this->config_.frame_size) {

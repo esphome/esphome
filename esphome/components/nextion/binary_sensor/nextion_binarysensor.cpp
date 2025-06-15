@@ -56,7 +56,7 @@ void NextionBinarySensor::set_state(bool state, bool publish, bool send_to_nexti
     this->publish_state(state);
   } else {
     this->state = state;
-    this->has_state_ = true;
+    this->set_has_state(true);
   }
 
   this->update_component_settings();

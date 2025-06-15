@@ -60,13 +60,12 @@ std::string TextSensor::get_state() const { return this->state; }
 std::string TextSensor::get_raw_state() const { return this->raw_state; }
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;
-  this->has_state_ = true;
+  this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
   this->callback_.call(state);
 }
 
 std::string TextSensor::unique_id() { return ""; }
-bool TextSensor::has_state() { return this->has_state_; }
 
 }  // namespace text_sensor
 }  // namespace esphome

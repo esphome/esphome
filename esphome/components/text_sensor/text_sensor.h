@@ -67,8 +67,6 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
    */
   virtual std::string unique_id();
 
-  bool has_state();
-
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
@@ -76,8 +74,6 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   CallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
-
-  bool has_state_{false};
 };
 
 }  // namespace text_sensor
