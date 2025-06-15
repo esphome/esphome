@@ -240,8 +240,8 @@ class APIConnection : public APIServerConnection {
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
     shared_buf.reserve(reserve_size + header_padding + this->helper_->frame_footer_size());
-    // Insert header padding bytes so message encoding starts at the correct position
-    shared_buf.insert(shared_buf.begin(), header_padding, 0);
+    // Resize to add header padding so message encoding starts at the correct position
+    shared_buf.resize(header_padding);
     return {&shared_buf};
   }
 
@@ -249,31 +249,25 @@ class APIConnection : public APIServerConnection {
   ProtoWriteBuffer prepare_message_buffer(uint16_t message_size, bool is_first_message) {
     // Get reference to shared buffer (it maintains state between batch messages)
     std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-    size_t current_size = shared_buf.size();
 
     if (is_first_message) {
-      // For first message, initialize buffer with header padding
-      uint8_t header_padding = this->helper_->frame_header_padding();
       shared_buf.clear();
-      shared_buf.reserve(message_size + header_padding);
-      shared_buf.resize(header_padding);
-      // Fill header padding with zeros
-      std::fill(shared_buf.begin(), shared_buf.end(), 0);
-    } else {
-      // For subsequent messages, add footer space for previous message and header for this message
-      uint8_t footer_size = this->helper_->frame_footer_size();
-      uint8_t header_padding = this->helper_->frame_header_padding();
-
-      // Reserve additional space for everything
-      shared_buf.reserve(current_size + footer_size + header_padding + message_size);
-
-      // Single resize to add both footer and header padding
-      size_t new_size = current_size + footer_size + header_padding;
-      shared_buf.resize(new_size);
-
-      // Fill the newly added bytes with zeros (footer + header padding)
-      std::fill(shared_buf.begin() + current_size, shared_buf.end(), 0);
     }
+
+    size_t current_size = shared_buf.size();
+
+    // Calculate padding to add:
+    // - First message: just header padding
+    // - Subsequent messages: footer for previous message + header padding for this message
+    size_t padding_to_add = is_first_message
+                                ? this->helper_->frame_header_padding()
+                                : this->helper_->frame_header_padding() + this->helper_->frame_footer_size();
+
+    // Reserve space for padding + message
+    shared_buf.reserve(current_size + padding_to_add + message_size);
+
+    // Resize to add the padding bytes
+    shared_buf.resize(current_size + padding_to_add);
 
     return {&shared_buf};
   }
