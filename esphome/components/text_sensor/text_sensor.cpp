@@ -56,7 +56,7 @@ void TextSensor::add_on_state_callback(std::function<void(std::string)> callback
 }
 void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> callback) {
   if (!this->raw_callback_) {
-    this->raw_callback_ = std::make_unique<CallbackManager<void(std::string)>>();
+    this->raw_callback_ = make_unique<CallbackManager<void(std::string)>>();
   }
   this->raw_callback_->add(std::move(callback));
 }
