@@ -516,6 +516,8 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::V
       return "VOICE_ASSISTANT_TTS_STREAM_START";
     case enums::VOICE_ASSISTANT_TTS_STREAM_END:
       return "VOICE_ASSISTANT_TTS_STREAM_END";
+    case enums::VOICE_ASSISTANT_INTENT_PROGRESS:
+      return "VOICE_ASSISTANT_INTENT_PROGRESS";
     default:
       return "UNKNOWN";
   }
