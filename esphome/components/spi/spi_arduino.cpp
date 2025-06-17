@@ -3,7 +3,6 @@
 
 namespace esphome {
 namespace spi {
-
 #ifdef USE_ARDUINO
 
 static const char *const TAG = "spi-esp-arduino";
@@ -38,17 +37,31 @@ class SPIDelegateHw : public SPIDelegate {
 
   void write16(uint16_t data) override { this->channel_->transfer16(data); }
 
-#ifdef USE_RP2040
   void write_array(const uint8_t *ptr, size_t length) override {
-    // avoid overwriting the supplied buffer
-    uint8_t *rxbuf = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
-    memcpy(rxbuf, ptr, length);
-    this->channel_->transfer((void *) rxbuf, length);
-    delete[] rxbuf;  // NOLINT(cppcoreguidelines-owning-memory)
-  }
+    if (length == 1) {
+      this->channel_->transfer(*ptr);
+      return;
+    }
+#ifdef USE_RP2040
+    // avoid overwriting the supplied buffer. Use vector for automatic deallocation
+    auto rxbuf = std::vector<uint8_t>(length);
+    memcpy(rxbuf.data(), ptr, length);
+    this->channel_->transfer((void *) rxbuf.data(), length);
+#elif defined(USE_ESP8266)
+    // ESP8266 SPI library requires the pointer to be word aligned, but the data may not be
+    // so we need to copy the data to a temporary buffer
+    if (reinterpret_cast<uintptr_t>(ptr) & 0x3) {
+      ESP_LOGVV(TAG, "SPI write buffer not word aligned, copying to temporary buffer");
+      auto txbuf = std::vector<uint8_t>(length);
+      memcpy(txbuf.data(), ptr, length);
+      this->channel_->writeBytes(txbuf.data(), length);
+    } else {
+      this->channel_->writeBytes(ptr, length);
+    }
 #else
-  void write_array(const uint8_t *ptr, size_t length) override { this->channel_->writeBytes(ptr, length); }
+    this->channel_->writeBytes(ptr, length);
 #endif
+  }
 
   void read_array(uint8_t *ptr, size_t length) override { this->channel_->transfer(ptr, length); }
 
