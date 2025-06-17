@@ -136,6 +136,7 @@ bool I2SAudioMicrophone::start_driver_() {
   if (!this->parent_->try_lock()) {
     return false;  // Waiting for another i2s to return lock
   }
+  this->locked_driver_ = true;
   esp_err_t err;
 
 #ifdef USE_I2S_LEGACY
@@ -340,7 +341,10 @@ void I2SAudioMicrophone::stop_driver_() {
     this->rx_handle_ = nullptr;
   }
 #endif
-  this->parent_->unlock();
+  if (this->locked_driver_) {
+    this->parent_->unlock();
+    this->locked_driver_ = false;
+  }
 }
 
 void I2SAudioMicrophone::mic_task(void *params) {
@@ -482,7 +486,8 @@ void I2SAudioMicrophone::loop() {
       }
 
       if (!this->start_driver_()) {
-        this->status_momentary_error("Driver failed to start; retrying in 1 second", 1000);
+        ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
+        this->status_momentary_error("driver_fail", 1000);
         this->stop_driver_();  // Stop/frees whatever possibly started
         break;
       }
@@ -492,7 +497,8 @@ void I2SAudioMicrophone::loop() {
                     &this->task_handle_);
 
         if (this->task_handle_ == nullptr) {
-          this->status_momentary_error("Task failed to start, retrying in 1 second", 1000);
+          ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
+          this->status_momentary_error("task_fail", 1000);
           this->stop_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
         }
       }
