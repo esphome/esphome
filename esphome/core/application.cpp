@@ -97,7 +97,13 @@ void Application::loop() {
   // Feed WDT with time
   this->feed_wdt(last_op_end_time);
 
-  for (Component *component : this->looping_components_) {
+  // Mark that we're in the loop for safe reentrant modifications
+  this->in_loop_ = true;
+
+  for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
+       this->current_loop_index_++) {
+    Component *component = this->looping_components_[this->current_loop_index_];
+
     // Update the cached time before each component runs
     this->loop_component_start_time_ = last_op_end_time;
 
@@ -112,6 +118,8 @@ void Application::loop() {
     this->app_state_ |= new_app_state;
     this->feed_wdt(last_op_end_time);
   }
+
+  this->in_loop_ = false;
   this->app_state_ = new_app_state;
 
   // Use the last component's end time instead of calling millis() again
@@ -235,9 +243,66 @@ void Application::teardown_components(uint32_t timeout_ms) {
 }
 
 void Application::calculate_looping_components_() {
+  // First add all active components
   for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop())
+    if (obj->has_overridden_loop() &&
+        (obj->get_component_state() & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
       this->looping_components_.push_back(obj);
+    }
+  }
+
+  this->looping_components_active_end_ = this->looping_components_.size();
+
+  // Then add all inactive (LOOP_DONE) components
+  // This handles components that called disable_loop() during setup, before this method runs
+  for (auto *obj : this->components_) {
+    if (obj->has_overridden_loop() &&
+        (obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
+      this->looping_components_.push_back(obj);
+    }
+  }
+}
+
+void Application::disable_component_loop_(Component *component) {
+  // This method must be reentrant - components can disable themselves during their own loop() call
+  // Linear search to find component in active section
+  // Most configs have 10-30 looping components (30 is on the high end)
+  // O(n) is acceptable here as we optimize for memory, not complexity
+  for (uint16_t i = 0; i < this->looping_components_active_end_; i++) {
+    if (this->looping_components_[i] == component) {
+      // Move last active component to this position
+      this->looping_components_active_end_--;
+      if (i != this->looping_components_active_end_) {
+        std::swap(this->looping_components_[i], this->looping_components_[this->looping_components_active_end_]);
+
+        // If we're currently iterating and just swapped the current position
+        if (this->in_loop_ && i == this->current_loop_index_) {
+          // Decrement so we'll process the swapped component next
+          this->current_loop_index_--;
+        }
+      }
+      return;
+    }
+  }
+}
+
+void Application::enable_component_loop_(Component *component) {
+  // This method must be reentrant - components can re-enable themselves during their own loop() call
+  // Single pass through all components to find and move if needed
+  // With typical 10-30 components, O(n) is faster than maintaining a map
+  const uint16_t size = this->looping_components_.size();
+  for (uint16_t i = 0; i < size; i++) {
+    if (this->looping_components_[i] == component) {
+      if (i < this->looping_components_active_end_) {
+        return;  // Already active
+      }
+      // Found in inactive section - move to active
+      if (i != this->looping_components_active_end_) {
+        std::swap(this->looping_components_[i], this->looping_components_[this->looping_components_active_end_]);
+      }
+      this->looping_components_active_end_++;
+      return;
+    }
   }
 }
 

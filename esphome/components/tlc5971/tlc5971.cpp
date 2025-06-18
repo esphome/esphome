@@ -24,8 +24,10 @@ void TLC5971::dump_config() {
 }
 
 void TLC5971::loop() {
-  if (!this->update_)
+  if (!this->update_) {
+    this->disable_loop();
     return;
+  }
 
   uint32_t command;
 
@@ -93,6 +95,7 @@ void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
     return;
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
+    this->enable_loop();
   }
   this->pwm_amounts_[channel] = value;
 }

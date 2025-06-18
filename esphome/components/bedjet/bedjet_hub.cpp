@@ -480,7 +480,11 @@ void BedJetHub::set_clock(uint8_t hour, uint8_t minute) {
 
 /* Internal */
 
-void BedJetHub::loop() {}
+void BedJetHub::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
 void BedJetHub::update() { this->dispatch_status_(); }
 
 void BedJetHub::dump_config() {

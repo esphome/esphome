@@ -22,6 +22,16 @@ void BLEClientBase::setup() {
   this->connection_index_ = connection_index++;
 }
 
+void BLEClientBase::set_state(espbt::ClientState st) {
+  ESP_LOGV(TAG, "[%d] [%s] Set state %d", this->connection_index_, this->address_str_.c_str(), (int) st);
+  ESPBTClient::set_state(st);
+
+  if (st == espbt::ClientState::READY_TO_CONNECT) {
+    // Enable loop when we need to connect
+    this->enable_loop();
+  }
+}
+
 void BLEClientBase::loop() {
   if (!esp32_ble::global_ble->is_active()) {
     this->set_state(espbt::ClientState::INIT);
@@ -37,8 +47,13 @@ void BLEClientBase::loop() {
   }
   // READY_TO_CONNECT means we have discovered the device
   // and the scanner has been stopped by the tracker.
-  if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
+  else if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
     this->connect();
+  }
+  // If its idle, we can disable the loop as set_state
+  // will enable it again when we need to connect.
+  else if (this->state_ == espbt::ClientState::IDLE) {
+    this->disable_loop();
   }
 }
 

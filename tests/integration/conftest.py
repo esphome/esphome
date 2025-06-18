@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 import logging
 import os
@@ -45,6 +45,7 @@ if platform.system() == "Windows":
     pytest.skip(
         "Integration tests are not supported on Windows", allow_module_level=True
     )
+
 
 import pty  # not available on Windows
 
@@ -362,7 +363,10 @@ async def api_client_connected(
 
 
 async def _read_stream_lines(
-    stream: asyncio.StreamReader, lines: list[str], output_stream: TextIO
+    stream: asyncio.StreamReader,
+    lines: list[str],
+    output_stream: TextIO,
+    line_callback: Callable[[str], None] | None = None,
 ) -> None:
     """Read lines from a stream, append to list, and echo to output stream."""
     log_parser = LogParser()
@@ -380,6 +384,9 @@ async def _read_stream_lines(
             file=output_stream,
             flush=True,
         )
+        # Call the callback if provided
+        if line_callback:
+            line_callback(decoded_line.rstrip())
 
 
 @asynccontextmanager
@@ -388,6 +395,7 @@ async def run_binary_and_wait_for_port(
     host: str,
     port: int,
     timeout: float = PORT_WAIT_TIMEOUT,
+    line_callback: Callable[[str], None] | None = None,
 ) -> AsyncGenerator[None]:
     """Run a binary, wait for it to open a port, and clean up on exit."""
     # Create a pseudo-terminal to make the binary think it's running interactively
@@ -435,7 +443,9 @@ async def run_binary_and_wait_for_port(
         # Read from output stream
         output_tasks = [
             asyncio.create_task(
-                _read_stream_lines(output_reader, stdout_lines, sys.stdout)
+                _read_stream_lines(
+                    output_reader, stdout_lines, sys.stdout, line_callback
+                )
             )
         ]
 
@@ -515,6 +525,7 @@ async def run_compiled_context(
     compile_esphome: CompileFunction,
     port: int,
     port_socket: socket.socket | None = None,
+    line_callback: Callable[[str], None] | None = None,
 ) -> AsyncGenerator[None]:
     """Context manager to write, compile and run an ESPHome configuration."""
     # Write the YAML config
@@ -528,7 +539,9 @@ async def run_compiled_context(
         port_socket.close()
 
     # Run the binary and wait for the API server to start
-    async with run_binary_and_wait_for_port(binary_path, LOCALHOST, port):
+    async with run_binary_and_wait_for_port(
+        binary_path, LOCALHOST, port, line_callback=line_callback
+    ):
         yield
 
 
@@ -542,7 +555,9 @@ async def run_compiled(
     port, port_socket = reserved_tcp_port
 
     def _run_compiled(
-        yaml_content: str, filename: str | None = None
+        yaml_content: str,
+        filename: str | None = None,
+        line_callback: Callable[[str], None] | None = None,
     ) -> AbstractAsyncContextManager[asyncio.subprocess.Process]:
         return run_compiled_context(
             yaml_content,
@@ -551,6 +566,7 @@ async def run_compiled(
             compile_esphome,
             port,
             port_socket,
+            line_callback=line_callback,
         )
 
     yield _run_compiled

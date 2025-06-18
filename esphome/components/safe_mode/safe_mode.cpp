@@ -42,6 +42,8 @@ void SafeModeComponent::loop() {
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
     this->clean_rtc();
     this->boot_successful_ = true;
+    // Disable loop since we no longer need to check
+    this->disable_loop();
   }
 }
 

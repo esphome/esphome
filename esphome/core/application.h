@@ -572,13 +572,41 @@ class Application {
 
   void calculate_looping_components_();
 
+  // These methods are called by Component::disable_loop() and Component::enable_loop()
+  // Components should not call these directly - use this->disable_loop() or this->enable_loop()
+  // to ensure component state is properly updated along with the loop partition
+  void disable_component_loop_(Component *component);
+  void enable_component_loop_(Component *component);
+
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
   std::vector<Component *> components_{};
+
+  // Partitioned vector design for looping components
+  // =================================================
+  // Components are partitioned into [active | inactive] sections:
+  //
+  // looping_components_: [A, B, C, D | E, F]
+  //                                  ^
+  //                      looping_components_active_end_ (4)
+  //
+  // - Components A,B,C,D are active and will be called in loop()
+  // - Components E,F are inactive (disabled/failed) and won't be called
+  // - No flag checking needed during iteration - just loop 0 to active_end_
+  // - When a component is disabled, it's swapped with the last active component
+  //   and active_end_ is decremented
+  // - When a component is enabled, it's swapped with the first inactive component
+  //   and active_end_ is incremented
+  // - This eliminates branch mispredictions from flag checking in the hot loop
   std::vector<Component *> looping_components_{};
+  uint16_t looping_components_active_end_{0};
+
+  // For safe reentrant modifications during iteration
+  uint16_t current_loop_index_{0};
+  bool in_loop_{false};
 
 #ifdef USE_BINARY_SENSOR
   std::vector<binary_sensor::BinarySensor *> binary_sensors_{};

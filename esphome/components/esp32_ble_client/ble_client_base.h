@@ -93,6 +93,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   bool check_addr(esp_bd_addr_t &addr) { return memcmp(addr, this->remote_bda_, sizeof(esp_bd_addr_t)) == 0; }
 
+  void set_state(espbt::ClientState st) override;
+
  protected:
   int gattc_if_;
   esp_bd_addr_t remote_bda_;

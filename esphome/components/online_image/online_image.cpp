@@ -178,18 +178,21 @@ void OnlineImage::update() {
   if (this->format_ == ImageFormat::BMP) {
     ESP_LOGD(TAG, "Allocating BMP decoder");
     this->decoder_ = make_unique<BmpDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
 #ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
   if (this->format_ == ImageFormat::JPEG) {
     ESP_LOGD(TAG, "Allocating JPEG decoder");
     this->decoder_ = esphome::make_unique<JpegDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
   if (this->format_ == ImageFormat::PNG) {
     ESP_LOGD(TAG, "Allocating PNG decoder");
     this->decoder_ = make_unique<PngDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
 
@@ -212,6 +215,7 @@ void OnlineImage::update() {
 void OnlineImage::loop() {
   if (!this->decoder_) {
     // Not decoding at the moment => nothing to do.
+    this->disable_loop();
     return;
   }
   if (!this->downloader_ || this->decoder_->is_finished()) {

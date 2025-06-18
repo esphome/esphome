@@ -67,6 +67,12 @@ void SNTPComponent::loop() {
            time.minute, time.second);
   this->time_sync_callback_.call();
   this->has_time_ = true;
+
+#ifdef USE_ESP_IDF
+  // On ESP-IDF, time sync is permanent and update() doesn't force resync
+  // Time is now synchronized, no need to check anymore
+  this->disable_loop();
+#endif
 }
 
 }  // namespace sntp
