@@ -12,6 +12,7 @@
 #include "esphome/core/helpers.h"
 
 #include "ble_event.h"
+#include "ble_event_pool.h"
 #include "queue.h"
 
 #ifdef USE_ESP32
@@ -148,6 +149,7 @@ class ESP32BLE : public Component {
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};
 
   LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
+  BLEEventPool<MAX_BLE_QUEUE_SIZE> ble_event_pool_;
   BLEAdvertising *advertising_{};
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
   uint32_t advertising_cycle_time_{};

@@ -18,7 +18,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-template<class T, size_t SIZE> class LockFreeQueue {
+template<class T, uint8_t SIZE> class LockFreeQueue {
  public:
   LockFreeQueue() : head_(0), tail_(0), dropped_count_(0) {}
 
@@ -26,8 +26,8 @@ template<class T, size_t SIZE> class LockFreeQueue {
     if (element == nullptr)
       return false;
 
-    size_t current_tail = tail_.load(std::memory_order_relaxed);
-    size_t next_tail = (current_tail + 1) % SIZE;
+    uint8_t current_tail = tail_.load(std::memory_order_relaxed);
+    uint8_t next_tail = (current_tail + 1) % SIZE;
 
     if (next_tail == head_.load(std::memory_order_acquire)) {
       // Buffer full
@@ -41,7 +41,7 @@ template<class T, size_t SIZE> class LockFreeQueue {
   }
 
   T *pop() {
-    size_t current_head = head_.load(std::memory_order_relaxed);
+    uint8_t current_head = head_.load(std::memory_order_relaxed);
 
     if (current_head == tail_.load(std::memory_order_acquire)) {
       return nullptr;  // Empty
@@ -53,27 +53,30 @@ template<class T, size_t SIZE> class LockFreeQueue {
   }
 
   size_t size() const {
-    size_t tail = tail_.load(std::memory_order_acquire);
-    size_t head = head_.load(std::memory_order_acquire);
+    uint8_t tail = tail_.load(std::memory_order_acquire);
+    uint8_t head = head_.load(std::memory_order_acquire);
     return (tail - head + SIZE) % SIZE;
   }
 
-  size_t get_and_reset_dropped_count() { return dropped_count_.exchange(0, std::memory_order_relaxed); }
+  uint16_t get_and_reset_dropped_count() { return dropped_count_.exchange(0, std::memory_order_relaxed); }
 
   void increment_dropped_count() { dropped_count_.fetch_add(1, std::memory_order_relaxed); }
 
   bool empty() const { return head_.load(std::memory_order_acquire) == tail_.load(std::memory_order_acquire); }
 
   bool full() const {
-    size_t next_tail = (tail_.load(std::memory_order_relaxed) + 1) % SIZE;
+    uint8_t next_tail = (tail_.load(std::memory_order_relaxed) + 1) % SIZE;
     return next_tail == head_.load(std::memory_order_acquire);
   }
 
  protected:
   T *buffer_[SIZE];
-  std::atomic<size_t> head_;
-  std::atomic<size_t> tail_;
-  std::atomic<size_t> dropped_count_;
+  // Atomic: written by producer (push/increment), read+reset by consumer (get_and_reset)
+  std::atomic<uint16_t> dropped_count_;  // 65535 max - more than enough for drop tracking
+  // Atomic: written by consumer (pop), read by producer (push) to check if full
+  std::atomic<uint8_t> head_;
+  // Atomic: written by producer (push), read by consumer (pop) to check if empty
+  std::atomic<uint8_t> tail_;
 };
 
 }  // namespace esp32_ble

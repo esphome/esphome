@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 
 #include "ble.h"
+#include "ble_event_pool.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -22,9 +23,6 @@ namespace esphome {
 namespace esp32_ble {
 
 static const char *const TAG = "esp32_ble";
-
-static RAMAllocator<BLEEvent> EVENT_ALLOCATOR(  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    RAMAllocator<BLEEvent>::ALLOW_FAILURE | RAMAllocator<BLEEvent>::ALLOC_INTERNAL);
 
 void ESP32BLE::setup() {
   global_ble = this;
@@ -349,9 +347,8 @@ void ESP32BLE::loop() {
       default:
         break;
     }
-    // Destructor will clean up external allocations for GATTC/GATTS
-    ble_event->~BLEEvent();
-    EVENT_ALLOCATOR.deallocate(ble_event, 1);
+    // Return the event to the pool
+    this->ble_event_pool_.release(ble_event);
     ble_event = this->ble_events_.pop();
   }
   if (this->advertising_ != nullptr) {
@@ -359,37 +356,41 @@ void ESP32BLE::loop() {
   }
 
   // Log dropped events periodically
-  size_t dropped = this->ble_events_.get_and_reset_dropped_count();
+  uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
   if (dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %zu BLE events due to buffer overflow", dropped);
+    ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
   }
 }
 
+// Helper function to load new event data based on type
+void load_ble_event(BLEEvent *event, esp_gap_ble_cb_event_t e, esp_ble_gap_cb_param_t *p) {
+  event->load_gap_event(e, p);
+}
+
+void load_ble_event(BLEEvent *event, esp_gattc_cb_event_t e, esp_gatt_if_t i, esp_ble_gattc_cb_param_t *p) {
+  event->load_gattc_event(e, i, p);
+}
+
+void load_ble_event(BLEEvent *event, esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
+  event->load_gatts_event(e, i, p);
+}
+
 template<typename... Args> void enqueue_ble_event(Args... args) {
-  // Check if queue is full before allocating
-  if (global_ble->ble_events_.full()) {
-    // Queue is full, drop the event
+  // Allocate an event from the pool
+  BLEEvent *event = global_ble->ble_event_pool_.allocate();
+  if (event == nullptr) {
+    // No events available - queue is full or we're out of memory
     global_ble->ble_events_.increment_dropped_count();
     return;
   }
 
-  BLEEvent *new_event = EVENT_ALLOCATOR.allocate(1);
-  if (new_event == nullptr) {
-    // Memory too fragmented to allocate new event. Can only drop it until memory comes back
-    global_ble->ble_events_.increment_dropped_count();
-    return;
-  }
-  new (new_event) BLEEvent(args...);
+  // Load new event data (replaces previous event)
+  load_ble_event(event, args...);
 
-  // Push the event - since we're the only producer and we checked full() above,
-  // this should always succeed unless we have a bug
-  if (!global_ble->ble_events_.push(new_event)) {
-    // This should not happen in SPSC queue with single producer
-    ESP_LOGE(TAG, "BLE queue push failed unexpectedly");
-    new_event->~BLEEvent();
-    EVENT_ALLOCATOR.deallocate(new_event, 1);
-  }
-}  // NOLINT(clang-analyzer-unix.Malloc)
+  // Push the event to the queue
+  global_ble->ble_events_.push(event);
+  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
+}
 
 // Explicit template instantiations for the friend function
 template void enqueue_ble_event(esp_gap_ble_cb_event_t, esp_ble_gap_cb_param_t *);
