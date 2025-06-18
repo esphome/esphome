@@ -4,15 +4,12 @@ from esphome.components import esp32, esp32_rmt, remote_base
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_CLOCK_DIVIDER,
     CONF_CLOCK_RESOLUTION,
     CONF_DUMP,
     CONF_FILTER,
     CONF_ID,
     CONF_IDLE,
-    CONF_MEMORY_BLOCKS,
     CONF_PIN,
-    CONF_RMT_CHANNEL,
     CONF_RMT_SYMBOLS,
     CONF_TOLERANCE,
     CONF_TYPE,
@@ -103,49 +100,36 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
             ),
-            cv.SplitDefault(CONF_CLOCK_DIVIDER, esp32_arduino=80): cv.All(
-                cv.only_on_esp32,
-                cv.only_with_arduino,
-                cv.int_range(min=1, max=255),
-            ),
             cv.Optional(CONF_CLOCK_RESOLUTION): cv.All(
                 cv.only_on_esp32,
-                cv.only_with_esp_idf,
                 esp32_rmt.validate_clock_resolution(),
             ),
             cv.Optional(CONF_IDLE, default="10ms"): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
             ),
-            cv.SplitDefault(CONF_MEMORY_BLOCKS, esp32_arduino=3): cv.All(
-                cv.only_with_arduino, cv.int_range(min=1, max=8)
-            ),
-            cv.Optional(CONF_RMT_CHANNEL): cv.All(
-                cv.only_with_arduino, esp32_rmt.validate_rmt_channel(tx=False)
-            ),
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
-                esp32_idf=192,
-                esp32_s2_idf=192,
-                esp32_s3_idf=192,
-                esp32_p4_idf=192,
-                esp32_c3_idf=96,
-                esp32_c5_idf=96,
-                esp32_c6_idf=96,
-                esp32_h2_idf=96,
-            ): cv.All(cv.only_with_esp_idf, cv.int_range(min=2)),
+                esp32=192,
+                esp32_s2=192,
+                esp32_s3=192,
+                esp32_p4=192,
+                esp32_c3=96,
+                esp32_c5=96,
+                esp32_c6=96,
+                esp32_h2=96,
+            ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_FILTER_SYMBOLS): cv.All(
-                cv.only_with_esp_idf, cv.int_range(min=0)
+                cv.only_on_esp32, cv.int_range(min=0)
             ),
             cv.SplitDefault(
                 CONF_RECEIVE_SYMBOLS,
-                esp32_idf=192,
-            ): cv.All(cv.only_with_esp_idf, cv.int_range(min=2)),
+                esp32=192,
+            ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
                     supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
                 ),
-                cv.only_with_esp_idf,
                 cv.boolean,
             ),
         }
@@ -156,24 +140,15 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32:
-        if esp32_rmt.use_new_rmt_driver():
-            var = cg.new_Pvariable(config[CONF_ID], pin)
-            cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
-            cg.add(var.set_receive_symbols(config[CONF_RECEIVE_SYMBOLS]))
-            if CONF_USE_DMA in config:
-                cg.add(var.set_with_dma(config[CONF_USE_DMA]))
-            if CONF_CLOCK_RESOLUTION in config:
-                cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
-            if CONF_FILTER_SYMBOLS in config:
-                cg.add(var.set_filter_symbols(config[CONF_FILTER_SYMBOLS]))
-        else:
-            if (rmt_channel := config.get(CONF_RMT_CHANNEL, None)) is not None:
-                var = cg.new_Pvariable(
-                    config[CONF_ID], pin, rmt_channel, config[CONF_MEMORY_BLOCKS]
-                )
-            else:
-                var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_MEMORY_BLOCKS])
-            cg.add(var.set_clock_divider(config[CONF_CLOCK_DIVIDER]))
+        var = cg.new_Pvariable(config[CONF_ID], pin)
+        cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
+        cg.add(var.set_receive_symbols(config[CONF_RECEIVE_SYMBOLS]))
+        if CONF_USE_DMA in config:
+            cg.add(var.set_with_dma(config[CONF_USE_DMA]))
+        if CONF_CLOCK_RESOLUTION in config:
+            cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
+        if CONF_FILTER_SYMBOLS in config:
+            cg.add(var.set_filter_symbols(config[CONF_FILTER_SYMBOLS]))
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 

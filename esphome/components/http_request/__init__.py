@@ -175,7 +175,7 @@ async def to_code(config):
                 not config.get(CONF_VERIFY_SSL),
             )
         else:
-            cg.add_library("WiFiClientSecure", None)
+            cg.add_library("NetworkClientSecure", None)
             cg.add_library("HTTPClient", None)
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)

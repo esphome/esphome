@@ -3,7 +3,7 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32, esp32_rmt, light
+from esphome.components import esp32, light
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -13,11 +13,9 @@ from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_PIN,
     CONF_RGB_ORDER,
-    CONF_RMT_CHANNEL,
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
 )
-from esphome.core import CORE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,53 +67,6 @@ CONF_RESET_HIGH = "reset_high"
 CONF_RESET_LOW = "reset_low"
 
 
-class OptionalForIDF5(cv.SplitDefault):
-    @property
-    def default(self):
-        if not esp32_rmt.use_new_rmt_driver():
-            return cv.UNDEFINED
-        return super().default
-
-    @default.setter
-    def default(self, value):
-        # Ignore default set from vol.Optional
-        pass
-
-
-def only_with_new_rmt_driver(obj):
-    if not esp32_rmt.use_new_rmt_driver():
-        raise cv.Invalid(
-            "This feature is only available for the IDF framework version 5."
-        )
-    return obj
-
-
-def not_with_new_rmt_driver(obj):
-    if esp32_rmt.use_new_rmt_driver():
-        raise cv.Invalid(
-            "This feature is not available for the IDF framework version 5."
-        )
-    return obj
-
-
-def final_validation(config):
-    if not esp32_rmt.use_new_rmt_driver():
-        if CONF_RMT_CHANNEL not in config:
-            if CORE.using_esp_idf:
-                raise cv.Invalid(
-                    "rmt_channel is a required option for IDF version < 5."
-                )
-            raise cv.Invalid(
-                "rmt_channel is a required option for the Arduino framework."
-            )
-        _LOGGER.warning(
-            "RMT_LED_STRIP support for IDF version < 5 is deprecated and will be removed soon."
-        )
-
-
-FINAL_VALIDATE_SCHEMA = final_validation
-
-
 CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
@@ -123,20 +74,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
-            cv.Optional(CONF_RMT_CHANNEL): cv.All(
-                not_with_new_rmt_driver, esp32_rmt.validate_rmt_channel(tx=True)
-            ),
-            OptionalForIDF5(
+            cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
-                esp32_idf=192,
-                esp32_s2_idf=192,
-                esp32_s3_idf=192,
-                esp32_p4_idf=192,
-                esp32_c3_idf=96,
-                esp32_c5_idf=96,
-                esp32_c6_idf=96,
-                esp32_h2_idf=96,
-            ): cv.All(only_with_new_rmt_driver, cv.int_range(min=2)),
+                esp32=192,
+                esp32_s2=192,
+                esp32_s3=192,
+                esp32_p4=192,
+                esp32_c3=96,
+                esp32_c5=96,
+                esp32_c6=96,
+                esp32_h2=96,
+            ): cv.int_range(min=2),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
@@ -145,7 +93,6 @@ CONFIG_SCHEMA = cv.All(
                 esp32.only_on_variant(
                     supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
                 ),
-                cv.only_with_esp_idf,
                 cv.boolean,
             ),
             cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,
@@ -218,15 +165,6 @@ async def to_code(config):
     cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
     cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
-
-    if esp32_rmt.use_new_rmt_driver():
-        cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
-        if CONF_USE_DMA in config:
-            cg.add(var.set_use_dma(config[CONF_USE_DMA]))
-    else:
-        rmt_channel_t = cg.global_ns.enum("rmt_channel_t")
-        cg.add(
-            var.set_rmt_channel(
-                getattr(rmt_channel_t, f"RMT_CHANNEL_{config[CONF_RMT_CHANNEL]}")
-            )
-        )
+    cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
+    if CONF_USE_DMA in config:
+        cg.add(var.set_use_dma(config[CONF_USE_DMA]))

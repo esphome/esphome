@@ -3,7 +3,7 @@ substitutions:
   pin2: GPIO4
 
 packages:
-  common: !include common-idf.yaml
+  common: !include common.yaml
 
 light:
   - id: !extend led_strip1

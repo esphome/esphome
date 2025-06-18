@@ -106,7 +106,7 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
-#if USE_ESP_IDF && (ESP_IDF_VERSION_MAJOR >= 5)
+#if ESP_IDF_VERSION_MAJOR >= 5
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
 #else
   spi_device_handle_t spi_handle = nullptr;

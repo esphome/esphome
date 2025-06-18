@@ -1,7 +1,7 @@
 #include "sntp_component.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "esp_sntp.h"
 #elif USE_ESP8266
 #include "sntp.h"
@@ -16,7 +16,7 @@ static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
-#if defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
   if (esp_sntp_enabled()) {
     esp_sntp_stop();
   }
@@ -46,7 +46,7 @@ void SNTPComponent::dump_config() {
   }
 }
 void SNTPComponent::update() {
-#if !defined(USE_ESP_IDF)
+#if !defined(USE_ESP32)
   // force resync
   if (sntp_enabled()) {
     sntp_stop();

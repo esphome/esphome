@@ -3,4 +3,4 @@ substitutions:
   pin2: GPIO14
 
 packages:
-  common: !include common-ard.yaml
+  common: !include common.yaml

@@ -18,18 +18,10 @@ void RemoteTransmitterComponent::setup() {
 
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Transmitter:");
-#if ESP_IDF_VERSION_MAJOR >= 5
   ESP_LOGCONFIG(TAG,
                 "  Clock resolution: %" PRIu32 " hz\n"
                 "  RMT symbols: %" PRIu32,
                 this->clock_resolution_, this->rmt_symbols_);
-#else
-  ESP_LOGCONFIG(TAG,
-                "  Channel: %d\n"
-                "  RMT memory blocks: %d\n"
-                "  Clock divider: %u",
-                this->channel_, this->mem_block_num_, this->clock_divider_);
-#endif
   LOG_PIN("  Pin: ", this->pin_);
 
   if (this->current_carrier_frequency_ != 0 && this->carrier_duty_percent_ != 100) {
@@ -42,7 +34,6 @@ void RemoteTransmitterComponent::dump_config() {
   }
 }
 
-#if ESP_IDF_VERSION_MAJOR >= 5
 void RemoteTransmitterComponent::digital_write(bool value) {
   rmt_symbol_word_t symbol = {
       .duration0 = 1,
@@ -65,10 +56,8 @@ void RemoteTransmitterComponent::digital_write(bool value) {
     this->status_set_warning();
   }
 }
-#endif
 
 void RemoteTransmitterComponent::configure_rmt_() {
-#if ESP_IDF_VERSION_MAJOR >= 5
   esp_err_t error;
 
   if (!this->initialized_) {
@@ -140,54 +129,6 @@ void RemoteTransmitterComponent::configure_rmt_() {
     this->mark_failed();
     return;
   }
-#else
-  rmt_config_t c{};
-
-  this->config_rmt(c);
-  c.rmt_mode = RMT_MODE_TX;
-  c.gpio_num = gpio_num_t(this->pin_->get_pin());
-  c.tx_config.loop_en = false;
-
-  if (this->current_carrier_frequency_ == 0 || this->carrier_duty_percent_ == 100) {
-    c.tx_config.carrier_en = false;
-  } else {
-    c.tx_config.carrier_en = true;
-    c.tx_config.carrier_freq_hz = this->current_carrier_frequency_;
-    c.tx_config.carrier_duty_percent = this->carrier_duty_percent_;
-  }
-
-  c.tx_config.idle_output_en = true;
-  if (!this->inverted_) {
-    c.tx_config.carrier_level = RMT_CARRIER_LEVEL_HIGH;
-    c.tx_config.idle_level = RMT_IDLE_LEVEL_LOW;
-  } else {
-    c.tx_config.carrier_level = RMT_CARRIER_LEVEL_LOW;
-    c.tx_config.idle_level = RMT_IDLE_LEVEL_HIGH;
-  }
-
-  esp_err_t error = rmt_config(&c);
-  if (error != ESP_OK) {
-    this->error_code_ = error;
-    this->error_string_ = "in rmt_config";
-    this->mark_failed();
-    return;
-  }
-
-  if (!this->initialized_) {
-    error = rmt_driver_install(this->channel_, 0, 0);
-    if (error != ESP_OK) {
-      this->error_code_ = error;
-      if (error == ESP_ERR_INVALID_STATE) {
-        this->error_string_ = str_sprintf("RMT channel %i is already in use by another component", this->channel_);
-      } else {
-        this->error_string_ = "in rmt_driver_install";
-      }
-      this->mark_failed();
-      return;
-    }
-    this->initialized_ = true;
-  }
-#endif
 }
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
@@ -202,11 +143,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->rmt_temp_.clear();
   this->rmt_temp_.reserve((this->temp_.get_data().size() + 1) / 2);
   uint32_t rmt_i = 0;
-#if ESP_IDF_VERSION_MAJOR >= 5
   rmt_symbol_word_t rmt_item;
-#else
-  rmt_item32_t rmt_item;
-#endif
 
   for (int32_t val : this->temp_.get_data()) {
     bool level = val >= 0;
@@ -241,7 +178,6 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     return;
   }
   this->transmit_trigger_->trigger();
-#if ESP_IDF_VERSION_MAJOR >= 5
   for (uint32_t i = 0; i < send_times; i++) {
     rmt_transmit_config_t config;
     memset(&config, 0, sizeof(config));
@@ -263,19 +199,6 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
-#else
-  for (uint32_t i = 0; i < send_times; i++) {
-    esp_err_t error = rmt_write_items(this->channel_, this->rmt_temp_.data(), this->rmt_temp_.size(), true);
-    if (error != ESP_OK) {
-      ESP_LOGW(TAG, "rmt_write_items failed: %s", esp_err_to_name(error));
-      this->status_set_warning();
-    } else {
-      this->status_clear_warning();
-    }
-    if (i + 1 < send_times)
-      delayMicroseconds(send_wait);
-  }
-#endif
   this->complete_trigger_->trigger();
 }
 

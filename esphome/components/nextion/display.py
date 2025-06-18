@@ -150,7 +150,7 @@ async def to_code(config):
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
         if CORE.is_esp32 and CORE.using_arduino:
-            cg.add_library("WiFiClientSecure", None)
+            cg.add_library("NetworkClientSecure", None)
             cg.add_library("HTTPClient", None)
         elif CORE.is_esp32 and CORE.using_esp_idf:
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)

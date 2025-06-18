@@ -3,27 +3,15 @@
 
 #ifdef USE_ESP32
 
-#ifdef USE_ARDUINO
-#include <esp32-hal-ledc.h>
-#endif
 #include <driver/ledc.h>
-
 #include <cinttypes>
 
 #define CLOCK_FREQUENCY 80e6f
 
-#ifdef USE_ARDUINO
-#ifdef SOC_LEDC_SUPPORT_XTAL_CLOCK
-#undef CLOCK_FREQUENCY
-// starting with ESP32 Arduino 2.0.2, the 40MHz crystal is used as clock by default if supported
-#define CLOCK_FREQUENCY 40e6f
-#endif
-#else
 #ifdef SOC_LEDC_SUPPORT_APB_CLOCK
 #define DEFAULT_CLK LEDC_USE_APB_CLK
 #else
 #define DEFAULT_CLK LEDC_AUTO_CLK
-#endif
 #endif
 
 static const uint8_t SETUP_ATTEMPT_COUNT_MAX = 5;
@@ -34,7 +22,6 @@ namespace ledc {
 static const char *const TAG = "ledc.output";
 
 static const int MAX_RES_BITS = LEDC_TIMER_BIT_MAX - 1;
-#ifdef USE_ESP_IDF
 #if SOC_LEDC_SUPPORT_HS_MODE
 // Only ESP32 has LEDC_HIGH_SPEED_MODE
 inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE; }
@@ -43,7 +30,6 @@ inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_H
 // See
 // https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/peripherals/ledc.html#functionality-overview
 inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
-#endif
 #endif
 
 float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) {
@@ -68,7 +54,6 @@ optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
   return {};
 }
 
-#ifdef USE_ESP_IDF
 esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_num, ledc_channel_t chan_num,
                                     uint8_t channel, uint8_t &bit_depth, float frequency) {
   bit_depth = *ledc_bit_depth_for_frequency(frequency);
@@ -98,13 +83,10 @@ esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_n
 
   return init_result;
 }
-#endif
 
-#ifdef USE_ESP_IDF
 constexpr int ledc_angle_to_htop(float angle, uint8_t bit_depth) {
   return static_cast<int>(angle * ((1U << bit_depth) - 1) / 360.0f);
 }
-#endif  // USE_ESP_IDF
 
 void LEDCOutput::write_state(float state) {
   if (!this->initialized_) {
@@ -120,10 +102,6 @@ void LEDCOutput::write_state(float state) {
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
   ESP_LOGV(TAG, "Setting duty: %" PRIu32 " on channel %u", duty, this->channel_);
-#ifdef USE_ARDUINO
-  ledcWrite(this->channel_, duty);
-#endif
-#ifdef USE_ESP_IDF
   auto speed_mode = get_speed_mode(this->channel_);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
@@ -135,18 +113,10 @@ void LEDCOutput::write_state(float state) {
     ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
     ledc_update_duty(speed_mode, chan_num);
   }
-#endif
 }
 
 void LEDCOutput::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
-#ifdef USE_ARDUINO
-  this->update_frequency(this->frequency_);
-  this->turn_off();
-  // Attach pin after setting default value
-  ledcAttachPin(this->pin_->get_pin(), this->channel_);
-#endif
-#ifdef USE_ESP_IDF
   auto speed_mode = get_speed_mode(this->channel_);
   auto timer_num = static_cast<ledc_timer_t>((this->channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);
@@ -175,7 +145,6 @@ void LEDCOutput::setup() {
   ledc_channel_config(&chan_conf);
   this->initialized_ = true;
   this->status_clear_error();
-#endif
 }
 
 void LEDCOutput::dump_config() {
@@ -208,38 +177,7 @@ void LEDCOutput::update_frequency(float frequency) {
   }
   this->bit_depth_ = bit_depth_opt.value_or(8);
   this->frequency_ = frequency;
-#ifdef USE_ARDUINO
-  ESP_LOGV(TAG, "Using Arduino API - Trying to define channel, frequency and bit depth");
-  u_int32_t configured_frequency = 0;
 
-  // Configure LEDC channel, frequency and bit depth with fallback
-  int attempt_count_max = SETUP_ATTEMPT_COUNT_MAX;
-  while (attempt_count_max > 0 && configured_frequency == 0) {
-    ESP_LOGV(TAG, "Initializing channel %u with frequency %.1f and bit depth of %u", this->channel_, this->frequency_,
-             this->bit_depth_);
-    configured_frequency = ledcSetup(this->channel_, frequency, this->bit_depth_);
-    if (configured_frequency != 0) {
-      this->initialized_ = true;
-      this->status_clear_error();
-      ESP_LOGV(TAG, "Configured frequency: %u with bit depth: %u", configured_frequency, this->bit_depth_);
-    } else {
-      ESP_LOGW(TAG, "Unable to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
-               this->frequency_, this->bit_depth_);
-      // try again with a lower bit depth
-      this->bit_depth_--;
-    }
-    attempt_count_max--;
-  }
-
-  if (configured_frequency == 0) {
-    ESP_LOGE(TAG, "Permanently failed to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
-             this->frequency_, this->bit_depth_);
-    this->status_set_error();
-    return;
-  }
-
-#endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
   if (!this->initialized_) {
     ESP_LOGW(TAG, "Not yet initialized");
     return;
@@ -259,7 +197,7 @@ void LEDCOutput::update_frequency(float frequency) {
   }
 
   this->status_clear_error();
-#endif
+
   // re-apply duty
   this->write_state(this->duty_);
 }

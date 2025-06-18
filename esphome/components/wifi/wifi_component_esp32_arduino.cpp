@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
-#include <esp_wpa2.h>
+#include <esp_eap_client.h>
 #endif
 
 #ifdef USE_WIFI_AP
@@ -228,43 +228,43 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_eap().has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
     EAPAuth eap = ap.get_eap().value();
-    err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+    err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
     if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", err);
+      ESP_LOGV(TAG, "esp_eap_client_set_identity failed! %d", err);
     }
     int ca_cert_len = strlen(eap.ca_cert);
     int client_cert_len = strlen(eap.client_cert);
     int client_key_len = strlen(eap.client_key);
     if (ca_cert_len) {
-      err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+      err = esp_eap_client_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
+        ESP_LOGV(TAG, "esp_eap_client_set_ca_cert failed! %d", err);
       }
     }
     // workout what type of EAP this is
     // validation is not required as the config tool has already validated it
     if (client_cert_len && client_key_len) {
       // if we have certs, this must be EAP-TLS
-      err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
-                                               (uint8_t *) eap.client_key, client_key_len + 1,
-                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+      err = esp_eap_client_set_certificate_and_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                                   (uint8_t *) eap.client_key, client_key_len + 1,
+                                                   (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
+        ESP_LOGV(TAG, "esp_eap_client_set_certificate_and_key failed! %d", err);
       }
     } else {
       // in the absence of certs, assume this is username/password based
-      err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+      err = esp_eap_client_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", err);
+        ESP_LOGV(TAG, "esp_eap_client_set_username failed! %d", err);
       }
-      err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+      err = esp_eap_client_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
+        ESP_LOGV(TAG, "esp_eap_client_set_password failed! %d", err);
       }
     }
-    err = esp_wifi_sta_wpa2_ent_enable();
+    err = esp_wifi_sta_enterprise_enable();
     if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
+      ESP_LOGV(TAG, "esp_wifi_sta_enterprise_enable failed! %d", err);
     }
   }
 #endif  // USE_WIFI_WPA2_EAP
@@ -552,7 +552,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
 #if USE_NETWORK_IPV6
-      this->set_timeout(100, [] { WiFi.enableIpV6(); });
+      this->set_timeout(100, [] { WiFi.enableIPv6(); });
 #endif /* USE_NETWORK_IPV6 */
 
       break;
@@ -662,12 +662,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-#if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
-  const auto status = WiFiClass::status();
-#else
   const auto status = WiFi.status();
-#endif
-
   if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   }
