@@ -91,7 +91,7 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     std::string message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send(message.c_str(), "state")) {
+    if (this->send(message.c_str(), "state") != DISCARDED) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
@@ -131,7 +131,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     std::string message = message_generator(web_server_, source);
-    if (!this->try_send(message.c_str(), "state")) {
+    if (this->send(message.c_str(), "state") == DISCARDED) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
@@ -171,8 +171,8 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
     ws->defer([this, ws, es]() { this->on_client_connect_(ws, es); });
   });
 
-  es->onDisconnect([this, ws](AsyncEventSource *source, AsyncEventSourceClient *client) {
-    ws->defer([this, source]() { this->on_client_disconnect_((DeferredUpdateEventSource *) source); });
+  es->onDisconnect([this, ws, es](AsyncEventSourceClient *client) {
+    ws->defer([this, es]() { this->on_client_disconnect_((DeferredUpdateEventSource *) es); });
   });
 
   es->handleRequest(request);
@@ -291,14 +291,23 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
+#ifndef USE_ESP8266
+  AsyncWebServerResponse *response = request->beginResponse(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+#else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+#endif
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #elif USE_WEBSERVER_VERSION >= 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
+#ifndef USE_ESP8266
+  AsyncWebServerResponse *response =
+      request->beginResponse(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
+#else
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
+#endif
   // No gzip header here because the HTML file is so small
   request->send(response);
 }
@@ -317,8 +326,13 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
+#ifndef USE_ESP8266
+  AsyncWebServerResponse *response =
+      request->beginResponse(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
+#else
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
+#endif
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
@@ -326,8 +340,13 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
+#ifndef USE_ESP8266
+  AsyncWebServerResponse *response =
+      request->beginResponse(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
+#else
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
+#endif
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
@@ -1837,7 +1856,7 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
 }
 #endif
 
-bool WebServer::canHandle(AsyncWebServerRequest *request) {
+bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   if (request->url() == "/")
     return true;
 
@@ -1859,12 +1878,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
-#ifdef USE_ARDUINO
-    // Header needs to be added to interesting header list for it to not be
-    // nuked by the time we handle the request later.
-    // Only required in Arduino framework.
-    request->addInterestingHeader(HEADER_CORS_REQ_PNA);
-#endif
     return true;
   }
 #endif
@@ -2145,7 +2158,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 }
 
-bool WebServer::isRequestHandlerTrivial() { return false; }
+bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_entity_config(EntityBase *entity, float weight, uint64_t group) {
   this->sorting_entitys_[entity] = SortingComponents{weight, group};

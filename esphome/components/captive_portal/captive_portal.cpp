@@ -75,7 +75,11 @@ void CaptivePortal::start() {
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   if (req->url() == "/") {
+#ifndef USE_ESP8266
+    auto *response = req->beginResponse(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+#else
     auto *response = req->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+#endif
     response->addHeader("Content-Encoding", "gzip");
     req->send(response);
     return;
