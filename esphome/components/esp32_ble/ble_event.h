@@ -24,15 +24,44 @@ static_assert(sizeof(esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param) == si
               "ESP-IDF scan_stop_cmpl structure has unexpected size");
 
 // Verify the status field is at offset 0 (first member)
-static_assert(offsetof(esp_ble_gap_cb_param_t, scan_param_cmpl.status) ==
-                  offsetof(esp_ble_gap_cb_param_t, scan_param_cmpl),
+static_assert(offsetof(esp_ble_gap_cb_param_t, scan_param_cmpl.status) == 0,
               "status must be first member of scan_param_cmpl");
-static_assert(offsetof(esp_ble_gap_cb_param_t, scan_start_cmpl.status) ==
-                  offsetof(esp_ble_gap_cb_param_t, scan_start_cmpl),
+static_assert(offsetof(esp_ble_gap_cb_param_t, scan_start_cmpl.status) == 0,
               "status must be first member of scan_start_cmpl");
-static_assert(offsetof(esp_ble_gap_cb_param_t, scan_stop_cmpl.status) ==
-                  offsetof(esp_ble_gap_cb_param_t, scan_stop_cmpl),
+static_assert(offsetof(esp_ble_gap_cb_param_t, scan_stop_cmpl.status) == 0,
               "status must be first member of scan_stop_cmpl");
+
+// Compile-time verification for advertising complete events
+static_assert(sizeof(esp_ble_gap_cb_param_t::ble_adv_data_cmpl_evt_param) == sizeof(esp_bt_status_t),
+              "ESP-IDF adv_data_cmpl structure has unexpected size");
+static_assert(sizeof(esp_ble_gap_cb_param_t::ble_scan_rsp_data_cmpl_evt_param) == sizeof(esp_bt_status_t),
+              "ESP-IDF scan_rsp_data_cmpl structure has unexpected size");
+static_assert(sizeof(esp_ble_gap_cb_param_t::ble_adv_data_raw_cmpl_evt_param) == sizeof(esp_bt_status_t),
+              "ESP-IDF adv_data_raw_cmpl structure has unexpected size");
+static_assert(sizeof(esp_ble_gap_cb_param_t::ble_adv_start_cmpl_evt_param) == sizeof(esp_bt_status_t),
+              "ESP-IDF adv_start_cmpl structure has unexpected size");
+static_assert(sizeof(esp_ble_gap_cb_param_t::ble_adv_stop_cmpl_evt_param) == sizeof(esp_bt_status_t),
+              "ESP-IDF adv_stop_cmpl structure has unexpected size");
+
+// Verify the status field is at offset 0 for advertising events
+static_assert(offsetof(esp_ble_gap_cb_param_t, adv_data_cmpl.status) == 0,
+              "status must be first member of adv_data_cmpl");
+static_assert(offsetof(esp_ble_gap_cb_param_t, scan_rsp_data_cmpl.status) == 0,
+              "status must be first member of scan_rsp_data_cmpl");
+static_assert(offsetof(esp_ble_gap_cb_param_t, adv_data_raw_cmpl.status) == 0,
+              "status must be first member of adv_data_raw_cmpl");
+static_assert(offsetof(esp_ble_gap_cb_param_t, adv_start_cmpl.status) == 0,
+              "status must be first member of adv_start_cmpl");
+static_assert(offsetof(esp_ble_gap_cb_param_t, adv_stop_cmpl.status) == 0,
+              "status must be first member of adv_stop_cmpl");
+
+// Compile-time verification for RSSI complete event structure
+static_assert(offsetof(esp_ble_gap_cb_param_t, read_rssi_cmpl.status) == 0,
+              "status must be first member of read_rssi_cmpl");
+static_assert(offsetof(esp_ble_gap_cb_param_t, read_rssi_cmpl.rssi) == sizeof(esp_bt_status_t),
+              "rssi must immediately follow status in read_rssi_cmpl");
+static_assert(offsetof(esp_ble_gap_cb_param_t, read_rssi_cmpl.remote_addr) == sizeof(esp_bt_status_t) + sizeof(int8_t),
+              "remote_addr must follow rssi in read_rssi_cmpl");
 
 // Received GAP, GATTC and GATTS events are only queued, and get processed in the main loop().
 // This class stores each event with minimal memory usage.
@@ -65,6 +94,17 @@ class BLEEvent {
     GAP,
     GATTC,
     GATTS,
+  };
+
+  // Type definitions for cleaner method signatures
+  struct StatusOnlyData {
+    esp_bt_status_t status;
+  };
+
+  struct RSSICompleteData {
+    esp_bt_status_t status;
+    int8_t rssi;
+    esp_bd_addr_t remote_addr;
   };
 
   // Constructor for GAP events - no external allocations needed
@@ -147,12 +187,21 @@ class BLEEvent {
     struct gap_event {
       esp_gap_ble_cb_event_t gap_event;
       union {
-        BLEScanResult scan_result;  // 73 bytes
+        BLEScanResult scan_result;  // 73 bytes - Used by: esp32_ble_tracker
         // This matches ESP-IDF's scan complete event structures
         // All three (scan_param_cmpl, scan_start_cmpl, scan_stop_cmpl) have identical layout
-        struct {
-          esp_bt_status_t status;
-        } scan_complete;  // 1 byte
+        // Used by: esp32_ble_tracker
+        StatusOnlyData scan_complete;  // 1 byte
+        // Advertising complete events all have same structure
+        // Used by: esp32_ble_beacon, esp32_ble server components
+        // ADV_DATA_SET, SCAN_RSP_DATA_SET, ADV_DATA_RAW_SET, ADV_START, ADV_STOP
+        StatusOnlyData adv_complete;  // 1 byte
+        // RSSI complete event
+        // Used by: ble_client (ble_rssi_sensor component)
+        RSSICompleteData read_rssi_complete;  // 8 bytes
+        // Security events - we store the full security union
+        // Used by: ble_client (automation), bluetooth_proxy, esp32_ble_client
+        esp_ble_sec_t security;  // Variable size, but fits within scan_result size
       };
     } gap;  // 80 bytes total
 
@@ -180,6 +229,9 @@ class BLEEvent {
   esp_gap_ble_cb_event_t gap_event_type() const { return event_.gap.gap_event; }
   const BLEScanResult &scan_result() const { return event_.gap.scan_result; }
   esp_bt_status_t scan_complete_status() const { return event_.gap.scan_complete.status; }
+  esp_bt_status_t adv_complete_status() const { return event_.gap.adv_complete.status; }
+  const RSSICompleteData &read_rssi_complete() const { return event_.gap.read_rssi_complete; }
+  const esp_ble_sec_t &security() const { return event_.gap.security; }
 
  private:
   // Initialize GAP event data
@@ -215,8 +267,47 @@ class BLEEvent {
         this->event_.gap.scan_complete.status = p->scan_stop_cmpl.status;
         break;
 
+      // Advertising complete events - all have same structure with just status
+      // Used by: esp32_ble_beacon, esp32_ble server components
+      case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+        this->event_.gap.adv_complete.status = p->adv_data_cmpl.status;
+        break;
+      case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
+        this->event_.gap.adv_complete.status = p->scan_rsp_data_cmpl.status;
+        break;
+      case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:  // Used by: esp32_ble_beacon
+        this->event_.gap.adv_complete.status = p->adv_data_raw_cmpl.status;
+        break;
+      case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:  // Used by: esp32_ble_beacon
+        this->event_.gap.adv_complete.status = p->adv_start_cmpl.status;
+        break;
+      case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:  // Used by: esp32_ble_beacon
+        this->event_.gap.adv_complete.status = p->adv_stop_cmpl.status;
+        break;
+
+      // RSSI complete event
+      // Used by: ble_client (ble_rssi_sensor)
+      case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+        this->event_.gap.read_rssi_complete.status = p->read_rssi_cmpl.status;
+        this->event_.gap.read_rssi_complete.rssi = p->read_rssi_cmpl.rssi;
+        memcpy(this->event_.gap.read_rssi_complete.remote_addr, p->read_rssi_cmpl.remote_addr, sizeof(esp_bd_addr_t));
+        break;
+
+      // Security events - copy the entire security union
+      // Used by: ble_client, bluetooth_proxy, esp32_ble_client
+      case ESP_GAP_BLE_AUTH_CMPL_EVT:      // Used by: bluetooth_proxy, esp32_ble_client
+      case ESP_GAP_BLE_SEC_REQ_EVT:        // Used by: esp32_ble_client
+      case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:  // Used by: ble_client automation
+      case ESP_GAP_BLE_PASSKEY_REQ_EVT:    // Used by: ble_client automation
+      case ESP_GAP_BLE_NC_REQ_EVT:         // Used by: ble_client automation
+        memcpy(&this->event_.gap.security, &p->ble_security, sizeof(esp_ble_sec_t));
+        break;
+
       default:
-        // We only handle 4 GAP event types, others are dropped
+        // We only store data for GAP events that components currently use
+        // Unknown events still get queued and logged in ble.cpp:375 as
+        // "Unhandled GAP event type in loop" - this helps identify new events
+        // that components might need in the future
         break;
     }
   }
@@ -294,6 +385,13 @@ class BLEEvent {
     }
   }
 };
+
+// Verify the gap_event struct hasn't grown beyond expected size
+// The gap member in the union should be 80 bytes (including the gap_event enum)
+static_assert(sizeof(decltype(((BLEEvent *) nullptr)->event_.gap)) <= 80, "gap_event struct has grown beyond 80 bytes");
+
+// Verify esp_ble_sec_t fits within our union
+static_assert(sizeof(esp_ble_sec_t) <= 73, "esp_ble_sec_t is larger than BLEScanResult");
 
 // BLEEvent total size: 84 bytes (80 byte union + 1 byte type + 3 bytes padding)
 

@@ -324,23 +324,69 @@ void ESP32BLE::loop() {
       }
       case BLEEvent::GAP: {
         esp_gap_ble_cb_event_t gap_event = ble_event->event_.gap.gap_event;
-        if (gap_event == ESP_GAP_BLE_SCAN_RESULT_EVT) {
-          // Use the new scan event handler - no memcpy!
-          for (auto *scan_handler : this->gap_scan_event_handlers_) {
-            scan_handler->gap_scan_event_handler(ble_event->scan_result());
-          }
-        } else if (gap_event == ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT ||
-                   gap_event == ESP_GAP_BLE_SCAN_START_COMPLETE_EVT ||
-                   gap_event == ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT) {
-          // All three scan complete events have the same structure with just status
-          // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
-          // This is verified at compile-time by static_assert checks in ble_event.h
-          // The struct already contains our copy of the status (copied in BLEEvent constructor)
-          ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-          for (auto *gap_handler : this->gap_event_handlers_) {
-            gap_handler->gap_event_handler(
-                gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
-          }
+        switch (gap_event) {
+          case ESP_GAP_BLE_SCAN_RESULT_EVT:
+            // Use the new scan event handler - no memcpy!
+            for (auto *scan_handler : this->gap_scan_event_handlers_) {
+              scan_handler->gap_scan_event_handler(ble_event->scan_result());
+            }
+            break;
+
+          // Scan complete events
+          case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
+          case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+            // All three scan complete events have the same structure with just status
+            // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
+            // This is verified at compile-time by static_assert checks in ble_event.h
+            // The struct already contains our copy of the status (copied in BLEEvent constructor)
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
+            }
+            break;
+
+          // Advertising complete events
+          case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+          case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+            // All advertising complete events have the same structure with just status
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete));
+            }
+            break;
+
+          // RSSI complete event
+          case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete));
+            }
+            break;
+
+          // Security events
+          case ESP_GAP_BLE_AUTH_CMPL_EVT:
+          case ESP_GAP_BLE_SEC_REQ_EVT:
+          case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+          case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+          case ESP_GAP_BLE_NC_REQ_EVT:
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security));
+            }
+            break;
+
+          default:
+            // Unknown/unhandled event
+            ESP_LOGW(TAG, "Unhandled GAP event type in loop: %d", gap_event);
+            break;
         }
         break;
       }
@@ -399,11 +445,26 @@ template void enqueue_ble_event(esp_gattc_cb_event_t, esp_gatt_if_t, esp_ble_gat
 
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
-    // Only queue the 4 GAP events we actually handle
+    // Queue GAP events that components need to handle
+    // Scanning events - used by esp32_ble_tracker
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
     case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
     case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+    // Advertising events - used by esp32_ble_beacon and esp32_ble server
+    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+    // Connection events - used by ble_client
+    case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+    // Security events - used by ble_client and bluetooth_proxy
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+    case ESP_GAP_BLE_SEC_REQ_EVT:
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+    case ESP_GAP_BLE_NC_REQ_EVT:
       enqueue_ble_event(event, param);
       return;
 
