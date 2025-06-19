@@ -109,6 +109,7 @@ class I2CBus {
 };
 
 class InternalI2CBus : public I2CBus {
+ public:
   /// @brief Returns the I2C port number.
   /// @return the port number of the internal I2C bus
   virtual int get_port() const = 0;
