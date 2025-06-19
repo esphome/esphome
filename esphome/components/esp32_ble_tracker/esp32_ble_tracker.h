@@ -289,9 +289,9 @@ class ESP32BLETracker : public Component,
   // Consumer: ESPHome main loop (loop() method)
   // This design ensures zero blocking in the BT callback and prevents scan result loss
   BLEScanResult *scan_ring_buffer_;
-  std::atomic<size_t> ring_write_index_{0};      // Written only by BT callback (producer)
-  std::atomic<size_t> ring_read_index_{0};       // Written only by main loop (consumer)
-  std::atomic<size_t> scan_results_dropped_{0};  // Tracks buffer overflow events
+  std::atomic<uint8_t> ring_write_index_{0};       // Written only by BT callback (producer)
+  std::atomic<uint8_t> ring_read_index_{0};        // Written only by main loop (consumer)
+  std::atomic<uint16_t> scan_results_dropped_{0};  // Tracks buffer overflow events
 
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};

@@ -122,10 +122,10 @@ void ESP32BLETracker::loop() {
   // Consumer side: This runs in the main loop thread
   if (this->scanner_state_ == ScannerState::RUNNING) {
     // Load our own index with relaxed ordering (we're the only writer)
-    size_t read_idx = this->ring_read_index_.load(std::memory_order_relaxed);
+    uint8_t read_idx = this->ring_read_index_.load(std::memory_order_relaxed);
 
     // Load producer's index with acquire to see their latest writes
-    size_t write_idx = this->ring_write_index_.load(std::memory_order_acquire);
+    uint8_t write_idx = this->ring_write_index_.load(std::memory_order_acquire);
 
     while (read_idx != write_idx) {
       // Process one result at a time directly from ring buffer
@@ -409,11 +409,11 @@ void ESP32BLETracker::gap_scan_event_handler(const BLEScanResult &scan_result) {
     // IMPORTANT: Only this thread writes to ring_write_index_
 
     // Load our own index with relaxed ordering (we're the only writer)
-    size_t write_idx = this->ring_write_index_.load(std::memory_order_relaxed);
-    size_t next_write_idx = (write_idx + 1) % SCAN_RESULT_BUFFER_SIZE;
+    uint8_t write_idx = this->ring_write_index_.load(std::memory_order_relaxed);
+    uint8_t next_write_idx = (write_idx + 1) % SCAN_RESULT_BUFFER_SIZE;
 
     // Load consumer's index with acquire to see their latest updates
-    size_t read_idx = this->ring_read_index_.load(std::memory_order_acquire);
+    uint8_t read_idx = this->ring_read_index_.load(std::memory_order_acquire);
 
     // Check if buffer is full
     if (next_write_idx != read_idx) {
