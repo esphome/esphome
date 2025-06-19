@@ -33,6 +33,7 @@ bool Nextion::send_command_(const std::string &command) {
 
 #ifdef USE_NEXTION_COMMAND_SPACING
   if (!this->ignore_is_setup_ && !this->command_pacer_.can_send()) {
+    ESP_LOGN(TAG, "Command spacing: delaying command '%s'", command.c_str());
     return false;
   }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -42,10 +43,6 @@ bool Nextion::send_command_(const std::string &command) {
   this->write_str(command.c_str());
   const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(to_send, sizeof(to_send));
-
-#ifdef USE_NEXTION_COMMAND_SPACING
-  this->command_pacer_.mark_sent();
-#endif  // USE_NEXTION_COMMAND_SPACING
 
   return true;
 }
@@ -377,12 +374,6 @@ void Nextion::process_nextion_commands_() {
   size_t commands_processed = 0;
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
-#ifdef USE_NEXTION_COMMAND_SPACING
-  if (!this->command_pacer_.can_send()) {
-    return;  // Will try again in next loop iteration
-  }
-#endif
-
   size_t to_process_length = 0;
   std::string to_process;
 
@@ -430,6 +421,7 @@ void Nextion::process_nextion_commands_() {
         }
 #ifdef USE_NEXTION_COMMAND_SPACING
         this->command_pacer_.mark_sent();  // Here is where we should mark the command as sent
+        ESP_LOGN(TAG, "Command spacing: marked command sent at %u ms", millis());
 #endif
         break;
       case 0x02:  // invalid Component ID or name was used
