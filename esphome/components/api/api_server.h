@@ -142,19 +142,27 @@ class APIServer : public Component, public Controller {
   }
 
  protected:
-  bool shutting_down_ = false;
+  // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
-  uint16_t port_{6053};
+  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+
+  // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
   uint32_t batch_delay_{100};
   uint32_t last_connected_{0};
+
+  // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
   std::string password_;
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;
-  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
-  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+
+  // Group smaller types together
+  uint16_t port_{6053};
+  bool shutting_down_ = false;
+  // 3 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();

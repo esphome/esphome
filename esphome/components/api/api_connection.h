@@ -275,7 +275,13 @@ class APIConnection : public APIServerConnection {
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) override;
 
-  std::string get_client_combined_info() const { return this->client_combined_info_; }
+  std::string get_client_combined_info() const {
+    if (this->client_info_ == this->client_peername_) {
+      // Before Hello message, both are the same (just IP:port)
+      return this->client_info_;
+    }
+    return this->client_info_ + " (" + this->client_peername_ + ")";
+  }
 
   // Buffer allocator methods for batch processing
   ProtoWriteBuffer allocate_single_message_buffer(uint16_t size);
@@ -432,37 +438,44 @@ class APIConnection : public APIServerConnection {
   // Helper function to get estimated message size for buffer pre-allocation
   static uint16_t get_estimated_message_size(uint16_t message_type);
 
-  enum class ConnectionState {
+  // Pointers first (4 bytes each, naturally aligned)
+  std::unique_ptr<APIFrameHelper> helper_;
+  APIServer *parent_;
+
+  // 4-byte aligned types
+  uint32_t last_traffic_;
+  uint32_t next_ping_retry_{0};
+  int state_subs_at_ = -1;
+
+  // Strings (12 bytes each on 32-bit)
+  std::string client_info_;
+  std::string client_peername_;
+
+  // 2-byte aligned types
+  uint16_t client_api_version_major_{0};
+  uint16_t client_api_version_minor_{0};
+
+  // Group all 1-byte types together to minimize padding
+  enum class ConnectionState : uint8_t {
     WAITING_FOR_HELLO,
     CONNECTED,
     AUTHENTICATED,
   } connection_state_{ConnectionState::WAITING_FOR_HELLO};
-
+  uint8_t log_subscription_{ESPHOME_LOG_LEVEL_NONE};
   bool remove_{false};
-
-  std::unique_ptr<APIFrameHelper> helper_;
-
-  std::string client_info_;
-  std::string client_peername_;
-  std::string client_combined_info_;
-  uint32_t client_api_version_major_{0};
-  uint32_t client_api_version_minor_{0};
-#ifdef USE_ESP32_CAMERA
-  esp32_camera::CameraImageReader image_reader_;
-#endif
-
   bool state_subscription_{false};
-  int log_subscription_{ESPHOME_LOG_LEVEL_NONE};
-  uint32_t last_traffic_;
-  uint32_t next_ping_retry_{0};
-  uint8_t ping_retries_{0};
   bool sent_ping_{false};
   bool service_call_subscription_{false};
   bool next_close_ = false;
-  APIServer *parent_;
+  uint8_t ping_retries_{0};
+  // 8 bytes used, no padding needed
+
+  // Larger objects at the end
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;
-  int state_subs_at_ = -1;
+#ifdef USE_ESP32_CAMERA
+  esp32_camera::CameraImageReader image_reader_;
+#endif
 
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size, bool is_single);

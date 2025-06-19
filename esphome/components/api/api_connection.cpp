@@ -61,8 +61,8 @@ void APIConnection::start() {
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
-             errno);
+    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", this->get_client_combined_info().c_str(),
+             api_error_to_str(err), errno);
     return;
   }
   this->client_info_ = helper_->getpeername();
@@ -91,7 +91,7 @@ void APIConnection::loop() {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
-    ESP_LOGW(TAG, "%s: Network unavailable; disconnecting", this->client_combined_info_.c_str());
+    ESP_LOGW(TAG, "%s: Network unavailable; disconnecting", this->get_client_combined_info().c_str());
     return;
   }
   if (this->next_close_) {
@@ -104,7 +104,7 @@ void APIConnection::loop() {
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->client_combined_info_.c_str(),
+    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->get_client_combined_info().c_str(),
              api_error_to_str(err), errno);
     return;
   }
@@ -118,12 +118,12 @@ void APIConnection::loop() {
     } else if (err != APIError::OK) {
       on_fatal_error();
       if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
-        ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
+        ESP_LOGW(TAG, "%s: Connection reset", this->get_client_combined_info().c_str());
       } else if (err == APIError::CONNECTION_CLOSED) {
-        ESP_LOGW(TAG, "%s: Connection closed", this->client_combined_info_.c_str());
+        ESP_LOGW(TAG, "%s: Connection closed", this->get_client_combined_info().c_str());
       } else {
-        ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
-                 errno);
+        ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->get_client_combined_info().c_str(),
+                 api_error_to_str(err), errno);
       }
       return;
     } else {
@@ -157,7 +157,7 @@ void APIConnection::loop() {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (KEEPALIVE_TIMEOUT_MS * 5) / 2) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s is unresponsive; disconnecting", this->client_combined_info_.c_str());
+      ESP_LOGW(TAG, "%s is unresponsive; disconnecting", this->get_client_combined_info().c_str());
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && now > this->next_ping_retry_) {
     ESP_LOGVV(TAG, "Sending keepalive PING");
@@ -166,7 +166,7 @@ void APIConnection::loop() {
       this->next_ping_retry_ = now + ping_retry_interval;
       this->ping_retries_++;
       std::string warn_str = str_sprintf("%s: Sending keepalive failed %u time(s);",
-                                         this->client_combined_info_.c_str(), this->ping_retries_);
+                                         this->get_client_combined_info().c_str(), this->ping_retries_);
       if (this->ping_retries_ >= max_ping_retries) {
         on_fatal_error();
         ESP_LOGE(TAG, "%s disconnecting", warn_str.c_str());
@@ -233,7 +233,7 @@ DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s disconnected", this->client_combined_info_.c_str());
+  ESP_LOGD(TAG, "%s disconnected", this->get_client_combined_info().c_str());
   this->next_close_ = true;
   DisconnectResponse resp;
   return resp;
@@ -1544,8 +1544,7 @@ bool APIConnection::try_send_log_message(int level, const char *tag, const char 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info;
   this->client_peername_ = this->helper_->getpeername();
-  this->client_combined_info_ = this->client_info_ + " (" + this->client_peername_ + ")";
-  this->helper_->set_log_info(this->client_combined_info_);
+  this->helper_->set_log_info(this->get_client_combined_info());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.c_str(),
@@ -1567,7 +1566,7 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   // bool invalid_password = 1;
   resp.invalid_password = !correct;
   if (correct) {
-    ESP_LOGD(TAG, "%s connected", this->client_combined_info_.c_str());
+    ESP_LOGD(TAG, "%s connected", this->get_client_combined_info().c_str());
     this->connection_state_ = ConnectionState::AUTHENTICATED;
     this->parent_->get_client_connected_trigger()->trigger(this->client_info_, this->client_peername_);
 #ifdef USE_HOMEASSISTANT_TIME
@@ -1673,7 +1672,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->client_combined_info_.c_str(),
+    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->get_client_combined_info().c_str(),
              api_error_to_str(err), errno);
     return false;
   }
@@ -1695,10 +1694,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) 
   if (err != APIError::OK) {
     on_fatal_error();
     if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection reset", this->get_client_combined_info().c_str());
     } else {
-      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
-               errno);
+      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", this->get_client_combined_info().c_str(),
+               api_error_to_str(err), errno);
     }
     return false;
   }
@@ -1707,11 +1706,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) 
 }
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s requested access without authentication", this->client_combined_info_.c_str());
+  ESP_LOGD(TAG, "%s requested access without authentication", this->get_client_combined_info().c_str());
 }
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s requested access without full connection", this->client_combined_info_.c_str());
+  ESP_LOGD(TAG, "%s requested access without full connection", this->get_client_combined_info().c_str());
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();
@@ -1860,10 +1859,10 @@ void APIConnection::process_batch_() {
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     on_fatal_error();
     if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset during batch write", this->client_combined_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection reset during batch write", this->get_client_combined_info().c_str());
     } else {
-      ESP_LOGW(TAG, "%s: Batch write failed %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
-               errno);
+      ESP_LOGW(TAG, "%s: Batch write failed %s errno=%d", this->get_client_combined_info().c_str(),
+               api_error_to_str(err), errno);
     }
   }
 
