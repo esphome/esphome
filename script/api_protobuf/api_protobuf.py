@@ -1424,25 +1424,40 @@ def main() -> None:
         hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
         hpp += f"  virtual {ret} {func}(const {inp} &msg) = 0;\n"
         cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
-        body = ""
-        if needs_conn:
-            body += "if (!this->is_connection_setup()) {\n"
-            body += "  this->on_no_setup_connection();\n"
-            body += "  return;\n"
-            body += "}\n"
-        if needs_auth:
-            body += "if (!this->is_authenticated()) {\n"
-            body += "  this->on_unauthenticated_access();\n"
-            body += "  return;\n"
-            body += "}\n"
 
-        if is_void:
-            body += f"this->{func}(msg);\n"
-        else:
-            body += f"{ret} ret = this->{func}(msg);\n"
-            body += "if (!this->send_message(ret)) {\n"
-            body += "  this->on_fatal_error();\n"
+        # Start with authentication/connection check if needed
+        if needs_auth or needs_conn:
+            # Determine which check to use
+            if needs_auth:
+                check_func = "this->check_authenticated_()"
+            else:
+                check_func = "this->check_connection_setup_()"
+
+            body = f"if ({check_func}) {{\n"
+
+            # Add the actual handler code, indented
+            handler_body = ""
+            if is_void:
+                handler_body = f"this->{func}(msg);\n"
+            else:
+                handler_body = f"{ret} ret = this->{func}(msg);\n"
+                handler_body += "if (!this->send_message(ret)) {\n"
+                handler_body += "  this->on_fatal_error();\n"
+                handler_body += "}\n"
+
+            body += indent(handler_body) + "\n"
             body += "}\n"
+        else:
+            # No auth check needed, just call the handler
+            body = ""
+            if is_void:
+                body += f"this->{func}(msg);\n"
+            else:
+                body += f"{ret} ret = this->{func}(msg);\n"
+                body += "if (!this->send_message(ret)) {\n"
+                body += "  this->on_fatal_error();\n"
+                body += "}\n"
+
         cpp += indent(body) + "\n" + "}\n"
 
         if ifdef is not None:

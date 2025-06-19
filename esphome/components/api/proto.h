@@ -379,6 +379,26 @@ class ProtoService {
     // Send the buffer
     return this->send_buffer(buffer, message_type);
   }
+
+  // Authentication helper methods
+  bool check_connection_setup_() {
+    if (!this->is_connection_setup()) {
+      this->on_no_setup_connection();
+      return false;
+    }
+    return true;
+  }
+
+  bool check_authenticated_() {
+    if (!this->check_connection_setup_()) {
+      return false;
+    }
+    if (!this->is_authenticated()) {
+      this->on_unauthenticated_access();
+      return false;
+    }
+    return true;
+  }
 };
 
 }  // namespace api
