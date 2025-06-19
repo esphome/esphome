@@ -85,7 +85,7 @@ bool VoiceAssistant::start_udp_socket_() {
 bool VoiceAssistant::allocate_buffers_() {
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ == nullptr)) {
-    ExternalRAMAllocator<uint8_t> speaker_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> speaker_allocator;
     this->speaker_buffer_ = speaker_allocator.allocate(SPEAKER_BUFFER_SIZE);
     if (this->speaker_buffer_ == nullptr) {
       ESP_LOGW(TAG, "Could not allocate speaker buffer");
@@ -103,7 +103,7 @@ bool VoiceAssistant::allocate_buffers_() {
   }
 
   if (this->send_buffer_ == nullptr) {
-    ExternalRAMAllocator<uint8_t> send_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> send_allocator;
     this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
     if (send_buffer_ == nullptr) {
       ESP_LOGW(TAG, "Could not allocate send buffer");
@@ -136,7 +136,7 @@ void VoiceAssistant::clear_buffers_() {
 
 void VoiceAssistant::deallocate_buffers_() {
   if (this->send_buffer_ != nullptr) {
-    ExternalRAMAllocator<uint8_t> send_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> send_deallocator;
     send_deallocator.deallocate(this->send_buffer_, SEND_BUFFER_SIZE);
     this->send_buffer_ = nullptr;
   }
@@ -147,7 +147,7 @@ void VoiceAssistant::deallocate_buffers_() {
 
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
-    ExternalRAMAllocator<uint8_t> speaker_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> speaker_deallocator;
     speaker_deallocator.deallocate(this->speaker_buffer_, SPEAKER_BUFFER_SIZE);
     this->speaker_buffer_ = nullptr;
   }

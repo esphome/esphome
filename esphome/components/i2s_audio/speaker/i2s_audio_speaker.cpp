@@ -484,7 +484,7 @@ bool I2SAudioSpeaker::send_esp_err_to_event_group_(esp_err_t err) {
 esp_err_t I2SAudioSpeaker::allocate_buffers_(size_t data_buffer_size, size_t ring_buffer_size) {
   if (this->data_buffer_ == nullptr) {
     // Allocate data buffer for temporarily storing audio from the ring buffer before writing to the I2S bus
-    ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> allocator;
     this->data_buffer_ = allocator.allocate(data_buffer_size);
   }
 
@@ -698,7 +698,7 @@ void I2SAudioSpeaker::delete_task_(size_t buffer_size) {
   this->audio_ring_buffer_.reset();  // Releases ownership of the shared_ptr
 
   if (this->data_buffer_ != nullptr) {
-    ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> allocator;
     allocator.deallocate(this->data_buffer_, buffer_size);
     this->data_buffer_ = nullptr;
   }
