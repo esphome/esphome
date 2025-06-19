@@ -1,11 +1,11 @@
 #ifdef USE_ARDUINO
 
 #include "i2c_bus_arduino.h"
+#include <Arduino.h>
+#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <Arduino.h>
-#include <cstring>
 
 namespace esphome {
 namespace i2c {
@@ -23,6 +23,7 @@ void ArduinoI2CBus::setup() {
   } else {
     wire_ = new TwoWire(next_bus_num);  // NOLINT(cppcoreguidelines-owning-memory)
   }
+  this->port_ = next_bus_num;
   next_bus_num++;
 #elif defined(USE_ESP8266)
   wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)

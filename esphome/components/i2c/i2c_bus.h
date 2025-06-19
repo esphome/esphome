@@ -1,6 +1,6 @@
 #pragma once
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -106,6 +106,12 @@ class I2CBus {
   }
   std::vector<std::pair<uint8_t, bool>> scan_results_;  ///< array containing scan results
   bool scan_{false};                                    ///< Should we scan ? Can be set in the yaml
+};
+
+class InternalI2CBus : public I2CBus {
+  /// @brief Returns the I2C port number.
+  /// @return the port number of the internal I2C bus
+  virtual int get_port() const = 0;
 };
 
 }  // namespace i2c
