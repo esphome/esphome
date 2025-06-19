@@ -1,9 +1,9 @@
 #ifdef USE_ESP32
 
 #include "esp32_camera.h"
-#include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 #include <freertos/task.h>
 
@@ -15,6 +15,12 @@ static const char *const TAG = "esp32_camera";
 /* ---------------- public API (derivated) ---------------- */
 void ESP32Camera::setup() {
   global_esp32_camera = this;
+
+#ifdef USE_I2C
+  if (this->i2c_bus_ != nullptr) {
+    this->config_.sccb_i2c_port = this->i2c_bus_->get_port();
+  }
+#endif
 
   /* initialize time to now */
   this->last_update_ = millis();
@@ -246,6 +252,13 @@ void ESP32Camera::set_i2c_pins(uint8_t sda, uint8_t scl) {
   this->config_.pin_sccb_sda = sda;
   this->config_.pin_sccb_scl = scl;
 }
+#ifdef USE_I2C
+void ESP32Camera::set_i2c_id(i2c::InternalI2CBus *i2c_bus) {
+  this->i2c_bus_ = i2c_bus;
+  this->config_.pin_sccb_sda = -1;
+  this->config_.pin_sccb_scl = -1;
+}
+#endif  // USE_I2C
 void ESP32Camera::set_reset_pin(uint8_t pin) { this->config_.pin_reset = pin; }
 void ESP32Camera::set_power_down_pin(uint8_t pin) { this->config_.pin_pwdn = pin; }
 
