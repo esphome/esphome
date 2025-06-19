@@ -129,7 +129,7 @@ class ESPBTDeviceListener {
   ESP32BLETracker *parent_{nullptr};
 };
 
-enum class ClientState {
+enum class ClientState : uint8_t {
   // Connection is allocated
   INIT,
   // Client is disconnecting
@@ -165,7 +165,7 @@ enum class ScannerState {
   STOPPED,
 };
 
-enum class ConnectionType {
+enum class ConnectionType : uint8_t {
   // The default connection type, we hold all the services in ram
   // for the duration of the connection.
   V1,
@@ -193,15 +193,19 @@ class ESPBTClient : public ESPBTDeviceListener {
     }
   }
   ClientState state() const { return state_; }
-  int app_id;
+
+  // Memory optimized layout
+  uint8_t app_id;  // App IDs are small integers assigned sequentially
 
  protected:
+  // Group 1: 1-byte types
   ClientState state_{ClientState::INIT};
   // want_disconnect_ is set to true when a disconnect is requested
   // while the client is connecting. This is used to disconnect the
   // client as soon as we get the connection id (conn_id_) from the
   // ESP_GATTC_OPEN_EVT event.
   bool want_disconnect_{false};
+  // 2 bytes used, 2 bytes padding
 };
 
 class ESP32BLETracker : public Component,
@@ -262,7 +266,7 @@ class ESP32BLETracker : public Component,
   /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
   void set_scanner_state_(ScannerState state);
 
-  int app_id_{0};
+  uint8_t app_id_{0};
 
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;

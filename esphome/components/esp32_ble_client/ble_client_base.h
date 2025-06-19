@@ -96,20 +96,33 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void set_state(espbt::ClientState st) override;
 
  protected:
-  int gattc_if_;
-  esp_bd_addr_t remote_bda_;
-  esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
-  uint16_t conn_id_{UNSET_CONN_ID};
+  // Memory optimized layout for 32-bit systems
+  // Group 1: 8-byte types
   uint64_t address_{0};
-  bool auto_connect_{false};
+
+  // Group 2: Container types (grouped for memory optimization)
   std::string address_str_{};
-  uint8_t connection_index_;
-  int16_t service_count_{0};
-  uint16_t mtu_{23};
-  bool paired_{false};
-  espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
   std::vector<BLEService *> services_;
+
+  // Group 3: 4-byte types
+  int gattc_if_;
   esp_gatt_status_t status_{ESP_GATT_OK};
+
+  // Group 4: Arrays (6 bytes)
+  esp_bd_addr_t remote_bda_;
+
+  // Group 5: 2-byte types
+  uint16_t conn_id_{UNSET_CONN_ID};
+  uint16_t mtu_{23};
+
+  // Group 6: 1-byte types and small enums
+  esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
+  espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
+  uint8_t connection_index_;
+  uint8_t service_count_{0};  // ESP32 has max handles < 255, typical devices have < 50 services
+  bool auto_connect_{false};
+  bool paired_{false};
+  // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
 };
