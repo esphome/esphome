@@ -959,36 +959,35 @@ def build_message_type(
         prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
         protected_content.insert(0, prot)
 
-    o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+    # Only generate encode method if there are fields to encode
     if encode:
+        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} "
         else:
             o += "\n"
             o += indent("\n".join(encode)) + "\n"
-    o += "}\n"
-    cpp += o
-    prot = "void encode(ProtoWriteBuffer buffer) const override;"
-    public_content.append(prot)
+        o += "}\n"
+        cpp += o
+        prot = "void encode(ProtoWriteBuffer buffer) const override;"
+        public_content.append(prot)
+    # If no fields to encode, the default implementation in ProtoMessage will be used
 
-    # Add calculate_size method
-    o = f"void {desc.name}::calculate_size(uint32_t &total_size) const {{"
-
-    # Add a check for empty/default objects to short-circuit the calculation
-    # Only add this optimization if we have fields to check
+    # Add calculate_size method only if there are fields
     if size_calc:
+        o = f"void {desc.name}::calculate_size(uint32_t &total_size) const {{"
         # For a single field, just inline it for simplicity
         if len(size_calc) == 1 and len(size_calc[0]) + len(o) + 3 < 120:
             o += f" {size_calc[0]} "
         else:
-            # For multiple fields, add a short-circuit check
+            # For multiple fields
             o += "\n"
-            # Performance optimization: add all the size calculations
             o += indent("\n".join(size_calc)) + "\n"
-    o += "}\n"
-    cpp += o
-    prot = "void calculate_size(uint32_t &total_size) const override;"
-    public_content.append(prot)
+        o += "}\n"
+        cpp += o
+        prot = "void calculate_size(uint32_t &total_size) const override;"
+        public_content.append(prot)
+    # If no fields to calculate size for, the default implementation in ProtoMessage will be used
 
     o = f"void {desc.name}::dump_to(std::string &out) const {{"
     if dump:

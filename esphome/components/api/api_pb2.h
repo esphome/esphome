@@ -357,8 +357,6 @@ class DisconnectRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "disconnect_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -372,8 +370,6 @@ class DisconnectResponse : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "disconnect_response"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -387,8 +383,6 @@ class PingRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "ping_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -402,8 +396,6 @@ class PingResponse : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "ping_response"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -417,8 +409,6 @@ class DeviceInfoRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "device_info_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -468,8 +458,6 @@ class ListEntitiesRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -483,8 +471,6 @@ class ListEntitiesDoneResponse : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_done_response"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -498,8 +484,6 @@ class SubscribeStatesRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "subscribe_states_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1011,8 +995,6 @@ class SubscribeHomeassistantServicesRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "subscribe_homeassistant_services_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1061,8 +1043,6 @@ class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "subscribe_home_assistant_states_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1115,8 +1095,6 @@ class GetTimeRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "get_time_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2117,8 +2095,6 @@ class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "subscribe_bluetooth_connections_free_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2244,8 +2220,6 @@ class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "unsubscribe_bluetooth_le_advertisements_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2512,8 +2486,6 @@ class VoiceAssistantConfigurationRequest : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "voice_assistant_configuration_request"; }
 #endif
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

@@ -327,9 +327,11 @@ class ProtoWriteBuffer {
 class ProtoMessage {
  public:
   virtual ~ProtoMessage() = default;
-  virtual void encode(ProtoWriteBuffer buffer) const = 0;
+  // Default implementation for messages with no fields
+  virtual void encode(ProtoWriteBuffer buffer) const {}
   void decode(const uint8_t *buffer, size_t length);
-  virtual void calculate_size(uint32_t &total_size) const = 0;
+  // Default implementation for messages with no fields
+  virtual void calculate_size(uint32_t &total_size) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
   std::string dump() const;
   virtual void dump_to(std::string &out) const = 0;
