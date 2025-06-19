@@ -1,9 +1,9 @@
 #include "waveshare_epaper.h"
+#include <bitset>
+#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
-#include <bitset>
 
 namespace esphome {
 namespace waveshare_epaper {
@@ -185,7 +185,7 @@ void WaveshareEPaper7C::setup() {
   this->initialize();
 }
 void WaveshareEPaper7C::init_internal_7c_(uint32_t buffer_length) {
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
 
   for (int i = 0; i < NUM_BUFFERS; i++) {
@@ -2054,7 +2054,7 @@ void GDEW029T5::initialize() {
     this->deep_sleep_between_updates_ = true;
 
   // old buffer for partial update
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->old_buffer_ = allocator.allocate(this->get_buffer_length_());
   if (this->old_buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate old buffer for display!");
@@ -2199,7 +2199,7 @@ void GDEW029T5::dump_config() {
 
 void GDEW0154M09::initialize() {
   this->init_internal_();
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->lastbuff_ = allocator.allocate(this->get_buffer_length_());
   if (this->lastbuff_ != nullptr) {
     memset(this->lastbuff_, 0xff, sizeof(uint8_t) * this->get_buffer_length_());

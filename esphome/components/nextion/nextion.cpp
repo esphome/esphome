@@ -1,8 +1,8 @@
 #include "nextion.h"
-#include "esphome/core/util.h"
-#include "esphome/core/log.h"
-#include "esphome/core/application.h"
 #include <cinttypes>
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+#include "esphome/core/util.h"
 
 namespace esphome {
 namespace nextion {
@@ -1003,7 +1003,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   }
 #endif
 
-  ExternalRAMAllocator<nextion::NextionQueue> allocator(ExternalRAMAllocator<nextion::NextionQueue>::ALLOW_FAILURE);
+  RAMAllocator<nextion::NextionQueue> allocator;
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);
   if (nextion_queue == nullptr) {
     ESP_LOGW(TAG, "Queue alloc failed");
@@ -1159,7 +1159,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   }
 #endif
 
-  ExternalRAMAllocator<nextion::NextionQueue> allocator(ExternalRAMAllocator<nextion::NextionQueue>::ALLOW_FAILURE);
+  RAMAllocator<nextion::NextionQueue> allocator;
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);
   if (nextion_queue == nullptr) {
     ESP_LOGW(TAG, "Queue alloc failed");
@@ -1191,7 +1191,7 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->ignore_is_setup_) || this->is_sleeping())
     return;
 
-  ExternalRAMAllocator<nextion::NextionQueue> allocator(ExternalRAMAllocator<nextion::NextionQueue>::ALLOW_FAILURE);
+  RAMAllocator<nextion::NextionQueue> allocator;
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);
   if (nextion_queue == nullptr) {
     ESP_LOGW(TAG, "Queue alloc failed");
