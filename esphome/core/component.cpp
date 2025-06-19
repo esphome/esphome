@@ -148,10 +148,12 @@ void Component::mark_failed() {
   App.disable_component_loop_(this);
 }
 void Component::disable_loop() {
-  ESP_LOGD(TAG, "%s loop disabled", this->get_component_source());
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= COMPONENT_STATE_LOOP_DONE;
-  App.disable_component_loop_(this);
+  if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
+    ESP_LOGD(TAG, "%s loop disabled", this->get_component_source());
+    this->component_state_ &= ~COMPONENT_STATE_MASK;
+    this->component_state_ |= COMPONENT_STATE_LOOP_DONE;
+    App.disable_component_loop_(this);
+  }
 }
 void Component::enable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
@@ -160,6 +162,19 @@ void Component::enable_loop() {
     this->component_state_ |= COMPONENT_STATE_LOOP;
     App.enable_component_loop_(this);
   }
+}
+void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
+  // This method is thread and ISR-safe because:
+  // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
+  // 2. No read-modify-write operations that could be interrupted
+  // 3. No memory allocation, object construction, or function calls
+  // 4. IRAM_ATTR ensures code is in IRAM, not flash (required for ISR execution)
+  // 5. Components are never destroyed, so no use-after-free concerns
+  // 6. App is guaranteed to be initialized before any ISR could fire
+  // 7. Multiple ISR/thread calls are safe - just sets the same flags to true
+  // 8. Race condition with main loop is handled by clearing flag before processing
+  this->pending_enable_loop_ = true;
+  App.has_pending_enable_loop_requests_ = true;
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {

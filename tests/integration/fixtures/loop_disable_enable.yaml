@@ -35,6 +35,11 @@ loop_test_component:
       test_redundant_operations: true
       disable_after: 10
 
+  # ISR test component that uses enable_loop_soon_any_context
+  isr_components:
+    - id: isr_test
+      name: "isr_test"
+
 # Interval to re-enable the self_disable_10 component after some time
 interval:
   - interval: 0.5s

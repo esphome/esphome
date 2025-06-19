@@ -97,6 +97,20 @@ void Application::loop() {
   // Feed WDT with time
   this->feed_wdt(last_op_end_time);
 
+  // Process any pending enable_loop requests from ISRs
+  // This must be done before marking in_loop_ = true to avoid race conditions
+  if (this->has_pending_enable_loop_requests_) {
+    // Clear flag BEFORE processing to avoid race condition
+    // If ISR sets it during processing, we'll catch it next loop iteration
+    // This is safe because:
+    // 1. Each component has its own pending_enable_loop_ flag that we check
+    // 2. If we can't process a component (wrong state), enable_pending_loops_()
+    //    will set this flag back to true
+    // 3. Any new ISR requests during processing will set the flag again
+    this->has_pending_enable_loop_requests_ = false;
+    this->enable_pending_loops_();
+  }
+
   // Mark that we're in the loop for safe reentrant modifications
   this->in_loop_ = true;
 
@@ -286,23 +300,81 @@ void Application::disable_component_loop_(Component *component) {
   }
 }
 
+void Application::activate_looping_component_(uint16_t index) {
+  // Helper to move component from inactive to active section
+  if (index != this->looping_components_active_end_) {
+    std::swap(this->looping_components_[index], this->looping_components_[this->looping_components_active_end_]);
+  }
+  this->looping_components_active_end_++;
+}
+
 void Application::enable_component_loop_(Component *component) {
-  // This method must be reentrant - components can re-enable themselves during their own loop() call
-  // Single pass through all components to find and move if needed
-  // With typical 10-30 components, O(n) is faster than maintaining a map
+  // This method is only called when component state is LOOP_DONE, so we know
+  // the component must be in the inactive section (if it exists in looping_components_)
+  // Only search the inactive portion for better performance
+  // With typical 0-5 inactive components, O(k) is much faster than O(n)
   const uint16_t size = this->looping_components_.size();
-  for (uint16_t i = 0; i < size; i++) {
+  for (uint16_t i = this->looping_components_active_end_; i < size; i++) {
     if (this->looping_components_[i] == component) {
-      if (i < this->looping_components_active_end_) {
-        return;  // Already active
-      }
       // Found in inactive section - move to active
-      if (i != this->looping_components_active_end_) {
-        std::swap(this->looping_components_[i], this->looping_components_[this->looping_components_active_end_]);
-      }
-      this->looping_components_active_end_++;
+      this->activate_looping_component_(i);
       return;
     }
+  }
+  // Component not found in looping_components_ - this is normal for components
+  // that don't have loop() or were not included in the partitioned vector
+}
+
+void Application::enable_pending_loops_() {
+  // Process components that requested enable_loop from ISR context
+  // Only iterate through inactive looping_components_ (typically 0-5) instead of all components
+  //
+  // Race condition handling:
+  // 1. We check if component is already in LOOP state first - if so, just clear the flag
+  //    This handles reentrancy where enable_loop() was called between ISR and processing
+  // 2. We only clear pending_enable_loop_ after checking state, preventing lost requests
+  // 3. If any components aren't in LOOP_DONE state, we set has_pending_enable_loop_requests_
+  //    back to true to ensure we check again next iteration
+  // 4. ISRs can safely set flags at any time - worst case is we process them next iteration
+  // 5. The global flag (has_pending_enable_loop_requests_) is cleared before this method,
+  //    so any ISR that fires during processing will be caught in the next loop
+  const uint16_t size = this->looping_components_.size();
+  bool has_pending = false;
+
+  for (uint16_t i = this->looping_components_active_end_; i < size; i++) {
+    Component *component = this->looping_components_[i];
+    if (!component->pending_enable_loop_) {
+      continue;  // Skip components without pending requests
+    }
+
+    // Check current state
+    uint8_t state = component->component_state_ & COMPONENT_STATE_MASK;
+
+    // If already in LOOP state, nothing to do - clear flag and continue
+    if (state == COMPONENT_STATE_LOOP) {
+      component->pending_enable_loop_ = false;
+      continue;
+    }
+
+    // If not in LOOP_DONE state, can't enable yet - keep flag set
+    if (state != COMPONENT_STATE_LOOP_DONE) {
+      has_pending = true;  // Keep tracking this component
+      continue;            // Keep the flag set - try again next iteration
+    }
+
+    // Clear the pending flag and enable the loop
+    component->pending_enable_loop_ = false;
+    ESP_LOGD(TAG, "%s loop enabled from ISR", component->get_component_source());
+    component->component_state_ &= ~COMPONENT_STATE_MASK;
+    component->component_state_ |= COMPONENT_STATE_LOOP;
+
+    // Move to active section
+    this->activate_looping_component_(i);
+  }
+
+  // If we couldn't process some requests, ensure we check again next iteration
+  if (has_pending) {
+    this->has_pending_enable_loop_requests_ = true;
   }
 }
 

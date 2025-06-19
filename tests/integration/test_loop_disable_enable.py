@@ -41,17 +41,25 @@ async def test_loop_disable_enable(
     redundant_disable_tested = asyncio.Event()
     # Event fired when self_disable_10 component is re-enabled and runs again (count > 10)
     self_disable_10_re_enabled = asyncio.Event()
+    # Events for ISR component testing
+    isr_component_disabled = asyncio.Event()
+    isr_component_re_enabled = asyncio.Event()
+    isr_component_pure_re_enabled = asyncio.Event()
 
     # Track loop counts for components
     self_disable_10_counts: list[int] = []
     normal_component_counts: list[int] = []
+    isr_component_counts: list[int] = []
 
     def on_log_line(line: str) -> None:
         """Process each log line from the process output."""
         # Strip ANSI color codes
         clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
 
-        if "loop_test_component" not in clean_line:
+        if (
+            "loop_test_component" not in clean_line
+            and "loop_test_isr_component" not in clean_line
+        ):
             return
 
         log_messages.append(clean_line)
@@ -91,6 +99,18 @@ async def test_loop_disable_enable(
             and "Testing disable when will be disabled" in clean_line
         ):
             redundant_disable_tested.set()
+
+        # ISR component events
+        elif "[isr_test]" in clean_line:
+            if "ISR component loop count:" in clean_line:
+                count = int(clean_line.split("ISR component loop count: ")[1])
+                isr_component_counts.append(count)
+            elif "Disabling after 5 loops" in clean_line:
+                isr_component_disabled.set()
+            elif "Running after ISR re-enable!" in clean_line:
+                isr_component_re_enabled.set()
+            elif "Running after pure ISR re-enable!" in clean_line:
+                isr_component_pure_re_enabled.set()
 
     # Write, compile and run the ESPHome device with log callback
     async with (
@@ -147,4 +167,41 @@ async def test_loop_disable_enable(
         later_self_disable_counts = [c for c in self_disable_10_counts if c > 10]
         assert later_self_disable_counts, (
             "self_disable_10 was re-enabled but did not run additional times"
+        )
+
+        # Test ISR component functionality
+        # Wait for ISR component to disable itself after 5 loops
+        try:
+            await asyncio.wait_for(isr_component_disabled.wait(), timeout=3.0)
+        except asyncio.TimeoutError:
+            pytest.fail("ISR component did not disable itself within 3 seconds")
+
+        # Verify it ran exactly 5 times before disabling
+        first_run_counts = [c for c in isr_component_counts if c <= 5]
+        assert len(first_run_counts) == 5, (
+            f"Expected 5 loops before disable, got {first_run_counts}"
+        )
+
+        # Wait for component to be re-enabled by periodic ISR simulation and run again
+        try:
+            await asyncio.wait_for(isr_component_re_enabled.wait(), timeout=2.0)
+        except asyncio.TimeoutError:
+            pytest.fail("ISR component was not re-enabled after ISR call")
+
+        # Verify it's running again after ISR enable
+        count_after_isr = len(isr_component_counts)
+        assert count_after_isr > 5, (
+            f"Component didn't run after ISR enable: got {count_after_isr} counts total"
+        )
+
+        # Wait for pure ISR enable (no main loop enable) to work
+        try:
+            await asyncio.wait_for(isr_component_pure_re_enabled.wait(), timeout=2.0)
+        except asyncio.TimeoutError:
+            pytest.fail("ISR component was not re-enabled by pure ISR call")
+
+        # Verify it ran after pure ISR enable
+        final_count = len(isr_component_counts)
+        assert final_count > 10, (
+            f"Component didn't run after pure ISR enable: got {final_count} counts total"
         )

@@ -577,6 +577,8 @@ class Application {
   // to ensure component state is properly updated along with the loop partition
   void disable_component_loop_(Component *component);
   void enable_component_loop_(Component *component);
+  void enable_pending_loops_();
+  void activate_looping_component_(uint16_t index);
 
   void feed_wdt_arch_();
 
@@ -682,6 +684,7 @@ class Application {
   uint32_t loop_interval_{16};
   size_t dump_config_at_{SIZE_MAX};
   uint8_t app_state_{0};
+  volatile bool has_pending_enable_loop_requests_{false};
   Component *current_component_{nullptr};
   uint32_t loop_component_start_time_{0};
 

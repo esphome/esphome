@@ -7,9 +7,13 @@ CODEOWNERS = ["@esphome/tests"]
 
 loop_test_component_ns = cg.esphome_ns.namespace("loop_test_component")
 LoopTestComponent = loop_test_component_ns.class_("LoopTestComponent", cg.Component)
+LoopTestISRComponent = loop_test_component_ns.class_(
+    "LoopTestISRComponent", cg.Component
+)
 
 CONF_DISABLE_AFTER = "disable_after"
 CONF_TEST_REDUNDANT_OPERATIONS = "test_redundant_operations"
+CONF_ISR_COMPONENTS = "isr_components"
 
 COMPONENT_CONFIG_SCHEMA = cv.Schema(
     {
@@ -20,10 +24,18 @@ COMPONENT_CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+ISR_COMPONENT_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(LoopTestISRComponent),
+        cv.Required(CONF_NAME): cv.string,
+    }
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LoopTestComponent),
         cv.Required(CONF_COMPONENTS): cv.ensure_list(COMPONENT_CONFIG_SCHEMA),
+        cv.Optional(CONF_ISR_COMPONENTS): cv.ensure_list(ISR_COMPONENT_CONFIG_SCHEMA),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -76,3 +88,9 @@ async def to_code(config):
                 comp_config[CONF_TEST_REDUNDANT_OPERATIONS]
             )
         )
+
+    # Create ISR test components
+    for isr_config in config.get(CONF_ISR_COMPONENTS, []):
+        var = cg.new_Pvariable(isr_config[CONF_ID])
+        await cg.register_component(var, isr_config)
+        cg.add(var.set_name(isr_config[CONF_NAME]))

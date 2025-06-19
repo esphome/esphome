@@ -171,6 +171,27 @@ class Component {
    */
   void enable_loop();
 
+  /** Thread and ISR-safe version of enable_loop() that can be called from any context.
+   *
+   * This method defers the actual enable via enable_pending_loops_ to the main loop,
+   * making it safe to call from ISR handlers, timer callbacks, other threads,
+   * or any interrupt context.
+   *
+   * @note The actual loop enabling will happen on the next main loop iteration.
+   * @note Only one pending enable request is tracked per component.
+   * @note There is no disable_loop_soon_any_context() on purpose - it would race
+   *       against enable calls and synchronization would get too complex
+   *       to provide a safe version that would work for each component.
+   *
+   *       Use disable_loop() from the main thread only.
+   *
+   *       If you need to disable the loop from ISR, carefully implement
+   *       it in the component itself, with an ISR safe approach, and call
+   *       disable_loop() in its next ::loop() iteration. Implementations
+   *       will need to carefully consider all possible race conditions.
+   */
+  void enable_loop_soon_any_context();
+
   bool is_failed() const;
 
   bool is_ready() const;
@@ -331,16 +352,18 @@ class Component {
   /// Cancel a defer callback using the specified name, name must not be empty.
   bool cancel_defer(const std::string &name);  // NOLINT
 
+  // Ordered for optimal packing on 32-bit systems
+  float setup_priority_override_{NAN};
+  const char *component_source_{nullptr};
+  const char *error_message_{nullptr};
+  uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
   /// State of this component - each bit has a purpose:
   /// Bits 0-1: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED)
   /// Bit 2: STATUS_LED_WARNING
   /// Bit 3: STATUS_LED_ERROR
   /// Bits 4-7: Unused - reserved for future expansion (50% of the bits are free)
   uint8_t component_state_{0x00};
-  float setup_priority_override_{NAN};
-  const char *component_source_{nullptr};
-  uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
-  const char *error_message_{nullptr};
+  volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 };
 
 /** This class simplifies creating components that periodically check a state.
