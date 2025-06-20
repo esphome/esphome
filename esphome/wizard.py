@@ -70,20 +70,6 @@ ESP32_CONFIG = """
 esp32:
   board: {board}
   framework:
-    type: arduino
-"""
-
-ESP32S2_CONFIG = """
-esp32:
-  board: {board}
-  framework:
-    type: esp-idf
-"""
-
-ESP32C3_CONFIG = """
-esp32:
-  board: {board}
-  framework:
     type: esp-idf
 """
 
@@ -105,8 +91,6 @@ rtl87xx:
 HARDWARE_BASE_CONFIGS = {
     "ESP8266": ESP8266_CONFIG,
     "ESP32": ESP32_CONFIG,
-    "ESP32S2": ESP32S2_CONFIG,
-    "ESP32C3": ESP32C3_CONFIG,
     "RP2040": RP2040_CONFIG,
     "BK72XX": BK72XX_CONFIG,
     "RTL87XX": RTL87XX_CONFIG,

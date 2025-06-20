@@ -20,8 +20,8 @@ permissions:
   contents: read
 
 env:
-  DEFAULT_PYTHON: "3.9"
-  PYUPGRADE_TARGET: "--py39-plus"
+  DEFAULT_PYTHON: "3.10"
+  PYUPGRADE_TARGET: "--py310-plus"
 
 concurrency:
   # yamllint disable-line rule:line-length
@@ -36,7 +36,7 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
@@ -68,7 +68,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -89,7 +89,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -110,7 +110,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -131,7 +131,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -152,7 +152,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -173,10 +173,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "3.9"
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -185,24 +185,24 @@ jobs:
           # Minimize CI resource usage
           # by only running the Python version
           # version used for docker images on Windows and macOS
+          - python-version: "3.13"
+            os: windows-latest
           - python-version: "3.12"
             os: windows-latest
           - python-version: "3.10"
             os: windows-latest
-          - python-version: "3.9"
-            os: windows-latest
+          - python-version: "3.13"
+            os: macOS-latest
           - python-version: "3.12"
             os: macOS-latest
           - python-version: "3.10"
-            os: macOS-latest
-          - python-version: "3.9"
             os: macOS-latest
     runs-on: ${{ matrix.os }}
     needs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -214,14 +214,14 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           ./venv/Scripts/activate
-          pytest -vv --cov-report=xml --tb=native tests
+          pytest -vv --cov-report=xml --tb=native -n auto tests
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --cov-report=xml --tb=native tests
+          pytest -vv --cov-report=xml --tb=native -n auto tests
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5.4.2
+        uses: codecov/codecov-action@v5.4.3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -232,7 +232,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -296,11 +296,11 @@ jobs:
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR
             pio_cache_key: tidy-zephyr
-            ignore_errors: true
+            ignore_errors: false
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -356,7 +356,7 @@ jobs:
       count: ${{ steps.list-components.outputs.count }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
         with:
           # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
           fetch-depth: 500
@@ -406,7 +406,7 @@ jobs:
           sudo apt-get install libsdl2-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -432,7 +432,7 @@ jobs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Split components into 20 groups
         id: split
         run: |
@@ -462,7 +462,7 @@ jobs:
           sudo apt-get install libsdl2-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:

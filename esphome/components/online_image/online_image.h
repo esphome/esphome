@@ -63,6 +63,13 @@ class OnlineImage : public PollingComponent,
     if (this->validate_url_(url)) {
       this->url_ = url;
     }
+    this->etag_ = "";
+    this->last_modified_ = "";
+  }
+
+  /** Add the request header */
+  template<typename V> void add_request_header(const std::string &header, V value) {
+    this->request_headers_.push_back(std::pair<std::string, TemplatableValue<std::string> >(header, value));
   }
 
   /**
@@ -86,7 +93,7 @@ class OnlineImage : public PollingComponent,
    */
   size_t resize_download_buffer(size_t size) { return this->download_buffer_.resize(size); }
 
-  void add_on_finished_callback(std::function<void()> &&callback);
+  void add_on_finished_callback(std::function<void(bool)> &&callback);
   void add_on_error_callback(std::function<void()> &&callback);
 
  protected:
@@ -131,7 +138,7 @@ class OnlineImage : public PollingComponent,
 
   void end_connection_();
 
-  CallbackManager<void()> download_finished_callback_{};
+  CallbackManager<void(bool)> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
 
   std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
@@ -150,6 +157,8 @@ class OnlineImage : public PollingComponent,
   image::Image *placeholder_{nullptr};
 
   std::string url_{""};
+
+  std::vector<std::pair<std::string, TemplatableValue<std::string> > > request_headers_;
 
   /** width requested on configuration, or 0 if non specified. */
   const int fixed_width_;
@@ -173,6 +182,14 @@ class OnlineImage : public PollingComponent,
    * decoded images).
    */
   int buffer_height_;
+  /**
+   * The value of the ETag HTTP header provided in the last response.
+   */
+  std::string etag_ = "";
+  /**
+   * The value of the Last-Modified HTTP header provided in the last response.
+   */
+  std::string last_modified_ = "";
 
   time_t start_time_;
 
@@ -202,10 +219,10 @@ template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
   OnlineImage *parent_;
 };
 
-class DownloadFinishedTrigger : public Trigger<> {
+class DownloadFinishedTrigger : public Trigger<bool> {
  public:
   explicit DownloadFinishedTrigger(OnlineImage *parent) {
-    parent->add_on_finished_callback([this]() { this->trigger(); });
+    parent->add_on_finished_callback([this](bool cached) { this->trigger(cached); });
   }
 };
 

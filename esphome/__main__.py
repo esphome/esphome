@@ -134,6 +134,7 @@ def get_port_type(port):
 
 
 def run_miniterm(config, port, args):
+    from aioesphomeapi import LogParser
     import serial
 
     from esphome import platformio_api
@@ -158,6 +159,7 @@ def run_miniterm(config, port, args):
         ser.dtr = False
         ser.rts = False
 
+    parser = LogParser()
     tries = 0
     while tries < 5:
         try:
@@ -174,8 +176,7 @@ def run_miniterm(config, port, args):
                         .decode("utf8", "backslashreplace")
                     )
                     time_str = datetime.now().time().strftime("[%H:%M:%S]")
-                    message = time_str + line
-                    safe_print(message)
+                    safe_print(parser.parse_line(line, time_str))
 
                     backtrace_state = platformio_api.process_stacktrace(
                         config, line, backtrace_state=backtrace_state
@@ -593,15 +594,20 @@ def command_update_all(args):
         middle_text = f" {middle_text} "
         width = len(click.unstyle(middle_text))
         half_line = "=" * ((twidth - width) // 2)
-        click.echo(f"{half_line}{middle_text}{half_line}")
+        safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print(f"Updating {color(AnsiFore.CYAN, f)}")
-        print("-" * twidth)
-        print()
-        rc = run_external_process(
-            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
-        )
+        safe_print(f"Updating {color(AnsiFore.CYAN, f)}")
+        safe_print("-" * twidth)
+        safe_print()
+        if CORE.dashboard:
+            rc = run_external_process(
+                "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
+            )
+        else:
+            rc = run_external_process(
+                "esphome", "run", f, "--no-logs", "--device", "OTA"
+            )
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {f}")
             success[f] = True
@@ -609,17 +615,17 @@ def command_update_all(args):
             print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {f}")
             success[f] = False
 
-        print()
-        print()
-        print()
+        safe_print()
+        safe_print()
+        safe_print()
 
     print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
         if success[f]:
-            print(f"  - {f}: {color(AnsiFore.GREEN, 'SUCCESS')}")
+            safe_print(f"  - {f}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
-            print(f"  - {f}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
+            safe_print(f"  - {f}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 

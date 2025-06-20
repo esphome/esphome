@@ -18,12 +18,12 @@
 #endif
 #endif
 
-#include "freertos/FreeRTOS.h"
 #include "esp_idf_version.h"
+#include "freertos/FreeRTOS.h"
 
+#include <fcntl.h>
 #include <cstdint>
 #include <cstdio>
-#include <fcntl.h>
 
 #endif  // USE_ESP_IDF
 
@@ -174,11 +174,11 @@ void Logger::pre_setup() {
 #ifdef USE_ESP_IDF
 void HOT Logger::write_msg_(const char *msg) {
   if (
-#if defined(USE_ESP32_VARIANT_ESP32S2)
+#if defined(USE_LOGGER_USB_CDC) && !defined(USE_LOGGER_USB_SERIAL_JTAG)
       this->uart_ == UART_SELECTION_USB_CDC
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
+#elif defined(USE_LOGGER_USB_SERIAL_JTAG) && !defined(USE_LOGGER_USB_CDC)
       this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#elif defined(USE_ESP32_VARIANT_ESP32S3)
+#elif defined(USE_LOGGER_USB_CDC) && defined(USE_LOGGER_USB_SERIAL_JTAG)
       this->uart_ == UART_SELECTION_USB_CDC || this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
 #else
       /* DISABLES CODE */ (false)  // NOLINT

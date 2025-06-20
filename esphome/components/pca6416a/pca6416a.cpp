@@ -24,7 +24,7 @@ enum PCA6416AGPIORegisters {
 static const char *const TAG = "pca6416a";
 
 void PCA6416AComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCA6416A...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // Test to see if device exists
   uint8_t value;
   if (!this->read_register_(PCA6416A_INPUT0, &value)) {
@@ -60,7 +60,7 @@ void PCA6416AComponent::dump_config() {
   }
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PCA6416A failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

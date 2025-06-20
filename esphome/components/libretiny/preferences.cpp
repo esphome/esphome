@@ -1,8 +1,8 @@
 #ifdef USE_LIBRETINY
 
-#include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include <flashdb.h>
 #include <cstring>
 #include <vector>
@@ -101,7 +101,7 @@ class LibreTinyPreferences : public ESPPreferences {
     if (s_pending_save.empty())
       return true;
 
-    ESP_LOGD(TAG, "Saving %d preferences to flash...", s_pending_save.size());
+    ESP_LOGV(TAG, "Saving %d items...", s_pending_save.size());
     // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     fdb_err_t last_err = FDB_NO_ERR;
@@ -129,11 +129,10 @@ class LibreTinyPreferences : public ESPPreferences {
       }
       s_pending_save.erase(s_pending_save.begin() + i);
     }
-    ESP_LOGD(TAG, "Saving %d preferences to flash: %d cached, %d written, %d failed", cached + written + failed, cached,
-             written, failed);
+    ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
     if (failed > 0) {
-      ESP_LOGE(TAG, "Error saving %d preferences to flash. Last error=%d for key=%s", failed, last_err,
-               last_key.c_str());
+      ESP_LOGE(TAG, "Writing %d items failed. Last error=%d for key=%s", failed, last_err, last_key.c_str());
     }
 
     return failed == 0;
@@ -158,7 +157,7 @@ class LibreTinyPreferences : public ESPPreferences {
   }
 
   bool reset() override {
-    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    ESP_LOGD(TAG, "Erasing storage");
     s_pending_save.clear();
 
     fdb_kv_set_default(&db);

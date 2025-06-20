@@ -66,5 +66,5 @@ def test_text_config_lamda_is_set(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert "it_4->set_template([=]() -> optional<std::string> {" in main_cpp
+    assert "it_4->set_template([=]() -> esphome::optional<std::string> {" in main_cpp
     assert 'return std::string{"Hello"};' in main_cpp

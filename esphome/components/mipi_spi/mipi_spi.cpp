@@ -5,7 +5,7 @@ namespace esphome {
 namespace mipi_spi {
 
 void MipiSpi::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MIPI SPI");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
   if (this->dc_pin_ != nullptr) {
     this->dc_pin_->setup();
@@ -447,21 +447,28 @@ void MipiSpi::write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
 }
 
 void MipiSpi::dump_config() {
-  ESP_LOGCONFIG(TAG, "MIPI_SPI Display");
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
+  ESP_LOGCONFIG(TAG,
+                "MIPI_SPI Display\n"
+                "  Model: %s\n"
+                "  Width: %u\n"
+                "  Height: %u",
+                this->model_, this->width_, this->height_);
   if (this->offset_width_ != 0)
     ESP_LOGCONFIG(TAG, "  Offset width: %u", this->offset_width_);
   if (this->offset_height_ != 0)
     ESP_LOGCONFIG(TAG, "  Offset height: %u", this->offset_height_);
-  ESP_LOGCONFIG(TAG, "  Swap X/Y: %s", YESNO(this->madctl_ & MADCTL_MV));
-  ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->madctl_ & (MADCTL_MX | MADCTL_XFLIP)));
-  ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->madctl_ & (MADCTL_MY | MADCTL_YFLIP)));
-  ESP_LOGCONFIG(TAG, "  Color depth: %d bits", this->color_depth_ == display::COLOR_BITNESS_565 ? 16 : 8);
-  ESP_LOGCONFIG(TAG, "  Invert colors: %s", YESNO(this->invert_colors_));
-  ESP_LOGCONFIG(TAG, "  Color order: %s", this->madctl_ & MADCTL_BGR ? "BGR" : "RGB");
-  ESP_LOGCONFIG(TAG, "  Pixel mode: %s", this->pixel_mode_ == PIXEL_MODE_18 ? "18bit" : "16bit");
+  ESP_LOGCONFIG(TAG,
+                "  Swap X/Y: %s\n"
+                "  Mirror X: %s\n"
+                "  Mirror Y: %s\n"
+                "  Color depth: %d bits\n"
+                "  Invert colors: %s\n"
+                "  Color order: %s\n"
+                "  Pixel mode: %s",
+                YESNO(this->madctl_ & MADCTL_MV), YESNO(this->madctl_ & (MADCTL_MX | MADCTL_XFLIP)),
+                YESNO(this->madctl_ & (MADCTL_MY | MADCTL_YFLIP)),
+                this->color_depth_ == display::COLOR_BITNESS_565 ? 16 : 8, YESNO(this->invert_colors_),
+                this->madctl_ & MADCTL_BGR ? "BGR" : "RGB", this->pixel_mode_ == PIXEL_MODE_18 ? "18bit" : "16bit");
   if (this->brightness_.has_value())
     ESP_LOGCONFIG(TAG, "  Brightness: %u", this->brightness_.value());
   if (this->spi_16_)
@@ -472,9 +479,11 @@ void MipiSpi::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
-  ESP_LOGCONFIG(TAG, "  SPI Mode: %d", this->mode_);
-  ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", static_cast<unsigned>(this->data_rate_ / 1000000));
-  ESP_LOGCONFIG(TAG, "  SPI Bus width: %d", this->bus_width_);
+  ESP_LOGCONFIG(TAG,
+                "  SPI Mode: %d\n"
+                "  SPI Data rate: %dMHz\n"
+                "  SPI Bus width: %d",
+                this->mode_, static_cast<unsigned>(this->data_rate_ / 1000000), this->bus_width_);
 }
 
 }  // namespace mipi_spi

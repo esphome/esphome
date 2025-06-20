@@ -5,8 +5,8 @@
 #include <string>
 #include <cstdio>
 #include <array>
-#include "esphome/core/macros.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/macros.h"
 
 #if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
@@ -56,6 +56,7 @@ struct IPAddress {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
   }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
+  IPAddress(const char *in_address) { ipaddr_aton(in_address, &ip_addr_); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));

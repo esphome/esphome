@@ -15,7 +15,7 @@ static const uint8_t MS5611_CMD_CONV_D2 = 0x50;
 static const uint8_t MS5611_CMD_READ_PROM = 0xA2;
 
 void MS5611Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MS5611...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_bytes(MS5611_CMD_RESET, nullptr, 0)) {
     this->mark_failed();
     return;
@@ -32,7 +32,7 @@ void MS5611Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS5611:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MS5611 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

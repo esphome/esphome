@@ -8,8 +8,8 @@ namespace sdl {
 void Sdl::setup() {
   ESP_LOGD(TAG, "Starting setup");
   SDL_Init(SDL_INIT_VIDEO);
-  this->window_ = SDL_CreateWindow(App.get_name().c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                                   this->width_, this->height_, SDL_WINDOW_RESIZABLE);
+  this->window_ = SDL_CreateWindow(App.get_name().c_str(), this->pos_x_, this->pos_y_, this->width_, this->height_,
+                                   this->window_options_);
   this->renderer_ = SDL_CreateRenderer(this->window_, -1, SDL_RENDERER_SOFTWARE);
   SDL_RenderSetLogicalSize(this->renderer_, this->width_, this->height_);
   this->texture_ =

@@ -3,7 +3,6 @@ import logging
 import os
 from pathlib import Path
 import re
-from typing import Union
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
@@ -108,7 +107,10 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
         return True
     if old.build_path != new.build_path:
         return True
-    if old.loaded_integrations != new.loaded_integrations:
+    if (
+        old.loaded_integrations != new.loaded_integrations
+        or old.loaded_platforms != new.loaded_platforms
+    ):
         if new.core_platform == PLATFORM_ESP32:
             from esphome.components.esp32 import FRAMEWORK_ESP_IDF
 
@@ -132,7 +134,7 @@ def update_storage_json():
     new.save(path)
 
 
-def format_ini(data: dict[str, Union[str, list[str]]]) -> str:
+def format_ini(data: dict[str, str | list[str]]) -> str:
     content = ""
     for key, value in sorted(data.items()):
         if isinstance(value, list):
@@ -150,6 +152,9 @@ def get_ini_content():
     )
     # Sort to avoid changing build flags order
     CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
+
+    # Sort to avoid changing build unflags order
+    CORE.add_platformio_option("build_unflags", sorted(CORE.build_unflags))
 
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"

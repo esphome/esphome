@@ -25,9 +25,11 @@ static const size_t MCLK_DIV_FRE = 256;
   }
 
 void ES7210::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES7210 audio ADC:");
-  ESP_LOGCONFIG(TAG, "  Bits Per Sample: %" PRIu8, this->bits_per_sample_);
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %" PRIu32, this->sample_rate_);
+  ESP_LOGCONFIG(TAG,
+                "ES7210 audio ADC:\n"
+                "  Bits Per Sample: %" PRIu8 "\n"
+                "  Sample Rate: %" PRIu32,
+                this->bits_per_sample_, this->sample_rate_);
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Failed to initialize");
@@ -36,7 +38,7 @@ void ES7210::dump_config() {
 }
 
 void ES7210::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ES7210...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Software reset
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0xff));

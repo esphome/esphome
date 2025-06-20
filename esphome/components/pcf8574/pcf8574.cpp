@@ -7,7 +7,7 @@ namespace pcf8574 {
 static const char *const TAG = "pcf8574";
 
 void PCF8574Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCF8574...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_gpio_()) {
     ESP_LOGE(TAG, "PCF8574 not available under 0x%02X", this->address_);
     this->mark_failed();
@@ -22,7 +22,7 @@ void PCF8574Component::dump_config() {
   LOG_I2C_DEVICE(this)
   ESP_LOGCONFIG(TAG, "  Is PCF8575: %s", YESNO(this->pcf8575_));
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PCF8574 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 bool PCF8574Component::digital_read(uint8_t pin) {

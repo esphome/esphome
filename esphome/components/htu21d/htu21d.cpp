@@ -18,7 +18,7 @@ static const uint8_t HTU21D_READHEATER_REG_CMD = 0x11;  /**< Read Heater Control
 static const uint8_t HTU21D_REG_HTRE_BIT = 0x02;        /**< Control Register Heater Bit */
 
 void HTU21DComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up HTU21D...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (!this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)) {
     this->mark_failed();
@@ -32,7 +32,7 @@ void HTU21DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU21D:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with HTU21D failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);

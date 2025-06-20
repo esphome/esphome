@@ -7,7 +7,7 @@ import functools
 import heapq
 import logging
 import re
-from typing import Any, Union
+from typing import Any
 
 import voluptuous as vol
 
@@ -63,7 +63,7 @@ def iter_component_configs(config):
                 yield p_name, platform, p_config
 
 
-ConfigPath = list[Union[str, int]]
+ConfigPath = list[str | int]
 path_context = contextvars.ContextVar("Config path")
 
 
@@ -389,6 +389,7 @@ class LoadValidationStep(ConfigValidationStep):
                 result.add_str_error(f"Platform not found: '{p_domain}'", path)
                 continue
             CORE.loaded_integrations.add(p_name)
+            CORE.loaded_platforms.add(f"{self.domain}/{p_name}")
 
             # Process AUTO_LOAD
             for load in platform.auto_load:

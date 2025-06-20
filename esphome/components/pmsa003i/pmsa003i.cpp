@@ -1,6 +1,6 @@
 #include "pmsa003i.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <cstring>
 
 namespace esphome {
@@ -19,7 +19,7 @@ static const uint8_t START_CHARACTER_2 = 0x4D;
 static const uint8_t READ_DATA_RETRY_COUNT = 3;
 
 void PMSA003IComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up pmsa003i...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   PM25AQIData data;
   bool successful_read = this->read_data_(&data);

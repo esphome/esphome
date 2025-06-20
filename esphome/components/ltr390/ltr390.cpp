@@ -148,7 +148,7 @@ void LTR390Component::read_mode_(int mode_index) {
 }
 
 void LTR390Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ltr390...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // reset
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
@@ -187,10 +187,13 @@ void LTR390Component::setup() {
 
 void LTR390Component::dump_config() {
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  ALS Gain: X%.0f", GAINVALUES[this->gain_als_]);
-  ESP_LOGCONFIG(TAG, "  ALS Resolution: %u-bit", RESOLUTION_BITS[this->res_als_]);
-  ESP_LOGCONFIG(TAG, "  UV Gain: X%.0f", GAINVALUES[this->gain_uv_]);
-  ESP_LOGCONFIG(TAG, "  UV Resolution: %u-bit", RESOLUTION_BITS[this->res_uv_]);
+  ESP_LOGCONFIG(TAG,
+                "  ALS Gain: X%.0f\n"
+                "  ALS Resolution: %u-bit\n"
+                "  UV Gain: X%.0f\n"
+                "  UV Resolution: %u-bit",
+                GAINVALUES[this->gain_als_], RESOLUTION_BITS[this->res_als_], GAINVALUES[this->gain_uv_],
+                RESOLUTION_BITS[this->res_uv_]);
 }
 
 void LTR390Component::update() {

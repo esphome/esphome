@@ -1,7 +1,7 @@
 #include "remote_receiver.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
 
@@ -31,7 +31,7 @@ void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverCompone
 }
 
 void RemoteReceiverComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Remote Receiver...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
   auto &s = this->store_;
   s.filter_us = this->filter_us_;
@@ -63,11 +63,14 @@ void RemoteReceiverComponent::dump_config() {
     ESP_LOGW(TAG, "Remote Receiver Signal starts with a HIGH value. Usually this means you have to "
                   "invert the signal using 'inverted: True' in the pin schema!");
   }
-  ESP_LOGCONFIG(TAG, "  Buffer Size: %u", this->buffer_size_);
-  ESP_LOGCONFIG(TAG, "  Tolerance: %u%s", this->tolerance_,
-                (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%");
-  ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);
-  ESP_LOGCONFIG(TAG, "  Signal is done after %u us of no changes", this->idle_us_);
+  ESP_LOGCONFIG(TAG,
+                "  Buffer Size: %u\n"
+                "  Tolerance: %u%s\n"
+                "  Filter out pulses shorter than: %u us\n"
+                "  Signal is done after %u us of no changes",
+                this->buffer_size_, this->tolerance_,
+                (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%", this->filter_us_,
+                this->idle_us_);
 }
 
 void RemoteReceiverComponent::loop() {

@@ -156,7 +156,7 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
 #endif  // HAS_PCNT
 
 void PulseCounterSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
     return;
@@ -171,9 +171,12 @@ void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
 void PulseCounterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Counter", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode]);
-  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode]);
-  ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %" PRIu32 " µs", this->storage_.filter_us);
+  ESP_LOGCONFIG(TAG,
+                "  Rising Edge: %s\n"
+                "  Falling Edge: %s\n"
+                "  Filtering pulses shorter than %" PRIu32 " µs",
+                EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode],
+                EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode], this->storage_.filter_us);
   LOG_UPDATE_INTERVAL(this);
 }
 

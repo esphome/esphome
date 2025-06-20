@@ -41,38 +41,47 @@ void FanCall::perform() {
 void FanCall::validate_() {
   auto traits = this->parent_.get_traits();
 
-  if (this->speed_.has_value())
+  if (this->speed_.has_value()) {
     this->speed_ = clamp(*this->speed_, 1, traits.supported_speed_count());
 
-  if (this->binary_state_.has_value() && *this->binary_state_) {
-    // when turning on, if neither current nor new speed available, set speed to 100%
-    if (traits.supports_speed() && !this->parent_.state && this->parent_.speed == 0 && !this->speed_.has_value()) {
-      this->speed_ = traits.supported_speed_count();
-    }
-  }
-
-  if (this->oscillating_.has_value() && !traits.supports_oscillation()) {
-    ESP_LOGW(TAG, "'%s' - This fan does not support oscillation!", this->parent_.get_name().c_str());
-    this->oscillating_.reset();
-  }
-
-  if (this->speed_.has_value() && !traits.supports_speed()) {
-    ESP_LOGW(TAG, "'%s' - This fan does not support speeds!", this->parent_.get_name().c_str());
-    this->speed_.reset();
-  }
-
-  if (this->direction_.has_value() && !traits.supports_direction()) {
-    ESP_LOGW(TAG, "'%s' - This fan does not support directions!", this->parent_.get_name().c_str());
-    this->direction_.reset();
+    // https://developers.home-assistant.io/docs/core/entity/fan/#preset-modes
+    // "Manually setting a speed must disable any set preset mode"
+    this->preset_mode_.clear();
   }
 
   if (!this->preset_mode_.empty()) {
     const auto &preset_modes = traits.supported_preset_modes();
     if (preset_modes.find(this->preset_mode_) == preset_modes.end()) {
-      ESP_LOGW(TAG, "'%s' - This fan does not support preset mode '%s'!", this->parent_.get_name().c_str(),
-               this->preset_mode_.c_str());
+      ESP_LOGW(TAG, "%s: Preset mode '%s' not supported", this->parent_.get_name().c_str(), this->preset_mode_.c_str());
       this->preset_mode_.clear();
     }
+  }
+
+  // when turning on...
+  if (!this->parent_.state && this->binary_state_.has_value() &&
+      *this->binary_state_
+      // ..,and no preset mode will be active...
+      && this->preset_mode_.empty() &&
+      this->parent_.preset_mode.empty()
+      // ...and neither current nor new speed is available...
+      && traits.supports_speed() && this->parent_.speed == 0 && !this->speed_.has_value()) {
+    // ...set speed to 100%
+    this->speed_ = traits.supported_speed_count();
+  }
+
+  if (this->oscillating_.has_value() && !traits.supports_oscillation()) {
+    ESP_LOGW(TAG, "%s: Oscillation not supported", this->parent_.get_name().c_str());
+    this->oscillating_.reset();
+  }
+
+  if (this->speed_.has_value() && !traits.supports_speed()) {
+    ESP_LOGW(TAG, "%s: Speed control not supported", this->parent_.get_name().c_str());
+    this->speed_.reset();
+  }
+
+  if (this->direction_.has_value() && !traits.supports_direction()) {
+    ESP_LOGW(TAG, "%s: Direction control not supported", this->parent_.get_name().c_str());
+    this->direction_.reset();
   }
 }
 
@@ -189,8 +198,10 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   auto traits = this->get_traits();
 
   if (traits.supports_speed()) {
-    ESP_LOGCONFIG(tag, "%s  Speed: YES", prefix);
-    ESP_LOGCONFIG(tag, "%s  Speed count: %d", prefix, traits.supported_speed_count());
+    ESP_LOGCONFIG(tag,
+                  "%s  Speed: YES\n"
+                  "%s  Speed count: %d",
+                  prefix, prefix, traits.supported_speed_count());
   }
   if (traits.supports_oscillation()) {
     ESP_LOGCONFIG(tag, "%s  Oscillation: YES", prefix);

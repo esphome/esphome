@@ -11,7 +11,7 @@ void TemplateSelect::setup() {
     return;
 
   std::string value;
-  ESP_LOGD(TAG, "Setting up Template Select");
+  ESP_LOGD(TAG, "Setting up");
   if (!this->restore_value_) {
     value = this->initial_option_;
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());
@@ -66,9 +66,11 @@ void TemplateSelect::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   if (this->f_.has_value())
     return;
-  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
-  ESP_LOGCONFIG(TAG, "  Initial Option: %s", this->initial_option_.c_str());
-  ESP_LOGCONFIG(TAG, "  Restore Value: %s", YESNO(this->restore_value_));
+  ESP_LOGCONFIG(TAG,
+                "  Optimistic: %s\n"
+                "  Initial Option: %s\n"
+                "  Restore Value: %s",
+                YESNO(this->optimistic_), this->initial_option_.c_str(), YESNO(this->restore_value_));
 }
 
 }  // namespace template_

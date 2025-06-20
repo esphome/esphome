@@ -1,6 +1,7 @@
 #ifdef USE_RP2040
 
 #include "core.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
@@ -19,7 +20,13 @@ void arch_restart() {
     continue;
   }
 }
-void arch_init() { watchdog_enable(0x7fffff, false); }
+
+void arch_init() {
+#if USE_RP2040_WATCHDOG_TIMEOUT > 0
+  watchdog_enable(USE_RP2040_WATCHDOG_TIMEOUT, false);
+#endif
+}
+
 void IRAM_ATTR HOT arch_feed_wdt() { watchdog_update(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) {

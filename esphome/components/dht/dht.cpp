@@ -1,6 +1,6 @@
 #include "dht.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace dht {
@@ -8,25 +8,19 @@ namespace dht {
 static const char *const TAG = "dht";
 
 void DHT::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up DHT...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->digital_write(true);
   this->pin_->setup();
   this->pin_->digital_write(true);
 }
+
 void DHT::dump_config() {
   ESP_LOGCONFIG(TAG, "DHT:");
   LOG_PIN("  Pin: ", this->pin_);
-  if (this->is_auto_detect_) {
-    ESP_LOGCONFIG(TAG, "  Auto-detected model: %s", this->model_ == DHT_MODEL_DHT11 ? "DHT11" : "DHT22");
-  } else if (this->model_ == DHT_MODEL_DHT11) {
-    ESP_LOGCONFIG(TAG, "  Model: DHT11");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Model: DHT22 (or equivalent)");
-  }
-  ESP_LOGCONFIG(TAG, "  Internal Pull-up: %s", ONOFF(this->pin_->get_flags() & gpio::FLAG_PULLUP));
-
+  ESP_LOGCONFIG(TAG, "  %sModel: %s", this->is_auto_detect_ ? "Auto-detected " : "",
+                this->model_ == DHT_MODEL_DHT11 ? "DHT11" : "DHT22 or equivalent");
+  ESP_LOGCONFIG(TAG, "  Internal pull-up: %s", ONOFF(this->pin_->get_flags() & gpio::FLAG_PULLUP));
   LOG_UPDATE_INTERVAL(this);
-
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
@@ -46,7 +40,7 @@ void DHT::update() {
   }
 
   if (success) {
-    ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
+    ESP_LOGD(TAG, "Temperature %.1f°C Humidity %.1f%%", temperature, humidity);
 
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
@@ -54,11 +48,8 @@ void DHT::update() {
       this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   } else {
-    const char *str = "";
-    if (this->is_auto_detect_) {
-      str = " and consider manually specifying the DHT model using the model option";
-    }
-    ESP_LOGW(TAG, "Invalid readings! Please check your wiring (pull-up resistor, pin number)%s.", str);
+    ESP_LOGW(TAG, "Invalid readings! Check pin number and pull-up resistor%s.",
+             this->is_auto_detect_ ? " and try manually specifying the model" : "");
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(NAN);
     if (this->humidity_sensor_ != nullptr)
@@ -68,10 +59,12 @@ void DHT::update() {
 }
 
 float DHT::get_setup_priority() const { return setup_priority::DATA; }
+
 void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
   this->is_auto_detect_ = model == DHT_MODEL_AUTO_DETECT;
 }
+
 bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
   *humidity = NAN;
   *temperature = NAN;
@@ -121,9 +114,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
       while (!this->pin_->digital_read()) {
         if (micros() - start_time > 90) {
           if (i < 0) {
-            error_code = 1;
+            error_code = 1;  // line didn't clear
           } else {
-            error_code = 2;
+            error_code = 2;  // rising edge for bit i timeout
           }
           break;
         }
@@ -139,9 +132,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
         end_time = micros();
         if (end_time - start_time > 90) {
           if (i < 0) {
-            error_code = 3;
+            error_code = 3;  // requesting data failed
           } else {
-            error_code = 4;
+            error_code = 4;  // falling edge for bit i timeout
           }
           break;
         }
@@ -166,22 +159,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
   if (!report_errors && error_code != 0)
     return false;
 
-  switch (error_code) {
-    case 1:
-      ESP_LOGW(TAG, "Waiting for DHT communication to clear failed!");
-      return false;
-    case 2:
-      ESP_LOGW(TAG, "Rising edge for bit %d failed!", i);
-      return false;
-    case 3:
-      ESP_LOGW(TAG, "Requesting data from DHT failed!");
-      return false;
-    case 4:
-      ESP_LOGW(TAG, "Falling edge for bit %d failed!", i);
-      return false;
-    case 0:
-    default:
-      break;
+  if (error_code) {
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+    return false;
   }
 
   ESP_LOGVV(TAG,
@@ -206,15 +186,15 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     if (checksum_a == data[4]) {
       // Data format: 8bit integral RH data + 8bit decimal RH data + 8bit integral T data + 8bit decimal T data + 8bit
       // check sum - some models always have 0 in the decimal part
-      const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
-      *temperature = raw_temperature / 10.0f;
+      const uint16_t raw_temperature = static_cast<uint16_t>(data[2]) * 10 + (data[3] & 0x7F);
+      *temperature = static_cast<float>(raw_temperature) / 10.0f;
       if ((data[3] & 0x80) != 0) {
         // negative
         *temperature *= -1;
       }
 
-      const uint16_t raw_humidity = uint16_t(data[0]) * 10 + data[1];
-      *humidity = raw_humidity / 10.0f;
+      const uint16_t raw_humidity = static_cast<uint16_t>(data[0]) * 10 + data[1];
+      *humidity = static_cast<float>(raw_humidity) / 10.0f;
     } else {
       // For compatibility with DHT11 models which might only use 2 bytes checksums, only use the data from these two
       // bytes
@@ -222,8 +202,8 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
       *humidity = data[0];
     }
   } else {
-    uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
-    uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
+    uint16_t raw_humidity = encode_uint16(data[0], data[1]);
+    uint16_t raw_temperature = encode_uint16(data[2], data[3]);
 
     if (raw_temperature & 0x8000) {
       if (!(raw_temperature & 0x4000))
@@ -234,24 +214,23 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
 
     if (raw_temperature == 1 && raw_humidity == 10) {
       if (report_errors) {
-        ESP_LOGW(TAG, "Invalid temperature+humidity! Sensor reported 1°C and 1%% Hum");
+        ESP_LOGW(TAG, "Invalid data");
       }
       return false;
     }
 
-    *humidity = raw_humidity * 0.1f;
-    if (*humidity > 100)
+    *humidity = static_cast<float>(raw_humidity) * 0.1f;
+    if (*humidity > 100.0f)
       *humidity = NAN;
-    *temperature = int16_t(raw_temperature) * 0.1f;
+    *temperature = static_cast<int16_t>(raw_temperature) * 0.1f;
   }
 
   if (*temperature == 0.0f && (*humidity == 1.0f || *humidity == 2.0f)) {
     if (report_errors) {
-      ESP_LOGW(TAG, "DHT reports invalid data. Is the update interval too high or the sensor damaged?");
+      ESP_LOGW(TAG, "Invalid data");
     }
     return false;
   }
-
   return true;
 }
 

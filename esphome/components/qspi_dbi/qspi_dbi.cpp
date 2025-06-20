@@ -6,7 +6,7 @@ namespace esphome {
 namespace qspi_dbi {
 
 void QspiDbi::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up QSPI_DBI");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();

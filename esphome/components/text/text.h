@@ -28,9 +28,6 @@ class Text : public EntityBase {
 
   void publish_state(const std::string &state);
 
-  /// Return whether this text input has gotten a full state yet.
-  bool has_state() const { return has_state_; }
-
   /// Instantiate a TextCall object to modify this text component's state.
   TextCall make_call() { return TextCall(this); }
 
@@ -48,7 +45,6 @@ class Text : public EntityBase {
   virtual void control(const std::string &value) = 0;
 
   CallbackManager<void(std::string)> state_callback_;
-  bool has_state_{false};
 };
 
 }  // namespace text

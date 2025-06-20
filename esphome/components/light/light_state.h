@@ -17,7 +17,7 @@ namespace light {
 
 class LightOutput;
 
-enum LightRestoreMode {
+enum LightRestoreMode : uint8_t {
   LIGHT_RESTORE_DEFAULT_OFF,
   LIGHT_RESTORE_DEFAULT_ON,
   LIGHT_ALWAYS_OFF,
@@ -212,12 +212,18 @@ class LightState : public EntityBase, public Component {
 
   /// Store the output to allow effects to have more access.
   LightOutput *output_;
-  /// Value for storing the index of the currently active effect. 0 if no effect is active
-  uint32_t active_effect_index_{};
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
-  /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
+  /// List of effects for this light.
+  std::vector<LightEffect *> effects_;
+  /// Value for storing the index of the currently active effect. 0 if no effect is active
+  uint32_t active_effect_index_{};
+  /// Default transition length for all transitions in ms.
+  uint32_t default_transition_length_{};
+  /// Transition length to use for flash transitions.
+  uint32_t flash_transition_length_{};
+  /// Gamma correction factor for the light.
+  float gamma_correct_{};
 
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
@@ -236,19 +242,13 @@ class LightState : public EntityBase, public Component {
    */
   CallbackManager<void()> target_state_reached_callback_{};
 
-  /// Default transition length for all transitions in ms.
-  uint32_t default_transition_length_{};
-  /// Transition length to use for flash transitions.
-  uint32_t flash_transition_length_{};
-  /// Gamma correction factor for the light.
-  float gamma_correct_{};
-  /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
   /// Initial state of the light.
   optional<LightStateRTCState> initial_state_{};
-  /// List of effects for this light.
-  std::vector<LightEffect *> effects_;
 
+  /// Restore mode of the light.
+  LightRestoreMode restore_mode_;
+  /// Whether the light value should be written in the next cycle.
+  bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_ = false;
 };

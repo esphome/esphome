@@ -7,7 +7,7 @@ AUTO_LOAD = ["climate_ir"]
 emmeti_ns = cg.esphome_ns.namespace("emmeti")
 EmmetiClimate = emmeti_ns.class_("EmmetiClimate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(EmmetiClimate)
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(EmmetiClimate)
 
 
 async def to_code(config):

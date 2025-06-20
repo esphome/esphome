@@ -2,17 +2,19 @@
 
 #include <cstdarg>
 
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include "esp_tls_crypto.h"
 
 #include "utils.h"
 
+#include "web_server_idf.h"
+
+#ifdef USE_WEBSERVER
 #include "esphome/components/web_server/web_server.h"
 #include "esphome/components/web_server/list_entities.h"
-
-#include "web_server_idf.h"
+#endif  // USE_WEBSERVER
 
 namespace esphome {
 namespace web_server_idf {
@@ -273,6 +275,7 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
   this->print(str);
 }
 
+#ifdef USE_WEBSERVER
 AsyncEventSource::~AsyncEventSource() {
   for (auto *ses : this->sessions_) {
     delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -511,6 +514,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     }
   }
 }
+#endif
 
 }  // namespace web_server_idf
 }  // namespace esphome

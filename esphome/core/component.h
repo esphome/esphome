@@ -53,19 +53,20 @@ static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
     ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
   }
 
-extern const uint32_t COMPONENT_STATE_MASK;
-extern const uint32_t COMPONENT_STATE_CONSTRUCTION;
-extern const uint32_t COMPONENT_STATE_SETUP;
-extern const uint32_t COMPONENT_STATE_LOOP;
-extern const uint32_t COMPONENT_STATE_FAILED;
-extern const uint32_t STATUS_LED_MASK;
-extern const uint32_t STATUS_LED_OK;
-extern const uint32_t STATUS_LED_WARNING;
-extern const uint32_t STATUS_LED_ERROR;
+extern const uint8_t COMPONENT_STATE_MASK;
+extern const uint8_t COMPONENT_STATE_CONSTRUCTION;
+extern const uint8_t COMPONENT_STATE_SETUP;
+extern const uint8_t COMPONENT_STATE_LOOP;
+extern const uint8_t COMPONENT_STATE_FAILED;
+extern const uint8_t COMPONENT_STATE_LOOP_DONE;
+extern const uint8_t STATUS_LED_MASK;
+extern const uint8_t STATUS_LED_OK;
+extern const uint8_t STATUS_LED_WARNING;
+extern const uint8_t STATUS_LED_ERROR;
 
 enum class RetryResult { DONE, RETRY };
 
-extern const uint32_t WARN_IF_BLOCKING_OVER_MS;
+extern const uint16_t WARN_IF_BLOCKING_OVER_MS;
 
 class Component {
  public:
@@ -110,7 +111,32 @@ class Component {
   virtual void on_shutdown() {}
   virtual void on_safe_shutdown() {}
 
-  uint32_t get_component_state() const;
+  /** Called during teardown to allow component to gracefully finish operations.
+   *
+   * @return true if teardown is complete, false if more time is needed
+   */
+  virtual bool teardown() { return true; }
+
+  /** Called after teardown is complete to power down hardware.
+   *
+   * This is called after all components have finished their teardown process,
+   * making it safe to power down hardware like ethernet PHY.
+   */
+  virtual void on_powerdown() {}
+
+  uint8_t get_component_state() const;
+
+  /** Reset this component back to the construction state to allow setup to run again.
+   *
+   * This can be used by components that have recoverable failures to attempt setup again.
+   */
+  void reset_to_construction_state();
+
+  /** Check if this component has completed setup and is in the loop state.
+   *
+   * @return True if in loop state, false otherwise.
+   */
+  bool is_in_loop_state() const;
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
@@ -124,6 +150,47 @@ class Component {
     this->status_set_error(message);
     this->mark_failed();
   }
+
+  /** Disable this component's loop. The loop() method will no longer be called.
+   *
+   * This is useful for components that only need to run for a certain period of time
+   * or when inactive, saving CPU cycles.
+   *
+   * @note Components should call this->disable_loop() on themselves, not on other components.
+   *       This ensures the component's state is properly updated along with the loop partition.
+   */
+  void disable_loop();
+
+  /** Enable this component's loop. The loop() method will be called normally.
+   *
+   * This is useful for components that transition between active and inactive states
+   * and need to re-enable their loop() method when becoming active again.
+   *
+   * @note Components should call this->enable_loop() on themselves, not on other components.
+   *       This ensures the component's state is properly updated along with the loop partition.
+   */
+  void enable_loop();
+
+  /** Thread and ISR-safe version of enable_loop() that can be called from any context.
+   *
+   * This method defers the actual enable via enable_pending_loops_ to the main loop,
+   * making it safe to call from ISR handlers, timer callbacks, other threads,
+   * or any interrupt context.
+   *
+   * @note The actual loop enabling will happen on the next main loop iteration.
+   * @note Only one pending enable request is tracked per component.
+   * @note There is no disable_loop_soon_any_context() on purpose - it would race
+   *       against enable calls and synchronization would get too complex
+   *       to provide a safe version that would work for each component.
+   *
+   *       Use disable_loop() from the main thread only.
+   *
+   *       If you need to disable the loop from ISR, carefully implement
+   *       it in the component itself, with an ISR safe approach, and call
+   *       disable_loop() in its next ::loop() iteration. Implementations
+   *       will need to carefully consider all possible race conditions.
+   */
+  void enable_loop_soon_any_context();
 
   bool is_failed() const;
 
@@ -285,11 +352,18 @@ class Component {
   /// Cancel a defer callback using the specified name, name must not be empty.
   bool cancel_defer(const std::string &name);  // NOLINT
 
-  uint32_t component_state_{0x0000};  ///< State of this component.
+  // Ordered for optimal packing on 32-bit systems
   float setup_priority_override_{NAN};
   const char *component_source_{nullptr};
-  uint32_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};
-  std::string error_message_{};
+  const char *error_message_{nullptr};
+  uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
+  /// State of this component - each bit has a purpose:
+  /// Bits 0-1: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED)
+  /// Bit 2: STATUS_LED_WARNING
+  /// Bit 3: STATUS_LED_ERROR
+  /// Bits 4-7: Unused - reserved for future expansion (50% of the bits are free)
+  uint8_t component_state_{0x00};
+  volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 };
 
 /** This class simplifies creating components that periodically check a state.
@@ -339,7 +413,11 @@ class PollingComponent : public Component {
 
 class WarnIfComponentBlockingGuard {
  public:
-  WarnIfComponentBlockingGuard(Component *component);
+  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time);
+
+  // Finish the timing operation and return the current time
+  uint32_t finish();
+
   ~WarnIfComponentBlockingGuard();
 
  protected:

@@ -67,10 +67,10 @@ class Font
   inline int get_height() { return this->height_; }
   inline int get_bpp() { return this->bpp_; }
 
-  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
+  const std::vector<Glyph, RAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
 
  protected:
-  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
+  std::vector<Glyph, RAMAllocator<Glyph>> glyphs_;
   int baseline_;
   int height_;
   uint8_t bpp_;  // bits per pixel

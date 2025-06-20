@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "ndef_record.h"
 #include "ndef_message.h"
 #include "nfc_tag.h"

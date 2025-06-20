@@ -11,19 +11,23 @@ namespace esphome {
 namespace micro_wake_word {
 
 void WakeWordModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "    - Wake Word: %s", this->wake_word_.c_str());
-  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.2f", this->probability_cutoff_ / 255.0f);
-  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG,
+                "    - Wake Word: %s\n"
+                "      Probability cutoff: %.2f\n"
+                "      Sliding window size: %d",
+                this->wake_word_.c_str(), this->probability_cutoff_ / 255.0f, this->sliding_window_size_);
 }
 
 void VADModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "    - VAD Model");
-  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.2f", this->probability_cutoff_ / 255.0f);
-  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG,
+                "    - VAD Model\n"
+                "      Probability cutoff: %.2f\n"
+                "      Sliding window size: %d",
+                this->probability_cutoff_ / 255.0f, this->sliding_window_size_);
 }
 
 bool StreamingModel::load_model_() {
-  RAMAllocator<uint8_t> arena_allocator(RAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> arena_allocator;
 
   if (this->tensor_arena_ == nullptr) {
     this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
@@ -92,7 +96,7 @@ bool StreamingModel::load_model_() {
 void StreamingModel::unload_model() {
   this->interpreter_.reset();
 
-  RAMAllocator<uint8_t> arena_allocator(RAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> arena_allocator;
 
   if (this->tensor_arena_ != nullptr) {
     arena_allocator.deallocate(this->tensor_arena_, this->tensor_arena_size_);
@@ -147,7 +151,11 @@ bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCES
       this->recent_streaming_probabilities_[this->last_n_index_] = output->data.uint8[0];  // probability;
       this->unprocessed_probability_status_ = true;
     }
-    this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
+    if (this->recent_streaming_probabilities_[this->last_n_index_] < this->probability_cutoff_) {
+      // Only increment ignore windows if less than the probability cutoff; this forces the model to "cool-off" from a
+      // previous detection and calling ``reset_probabilities`` so it avoids duplicate detections
+      this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
+    }
   }
   return true;
 }

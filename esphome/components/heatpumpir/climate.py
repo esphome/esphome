@@ -97,7 +97,7 @@ VERTICAL_DIRECTIONS = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    climate_ir.climare_ir_with_receiver_schema(HeatpumpIRClimate).extend(
+    climate_ir.climate_ir_with_receiver_schema(HeatpumpIRClimate).extend(
         {
             cv.Required(CONF_PROTOCOL): cv.enum(PROTOCOLS),
             cv.Required(CONF_HORIZONTAL_DEFAULT): cv.enum(HORIZONTAL_DIRECTIONS),
@@ -125,6 +125,6 @@ async def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.32")
+    cg.add_library("tonia/HeatpumpIR", "1.0.35")
     if CORE.is_libretiny:
         CORE.add_platformio_option("lib_ignore", "IRremoteESP8266")

@@ -7,7 +7,7 @@ CODEOWNERS = ["@glmnet"]
 coolix_ns = cg.esphome_ns.namespace("coolix")
 CoolixClimate = coolix_ns.class_("CoolixClimate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(CoolixClimate)
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(CoolixClimate)
 
 
 async def to_code(config):

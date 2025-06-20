@@ -41,7 +41,7 @@ void MAX17043Component::update() {
 }
 
 void MAX17043Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX17043...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint16_t config_reg;
   if (this->write(&MAX17043_CONFIG, 1) != i2c::ERROR_OK) {
@@ -76,7 +76,7 @@ void MAX17043Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17043:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MAX17043 failed");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->voltage_sensor_);

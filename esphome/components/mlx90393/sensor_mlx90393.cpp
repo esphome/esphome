@@ -103,7 +103,7 @@ bool MLX90393Cls::apply_all_settings_() {
 }
 
 void MLX90393Cls::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MLX90393...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // note the two arguments A0 and A1 which are used to construct an i2c address
   // we can hard-code these because we never actually use the constructed address
   // see the transceive function above, which uses the address from I2CComponent
@@ -122,7 +122,7 @@ void MLX90393Cls::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MLX90393 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   LOG_UPDATE_INTERVAL(this);

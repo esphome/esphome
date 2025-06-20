@@ -115,7 +115,6 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
 
   SgpType sgp_type_{SGP40};
   uint64_t serial_number_;
-  uint16_t featureset_;
 
   bool self_test_complete_;
   uint16_t self_test_time_;

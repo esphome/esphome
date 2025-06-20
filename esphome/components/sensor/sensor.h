@@ -1,25 +1,30 @@
 #pragma once
 
-#include "esphome/core/log.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/sensor/filter.h"
 
 #include <vector>
+#include <memory>
 
 namespace esphome {
 namespace sensor {
 
 #define LOG_SENSOR(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, \
+                  "%s%s '%s'\n" \
+                  "%s  State Class: '%s'\n" \
+                  "%s  Unit of Measurement: '%s'\n" \
+                  "%s  Accuracy Decimals: %d", \
+                  prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str(), prefix, \
+                  state_class_to_string((obj)->get_state_class()).c_str(), prefix, \
+                  (obj)->get_unit_of_measurement().c_str(), prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->get_state_class()).c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
@@ -136,9 +141,6 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    */
   float raw_state;
 
-  /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
-  bool has_state() const;
-
   /** Override this method to set the unique ID of this sensor.
    *
    * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
@@ -148,15 +150,14 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   void internal_send_state_to_frontend(float state);
 
  protected:
-  CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
-  CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
+  std::unique_ptr<CallbackManager<void(float)>> raw_callback_;  ///< Storage for raw state callbacks (lazy allocated).
+  CallbackManager<void(float)> callback_;                       ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
   optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
   optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override
   bool force_update_{false};                            ///< Force update mode
-  bool has_state_{false};
 };
 
 }  // namespace sensor

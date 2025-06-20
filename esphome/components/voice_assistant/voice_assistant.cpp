@@ -85,7 +85,7 @@ bool VoiceAssistant::start_udp_socket_() {
 bool VoiceAssistant::allocate_buffers_() {
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ == nullptr)) {
-    ExternalRAMAllocator<uint8_t> speaker_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> speaker_allocator;
     this->speaker_buffer_ = speaker_allocator.allocate(SPEAKER_BUFFER_SIZE);
     if (this->speaker_buffer_ == nullptr) {
       ESP_LOGW(TAG, "Could not allocate speaker buffer");
@@ -103,7 +103,7 @@ bool VoiceAssistant::allocate_buffers_() {
   }
 
   if (this->send_buffer_ == nullptr) {
-    ExternalRAMAllocator<uint8_t> send_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> send_allocator;
     this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
     if (send_buffer_ == nullptr) {
       ESP_LOGW(TAG, "Could not allocate send buffer");
@@ -136,7 +136,7 @@ void VoiceAssistant::clear_buffers_() {
 
 void VoiceAssistant::deallocate_buffers_() {
   if (this->send_buffer_ != nullptr) {
-    ExternalRAMAllocator<uint8_t> send_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> send_deallocator;
     send_deallocator.deallocate(this->send_buffer_, SEND_BUFFER_SIZE);
     this->send_buffer_ = nullptr;
   }
@@ -147,7 +147,7 @@ void VoiceAssistant::deallocate_buffers_() {
 
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
-    ExternalRAMAllocator<uint8_t> speaker_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> speaker_deallocator;
     speaker_deallocator.deallocate(this->speaker_buffer_, SPEAKER_BUFFER_SIZE);
     this->speaker_buffer_ = nullptr;
   }
@@ -204,7 +204,7 @@ void VoiceAssistant::loop() {
       break;
     }
     case State::START_PIPELINE: {
-      ESP_LOGD(TAG, "Requesting start...");
+      ESP_LOGD(TAG, "Requesting start");
       uint32_t flags = 0;
       if (!this->continue_conversation_ && this->use_wake_word_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD;
@@ -223,7 +223,7 @@ void VoiceAssistant::loop() {
       msg.wake_word_phrase = this->wake_word_;
       this->wake_word_ = "";
 
-      if (this->api_client_ == nullptr || !this->api_client_->send_voice_assistant_request(msg)) {
+      if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_->trigger("not-connected", "Could not request start");
         this->continuous_ = false;
@@ -245,7 +245,7 @@ void VoiceAssistant::loop() {
         if (this->audio_mode_ == AUDIO_MODE_API) {
           api::VoiceAssistantAudio msg;
           msg.data.assign((char *) this->send_buffer_, read_bytes);
-          this->api_client_->send_voice_assistant_audio(msg);
+          this->api_client_->send_message(msg);
         } else {
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
@@ -331,7 +331,7 @@ void VoiceAssistant::loop() {
 
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
-          this->api_client_->send_voice_assistant_announce_finished(msg);
+          this->api_client_->send_message(msg);
           break;
         }
       }
@@ -577,10 +577,10 @@ void VoiceAssistant::signal_stop_() {
   if (this->api_client_ == nullptr) {
     return;
   }
-  ESP_LOGD(TAG, "Signaling stop...");
+  ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
-  this->api_client_->send_voice_assistant_request(msg);
+  this->api_client_->send_message(msg);
 }
 
 void VoiceAssistant::start_playback_timeout_() {
@@ -590,7 +590,7 @@ void VoiceAssistant::start_playback_timeout_() {
 
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
-    this->api_client_->send_voice_assistant_announce_finished(msg);
+    this->api_client_->send_message(msg);
   });
 }
 

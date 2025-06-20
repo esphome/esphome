@@ -18,8 +18,9 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       branch_build: ${{ steps.tag.outputs.branch_build }}
+      deploy_env: ${{ steps.tag.outputs.deploy_env }}
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v4.2.2
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -27,6 +28,11 @@ jobs:
           if [[ "${{ github.event_name }}" = "release" ]]; then
             TAG="${{ github.event.release.tag_name}}"
             BRANCH_BUILD="false"
+            if [[ "${{ github.event.release.prerelease }}" = "true" ]]; then
+              ENVIRONMENT="beta"
+            else
+              ENVIRONMENT="production"
+            fi
           else
             TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
             today="$(date --utc '+%Y%m%d')"
@@ -35,12 +41,15 @@ jobs:
             if [[ "$BRANCH" != "dev" ]]; then
               TAG="${TAG}-${BRANCH}"
               BRANCH_BUILD="true"
+              ENVIRONMENT=""
             else
               BRANCH_BUILD="false"
+              ENVIRONMENT="dev"
             fi
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "branch_build=${BRANCH_BUILD}" >> $GITHUB_OUTPUT
+          echo "deploy_env=${ENVIRONMENT}" >> $GITHUB_OUTPUT
         # yamllint enable rule:line-length
 
   deploy-pypi:
@@ -51,7 +60,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v4.2.2
       - name: Set up Python
         uses: actions/setup-python@v5.6.0
         with:
@@ -83,14 +92,14 @@ jobs:
             os: "ubuntu-24.04-arm"
 
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v4.2.2
       - name: Set up Python
         uses: actions/setup-python@v5.6.0
         with:
-          python-version: "3.9"
+          python-version: "3.10"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
+        uses: docker/setup-buildx-action@v3.11.1
 
       - name: Log in to docker hub
         uses: docker/login-action@v3.4.0
@@ -159,7 +168,7 @@ jobs:
           - ghcr
           - dockerhub
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v4.2.2
 
       - name: Download digests
         uses: actions/download-artifact@v4.3.0
@@ -169,7 +178,7 @@ jobs:
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
+        uses: docker/setup-buildx-action@v3.11.1
 
       - name: Log in to docker hub
         if: matrix.registry == 'dockerhub'
@@ -233,9 +242,8 @@ jobs:
   deploy-esphome-schema:
     if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
     runs-on: ubuntu-latest
-    needs:
-      - init
-      - deploy-manifest
+    needs: [init]
+    environment: ${{ needs.init.outputs.deploy_env }}
     steps:
       - name: Trigger Workflow
         uses: actions/github-script@v7.0.1

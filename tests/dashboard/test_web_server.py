@@ -53,6 +53,8 @@ async def dashboard() -> DashboardTestHelper:
     assert DASHBOARD.settings.on_ha_addon is True
     assert DASHBOARD.settings.using_auth is False
     task = asyncio.create_task(DASHBOARD.async_run())
+    # Wait for initial device loading to complete
+    await DASHBOARD.entries.async_request_update_entries()
     client = AsyncHTTPClient()
     io_loop = IOLoop(make_current=False)
     yield DashboardTestHelper(io_loop, client, port)
@@ -75,6 +77,7 @@ async def test_devices_page(dashboard: DashboardTestHelper) -> None:
     assert response.headers["content-type"] == "application/json"
     json_data = json.loads(response.body.decode())
     configured_devices = json_data["configured"]
+    assert len(configured_devices) != 0
     first_device = configured_devices[0]
     assert first_device["name"] == "pico"
     assert first_device["configuration"] == "pico.yaml"

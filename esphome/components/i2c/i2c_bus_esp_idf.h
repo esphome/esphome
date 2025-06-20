@@ -2,9 +2,9 @@
 
 #ifdef USE_ESP_IDF
 
-#include "i2c_bus.h"
-#include "esphome/core/component.h"
 #include <driver/i2c.h>
+#include "esphome/core/component.h"
+#include "i2c_bus.h"
 
 namespace esphome {
 namespace i2c {
@@ -15,7 +15,7 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class IDFI2CBus : public I2CBus, public Component {
+class IDFI2CBus : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -30,6 +30,8 @@ class IDFI2CBus : public I2CBus, public Component {
   void set_scl_pullup_enabled(bool scl_pullup_enabled) { scl_pullup_enabled_ = scl_pullup_enabled; }
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
+
+  int get_port() const override { return static_cast<int>(this->port_); }
 
  private:
   void recover_();

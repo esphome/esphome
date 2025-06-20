@@ -41,6 +41,7 @@ async def to_code(config):
 
     if CORE.using_arduino:
         if CORE.is_esp32:
+            cg.add_library("ESP32 Async UDP", None)
             cg.add_library("DNSServer", None)
             cg.add_library("WiFi", None)
         if CORE.is_esp8266:

@@ -2,6 +2,7 @@
 
 #include "ble_advertising.h"
 #include "ble_uuid.h"
+#include "ble_scan_result.h"
 
 #include <functional>
 
@@ -11,6 +12,7 @@
 #include "esphome/core/helpers.h"
 
 #include "ble_event.h"
+#include "ble_event_pool.h"
 #include "queue.h"
 
 #ifdef USE_ESP32
@@ -21,6 +23,16 @@
 
 namespace esphome {
 namespace esp32_ble {
+
+// Maximum number of BLE scan results to buffer
+#ifdef USE_PSRAM
+static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 32;
+#else
+static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 20;
+#endif
+
+// Maximum size of the BLE event queue - must be power of 2 for lock-free queue
+static constexpr size_t MAX_BLE_QUEUE_SIZE = 64;
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address);
 
@@ -55,6 +67,11 @@ enum BLEComponentState {
 class GAPEventHandler {
  public:
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
+};
+
+class GAPScanEventHandler {
+ public:
+  virtual void gap_scan_event_handler(const BLEScanResult &scan_result) = 0;
 };
 
 class GATTcEventHandler {
@@ -101,6 +118,9 @@ class ESP32BLE : public Component {
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
+  void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
+    this->gap_scan_event_handlers_.push_back(handler);
+  }
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
   void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
@@ -113,22 +133,23 @@ class ESP32BLE : public Component {
   static void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
-  void real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-  void real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
-  void real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
-
   bool ble_setup_();
   bool ble_dismantle_();
   bool ble_pre_setup_();
   void advertising_init_();
 
+ private:
+  template<typename... Args> friend void enqueue_ble_event(Args... args);
+
   std::vector<GAPEventHandler *> gap_event_handlers_;
+  std::vector<GAPScanEventHandler *> gap_scan_event_handlers_;
   std::vector<GATTcEventHandler *> gattc_event_handlers_;
   std::vector<GATTsEventHandler *> gatts_event_handlers_;
   std::vector<BLEStatusEventHandler *> ble_status_event_handlers_;
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};
 
-  Queue<BLEEvent> ble_events_;
+  LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
+  BLEEventPool<MAX_BLE_QUEUE_SIZE> ble_event_pool_;
   BLEAdvertising *advertising_{};
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
   uint32_t advertising_cycle_time_{};

@@ -4,7 +4,7 @@ namespace esphome {
 namespace chsc6x {
 
 void CHSC6XTouchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CHSC6X Touchscreen...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
@@ -38,9 +38,11 @@ void CHSC6XTouchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "CHSC6X Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-  ESP_LOGCONFIG(TAG, "  Touch timeout: %d", this->touch_timeout_);
-  ESP_LOGCONFIG(TAG, "  x_raw_max_: %d", this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  y_raw_max_: %d", this->y_raw_max_);
+  ESP_LOGCONFIG(TAG,
+                "  Touch timeout: %d\n"
+                "  x_raw_max_: %d\n"
+                "  y_raw_max_: %d",
+                this->touch_timeout_, this->x_raw_max_, this->y_raw_max_);
 }
 
 }  // namespace chsc6x

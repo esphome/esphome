@@ -22,7 +22,7 @@ static const uint8_t HMC5883L_REGISTER_IDENTIFICATION_B = 0x0B;
 static const uint8_t HMC5883L_REGISTER_IDENTIFICATION_C = 0x0C;
 
 void HMC5883LComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up HMC5583L...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id[3];
   if (!this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_A, &id[0]) ||
       !this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_B, &id[1]) ||
@@ -73,7 +73,7 @@ void HMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HMC5883L:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with HMC5883L failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   } else if (this->error_code_ == ID_REGISTERS) {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an HMC5883L?");
   }

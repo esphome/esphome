@@ -1,5 +1,6 @@
 #include "max31855.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -19,7 +20,7 @@ void MAX31855Sensor::update() {
 }
 
 void MAX31855Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX31855Sensor '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   this->spi_setup();
 }
 void MAX31855Sensor::dump_config() {

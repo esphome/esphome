@@ -156,7 +156,6 @@ class Logger : public Component {
 #endif
 
  protected:
-  void call_log_callbacks_(int level, const char *tag, const char *msg);
   void write_msg_(const char *msg);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
@@ -191,7 +190,7 @@ class Logger : public Component {
     if (this->baud_rate_ > 0) {
       this->write_msg_(this->tx_buffer_);  // If logging is enabled, write to console
     }
-    this->call_log_callbacks_(level, tag, this->tx_buffer_);
+    this->log_callback_.call(level, tag, this->tx_buffer_);
   }
 
   // Write the body of the log message to the buffer
@@ -212,9 +211,9 @@ class Logger : public Component {
   }
 
   // Format string to explicit buffer with varargs
-  inline void printf_to_buffer_(const char *format, char *buffer, int *buffer_at, int buffer_size, ...) {
+  inline void printf_to_buffer_(char *buffer, int *buffer_at, int buffer_size, const char *format, ...) {
     va_list arg;
-    va_start(arg, buffer_size);
+    va_start(arg, format);
     this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, arg);
     va_end(arg);
   }
@@ -312,13 +311,13 @@ class Logger : public Component {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
     if (thread_name != nullptr) {
       // Non-main task with thread name
-      this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", buffer, buffer_at, buffer_size, color, letter, tag, line,
+      this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
                               ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
       return;
     }
 #endif
     // Main task or non ESP32/LibreTiny platform
-    this->printf_to_buffer_("%s[%s][%s:%03u]: ", buffer, buffer_at, buffer_size, color, letter, tag, line);
+    this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]: ", color, letter, tag, line);
   }
 
   inline void HOT format_body_to_buffer_(char *buffer, int *buffer_at, int buffer_size, const char *format,

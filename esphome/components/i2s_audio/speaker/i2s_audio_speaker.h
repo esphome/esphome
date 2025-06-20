@@ -24,6 +24,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
 
   void setup() override;
+  void dump_config() override;
   void loop() override;
 
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }

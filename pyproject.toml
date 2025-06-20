@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==80.7.1", "wheel>=0.43,<0.46"]
+requires = ["setuptools==80.9.0", "wheel>=0.43,<0.46"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Home Automation",
 ]
-requires-python = ">=3.9.0"
+requires-python = ">=3.10.0"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
@@ -62,7 +62,7 @@ addopts = [
 ]
 
 [tool.pylint.MAIN]
-py-version = "3.9"
+py-version = "3.10"
 ignore = [
   "api_pb2.py",
 ]
@@ -106,7 +106,7 @@ expected-line-ending-format = "LF"
 
 [tool.ruff]
 required-version = ">=0.5.0"
-target-version = "py39"
+target-version = "py310"
 exclude = ['generated']
 
 [tool.ruff.lint]
@@ -120,12 +120,15 @@ select = [
 
 ignore = [
   "E501", # line too long
+  "PLC0415", # `import` should be at the top-level of a file
   "PLR0911", # Too many return statements ({returns} > {max_returns})
   "PLR0912", # Too many branches ({branches} > {max_branches})
   "PLR0913", # Too many arguments to function call ({c_args} > {max_args})
   "PLR0915", # Too many statements ({statements} > {max_statements})
+  "PLW1641", # Object does not implement `__hash__` method
   "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target
+  "UP038", # https://github.com/astral-sh/ruff/issues/7871 https://github.com/astral-sh/ruff/pull/16681
 ]
 
 [tool.ruff.lint.isort]

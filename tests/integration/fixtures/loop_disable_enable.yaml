@@ -1,0 +1,53 @@
+esphome:
+  name: loop-test
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+loop_test_component:
+  components:
+    # Component that disables itself after 10 loops
+    - id: self_disable_10
+      name: "self_disable_10"
+      disable_after: 10
+
+    # Component that never disables itself (for re-enable test)
+    - id: normal_component
+      name: "normal_component"
+      disable_after: 0
+
+    # Component that tests enable when already enabled
+    - id: redundant_enable
+      name: "redundant_enable"
+      test_redundant_operations: true
+      disable_after: 0
+
+    # Component that tests disable when already disabled
+    - id: redundant_disable
+      name: "redundant_disable"
+      test_redundant_operations: true
+      disable_after: 10
+
+  # ISR test component that uses enable_loop_soon_any_context
+  isr_components:
+    - id: isr_test
+      name: "isr_test"
+
+# Interval to re-enable the self_disable_10 component after some time
+interval:
+  - interval: 0.5s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(self_disable_10).get_loop_count() == 10;'
+          then:
+            - logger.log: "Re-enabling self_disable_10 via service"
+            - loop_test_component.enable:
+                id: self_disable_10

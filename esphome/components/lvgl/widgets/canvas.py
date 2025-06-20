@@ -1,6 +1,14 @@
 from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.display_menu_base import CONF_LABEL
-from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_ID, CONF_TEXT, CONF_WIDTH
+from esphome.const import (
+    CONF_COLOR,
+    CONF_HEIGHT,
+    CONF_ID,
+    CONF_TEXT,
+    CONF_WIDTH,
+    CONF_X,
+    CONF_Y,
+)
 from esphome.cpp_generator import Literal, MockObj
 
 from ..automation import action_to_code
@@ -13,8 +21,6 @@ from ..defines import (
     CONF_POINTS,
     CONF_SRC,
     CONF_START_ANGLE,
-    CONF_X,
-    CONF_Y,
     literal,
 )
 from ..lv_validation import (

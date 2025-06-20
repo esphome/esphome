@@ -52,7 +52,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
  public:
   BluetoothProxy();
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-  bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) override;
+  bool parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) override;
   void dump_config() override;
   void setup() override;
   void loop() override;
@@ -134,11 +134,17 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
 
-  bool active_;
-
-  std::vector<BluetoothConnection *> connections_{};
+  // Memory optimized layout for 32-bit systems
+  // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
+
+  // Group 2: Container types (typically 12 bytes on 32-bit)
+  std::vector<BluetoothConnection *> connections_{};
+
+  // Group 3: 1-byte types grouped together
+  bool active_;
   bool raw_advertisements_{false};
+  // 2 bytes used, 2 bytes padding
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

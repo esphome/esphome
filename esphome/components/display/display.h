@@ -182,9 +182,11 @@ using display_writer_t = std::function<void(Display &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
+    ESP_LOGCONFIG(TAG, \
+                  prefix type "\n" \
+                              "%s  Rotations: %d °\n" \
+                              "%s  Dimensions: %dpx x %dpx", \
+                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 /// Turn the pixel OFF.

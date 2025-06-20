@@ -85,12 +85,12 @@ void IDFUARTComponent::setup() {
 #endif  // USE_LOGGER
 
   if (next_uart_num >= SOC_UART_NUM) {
-    ESP_LOGW(TAG, "Maximum number of UART components created already.");
+    ESP_LOGW(TAG, "Maximum number of UART components created already");
     this->mark_failed();
     return;
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
-  ESP_LOGCONFIG(TAG, "Setting up UART %u...", this->uart_num_);
+  ESP_LOGCONFIG(TAG, "Running setup for UART %u", this->uart_num_);
 
   this->lock_ = xSemaphoreCreateMutex();
 
@@ -162,10 +162,12 @@ void IDFUARTComponent::dump_config() {
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %" PRIu32 " baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
-  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  ESP_LOGCONFIG(TAG,
+                "  Baud Rate: %" PRIu32 " baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u",
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   this->check_logger_conflict();
 }
 
@@ -234,7 +236,7 @@ int IDFUARTComponent::available() {
 }
 
 void IDFUARTComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   xSemaphoreTake(this->lock_, portMAX_DELAY);
   uart_wait_tx_done(this->uart_num_, portMAX_DELAY);
   xSemaphoreGive(this->lock_);

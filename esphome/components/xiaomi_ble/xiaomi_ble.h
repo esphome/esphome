@@ -20,6 +20,7 @@ struct XiaomiParseResult {
     TYPE_LYWSD02MMC,
     TYPE_CGG1,
     TYPE_LYWSD03MMC,
+    TYPE_XMWSDJ04MMC,
     TYPE_CGD1,
     TYPE_CGDK2,
     TYPE_JQJCY01YM,

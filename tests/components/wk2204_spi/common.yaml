@@ -26,4 +26,10 @@ wk2204_spi:
         parity: none
       - id: wk2204_spi_id3
         channel: 3
-        baud_rate: 921600
+        baud_rate: 9600
+
+# Ensures a sensor doesn't break validation
+sensor:
+  - platform: a02yyuw
+    uart_id: wk2204_spi_id3
+    id: distance_sensor

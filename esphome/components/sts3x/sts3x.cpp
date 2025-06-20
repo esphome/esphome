@@ -18,7 +18,7 @@ static const uint16_t STS3X_COMMAND_HEATER_DISABLE = 0x3066;
 static const uint16_t STS3X_COMMAND_FETCH_DATA = 0xE000;
 
 void STS3XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up STS3x...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_command(STS3X_COMMAND_READ_SERIAL_NUMBER)) {
     this->mark_failed();
     return;
@@ -36,7 +36,7 @@ void STS3XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "STS3x:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with ST3x failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 

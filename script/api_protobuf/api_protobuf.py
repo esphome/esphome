@@ -258,6 +258,14 @@ class TypeInfo(ABC):
             force: Whether to force encoding the field even if it has a default value
         """
 
+    @abstractmethod
+    def get_estimated_size(self) -> int:
+        """Get estimated size in bytes for this field with typical values.
+
+        Returns:
+            Estimated size in bytes including field ID and typical data
+        """
+
 
 TYPE_INFO: dict[int, TypeInfo] = {}
 
@@ -291,6 +299,9 @@ class DoubleType(TypeInfo):
         o = f"ProtoSize::add_fixed_field<8>(total_size, {field_id_size}, {name} != 0.0, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes for double
+
 
 @register_type(2)
 class FloatType(TypeInfo):
@@ -309,6 +320,9 @@ class FloatType(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_fixed_field<4>(total_size, {field_id_size}, {name} != 0.0f, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 4  # field ID + 4 bytes for float
 
 
 @register_type(3)
@@ -329,6 +343,9 @@ class Int64Type(TypeInfo):
         o = f"ProtoSize::add_int64_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
+
 
 @register_type(4)
 class UInt64Type(TypeInfo):
@@ -347,6 +364,9 @@ class UInt64Type(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_uint64_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
 
 
 @register_type(5)
@@ -367,6 +387,9 @@ class Int32Type(TypeInfo):
         o = f"ProtoSize::add_int32_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
+
 
 @register_type(6)
 class Fixed64Type(TypeInfo):
@@ -385,6 +408,9 @@ class Fixed64Type(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_fixed_field<8>(total_size, {field_id_size}, {name} != 0, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes fixed
 
 
 @register_type(7)
@@ -405,6 +431,9 @@ class Fixed32Type(TypeInfo):
         o = f"ProtoSize::add_fixed_field<4>(total_size, {field_id_size}, {name} != 0, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 4  # field ID + 4 bytes fixed
+
 
 @register_type(8)
 class BoolType(TypeInfo):
@@ -422,6 +451,9 @@ class BoolType(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_bool_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 1  # field ID + 1 byte
 
 
 @register_type(9)
@@ -442,6 +474,9 @@ class StringType(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_string_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
 
 
 @register_type(11)
@@ -478,6 +513,11 @@ class MessageType(TypeInfo):
         o = f"ProtoSize::add_message_object(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return (
+            self.calculate_field_id_size() + 16
+        )  # field ID + 16 bytes estimated submessage
+
 
 @register_type(12)
 class BytesType(TypeInfo):
@@ -498,6 +538,9 @@ class BytesType(TypeInfo):
         o = f"ProtoSize::add_string_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
+
 
 @register_type(13)
 class UInt32Type(TypeInfo):
@@ -516,6 +559,9 @@ class UInt32Type(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_uint32_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
 
 
 @register_type(14)
@@ -544,6 +590,9 @@ class EnumType(TypeInfo):
         o = f"ProtoSize::add_enum_field(total_size, {field_id_size}, static_cast<uint32_t>({name}), {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 1  # field ID + 1 byte typical enum
+
 
 @register_type(15)
 class SFixed32Type(TypeInfo):
@@ -562,6 +611,9 @@ class SFixed32Type(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_fixed_field<4>(total_size, {field_id_size}, {name} != 0, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 4  # field ID + 4 bytes fixed
 
 
 @register_type(16)
@@ -582,6 +634,9 @@ class SFixed64Type(TypeInfo):
         o = f"ProtoSize::add_fixed_field<8>(total_size, {field_id_size}, {name} != 0, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes fixed
+
 
 @register_type(17)
 class SInt32Type(TypeInfo):
@@ -601,6 +656,9 @@ class SInt32Type(TypeInfo):
         o = f"ProtoSize::add_sint32_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
 
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
+
 
 @register_type(18)
 class SInt64Type(TypeInfo):
@@ -619,6 +677,9 @@ class SInt64Type(TypeInfo):
         field_id_size = self.calculate_field_id_size()
         o = f"ProtoSize::add_sint64_field(total_size, {field_id_size}, {name}, {force_str(force)});"
         return o
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
 
 
 class RepeatedTypeInfo(TypeInfo):
@@ -738,6 +799,15 @@ class RepeatedTypeInfo(TypeInfo):
         o += "}"
         return o
 
+    def get_estimated_size(self) -> int:
+        # For repeated fields, estimate underlying type size * 2 (assume 2 items typically)
+        underlying_size = (
+            self._ti.get_estimated_size()
+            if hasattr(self._ti, "get_estimated_size")
+            else 8
+        )
+        return underlying_size * 2
+
 
 def build_enum_type(desc) -> tuple[str, str]:
     """Builds the enum type."""
@@ -762,7 +832,26 @@ def build_enum_type(desc) -> tuple[str, str]:
     return out, cpp
 
 
-def build_message_type(desc: descriptor.DescriptorProto) -> tuple[str, str]:
+def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
+    """Calculate estimated size for a complete message based on typical values."""
+    total_size = 0
+
+    for field in desc.field:
+        if field.label == 3:  # repeated
+            ti = RepeatedTypeInfo(field)
+        else:
+            ti = TYPE_INFO[field.type](field)
+
+        # Add estimated size for this field
+        total_size += ti.get_estimated_size()
+
+    return total_size
+
+
+def build_message_type(
+    desc: descriptor.DescriptorProto,
+    base_class_fields: dict[str, list[descriptor.FieldDescriptorProto]] = None,
+) -> tuple[str, str]:
     public_content: list[str] = []
     protected_content: list[str] = []
     decode_varint: list[str] = []
@@ -773,13 +862,47 @@ def build_message_type(desc: descriptor.DescriptorProto) -> tuple[str, str]:
     dump: list[str] = []
     size_calc: list[str] = []
 
+    # Check if this message has a base class
+    base_class = get_base_class(desc)
+    common_field_names = set()
+    if base_class and base_class_fields and base_class in base_class_fields:
+        common_field_names = {f.name for f in base_class_fields[base_class]}
+
+    # Get message ID if it's a service message
+    message_id: int | None = get_opt(desc, pb.id)
+
+    # Add MESSAGE_TYPE method if this is a service message
+    if message_id is not None:
+        # Add static constexpr for message type
+        public_content.append(f"static constexpr uint16_t MESSAGE_TYPE = {message_id};")
+
+        # Add estimated size constant
+        estimated_size = calculate_message_estimated_size(desc)
+        public_content.append(
+            f"static constexpr uint16_t ESTIMATED_SIZE = {estimated_size};"
+        )
+
+        # Add message_name method for debugging
+        public_content.append("#ifdef HAS_PROTO_MESSAGE_DUMP")
+        snake_name = camel_to_snake(desc.name)
+        public_content.append(
+            f'static constexpr const char *message_name() {{ return "{snake_name}"; }}'
+        )
+        public_content.append("#endif")
+
     for field in desc.field:
         if field.label == 3:
             ti = RepeatedTypeInfo(field)
         else:
             ti = TYPE_INFO[field.type](field)
-        protected_content.extend(ti.protected_content)
-        public_content.extend(ti.public_content)
+
+        # Skip field declarations for fields that are in the base class
+        # but include their encode/decode logic
+        if field.name not in common_field_names:
+            protected_content.extend(ti.protected_content)
+            public_content.extend(ti.public_content)
+
+        # Always include encode/decode logic for all fields
         encode.append(ti.encode_content)
         size_calc.append(ti.get_size_calculation(f"this->{ti.field_name}"))
 
@@ -836,36 +959,35 @@ def build_message_type(desc: descriptor.DescriptorProto) -> tuple[str, str]:
         prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
         protected_content.insert(0, prot)
 
-    o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+    # Only generate encode method if there are fields to encode
     if encode:
+        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} "
         else:
             o += "\n"
             o += indent("\n".join(encode)) + "\n"
-    o += "}\n"
-    cpp += o
-    prot = "void encode(ProtoWriteBuffer buffer) const override;"
-    public_content.append(prot)
+        o += "}\n"
+        cpp += o
+        prot = "void encode(ProtoWriteBuffer buffer) const override;"
+        public_content.append(prot)
+    # If no fields to encode, the default implementation in ProtoMessage will be used
 
-    # Add calculate_size method
-    o = f"void {desc.name}::calculate_size(uint32_t &total_size) const {{"
-
-    # Add a check for empty/default objects to short-circuit the calculation
-    # Only add this optimization if we have fields to check
+    # Add calculate_size method only if there are fields
     if size_calc:
+        o = f"void {desc.name}::calculate_size(uint32_t &total_size) const {{"
         # For a single field, just inline it for simplicity
         if len(size_calc) == 1 and len(size_calc[0]) + len(o) + 3 < 120:
             o += f" {size_calc[0]} "
         else:
-            # For multiple fields, add a short-circuit check
+            # For multiple fields
             o += "\n"
-            # Performance optimization: add all the size calculations
             o += indent("\n".join(size_calc)) + "\n"
-    o += "}\n"
-    cpp += o
-    prot = "void calculate_size(uint32_t &total_size) const override;"
-    public_content.append(prot)
+        o += "}\n"
+        cpp += o
+        prot = "void calculate_size(uint32_t &total_size) const override;"
+        public_content.append(prot)
+    # If no fields to calculate size for, the default implementation in ProtoMessage will be used
 
     o = f"void {desc.name}::dump_to(std::string &out) const {{"
     if dump:
@@ -893,7 +1015,10 @@ def build_message_type(desc: descriptor.DescriptorProto) -> tuple[str, str]:
     prot += "#endif\n"
     public_content.append(prot)
 
-    out = f"class {desc.name} : public ProtoMessage {{\n"
+    if base_class:
+        out = f"class {desc.name} : public {base_class} {{\n"
+    else:
+        out = f"class {desc.name} : public ProtoMessage {{\n"
     out += " public:\n"
     out += indent("\n".join(public_content)) + "\n"
     out += "\n"
@@ -925,6 +1050,132 @@ def get_opt(
     return desc.options.Extensions[opt]
 
 
+def get_base_class(desc: descriptor.DescriptorProto) -> str | None:
+    """Get the base_class option from a message descriptor."""
+    if not desc.options.HasExtension(pb.base_class):
+        return None
+    return desc.options.Extensions[pb.base_class]
+
+
+def collect_messages_by_base_class(
+    messages: list[descriptor.DescriptorProto],
+) -> dict[str, list[descriptor.DescriptorProto]]:
+    """Group messages by their base_class option."""
+    base_class_groups = {}
+
+    for msg in messages:
+        base_class = get_base_class(msg)
+        if base_class:
+            if base_class not in base_class_groups:
+                base_class_groups[base_class] = []
+            base_class_groups[base_class].append(msg)
+
+    return base_class_groups
+
+
+def find_common_fields(
+    messages: list[descriptor.DescriptorProto],
+) -> list[descriptor.FieldDescriptorProto]:
+    """Find fields that are common to all messages in the list."""
+    if not messages:
+        return []
+
+    # Start with fields from the first message
+    first_msg_fields = {field.name: field for field in messages[0].field}
+    common_fields = []
+
+    # Check each field to see if it exists in all messages with same type
+    # Field numbers can vary between messages - derived classes handle the mapping
+    for field_name, field in first_msg_fields.items():
+        is_common = True
+
+        for msg in messages[1:]:
+            found = False
+            for other_field in msg.field:
+                if (
+                    other_field.name == field_name
+                    and other_field.type == field.type
+                    and other_field.label == field.label
+                ):
+                    found = True
+                    break
+
+            if not found:
+                is_common = False
+                break
+
+        if is_common:
+            common_fields.append(field)
+
+    # Sort by field number to maintain order
+    common_fields.sort(key=lambda f: f.number)
+    return common_fields
+
+
+def build_base_class(
+    base_class_name: str,
+    common_fields: list[descriptor.FieldDescriptorProto],
+) -> tuple[str, str]:
+    """Build the base class definition and implementation."""
+    public_content = []
+    protected_content = []
+
+    # For base classes, we only declare the fields but don't handle encode/decode
+    # The derived classes will handle encoding/decoding with their specific field numbers
+    for field in common_fields:
+        if field.label == 3:  # repeated
+            ti = RepeatedTypeInfo(field)
+        else:
+            ti = TYPE_INFO[field.type](field)
+
+        # Only add field declarations, not encode/decode logic
+        protected_content.extend(ti.protected_content)
+        public_content.extend(ti.public_content)
+
+    # Build header
+    out = f"class {base_class_name} : public ProtoMessage {{\n"
+    out += " public:\n"
+
+    # Add destructor with override
+    public_content.insert(0, f"~{base_class_name}() override = default;")
+
+    # Base classes don't implement encode/decode/calculate_size
+    # Derived classes handle these with their specific field numbers
+    cpp = ""
+
+    out += indent("\n".join(public_content)) + "\n"
+    out += "\n"
+    out += " protected:\n"
+    out += indent("\n".join(protected_content))
+    if protected_content:
+        out += "\n"
+    out += "};\n"
+
+    # No implementation needed for base classes
+
+    return out, cpp
+
+
+def generate_base_classes(
+    base_class_groups: dict[str, list[descriptor.DescriptorProto]],
+) -> tuple[str, str]:
+    """Generate all base classes."""
+    all_headers = []
+    all_cpp = []
+
+    for base_class_name, messages in base_class_groups.items():
+        # Find common fields
+        common_fields = find_common_fields(messages)
+
+        if common_fields:
+            # Generate base class
+            header, cpp = build_base_class(base_class_name, common_fields)
+            all_headers.append(header)
+            all_cpp.append(cpp)
+
+    return "\n".join(all_headers), "\n".join(all_cpp)
+
+
 def build_service_message_type(
     mt: descriptor.DescriptorProto,
 ) -> tuple[str, str] | None:
@@ -941,24 +1192,18 @@ def build_service_message_type(
     hout = ""
     cout = ""
 
+    # Store ifdef for later use
     if ifdef is not None:
         ifdefs[str(mt.name)] = ifdef
-        hout += f"#ifdef {ifdef}\n"
-        cout += f"#ifdef {ifdef}\n"
 
     if source in (SOURCE_BOTH, SOURCE_SERVER):
-        # Generate send
-        func = f"send_{snake}"
-        hout += f"bool {func}(const {mt.name} &msg);\n"
-        cout += f"bool APIServerConnectionBase::{func}(const {mt.name} &msg) {{\n"
-        if log:
-            cout += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-            cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-            cout += "#endif\n"
-        # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
-        cout += f"  return this->send_message_<{mt.name}>(msg, {id_});\n"
-        cout += "}\n"
+        # Don't generate individual send methods anymore
+        # The generic send_message method will be used instead
+        pass
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
+        # Only add ifdef when we're actually generating content
+        if ifdef is not None:
+            hout += f"#ifdef {ifdef}\n"
         # Generate receive
         func = f"on_{snake}"
         hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
@@ -977,9 +1222,9 @@ def build_service_message_type(
         case += "break;"
         RECEIVE_CASES[id_] = case
 
-    if ifdef is not None:
-        hout += "#endif\n"
-        cout += "#endif\n"
+        # Only close ifdef if we opened it
+        if ifdef is not None:
+            hout += "#endif\n"
 
     return hout, cout
 
@@ -1032,8 +1277,25 @@ def main() -> None:
 
     mt = file.message_type
 
+    # Collect messages by base class
+    base_class_groups = collect_messages_by_base_class(mt)
+
+    # Find common fields for each base class
+    base_class_fields = {}
+    for base_class_name, messages in base_class_groups.items():
+        common_fields = find_common_fields(messages)
+        if common_fields:
+            base_class_fields[base_class_name] = common_fields
+
+    # Generate base classes
+    if base_class_fields:
+        base_headers, base_cpp = generate_base_classes(base_class_groups)
+        content += base_headers
+        cpp += base_cpp
+
+    # Generate message types with base class information
     for m in mt:
-        s, c = build_message_type(m)
+        s, c = build_message_type(m, base_class_fields)
         content += s
         cpp += c
 
@@ -1082,6 +1344,29 @@ def main() -> None:
 
     hpp += f"class {class_name} : public ProtoService {{\n"
     hpp += " public:\n"
+
+    # Add logging helper method declaration
+    hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    hpp += " protected:\n"
+    hpp += "  void log_send_message_(const char *name, const std::string &dump);\n"
+    hpp += " public:\n"
+    hpp += "#endif\n\n"
+
+    # Add generic send_message method
+    hpp += "  template<typename T>\n"
+    hpp += "  bool send_message(const T &msg) {\n"
+    hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    hpp += "    this->log_send_message_(T::message_name(), msg.dump());\n"
+    hpp += "#endif\n"
+    hpp += "    return this->send_message_(msg, T::MESSAGE_TYPE);\n"
+    hpp += "  }\n\n"
+
+    # Add logging helper method implementation to cpp
+    cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    cpp += f"void {class_name}::log_send_message_(const char *name, const std::string &dump) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump.c_str());\n'
+    cpp += "}\n"
+    cpp += "#endif\n\n"
 
     for mt in file.message_type:
         obj = build_service_message_type(mt)
@@ -1139,26 +1424,40 @@ def main() -> None:
         hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
         hpp += f"  virtual {ret} {func}(const {inp} &msg) = 0;\n"
         cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
-        body = ""
-        if needs_conn:
-            body += "if (!this->is_connection_setup()) {\n"
-            body += "  this->on_no_setup_connection();\n"
-            body += "  return;\n"
-            body += "}\n"
-        if needs_auth:
-            body += "if (!this->is_authenticated()) {\n"
-            body += "  this->on_unauthenticated_access();\n"
-            body += "  return;\n"
-            body += "}\n"
 
-        if is_void:
-            body += f"this->{func}(msg);\n"
-        else:
-            body += f"{ret} ret = this->{func}(msg);\n"
-            ret_snake = camel_to_snake(ret)
-            body += f"if (!this->send_{ret_snake}(ret)) {{\n"
-            body += "  this->on_fatal_error();\n"
+        # Start with authentication/connection check if needed
+        if needs_auth or needs_conn:
+            # Determine which check to use
+            if needs_auth:
+                check_func = "this->check_authenticated_()"
+            else:
+                check_func = "this->check_connection_setup_()"
+
+            body = f"if ({check_func}) {{\n"
+
+            # Add the actual handler code, indented
+            handler_body = ""
+            if is_void:
+                handler_body = f"this->{func}(msg);\n"
+            else:
+                handler_body = f"{ret} ret = this->{func}(msg);\n"
+                handler_body += "if (!this->send_message(ret)) {\n"
+                handler_body += "  this->on_fatal_error();\n"
+                handler_body += "}\n"
+
+            body += indent(handler_body) + "\n"
             body += "}\n"
+        else:
+            # No auth check needed, just call the handler
+            body = ""
+            if is_void:
+                body += f"this->{func}(msg);\n"
+            else:
+                body += f"{ret} ret = this->{func}(msg);\n"
+                body += "if (!this->send_message(ret)) {\n"
+                body += "  this->on_fatal_error();\n"
+                body += "}\n"
+
         cpp += indent(body) + "\n" + "}\n"
 
         if ifdef is not None:

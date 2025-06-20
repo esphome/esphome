@@ -1,4 +1,5 @@
 #include "uponor_smatrix_climate.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -13,7 +14,7 @@ void UponorSmatrixClimate::dump_config() {
 }
 
 void UponorSmatrixClimate::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Publish state after all update packets are processed
   if (this->last_data_ != 0 && (now - this->last_data_ > 100) && this->target_temperature_raw_ != 0) {

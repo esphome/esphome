@@ -20,7 +20,7 @@ SprinklerSwitch::SprinklerSwitch(switch_::Switch *off_switch, switch_::Switch *o
 bool SprinklerSwitch::is_latching_valve() { return (this->off_switch_ != nullptr) && (this->on_switch_ != nullptr); }
 
 void SprinklerSwitch::loop() {
-  if ((this->pinned_millis_) && (millis() > this->pinned_millis_ + this->pulse_duration_)) {
+  if ((this->pinned_millis_) && (App.get_loop_component_start_time() > this->pinned_millis_ + this->pulse_duration_)) {
     this->pinned_millis_ = 0;  // reset tracker
     if (this->off_switch_->state) {
       this->off_switch_->turn_off();
@@ -148,22 +148,23 @@ SprinklerValveOperator::SprinklerValveOperator(SprinklerValve *valve, Sprinkler 
     : controller_(controller), valve_(valve) {}
 
 void SprinklerValveOperator::loop() {
-  if (millis() >= this->start_millis_) {  // dummy check
+  uint32_t now = App.get_loop_component_start_time();
+  if (now >= this->start_millis_) {  // dummy check
     switch (this->state_) {
       case STARTING:
-        if (millis() > (this->start_millis_ + this->start_delay_)) {
+        if (now > (this->start_millis_ + this->start_delay_)) {
           this->run_();  // start_delay_ has been exceeded, so ensure both valves are on and update the state
         }
         break;
 
       case ACTIVE:
-        if (millis() > (this->start_millis_ + this->start_delay_ + this->run_duration_)) {
+        if (now > (this->start_millis_ + this->start_delay_ + this->run_duration_)) {
           this->stop();  // start_delay_ + run_duration_ has been exceeded, start shutting down
         }
         break;
 
       case STOPPING:
-        if (millis() > (this->stop_millis_ + this->stop_delay_)) {
+        if (now > (this->stop_millis_ + this->stop_delay_)) {
           this->kill_();  // stop_delay_has been exceeded, ensure all valves are off
         }
         break;
@@ -1711,15 +1712,18 @@ void Sprinkler::dump_config() {
     if (this->valve_overlap_) {
       ESP_LOGCONFIG(TAG, "  Valve Overlap: %" PRIu32 " seconds", this->switching_delay_.value_or(0));
     } else {
-      ESP_LOGCONFIG(TAG, "  Valve Open Delay: %" PRIu32 " seconds", this->switching_delay_.value_or(0));
-      ESP_LOGCONFIG(TAG, "  Pump Switch Off During Valve Open Delay: %s",
-                    YESNO(this->pump_switch_off_during_valve_open_delay_));
+      ESP_LOGCONFIG(TAG,
+                    "  Valve Open Delay: %" PRIu32 " seconds\n"
+                    "  Pump Switch Off During Valve Open Delay: %s",
+                    this->switching_delay_.value_or(0), YESNO(this->pump_switch_off_during_valve_open_delay_));
     }
   }
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
-    ESP_LOGCONFIG(TAG, "  Valve %zu:", valve_number);
-    ESP_LOGCONFIG(TAG, "    Name: %s", this->valve_name(valve_number));
-    ESP_LOGCONFIG(TAG, "    Run Duration: %" PRIu32 " seconds", this->valve_run_duration(valve_number));
+    ESP_LOGCONFIG(TAG,
+                  "  Valve %zu:\n"
+                  "    Name: %s\n"
+                  "    Run Duration: %" PRIu32 " seconds",
+                  valve_number, this->valve_name(valve_number), this->valve_run_duration(valve_number));
     if (this->valve_[valve_number].valve_switch.pulse_duration()) {
       ESP_LOGCONFIG(TAG, "    Pulse Duration: %" PRIu32 " milliseconds",
                     this->valve_[valve_number].valve_switch.pulse_duration());

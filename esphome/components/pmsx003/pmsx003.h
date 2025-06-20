@@ -1,8 +1,9 @@
 #pragma once
 
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/core/component.h"
 
 namespace esphome {
 namespace pmsx003 {
@@ -77,7 +78,9 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   void parse_data_();
   bool check_payload_length_(uint16_t payload_length);
   void send_command_(PMSX0003Command cmd, uint16_t data);
-  uint16_t get_16_bit_uint_(uint8_t start_index);
+  uint16_t get_16_bit_uint_(uint8_t start_index) const {
+    return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
+  }
 
   uint8_t data_[64];
   uint8_t data_index_{0};
