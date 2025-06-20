@@ -1,0 +1,41 @@
+esphome:
+  name: esp32-c6-test
+  friendly_name: esp32 c6 test
+
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "mpJ8RZ/4Hgvrf/fvytXCZokzJedMVQa7B3Q2RbmZPGY="
+
+ota:
+  - platform: esphome
+    password: "faa23229fbe03188178746511093c0e5"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esp32-C6-Test Fallback Hotspot"
+    password: "cYzIXtzxcrwH"
+
+captive_portal:
+    
+switch:
+  - platform: gpio
+    name: "GPIO 5 switch"
+    pin: GPIO5
+    
+  - platform: gpio
+    name: "GPIO 10 switch"
+    pin: GPIO10
+
