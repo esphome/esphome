@@ -33,55 +33,27 @@ wifi:
 
 captive_portal:
 
-switch:
-  - platform: gpio
-    name: "GPIO 5 switch"
-    pin: GPIO5
-
-  - platform: gpio
-    name: "GPIO 10 switch"
-    pin: GPIO10
-
 number:
   - platform: template
-    name: "Bed head corner X"
-    id: corner_1_x
+    name: "Bed width"
+    id: width
     mode: box
     optimistic: true
     min_value: -5.0
     max_value: 5.0
     step: 0.1
-    initial_value: 0.0
+    initial_value: 1.0
 
   - platform: template
-    name: "Bed head corner Y"
-    id: corner_1_y
+    name: "Bed length"
+    id: length
     mode: box
     optimistic: true
     min_value: -5.0
     max_value: 5.0
     step: 0.1
-    initial_value: 0.0
+    initial_value: 1.0
 
-  - platform: template
-    name: "Bed foot corner X"
-    id: corner_2_x
-    mode: box
-    optimistic: true
-    min_value: -5.0
-    max_value: 5.0
-    step: 0.1
-    initial_value: 0.0
-
-  - platform: template
-    name: "Bed foot corner Y"
-    id: corner_2_y
-    mode: box
-    optimistic: true
-    min_value: -5.0
-    max_value: 5.0
-    step: 0.1
-    initial_value: 0.0
 
 # --- Add iwr6843aop custom component ---
 iwr6843aop:
@@ -89,34 +61,13 @@ iwr6843aop:
   uart1_id: iwr_uart1
   uart2_id: iwr_uart2
 
-  # Example float inputs (now referencing user-changeable numbers)
   float_input:
-    corner_1_x: corner_1_x
-    corner_1_y: corner_1_y
-    corner_2_x: corner_2_x
-    corner_2_y: corner_2_y
+    width: width
+    length: length
 
-sensor:
-  - platform: template
-    name: "IWR6843 Float Output 1"
-    id: iwr6843_float_output_1
-    lambda: |-
-      return id(my_iwr6843aop).get_float_output_1();
-    update_interval: 100s
-
-  - platform: template
-    name: "IWR6843 Float Output 2"
-    id: iwr6843_float_output_2
-    lambda: |-
-        return id(my_iwr6843aop).get_float_output_2();
-    update_interval: 100s
-
-  - platform: template
-    name: "IWR6843 Int Output"
-    id: iwr6843_int_output
-    lambda: |-
-        return id(my_iwr6843aop).get_int_output();
-    update_interval: 100s
+  binary_sensor:
+    room_presence: room_presence
+    bed_presence: bed_presence
 
 uart:
   - id: iwr_uart1
@@ -128,3 +79,12 @@ uart:
     rx_pin: GPIO21
     baud_rate: 921600
     rx_buffer_size: 2048
+
+binary_sensor:
+  - platform: template
+    id: room_presence
+    name: "Room presence"
+
+  - platform: template
+    id: bed_presence
+    name: "Bed presence"
