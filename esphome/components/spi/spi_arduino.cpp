@@ -43,10 +43,7 @@ class SPIDelegateHw : public SPIDelegate {
       return;
     }
 #ifdef USE_RP2040
-    // avoid overwriting the supplied buffer. Use vector for automatic deallocation
-    auto rxbuf = std::vector<uint8_t>(length);
-    memcpy(rxbuf.data(), ptr, length);
-    this->channel_->transfer((void *) rxbuf.data(), length);
+    this->channel_->transfer(ptr, nullptr, length);
 #elif defined(USE_ESP8266)
     // ESP8266 SPI library requires the pointer to be word aligned, but the data may not be
     // so we need to copy the data to a temporary buffer
@@ -89,7 +86,8 @@ class SPIBusHw : public SPIBus {
 #endif
   }
 
-  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) override {
+  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                            bool release_device, bool write_only) override {
     return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin);
   }
 
