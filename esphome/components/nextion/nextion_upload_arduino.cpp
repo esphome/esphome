@@ -67,8 +67,8 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
     ESP_LOGV(TAG, "Fetch %" PRIu16 " bytes", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
-    const uint32_t start_time = millis();
-    while (read_len < buffer_size && millis() - start_time < 5000) {
+    const uint32_t start_time = App.get_loop_component_start_time();
+    while (read_len < buffer_size && App.get_loop_component_start_time() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
         partial_read_len =
             http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
