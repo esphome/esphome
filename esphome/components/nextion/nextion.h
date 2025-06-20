@@ -1309,9 +1309,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   size_t max_queue_size_{0};
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
+
 #ifdef USE_NEXTION_COMMAND_SPACING
   NextionCommandPacer command_pacer_{0};
+
+  /**
+   * @brief Process any commands in the queue that are pending due to command spacing
+   *
+   * This method checks if the first item in the nextion_queue_ has a pending command
+   * that was previously blocked by command spacing. If spacing now allows and a
+   * pending command exists, it attempts to send the command. Once successfully sent,
+   * the pending command is cleared and the queue item continues normal processing.
+   *
+   * Called from loop() to retry sending commands that were delayed by spacing.
+   */
+  void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
+
   std::deque<NextionQueue *> nextion_queue_;
   std::deque<NextionQueue *> waveform_queue_;
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
@@ -1347,6 +1361,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool add_no_result_to_queue_with_ignore_sleep_printf_(const std::string &variable_name, const char *format, ...)
       __attribute__((format(printf, 3, 4)));
   void add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command);
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  /**
+   * @brief Add a command to the Nextion queue with a pending command for retry
+   *
+   * This method creates a queue entry for a command that was blocked by command spacing.
+   * The command string is stored in the queue item's pending_command field so it can
+   * be retried later when spacing allows. This ensures commands are not lost when
+   * sent too quickly.
+   *
+   * If the max_queue_size limit is configured and reached, the command will be dropped.
+   *
+   * @param variable_name Name of the variable or component associated with the command
+   * @param command The actual command string to be sent when spacing allows
+   */
+  void add_no_result_to_queue_with_pending_command_(const std::string &variable_name, const std::string &command);
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   bool add_no_result_to_queue_with_printf_(const std::string &variable_name, const char *format, ...)
       __attribute__((format(printf, 3, 4)));

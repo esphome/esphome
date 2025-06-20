@@ -325,7 +325,30 @@ void Nextion::loop() {
       this->nextion_reports_is_setup_ = true;
     }
   }
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Try to send any pending commands if spacing allows
+  this->process_pending_in_queue_();
+#endif  // USE_NEXTION_COMMAND_SPACING
 }
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+void Nextion::process_pending_in_queue_() {
+  if (this->nextion_queue_.empty() || !this->command_pacer_.can_send()) {
+    return;
+  }
+
+  // Check if first item in queue has a pending command
+  auto *front_item = this->nextion_queue_.front();
+  if (front_item && !front_item->pending_command.empty()) {
+    if (this->send_command_(front_item->pending_command)) {
+      // Command sent successfully, clear the pending command
+      front_item->pending_command.clear();
+      ESP_LOGVV(TAG, "Pending command sent: %s", front_item->component->get_variable_name().c_str());
+    }
+  }
+}
+#endif  // USE_NEXTION_COMMAND_SPACING
 
 bool Nextion::remove_from_q_(bool report_empty) {
   if (this->nextion_queue_.empty()) {
@@ -1034,8 +1057,41 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
 
   if (this->send_command_(command)) {
     this->add_no_result_to_queue_(variable_name);
+#ifdef USE_NEXTION_COMMAND_SPACING
+  } else {
+    // Command blocked by spacing, add to queue WITH the command for retry
+    this->add_no_result_to_queue_with_pending_command_(variable_name, command);
+#endif  // USE_NEXTION_COMMAND_SPACING
   }
 }
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
+                                                           const std::string &command) {
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
+    ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
+    return;
+  }
+#endif
+
+  RAMAllocator<nextion::NextionQueue> allocator;
+  nextion::NextionQueue *nextion_queue = allocator.allocate(1);
+  if (nextion_queue == nullptr) {
+    ESP_LOGW(TAG, "Queue alloc failed");
+    return;
+  }
+  new (nextion_queue) nextion::NextionQueue();
+
+  nextion_queue->component = new nextion::NextionComponentBase;
+  nextion_queue->component->set_variable_name(variable_name);
+  nextion_queue->queue_time = millis();
+  nextion_queue->pending_command = command;  // Store command for retry
+
+  this->nextion_queue_.push_back(nextion_queue);
+  ESP_LOGVV(TAG, "Queue with pending command: %s", variable_name.c_str());
+}
+#endif  // USE_NEXTION_COMMAND_SPACING
 
 bool Nextion::add_no_result_to_queue_with_ignore_sleep_printf_(const std::string &variable_name, const char *format,
                                                                ...) {
