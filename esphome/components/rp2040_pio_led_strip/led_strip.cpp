@@ -9,8 +9,8 @@
 #include <hardware/dma.h>
 #include <hardware/irq.h>
 #include <hardware/pio.h>
-#include <pico/stdlib.h>
 #include <pico/sem.h>
+#include <pico/stdlib.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -44,7 +44,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
 
   size_t buffer_size = this->get_buffer_size_();
 
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buf_ = allocator.allocate(buffer_size);
   if (this->buf_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size);
