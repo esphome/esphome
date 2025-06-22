@@ -963,13 +963,12 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   uint16_t ret = 0;
   uint8_t c = 0;
   uint8_t nr_of_ff_bytes = 0;
-  uint64_t start;
   bool exit_flag = false;
   bool ff_flag = false;
 
-  start = App.get_loop_component_start_time();
+  const uint32_t start = millis();
 
-  while ((timeout == 0 && this->available()) || App.get_loop_component_start_time() - start <= timeout) {
+  while ((timeout == 0 && this->available()) || millis() - start <= timeout) {
     if (!this->available()) {
       App.feed_wdt();
       delay(1);
@@ -1038,7 +1037,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   nextion_queue->component = new nextion::NextionComponentBase;
   nextion_queue->component->set_variable_name(variable_name);
 
-  nextion_queue->queue_time = App.get_loop_component_start_time();
+  nextion_queue->queue_time = millis();
 
   this->nextion_queue_.push_back(nextion_queue);
 
