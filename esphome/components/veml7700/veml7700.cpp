@@ -93,11 +93,15 @@ void VEML7700Component::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Automatic gain/time: %s", YESNO(this->automatic_mode_enabled_));
   if (!this->automatic_mode_enabled_) {
-    ESP_LOGCONFIG(TAG, "  Gain: %s", get_gain_str(this->gain_));
-    ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
+    ESP_LOGCONFIG(TAG,
+                  "  Gain: %s\n"
+                  "  Integration time: %d ms",
+                  get_gain_str(this->gain_), get_itime_ms(this->integration_time_));
   }
-  ESP_LOGCONFIG(TAG, "  Lux compensation: %s", YESNO(this->lux_compensation_enabled_));
-  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+  ESP_LOGCONFIG(TAG,
+                "  Lux compensation: %s\n"
+                "  Glass attenuation factor: %f",
+                YESNO(this->lux_compensation_enabled_), this->glass_attenuation_factor_);
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "ALS channel lux", this->ambient_light_sensor_);

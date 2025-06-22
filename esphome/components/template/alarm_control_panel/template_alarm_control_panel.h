@@ -60,6 +60,7 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
   bool get_all_sensors_ready() { return this->sensors_ready_; };
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+  void bypass_before_arming();
 
 #ifdef USE_BINARY_SENSOR
   /** Add a binary_sensor to the alarm_panel.

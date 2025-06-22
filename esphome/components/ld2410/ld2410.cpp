@@ -72,9 +72,11 @@ void LD2410Component::dump_config() {
   }
 #endif
   this->read_all_info();
-  ESP_LOGCONFIG(TAG, "  Throttle_ : %ums", this->throttle_);
-  ESP_LOGCONFIG(TAG, "  MAC Address : %s", const_cast<char *>(this->mac_.c_str()));
-  ESP_LOGCONFIG(TAG, "  Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
+  ESP_LOGCONFIG(TAG,
+                "  Throttle_ : %ums\n"
+                "  MAC Address : %s\n"
+                "  Firmware Version : %s",
+                this->throttle_, const_cast<char *>(this->mac_.c_str()), const_cast<char *>(this->version_.c_str()));
 }
 
 void LD2410Component::setup() {

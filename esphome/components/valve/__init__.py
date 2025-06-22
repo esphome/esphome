@@ -163,6 +163,7 @@ async def register_valve(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_valve(var))
+    CORE.register_platform_component("valve", var)
     await _setup_valve_core(var, config)
 
 

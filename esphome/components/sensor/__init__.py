@@ -167,7 +167,6 @@ DEVICE_CLASSES = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
-
 sensor_ns = cg.esphome_ns.namespace("sensor")
 StateClasses = sensor_ns.enum("StateClass")
 STATE_CLASSES = {
@@ -840,6 +839,7 @@ async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_sensor(var))
+    CORE.register_platform_component("sensor", var)
     await setup_sensor_core_(var, config)
 
 

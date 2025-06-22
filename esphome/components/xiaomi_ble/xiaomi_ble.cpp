@@ -91,6 +91,13 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   // MiaoMiaoce humidity, 1 byte, 8-bit unsigned integer, 1 %
   else if ((value_type == 0x4C02) && (value_length == 1)) {
     result.humidity = data[0];
+  }
+  // XMWSDJ04MMC humidity, 4 bytes, float, 0.1 °C
+  else if ((value_type == 0x4C08) && (value_length == 4)) {
+    const uint32_t int_number = encode_uint32(data[3], data[2], data[1], data[0]);
+    float humidity;
+    std::memcpy(&humidity, &int_number, sizeof(humidity));
+    result.humidity = humidity;
   } else {
     return false;
   }
@@ -219,6 +226,11 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if (device_uuid == 0x055b) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
+  } else if (device_uuid == 0x1203) {  // small square body, e-ink display, encrypted
+    result.type = XiaomiParseResult::TYPE_XMWSDJ04MMC;
+    result.name = "XMWSDJ04MMC";
+    if (raw.size() == 19)
+      result.raw_offset -= 6;
   } else if (device_uuid == 0x07f6) {  // Xiaomi-Yeelight BLE nightlight
     result.type = XiaomiParseResult::TYPE_MJYD02YLA;
     result.name = "MJYD02YLA";

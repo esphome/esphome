@@ -42,8 +42,10 @@ void MQTTValveComponent::dump_config() {
   bool has_command_topic = traits.get_supports_position();
   LOG_MQTT_COMPONENT(true, has_command_topic)
   if (traits.get_supports_position()) {
-    ESP_LOGCONFIG(TAG, "  Position State Topic: '%s'", this->get_position_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Position Command Topic: '%s'", this->get_position_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Position State Topic: '%s'\n"
+                  "  Position Command Topic: '%s'",
+                  this->get_position_state_topic().c_str(), this->get_position_command_topic().c_str());
   }
 }
 void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {

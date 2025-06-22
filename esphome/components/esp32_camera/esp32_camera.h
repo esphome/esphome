@@ -2,13 +2,17 @@
 
 #ifdef USE_ESP32
 
+#include <esp_camera.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
-#include <esp_camera.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+
+#ifdef USE_I2C
+#include "esphome/components/i2c/i2c_bus.h"
+#endif  // USE_I2C
 
 namespace esphome {
 namespace esp32_camera {
@@ -118,6 +122,9 @@ class ESP32Camera : public EntityBase, public Component {
   void set_pixel_clock_pin(uint8_t pin);
   void set_external_clock(uint8_t pin, uint32_t frequency);
   void set_i2c_pins(uint8_t sda, uint8_t scl);
+#ifdef USE_I2C
+  void set_i2c_id(i2c::InternalI2CBus *i2c_bus);
+#endif  // USE_I2C
   void set_reset_pin(uint8_t pin);
   void set_power_down_pin(uint8_t pin);
   /* -- image */
@@ -210,6 +217,9 @@ class ESP32Camera : public EntityBase, public Component {
 
   uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
+#ifdef USE_I2C
+  i2c::InternalI2CBus *i2c_bus_{nullptr};
+#endif  // USE_I2C
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

@@ -106,7 +106,7 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
-#if USE_ESP_IDF && (ESP_IDF_VERSION_MAJOR >= 5)
+#if ESP_IDF_VERSION_MAJOR >= 5
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
 #else
   spi_device_handle_t spi_handle = nullptr;
@@ -274,6 +274,9 @@ void EthernetComponent::loop() {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
+      } else {
+        // When connected and stable, disable the loop to save CPU cycles
+        this->disable_loop();
       }
       break;
   }
@@ -326,10 +329,12 @@ void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ethernet:");
   this->dump_connect_params_();
 #ifdef USE_ETHERNET_SPI
-  ESP_LOGCONFIG(TAG, "  CLK Pin: %u", this->clk_pin_);
-  ESP_LOGCONFIG(TAG, "  MISO Pin: %u", this->miso_pin_);
-  ESP_LOGCONFIG(TAG, "  MOSI Pin: %u", this->mosi_pin_);
-  ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_pin_);
+  ESP_LOGCONFIG(TAG,
+                "  CLK Pin: %u\n"
+                "  MISO Pin: %u\n"
+                "  MOSI Pin: %u\n"
+                "  CS Pin: %u",
+                this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
     ESP_LOGCONFIG(TAG, "  Polling Interval: %lu ms", this->polling_interval_);
@@ -338,15 +343,19 @@ void EthernetComponent::dump_config() {
   {
     ESP_LOGCONFIG(TAG, "  IRQ Pin: %d", this->interrupt_pin_);
   }
-  ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Clock Speed: %d MHz", this->clock_speed_ / 1000000);
+  ESP_LOGCONFIG(TAG,
+                "  Reset Pin: %d\n"
+                "  Clock Speed: %d MHz",
+                this->reset_pin_, this->clock_speed_ / 1000000);
 #else
   if (this->power_pin_ != -1) {
     ESP_LOGCONFIG(TAG, "  Power Pin: %u", this->power_pin_);
   }
-  ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
-  ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
-  ESP_LOGCONFIG(TAG, "  PHY addr: %u", this->phy_addr_);
+  ESP_LOGCONFIG(TAG,
+                "  MDC Pin: %u\n"
+                "  MDIO Pin: %u\n"
+                "  PHY addr: %u",
+                this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
 }
@@ -391,11 +400,13 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
     case ETHERNET_EVENT_START:
       event_name = "ETH started";
       global_eth_component->started_ = true;
+      global_eth_component->enable_loop_soon_any_context();
       break;
     case ETHERNET_EVENT_STOP:
       event_name = "ETH stopped";
       global_eth_component->started_ = false;
       global_eth_component->connected_ = false;
+      global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
@@ -403,6 +414,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
       global_eth_component->connected_ = false;
+      global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     default:
       return;
@@ -419,8 +431,10 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   global_eth_component->got_ipv4_address_ = true;
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
   global_eth_component->connected_ = true;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif /* USE_NETWORK_IPV6 */
 }
 
@@ -433,8 +447,10 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 #if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
   global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif
 }
 #endif /* USE_NETWORK_IPV6 */
@@ -512,16 +528,19 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
-  ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(&ip.netmask).str().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(&ip.gw).str().c_str());
-
   const ip_addr_t *dns_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip2 = dns_getserver(1);
 
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2).str().c_str());
+  ESP_LOGCONFIG(TAG,
+                "  IP Address: %s\n"
+                "  Hostname: '%s'\n"
+                "  Subnet: %s\n"
+                "  Gateway: %s\n"
+                "  DNS1: %s\n"
+                "  DNS2: %s",
+                network::IPAddress(&ip.ip).str().c_str(), App.get_name().c_str(),
+                network::IPAddress(&ip.netmask).str().c_str(), network::IPAddress(&ip.gw).str().c_str(),
+                network::IPAddress(dns_ip1).str().c_str(), network::IPAddress(dns_ip2).str().c_str());
 
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -533,9 +552,12 @@ void EthernetComponent::dump_connect_params_() {
   }
 #endif /* USE_NETWORK_IPV6 */
 
-  ESP_LOGCONFIG(TAG, "  MAC Address: %s", this->get_eth_mac_address_pretty().c_str());
-  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL));
-  ESP_LOGCONFIG(TAG, "  Link Speed: %u", this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
+  ESP_LOGCONFIG(TAG,
+                "  MAC Address: %s\n"
+                "  Is Full Duplex: %s\n"
+                "  Link Speed: %u",
+                this->get_eth_mac_address_pretty().c_str(), YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL),
+                this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 }
 
 #ifdef USE_ETHERNET_SPI
@@ -608,6 +630,7 @@ bool EthernetComponent::powerdown() {
   }
   this->connected_ = false;
   this->started_ = false;
+  // No need to enable_loop() here as this is only called during shutdown/reboot
   if (this->phy_->pwrctl(this->phy_, false) != ESP_OK) {
     ESP_LOGE(TAG, "Error powering down ethernet PHY");
     return false;

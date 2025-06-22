@@ -1,8 +1,8 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include <vector>
 
@@ -216,7 +216,7 @@ class ProtoWriteBuffer {
     this->buffer_->insert(this->buffer_->end(), data, data + len);
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
-    this->encode_string(field_id, value.data(), value.size());
+    this->encode_string(field_id, value.data(), value.size(), force);
   }
   void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
     this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
@@ -327,9 +327,11 @@ class ProtoWriteBuffer {
 class ProtoMessage {
  public:
   virtual ~ProtoMessage() = default;
-  virtual void encode(ProtoWriteBuffer buffer) const = 0;
+  // Default implementation for messages with no fields
+  virtual void encode(ProtoWriteBuffer buffer) const {}
   void decode(const uint8_t *buffer, size_t length);
-  virtual void calculate_size(uint32_t &total_size) const = 0;
+  // Default implementation for messages with no fields
+  virtual void calculate_size(uint32_t &total_size) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
   std::string dump() const;
   virtual void dump_to(std::string &out) const = 0;
@@ -360,11 +362,11 @@ class ProtoService {
    * @return A ProtoWriteBuffer object with the reserved size.
    */
   virtual ProtoWriteBuffer create_buffer(uint32_t reserve_size) = 0;
-  virtual bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) = 0;
+  virtual bool send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) = 0;
   virtual bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) = 0;
 
   // Optimized method that pre-allocates buffer based on message size
-  template<class C> bool send_message_(const C &msg, uint32_t message_type) {
+  bool send_message_(const ProtoMessage &msg, uint16_t message_type) {
     uint32_t msg_size = 0;
     msg.calculate_size(msg_size);
 
@@ -376,6 +378,26 @@ class ProtoService {
 
     // Send the buffer
     return this->send_buffer(buffer, message_type);
+  }
+
+  // Authentication helper methods
+  bool check_connection_setup_() {
+    if (!this->is_connection_setup()) {
+      this->on_no_setup_connection();
+      return false;
+    }
+    return true;
+  }
+
+  bool check_authenticated_() {
+    if (!this->check_connection_setup_()) {
+      return false;
+    }
+    if (!this->is_authenticated()) {
+      this->on_unauthenticated_access();
+      return false;
+    }
+    return true;
   }
 };
 

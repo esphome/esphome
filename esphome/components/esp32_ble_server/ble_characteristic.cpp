@@ -2,6 +2,7 @@
 #include "ble_server.h"
 #include "ble_service.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32

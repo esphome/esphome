@@ -37,7 +37,12 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   request->redirect("/?save");
 }
 
-void CaptivePortal::setup() {}
+void CaptivePortal::setup() {
+#ifndef USE_ARDUINO
+  // No DNS server needed for non-Arduino frameworks
+  this->disable_loop();
+#endif
+}
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
@@ -50,6 +55,8 @@ void CaptivePortal::start() {
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
   this->dns_server_->start(53, "*", ip);
+  // Re-enable loop() when DNS server is started
+  this->enable_loop();
 #endif
 
   this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *req) {
@@ -68,7 +75,11 @@ void CaptivePortal::start() {
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   if (req->url() == "/") {
+#ifndef USE_ESP8266
+    auto *response = req->beginResponse(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+#else
     auto *response = req->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+#endif
     response->addHeader("Content-Encoding", "gzip");
     req->send(response);
     return;

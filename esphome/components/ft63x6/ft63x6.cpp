@@ -71,8 +71,10 @@ void FT63X6Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  X Calibration: [%d, %d]", this->x_raw_min_, this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Y Calibration: [%d, %d]", this->y_raw_min_, this->y_raw_max_);
+  ESP_LOGCONFIG(TAG,
+                "  X Calibration: [%d, %d]\n"
+                "  Y Calibration: [%d, %d]",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
   LOG_UPDATE_INTERVAL(this);
 }
 

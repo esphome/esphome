@@ -66,8 +66,10 @@ Trigger<> *TemplateValve::get_toggle_trigger() const { return this->toggle_trigg
 
 void TemplateValve::dump_config() {
   LOG_VALVE("", "Template Valve", this);
-  ESP_LOGCONFIG(TAG, "  Has position: %s", YESNO(this->has_position_));
-  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+  ESP_LOGCONFIG(TAG,
+                "  Has position: %s\n"
+                "  Optimistic: %s",
+                YESNO(this->has_position_), YESNO(this->optimistic_));
 }
 
 void TemplateValve::control(const ValveCall &call) {

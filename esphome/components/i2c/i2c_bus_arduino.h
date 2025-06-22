@@ -2,9 +2,9 @@
 
 #ifdef USE_ARDUINO
 
-#include "i2c_bus.h"
-#include "esphome/core/component.h"
 #include <Wire.h>
+#include "esphome/core/component.h"
+#include "i2c_bus.h"
 
 namespace esphome {
 namespace i2c {
@@ -15,7 +15,7 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class ArduinoI2CBus : public I2CBus, public Component {
+class ArduinoI2CBus : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -29,12 +29,15 @@ class ArduinoI2CBus : public I2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
+  int get_port() const override { return this->port_; }
+
  private:
   void recover_();
   void set_pins_and_clock_();
   RecoveryCode recovery_result_;
 
  protected:
+  int8_t port_{-1};
   TwoWire *wire_;
   uint8_t sda_pin_;
   uint8_t scl_pin_;

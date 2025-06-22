@@ -24,7 +24,11 @@ static const char *const TAG = "api";
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-APIServer::APIServer() { global_api_server = this; }
+APIServer::APIServer() {
+  global_api_server = this;
+  // Pre-allocate shared write buffer
+  shared_write_buffer_.reserve(64);
+}
 
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
@@ -88,6 +92,12 @@ void APIServer::setup() {
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
+      if (this->shutting_down_) {
+        // Don't try to send logs during shutdown
+        // as it could result in a recursion and
+        // we would be filling a buffer we are trying to clear
+        return;
+      }
       for (auto &c : this->clients_) {
         if (!c->remove_)
           c->try_send_log_message(level, tag, message);
@@ -96,7 +106,7 @@ void APIServer::setup() {
   }
 #endif
 
-  this->last_connected_ = millis();
+  this->last_connected_ = App.get_loop_component_start_time();
 
 #ifdef USE_ESP32_CAMERA
   if (esp32_camera::global_esp32_camera != nullptr && !esp32_camera::global_esp32_camera->is_internal()) {
@@ -112,8 +122,8 @@ void APIServer::setup() {
 }
 
 void APIServer::loop() {
-  // Accept new clients only if the socket has incoming connections
-  if (this->socket_->ready()) {
+  // Accept new clients only if the socket exists and has incoming connections
+  if (this->socket_ && this->socket_->ready()) {
     while (true) {
       struct sockaddr_storage source_addr;
       socklen_t addr_len = sizeof(source_addr);
@@ -154,7 +164,7 @@ void APIServer::loop() {
   }
 
   if (this->reboot_timeout_ != 0) {
-    const uint32_t now = millis();
+    const uint32_t now = App.get_loop_component_start_time();
     if (!this->is_connected()) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
         ESP_LOGE(TAG, "No client connected; rebooting");
@@ -169,8 +179,10 @@ void APIServer::loop() {
 }
 
 void APIServer::dump_config() {
-  ESP_LOGCONFIG(TAG, "API Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
+  ESP_LOGCONFIG(TAG,
+                "API Server:\n"
+                "  Address: %s:%u",
+                network::get_use_address().c_str(), this->port_);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Using noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
@@ -215,11 +227,11 @@ bool APIServer::check_password(const std::string &password) const {
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
 #ifdef USE_BINARY_SENSOR
-void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
+void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_binary_sensor_state(obj, state);
+    c->send_binary_sensor_state(obj);
 }
 #endif
 
@@ -255,7 +267,7 @@ void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_sensor_state(obj, state);
+    c->send_sensor_state(obj);
 }
 #endif
 
@@ -264,7 +276,7 @@ void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_switch_state(obj, state);
+    c->send_switch_state(obj);
 }
 #endif
 
@@ -273,7 +285,7 @@ void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_text_sensor_state(obj, state);
+    c->send_text_sensor_state(obj);
 }
 #endif
 
@@ -291,7 +303,7 @@ void APIServer::on_number_update(number::Number *obj, float state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_number_state(obj, state);
+    c->send_number_state(obj);
 }
 #endif
 
@@ -327,7 +339,7 @@ void APIServer::on_text_update(text::Text *obj, const std::string &state) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_text_state(obj, state);
+    c->send_text_state(obj);
 }
 #endif
 
@@ -336,7 +348,7 @@ void APIServer::on_select_update(select::Select *obj, const std::string &state, 
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_select_state(obj, state);
+    c->send_select_state(obj);
 }
 #endif
 
@@ -345,7 +357,7 @@ void APIServer::on_lock_update(lock::Lock *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_lock_state(obj, obj->state);
+    c->send_lock_state(obj);
 }
 #endif
 
@@ -395,6 +407,8 @@ float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI;
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 
 void APIServer::set_password(const std::string &password) { this->password_ = password; }
+
+void APIServer::set_batch_delay(uint32_t batch_delay) { this->batch_delay_ = batch_delay; }
 
 void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
   for (auto &client : this->clients_) {
@@ -454,7 +468,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
       ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
       this->set_noise_psk(psk);
       for (auto &c : this->clients_) {
-        c->send_disconnect_request(DisconnectRequest());
+        c->send_message(DisconnectRequest());
       }
     });
   }
@@ -474,10 +488,36 @@ void APIServer::request_time() {
 bool APIServer::is_connected() const { return !this->clients_.empty(); }
 
 void APIServer::on_shutdown() {
-  for (auto &c : this->clients_) {
-    c->send_disconnect_request(DisconnectRequest());
+  this->shutting_down_ = true;
+
+  // Close the listening socket to prevent new connections
+  if (this->socket_) {
+    this->socket_->close();
+    this->socket_ = nullptr;
   }
-  delay(10);
+
+  // Change batch delay to 5ms for quick flushing during shutdown
+  this->batch_delay_ = 5;
+
+  // Send disconnect requests to all connected clients
+  for (auto &c : this->clients_) {
+    if (!c->send_message(DisconnectRequest())) {
+      // If we can't send the disconnect request directly (tx_buffer full),
+      // schedule it in the batch so it will be sent with the 5ms timer
+      c->schedule_message_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE);
+    }
+  }
+}
+
+bool APIServer::teardown() {
+  // If network is disconnected, no point trying to flush buffers
+  if (!network::is_connected()) {
+    return true;
+  }
+  this->loop();
+
+  // Return true only when all clients have been torn down
+  return this->clients_.empty();
 }
 
 }  // namespace api

@@ -1667,6 +1667,26 @@ class OnlyWith(Optional):
         pass
 
 
+class OnlyWithout(Optional):
+    """Set the default value only if the given component is NOT loaded."""
+
+    def __init__(self, key, component, default=None):
+        super().__init__(key)
+        self._component = component
+        self._default = vol.default_factory(default)
+
+    @property
+    def default(self):
+        if self._component not in CORE.loaded_integrations:
+            return self._default
+        return vol.UNDEFINED
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from vol.Optional
+        pass
+
+
 def _entity_base_validator(config):
     if CONF_NAME not in config and CONF_ID not in config:
         raise Invalid("At least one of 'id:' or 'name:' is required!")

@@ -12,8 +12,10 @@ using namespace esphome::cover;
 
 void TimeBasedCover::dump_config() {
   LOG_COVER("", "Time Based Cover", this);
-  ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+  ESP_LOGCONFIG(TAG,
+                "  Open Duration: %.1fs\n"
+                "  Close Duration: %.1fs",
+                this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
 }
 void TimeBasedCover::setup() {
   auto restore = this->restore_state_();

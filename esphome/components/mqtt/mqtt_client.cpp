@@ -149,18 +149,23 @@ void MQTTClientComponent::send_device_info_() {
 }
 
 void MQTTClientComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT:");
-  ESP_LOGCONFIG(TAG, "  Server Address: %s:%u (%s)", this->credentials_.address.c_str(), this->credentials_.port,
-                this->ip_.str().c_str());
-  ESP_LOGCONFIG(TAG, "  Username: " LOG_SECRET("'%s'"), this->credentials_.username.c_str());
-  ESP_LOGCONFIG(TAG, "  Client ID: " LOG_SECRET("'%s'"), this->credentials_.client_id.c_str());
-  ESP_LOGCONFIG(TAG, "  Clean Session: %s", YESNO(this->credentials_.clean_session));
+  ESP_LOGCONFIG(TAG,
+                "MQTT:\n"
+                "  Server Address: %s:%u (%s)\n"
+                "  Username: " LOG_SECRET("'%s'") "\n"
+                                                  "  Client ID: " LOG_SECRET("'%s'") "\n"
+                                                                                     "  Clean Session: %s",
+                this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str().c_str(),
+                this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
+                YESNO(this->credentials_.clean_session));
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
   if (!this->discovery_info_.prefix.empty()) {
-    ESP_LOGCONFIG(TAG, "  Discovery prefix: '%s'", this->discovery_info_.prefix.c_str());
-    ESP_LOGCONFIG(TAG, "  Discovery retain: %s", YESNO(this->discovery_info_.retain));
+    ESP_LOGCONFIG(TAG,
+                  "  Discovery prefix: '%s'\n"
+                  "  Discovery retain: %s",
+                  this->discovery_info_.prefix.c_str(), YESNO(this->discovery_info_.retain));
   }
   ESP_LOGCONFIG(TAG, "  Topic Prefix: '%s'", this->topic_prefix_.c_str());
   if (!this->log_message_.topic.empty()) {
@@ -721,9 +726,11 @@ void MQTTMessageTrigger::setup() {
       this->qos_);
 }
 void MQTTMessageTrigger::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Message Trigger:");
-  ESP_LOGCONFIG(TAG, "  Topic: '%s'", this->topic_.c_str());
-  ESP_LOGCONFIG(TAG, "  QoS: %u", this->qos_);
+  ESP_LOGCONFIG(TAG,
+                "MQTT Message Trigger:\n"
+                "  Topic: '%s'\n"
+                "  QoS: %u",
+                this->topic_.c_str(), this->qos_);
 }
 float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 

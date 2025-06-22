@@ -2,12 +2,14 @@ import re
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -77,6 +79,7 @@ CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
+CONF_RELEASE_DEVICE = "release_device"
 TYPE_SINGLE = "single"
 TYPE_QUAD = "quad"
 TYPE_OCTAL = "octal"
@@ -287,7 +290,15 @@ def spi_mode_schema(mode):
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
+    onlys = [cv.only_on([PLATFORM_ESP32]), cv.only_with_esp_idf]
+    if pin_count == 8:
+        onlys.append(
+            only_on_variant(
+                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+            )
+        )
     return cv.All(
+        *onlys,
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(TYPE_CLASS[mode]),
@@ -308,8 +319,6 @@ def spi_mode_schema(mode):
                 ),
             }
         ),
-        cv.only_on([PLATFORM_ESP32]),
-        cv.only_with_esp_idf,
     )
 
 
@@ -370,6 +379,7 @@ def spi_device_schema(
         cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
             SPI_MODE_OPTIONS, upper=True
         ),
+        cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_with_esp_idf),
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
@@ -381,13 +391,15 @@ def spi_device_schema(
 async def register_spi_device(var, config):
     parent = await cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
-    if CONF_CS_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
+    if cs_pin := config.get(CONF_CS_PIN):
+        pin = await cg.gpio_pin_expression(cs_pin)
         cg.add(var.set_cs_pin(pin))
-    if CONF_DATA_RATE in config:
-        cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
-    if CONF_SPI_MODE in config:
-        cg.add(var.set_mode(config[CONF_SPI_MODE]))
+    if data_rate := config.get(CONF_DATA_RATE):
+        cg.add(var.set_data_rate(data_rate))
+    if spi_mode := config.get(CONF_SPI_MODE):
+        cg.add(var.set_mode(spi_mode))
+    if release_device := config.get(CONF_RELEASE_DEVICE):
+        cg.add(var.set_release_device(release_device))
 
 
 def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):

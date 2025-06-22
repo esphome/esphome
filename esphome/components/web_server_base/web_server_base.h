@@ -23,7 +23,7 @@ class MiddlewareHandler : public AsyncWebHandler {
  public:
   MiddlewareHandler(AsyncWebHandler *next) : next_(next) {}
 
-  bool canHandle(AsyncWebServerRequest *request) override { return next_->canHandle(request); }
+  bool canHandle(AsyncWebServerRequest *request) const override { return next_->canHandle(request); }
   void handleRequest(AsyncWebServerRequest *request) override { next_->handleRequest(request); }
   void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
                     bool final) override {
@@ -32,7 +32,7 @@ class MiddlewareHandler : public AsyncWebHandler {
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
     next_->handleBody(request, data, len, index, total);
   }
-  bool isRequestHandlerTrivial() override { return next_->isRequestHandlerTrivial(); }
+  bool isRequestHandlerTrivial() const override { return next_->isRequestHandlerTrivial(); }
 
  protected:
   AsyncWebHandler *next_;
@@ -131,12 +131,12 @@ class OTARequestHandler : public AsyncWebHandler {
   void handleRequest(AsyncWebServerRequest *request) override;
   void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
                     bool final) override;
-  bool canHandle(AsyncWebServerRequest *request) override {
+  bool canHandle(AsyncWebServerRequest *request) const override {
     return request->url() == "/update" && request->method() == HTTP_POST;
   }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool isRequestHandlerTrivial() override { return false; }
+  bool isRequestHandlerTrivial() const override { return false; }
 
  protected:
   uint32_t last_ota_progress_{0};

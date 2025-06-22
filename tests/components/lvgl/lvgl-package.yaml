@@ -170,6 +170,12 @@ lvgl:
               lvgl.page.is_showing: page1
             then:
               logger.log: "Yes, page1 showing"
+        - if:
+            condition:
+              lvgl.is_idle:
+                timeout: !lambda return 5000;
+            then:
+              logger.log: LVGL is idle
       on_unload:
         - logger.log: page unloaded
         - lvgl.widget.focus: mark

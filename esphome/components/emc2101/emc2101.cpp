@@ -100,8 +100,10 @@ void Emc2101Component::dump_config() {
   if (this->dac_mode_) {
     ESP_LOGCONFIG(TAG, "  DAC Conversion Rate: %X", this->dac_conversion_rate_);
   } else {
-    ESP_LOGCONFIG(TAG, "  PWM Resolution: %02X", this->pwm_resolution_);
-    ESP_LOGCONFIG(TAG, "  PWM Divider: %02X", this->pwm_divider_);
+    ESP_LOGCONFIG(TAG,
+                  "  PWM Resolution: %02X\n"
+                  "  PWM Divider: %02X",
+                  this->pwm_resolution_, this->pwm_divider_);
   }
   ESP_LOGCONFIG(TAG, "  Inverted: %s", YESNO(this->inverted_));
 }

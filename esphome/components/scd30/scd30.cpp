@@ -140,10 +140,13 @@ void SCD30Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Altitude compensation: %dm", this->altitude_compensation_);
   }
-  ESP_LOGCONFIG(TAG, "  Automatic self calibration: %s", ONOFF(this->enable_asc_));
-  ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %dmBar", this->ambient_pressure_compensation_);
-  ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f °C", this->temperature_offset_);
-  ESP_LOGCONFIG(TAG, "  Update interval: %ds", this->update_interval_);
+  ESP_LOGCONFIG(TAG,
+                "  Automatic self calibration: %s\n"
+                "  Ambient pressure compensation: %dmBar\n"
+                "  Temperature offset: %.2f °C\n"
+                "  Update interval: %ds",
+                ONOFF(this->enable_asc_), this->ambient_pressure_compensation_, this->temperature_offset_,
+                this->update_interval_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

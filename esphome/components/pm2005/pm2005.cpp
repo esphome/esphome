@@ -103,8 +103,10 @@ void PM2005Component::update() {
 }
 
 void PM2005Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "PM2005:");
-  ESP_LOGCONFIG(TAG, "  Type: PM2%u05", this->sensor_type_ == PM2105);
+  ESP_LOGCONFIG(TAG,
+                "PM2005:\n"
+                "  Type: PM2%u05",
+                this->sensor_type_ == PM2105);
 
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {

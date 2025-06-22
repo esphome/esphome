@@ -95,9 +95,5 @@ void PM1006Component::parse_data_() {
   }
 }
 
-uint16_t PM1006Component::get_16_bit_uint_(uint8_t start_index) const {
-  return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
-}
-
 }  // namespace pm1006
 }  // namespace esphome

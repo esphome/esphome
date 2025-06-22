@@ -143,6 +143,10 @@ void OnlineImage::update() {
 
   headers.push_back(accept_header);
 
+  for (auto &header : this->request_headers_) {
+    headers.push_back(http_request::Header{header.first, header.second.value()});
+  }
+
   this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME});
 
   if (this->downloader_ == nullptr) {
@@ -174,18 +178,21 @@ void OnlineImage::update() {
   if (this->format_ == ImageFormat::BMP) {
     ESP_LOGD(TAG, "Allocating BMP decoder");
     this->decoder_ = make_unique<BmpDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
 #ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
   if (this->format_ == ImageFormat::JPEG) {
     ESP_LOGD(TAG, "Allocating JPEG decoder");
     this->decoder_ = esphome::make_unique<JpegDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
   if (this->format_ == ImageFormat::PNG) {
     ESP_LOGD(TAG, "Allocating PNG decoder");
     this->decoder_ = make_unique<PngDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
 
@@ -208,6 +215,7 @@ void OnlineImage::update() {
 void OnlineImage::loop() {
   if (!this->decoder_) {
     // Not decoding at the moment => nothing to do.
+    this->disable_loop();
     return;
   }
   if (!this->downloader_ || this->decoder_->is_finished()) {
@@ -216,7 +224,7 @@ void OnlineImage::loop() {
     this->height_ = buffer_height_;
     ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d", this->downloader_->get_bytes_read(),
              this->width_, this->height_);
-    ESP_LOGD(TAG, "Total time: %lds", ::time(nullptr) - this->start_time_);
+    ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
     this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
     this->download_finished_callback_.call(false);

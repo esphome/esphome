@@ -14,11 +14,11 @@ class BinarySensor;
 
 class Filter {
  public:
-  virtual optional<bool> new_value(bool value, bool is_initial) = 0;
+  virtual optional<bool> new_value(bool value) = 0;
 
-  void input(bool value, bool is_initial);
+  void input(bool value);
 
-  void output(bool value, bool is_initial);
+  void output(bool value);
 
  protected:
   friend BinarySensor;
@@ -30,7 +30,7 @@ class Filter {
 
 class DelayedOnOffFilter : public Filter, public Component {
  public:
-  optional<bool> new_value(bool value, bool is_initial) override;
+  optional<bool> new_value(bool value) override;
 
   float get_setup_priority() const override;
 
@@ -44,7 +44,7 @@ class DelayedOnOffFilter : public Filter, public Component {
 
 class DelayedOnFilter : public Filter, public Component {
  public:
-  optional<bool> new_value(bool value, bool is_initial) override;
+  optional<bool> new_value(bool value) override;
 
   float get_setup_priority() const override;
 
@@ -56,7 +56,7 @@ class DelayedOnFilter : public Filter, public Component {
 
 class DelayedOffFilter : public Filter, public Component {
  public:
-  optional<bool> new_value(bool value, bool is_initial) override;
+  optional<bool> new_value(bool value) override;
 
   float get_setup_priority() const override;
 
@@ -68,7 +68,7 @@ class DelayedOffFilter : public Filter, public Component {
 
 class InvertFilter : public Filter {
  public:
-  optional<bool> new_value(bool value, bool is_initial) override;
+  optional<bool> new_value(bool value) override;
 };
 
 struct AutorepeatFilterTiming {
@@ -86,7 +86,7 @@ class AutorepeatFilter : public Filter, public Component {
  public:
   explicit AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings);
 
-  optional<bool> new_value(bool value, bool is_initial) override;
+  optional<bool> new_value(bool value) override;
 
   float get_setup_priority() const override;
 
@@ -102,7 +102,7 @@ class LambdaFilter : public Filter {
  public:
   explicit LambdaFilter(std::function<optional<bool>(bool)> f);
 
-  optional<bool> new_value(bool value, bool is_initial) override;
+  optional<bool> new_value(bool value) override;
 
  protected:
   std::function<optional<bool>(bool)> f_;
@@ -110,7 +110,7 @@ class LambdaFilter : public Filter {
 
 class SettleFilter : public Filter, public Component {
  public:
-  optional<bool> new_value(bool value, bool is_initial) override;
+  optional<bool> new_value(bool value) override;
 
   float get_setup_priority() const override;
 

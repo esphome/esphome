@@ -534,11 +534,13 @@ void FingerprintGrowComponent::sensor_sleep_() {
 }
 
 void FingerprintGrowComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "GROW_FINGERPRINT_READER:");
-  ESP_LOGCONFIG(TAG, "  System Identifier Code: 0x%.4X", this->system_identifier_code_);
-  ESP_LOGCONFIG(TAG, "  Touch Sensing Pin: %s",
-                this->has_sensing_pin_ ? this->sensing_pin_->dump_summary().c_str() : "None");
-  ESP_LOGCONFIG(TAG, "  Sensor Power Pin: %s",
+  ESP_LOGCONFIG(TAG,
+                "GROW_FINGERPRINT_READER:\n"
+                "  System Identifier Code: 0x%.4X\n"
+                "  Touch Sensing Pin: %s\n"
+                "  Sensor Power Pin: %s",
+                this->system_identifier_code_,
+                this->has_sensing_pin_ ? this->sensing_pin_->dump_summary().c_str() : "None",
                 this->has_power_pin_ ? this->sensor_power_pin_->dump_summary().c_str() : "None");
   if (this->idle_period_to_sleep_ms_ < UINT32_MAX) {
     ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %" PRIu32 " ms", this->idle_period_to_sleep_ms_);

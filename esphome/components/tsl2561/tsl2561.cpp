@@ -45,8 +45,10 @@ void TSL2561Sensor::dump_config() {
   }
 
   int gain = this->gain_ == TSL2561_GAIN_1X ? 1 : 16;
-  ESP_LOGCONFIG(TAG, "  Gain: %dx", gain);
-  ESP_LOGCONFIG(TAG, "  Integration Time: %.1f ms", this->get_integration_time_ms_());
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %dx\n"
+                "  Integration Time: %.1f ms",
+                gain, this->get_integration_time_ms_());
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -65,7 +67,7 @@ void TSL2561Sensor::update() {
 
 float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
   if ((ch0 == 0xFFFF) || (ch1 == 0xFFFF)) {
-    ESP_LOGW(TAG, "TSL2561 sensor is saturated.");
+    ESP_LOGW(TAG, "Sensor is saturated");
     return NAN;
   }
 

@@ -474,10 +474,12 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
 }
 
 void PacketTransport::dump_config() {
-  ESP_LOGCONFIG(TAG, "Packet Transport:");
-  ESP_LOGCONFIG(TAG, "  Platform: %s", this->platform_name_);
-  ESP_LOGCONFIG(TAG, "  Encrypted: %s", YESNO(this->is_encrypted_()));
-  ESP_LOGCONFIG(TAG, "  Ping-pong: %s", YESNO(this->ping_pong_enable_));
+  ESP_LOGCONFIG(TAG,
+                "Packet Transport:\n"
+                "  Platform: %s\n"
+                "  Encrypted: %s\n"
+                "  Ping-pong: %s",
+                this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
   for (auto sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);

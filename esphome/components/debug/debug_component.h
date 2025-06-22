@@ -2,8 +2,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/macros.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/macros.h"
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"

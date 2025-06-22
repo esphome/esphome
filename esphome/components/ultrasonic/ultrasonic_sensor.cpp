@@ -45,8 +45,10 @@ void UltrasonicSensorComponent::dump_config() {
   LOG_SENSOR("", "Ultrasonic Sensor", this);
   LOG_PIN("  Echo Pin: ", this->echo_pin_);
   LOG_PIN("  Trigger Pin: ", this->trigger_pin_);
-  ESP_LOGCONFIG(TAG, "  Pulse time: %" PRIu32 " µs", this->pulse_time_us_);
-  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 " µs", this->timeout_us_);
+  ESP_LOGCONFIG(TAG,
+                "  Pulse time: %" PRIu32 " µs\n"
+                "  Timeout: %" PRIu32 " µs",
+                this->pulse_time_us_, this->timeout_us_);
   LOG_UPDATE_INTERVAL(this);
 }
 float UltrasonicSensorComponent::us_to_m(uint32_t us) {

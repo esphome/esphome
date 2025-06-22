@@ -93,9 +93,12 @@ void INA226Component::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
 
-  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Bus Voltage: %d", INA226_ADC_TIMES[this->adc_time_voltage_ & 0b111]);
-  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Shunt Voltage: %d", INA226_ADC_TIMES[this->adc_time_current_ & 0b111]);
-  ESP_LOGCONFIG(TAG, "  ADC Averaging Samples: %d", INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
+  ESP_LOGCONFIG(TAG,
+                "  ADC Conversion Time Bus Voltage: %d\n"
+                "  ADC Conversion Time Shunt Voltage: %d\n"
+                "  ADC Averaging Samples: %d",
+                INA226_ADC_TIMES[this->adc_time_voltage_ & 0b111], INA226_ADC_TIMES[this->adc_time_current_ & 0b111],
+                INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
 
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);

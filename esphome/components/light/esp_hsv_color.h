@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace light {

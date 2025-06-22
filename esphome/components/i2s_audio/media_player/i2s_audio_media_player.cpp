@@ -244,8 +244,10 @@ void I2SAudioMediaPlayer::dump_config() {
     }
   } else {
 #endif
-    ESP_LOGCONFIG(TAG, "  External DAC channels: %d", this->external_dac_channels_);
-    ESP_LOGCONFIG(TAG, "  I2S DOUT Pin: %d", this->dout_pin_);
+    ESP_LOGCONFIG(TAG,
+                  "  External DAC channels: %d\n"
+                  "  I2S DOUT Pin: %d",
+                  this->external_dac_channels_, this->dout_pin_);
     LOG_PIN("  Mute Pin: ", this->mute_pin_);
 #if SOC_I2S_SUPPORTS_DAC
   }

@@ -54,12 +54,16 @@ void MQTTCoverComponent::dump_config() {
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
   LOG_MQTT_COMPONENT(true, has_command_topic)
   if (traits.get_supports_position()) {
-    ESP_LOGCONFIG(TAG, "  Position State Topic: '%s'", this->get_position_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Position Command Topic: '%s'", this->get_position_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Position State Topic: '%s'\n"
+                  "  Position Command Topic: '%s'",
+                  this->get_position_state_topic().c_str(), this->get_position_command_topic().c_str());
   }
   if (traits.get_supports_tilt()) {
-    ESP_LOGCONFIG(TAG, "  Tilt State Topic: '%s'", this->get_tilt_state_topic().c_str());
-    ESP_LOGCONFIG(TAG, "  Tilt Command Topic: '%s'", this->get_tilt_command_topic().c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  Tilt State Topic: '%s'\n"
+                  "  Tilt Command Topic: '%s'",
+                  this->get_tilt_state_topic().c_str(), this->get_tilt_command_topic().c_str());
   }
 }
 void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {

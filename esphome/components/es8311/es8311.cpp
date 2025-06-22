@@ -52,11 +52,13 @@ void ES8311::setup() {
 }
 
 void ES8311::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES8311 Audio Codec:");
-  ESP_LOGCONFIG(TAG, "  Use MCLK: %s", YESNO(this->use_mclk_));
-  ESP_LOGCONFIG(TAG, "  Use Microphone: %s", YESNO(this->use_mic_));
-  ESP_LOGCONFIG(TAG, "  DAC Bits per Sample: %" PRIu8, this->resolution_out_);
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %" PRIu32, this->sample_frequency_);
+  ESP_LOGCONFIG(TAG,
+                "ES8311 Audio Codec:\n"
+                "  Use MCLK: %s\n"
+                "  Use Microphone: %s\n"
+                "  DAC Bits per Sample: %" PRIu8 "\n"
+                "  Sample Rate: %" PRIu32,
+                YESNO(this->use_mclk_), YESNO(this->use_mic_), this->resolution_out_, this->sample_frequency_);
 
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  Failed to initialize!");

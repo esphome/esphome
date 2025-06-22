@@ -178,13 +178,16 @@ void USBUartComponent::loop() { USBClient::loop(); }
 void USBUartComponent::dump_config() {
   USBClient::dump_config();
   for (auto &channel : this->channels_) {
-    ESP_LOGCONFIG(TAG, "  UART Channel %d", channel->index_);
-    ESP_LOGCONFIG(TAG, "    Baud Rate: %" PRIu32 " baud", channel->baud_rate_);
-    ESP_LOGCONFIG(TAG, "    Data Bits: %u", channel->data_bits_);
-    ESP_LOGCONFIG(TAG, "    Parity: %s", PARITY_NAMES[channel->parity_]);
-    ESP_LOGCONFIG(TAG, "    Stop bits: %s", STOP_BITS_NAMES[channel->stop_bits_]);
-    ESP_LOGCONFIG(TAG, "    Debug: %s", YESNO(channel->debug_));
-    ESP_LOGCONFIG(TAG, "    Dummy receiver: %s", YESNO(channel->dummy_receiver_));
+    ESP_LOGCONFIG(TAG,
+                  "  UART Channel %d\n"
+                  "    Baud Rate: %" PRIu32 " baud\n"
+                  "    Data Bits: %u\n"
+                  "    Parity: %s\n"
+                  "    Stop bits: %s\n"
+                  "    Debug: %s\n"
+                  "    Dummy receiver: %s",
+                  channel->index_, channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
+                  STOP_BITS_NAMES[channel->stop_bits_], YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {

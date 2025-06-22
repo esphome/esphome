@@ -27,6 +27,17 @@ struct ReadPacketBuffer {
   uint16_t data_len;
 };
 
+// Packed packet info structure to minimize memory usage
+struct PacketInfo {
+  uint16_t message_type;  // 2 bytes
+  uint16_t offset;        // 2 bytes (sufficient for packet size ~1460 bytes)
+  uint16_t payload_size;  // 2 bytes (up to 65535 bytes)
+  uint16_t padding;       // 2 byte (for alignment)
+
+  PacketInfo(uint16_t type, uint16_t off, uint16_t size)
+      : message_type(type), offset(off), payload_size(size), padding(0) {}
+};
+
 enum class APIError : int {
   OK = 0,
   WOULD_BLOCK = 1001,
@@ -87,6 +98,10 @@ class APIFrameHelper {
   // Give this helper a name for logging
   void set_log_info(std::string info) { info_ = std::move(info); }
   virtual APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) = 0;
+  // Write multiple protobuf packets in a single operation
+  // packets contains (message_type, offset, length) for each message in the buffer
+  // The buffer contains all messages with appropriate padding before each
+  virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) = 0;
   // Get the frame header padding required by this protocol
   virtual uint8_t frame_header_padding() = 0;
   // Get the frame footer size required by this protocol
@@ -110,38 +125,6 @@ class APIFrameHelper {
     const uint8_t *current_data() const { return data.data() + offset; }
   };
 
-  // Queue of data buffers to be sent
-  std::deque<SendBuffer> tx_buf_;
-
-  // Common state enum for all frame helpers
-  // Note: Not all states are used by all implementations
-  // - INITIALIZE: Used by both Noise and Plaintext
-  // - CLIENT_HELLO, SERVER_HELLO, HANDSHAKE: Only used by Noise protocol
-  // - DATA: Used by both Noise and Plaintext
-  // - CLOSED: Used by both Noise and Plaintext
-  // - FAILED: Used by both Noise and Plaintext
-  // - EXPLICIT_REJECT: Only used by Noise protocol
-  enum class State {
-    INITIALIZE = 1,
-    CLIENT_HELLO = 2,  // Noise only
-    SERVER_HELLO = 3,  // Noise only
-    HANDSHAKE = 4,     // Noise only
-    DATA = 5,
-    CLOSED = 6,
-    FAILED = 7,
-    EXPLICIT_REJECT = 8,  // Noise only
-  };
-
-  // Current state of the frame helper
-  State state_{State::INITIALIZE};
-
-  // Helper name for logging
-  std::string info_;
-
-  // Socket for communication
-  socket::Socket *socket_{nullptr};
-  std::unique_ptr<socket::Socket> socket_owned_;
-
   // Common implementation for writing raw data to socket
   APIError write_raw_(const struct iovec *iov, int iovcnt);
 
@@ -154,12 +137,41 @@ class APIFrameHelper {
   APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
                       const std::string &info, StateEnum &state, StateEnum failed_state);
 
+  // Pointers first (4 bytes each)
+  socket::Socket *socket_{nullptr};
+  std::unique_ptr<socket::Socket> socket_owned_;
+
+  // Common state enum for all frame helpers
+  // Note: Not all states are used by all implementations
+  // - INITIALIZE: Used by both Noise and Plaintext
+  // - CLIENT_HELLO, SERVER_HELLO, HANDSHAKE: Only used by Noise protocol
+  // - DATA: Used by both Noise and Plaintext
+  // - CLOSED: Used by both Noise and Plaintext
+  // - FAILED: Used by both Noise and Plaintext
+  // - EXPLICIT_REJECT: Only used by Noise protocol
+  enum class State : uint8_t {
+    INITIALIZE = 1,
+    CLIENT_HELLO = 2,  // Noise only
+    SERVER_HELLO = 3,  // Noise only
+    HANDSHAKE = 4,     // Noise only
+    DATA = 5,
+    CLOSED = 6,
+    FAILED = 7,
+    EXPLICIT_REJECT = 8,  // Noise only
+  };
+
+  // Containers (size varies, but typically 12+ bytes on 32-bit)
+  std::deque<SendBuffer> tx_buf_;
+  std::string info_;
+  std::vector<struct iovec> reusable_iovs_;
+  std::vector<uint8_t> rx_buf_;
+
+  // Group smaller types together
+  uint16_t rx_buf_len_ = 0;
+  State state_{State::INITIALIZE};
   uint8_t frame_header_padding_{0};
   uint8_t frame_footer_size_{0};
-
-  // Receive buffer for reading frame data
-  std::vector<uint8_t> rx_buf_;
-  uint16_t rx_buf_len_ = 0;
+  // 5 bytes total, 3 bytes padding
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();
@@ -182,6 +194,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
+  APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) override;
   // Get the frame header padding required by this protocol
   uint8_t frame_header_padding() override { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
@@ -194,19 +207,28 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError init_handshake_();
   APIError check_handshake_finished_();
   void send_explicit_handshake_reject_(const std::string &reason);
+
+  // Pointers first (4 bytes each)
+  NoiseHandshakeState *handshake_{nullptr};
+  NoiseCipherState *send_cipher_{nullptr};
+  NoiseCipherState *recv_cipher_{nullptr};
+
+  // Shared pointer (8 bytes on 32-bit = 4 bytes control block pointer + 4 bytes object pointer)
+  std::shared_ptr<APINoiseContext> ctx_;
+
+  // Vector (12 bytes on 32-bit)
+  std::vector<uint8_t> prologue_;
+
+  // NoiseProtocolId (size depends on implementation)
+  NoiseProtocolId nid_;
+
+  // Group small types together
   // Fixed-size header buffer for noise protocol:
   // 1 byte for indicator + 2 bytes for message size (16-bit value, not varint)
   // Note: Maximum message size is UINT16_MAX (65535), with a limit of 128 bytes during handshake phase
   uint8_t rx_header_buf_[3];
   uint8_t rx_header_buf_len_ = 0;
-
-  std::vector<uint8_t> prologue_;
-
-  std::shared_ptr<APINoiseContext> ctx_;
-  NoiseHandshakeState *handshake_{nullptr};
-  NoiseCipherState *send_cipher_{nullptr};
-  NoiseCipherState *recv_cipher_{nullptr};
-  NoiseProtocolId nid_;
+  // 4 bytes total, no padding
 };
 #endif  // USE_API_NOISE
 
@@ -226,12 +248,19 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
+  APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) override;
   uint8_t frame_header_padding() override { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
   uint8_t frame_footer_size() override { return frame_footer_size_; }
 
  protected:
   APIError try_read_frame_(ParsedFrame *frame);
+
+  // Group 2-byte aligned types
+  uint16_t rx_header_parsed_type_ = 0;
+  uint16_t rx_header_parsed_len_ = 0;
+
+  // Group 1-byte types together
   // Fixed-size header buffer for plaintext protocol:
   // We now store the indicator byte + the two varints.
   // To match noise protocol's maximum message size (UINT16_MAX = 65535), we need:
@@ -243,8 +272,7 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   uint8_t rx_header_buf_[6];  // 1 byte indicator + 5 bytes for varints (3 for size + 2 for type)
   uint8_t rx_header_buf_pos_ = 0;
   bool rx_header_parsed_ = false;
-  uint16_t rx_header_parsed_type_ = 0;
-  uint16_t rx_header_parsed_len_ = 0;
+  // 8 bytes total, no padding needed
 };
 #endif
 

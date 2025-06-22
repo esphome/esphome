@@ -7,7 +7,6 @@ remote_receiver:
     filter_symbols: ${filter_symbols}
     receive_symbols: ${receive_symbols}
     rmt_symbols: ${rmt_symbols}
-    use_dma: ${use_dma}
     <<: !include common-actions.yaml
 
 binary_sensor:

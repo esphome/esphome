@@ -173,7 +173,7 @@ RGB_ORDERS = {
 CHIPSET_TIMINGS = {
     "WS2812": LEDStripTimings(20, 40, 46, 34),
     "WS2812B": LEDStripTimings(23, 49, 46, 26),
-    "SK6812": LEDStripTimings(17, 52, 34, 34),
+    "SK6812": LEDStripTimings(20, 54, 38, 38),
     "SM16703": LEDStripTimings(17, 52, 52, 17),
 }
 

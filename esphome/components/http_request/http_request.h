@@ -239,7 +239,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
     std::string response_body;
     if (this->capture_response_.value(x...)) {
-      ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+      RAMAllocator<uint8_t> allocator;
       uint8_t *buf = allocator.allocate(max_length);
       if (buf != nullptr) {
         size_t read_index = 0;

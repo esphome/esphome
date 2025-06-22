@@ -18,6 +18,7 @@ namespace i2s_audio {
 class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, public Component {
  public:
   void setup() override;
+  void dump_config() override;
   void start() override;
   void stop() override;
 
@@ -80,6 +81,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   bool pdm_{false};
 
   bool correct_dc_offset_;
+  bool locked_driver_{false};
   int32_t dc_offset_{0};
 };
 

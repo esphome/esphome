@@ -1,8 +1,8 @@
 #ifdef USE_ARDUINO
 
 #include "tm1651.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tm1651 {

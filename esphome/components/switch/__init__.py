@@ -159,6 +159,7 @@ async def register_switch(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_switch(var))
+    CORE.register_platform_component("switch", var)
     await setup_switch_core_(var, config)
 
 

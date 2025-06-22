@@ -3,6 +3,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_LIGHT,
+    CONF_MOVING_DISTANCE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -17,7 +18,6 @@ from esphome.const import (
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
-CONF_MOVING_DISTANCE = "moving_distance"
 CONF_STILL_DISTANCE = "still_distance"
 CONF_MOVING_ENERGY = "moving_energy"
 CONF_STILL_ENERGY = "still_energy"

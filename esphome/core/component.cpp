@@ -1,6 +1,7 @@
 #include "esphome/core/component.h"
 
 #include <cinttypes>
+#include <limits>
 #include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -29,18 +30,21 @@ const float LATE = -100.0f;
 
 }  // namespace setup_priority
 
-const uint32_t COMPONENT_STATE_MASK = 0xFF;
-const uint32_t COMPONENT_STATE_CONSTRUCTION = 0x00;
-const uint32_t COMPONENT_STATE_SETUP = 0x01;
-const uint32_t COMPONENT_STATE_LOOP = 0x02;
-const uint32_t COMPONENT_STATE_FAILED = 0x03;
-const uint32_t STATUS_LED_MASK = 0xFF00;
-const uint32_t STATUS_LED_OK = 0x0000;
-const uint32_t STATUS_LED_WARNING = 0x0100;
-const uint32_t STATUS_LED_ERROR = 0x0200;
+// Component state uses bits 0-2 (8 states, 5 used)
+const uint8_t COMPONENT_STATE_MASK = 0x07;
+const uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
+const uint8_t COMPONENT_STATE_SETUP = 0x01;
+const uint8_t COMPONENT_STATE_LOOP = 0x02;
+const uint8_t COMPONENT_STATE_FAILED = 0x03;
+const uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
+// Status LED uses bits 3-4
+const uint8_t STATUS_LED_MASK = 0x18;
+const uint8_t STATUS_LED_OK = 0x00;
+const uint8_t STATUS_LED_WARNING = 0x08;  // Bit 3
+const uint8_t STATUS_LED_ERROR = 0x10;    // Bit 4
 
-const uint32_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
-const uint32_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
+const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
+const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
 
 uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -82,13 +86,14 @@ void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
   this->dump_config();
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(), this->error_message_.c_str());
+    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(),
+             this->error_message_ ? this->error_message_ : "unspecified");
   }
 }
 
-uint32_t Component::get_component_state() const { return this->component_state_; }
+uint8_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
-  uint32_t state = this->component_state_ & COMPONENT_STATE_MASK;
+  uint8_t state = this->component_state_ & COMPONENT_STATE_MASK;
   switch (state) {
     case COMPONENT_STATE_CONSTRUCTION:
       // State Construction: Call setup and set state to setup
@@ -109,6 +114,9 @@ void Component::call() {
     case COMPONENT_STATE_FAILED:  // NOLINT(bugprone-branch-clone)
       // State failed: Do nothing
       break;
+    case COMPONENT_STATE_LOOP_DONE:  // NOLINT(bugprone-branch-clone)
+      // State loop done: Do nothing, component has finished its work
+      break;
     default:
       break;
   }
@@ -120,16 +128,65 @@ const char *Component::get_component_source() const {
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   if (blocking_time > this->warn_if_blocking_over_) {
-    this->warn_if_blocking_over_ = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    // Prevent overflow when adding increment - if we're about to overflow, just max out
+    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
+        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
+      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
+    } else {
+      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
+    }
     return true;
   }
   return false;
 }
 void Component::mark_failed() {
-  ESP_LOGE(TAG, "Component %s was marked as failed.", this->get_component_source());
+  ESP_LOGE(TAG, "Component %s was marked as failed", this->get_component_source());
   this->component_state_ &= ~COMPONENT_STATE_MASK;
   this->component_state_ |= COMPONENT_STATE_FAILED;
   this->status_set_error();
+  // Also remove from loop since failed components shouldn't loop
+  App.disable_component_loop_(this);
+}
+void Component::disable_loop() {
+  if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
+    ESP_LOGD(TAG, "%s loop disabled", this->get_component_source());
+    this->component_state_ &= ~COMPONENT_STATE_MASK;
+    this->component_state_ |= COMPONENT_STATE_LOOP_DONE;
+    App.disable_component_loop_(this);
+  }
+}
+void Component::enable_loop() {
+  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
+    ESP_LOGD(TAG, "%s loop enabled", this->get_component_source());
+    this->component_state_ &= ~COMPONENT_STATE_MASK;
+    this->component_state_ |= COMPONENT_STATE_LOOP;
+    App.enable_component_loop_(this);
+  }
+}
+void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
+  // This method is thread and ISR-safe because:
+  // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
+  // 2. No read-modify-write operations that could be interrupted
+  // 3. No memory allocation, object construction, or function calls
+  // 4. IRAM_ATTR ensures code is in IRAM, not flash (required for ISR execution)
+  // 5. Components are never destroyed, so no use-after-free concerns
+  // 6. App is guaranteed to be initialized before any ISR could fire
+  // 7. Multiple ISR/thread calls are safe - just sets the same flags to true
+  // 8. Race condition with main loop is handled by clearing flag before processing
+  this->pending_enable_loop_ = true;
+  App.has_pending_enable_loop_requests_ = true;
+}
+void Component::reset_to_construction_state() {
+  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
+    ESP_LOGI(TAG, "Component %s is being reset to construction state", this->get_component_source());
+    this->component_state_ &= ~COMPONENT_STATE_MASK;
+    this->component_state_ |= COMPONENT_STATE_CONSTRUCTION;
+    // Clear error status when resetting
+    this->status_clear_error();
+  }
+}
+bool Component::is_in_loop_state() const {
+  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP;
 }
 void Component::defer(std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, "", 0, std::move(f));
@@ -254,8 +311,8 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   }
   if (should_warn) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms).", src, blocking_time);
-    ESP_LOGW(TAG, "Components should block for at most 30 ms.");
+    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms)", src, blocking_time);
+    ESP_LOGW(TAG, "Components should block for at most 30 ms");
   }
 
   return curr_time;

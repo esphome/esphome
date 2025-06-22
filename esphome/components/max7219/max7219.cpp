@@ -1,7 +1,7 @@
 #include "max7219.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace max7219 {
@@ -133,9 +133,11 @@ void MAX7219Component::setup() {
   this->send_to_all_(MAX7219_REGISTER_SHUTDOWN, 1);
 }
 void MAX7219Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MAX7219:");
-  ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
-  ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
+  ESP_LOGCONFIG(TAG,
+                "MAX7219:\n"
+                "  Number of Chips: %u\n"
+                "  Intensity: %u",
+                this->num_chips_, this->intensity_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }

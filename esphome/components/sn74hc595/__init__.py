@@ -95,7 +95,7 @@ SN74HC595_PIN_SCHEMA = pins.gpio_base_schema(
     cv.int_range(min=0, max=2047),
     modes=[CONF_OUTPUT],
     mode_validator=_validate_output_mode,
-    invertable=True,
+    invertible=True,
 ).extend(
     {
         cv.Required(CONF_SN74HC595): cv.use_id(SN74HC595Component),

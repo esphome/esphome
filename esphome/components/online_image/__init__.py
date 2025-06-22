@@ -2,6 +2,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import (
     CONF_INVERT_ALPHA,
@@ -24,6 +25,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
 )
+from esphome.core import Lambda
 
 AUTO_LOAD = ["image"]
 DEPENDENCIES = ["display", "http_request"]
@@ -124,6 +126,9 @@ ONLINE_IMAGE_SCHEMA = (
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             # Online Image specific options
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_REQUEST_HEADERS): cv.All(
+                cv.Schema({cv.string: cv.templatable(cv.string)})
+            ),
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
             cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
@@ -206,6 +211,13 @@ async def to_code(config):
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
+
+    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+        if isinstance(value, Lambda):
+            template_ = await cg.templatable(value, [], cg.std_string)
+            cg.add(var.add_request_header(key, template_))
+        else:
+            cg.add(var.add_request_header(key, value))
 
     if placeholder_id := config.get(CONF_PLACEHOLDER):
         placeholder = await cg.get_variable(placeholder_id)

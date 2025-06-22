@@ -126,6 +126,7 @@ async def register_text(
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text(var))
+    CORE.register_platform_component("text", var)
     await setup_text_core_(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
     )

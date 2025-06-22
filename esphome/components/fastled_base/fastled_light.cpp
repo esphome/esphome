@@ -18,9 +18,11 @@ void FastLEDLightOutput::setup() {
   }
 }
 void FastLEDLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "FastLED light:");
-  ESP_LOGCONFIG(TAG, "  Num LEDs: %u", this->num_leds_);
-  ESP_LOGCONFIG(TAG, "  Max refresh rate: %u", *this->max_refresh_rate_);
+  ESP_LOGCONFIG(TAG,
+                "FastLED light:\n"
+                "  Num LEDs: %u\n"
+                "  Max refresh rate: %u",
+                this->num_leds_, *this->max_refresh_rate_);
 }
 void FastLEDLightOutput::write_state(light::LightState *state) {
   // protect from refreshing too often
