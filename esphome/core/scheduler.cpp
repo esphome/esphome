@@ -319,13 +319,17 @@ bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, 
   return ret;
 }
 uint64_t Scheduler::millis_() {
+  // Get the current 32-bit millis value
   const uint32_t now = millis();
+  // Check for rollover by comparing with last value
   if (now < this->last_millis_) {
+    // Detected rollover (happens every ~49.7 days)
     this->millis_major_++;
     ESP_LOGD(TAG, "Incrementing scheduler major at %" PRIu64 "ms",
              now + (static_cast<uint64_t>(this->millis_major_) << 32));
   }
   this->last_millis_ = now;
+  // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time
   return now + (static_cast<uint64_t>(this->millis_major_) << 32);
 }
 

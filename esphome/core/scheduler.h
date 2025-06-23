@@ -29,12 +29,16 @@ class Scheduler {
 
  protected:
   struct SchedulerItem {
+    // Ordered by size to minimize padding
     Component *component;
-    std::string name;
-    enum Type { TIMEOUT, INTERVAL } type;
     uint32_t interval;
+    // 64-bit time to handle millis() rollover. The scheduler combines the 32-bit millis()
+    // with a 16-bit rollover counter to create a 64-bit time that won't roll over for
+    // billions of years. This ensures correct scheduling even when devices run for months.
     uint64_t next_execution_;
+    std::string name;
     std::function<void()> callback;
+    enum Type : uint8_t { TIMEOUT, INTERVAL } type;
     bool remove;
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
