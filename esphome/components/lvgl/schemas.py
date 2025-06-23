@@ -454,9 +454,13 @@ def container_validator(schema, widget_type: WidgetType):
     """
 
     def validator(value):
-        result = schema
         if w_sch := widget_type.schema:
-            result = result.extend(w_sch)
+            if isinstance(w_sch, dict):
+                w_sch = cv.Schema(w_sch)
+            # order is important here to preserve extras
+            result = w_sch.extend(schema)
+        else:
+            result = schema
         ltype = df.TYPE_NONE
         if value and (layout := value.get(df.CONF_LAYOUT)):
             if not isinstance(layout, dict):
