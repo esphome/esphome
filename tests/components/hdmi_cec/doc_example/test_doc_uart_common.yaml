@@ -73,9 +73,9 @@ button:
   - platform: template
     name: "TV Volume Down"
     on_press:
-      - hdmi_cec.send:
-          destination: 0x0  # to TV
-          data: [0x44, 0x42]  # UI command, "Volume Down"
+      # as example, using the api: component.send( destination, {opcode, parameters..} )
+      - lambda: !lambda |-
+          id(cec).send(0x0, {0x44, 0x42});  // UI command, "Volume Down"
 
 binary_sensor:
   - platform: gpio
