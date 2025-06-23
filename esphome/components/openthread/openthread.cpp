@@ -137,7 +137,7 @@ void OpenThreadSrpComponent::setup() {
   // Copy the mdns services to our local instance so that the c_str pointers remain valid for the lifetime of this
   // component
   this->mdns_services_ = this->mdns_->get_services();
-  ESP_LOGW(TAG, "Setting up SRP services. count = %d\n", this->mdns_services_.size());
+  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", this->mdns_services_.size());
   for (const auto &service : this->mdns_services_) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
@@ -185,11 +185,11 @@ void OpenThreadSrpComponent::setup() {
     if (error != OT_ERROR_NONE) {
       ESP_LOGW(TAG, "Failed to add service: %s", otThreadErrorToString(error));
     }
-    ESP_LOGW(TAG, "Added service: %s", full_service.c_str());
+    ESP_LOGD(TAG, "Added service: %s", full_service.c_str());
   }
 
   otSrpClientEnableAutoStartMode(instance, srp_start_callback, nullptr);
-  ESP_LOGW(TAG, "Finished SRP setup");
+  ESP_LOGD(TAG, "Finished SRP setup");
 }
 
 void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
