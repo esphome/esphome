@@ -646,7 +646,9 @@ lvgl:
             on_click:
               lvgl.qrcode.update:
                 id: lv_qr
-                text: homeassistant.io
+                text:
+                  format: "A string with a number %d"
+                  args: ['(int)(random_uint32() % 1000)']
 
         - slider:
             min_value: 0
