@@ -24,7 +24,7 @@ static const char *const TAG = "logger";
 //    - Messages are serialized through main loop for proper console output
 //    - Fallback to emergency console logging only if ring buffer is full
 //  - WITHOUT task log buffer: Only emergency console output, no callbacks
-void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
+void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag))
     return;
 
@@ -46,8 +46,8 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main tasks, queue the message for callbacks - but only if we have any callbacks registered
-  message_sent = this->log_buffer_->send_message_thread_safe(static_cast<uint8_t>(level), tag,
-                                                             static_cast<uint16_t>(line), current_task, format, args);
+  message_sent =
+      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 
   // Emergency console logging for non-main tasks when ring buffer is full or disabled
@@ -58,7 +58,7 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
     // Maximum size for console log messages (includes null terminator)
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
-    int buffer_at = 0;                              // Initialize buffer position
+    uint16_t buffer_at = 0;                         // Initialize buffer position
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
                                                 MAX_CONSOLE_LOG_MSG_SIZE);
     this->write_msg_(console_buffer);
@@ -69,7 +69,7 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
 }
 #else
 // Implementation for all other platforms
-void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
+void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
@@ -85,7 +85,7 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // Implementation for ESP8266 with flash string support.
 // Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
-void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
+void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
@@ -122,7 +122,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
-inline int Logger::level_for(const char *tag) {
+inline uint8_t Logger::level_for(const char *tag) {
   auto it = this->log_levels_.find(tag);
   if (it != this->log_levels_.end())
     return it->second;
@@ -195,13 +195,13 @@ void Logger::loop() {
 #endif
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
-void Logger::set_log_level(const std::string &tag, int log_level) { this->log_levels_[tag] = log_level; }
+void Logger::set_log_level(const std::string &tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
-void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
+void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const char *)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
@@ -230,7 +230,7 @@ void Logger::dump_config() {
   }
 }
 
-void Logger::set_log_level(int level) {
+void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
