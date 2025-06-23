@@ -85,6 +85,9 @@ class ESPBTDevice {
 
   const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
 
+  // Exposed through a function for use in lambdas
+  const BLEScanResult &get_scan_result() const { return *scan_result_; }
+
   bool resolve_irk(const uint8_t *irk) const;
 
   optional<ESPBLEiBeacon> get_ibeacon() const {
@@ -111,6 +114,7 @@ class ESPBTDevice {
   std::vector<ESPBTUUID> service_uuids_{};
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};
+  const BLEScanResult *scan_result_{nullptr};
 };
 
 class ESP32BLETracker;
