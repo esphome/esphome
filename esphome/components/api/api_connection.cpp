@@ -28,6 +28,12 @@
 namespace esphome {
 namespace api {
 
+// Read a maximum of 5 messages per loop iteration to prevent starving other components.
+// This is a balance between API responsiveness and allowing other components to run.
+// Since each message could contain multiple protobuf messages when using packet batching,
+// this limits the number of messages processed, not the number of TCP packets.
+static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 5;
+
 static const char *const TAG = "api.connection";
 static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
@@ -109,33 +115,38 @@ void APIConnection::loop() {
     return;
   }
 
+  const uint32_t now = App.get_loop_component_start_time();
   // Check if socket has data ready before attempting to read
   if (this->helper_->is_socket_ready()) {
-    ReadPacketBuffer buffer;
-    err = this->helper_->read_packet(&buffer);
-    if (err == APIError::WOULD_BLOCK) {
-      // pass
-    } else if (err != APIError::OK) {
-      on_fatal_error();
-      if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
-        ESP_LOGW(TAG, "%s: Connection reset", this->get_client_combined_info().c_str());
-      } else if (err == APIError::CONNECTION_CLOSED) {
-        ESP_LOGW(TAG, "%s: Connection closed", this->get_client_combined_info().c_str());
-      } else {
-        ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->get_client_combined_info().c_str(),
-                 api_error_to_str(err), errno);
-      }
-      return;
-    } else {
-      this->last_traffic_ = App.get_loop_component_start_time();
-      // read a packet
-      if (buffer.data_len > 0) {
-        this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
-      } else {
-        this->read_message(0, buffer.type, nullptr);
-      }
-      if (this->remove_)
+    // Read up to MAX_MESSAGES_PER_LOOP messages per loop to improve throughput
+    for (uint8_t message_count = 0; message_count < MAX_MESSAGES_PER_LOOP; message_count++) {
+      ReadPacketBuffer buffer;
+      err = this->helper_->read_packet(&buffer);
+      if (err == APIError::WOULD_BLOCK) {
+        // No more data available
+        break;
+      } else if (err != APIError::OK) {
+        on_fatal_error();
+        if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
+          ESP_LOGW(TAG, "%s: Connection reset", this->get_client_combined_info().c_str());
+        } else if (err == APIError::CONNECTION_CLOSED) {
+          ESP_LOGW(TAG, "%s: Connection closed", this->get_client_combined_info().c_str());
+        } else {
+          ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->get_client_combined_info().c_str(),
+                   api_error_to_str(err), errno);
+        }
         return;
+      } else {
+        this->last_traffic_ = now;
+        // read a packet
+        if (buffer.data_len > 0) {
+          this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
+        } else {
+          this->read_message(0, buffer.type, nullptr);
+        }
+        if (this->remove_)
+          return;
+      }
     }
   }
 
@@ -152,7 +163,6 @@ void APIConnection::loop() {
 
   static uint8_t max_ping_retries = 60;
   static uint16_t ping_retry_interval = 1000;
-  const uint32_t now = App.get_loop_component_start_time();
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (KEEPALIVE_TIMEOUT_MS * 5) / 2) {
