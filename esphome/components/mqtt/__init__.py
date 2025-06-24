@@ -68,6 +68,7 @@ def AUTO_LOAD():
 
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
+CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
 
 def validate_message_just_topic(value):
@@ -298,6 +299,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
+            cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
     ),
     validate_config,
@@ -452,6 +454,8 @@ async def to_code(config):
         await automation.build_automation(trigger, [], conf)
 
     cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
+
+    cg.add(var.set_wait_for_connection(config[CONF_WAIT_FOR_CONNECTION]))
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
