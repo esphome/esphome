@@ -6,7 +6,7 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.cpp_types import Component
 
 AUTO_LOAD = ["bytebuffer"]
@@ -16,7 +16,6 @@ usb_host_ns = cg.esphome_ns.namespace("usb_host")
 USBHost = usb_host_ns.class_("USBHost", Component)
 USBClient = usb_host_ns.class_("USBClient", Component)
 
-CONF_DEVICES = "devices"
 CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ENABLE_HUBS = "enable_hubs"

@@ -46,7 +46,7 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PANID", config[CONF_PAN_ID])
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_CHANNEL", config[CONF_CHANNEL])
     add_idf_sdkconfig_option(
-        "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{config[CONF_NETWORK_KEY]:X}"
+        "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{config[CONF_NETWORK_KEY]:X}".lower()
     )
 
     if network_name := config.get(CONF_NETWORK_NAME):
@@ -54,14 +54,14 @@ def set_sdkconfig_options(config):
 
     if (ext_pan_id := config.get(CONF_EXT_PAN_ID)) is not None:
         add_idf_sdkconfig_option(
-            "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:X}"
+            "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:X}".lower()
         )
     if (mesh_local_prefix := config.get(CONF_MESH_LOCAL_PREFIX)) is not None:
         add_idf_sdkconfig_option(
-            "CONFIG_OPENTHREAD_MESH_LOCAL_PREFIX", f"{mesh_local_prefix:X}"
+            "CONFIG_OPENTHREAD_MESH_LOCAL_PREFIX", f"{mesh_local_prefix}".lower()
         )
     if (pskc := config.get(CONF_PSKC)) is not None:
-        add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}")
+        add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower())
 
     if CONF_FORCE_DATASET in config:
         if config[CONF_FORCE_DATASET]:
@@ -98,7 +98,7 @@ _CONNECTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_EXT_PAN_ID): cv.hex_int,
         cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
         cv.Optional(CONF_PSKC): cv.hex_int,
-        cv.Optional(CONF_MESH_LOCAL_PREFIX): cv.hex_int,
+        cv.Optional(CONF_MESH_LOCAL_PREFIX): cv.ipv6network,
     }
 )
 

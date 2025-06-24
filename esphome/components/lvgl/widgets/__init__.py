@@ -6,7 +6,7 @@ from esphome.config_validation import Invalid
 from esphome.const import CONF_DEFAULT, CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import CallExpression, MockObj
+from esphome.cpp_generator import MockObj
 
 from ..defines import (
     CONF_FLEX_ALIGN_CROSS,
@@ -453,7 +453,17 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
 
     w = Widget.create(wid, var, spec, w_cnfig)
     if theme := theme_widget_map.get(w_type):
-        lv_add(CallExpression(theme, w.obj))
+        for part, states in theme.items():
+            part = "LV_PART_" + part.upper()
+            for state, style in states.items():
+                state = "LV_STATE_" + state.upper()
+                if state == "LV_STATE_DEFAULT":
+                    lv_state = literal(part)
+                elif part == "LV_PART_MAIN":
+                    lv_state = literal(state)
+                else:
+                    lv_state = join_enums((state, part))
+                lv.obj_add_style(w.obj, style, lv_state)
     await set_obj_properties(w, w_cnfig)
     await add_widgets(w, w_cnfig)
     await spec.to_code(w, w_cnfig)

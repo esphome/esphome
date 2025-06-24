@@ -522,6 +522,7 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
 }
 
 void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
+  this->scan_result_ = &scan_result;
   for (uint8_t i = 0; i < ESP_BD_ADDR_LEN; i++)
     this->address_[i] = scan_result.bda[i];
   this->address_type_ = static_cast<esp_ble_addr_type_t>(scan_result.ble_addr_type);

@@ -274,12 +274,21 @@ APIError APINoiseFrameHelper::init() {
 }
 /// Run through handshake messages (if in that phase)
 APIError APINoiseFrameHelper::loop() {
-  APIError err = state_action_();
-  if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    return err;
+  // During handshake phase, process as many actions as possible until we can't progress
+  // socket_->ready() stays true until next main loop, but state_action() will return
+  // WOULD_BLOCK when no more data is available to read
+  while (state_ != State::DATA && this->socket_->ready()) {
+    APIError err = state_action_();
+    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
+      return err;
+    }
+    if (err == APIError::WOULD_BLOCK) {
+      break;
+    }
   }
+
   if (!this->tx_buf_.empty()) {
-    err = try_send_tx_buf_();
+    APIError err = try_send_tx_buf_();
     if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
       return err;
     }

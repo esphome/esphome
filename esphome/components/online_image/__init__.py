@@ -34,6 +34,7 @@ MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
 CONF_PLACEHOLDER = "placeholder"
+CONF_UPDATE = "update"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -167,6 +168,7 @@ SET_URL_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(OnlineImage),
         cv.Required(CONF_URL): cv.templatable(cv.url),
+        cv.Optional(CONF_UPDATE, default=True): cv.templatable(bool),
     }
 )
 
@@ -188,6 +190,9 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
     if CONF_URL in config:
         template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
         cg.add(var.set_url(template_))
+    if CONF_UPDATE in config:
+        template_ = await cg.templatable(config[CONF_UPDATE], args, bool)
+        cg.add(var.set_update(template_))
     return var
 
 

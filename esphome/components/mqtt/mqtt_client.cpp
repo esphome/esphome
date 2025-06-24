@@ -176,7 +176,8 @@ void MQTTClientComponent::dump_config() {
   }
 }
 bool MQTTClientComponent::can_proceed() {
-  return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected();
+  return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected() ||
+         !this->wait_for_connection_;
 }
 
 void MQTTClientComponent::start_dnslookup_() {

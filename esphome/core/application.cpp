@@ -257,6 +257,17 @@ void Application::teardown_components(uint32_t timeout_ms) {
 }
 
 void Application::calculate_looping_components_() {
+  // Count total components that need looping
+  size_t total_looping = 0;
+  for (auto *obj : this->components_) {
+    if (obj->has_overridden_loop()) {
+      total_looping++;
+    }
+  }
+
+  // Pre-reserve vector to avoid reallocations
+  this->looping_components_.reserve(total_looping);
+
   // First add all active components
   for (auto *obj : this->components_) {
     if (obj->has_overridden_loop() &&
