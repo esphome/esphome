@@ -8,8 +8,7 @@
 #endif
 #include "hdmi_cec.h"
 
-#define USE_DECODER
-#ifdef USE_DECODER
+#ifdef USE_CEC_DECODER
 #include "cec_decoder.h"
 #endif
 
@@ -54,7 +53,7 @@ std::string Frame::to_string() const {
       result += ":";
     }
   }
-#ifdef USE_DECODER
+#ifdef USE_CEC_DECODER
   Decoder decoder(*this);
   result += " => " + decoder.decode();
 #endif

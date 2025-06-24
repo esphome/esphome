@@ -4,13 +4,14 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_UART_ID
 
-CODEOWNERS = ["@Palakis"]
+CODEOWNERS = ["@JosVanEijndhoven"]
 
 CONF_PIN = "pin"
 CONF_ADDRESS = "address"
 CONF_PHYSICAL_ADDRESS = "physical_address"
 CONF_PROMISCUOUS_MODE = "promiscuous_mode"
 CONF_MONITOR_MODE = "monitor_mode"
+CONF_DECODE_MESSAGES = "decode_messages"
 CONF_OSD_NAME = "osd_name"
 CONF_ON_MESSAGE = "on_message"
 
@@ -60,6 +61,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Required(CONF_PHYSICAL_ADDRESS): cv.uint16_t,
         cv.Optional(CONF_PROMISCUOUS_MODE, False): cv.boolean,
         cv.Optional(CONF_MONITOR_MODE, False): cv.boolean,
+        cv.Optional(CONF_DECODE_MESSAGES, True): cv.boolean,
         cv.Optional(CONF_OSD_NAME, "esphome"): validate_osd_name,
         cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
         cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
@@ -76,6 +78,9 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
 
 
 async def to_code(config):
+    if config[CONF_DECODE_MESSAGES]:
+        cg.add_define("USE_CEC_DECODER")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
