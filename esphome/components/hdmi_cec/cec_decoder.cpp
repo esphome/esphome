@@ -444,15 +444,17 @@ std::string Decoder::decode() {
     return result + "Ping";
   }
 
+  // Lookup opcode for its operation name
   auto it = cec_opcode_table.find(frame_.opcode());
   if (it == cec_opcode_table.end()) {
     return result + std::string("<?>");
   }
-
   result += std::string("<") + it->second.name + ">";
-  // operand fields
-  length_ = 0;  // currently accumulated length of text of operands
-  offset_ = 2;  // location in frame of first operand to decode
+
+  // convert operand fields to text:
+  length_ = 0;         // currently accumulated length of text of operands
+  line_[length_] = 0;  // initialise operand text to empty string
+  offset_ = 2;         // location in frame of first operand to decode
   OperandDecode_f f = it->second.decode_f;
   (this->*f)();
   result += &line_[0];
