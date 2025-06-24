@@ -14,7 +14,7 @@ ota:
 wifi:
   reboot_timeout: 0s
   networks:
-    - ssid: !secret wifi_home_ssid
+    - ssid: !secret wifi_homeiot_ssid
       password: !secret wifi_home_pw
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
@@ -38,8 +38,7 @@ esphome:
 esp32:
   board: ${board}
   framework:
-    type: arduino
-#    type: esp-idf
+    type: ${framework}
 
 # Enable logging
 logger:
@@ -101,6 +100,6 @@ text_sensor:
 hdmi_cec:
   id: cec
   pin: ${cec_pin}  # to HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
-  address: 0xe
+  address: 0xE
   physical_address: 0x2000
   uart_id: cec_uart

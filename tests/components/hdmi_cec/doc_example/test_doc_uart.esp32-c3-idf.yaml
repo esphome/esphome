@@ -2,6 +2,7 @@
 substitutions:
   name: test_cec_c3
   board: seeed_xiao_esp32c3
+  framework: esp-idf
   cec_pin: GPIO10
   hpd_pin: GPIO9
   uart_pin: GPIO8
