@@ -119,12 +119,12 @@ void HDMICEC::handle_received_message(const Frame *frame) {
 
   if (frame->size() == 1) {
     // don't process pings. they're already dealt with by the acknowledgement mechanism
-    ESP_LOGV(TAG, "ping received: 0x%01X -> 0x%01X", src_addr, dest_addr);
+    ESP_LOGV(TAG, "Received ping: 0x%01X -> 0x%01X", src_addr, dest_addr);
     return;
   }
 
   auto frame_str = frame->to_string();
-  ESP_LOGD(TAG, "frame received: %s", frame_str.c_str());
+  ESP_LOGD(TAG, "Received: %s", frame_str.c_str());
 
   std::vector<uint8_t> data(frame->begin() + 1, frame->end());
 
@@ -379,7 +379,7 @@ void CECTransmit::transmit_message() {
   transmit_state_ = TransmitState::BUSY;
   transmit_attempts_++;
   if (transmit_attempts_ <= 1) {
-    ESP_LOGD(TAG, "Send message from queue: %s", frame.to_string().c_str());
+    ESP_LOGD(TAG, "Sending: %s", frame.to_string().c_str());
   }
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit

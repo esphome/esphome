@@ -152,7 +152,7 @@ template<uint32_t OPERANDS> bool Decoder::do_operand() {
  * List of specialised operand decode functions, one function per operand type.
  * (Not fully complete, might be extended later)
  */
-template<> bool Decoder::do_operand<Decoder::None>() { return append_operand(""); }
+template<> bool Decoder::do_operand<Decoder::None>() { return false; }
 
 template<> bool Decoder::do_operand<Decoder::AbortReason>() {
   const static std::array<const char *, 7> names = {"Unrecognized opcode",
