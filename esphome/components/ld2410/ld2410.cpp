@@ -8,6 +8,8 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
+#include "esphome/core/application.h"
+
 #define highbyte(val) (uint8_t)((val) >> 8)
 #define lowbyte(val) (uint8_t)((val) &0xff)
 
@@ -73,9 +75,9 @@ void LD2410Component::dump_config() {
 #endif
   this->read_all_info();
   ESP_LOGCONFIG(TAG,
-                "  Throttle_ : %ums\n"
-                "  MAC Address : %s\n"
-                "  Firmware Version : %s",
+                "  Throttle: %ums\n"
+                "  MAC address: %s\n"
+                "  Firmware version: %s",
                 this->throttle_, const_cast<char *>(this->mac_.c_str()), const_cast<char *>(this->version_.c_str()));
 }
 
@@ -153,7 +155,7 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
   /*
     Reduce data update rate to prevent home assistant database size grow fast
   */
-  int32_t current_millis = millis();
+  int32_t current_millis = App.get_loop_component_start_time();
   if (current_millis - last_periodic_millis_ < this->throttle_)
     return;
   last_periodic_millis_ = current_millis;
@@ -313,40 +315,40 @@ std::function<void(void)> set_number_value(number::Number *n, float value) {
 bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", buffer[COMMAND]);
   if (len < 10) {
-    ESP_LOGE(TAG, "Error with last command : incorrect length");
+    ESP_LOGE(TAG, "Invalid length");
     return true;
   }
   if (buffer[0] != 0xFD || buffer[1] != 0xFC || buffer[2] != 0xFB || buffer[3] != 0xFA) {  // check 4 frame start bytes
-    ESP_LOGE(TAG, "Error with last command : incorrect Header");
+    ESP_LOGE(TAG, "Invalid header");
     return true;
   }
   if (buffer[COMMAND_STATUS] != 0x01) {
-    ESP_LOGE(TAG, "Error with last command : status != 0x01");
+    ESP_LOGE(TAG, "Invalid status");
     return true;
   }
   if (this->two_byte_to_int_(buffer[8], buffer[9]) != 0x00) {
-    ESP_LOGE(TAG, "Error with last command , last buffer was: %u , %u", buffer[8], buffer[9]);
+    ESP_LOGE(TAG, "Invalid command: %u, %u", buffer[8], buffer[9]);
     return true;
   }
 
   switch (buffer[COMMAND]) {
     case lowbyte(CMD_ENABLE_CONF):
-      ESP_LOGV(TAG, "Handled Enable conf command");
+      ESP_LOGV(TAG, "Enable conf");
       break;
     case lowbyte(CMD_DISABLE_CONF):
-      ESP_LOGV(TAG, "Handled Disabled conf command");
+      ESP_LOGV(TAG, "Disabled conf");
       break;
     case lowbyte(CMD_SET_BAUD_RATE):
-      ESP_LOGV(TAG, "Handled baud rate change command");
+      ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate component config to %s and reinstall", this->baud_rate_select_->state.c_str());
+        ESP_LOGE(TAG, "Configure baud rate to %s and reinstall", this->baud_rate_select_->state.c_str());
       }
 #endif
       break;
     case lowbyte(CMD_VERSION):
       this->version_ = format_version(buffer);
-      ESP_LOGV(TAG, "FW Version is: %s", const_cast<char *>(this->version_.c_str()));
+      ESP_LOGV(TAG, "Firmware version: %s", const_cast<char *>(this->version_.c_str()));
 #ifdef USE_TEXT_SENSOR
       if (this->version_text_sensor_ != nullptr) {
         this->version_text_sensor_->publish_state(this->version_);
@@ -356,7 +358,7 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
     case lowbyte(CMD_QUERY_DISTANCE_RESOLUTION): {
       std::string distance_resolution =
           DISTANCE_RESOLUTION_INT_TO_ENUM.at(this->two_byte_to_int_(buffer[10], buffer[11]));
-      ESP_LOGV(TAG, "Distance resolution is: %s", const_cast<char *>(distance_resolution.c_str()));
+      ESP_LOGV(TAG, "Distance resolution: %s", const_cast<char *>(distance_resolution.c_str()));
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr &&
           this->distance_resolution_select_->state != distance_resolution) {
@@ -368,9 +370,9 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       this->light_function_ = LIGHT_FUNCTION_INT_TO_ENUM.at(buffer[10]);
       this->light_threshold_ = buffer[11] * 1.0;
       this->out_pin_level_ = OUT_PIN_LEVEL_INT_TO_ENUM.at(buffer[12]);
-      ESP_LOGV(TAG, "Light function is: %s", const_cast<char *>(this->light_function_.c_str()));
-      ESP_LOGV(TAG, "Light threshold is: %f", this->light_threshold_);
-      ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(this->out_pin_level_.c_str()));
+      ESP_LOGV(TAG, "Light function: %s", const_cast<char *>(this->light_function_.c_str()));
+      ESP_LOGV(TAG, "Light threshold: %f", this->light_threshold_);
+      ESP_LOGV(TAG, "Out pin level: %s", const_cast<char *>(this->out_pin_level_.c_str()));
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr && this->light_function_select_->state != this->light_function_) {
         this->light_function_select_->publish_state(this->light_function_);
@@ -405,19 +407,19 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
 #endif
       break;
     case lowbyte(CMD_GATE_SENS):
-      ESP_LOGV(TAG, "Handled sensitivity command");
+      ESP_LOGV(TAG, "Sensitivity");
       break;
     case lowbyte(CMD_BLUETOOTH):
-      ESP_LOGV(TAG, "Handled bluetooth command");
+      ESP_LOGV(TAG, "Bluetooth");
       break;
     case lowbyte(CMD_SET_DISTANCE_RESOLUTION):
-      ESP_LOGV(TAG, "Handled set distance resolution command");
+      ESP_LOGV(TAG, "Set distance resolution");
       break;
     case lowbyte(CMD_SET_LIGHT_CONTROL):
-      ESP_LOGV(TAG, "Handled set light control command");
+      ESP_LOGV(TAG, "Set light control");
       break;
     case lowbyte(CMD_BT_PASSWORD):
-      ESP_LOGV(TAG, "Handled set bluetooth password command");
+      ESP_LOGV(TAG, "Set bluetooth password");
       break;
     case lowbyte(CMD_QUERY):  // Query parameters response
     {
@@ -517,7 +519,7 @@ void LD2410Component::set_baud_rate(const std::string &state) {
 
 void LD2410Component::set_bluetooth_password(const std::string &password) {
   if (password.length() != 6) {
-    ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", password.c_str());
+    ESP_LOGE(TAG, "Password must be exactly 6 chars");
     return;
   }
   this->set_config_mode_(true);
@@ -529,7 +531,7 @@ void LD2410Component::set_bluetooth_password(const std::string &password) {
 
 void LD2410Component::set_engineering_mode(bool enable) {
   this->set_config_mode_(true);
-  last_engineering_mode_change_millis_ = millis();
+  last_engineering_mode_change_millis_ = App.get_loop_component_start_time();
   uint8_t cmd = enable ? CMD_ENABLE_ENG : CMD_DISABLE_ENG;
   this->send_command_(cmd, nullptr, 0);
   this->set_config_mode_(false);
