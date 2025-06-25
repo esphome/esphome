@@ -402,6 +402,8 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
   return parse_hex<T>(str.c_str(), str.length());
 }
 
+/// Format the six-byte array \p mac into a MAC address.
+std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.

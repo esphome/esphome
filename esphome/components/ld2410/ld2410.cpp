@@ -299,21 +299,6 @@ const char MAC_FMT[] = "%02X:%02X:%02X:%02X:%02X:%02X";
 const std::string UNKNOWN_MAC("unknown");
 const std::string NO_MAC("08:05:04:03:02:01");
 
-std::string format_mac(uint8_t *buffer) {
-  std::string::size_type mac_size = 256;
-  std::string mac;
-  do {
-    mac.resize(mac_size + 1);
-    mac_size = std::snprintf(&mac[0], mac.size(), MAC_FMT, buffer[10], buffer[11], buffer[12], buffer[13], buffer[14],
-                             buffer[15]);
-  } while (mac_size + 1 > mac.size());
-  mac.resize(mac_size);
-  if (mac == NO_MAC) {
-    return UNKNOWN_MAC;
-  }
-  return mac;
-}
-
 #ifdef USE_NUMBER
 std::function<void(void)> set_number_value(number::Number *n, float value) {
   float normalized_value = value * 1.0;
@@ -406,11 +391,11 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       if (len < 20) {
         return false;
       }
-      this->mac_ = format_mac(buffer);
-      ESP_LOGV(TAG, "MAC Address is: %s", const_cast<char *>(this->mac_.c_str()));
+      this->mac_ = format_mac_address_pretty(&buffer[10]);
+      ESP_LOGV(TAG, "MAC address: %s", this->mac_.c_str());
 #ifdef USE_TEXT_SENSOR
       if (this->mac_text_sensor_ != nullptr) {
-        this->mac_text_sensor_->publish_state(this->mac_);
+        this->mac_text_sensor_->publish_state(this->mac_ == NO_MAC ? UNKNOWN_MAC : this->mac_);
       }
 #endif
 #ifdef USE_SWITCH

@@ -4,6 +4,7 @@
 #include "ble_event_pool.h"
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <esp_bt.h>
@@ -516,13 +517,12 @@ void ESP32BLE::dump_config() {
         break;
     }
     ESP_LOGCONFIG(TAG,
-                  "ESP32 BLE:\n"
-                  "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n"
+                  "BLE:\n"
+                  "  MAC address: %s\n"
                   "  IO Capability: %s",
-                  mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5],
-                  io_capability_s);
+                  format_mac_address_pretty(mac_address).c_str(), io_capability_s);
   } else {
-    ESP_LOGCONFIG(TAG, "ESP32 BLE: bluetooth stack is not enabled");
+    ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
 }
 

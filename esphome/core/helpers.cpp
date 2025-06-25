@@ -356,6 +356,10 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   return chars;
 }
 
+std::string format_mac_address_pretty(const uint8_t *mac) {
+  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 static char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
 std::string format_hex(const uint8_t *data, size_t length) {
   std::string ret;
@@ -732,7 +736,7 @@ std::string get_mac_address() {
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return format_mac_address_pretty(mac);
 }
 
 #ifdef USE_ESP32

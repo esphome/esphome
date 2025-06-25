@@ -321,8 +321,6 @@ class WiFiComponent : public Component {
   int32_t get_wifi_channel();
 
  protected:
-  static std::string format_mac_addr(const uint8_t mac[6]);
-
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
 #endif  // USE_WIFI_AP

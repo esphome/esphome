@@ -741,11 +741,6 @@ void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->po
 
 void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
-std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
-  char buf[20];
-  sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return buf;
-}
 bool WiFiComponent::is_captive_portal_active_() {
 #ifdef USE_CAPTIVE_PORTAL
   return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
