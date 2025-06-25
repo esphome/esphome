@@ -839,9 +839,7 @@ lvgl:
                       styles: bdr_style
                       grid_cell_x_align: center
                       grid_cell_y_align: stretch
-                      grid_cell_row_pos: 0
-                      grid_cell_column_pos: 1
-                      grid_cell_column_span: 1
+                      grid_cell_column_span: 2
                       text: "Grid cell 0/1"
                   - label:
                       grid_cell_x_align: end
