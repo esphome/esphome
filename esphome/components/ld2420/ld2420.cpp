@@ -1,4 +1,5 @@
 #include "ld2420.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
 /*
@@ -40,7 +41,7 @@ There are three documented parameters for modes:
   00 04 = Energy output mode
     This mode outputs detailed signal energy values for each gate and the target distance.
     The data format consist of the following.
-    Header HH, Length LL, Persence PP, Distance DD, 16 Gate Energies EE, Footer FF
+    Header HH, Length LL, Presence PP, Distance DD, 16 Gate Energies EE, Footer FF
     HH HH HH HH LL LL PP DD DD EE EE .. 16x   .. FF FF FF FF
     F4 F3 F2 F1 23 00 00 00 00 00 00 .. .. .. .. F8 F7 F6 F5
   00 00 = debug output mode
@@ -67,10 +68,10 @@ float LD2420Component::get_setup_priority() const { return setup_priority::BUS; 
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2420:\n"
-                "  Firmware Version : %7s\n"
-                "LD2420 Number:",
+                "  Firmware version: %7s",
                 this->ld2420_firmware_ver_);
 #ifdef USE_NUMBER
+  ESP_LOGCONFIG(TAG, "Number:");
   LOG_NUMBER(TAG, "  Gate Timeout:", this->gate_timeout_number_);
   LOG_NUMBER(TAG, "  Gate Max Distance:", this->max_gate_distance_number_);
   LOG_NUMBER(TAG, "  Gate Min Distance:", this->min_gate_distance_number_);
@@ -86,10 +87,10 @@ void LD2420Component::dump_config() {
   LOG_BUTTON(TAG, "  Factory Reset:", this->factory_reset_button_);
   LOG_BUTTON(TAG, "  Restart Module:", this->restart_module_button_);
 #endif
-  ESP_LOGCONFIG(TAG, "LD2420 Select:");
+  ESP_LOGCONFIG(TAG, "Select:");
   LOG_SELECT(TAG, "  Operating Mode", this->operating_selector_);
-  if (this->get_firmware_int_(ld2420_firmware_ver_) < CALIBRATE_VERSION_MIN) {
-    ESP_LOGW(TAG, "LD2420 Firmware Version %s and older are only supported in Simple Mode", ld2420_firmware_ver_);
+  if (LD2420Component::get_firmware_int(this->ld2420_firmware_ver_) < CALIBRATE_VERSION_MIN) {
+    ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->ld2420_firmware_ver_);
   }
 }
 
@@ -102,7 +103,7 @@ uint8_t LD2420Component::calc_checksum(void *data, size_t size) {
   return checksum;
 }
 
-int LD2420Component::get_firmware_int_(const char *version_string) {
+int LD2420Component::get_firmware_int(const char *version_string) {
   std::string version_str = version_string;
   if (version_str[0] == 'v') {
     version_str = version_str.substr(1);
@@ -115,7 +116,7 @@ int LD2420Component::get_firmware_int_(const char *version_string) {
 void LD2420Component::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
-    ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -127,7 +128,7 @@ void LD2420Component::setup() {
   const char *pfw = this->ld2420_firmware_ver_;
   std::string fw_str(pfw);
 
-  for (auto &listener : listeners_) {
+  for (auto &listener : this->listeners_) {
     listener->on_fw_version(fw_str);
   }
 
@@ -137,11 +138,11 @@ void LD2420Component::setup() {
   }
 
   memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
-  if (get_firmware_int_(ld2420_firmware_ver_) < CALIBRATE_VERSION_MIN) {
+  if (LD2420Component::get_firmware_int(this->ld2420_firmware_ver_) < CALIBRATE_VERSION_MIN) {
     this->set_operating_mode(OP_SIMPLE_MODE_STRING);
     this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
     this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
-    ESP_LOGW(TAG, "LD2420 Frimware Version %s and older are only supported in Simple Mode", ld2420_firmware_ver_);
+    ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->ld2420_firmware_ver_);
   } else {
     this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
     this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
@@ -151,18 +152,17 @@ void LD2420Component::setup() {
 #endif
   this->set_system_mode(this->system_mode_);
   this->set_config_mode(false);
-  ESP_LOGCONFIG(TAG, "LD2420 setup complete.");
 }
 
 void LD2420Component::apply_config_action() {
   const uint8_t checksum = calc_checksum(&this->new_config, sizeof(this->new_config));
   if (checksum == calc_checksum(&this->current_config, sizeof(this->current_config))) {
-    ESP_LOGCONFIG(TAG, "No configuration change detected");
+    ESP_LOGD(TAG, "No configuration change detected");
     return;
   }
-  ESP_LOGCONFIG(TAG, "Reconfiguring LD2420");
+  ESP_LOGD(TAG, "Reconfiguring");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
-    ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -178,13 +178,12 @@ void LD2420Component::apply_config_action() {
   this->set_system_mode(this->system_mode_);
   this->set_config_mode(false);  // Disable config mode to save new values in LD2420 nvm
   this->set_operating_mode(OP_NORMAL_MODE_STRING);
-  ESP_LOGCONFIG(TAG, "LD2420 reconfig complete.");
 }
 
 void LD2420Component::factory_reset_action() {
-  ESP_LOGCONFIG(TAG, "Setting factory defaults");
+  ESP_LOGD(TAG, "Setting factory defaults");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
-    ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -207,18 +206,16 @@ void LD2420Component::factory_reset_action() {
   this->init_gate_config_numbers();
   this->refresh_gate_config_numbers();
 #endif
-  ESP_LOGCONFIG(TAG, "LD2420 factory reset complete.");
 }
 
 void LD2420Component::restart_module_action() {
-  ESP_LOGCONFIG(TAG, "Restarting LD2420 module");
+  ESP_LOGD(TAG, "Restarting");
   this->send_module_restart();
   this->set_timeout(250, [this]() {
     this->set_config_mode(true);
-    this->set_system_mode(system_mode_);
+    this->set_system_mode(this->system_mode_);
     this->set_config_mode(false);
   });
-  ESP_LOGCONFIG(TAG, "LD2420 Restarted.");
 }
 
 void LD2420Component::revert_config_action() {
@@ -226,18 +223,18 @@ void LD2420Component::revert_config_action() {
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
 #endif
-  ESP_LOGCONFIG(TAG, "Reverted config number edits.");
+  ESP_LOGD(TAG, "Reverted config number edits");
 }
 
 void LD2420Component::loop() {
   // If there is a active send command do not process it here, the send command call will handle it.
-  if (!get_cmd_active_()) {
-    if (!available())
+  if (!this->get_cmd_active_()) {
+    if (!this->available())
       return;
     static uint8_t buffer[2048];
     static uint8_t rx_data;
-    while (available()) {
-      rx_data = read();
+    while (this->available()) {
+      rx_data = this->read();
       this->readline_(rx_data, buffer, sizeof(buffer));
     }
   }
@@ -292,7 +289,7 @@ void LD2420Component::report_gate_data() {
 
 void LD2420Component::set_operating_mode(const std::string &state) {
   // If unsupported firmware ignore mode select
-  if (get_firmware_int_(ld2420_firmware_ver_) >= CALIBRATE_VERSION_MIN) {
+  if (LD2420Component::get_firmware_int(ld2420_firmware_ver_) >= CALIBRATE_VERSION_MIN) {
     this->current_operating_mode = OP_MODE_TO_UINT.at(state);
     // Entering Auto Calibrate we need to clear the privoiuos data collection
     this->operating_selector_->publish_state(state);
@@ -365,13 +362,13 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   }
 
   // Resonable refresh rate for home assistant database size health
-  const int32_t current_millis = millis();
+  const int32_t current_millis = App.get_loop_component_start_time();
   if (current_millis - this->last_periodic_millis < REFRESH_RATE_MS)
     return;
   this->last_periodic_millis = current_millis;
   for (auto &listener : this->listeners_) {
-    listener->on_distance(get_distance_());
-    listener->on_presence(get_presence_());
+    listener->on_distance(this->get_distance_());
+    listener->on_presence(this->get_presence_());
     listener->on_energy(this->gate_energy_, sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]));
   }
 
@@ -392,9 +389,9 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   char outbuf[bufsize]{0};
   while (true) {
     if (inbuf[pos - 2] == 'O' && inbuf[pos - 1] == 'F' && inbuf[pos] == 'F') {
-      set_presence_(false);
+      this->set_presence_(false);
     } else if (inbuf[pos - 1] == 'O' && inbuf[pos] == 'N') {
-      set_presence_(true);
+      this->set_presence_(true);
     }
     if (inbuf[pos] >= '0' && inbuf[pos] <= '9') {
       if (index < bufsize - 1) {
@@ -411,18 +408,18 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   }
   outbuf[index] = '\0';
   if (index > 1)
-    set_distance_(strtol(outbuf, &endptr, 10));
+    this->set_distance_(strtol(outbuf, &endptr, 10));
 
-  if (get_mode_() == CMD_SYSTEM_MODE_SIMPLE) {
+  if (this->get_mode_() == CMD_SYSTEM_MODE_SIMPLE) {
     // Resonable refresh rate for home assistant database size health
-    const int32_t current_millis = millis();
+    const int32_t current_millis = App.get_loop_component_start_time();
     if (current_millis - this->last_normal_periodic_millis < REFRESH_RATE_MS)
       return;
     this->last_normal_periodic_millis = current_millis;
     for (auto &listener : this->listeners_)
-      listener->on_distance(get_distance_());
+      listener->on_distance(this->get_distance_());
     for (auto &listener : this->listeners_)
-      listener->on_presence(get_presence_());
+      listener->on_presence(this->get_presence_());
   }
 }
 
@@ -433,10 +430,10 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   uint8_t data_element = 0;
   uint16_t data_pos = 0;
   if (this->cmd_reply_.length > CMD_MAX_BYTES) {
-    ESP_LOGW(TAG, "LD2420 reply - received command reply frame is corrupt, length exceeds %d bytes.", CMD_MAX_BYTES);
+    ESP_LOGW(TAG, "Reply frame too long");
     return;
   } else if (this->cmd_reply_.length < 2) {
-    ESP_LOGW(TAG, "LD2420 reply - received command frame is corrupt, length is less than 2 bytes.");
+    ESP_LOGW(TAG, "Command frame too short");
     return;
   }
   memcpy(&this->cmd_reply_.error, &buffer[CMD_ERROR_WORD], sizeof(this->cmd_reply_.error));
@@ -447,13 +444,13 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   this->cmd_reply_.ack = true;
   switch ((uint16_t) this->cmd_reply_.command) {
     case (CMD_ENABLE_CONF):
-      ESP_LOGD(TAG, "LD2420 reply - set config enable: CMD = %2X %s", CMD_ENABLE_CONF, result);
+      ESP_LOGV(TAG, "Set config enable: CMD = %2X %s", CMD_ENABLE_CONF, result);
       break;
     case (CMD_DISABLE_CONF):
-      ESP_LOGD(TAG, "LD2420 reply - set config disable: CMD = %2X %s", CMD_DISABLE_CONF, result);
+      ESP_LOGV(TAG, "Set config disable: CMD = %2X %s", CMD_DISABLE_CONF, result);
       break;
     case (CMD_READ_REGISTER):
-      ESP_LOGD(TAG, "LD2420 reply - read register: CMD = %2X %s", CMD_READ_REGISTER, result);
+      ESP_LOGV(TAG, "Read register: CMD = %2X %s", CMD_READ_REGISTER, result);
       // TODO Read/Write register is not implemented yet, this will get flushed out to a proper header file
       data_pos = 0x0A;
       for (uint16_t index = 0; index < (CMD_REG_DATA_REPLY_SIZE *  // NOLINT
@@ -465,13 +462,13 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
       }
       break;
     case (CMD_WRITE_REGISTER):
-      ESP_LOGD(TAG, "LD2420 reply - write register: CMD = %2X %s", CMD_WRITE_REGISTER, result);
+      ESP_LOGV(TAG, "Write register: CMD = %2X %s", CMD_WRITE_REGISTER, result);
       break;
     case (CMD_WRITE_ABD_PARAM):
-      ESP_LOGD(TAG, "LD2420 reply - write gate parameter(s): %2X %s", CMD_WRITE_ABD_PARAM, result);
+      ESP_LOGV(TAG, "Write gate parameter(s): %2X %s", CMD_WRITE_ABD_PARAM, result);
       break;
     case (CMD_READ_ABD_PARAM):
-      ESP_LOGD(TAG, "LD2420 reply - read gate parameter(s): %2X %s", CMD_READ_ABD_PARAM, result);
+      ESP_LOGV(TAG, "Read gate parameter(s): %2X %s", CMD_READ_ABD_PARAM, result);
       data_pos = CMD_ABD_DATA_REPLY_START;
       for (uint16_t index = 0; index < (CMD_ABD_DATA_REPLY_SIZE *  // NOLINT
                                         ((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_ABD_DATA_REPLY_SIZE));
@@ -483,11 +480,11 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
       }
       break;
     case (CMD_WRITE_SYS_PARAM):
-      ESP_LOGD(TAG, "LD2420 reply - set system parameter(s): %2X %s", CMD_WRITE_SYS_PARAM, result);
+      ESP_LOGV(TAG, "Set system parameter(s): %2X %s", CMD_WRITE_SYS_PARAM, result);
       break;
     case (CMD_READ_VERSION):
       memcpy(this->ld2420_firmware_ver_, &buffer[12], buffer[10]);
-      ESP_LOGD(TAG, "LD2420 reply - module firmware version: %7s %s", this->ld2420_firmware_ver_, result);
+      ESP_LOGV(TAG, "Firmware version: %7s %s", this->ld2420_firmware_ver_, result);
       break;
     default:
       break;
@@ -533,7 +530,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
     }
 
     while (!this->cmd_reply_.ack) {
-      while (available()) {
+      while (this->available()) {
         this->readline_(read(), ack_buffer, sizeof(ack_buffer));
       }
       delay_microseconds_safe(1450);
@@ -548,7 +545,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
     if (this->cmd_reply_.ack)
       retry = 0;
     if (this->cmd_reply_.error > 0)
-      handle_cmd_error(error);
+      this->handle_cmd_error(error);
   }
   return error;
 }
@@ -563,7 +560,7 @@ uint8_t LD2420Component::set_config_mode(bool enable) {
     cmd_frame.data_length += sizeof(CMD_PROTOCOL_VER);
   }
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
 
@@ -576,7 +573,7 @@ void LD2420Component::ld2420_restart() {
   cmd_frame.header = CMD_FRAME_HEADER;
   cmd_frame.command = CMD_RESTART;
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending restart command: %2X", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending restart command: %2X", cmd_frame.command);
   this->send_cmd_from_array(cmd_frame);
 }
 
@@ -588,7 +585,7 @@ void LD2420Component::get_reg_value_(uint16_t reg) {
   cmd_frame.data[1] = reg;
   cmd_frame.data_length += 2;
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending read register %4X command: %2X", reg, cmd_frame.command);
+  ESP_LOGV(TAG, "Sending read register %4X command: %2X", reg, cmd_frame.command);
   this->send_cmd_from_array(cmd_frame);
 }
 
@@ -602,11 +599,11 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
   memcpy(&cmd_frame.data[cmd_frame.data_length], &value, sizeof(CMD_REG_DATA_REPLY_SIZE));
   cmd_frame.data_length += 2;
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending write register %4X command: %2X data = %4X", reg, cmd_frame.command, value);
+  ESP_LOGV(TAG, "Sending write register %4X command: %2X data = %4X", reg, cmd_frame.command, value);
   this->send_cmd_from_array(cmd_frame);
 }
 
-void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGI(TAG, "Command failed: %s", ERR_MESSAGE[error]); }
+void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]); }
 
 int LD2420Component::get_gate_threshold_(uint8_t gate) {
   uint8_t error;
@@ -619,7 +616,7 @@ int LD2420Component::get_gate_threshold_(uint8_t gate) {
   memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_GATE_STILL_THRESH[gate], sizeof(CMD_GATE_STILL_THRESH[gate]));
   cmd_frame.data_length += 2;
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending read gate %d high/low theshold command: %2X", gate, cmd_frame.command);
+  ESP_LOGV(TAG, "Sending read gate %d high/low threshold command: %2X", gate, cmd_frame.command);
   error = this->send_cmd_from_array(cmd_frame);
   if (error == 0) {
     this->current_config.move_thresh[gate] = cmd_reply_.data[0];
@@ -644,7 +641,7 @@ int LD2420Component::get_min_max_distances_timeout_() {
          sizeof(CMD_TIMEOUT_REG));  // Register: global delay time
   cmd_frame.data_length += sizeof(CMD_TIMEOUT_REG);
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending read gate min max and timeout command: %2X", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending read gate min max and timeout command: %2X", cmd_frame.command);
   error = this->send_cmd_from_array(cmd_frame);
   if (error == 0) {
     this->current_config.min_gate = (uint16_t) cmd_reply_.data[0];
@@ -667,9 +664,9 @@ void LD2420Component::set_system_mode(uint16_t mode) {
   memcpy(&cmd_frame.data[cmd_frame.data_length], &unknown_parm, sizeof(unknown_parm));
   cmd_frame.data_length += sizeof(unknown_parm);
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending write system mode command: %2X", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending write system mode command: %2X", cmd_frame.command);
   if (this->send_cmd_from_array(cmd_frame) == 0)
-    set_mode_(mode);
+    this->set_mode_(mode);
 }
 
 void LD2420Component::get_firmware_version_() {
@@ -679,7 +676,7 @@ void LD2420Component::get_firmware_version_() {
   cmd_frame.command = CMD_READ_VERSION;
   cmd_frame.footer = CMD_FRAME_FOOTER;
 
-  ESP_LOGD(TAG, "Sending read firmware version command: %2X", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending read firmware version command: %2X", cmd_frame.command);
   this->send_cmd_from_array(cmd_frame);
 }
 
@@ -712,7 +709,7 @@ void LD2420Component::set_min_max_distances_timeout(uint32_t max_gate_distance, 
   cmd_frame.data_length += sizeof(timeout);
   cmd_frame.footer = CMD_FRAME_FOOTER;
 
-  ESP_LOGD(TAG, "Sending write gate min max and timeout command: %2X", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending write gate min max and timeout command: %2X", cmd_frame.command);
   this->send_cmd_from_array(cmd_frame);
 }
 
@@ -738,7 +735,7 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
          sizeof(this->new_config.still_thresh[gate]));
   cmd_frame.data_length += sizeof(this->new_config.still_thresh[gate]);
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGD(TAG, "Sending set gate %4X sensitivity command: %2X", gate, cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set gate %4X sensitivity command: %2X", gate, cmd_frame.command);
   this->send_cmd_from_array(cmd_frame);
 }
 

@@ -179,7 +179,7 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void set_operating_mode(const std::string &state);
   void auto_calibrate_sensitivity();
   void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);
-  uint8_t calc_checksum(void *data, size_t size);
+  static uint8_t calc_checksum(void *data, size_t size);
 
   RegConfigT current_config;
   RegConfigT new_config;
@@ -222,7 +222,7 @@ class LD2420Component : public Component, public uart::UARTDevice {
     volatile bool ack;
   };
 
-  int get_firmware_int_(const char *version_string);
+  static int get_firmware_int(const char *version_string);
   void get_firmware_version_();
   int get_gate_threshold_(uint8_t gate);
   void get_reg_value_(uint16_t reg);
