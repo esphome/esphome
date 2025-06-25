@@ -25,6 +25,12 @@ void Filter::input(bool value) {
   }
 }
 
+void TimeoutFilter::input(bool value) {
+  this->set_timeout("timeout", this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
+  // we do not de-dup here otherwise changes from invalid to valid state will not be output
+  this->output(value);
+}
+
 optional<bool> DelayedOnOffFilter::new_value(bool value) {
   if (value) {
     this->set_timeout("ON_OFF", this->on_delay_.value(), [this]() { this->output(true); });
