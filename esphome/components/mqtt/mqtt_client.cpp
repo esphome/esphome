@@ -229,6 +229,8 @@ void MQTTClientComponent::check_dnslookup_() {
   if (this->dns_resolve_error_) {
     ESP_LOGW(TAG, "Couldn't resolve IP address for '%s'", this->credentials_.address.c_str());
     this->state_ = MQTT_CLIENT_DISCONNECTED;
+    this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+    this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
     return;
   }
 
@@ -698,7 +700,9 @@ void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) 
 }
 
 void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
+  auto callback_copy = callback;
   this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
+  this->on_disconnect_.add(std::move(callback_copy));
 }
 
 #if ASYNC_TCP_SSL_ENABLED
