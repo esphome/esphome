@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+import aioesphomeapi
 from aioesphomeapi import EntityState
 import pytest
 
@@ -47,3 +48,23 @@ async def test_host_mode_with_sensor(
         # Verify the sensor state
         assert test_sensor_state.state == 42.0
         assert len(states) > 0, "No states received"
+
+        # Verify the optimized fields are working correctly
+        # Get entity info to check accuracy_decimals, state_class, etc.
+        entities, _ = await client.list_entities_services()
+        sensor_info: aioesphomeapi.SensorInfo | None = None
+        for entity in entities:
+            if isinstance(entity, aioesphomeapi.SensorInfo):
+                sensor_info = entity
+                break
+
+        assert sensor_info is not None, "Sensor entity info not found"
+        assert sensor_info.accuracy_decimals == 2, (
+            f"Expected accuracy_decimals=2, got {sensor_info.accuracy_decimals}"
+        )
+        assert sensor_info.state_class == 1, (
+            f"Expected state_class=1 (measurement), got {sensor_info.state_class}"
+        )
+        assert sensor_info.force_update is True, (
+            f"Expected force_update=True, got {sensor_info.force_update}"
+        )
