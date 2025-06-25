@@ -1,0 +1,20 @@
+esphome:
+  name: test-different-platforms
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    name: "Status"
+    lambda: return 1.0;
+
+binary_sensor:
+  - platform: template
+    name: "Status"  # Same name, different platform - should pass
+    lambda: return true;
+
+text_sensor:
+  - platform: template
+    name: "Status"  # Same name, different platform - should pass
+    lambda: return {"OK"};

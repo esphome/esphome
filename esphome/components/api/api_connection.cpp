@@ -1630,6 +1630,23 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
 #endif
+#ifdef USE_DEVICES
+  for (auto const &device : App.get_devices()) {
+    DeviceInfo device_info;
+    device_info.device_id = device->get_device_id();
+    device_info.name = device->get_name();
+    device_info.area_id = device->get_area_id();
+    resp.devices.push_back(device_info);
+  }
+#endif
+#ifdef USE_AREAS
+  for (auto const &area : App.get_areas()) {
+    AreaInfo area_info;
+    area_info.area_id = area->get_area_id();
+    area_info.name = area->get_name();
+    resp.areas.push_back(area_info);
+  }
+#endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {

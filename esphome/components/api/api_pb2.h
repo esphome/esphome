@@ -264,6 +264,7 @@ class InfoResponseProtoMessage : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  uint32_t device_id{0};
 
  protected:
 };
@@ -415,10 +416,39 @@ class DeviceInfoRequest : public ProtoMessage {
 
  protected:
 };
+class AreaInfo : public ProtoMessage {
+ public:
+  uint32_t area_id{0};
+  std::string name{};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(uint32_t &total_size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class DeviceInfo : public ProtoMessage {
+ public:
+  uint32_t device_id{0};
+  std::string name{};
+  uint32_t area_id{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(uint32_t &total_size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 class DeviceInfoResponse : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 129;
+  static constexpr uint16_t ESTIMATED_SIZE = 219;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "device_info_response"; }
 #endif
@@ -441,6 +471,9 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string suggested_area{};
   std::string bluetooth_mac_address{};
   bool api_encryption_supported{false};
+  std::vector<DeviceInfo> devices{};
+  std::vector<AreaInfo> areas{};
+  AreaInfo area{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -493,7 +526,7 @@ class SubscribeStatesRequest : public ProtoMessage {
 class ListEntitiesBinarySensorResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 12;
-  static constexpr uint16_t ESTIMATED_SIZE = 56;
+  static constexpr uint16_t ESTIMATED_SIZE = 60;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_binary_sensor_response"; }
 #endif
@@ -532,7 +565,7 @@ class BinarySensorStateResponse : public StateResponseProtoMessage {
 class ListEntitiesCoverResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 13;
-  static constexpr uint16_t ESTIMATED_SIZE = 62;
+  static constexpr uint16_t ESTIMATED_SIZE = 66;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_cover_response"; }
 #endif
@@ -601,7 +634,7 @@ class CoverCommandRequest : public ProtoMessage {
 class ListEntitiesFanResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 14;
-  static constexpr uint16_t ESTIMATED_SIZE = 73;
+  static constexpr uint16_t ESTIMATED_SIZE = 77;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_fan_response"; }
 #endif
@@ -679,7 +712,7 @@ class FanCommandRequest : public ProtoMessage {
 class ListEntitiesLightResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 15;
-  static constexpr uint16_t ESTIMATED_SIZE = 85;
+  static constexpr uint16_t ESTIMATED_SIZE = 90;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_light_response"; }
 #endif
@@ -780,7 +813,7 @@ class LightCommandRequest : public ProtoMessage {
 class ListEntitiesSensorResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 16;
-  static constexpr uint16_t ESTIMATED_SIZE = 73;
+  static constexpr uint16_t ESTIMATED_SIZE = 77;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_sensor_response"; }
 #endif
@@ -823,7 +856,7 @@ class SensorStateResponse : public StateResponseProtoMessage {
 class ListEntitiesSwitchResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 17;
-  static constexpr uint16_t ESTIMATED_SIZE = 56;
+  static constexpr uint16_t ESTIMATED_SIZE = 60;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_switch_response"; }
 #endif
@@ -880,7 +913,7 @@ class SwitchCommandRequest : public ProtoMessage {
 class ListEntitiesTextSensorResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 18;
-  static constexpr uint16_t ESTIMATED_SIZE = 54;
+  static constexpr uint16_t ESTIMATED_SIZE = 58;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_text_sensor_response"; }
 #endif
@@ -1196,7 +1229,7 @@ class ExecuteServiceRequest : public ProtoMessage {
 class ListEntitiesCameraResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 43;
-  static constexpr uint16_t ESTIMATED_SIZE = 45;
+  static constexpr uint16_t ESTIMATED_SIZE = 49;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_camera_response"; }
 #endif
@@ -1253,7 +1286,7 @@ class CameraImageRequest : public ProtoMessage {
 class ListEntitiesClimateResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 46;
-  static constexpr uint16_t ESTIMATED_SIZE = 151;
+  static constexpr uint16_t ESTIMATED_SIZE = 156;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_climate_response"; }
 #endif
@@ -1362,7 +1395,7 @@ class ClimateCommandRequest : public ProtoMessage {
 class ListEntitiesNumberResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 49;
-  static constexpr uint16_t ESTIMATED_SIZE = 80;
+  static constexpr uint16_t ESTIMATED_SIZE = 84;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_number_response"; }
 #endif
@@ -1423,7 +1456,7 @@ class NumberCommandRequest : public ProtoMessage {
 class ListEntitiesSelectResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 52;
-  static constexpr uint16_t ESTIMATED_SIZE = 63;
+  static constexpr uint16_t ESTIMATED_SIZE = 67;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_select_response"; }
 #endif
@@ -1481,7 +1514,7 @@ class SelectCommandRequest : public ProtoMessage {
 class ListEntitiesSirenResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 55;
-  static constexpr uint16_t ESTIMATED_SIZE = 67;
+  static constexpr uint16_t ESTIMATED_SIZE = 71;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_siren_response"; }
 #endif
@@ -1547,7 +1580,7 @@ class SirenCommandRequest : public ProtoMessage {
 class ListEntitiesLockResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 58;
-  static constexpr uint16_t ESTIMATED_SIZE = 60;
+  static constexpr uint16_t ESTIMATED_SIZE = 64;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_lock_response"; }
 #endif
@@ -1609,7 +1642,7 @@ class LockCommandRequest : public ProtoMessage {
 class ListEntitiesButtonResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 61;
-  static constexpr uint16_t ESTIMATED_SIZE = 54;
+  static constexpr uint16_t ESTIMATED_SIZE = 58;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_button_response"; }
 #endif
@@ -1662,7 +1695,7 @@ class MediaPlayerSupportedFormat : public ProtoMessage {
 class ListEntitiesMediaPlayerResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 63;
-  static constexpr uint16_t ESTIMATED_SIZE = 81;
+  static constexpr uint16_t ESTIMATED_SIZE = 85;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_media_player_response"; }
 #endif
@@ -2532,7 +2565,7 @@ class VoiceAssistantSetConfiguration : public ProtoMessage {
 class ListEntitiesAlarmControlPanelResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 94;
-  static constexpr uint16_t ESTIMATED_SIZE = 53;
+  static constexpr uint16_t ESTIMATED_SIZE = 57;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_alarm_control_panel_response"; }
 #endif
@@ -2592,7 +2625,7 @@ class AlarmControlPanelCommandRequest : public ProtoMessage {
 class ListEntitiesTextResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 97;
-  static constexpr uint16_t ESTIMATED_SIZE = 64;
+  static constexpr uint16_t ESTIMATED_SIZE = 68;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_text_response"; }
 #endif
@@ -2653,7 +2686,7 @@ class TextCommandRequest : public ProtoMessage {
 class ListEntitiesDateResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 100;
-  static constexpr uint16_t ESTIMATED_SIZE = 45;
+  static constexpr uint16_t ESTIMATED_SIZE = 49;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_date_response"; }
 #endif
@@ -2713,7 +2746,7 @@ class DateCommandRequest : public ProtoMessage {
 class ListEntitiesTimeResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 103;
-  static constexpr uint16_t ESTIMATED_SIZE = 45;
+  static constexpr uint16_t ESTIMATED_SIZE = 49;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_time_response"; }
 #endif
@@ -2773,7 +2806,7 @@ class TimeCommandRequest : public ProtoMessage {
 class ListEntitiesEventResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 107;
-  static constexpr uint16_t ESTIMATED_SIZE = 72;
+  static constexpr uint16_t ESTIMATED_SIZE = 76;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_event_response"; }
 #endif
@@ -2811,7 +2844,7 @@ class EventResponse : public StateResponseProtoMessage {
 class ListEntitiesValveResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 109;
-  static constexpr uint16_t ESTIMATED_SIZE = 60;
+  static constexpr uint16_t ESTIMATED_SIZE = 64;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_valve_response"; }
 #endif
@@ -2873,7 +2906,7 @@ class ValveCommandRequest : public ProtoMessage {
 class ListEntitiesDateTimeResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 112;
-  static constexpr uint16_t ESTIMATED_SIZE = 45;
+  static constexpr uint16_t ESTIMATED_SIZE = 49;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_date_time_response"; }
 #endif
@@ -2928,7 +2961,7 @@ class DateTimeCommandRequest : public ProtoMessage {
 class ListEntitiesUpdateResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 116;
-  static constexpr uint16_t ESTIMATED_SIZE = 54;
+  static constexpr uint16_t ESTIMATED_SIZE = 58;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   static constexpr const char *message_name() { return "list_entities_update_response"; }
 #endif

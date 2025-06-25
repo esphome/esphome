@@ -1,18 +1,24 @@
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
 
-from esphome import automation
+from esphome import automation, core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
+    CONF_AREA_ID,
+    CONF_AREAS,
     CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_DEBUG_SCHEDULER,
+    CONF_DEVICES,
     CONF_ESPHOME,
     CONF_FRIENDLY_NAME,
+    CONF_ID,
     CONF_INCLUDES,
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
@@ -32,7 +38,13 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, get_str_env, walk_files
+from esphome.helpers import (
+    copy_file_if_changed,
+    fnv1a_32bit_hash,
+    get_str_env,
+    walk_files,
+)
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +60,8 @@ LoopTrigger = cg.esphome_ns.class_(
 ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
-
+Device = cg.esphome_ns.class_("Device")
+Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
@@ -68,6 +81,56 @@ def validate_hostname(config):
             "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
         )
+    return config
+
+
+def validate_ids_and_references(config: ConfigType) -> ConfigType:
+    """Validate that there are no hash collisions between IDs and that area_id references are valid.
+
+    This validation is critical because we use 32-bit hashes for performance on microcontrollers.
+    By detecting collisions at compile time, we prevent any runtime issues while maintaining
+    optimal performance on 32-bit platforms. In practice, with typical deployments having only
+    a handful of areas and devices, hash collisions are virtually impossible.
+    """
+
+    # Helper to check hash collisions
+    def check_hash_collision(
+        id_obj: core.ID,
+        hash_dict: dict[int, str],
+        item_type: str,
+        path: list[str | int],
+    ) -> None:
+        hash_val: int = fnv1a_32bit_hash(id_obj.id)
+        if hash_val in hash_dict and hash_dict[hash_val] != id_obj.id:
+            raise cv.Invalid(
+                f"{item_type} ID '{id_obj.id}' with hash {hash_val} collides with "
+                f"existing {item_type.lower()} ID '{hash_dict[hash_val]}'",
+                path=path,
+            )
+        hash_dict[hash_val] = id_obj.id
+
+    # Collect all areas
+    all_areas: list[dict[str, str | core.ID]] = []
+    if CONF_AREA in config:
+        all_areas.append(config[CONF_AREA])
+    all_areas.extend(config[CONF_AREAS])
+
+    # Validate area hash collisions and collect IDs
+    area_hashes: dict[int, str] = {}
+    area_ids: set[str] = set()
+    for area in all_areas:
+        area_id: core.ID = area[CONF_ID]
+        check_hash_collision(area_id, area_hashes, "Area", [CONF_AREAS, area_id.id])
+        area_ids.add(area_id.id)
+
+    # Validate device hash collisions and area references
+    device_hashes: dict[int, str] = {}
+    for device in config[CONF_DEVICES]:
+        device_id: core.ID = device[CONF_ID]
+        check_hash_collision(
+            device_id, device_hashes, "Device", [CONF_DEVICES, device_id.id]
+        )
+
     return config
 
 
@@ -111,13 +174,32 @@ if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
 else:
     _compile_process_limit_default = cv.UNDEFINED
 
+AREA_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(Area),
+        cv.Required(CONF_NAME): cv.string,
+    }
+)
+
+DEVICE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(Device),
+        cv.Required(CONF_NAME): cv.string,
+        cv.Optional(CONF_AREA_ID): cv.use_id(Area),
+    }
+)
+
+
+def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
+    return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
-            cv.Optional(CONF_AREA, ""): cv.string,
+            cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
@@ -167,10 +249,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
             ): cv.int_range(min=1, max=get_usable_cpu_count()),
+            cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
+            cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
         }
     ),
     validate_hostname,
 )
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(validate_ids_and_references)
+
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema(
     {
@@ -336,7 +424,7 @@ async def _add_platform_reserves() -> None:
 
 
 @coroutine_with_priority(100.0)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
     # These can be used by user lambdas, put them to default scope
     cg.add_global(cg.RawExpression("using std::isnan"))
@@ -347,7 +435,6 @@ async def to_code(config):
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
-            config[CONF_AREA],
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
@@ -417,3 +504,50 @@ async def to_code(config):
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+
+    # Process areas
+    all_areas: list[dict[str, str | core.ID]] = []
+    if CONF_AREA in config:
+        all_areas.append(config[CONF_AREA])
+    all_areas.extend(config[CONF_AREAS])
+
+    if all_areas:
+        cg.add(cg.RawStatement(f"App.reserve_area({len(all_areas)});"))
+        cg.add_define("USE_AREAS")
+
+        for area_conf in all_areas:
+            area_id: core.ID = area_conf[CONF_ID]
+            area_id_hash: int = fnv1a_32bit_hash(area_id.id)
+            area_name: str = area_conf[CONF_NAME]
+
+            area_var = cg.new_Pvariable(area_id)
+            cg.add(area_var.set_area_id(area_id_hash))
+            cg.add(area_var.set_name(area_name))
+            cg.add(cg.App.register_area(area_var))
+
+    # Process devices
+    devices: list[dict[str, str | core.ID]] = config[CONF_DEVICES]
+    if not devices:
+        return
+
+    # Reserve space for devices
+    cg.add(cg.RawStatement(f"App.reserve_device({len(devices)});"))
+    cg.add_define("USE_DEVICES")
+
+    # Process each device
+    for dev_conf in devices:
+        device_id: core.ID = dev_conf[CONF_ID]
+        device_id_hash = fnv1a_32bit_hash(device_id.id)
+        device_name: str = dev_conf[CONF_NAME]
+
+        dev = cg.new_Pvariable(device_id)
+        cg.add(dev.set_device_id(device_id_hash))
+        cg.add(dev.set_name(device_name))
+
+        # Set area if specified
+        if CONF_AREA_ID in dev_conf:
+            area_id: core.ID = dev_conf[CONF_AREA_ID]
+            area_id_hash = fnv1a_32bit_hash(area_id.id)
+            cg.add(dev.set_area_id(area_id_hash))
+
+        cg.add(cg.App.register_device(dev))

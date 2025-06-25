@@ -60,8 +60,8 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -491,6 +491,9 @@ _BINARY_SENSOR_SCHEMA = (
 )
 
 
+_BINARY_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("binary_sensor"))
+
+
 def binary_sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -521,7 +524,7 @@ BINARY_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("binary_sensor"))
 
 
 async def setup_binary_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "binary_sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))

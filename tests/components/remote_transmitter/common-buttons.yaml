@@ -115,7 +115,7 @@ button:
         address: 0x00
         command: 0x0B
   - platform: template
-    name: RC5
+    name: RC5 Raw
     on_press:
       remote_transmitter.transmit_raw:
         code: [1000, -1000]

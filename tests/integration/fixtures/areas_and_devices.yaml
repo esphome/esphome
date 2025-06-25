@@ -1,0 +1,57 @@
+esphome:
+  name: areas-devices-test
+  # Define top-level area
+  area:
+    id: living_room_area
+    name: Living Room
+  # Define additional areas
+  areas:
+    - id: bedroom_area
+      name: Bedroom
+    - id: kitchen_area
+      name: Kitchen
+  # Define devices with area assignments
+  devices:
+    - id: light_controller_device
+      name: Light Controller
+      area_id: living_room_area  # Uses top-level area
+    - id: temp_sensor_device
+      name: Temperature Sensor
+      area_id: bedroom_area
+    - id: motion_detector_device
+      name: Motion Detector
+      area_id: living_room_area  # Reuses top-level area
+    - id: smart_switch_device
+      name: Smart Switch
+      area_id: kitchen_area
+
+host:
+api:
+logger:
+
+# Sensors assigned to different devices
+sensor:
+  - platform: template
+    name: Light Controller Sensor
+    device_id: light_controller_device
+    lambda: return 1.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Temperature Sensor Reading
+    device_id: temp_sensor_device
+    lambda: return 2.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Motion Detector Status
+    device_id: motion_detector_device
+    lambda: return 3.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Smart Switch Power
+    device_id: smart_switch_device
+    lambda: return 4.0;
+    update_interval: 0.1s
+

@@ -24,33 +24,33 @@ sensor:
     widget: lv_arc
   - platform: lvgl
     widget: slider_id
-    name: LVGL Slider
+    name: LVGL Slider Sensor
   - platform: lvgl
     widget: bar_id
     id: lvgl_bar_sensor
-    name: LVGL Bar
+    name: LVGL Bar Sensor
   - platform: lvgl
     widget: spinbox_id
-    name: LVGL Spinbox
+    name: LVGL Spinbox Sensor
 
 number:
   - platform: lvgl
     widget: slider_id
-    name: LVGL Slider
+    name: LVGL Slider Number
     update_on_release: true
     restore_value: true
   - platform: lvgl
     widget: lv_arc
     id: lvgl_arc_number
-    name: LVGL Arc
+    name: LVGL Arc Number
   - platform: lvgl
     widget: bar_id
     id: lvgl_bar_number
-    name: LVGL Bar
+    name: LVGL Bar Number
   - platform: lvgl
     widget: spinbox_id
     id: lvgl_spinbox_number
-    name: LVGL Spinbox
+    name: LVGL Spinbox Number
 
 light:
   - platform: lvgl

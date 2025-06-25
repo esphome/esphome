@@ -17,8 +17,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -65,6 +65,9 @@ _SELECT_SCHEMA = (
 )
 
 
+_SELECT_SCHEMA.add_extra(entity_duplicate_validator("select"))
+
+
 def select_schema(
     class_: MockObjClass,
     *,
@@ -89,7 +92,7 @@ SELECT_SCHEMA.add_extra(cv.deprecated_schema_constant("select"))
 
 
 async def setup_select_core_(var, config, *, options: list[str]):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "select")
 
     cg.add(var.traits.set_options(options))
 

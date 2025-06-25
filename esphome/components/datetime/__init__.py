@@ -22,8 +22,8 @@ from esphome.const import (
     CONF_YEAR,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
 
@@ -84,6 +84,8 @@ _DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
 ).add_extra(_validate_time_present)
 
+_DATETIME_SCHEMA.add_extra(entity_duplicate_validator("datetime"))
+
 
 def date_schema(class_: MockObjClass) -> cv.Schema:
     schema = cv.Schema(
@@ -133,7 +135,7 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
 
 
 async def setup_datetime_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "datetime")
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

@@ -14,8 +14,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@mauritskorse"]
 IS_PLATFORM_COMPONENT = True
@@ -58,6 +58,9 @@ _TEXT_SCHEMA = (
 )
 
 
+_TEXT_SCHEMA.add_extra(entity_duplicate_validator("text"))
+
+
 def text_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -94,7 +97,7 @@ async def setup_text_core_(
     max_length: int | None,
     pattern: str | None,
 ):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "text")
 
     cg.add(var.traits.set_min_length(min_length))
     cg.add(var.traits.set_max_length(max_length))

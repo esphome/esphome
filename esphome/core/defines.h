@@ -20,6 +20,7 @@
 
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
+#define USE_AREAS
 #define USE_BINARY_SENSOR
 #define USE_BUTTON
 #define USE_CLIMATE
@@ -29,6 +30,7 @@
 #define USE_DATETIME_DATETIME
 #define USE_DATETIME_TIME
 #define USE_DEEP_SLEEP
+#define USE_DEVICES
 #define USE_DISPLAY
 #define USE_ESP32_IMPROV_STATE_CALLBACK
 #define USE_EVENT

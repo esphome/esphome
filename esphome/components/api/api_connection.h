@@ -301,6 +301,9 @@ class APIConnection : public APIServerConnection {
     response.icon = entity->get_icon();
     response.disabled_by_default = entity->is_disabled_by_default();
     response.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
+#ifdef USE_DEVICES
+    response.device_id = entity->get_device_id();
+#endif
   }
 
   // Helper function to fill common entity state fields

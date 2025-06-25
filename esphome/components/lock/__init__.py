@@ -14,8 +14,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -67,6 +67,9 @@ _LOCK_SCHEMA = (
 )
 
 
+_LOCK_SCHEMA.add_extra(entity_duplicate_validator("lock"))
+
+
 def lock_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -94,7 +97,7 @@ LOCK_SCHEMA.add_extra(cv.deprecated_schema_constant("lock"))
 
 
 async def _setup_lock_core(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "lock")
 
     for conf in config.get(CONF_ON_LOCK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

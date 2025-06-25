@@ -9,6 +9,13 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
 
+#ifdef USE_DEVICES
+#include "esphome/core/device.h"
+#endif
+#ifdef USE_AREAS
+#include "esphome/core/area.h"
+#endif
+
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <sys/select.h>
 #endif
@@ -87,7 +94,7 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const char *area, const char *comment,
+  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
                  const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
@@ -102,10 +109,16 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
-    this->area_ = area;
     this->comment_ = comment;
     this->compilation_time_ = compilation_time;
   }
+
+#ifdef USE_DEVICES
+  void register_device(Device *device) { this->devices_.push_back(device); }
+#endif
+#ifdef USE_AREAS
+  void register_area(Area *area) { this->areas_.push_back(area); }
+#endif
 
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
@@ -264,6 +277,12 @@ class Application {
 #ifdef USE_UPDATE
   void reserve_update(size_t count) { this->updates_.reserve(count); }
 #endif
+#ifdef USE_AREAS
+  void reserve_area(size_t count) { this->areas_.reserve(count); }
+#endif
+#ifdef USE_DEVICES
+  void reserve_device(size_t count) { this->devices_.reserve(count); }
+#endif
 
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
@@ -285,7 +304,15 @@ class Application {
   const std::string &get_friendly_name() const { return this->friendly_name_; }
 
   /// Get the area of this Application set by pre_setup().
-  std::string get_area() const { return this->area_ == nullptr ? "" : this->area_; }
+  const char *get_area() const {
+#ifdef USE_AREAS
+    // If we have areas registered, return the name of the first one (which is the top-level area)
+    if (!this->areas_.empty() && this->areas_[0] != nullptr) {
+      return this->areas_[0]->get_name();
+    }
+#endif
+    return "";
+  }
 
   /// Get the comment of this Application set by pre_setup().
   std::string get_comment() const { return this->comment_; }
@@ -334,6 +361,12 @@ class Application {
 
   uint8_t get_app_state() const { return this->app_state_; }
 
+#ifdef USE_DEVICES
+  const std::vector<Device *> &get_devices() { return this->devices_; }
+#endif
+#ifdef USE_AREAS
+  const std::vector<Area *> &get_areas() { return this->areas_; }
+#endif
 #ifdef USE_BINARY_SENSOR
   const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() { return this->binary_sensors_; }
   binary_sensor::BinarySensor *get_binary_sensor_by_key(uint32_t key, bool include_internal = false) {
@@ -610,6 +643,12 @@ class Application {
   uint16_t current_loop_index_{0};
   bool in_loop_{false};
 
+#ifdef USE_DEVICES
+  std::vector<Device *> devices_{};
+#endif
+#ifdef USE_AREAS
+  std::vector<Area *> areas_{};
+#endif
 #ifdef USE_BINARY_SENSOR
   std::vector<binary_sensor::BinarySensor *> binary_sensors_{};
 #endif
@@ -676,7 +715,6 @@ class Application {
 
   std::string name_;
   std::string friendly_name_;
-  const char *area_{nullptr};
   const char *comment_{nullptr};
   const char *compilation_time_{nullptr};
   bool name_add_mac_suffix_;

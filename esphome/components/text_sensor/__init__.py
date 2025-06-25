@@ -21,8 +21,8 @@ from esphome.const import (
     DEVICE_CLASS_TIMESTAMP,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -153,6 +153,9 @@ _TEXT_SENSOR_SCHEMA = (
 )
 
 
+_TEXT_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("text_sensor"))
+
+
 def text_sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -186,7 +189,7 @@ async def build_filters(config):
 
 
 async def setup_text_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "text_sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))

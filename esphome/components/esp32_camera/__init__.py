@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_VSYNC_PIN,
 )
 from esphome.core import CORE
-from esphome.cpp_helpers import setup_entity
+from esphome.core.entity_helpers import setup_entity
 
 DEPENDENCIES = ["esp32"]
 
@@ -284,7 +284,7 @@ SETTERS = {
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await setup_entity(var, config)
+    await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():

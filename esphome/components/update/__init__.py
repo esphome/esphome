@@ -15,8 +15,8 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@jesserockz"]
 IS_PLATFORM_COMPONENT = True
@@ -58,6 +58,9 @@ _UPDATE_SCHEMA = (
 )
 
 
+_UPDATE_SCHEMA.add_extra(entity_duplicate_validator("update"))
+
+
 def update_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -87,7 +90,7 @@ UPDATE_SCHEMA.add_extra(cv.deprecated_schema_constant("update"))
 
 
 async def setup_update_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "update")
 
     if device_class_config := config.get(CONF_DEVICE_CLASS):
         cg.add(var.set_device_class(device_class_config))
