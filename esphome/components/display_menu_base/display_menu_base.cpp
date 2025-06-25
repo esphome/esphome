@@ -1,8 +1,72 @@
 #include "display_menu_base.h"
 #include <algorithm>
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace display_menu_base {
+
+void DisplayMenuComponent::setup() { recurse_menu_items_(this->root_item_); }
+
+void DisplayMenuComponent::recurse_menu_items_(MenuItemMenu *parent_menu) {
+  // Find menu items with groups and generate_items
+  for (size_t i = 0; i < parent_menu->items_size(); i++) {
+    MenuItem *item = parent_menu->get_item(i);
+    if (item->get_type() == MENU_ITEM_MENU) {
+      MenuItemMenu *menu = static_cast<MenuItemMenu *>(item);
+      recurse_menu_items_(menu);
+      generate_to_menu_items_(menu);
+    }
+  }
+}
+
+void DisplayMenuComponent::generate_to_menu_items_(MenuItemMenu *menu) {
+  size_t num_items = menu->items_size();
+  for (groups::Group *group : menu->groups()) {
+    num_items += process_group_(menu, group);
+  }
+
+  if (num_items == 0) {
+    display_menu_base::MenuItem *back_item = new display_menu_base::MenuItem(display_menu_base::MENU_ITEM_BACK);
+    back_item->set_text("No items in menu. Back");
+    menu->add_item(back_item);
+  }
+}
+
+size_t DisplayMenuComponent::process_group_(MenuItemMenu *menu, groups::Group *group) {
+  size_t added = 0;
+  if (group == nullptr) {
+    return added;
+  }
+
+  for (EntityBase *entity : group->items()) {
+    MenuRenderInterface *render = nullptr;
+
+    // 1. Find special render
+    if (render == nullptr) {
+      for (auto *render_variant : this->renders_) {
+        if (render_variant->has_entity(entity)) {
+          render = render_variant;
+          break;
+        }
+      }
+    }
+
+    // 2. Find equality type
+    if (render == nullptr && entity->type() != EntityType::NONE) {
+      for (auto *render_variant : this->renders_) {
+        if (render_variant->type() == entity->type()) {
+          render = render_variant;
+          break;
+        }
+      }
+    }
+
+    if (render != nullptr) {
+      added += render->render_entity(menu, entity);
+    }
+  }
+  return added;
+}
 
 void DisplayMenuComponent::up() {
   if (this->check_healthy_and_active_()) {

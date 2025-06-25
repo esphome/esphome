@@ -6,7 +6,7 @@ namespace switch_ {
 
 static const char *const TAG = "switch";
 
-Switch::Switch() : state(false) {}
+Switch::Switch() : EntityBase(EntityType::SWITCH), state(false) {}
 
 void Switch::turn_on() {
   ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());

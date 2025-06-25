@@ -1,0 +1,35 @@
+#include "display_menu_render.h"
+
+namespace esphome {
+namespace display_menu_render_base {
+
+#ifdef USE_SENSOR
+size_t SensorMenuRender::render_entity(MenuItemMenu *menu, EntityBase *entity) {
+  sensor::Sensor *sensor_obj = static_cast<sensor::Sensor *>(entity);
+  MenuItem *item = new MenuItem(MENU_ITEM_LABEL);
+
+  auto lambda = make_sensor_lambda<true>(sensor_obj, this->no_data_text_.c_str(), this->accuracy_);
+  item->set_text(lambda);
+
+  menu->add_generated_items(item);
+  return 1;
+}
+#endif
+
+#ifdef USE_SWITCH
+size_t SwitchMenuRender::render_entity(MenuItemMenu *menu, EntityBase *entity) {
+  switch_::Switch *switch_obj = static_cast<switch_::Switch *>(entity);
+  MenuItemSwitch *menu_switch = new MenuItemSwitch();
+  menu_switch->set_text(switch_obj->get_name());
+  menu_switch->set_immediate_edit(true);
+  menu_switch->set_switch_variable(switch_obj);
+  menu_switch->set_on_text(this->on_text_.c_str());
+  menu_switch->set_off_text(this->off_text_.c_str());
+
+  menu->add_generated_items(menu_switch);
+  return 1;
+}
+#endif
+
+}  // namespace display_menu_render_base
+}  // namespace esphome

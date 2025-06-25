@@ -13,6 +13,10 @@
 #include "esphome/components/switch/switch.h"
 #endif
 
+#ifdef USE_GROUPS
+#include "esphome/components/groups/groups.h"
+#endif
+
 #include <vector>
 #include "esphome/core/log.h"
 
@@ -78,11 +82,23 @@ class MenuItemMenu : public MenuItem {
     item->set_parent(this);
     this->items_.push_back(item);
   }
-  size_t items_size() const { return this->items_.size(); }
-  MenuItem *get_item(size_t i) { return this->items_[i]; }
 
+  void add_generated_items(MenuItem *item) {
+    item->set_parent(this);
+    this->items_.push_back(item);
+  }
+  size_t items_size() const { return this->items_.size(); }
+  MenuItem *get_item(size_t i) const { return this->items_[i]; }
+
+#ifdef USE_GROUPS
+  void add_group(groups::Group *group) { this->groups_.push_back(group); }
+  const auto &groups() { return groups_; }
+#endif
  protected:
   std::vector<MenuItem *> items_;
+#ifdef USE_GROUPS
+  std::vector<groups::Group *> groups_;
+#endif
 };
 
 class MenuItemEditable : public MenuItem {

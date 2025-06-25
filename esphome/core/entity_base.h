@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 #include "string_ref.h"
+#include "entity_types.h"
 
 namespace esphome {
 
@@ -15,6 +16,8 @@ enum EntityCategory : uint8_t {
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
+  EntityBase() {}
+  EntityBase(EntityType type) { this->type_ = type; }
   // Get/set the name of this Entity
   const StringRef &get_name() const;
   void set_name(const char *name);
@@ -47,6 +50,9 @@ class EntityBase {
   std::string get_icon() const;
   void set_icon(const char *icon);
 
+  // Get entity type
+  EntityType type() const { return this->type_; }
+
  protected:
   /// The hash_base() function has been deprecated. It is kept in this
   /// class for now, to prevent external components from not compiling.
@@ -61,6 +67,7 @@ class EntityBase {
   bool internal_{false};
   bool disabled_by_default_{false};
   EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
+  EntityType type_{EntityType::NONE};
 };
 
 class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)

@@ -161,6 +161,10 @@ void DallasTemperatureSearcher::set_default_parameters_(dallas_temp::DallasTempe
   sensor->set_update_interval(this->update_interval_ms_);
   sensor->set_component_source("dallas_temp.sensor");
   sensor->set_resolution(12);
+
+  for (groups::Group *group : this->groups_) {
+    group->add_entity(sensor);
+  }
 }
 
 dallas_temp::DallasTemperatureSensor *DallasTemperatureSearcher::make_sensor_with_address_(const uint64_t &address) {

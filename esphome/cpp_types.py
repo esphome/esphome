@@ -25,6 +25,7 @@ NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;
 App = esphome_ns.App
 EntityBase = esphome_ns.class_("EntityBase")
+EntityBasePtr = EntityBase.operator("ptr")
 Component = esphome_ns.class_("Component")
 ComponentPtr = Component.operator("ptr")
 PollingComponent = esphome_ns.class_("PollingComponent", Component)

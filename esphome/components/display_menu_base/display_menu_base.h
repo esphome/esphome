@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-
+#include "esphome/components/display_menu_render_base/display_menu_render_base.h"
 #include "menu_item.h"
 
 #include <forward_list>
@@ -15,12 +15,16 @@ enum MenuMode {
 };
 
 class MenuItem;
+class MenuItemMenu;
+
+using namespace display_menu_render_base;
 
 /** Class to display a hierarchical menu.
  *
  */
 class DisplayMenuComponent : public Component {
  public:
+  void setup() override;
   void set_root_item(MenuItemMenu *item) { this->displayed_item_ = this->root_item_ = item; }
   void set_active(bool active) { this->active_ = active; }
   void set_mode(MenuMode mode) { this->mode_ = mode; }
@@ -48,6 +52,8 @@ class DisplayMenuComponent : public Component {
 
   bool is_active() const { return this->active_; }
 
+  void add_render(MenuRenderInterface *render) { this->renders_.push_back(render); }
+
  protected:
   void reset_();
   void process_initial_();
@@ -66,6 +72,10 @@ class DisplayMenuComponent : public Component {
     update();
   }
 
+  void recurse_menu_items_(MenuItemMenu *parent_menu);
+  void generate_to_menu_items_(MenuItemMenu *menu);
+  size_t process_group_(MenuItemMenu *menu, groups::Group *group);
+
   virtual void on_before_show(){};
   virtual void on_after_show(){};
   virtual void on_before_hide(){};
@@ -83,6 +93,8 @@ class DisplayMenuComponent : public Component {
   std::forward_list<std::pair<uint8_t, uint8_t>> selection_stack_{};
   bool editing_{false};
   bool root_on_enter_called_{false};
+
+  std::vector<MenuRenderInterface *> renders_;
 };
 
 }  // namespace display_menu_base

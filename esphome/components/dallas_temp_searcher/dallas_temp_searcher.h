@@ -4,6 +4,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/dallas_temp/dallas_temp.h"
 #include <vector>
+#include "esphome/components/groups/groups.h"
 
 namespace esphome {
 namespace dallas_temp_searcher {
@@ -11,7 +12,7 @@ namespace dallas_temp_searcher {
 enum class SearchMode : uint8_t { ALL = 0, ADDRESS_MAP = 1 };
 
 // Class for dynamic creation DallasTemperatureSensor for sensors connected to onewire bus
-class DallasTemperatureSearcher : public Component, public one_wire::OneWireDevice {
+class DallasTemperatureSearcher : public Component, public one_wire::OneWireDevice, public groups::GroupsStorage {
  public:
   void setup() override;
 
