@@ -142,6 +142,7 @@ class APIServer : public Component, public Controller {
   }
 
  protected:
+  void schedule_reboot_timeout_();
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
@@ -150,7 +151,6 @@ class APIServer : public Component, public Controller {
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
   uint32_t batch_delay_{100};
-  uint32_t last_connected_{0};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;

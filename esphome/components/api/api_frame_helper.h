@@ -38,7 +38,7 @@ struct PacketInfo {
       : message_type(type), offset(off), payload_size(size), padding(0) {}
 };
 
-enum class APIError : int {
+enum class APIError : uint16_t {
   OK = 0,
   WOULD_BLOCK = 1001,
   BAD_HANDSHAKE_PACKET_LEN = 1002,
@@ -74,7 +74,7 @@ class APIFrameHelper {
   }
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
-  virtual APIError loop() = 0;
+  virtual APIError loop();
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   bool can_write_without_blocking() { return state_ == State::DATA && tx_buf_.empty(); }
   std::string getpeername() { return socket_->getpeername(); }

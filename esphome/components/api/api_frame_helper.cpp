@@ -66,6 +66,17 @@ const char *api_error_to_str(APIError err) {
   return "UNKNOWN";
 }
 
+// Default implementation for loop - handles sending buffered data
+APIError APIFrameHelper::loop() {
+  if (!this->tx_buf_.empty()) {
+    APIError err = try_send_tx_buf_();
+    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
+      return err;
+    }
+  }
+  return APIError::OK;  // Convert WOULD_BLOCK to OK to avoid connection termination
+}
+
 // Helper method to buffer data from IOVs
 void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
   SendBuffer buffer;
@@ -287,13 +298,8 @@ APIError APINoiseFrameHelper::loop() {
     }
   }
 
-  if (!this->tx_buf_.empty()) {
-    APIError err = try_send_tx_buf_();
-    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-      return err;
-    }
-  }
-  return APIError::OK;  // Convert WOULD_BLOCK to OK to avoid connection termination
+  // Use base class implementation for buffer sending
+  return APIFrameHelper::loop();
 }
 
 /** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
@@ -339,17 +345,15 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::WOULD_BLOCK;
     }
 
+    if (rx_header_buf_[0] != 0x01) {
+      state_ = State::FAILED;
+      HELPER_LOG("Bad indicator byte %u", rx_header_buf_[0]);
+      return APIError::BAD_INDICATOR;
+    }
     // header reading done
   }
 
   // read body
-  uint8_t indicator = rx_header_buf_[0];
-  if (indicator != 0x01) {
-    state_ = State::FAILED;
-    HELPER_LOG("Bad indicator byte %u", indicator);
-    return APIError::BAD_INDICATOR;
-  }
-
   uint16_t msg_size = (((uint16_t) rx_header_buf_[1]) << 8) | rx_header_buf_[2];
 
   if (state_ != State::DATA && msg_size > 128) {
@@ -595,10 +599,6 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return APIError::BAD_DATA_PACKET;
   }
 
-  // uint16_t type;
-  // uint16_t data_len;
-  // uint8_t *data;
-  // uint8_t *padding;  zero or more bytes to fill up the rest of the packet
   uint16_t type = (((uint16_t) msg_data[0]) << 8) | msg_data[1];
   uint16_t data_len = (((uint16_t) msg_data[2]) << 8) | msg_data[3];
   if (data_len > msg_size - 4) {
@@ -831,18 +831,12 @@ APIError APIPlaintextFrameHelper::init() {
   state_ = State::DATA;
   return APIError::OK;
 }
-/// Not used for plaintext
 APIError APIPlaintextFrameHelper::loop() {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
-  if (!this->tx_buf_.empty()) {
-    APIError err = try_send_tx_buf_();
-    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-      return err;
-    }
-  }
-  return APIError::OK;  // Convert WOULD_BLOCK to OK to avoid connection termination
+  // Use base class implementation for buffer sending
+  return APIFrameHelper::loop();
 }
 
 /** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
