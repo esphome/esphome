@@ -276,6 +276,11 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint16_t mes
   // Encode directly into buffer
   msg.encode(buffer);
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  // Log the message for VV debugging
+  conn->log_send_message_(msg.message_name(), msg.dump());
+#endif
+
   // Calculate actual encoded size (not including header that was already added)
   size_t actual_payload_size = shared_buf.size() - size_before_encode;
 

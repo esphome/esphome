@@ -886,7 +886,7 @@ def build_message_type(
         public_content.append("#ifdef HAS_PROTO_MESSAGE_DUMP")
         snake_name = camel_to_snake(desc.name)
         public_content.append(
-            f'static constexpr const char *message_name() {{ return "{snake_name}"; }}'
+            f'const char *message_name() const override {{ return "{snake_name}"; }}'
         )
         public_content.append("#endif")
 
@@ -1356,7 +1356,7 @@ def main() -> None:
     hpp += "  template<typename T>\n"
     hpp += "  bool send_message(const T &msg) {\n"
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    hpp += "    this->log_send_message_(T::message_name(), msg.dump());\n"
+    hpp += "    this->log_send_message_(msg.message_name(), msg.dump());\n"
     hpp += "#endif\n"
     hpp += "    return this->send_message_(msg, T::MESSAGE_TYPE);\n"
     hpp += "  }\n\n"

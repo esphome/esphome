@@ -19,7 +19,7 @@ class APIServerConnectionBase : public ProtoService {
 
   template<typename T> bool send_message(const T &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-    this->log_send_message_(T::message_name(), msg.dump());
+    this->log_send_message_(msg.message_name(), msg.dump());
 #endif
     return this->send_message_(msg, T::MESSAGE_TYPE);
   }

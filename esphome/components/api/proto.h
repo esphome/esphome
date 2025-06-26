@@ -335,6 +335,7 @@ class ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   std::string dump() const;
   virtual void dump_to(std::string &out) const = 0;
+  virtual const char *message_name() const { return "unknown"; }
 #endif
 
  protected:
