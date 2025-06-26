@@ -44,7 +44,13 @@ class DisplayMenuComponent : public Component {
   void enter();
   void back();
 
+  // Go to root of menu and show it
   void show_main();
+  // Reset menu to root item
+  void reset_menu();
+  // Check that current item is root
+  bool is_at_main() const { return this->displayed_item_ == this->root_item_; }
+
   void show();
   void hide();
 

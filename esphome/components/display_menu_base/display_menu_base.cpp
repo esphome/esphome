@@ -287,6 +287,29 @@ void DisplayMenuComponent::show_main() {
   this->on_after_show();
 }
 
+void DisplayMenuComponent::reset_menu() {
+  bool disp_changed = false;
+
+  if (this->is_failed())
+    return;
+
+  this->process_initial_();
+
+  if (this->active_ && this->editing_)
+    this->finish_editing_();
+
+  if (this->displayed_item_ != this->root_item_) {
+    this->displayed_item_->on_leave();
+    disp_changed = true;
+  }
+
+  this->reset_();
+
+  if (disp_changed) {
+    this->displayed_item_->on_enter();
+  }
+}
+
 void DisplayMenuComponent::show() {
   if (this->is_failed())
     return;

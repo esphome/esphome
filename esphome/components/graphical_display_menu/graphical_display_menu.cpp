@@ -70,7 +70,7 @@ void GraphicalDisplayMenu::on_before_show() {
 }
 
 void GraphicalDisplayMenu::on_before_hide() {
-  if (this->previous_display_page_ != nullptr) {
+  if (this->restore_page_ && this->previous_display_page_ != nullptr) {
     this->display_->show_page((display::DisplayPage *) this->previous_display_page_);
     this->display_->clear();
     this->update();
