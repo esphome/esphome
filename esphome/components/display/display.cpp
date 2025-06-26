@@ -592,6 +592,57 @@ void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *t
 void Display::print(int x, int y, BaseFont *font, const char *text) {
   this->print(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, text);
 }
+
+void Display::print_multiline(int x, int y, int width, int height, BaseFont *font, const char *text,
+                              float line_height_multiplier) {
+  std::string text_buff(text);
+  const size_t buff_size = text_buff.size();
+
+  if (buff_size == 0)
+    return;
+
+  char buff_char[2] = {0};
+  int line_y = y;
+
+  const char *last_buff_ptr = text_buff.c_str();
+
+  for (size_t symb_index = 0; symb_index < buff_size; symb_index++) {
+    size_t zero_index = symb_index + 1;
+
+    buff_char[0] = text_buff[zero_index];
+    int line_x1, line_y1, line_width, line_height;
+
+    text_buff[zero_index] = 0;
+
+    this->get_text_bounds(0, 0, last_buff_ptr, font, TextAlign::TOP_LEFT, &line_x1, &line_y1, &line_width,
+                          &line_height);
+
+    // Check that doesn't exceed height
+    if (line_y + line_height > height) {
+      break;
+    }
+
+    // Exceed width, printing, current symbol should be analyze again
+    if (line_width > width) {
+      buff_char[1] = text_buff[symb_index];
+
+      text_buff[symb_index] = 0;
+
+      this->print(x, line_y, font, last_buff_ptr);
+
+      last_buff_ptr = text_buff.c_str() + symb_index;
+      text_buff[symb_index] = buff_char[1];
+
+      symb_index--;
+      line_y += line_height_multiplier * line_height;
+    } else if (zero_index == buff_size) {
+      this->print(x, line_y, font, last_buff_ptr);
+    }
+
+    text_buff[zero_index] = buff_char[0];
+  }
+}
+
 void Display::printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
                      ...) {
   va_list arg;

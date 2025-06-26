@@ -377,6 +377,19 @@ class Display : public PollingComponent {
    */
   void print(int x, int y, BaseFont *font, const char *text);
 
+  /** Print multiline `text` with the top left at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param width Max block width
+   * @param height Max block height
+   * @param font The font to draw the text with.
+   * @param text The text to draw.
+   * @param line_height_multiplier Next line y pos is line_height multiply this param
+   */
+  void print_multiline(int x, int y, int width, int height, BaseFont *font, const char *text,
+                       float line_height_multiplier = 1.0f);
+
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
