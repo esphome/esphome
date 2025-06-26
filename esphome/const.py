@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2025.6.1"
+__version__ = "2025.6.1-jethome-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
