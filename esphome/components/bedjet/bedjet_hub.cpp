@@ -484,9 +484,11 @@ void BedJetHub::loop() {}
 void BedJetHub::update() { this->dispatch_status_(); }
 
 void BedJetHub::dump_config() {
-  ESP_LOGCONFIG(TAG, "BedJet Hub '%s'", this->get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  ble_client.app_id: %d", this->parent()->app_id);
-  ESP_LOGCONFIG(TAG, "  ble_client.conn_id: %d", this->parent()->get_conn_id());
+  ESP_LOGCONFIG(TAG,
+                "BedJet Hub '%s'\n"
+                "  ble_client.app_id: %d\n"
+                "  ble_client.conn_id: %d",
+                this->get_name().c_str(), this->parent()->app_id, this->parent()->get_conn_id());
   LOG_UPDATE_INTERVAL(this)
   ESP_LOGCONFIG(TAG, "  Child components (%d):", this->children_.size());
   for (auto *child : this->children_) {
@@ -527,7 +529,7 @@ void BedJetHub::dispatch_status_() {
     }
 
     if (this->timeout_ > 0 && diff > this->timeout_ && this->parent()->enabled) {
-      ESP_LOGW(TAG, "[%s] Timed out after %" PRId32 " sec. Retrying...", this->get_name().c_str(), this->timeout_);
+      ESP_LOGW(TAG, "[%s] Timed out after %" PRId32 " sec. Retrying", this->get_name().c_str(), this->timeout_);
       // set_enabled(false) will only close the connection if state != IDLE.
       this->parent()->set_state(espbt::ClientState::CONNECTING);
       this->parent()->set_enabled(false);

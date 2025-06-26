@@ -223,11 +223,6 @@ void CSE7766Component::parse_data_() {
 #endif
 }
 
-uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
-  return (uint32_t(this->raw_data_[start_index]) << 16) | (uint32_t(this->raw_data_[start_index + 1]) << 8) |
-         uint32_t(this->raw_data_[start_index + 2]);
-}
-
 void CSE7766Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CSE7766:");
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);

@@ -22,7 +22,7 @@ static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;
 static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;
 
 void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
 
   if (this->channel1_ != ADC1_CHANNEL_MAX) {
     adc1_config_width(ADC_WIDTH_MAX_SOC_BITS);
@@ -77,8 +77,10 @@ void ADCSensor::dump_config() {
         break;
     }
   }
-  ESP_LOGCONFIG(TAG, "  Samples: %i", this->sample_count_);
-  ESP_LOGCONFIG(TAG, "  Sampling mode: %s", LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
+  ESP_LOGCONFIG(TAG,
+                "  Samples: %i\n"
+                "  Sampling mode: %s",
+                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
   LOG_UPDATE_INTERVAL(this);
 }
 

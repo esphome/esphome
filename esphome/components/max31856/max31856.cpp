@@ -11,7 +11,7 @@ static const char *const TAG = "max31856";
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 
 void MAX31856Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX31856Sensor '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   this->spi_setup();
 
   // assert on any fault
@@ -23,8 +23,6 @@ void MAX31856Sensor::setup() {
 
   this->set_thermocouple_type_();
   this->set_noise_filter_();
-
-  ESP_LOGCONFIG(TAG, "Completed setting up MAX31856Sensor '%s'...", this->name_.c_str());
 }
 
 void MAX31856Sensor::dump_config() {
@@ -97,28 +95,28 @@ bool MAX31856Sensor::has_fault_() {
   this->status_set_warning();
 
   if ((faults & MAX31856_FAULT_CJRANGE) == MAX31856_FAULT_CJRANGE) {
-    ESP_LOGW(TAG, "Cold Junction Out-of-Range: '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Cold Junction Out-of-Range: '%s'", this->name_.c_str());
   }
   if ((faults & MAX31856_FAULT_TCRANGE) == MAX31856_FAULT_TCRANGE) {
-    ESP_LOGW(TAG, "Thermocouple Out-of-Range: '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Out-of-Range: '%s'", this->name_.c_str());
   }
   if ((faults & MAX31856_FAULT_CJHIGH) == MAX31856_FAULT_CJHIGH) {
-    ESP_LOGW(TAG, "Cold-Junction High Fault: '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Cold-Junction High Fault: '%s'", this->name_.c_str());
   }
   if ((faults & MAX31856_FAULT_CJLOW) == MAX31856_FAULT_CJLOW) {
-    ESP_LOGW(TAG, "Cold-Junction Low Fault: '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Cold-Junction Low Fault: '%s'", this->name_.c_str());
   }
   if ((faults & MAX31856_FAULT_TCHIGH) == MAX31856_FAULT_TCHIGH) {
-    ESP_LOGW(TAG, "Thermocouple Temperature High Fault: '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Temperature High Fault: '%s'", this->name_.c_str());
   }
   if ((faults & MAX31856_FAULT_TCLOW) == MAX31856_FAULT_TCLOW) {
-    ESP_LOGW(TAG, "Thermocouple Temperature Low Fault: '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Temperature Low Fault: '%s'", this->name_.c_str());
   }
   if ((faults & MAX31856_FAULT_OVUV) == MAX31856_FAULT_OVUV) {
-    ESP_LOGW(TAG, "Overvoltage or Undervoltage Input Fault: '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Overvoltage or Undervoltage Input Fault: '%s'", this->name_.c_str());
   }
   if ((faults & MAX31856_FAULT_OPEN) == MAX31856_FAULT_OPEN) {
-    ESP_LOGW(TAG, "Thermocouple Open-Circuit Fault (possibly not connected): '%s'...", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Open-Circuit Fault (possibly not connected): '%s'", this->name_.c_str());
   }
 
   return true;

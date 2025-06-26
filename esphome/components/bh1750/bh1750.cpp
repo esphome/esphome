@@ -38,7 +38,7 @@ MTreg:
 */
 
 void BH1750Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BH1750 '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   uint8_t turn_on = BH1750_COMMAND_POWER_ON;
   if (this->write(&turn_on, 1) != i2c::ERROR_OK) {
     this->mark_failed();
@@ -118,7 +118,7 @@ void BH1750Sensor::dump_config() {
   LOG_SENSOR("", "BH1750", this);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with BH1750 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
   }
 
   LOG_UPDATE_INTERVAL(this);

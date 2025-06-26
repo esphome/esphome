@@ -14,7 +14,7 @@ static const uint8_t CH422G_REG_OUT_UPPER = 0x23;    // write reg for output bit
 static const char *const TAG = "ch422g";
 
 void CH422GComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CH422G...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // set outputs before mode
   this->write_outputs_();
   // Set mode and check for errors
@@ -37,7 +37,7 @@ void CH422GComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "CH422G:");
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with CH422G failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

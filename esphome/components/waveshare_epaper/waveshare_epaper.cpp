@@ -1,7 +1,7 @@
 #include "waveshare_epaper.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <cinttypes>
 #include <bitset>
 

@@ -42,14 +42,13 @@ Here everything is combined in `yield` expressions. You await other coroutines u
 the last `yield` expression defines what is returned.
 """
 
-import collections
-from collections.abc import Awaitable, Generator, Iterator
+from collections.abc import Awaitable, Callable, Generator, Iterator
 import functools
 import heapq
 import inspect
 import logging
 import types
-from typing import Any, Callable
+from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +125,7 @@ def _flatten_generator(gen: Generator[Any, Any, Any]):
             ret = to_send if e.value is None else e.value
             return ret
 
-        if isinstance(val, collections.abc.Awaitable):
+        if isinstance(val, Awaitable):
             # yielded object that is awaitable (like `yield some_new_style_method()`)
             # yield from __await__() like actual coroutines would.
             to_send = yield from val.__await__()

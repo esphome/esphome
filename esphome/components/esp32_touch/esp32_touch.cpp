@@ -13,7 +13,7 @@ namespace esp32_touch {
 static const char *const TAG = "esp32_touch";
 
 void ESP32TouchComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ESP32 Touch Hub...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   touch_pad_init();
 // set up and enable/start filtering based on ESP32 variant
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
@@ -75,9 +75,11 @@ void ESP32TouchComponent::setup() {
 }
 
 void ESP32TouchComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Config for ESP32 Touch Hub:");
-  ESP_LOGCONFIG(TAG, "  Meas cycle: %.2fms", this->meas_cycle_ / (8000000.0f / 1000.0f));
-  ESP_LOGCONFIG(TAG, "  Sleep cycle: %.2fms", this->sleep_cycle_ / (150000.0f / 1000.0f));
+  ESP_LOGCONFIG(TAG,
+                "Config for ESP32 Touch Hub:\n"
+                "  Meas cycle: %.2fms\n"
+                "  Sleep cycle: %.2fms",
+                this->meas_cycle_ / (8000000.0f / 1000.0f), this->sleep_cycle_ / (150000.0f / 1000.0f));
 
   const char *lv_s;
   switch (this->low_voltage_reference_) {
@@ -171,10 +173,12 @@ void ESP32TouchComponent::dump_config() {
         filter_mode_s = "UNKNOWN";
         break;
     }
-    ESP_LOGCONFIG(TAG, "  Filter mode: %s", filter_mode_s);
-    ESP_LOGCONFIG(TAG, "  Debounce count: %" PRIu32, this->debounce_count_);
-    ESP_LOGCONFIG(TAG, "  Noise threshold coefficient: %" PRIu32, this->noise_threshold_);
-    ESP_LOGCONFIG(TAG, "  Jitter filter step size: %" PRIu32, this->jitter_step_);
+    ESP_LOGCONFIG(TAG,
+                  "  Filter mode: %s\n"
+                  "  Debounce count: %" PRIu32 "\n"
+                  "  Noise threshold coefficient: %" PRIu32 "\n"
+                  "  Jitter filter step size: %" PRIu32,
+                  filter_mode_s, this->debounce_count_, this->noise_threshold_, this->jitter_step_);
     const char *smooth_level_s;
     switch (this->smooth_level_) {
       case TOUCH_PAD_SMOOTH_OFF:

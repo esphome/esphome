@@ -3,7 +3,6 @@ import logging
 import os
 from pathlib import Path
 import re
-from typing import Union
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
@@ -108,11 +107,15 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
         return True
     if old.build_path != new.build_path:
         return True
+
     return False
 
 
 def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
-    if old.loaded_integrations != new.loaded_integrations:
+    if (
+        old.loaded_integrations != new.loaded_integrations
+        or old.loaded_platforms != new.loaded_platforms
+    ):
         if new.core_platform == PLATFORM_ESP32:
             from esphome.components.esp32 import FRAMEWORK_ESP_IDF
 
@@ -137,7 +140,7 @@ def update_storage_json():
     new.save(path)
 
 
-def format_ini(data: dict[str, Union[str, list[str]]]) -> str:
+def format_ini(data: dict[str, str | list[str]]) -> str:
     content = ""
     for key, value in sorted(data.items()):
         if isinstance(value, list):

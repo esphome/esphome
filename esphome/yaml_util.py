@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import fnmatch
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
-from ipaddress import _BaseAddress
+from ipaddress import _BaseAddress, _BaseNetwork
 import logging
 import math
 import os
-from typing import Any, Callable
+from typing import Any
 import uuid
 
 import yaml
@@ -603,6 +604,10 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.id)
         return self.represent_stringify(value.id)
 
+    # The below override configures this dumper to indent output YAML properly:
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
 
 ESPHomeDumper.add_multi_representer(
     dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
@@ -616,6 +621,7 @@ ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(_BaseNetwork, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)

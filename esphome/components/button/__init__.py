@@ -108,6 +108,7 @@ async def register_button(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_button(var))
+    CORE.register_platform_component("button", var)
     await setup_button_core_(var, config)
 
 

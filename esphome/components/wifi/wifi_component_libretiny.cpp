@@ -9,10 +9,10 @@
 #include "lwip/err.h"
 #include "lwip/dns.h"
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/application.h"
 #include "esphome/core/util.h"
 
 namespace esphome {
@@ -50,7 +50,7 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   bool ret = WiFi.mode(static_cast<wifi_mode_t>(mode));
 
   if (!ret) {
-    ESP_LOGW(TAG, "Setting WiFi mode failed!");
+    ESP_LOGW(TAG, "Setting mode failed");
   }
 
   return ret;
@@ -315,7 +315,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       // Mitigate CVE-2020-12638
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != WIFI_AUTH_OPEN && it.new_mode == WIFI_AUTH_OPEN) {
-        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting...");
+        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
         // we can't call retry_connect() from this context, so disconnect immediately
         // and notify main thread with error_from_callback_
         WiFi.disconnect();

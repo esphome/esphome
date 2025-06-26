@@ -1,6 +1,6 @@
 #include "gpio_one_wire.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace gpio {
@@ -8,7 +8,7 @@ namespace gpio {
 static const char *const TAG = "gpio.one_wire";
 
 void GPIOOneWireBus::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up 1-wire bus...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->t_pin_->setup();
   this->t_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   // clear bus with 480µs high, otherwise initial reset in search might fail

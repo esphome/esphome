@@ -33,7 +33,7 @@ const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 3600;
 const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 void SGP30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SGP30...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Serial Number identification
   uint16_t raw_serial_number[3];
@@ -232,27 +232,29 @@ void SGP30Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+        ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case INVALID_ID:
         ESP_LOGW(TAG, "Sensor reported an invalid ID. Is this an SGP30?");
         break;
       case UNSUPPORTED_ID:
-        ESP_LOGW(TAG, "Sensor reported an unsupported ID (SGPC3).");
+        ESP_LOGW(TAG, "Sensor reported an unsupported ID (SGPC3)");
         break;
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
     if (this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) {
-      ESP_LOGCONFIG(TAG, "  Baseline:");
-      ESP_LOGCONFIG(TAG, "    eCO2 Baseline: 0x%04X", this->eco2_baseline_);
-      ESP_LOGCONFIG(TAG, "    TVOC Baseline: 0x%04X", this->tvoc_baseline_);
+      ESP_LOGCONFIG(TAG,
+                    "  Baseline:\n"
+                    "    eCO2 Baseline: 0x%04X\n"
+                    "    TVOC Baseline: 0x%04X",
+                    this->eco2_baseline_, this->tvoc_baseline_);
     } else {
       ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
     }

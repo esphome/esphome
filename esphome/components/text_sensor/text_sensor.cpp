@@ -8,7 +8,9 @@ static const char *const TAG = "text_sensor";
 
 void TextSensor::publish_state(const std::string &state) {
   this->raw_state = state;
-  this->raw_callback_.call(state);
+  if (this->raw_callback_) {
+    this->raw_callback_->call(state);
+  }
 
   ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
 
@@ -53,20 +55,22 @@ void TextSensor::add_on_state_callback(std::function<void(std::string)> callback
   this->callback_.add(std::move(callback));
 }
 void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> callback) {
-  this->raw_callback_.add(std::move(callback));
+  if (!this->raw_callback_) {
+    this->raw_callback_ = make_unique<CallbackManager<void(std::string)>>();
+  }
+  this->raw_callback_->add(std::move(callback));
 }
 
 std::string TextSensor::get_state() const { return this->state; }
 std::string TextSensor::get_raw_state() const { return this->raw_state; }
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;
-  this->has_state_ = true;
+  this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
   this->callback_.call(state);
 }
 
 std::string TextSensor::unique_id() { return ""; }
-bool TextSensor::has_state() { return this->has_state_; }
 
 }  // namespace text_sensor
 }  // namespace esphome

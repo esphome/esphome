@@ -75,7 +75,7 @@ uint8_t compute_crc(uint32_t value) {
  * I2C.
  */
 void HTU31DComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up esphome/components/htu31d HTU31D...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (!this->reset_()) {
     this->mark_failed();
@@ -161,7 +161,7 @@ void HTU31DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU31D:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with HTU31D failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);

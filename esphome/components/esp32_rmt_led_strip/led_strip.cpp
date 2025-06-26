@@ -22,7 +22,7 @@ static const uint8_t RMT_CLK_DIV = 2;
 #endif
 
 void ESP32RMTLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ESP32 LED Strip...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   size_t buffer_size = this->get_buffer_size_();
 
@@ -143,7 +143,7 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   this->last_refresh_ = now;
   this->mark_shown_();
 
-  ESP_LOGVV(TAG, "Writing RGB values to bus...");
+  ESP_LOGVV(TAG, "Writing RGB values to bus");
 
 #if ESP_IDF_VERSION_MAJOR >= 5
   esp_err_t error = rmt_tx_wait_all_done(this->channel_, 1000);
@@ -247,8 +247,10 @@ light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index
 }
 
 void ESP32RMTLEDStripLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP32 RMT LED Strip:");
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  ESP_LOGCONFIG(TAG,
+                "ESP32 RMT LED Strip:\n"
+                "  Pin: %u",
+                this->pin_);
 #if ESP_IDF_VERSION_MAJOR >= 5
   ESP_LOGCONFIG(TAG, "  RMT Symbols: %" PRIu32, this->rmt_symbols_);
 #else
@@ -278,9 +280,11 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
       rgb_order = "UNKNOWN";
       break;
   }
-  ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
-  ESP_LOGCONFIG(TAG, "  Max refresh rate: %" PRIu32, *this->max_refresh_rate_);
-  ESP_LOGCONFIG(TAG, "  Number of LEDs: %u", this->num_leds_);
+  ESP_LOGCONFIG(TAG,
+                "  RGB Order: %s\n"
+                "  Max refresh rate: %" PRIu32 "\n"
+                "  Number of LEDs: %u",
+                rgb_order, *this->max_refresh_rate_, this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

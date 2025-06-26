@@ -107,8 +107,10 @@ std::string DebugComponent::get_wakeup_cause_() {
 }
 
 void DebugComponent::log_partition_info_() {
-  ESP_LOGCONFIG(TAG, "Partition table:");
-  ESP_LOGCONFIG(TAG, "  %-12s %-4s %-8s %-10s %-10s", "Name", "Type", "Subtype", "Address", "Size");
+  ESP_LOGCONFIG(TAG,
+                "Partition table:\n"
+                "  %-12s %-4s %-8s %-10s %-10s",
+                "Name", "Type", "Subtype", "Address", "Size");
   esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
   while (it != NULL) {
     const esp_partition_t *partition = esp_partition_get(it);

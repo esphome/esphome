@@ -2,7 +2,6 @@ substitutions:
   pin: GPIO2
   clock_resolution: "2000000"
   rmt_symbols: "64"
-  use_dma: "true"
 
 packages:
   common: !include esp32-common-idf.yaml

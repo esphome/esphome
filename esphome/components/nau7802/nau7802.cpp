@@ -52,8 +52,8 @@ static const uint8_t POWER_PGA_CAP_EN = 0x80;
 static const uint8_t DEVICE_REV = 0x1F;
 
 void NAU7802Sensor::setup() {
+  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   i2c::I2CRegister pu_ctrl = this->reg(PU_CTRL_REG);
-  ESP_LOGCONFIG(TAG, "Setting up NAU7802 '%s'...", this->name_.c_str());
   uint8_t rev;
 
   if (this->read_register(DEVICE_REV | READ_BIT, &rev, 1)) {
@@ -127,12 +127,14 @@ void NAU7802Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with NAU7802 failed earlier, during setup");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
     return;
   }
   // Note these may differ from the values on the device if calbration has been run
-  ESP_LOGCONFIG(TAG, "  Offset Calibration: %s", to_string(this->offset_calibration_).c_str());
-  ESP_LOGCONFIG(TAG, "  Gain Calibration: %f", this->gain_calibration_);
+  ESP_LOGCONFIG(TAG,
+                "  Offset Calibration: %s\n"
+                "  Gain Calibration: %f",
+                to_string(this->offset_calibration_).c_str(), this->gain_calibration_);
 
   std::string voltage = "unknown";
   switch (this->ldo_) {

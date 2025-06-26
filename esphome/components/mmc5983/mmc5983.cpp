@@ -67,7 +67,7 @@ void MMC5983Component::update() {
 }
 
 void MMC5983Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MMC5983...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Verify product id.
   const uint8_t mmc5983_product_id = 0x30;

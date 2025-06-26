@@ -10,162 +10,94 @@ namespace api {
 
 class APIServerConnectionBase : public ProtoService {
  public:
+#ifdef HAS_PROTO_MESSAGE_DUMP
+ protected:
+  void log_send_message_(const char *name, const std::string &dump);
+
+ public:
+#endif
+
+  template<typename T> bool send_message(const T &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    this->log_send_message_(T::message_name(), msg.dump());
+#endif
+    return this->send_message_(msg, T::MESSAGE_TYPE);
+  }
+
   virtual void on_hello_request(const HelloRequest &value){};
-  bool send_hello_response(const HelloResponse &msg);
+
   virtual void on_connect_request(const ConnectRequest &value){};
-  bool send_connect_response(const ConnectResponse &msg);
-  bool send_disconnect_request(const DisconnectRequest &msg);
+
   virtual void on_disconnect_request(const DisconnectRequest &value){};
-  bool send_disconnect_response(const DisconnectResponse &msg);
   virtual void on_disconnect_response(const DisconnectResponse &value){};
-  bool send_ping_request(const PingRequest &msg);
   virtual void on_ping_request(const PingRequest &value){};
-  bool send_ping_response(const PingResponse &msg);
   virtual void on_ping_response(const PingResponse &value){};
   virtual void on_device_info_request(const DeviceInfoRequest &value){};
-  bool send_device_info_response(const DeviceInfoResponse &msg);
+
   virtual void on_list_entities_request(const ListEntitiesRequest &value){};
-  bool send_list_entities_done_response(const ListEntitiesDoneResponse &msg);
+
   virtual void on_subscribe_states_request(const SubscribeStatesRequest &value){};
-#ifdef USE_BINARY_SENSOR
-  bool send_list_entities_binary_sensor_response(const ListEntitiesBinarySensorResponse &msg);
-#endif
-#ifdef USE_BINARY_SENSOR
-  bool send_binary_sensor_state_response(const BinarySensorStateResponse &msg);
-#endif
-#ifdef USE_COVER
-  bool send_list_entities_cover_response(const ListEntitiesCoverResponse &msg);
-#endif
-#ifdef USE_COVER
-  bool send_cover_state_response(const CoverStateResponse &msg);
-#endif
+
 #ifdef USE_COVER
   virtual void on_cover_command_request(const CoverCommandRequest &value){};
 #endif
-#ifdef USE_FAN
-  bool send_list_entities_fan_response(const ListEntitiesFanResponse &msg);
-#endif
-#ifdef USE_FAN
-  bool send_fan_state_response(const FanStateResponse &msg);
-#endif
+
 #ifdef USE_FAN
   virtual void on_fan_command_request(const FanCommandRequest &value){};
 #endif
-#ifdef USE_LIGHT
-  bool send_list_entities_light_response(const ListEntitiesLightResponse &msg);
-#endif
-#ifdef USE_LIGHT
-  bool send_light_state_response(const LightStateResponse &msg);
-#endif
+
 #ifdef USE_LIGHT
   virtual void on_light_command_request(const LightCommandRequest &value){};
 #endif
-#ifdef USE_SENSOR
-  bool send_list_entities_sensor_response(const ListEntitiesSensorResponse &msg);
-#endif
-#ifdef USE_SENSOR
-  bool send_sensor_state_response(const SensorStateResponse &msg);
-#endif
-#ifdef USE_SWITCH
-  bool send_list_entities_switch_response(const ListEntitiesSwitchResponse &msg);
-#endif
-#ifdef USE_SWITCH
-  bool send_switch_state_response(const SwitchStateResponse &msg);
-#endif
+
 #ifdef USE_SWITCH
   virtual void on_switch_command_request(const SwitchCommandRequest &value){};
 #endif
-#ifdef USE_TEXT_SENSOR
-  bool send_list_entities_text_sensor_response(const ListEntitiesTextSensorResponse &msg);
-#endif
-#ifdef USE_TEXT_SENSOR
-  bool send_text_sensor_state_response(const TextSensorStateResponse &msg);
-#endif
+
   virtual void on_subscribe_logs_request(const SubscribeLogsRequest &value){};
-  bool send_subscribe_logs_response(const SubscribeLogsResponse &msg);
+
 #ifdef USE_API_NOISE
   virtual void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &value){};
 #endif
-#ifdef USE_API_NOISE
-  bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyResponse &msg);
-#endif
+
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
-  bool send_homeassistant_service_response(const HomeassistantServiceResponse &msg);
+
   virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
-  bool send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg);
+
   virtual void on_home_assistant_state_response(const HomeAssistantStateResponse &value){};
-  bool send_get_time_request(const GetTimeRequest &msg);
   virtual void on_get_time_request(const GetTimeRequest &value){};
-  bool send_get_time_response(const GetTimeResponse &msg);
   virtual void on_get_time_response(const GetTimeResponse &value){};
-  bool send_list_entities_services_response(const ListEntitiesServicesResponse &msg);
+
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
-#ifdef USE_ESP32_CAMERA
-  bool send_list_entities_camera_response(const ListEntitiesCameraResponse &msg);
-#endif
-#ifdef USE_ESP32_CAMERA
-  bool send_camera_image_response(const CameraImageResponse &msg);
-#endif
+
 #ifdef USE_ESP32_CAMERA
   virtual void on_camera_image_request(const CameraImageRequest &value){};
 #endif
-#ifdef USE_CLIMATE
-  bool send_list_entities_climate_response(const ListEntitiesClimateResponse &msg);
-#endif
-#ifdef USE_CLIMATE
-  bool send_climate_state_response(const ClimateStateResponse &msg);
-#endif
+
 #ifdef USE_CLIMATE
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
 #endif
-#ifdef USE_NUMBER
-  bool send_list_entities_number_response(const ListEntitiesNumberResponse &msg);
-#endif
-#ifdef USE_NUMBER
-  bool send_number_state_response(const NumberStateResponse &msg);
-#endif
+
 #ifdef USE_NUMBER
   virtual void on_number_command_request(const NumberCommandRequest &value){};
 #endif
-#ifdef USE_SELECT
-  bool send_list_entities_select_response(const ListEntitiesSelectResponse &msg);
-#endif
-#ifdef USE_SELECT
-  bool send_select_state_response(const SelectStateResponse &msg);
-#endif
+
 #ifdef USE_SELECT
   virtual void on_select_command_request(const SelectCommandRequest &value){};
 #endif
-#ifdef USE_SIREN
-  bool send_list_entities_siren_response(const ListEntitiesSirenResponse &msg);
-#endif
-#ifdef USE_SIREN
-  bool send_siren_state_response(const SirenStateResponse &msg);
-#endif
+
 #ifdef USE_SIREN
   virtual void on_siren_command_request(const SirenCommandRequest &value){};
 #endif
-#ifdef USE_LOCK
-  bool send_list_entities_lock_response(const ListEntitiesLockResponse &msg);
-#endif
-#ifdef USE_LOCK
-  bool send_lock_state_response(const LockStateResponse &msg);
-#endif
+
 #ifdef USE_LOCK
   virtual void on_lock_command_request(const LockCommandRequest &value){};
 #endif
-#ifdef USE_BUTTON
-  bool send_list_entities_button_response(const ListEntitiesButtonResponse &msg);
-#endif
+
 #ifdef USE_BUTTON
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
 #endif
-#ifdef USE_MEDIA_PLAYER
-  bool send_list_entities_media_player_response(const ListEntitiesMediaPlayerResponse &msg);
-#endif
-#ifdef USE_MEDIA_PLAYER
-  bool send_media_player_state_response(const MediaPlayerStateResponse &msg);
-#endif
+
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_command_request(const MediaPlayerCommandRequest &value){};
 #endif
@@ -173,33 +105,19 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_subscribe_bluetooth_le_advertisements_request(
       const SubscribeBluetoothLEAdvertisementsRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_le_raw_advertisements_response(const BluetoothLERawAdvertisementsResponse &msg);
-#endif
+
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_device_request(const BluetoothDeviceRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_device_connection_response(const BluetoothDeviceConnectionResponse &msg);
-#endif
+
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_gatt_get_services_response(const BluetoothGATTGetServicesResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_gatt_get_services_done_response(const BluetoothGATTGetServicesDoneResponse &msg);
-#endif
+
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &msg);
-#endif
+
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &value){};
 #endif
@@ -212,49 +130,23 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &msg);
-#endif
+
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_connections_free_response(const BluetoothConnectionsFreeResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_gatt_error_response(const BluetoothGATTErrorResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_device_pairing_response(const BluetoothDevicePairingResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_device_unpairing_response(const BluetoothDeviceUnpairingResponse &msg);
-#endif
+
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_unsubscribe_bluetooth_le_advertisements_request(
       const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg);
-#endif
-#ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_scanner_state_response(const BluetoothScannerStateResponse &msg);
-#endif
+
 #ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &value){};
 #endif
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &value){};
 #endif
-#ifdef USE_VOICE_ASSISTANT
-  bool send_voice_assistant_request(const VoiceAssistantRequest &msg);
-#endif
+
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_response(const VoiceAssistantResponse &value){};
 #endif
@@ -262,7 +154,6 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_voice_assistant_event_response(const VoiceAssistantEventResponse &value){};
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  bool send_voice_assistant_audio(const VoiceAssistantAudio &msg);
   virtual void on_voice_assistant_audio(const VoiceAssistantAudio &value){};
 #endif
 #ifdef USE_VOICE_ASSISTANT
@@ -271,84 +162,39 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &value){};
 #endif
-#ifdef USE_VOICE_ASSISTANT
-  bool send_voice_assistant_announce_finished(const VoiceAssistantAnnounceFinished &msg);
-#endif
+
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &value){};
 #endif
-#ifdef USE_VOICE_ASSISTANT
-  bool send_voice_assistant_configuration_response(const VoiceAssistantConfigurationResponse &msg);
-#endif
+
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &value){};
 #endif
-#ifdef USE_ALARM_CONTROL_PANEL
-  bool send_list_entities_alarm_control_panel_response(const ListEntitiesAlarmControlPanelResponse &msg);
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-  bool send_alarm_control_panel_state_response(const AlarmControlPanelStateResponse &msg);
-#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &value){};
 #endif
-#ifdef USE_TEXT
-  bool send_list_entities_text_response(const ListEntitiesTextResponse &msg);
-#endif
-#ifdef USE_TEXT
-  bool send_text_state_response(const TextStateResponse &msg);
-#endif
+
 #ifdef USE_TEXT
   virtual void on_text_command_request(const TextCommandRequest &value){};
 #endif
-#ifdef USE_DATETIME_DATE
-  bool send_list_entities_date_response(const ListEntitiesDateResponse &msg);
-#endif
-#ifdef USE_DATETIME_DATE
-  bool send_date_state_response(const DateStateResponse &msg);
-#endif
+
 #ifdef USE_DATETIME_DATE
   virtual void on_date_command_request(const DateCommandRequest &value){};
 #endif
-#ifdef USE_DATETIME_TIME
-  bool send_list_entities_time_response(const ListEntitiesTimeResponse &msg);
-#endif
-#ifdef USE_DATETIME_TIME
-  bool send_time_state_response(const TimeStateResponse &msg);
-#endif
+
 #ifdef USE_DATETIME_TIME
   virtual void on_time_command_request(const TimeCommandRequest &value){};
 #endif
-#ifdef USE_EVENT
-  bool send_list_entities_event_response(const ListEntitiesEventResponse &msg);
-#endif
-#ifdef USE_EVENT
-  bool send_event_response(const EventResponse &msg);
-#endif
-#ifdef USE_VALVE
-  bool send_list_entities_valve_response(const ListEntitiesValveResponse &msg);
-#endif
-#ifdef USE_VALVE
-  bool send_valve_state_response(const ValveStateResponse &msg);
-#endif
+
 #ifdef USE_VALVE
   virtual void on_valve_command_request(const ValveCommandRequest &value){};
 #endif
-#ifdef USE_DATETIME_DATETIME
-  bool send_list_entities_date_time_response(const ListEntitiesDateTimeResponse &msg);
-#endif
-#ifdef USE_DATETIME_DATETIME
-  bool send_date_time_state_response(const DateTimeStateResponse &msg);
-#endif
+
 #ifdef USE_DATETIME_DATETIME
   virtual void on_date_time_command_request(const DateTimeCommandRequest &value){};
 #endif
-#ifdef USE_UPDATE
-  bool send_list_entities_update_response(const ListEntitiesUpdateResponse &msg);
-#endif
-#ifdef USE_UPDATE
-  bool send_update_state_response(const UpdateStateResponse &msg);
-#endif
+
 #ifdef USE_UPDATE
   virtual void on_update_command_request(const UpdateCommandRequest &value){};
 #endif

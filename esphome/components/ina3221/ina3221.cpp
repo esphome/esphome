@@ -22,7 +22,7 @@ static const uint8_t INA3221_REGISTER_CHANNEL3_BUS_VOLTAGE = 0x06;
 // A0 = SCL -> 0x43
 
 void INA3221Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up INA3221...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // Config Register
   // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
   if (!this->write_byte_16(INA3221_REGISTER_CONFIG, 0x8000)) {
@@ -60,7 +60,7 @@ void INA3221Component::dump_config() {
   ESP_LOGCONFIG(TAG, "INA3221:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with INA3221 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 

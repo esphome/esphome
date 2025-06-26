@@ -17,7 +17,7 @@ void Nextion::set_wake_up_page(uint8_t wake_up_page) {
 
 void Nextion::set_touch_sleep_timeout(uint32_t touch_sleep_timeout) {
   if (touch_sleep_timeout < 3) {
-    ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
+    ESP_LOGD(TAG, "Sleep timeout out of bounds (3-65535)");
     return;
   }
 
@@ -37,7 +37,7 @@ void Nextion::sleep(bool sleep) {
 
 // Protocol reparse mode
 bool Nextion::set_protocol_reparse_mode(bool active_mode) {
-  ESP_LOGV(TAG, "Set Nextion protocol reparse mode: %s", YESNO(active_mode));
+  ESP_LOGV(TAG, "Reparse mode: %s", YESNO(active_mode));
   this->ignore_is_setup_ = true;  // if not in reparse mode setup will fail, so it should be ignored
   bool all_commands_sent = true;
   if (active_mode) {  // Sets active protocol reparse mode
@@ -184,7 +184,7 @@ void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf
 
 void Nextion::set_backlight_brightness(float brightness) {
   if (brightness < 0 || brightness > 1.0) {
-    ESP_LOGD(TAG, "Brightness out of bounds, percentage range 0-1.0");
+    ESP_LOGD(TAG, "Brightness out of bounds (0-1.0)");
     return;
   }
   this->add_no_result_to_queue_with_printf_("backlight_brightness", "dim=%d", static_cast<int>(brightness * 100));

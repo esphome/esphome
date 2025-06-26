@@ -70,7 +70,7 @@ bool DallasTemperatureSensor::read_scratch_pad_() {
 }
 
 void DallasTemperatureSensor::setup() {
-  ESP_LOGCONFIG(TAG, "setting up Dallas temperature sensor...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->check_address_())
     return;
   if (!this->read_scratch_pad_())
@@ -80,7 +80,7 @@ void DallasTemperatureSensor::setup() {
 
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
     // DS18S20 doesn't support resolution.
-    ESP_LOGW(TAG, "DS18S20 doesn't support setting resolution.");
+    ESP_LOGW(TAG, "DS18S20 doesn't support setting resolution");
     return;
   }
 
@@ -125,7 +125,6 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
             crc8(this->scratch_pad_, 8));
 #endif
   if (!chksum_validity) {
-    ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", this->get_name().c_str());
     this->status_set_warning("scratch pad checksum invalid");
     ESP_LOGD(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
              this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],

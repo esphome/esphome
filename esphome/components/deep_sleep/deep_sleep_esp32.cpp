@@ -46,10 +46,12 @@ void DeepSleepComponent::dump_config_platform_() {
     LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);
   }
   if (this->wakeup_cause_to_run_duration_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Default Wakeup Run Duration: %" PRIu32 " ms",
-                  this->wakeup_cause_to_run_duration_->default_cause);
-    ESP_LOGCONFIG(TAG, "  Touch Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->touch_cause);
-    ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->gpio_cause);
+    ESP_LOGCONFIG(TAG,
+                  "  Default Wakeup Run Duration: %" PRIu32 " ms\n"
+                  "  Touch Wakeup Run Duration: %" PRIu32 " ms\n"
+                  "  GPIO Wakeup Run Duration: %" PRIu32 " ms",
+                  this->wakeup_cause_to_run_duration_->default_cause, this->wakeup_cause_to_run_duration_->touch_cause,
+                  this->wakeup_cause_to_run_duration_->gpio_cause);
   }
 }
 
@@ -59,7 +61,7 @@ bool DeepSleepComponent::prepare_to_sleep_() {
     // Defer deep sleep until inactive
     if (!this->next_enter_deep_sleep_) {
       this->status_set_warning();
-      ESP_LOGW(TAG, "Waiting wakeup pin state change to enter deep sleep...");
+      ESP_LOGW(TAG, "Waiting for wakeup pin state change");
     }
     this->next_enter_deep_sleep_ = true;
     return false;

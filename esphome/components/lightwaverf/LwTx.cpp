@@ -8,8 +8,8 @@
 #include "LwTx.h"
 #include <cstring>
 #include <Arduino.h>
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace lightwaverf {

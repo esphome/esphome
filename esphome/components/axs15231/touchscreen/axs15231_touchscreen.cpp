@@ -17,7 +17,7 @@ constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 
   }
 
 void AXS15231Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AXS15231 Touchscreen...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
@@ -60,8 +60,10 @@ void AXS15231Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Width: %d", this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Height: %d", this->y_raw_max_);
+  ESP_LOGCONFIG(TAG,
+                "  Width: %d\n"
+                "  Height: %d",
+                this->x_raw_max_, this->y_raw_max_);
 }
 
 }  // namespace axs15231

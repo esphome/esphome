@@ -1,7 +1,7 @@
 #include "uponor_smatrix_climate.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome {
 namespace uponor_smatrix {

@@ -7,7 +7,7 @@ namespace ttp229_lsf {
 static const char *const TAG = "ttp229_lsf";
 
 void TTP229LSFComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ttp229...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[2];
   if (this->read(data, 2) != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -20,7 +20,7 @@ void TTP229LSFComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with TTP229 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case NONE:
     default:

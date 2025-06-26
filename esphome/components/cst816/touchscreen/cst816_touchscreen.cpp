@@ -1,4 +1,5 @@
 #include "cst816_touchscreen.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace cst816 {
@@ -38,7 +39,7 @@ void CST816Touchscreen::continue_setup_() {
 }
 
 void CST816Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CST816 Touchscreen...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
@@ -74,8 +75,10 @@ void CST816Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  X Raw Min: %d, X Raw Max: %d", this->x_raw_min_, this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Y Raw Min: %d, Y Raw Max: %d", this->y_raw_min_, this->y_raw_max_);
+  ESP_LOGCONFIG(TAG,
+                "  X Raw Min: %d, X Raw Max: %d\n"
+                "  Y Raw Min: %d, Y Raw Max: %d",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
   const char *name;
   switch (this->chip_id_) {
     case CST820_CHIP_ID:

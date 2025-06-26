@@ -9,10 +9,10 @@ namespace status_led {
 static const char *const TAG = "status_led";
 
 void StatusLEDLightOutput::loop() {
-  uint32_t new_state = App.get_app_state() & STATUS_LED_MASK;
+  uint8_t new_state = App.get_app_state() & STATUS_LED_MASK;
 
   if (new_state != this->last_app_state_) {
-    ESP_LOGV(TAG, "New app state 0x%08" PRIX32, new_state);
+    ESP_LOGV(TAG, "New app state 0x%02X", new_state);
   }
 
   if ((new_state & STATUS_LED_ERROR) != 0u) {
@@ -53,7 +53,7 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
 }
 
 void StatusLEDLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Status LED...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (this->pin_ != nullptr) {
     this->pin_->setup();

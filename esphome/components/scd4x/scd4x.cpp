@@ -27,7 +27,7 @@ static const uint16_t SCD41_ID = 0x1408;
 static const uint16_t SCD40_ID = 0x440;
 
 void SCD4XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up scd4x...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
     this->status_clear_error();
@@ -96,16 +96,16 @@ void SCD4XComponent::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+        ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case SERIAL_NUMBER_IDENTIFICATION_FAILED:
         ESP_LOGW(TAG, "Unable to read sensor firmware version");
         break;
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   }
@@ -115,11 +115,15 @@ void SCD4XComponent::dump_config() {
                   this->ambient_pressure_source_->get_name().c_str());
   } else {
     if (this->ambient_pressure_compensation_) {
-      ESP_LOGCONFIG(TAG, "  Altitude compensation disabled");
-      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %dmBar", this->ambient_pressure_);
+      ESP_LOGCONFIG(TAG,
+                    "  Altitude compensation disabled\n"
+                    "  Ambient pressure compensation: %dmBar",
+                    this->ambient_pressure_);
     } else {
-      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation disabled");
-      ESP_LOGCONFIG(TAG, "  Altitude compensation: %dm", this->altitude_compensation_);
+      ESP_LOGCONFIG(TAG,
+                    "  Ambient pressure compensation disabled\n"
+                    "  Altitude compensation: %dm",
+                    this->altitude_compensation_);
     }
   }
   switch (this->measurement_mode_) {

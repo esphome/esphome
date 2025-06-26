@@ -34,7 +34,7 @@ void GDK101Component::update() {
 
 void GDK101Component::setup() {
   uint8_t data[2];
-  ESP_LOGCONFIG(TAG, "Setting up GDK101...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   // first, reset the sensor
   if (!this->reset_sensor_(data)) {
     this->status_set_error("Reset failed!");
@@ -60,7 +60,7 @@ void GDK101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "GDK101:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with GDK101 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Firmware Version", this->fw_version_sensor_);

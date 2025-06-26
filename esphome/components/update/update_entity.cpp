@@ -30,7 +30,7 @@ void UpdateEntity::publish_state() {
     ESP_LOGD(TAG, "  Progress: %.0f%%", this->update_info_.progress);
   }
 
-  this->has_state_ = true;
+  this->set_has_state(true);
   this->state_callback_.call();
 }
 

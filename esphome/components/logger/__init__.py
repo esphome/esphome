@@ -8,8 +8,10 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -24,6 +26,7 @@ from esphome.const import (
     CONF_HARDWARE_UART,
     CONF_ID,
     CONF_LEVEL,
+    CONF_LOGGER,
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
@@ -87,8 +90,10 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
+    VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -204,8 +209,10 @@ CONFIG_SCHEMA = cv.All(
                 esp32_s3_idf=USB_SERIAL_JTAG,
                 esp32_c3_arduino=USB_CDC,
                 esp32_c3_idf=USB_SERIAL_JTAG,
+                esp32_c5_idf=USB_SERIAL_JTAG,
                 esp32_c6_arduino=USB_CDC,
                 esp32_c6_idf=USB_SERIAL_JTAG,
+                esp32_p4_idf=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 rtl87xx=DEFAULT,
@@ -247,6 +254,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
+    CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
     log = cg.new_Pvariable(
         config[CONF_ID],

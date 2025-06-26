@@ -18,7 +18,7 @@ GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-a
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
   if (this->devices_.count(device) != 0) {
-    ESP_LOGE(TAG, "SPI device already registered");
+    ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
   }
   SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin);  // NOLINT
@@ -28,7 +28,7 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
 
 void SPIComponent::unregister_device(SPIClient *device) {
   if (this->devices_.count(device) == 0) {
-    esph_log_e(TAG, "SPI device not registered");
+    esph_log_e(TAG, "Device not registered");
     return;
   }
   delete this->devices_[device];  // NOLINT
@@ -36,14 +36,14 @@ void SPIComponent::unregister_device(SPIClient *device) {
 }
 
 void SPIComponent::setup() {
-  ESP_LOGD(TAG, "Setting up SPI bus...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   if (this->sdo_pin_ == nullptr)
     this->sdo_pin_ = NullPin::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
     this->sdi_pin_ = NullPin::NULL_PIN;
   if (this->clk_pin_ == nullptr) {
-    ESP_LOGE(TAG, "No clock pin for SPI");
+    ESP_LOGE(TAG, "No clock pin");
     this->mark_failed();
     return;
   }

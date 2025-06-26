@@ -22,7 +22,7 @@ static const char *const TAG = "es8311";
   }
 
 void ES8311::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ES8311...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // Reset
   ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x1F));
@@ -52,11 +52,13 @@ void ES8311::setup() {
 }
 
 void ES8311::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES8311 Audio Codec:");
-  ESP_LOGCONFIG(TAG, "  Use MCLK: %s", YESNO(this->use_mclk_));
-  ESP_LOGCONFIG(TAG, "  Use Microphone: %s", YESNO(this->use_mic_));
-  ESP_LOGCONFIG(TAG, "  DAC Bits per Sample: %" PRIu8, this->resolution_out_);
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %" PRIu32, this->sample_frequency_);
+  ESP_LOGCONFIG(TAG,
+                "ES8311 Audio Codec:\n"
+                "  Use MCLK: %s\n"
+                "  Use Microphone: %s\n"
+                "  DAC Bits per Sample: %" PRIu8 "\n"
+                "  Sample Rate: %" PRIu32,
+                YESNO(this->use_mclk_), YESNO(this->use_mic_), this->resolution_out_, this->sample_frequency_);
 
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  Failed to initialize!");

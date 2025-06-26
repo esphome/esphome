@@ -1,7 +1,7 @@
 #include "modbus.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace modbus {
@@ -90,7 +90,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
-    if (this->role == ModbusRole::SERVER && (function_code == 0x3 || function_code == 0x4)) {
+    if (this->role == ModbusRole::SERVER && (function_code == 0x1 || function_code == 0x3 || function_code == 0x4)) {
       data_offset = 2;
       data_len = 4;
     }
@@ -165,8 +165,10 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
-  ESP_LOGCONFIG(TAG, "  Send Wait Time: %d ms", this->send_wait_time_);
-  ESP_LOGCONFIG(TAG, "  CRC Disabled: %s", YESNO(this->disable_crc_));
+  ESP_LOGCONFIG(TAG,
+                "  Send Wait Time: %d ms\n"
+                "  CRC Disabled: %s",
+                this->send_wait_time_, YESNO(this->disable_crc_));
 }
 float Modbus::get_setup_priority() const {
   // After UART bus

@@ -119,7 +119,7 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Beken SPI LED Strip...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   size_t buffer_size = this->get_buffer_size_();
   size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
@@ -256,7 +256,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->last_refresh_ = now;
   this->mark_shown_();
 
-  ESP_LOGVV(TAG, "Writing RGB values to bus...");
+  ESP_LOGVV(TAG, "Writing RGB values to bus");
 
   if (spi_data == nullptr) {
     ESP_LOGE(TAG, "SPI not initialized");
@@ -345,8 +345,10 @@ light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index
 }
 
 void BekenSPILEDStripLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Beken SPI LED Strip:");
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  ESP_LOGCONFIG(TAG,
+                "Beken SPI LED Strip:\n"
+                "  Pin: %u",
+                this->pin_);
   const char *rgb_order;
   switch (this->rgb_order_) {
     case ORDER_RGB:
@@ -371,9 +373,11 @@ void BekenSPILEDStripLightOutput::dump_config() {
       rgb_order = "UNKNOWN";
       break;
   }
-  ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
-  ESP_LOGCONFIG(TAG, "  Max refresh rate: %" PRIu32, *this->max_refresh_rate_);
-  ESP_LOGCONFIG(TAG, "  Number of LEDs: %u", this->num_leds_);
+  ESP_LOGCONFIG(TAG,
+                "  RGB Order: %s\n"
+                "  Max refresh rate: %" PRIu32 "\n"
+                "  Number of LEDs: %u",
+                rgb_order, *this->max_refresh_rate_, this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

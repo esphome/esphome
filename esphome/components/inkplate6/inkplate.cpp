@@ -1,11 +1,9 @@
 #include "inkplate.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-
-#include <esp32-hal-gpio.h>
+#include <hal/gpio_hal.h>
 
 namespace esphome {
 namespace inkplate6 {
@@ -156,6 +154,12 @@ void HOT Inkplate6::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
+  if (this->mirror_y_)
+    y = this->get_height_internal() - y - 1;
+
+  if (this->mirror_x_)
+    x = this->get_width_internal() - x - 1;
+
   if (this->greyscale_) {
     int x1 = x / 2;
     int x_sub = x % 2;
@@ -180,9 +184,11 @@ void HOT Inkplate6::draw_absolute_pixel_internal(int x, int y, Color color) {
 
 void Inkplate6::dump_config() {
   LOG_DISPLAY("", "Inkplate", this);
-  ESP_LOGCONFIG(TAG, "  Greyscale: %s", YESNO(this->greyscale_));
-  ESP_LOGCONFIG(TAG, "  Partial Updating: %s", YESNO(this->partial_updating_));
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %d", this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Greyscale: %s\n"
+                "  Partial Updating: %s\n"
+                "  Full Update Every: %d",
+                YESNO(this->greyscale_), YESNO(this->partial_updating_), this->full_update_every_);
   // Log pins
   LOG_PIN("  CKV Pin: ", this->ckv_pin_);
   LOG_PIN("  CL Pin: ", this->cl_pin_);
@@ -715,5 +721,3 @@ void Inkplate6::pins_as_outputs_() {
 
 }  // namespace inkplate6
 }  // namespace esphome
-
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO

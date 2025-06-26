@@ -30,7 +30,7 @@ static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     //
 static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
 void SEN5XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sen5x...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
@@ -245,10 +245,10 @@ void SEN5XComponent::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+        ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case SERIAL_NUMBER_IDENTIFICATION_FAILED:
         ESP_LOGW(TAG, "Unable to read sensor serial id");
@@ -260,13 +260,16 @@ void SEN5XComponent::dump_config() {
         ESP_LOGW(TAG, "Unable to read sensor firmware version");
         break;
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   }
-  ESP_LOGCONFIG(TAG, "  Productname: %s", this->product_name_.c_str());
-  ESP_LOGCONFIG(TAG, "  Firmware version: %d", this->firmware_version_);
-  ESP_LOGCONFIG(TAG, "  Serial number %02d.%02d.%02d", serial_number_[0], serial_number_[1], serial_number_[2]);
+  ESP_LOGCONFIG(TAG,
+                "  Productname: %s\n"
+                "  Firmware version: %d\n"
+                "  Serial number %02d.%02d.%02d",
+                this->product_name_.c_str(), this->firmware_version_, serial_number_[0], serial_number_[1],
+                serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval %" PRId32 " seconds", auto_cleaning_interval_.value());
   }

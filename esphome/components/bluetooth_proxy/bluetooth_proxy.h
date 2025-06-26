@@ -52,7 +52,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
  public:
   BluetoothProxy();
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-  bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) override;
+  bool parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) override;
   void dump_config() override;
   void setup() override;
   void loop() override;

@@ -537,7 +537,7 @@ void ThermostatClimate::switch_to_supplemental_action_(climate::ClimateAction ac
     default:
       return;
   }
-  ESP_LOGVV(TAG, "Updating supplemental action...");
+  ESP_LOGVV(TAG, "Updating supplemental action");
   this->supplemental_action_ = action;
   this->trigger_supplemental_action_();
 }
@@ -1300,37 +1300,48 @@ void ThermostatClimate::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Start-up Delay Enabled: %s", YESNO(this->use_startup_delay_));
   if (this->supports_cool_) {
-    ESP_LOGCONFIG(TAG, "  Cooling Parameters:");
-    ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->cooling_deadband_);
-    ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->cooling_overrun_);
+    ESP_LOGCONFIG(TAG,
+                  "  Cooling Parameters:\n"
+                  "    Deadband: %.1f°C\n"
+                  "    Overrun: %.1f°C",
+                  this->cooling_deadband_, this->cooling_overrun_);
     if ((this->supplemental_cool_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) > 0)) {
-      ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_cool_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %" PRIu32 "s",
+      ESP_LOGCONFIG(TAG,
+                    "    Supplemental Delta: %.1f°C\n"
+                    "    Maximum Run Time: %" PRIu32 "s",
+                    this->supplemental_cool_delta_,
                     this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %" PRIu32 "s",
-                  this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %" PRIu32 "s",
+    ESP_LOGCONFIG(TAG,
+                  "    Minimum Off Time: %" PRIu32 "s\n"
+                  "    Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000,
                   this->timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
   }
   if (this->supports_heat_) {
-    ESP_LOGCONFIG(TAG, "  Heating Parameters:");
-    ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->heating_deadband_);
-    ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->heating_overrun_);
+    ESP_LOGCONFIG(TAG,
+                  "  Heating Parameters:\n"
+                  "    Deadband: %.1f°C\n"
+                  "    Overrun: %.1f°C",
+                  this->heating_deadband_, this->heating_overrun_);
     if ((this->supplemental_heat_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) > 0)) {
-      ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_heat_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %" PRIu32 "s",
+      ESP_LOGCONFIG(TAG,
+                    "    Supplemental Delta: %.1f°C\n"
+                    "    Maximum Run Time: %" PRIu32 "s",
+                    this->supplemental_heat_delta_,
                     this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %" PRIu32 "s",
-                  this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %" PRIu32 "s",
+    ESP_LOGCONFIG(TAG,
+                  "    Minimum Off Time: %" PRIu32 "s\n"
+                  "    Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000,
                   this->timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
   }
   if (this->supports_fan_only_) {
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %" PRIu32 "s",
-                  this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %" PRIu32 "s",
+    ESP_LOGCONFIG(TAG,
+                  "  Fanning Minimum Off Time: %" PRIu32 "s\n"
+                  "  Fanning Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000,
                   this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
   }
   if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
@@ -1341,14 +1352,17 @@ void ThermostatClimate::dump_config() {
                   this->timer_duration_(thermostat::TIMER_FAN_MODE) / 1000);
   }
   ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %" PRIu32 "s", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
-  ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
-  ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
-  ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
-  ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s",
-                YESNO(this->supports_fan_only_action_uses_fan_mode_timer_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_COOLING: %s", YESNO(this->supports_fan_only_cooling_));
+  ESP_LOGCONFIG(TAG,
+                "  Supports AUTO: %s\n"
+                "  Supports HEAT/COOL: %s\n"
+                "  Supports COOL: %s\n"
+                "  Supports DRY: %s\n"
+                "  Supports FAN_ONLY: %s\n"
+                "  Supports FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s\n"
+                "  Supports FAN_ONLY_COOLING: %s",
+                YESNO(this->supports_auto_), YESNO(this->supports_heat_cool_), YESNO(this->supports_cool_),
+                YESNO(this->supports_dry_), YESNO(this->supports_fan_only_),
+                YESNO(this->supports_fan_only_action_uses_fan_mode_timer_), YESNO(this->supports_fan_only_cooling_));
   if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
   }
@@ -1356,21 +1370,31 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
   }
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE ON: %s", YESNO(this->supports_fan_mode_on_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE OFF: %s", YESNO(this->supports_fan_mode_off_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE AUTO: %s", YESNO(this->supports_fan_mode_auto_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE LOW: %s", YESNO(this->supports_fan_mode_low_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE MEDIUM: %s", YESNO(this->supports_fan_mode_medium_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE HIGH: %s", YESNO(this->supports_fan_mode_high_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE MIDDLE: %s", YESNO(this->supports_fan_mode_middle_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE FOCUS: %s", YESNO(this->supports_fan_mode_focus_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE DIFFUSE: %s", YESNO(this->supports_fan_mode_diffuse_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN MODE QUIET: %s", YESNO(this->supports_fan_mode_quiet_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE BOTH: %s", YESNO(this->supports_swing_mode_both_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE OFF: %s", YESNO(this->supports_swing_mode_off_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE HORIZONTAL: %s", YESNO(this->supports_swing_mode_horizontal_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE VERTICAL: %s", YESNO(this->supports_swing_mode_vertical_));
-  ESP_LOGCONFIG(TAG, "  Supports TWO SET POINTS: %s", YESNO(this->supports_two_points_));
+  ESP_LOGCONFIG(TAG,
+                "  Supports FAN MODE ON: %s\n"
+                "  Supports FAN MODE OFF: %s\n"
+                "  Supports FAN MODE AUTO: %s\n"
+                "  Supports FAN MODE LOW: %s\n"
+                "  Supports FAN MODE MEDIUM: %s\n"
+                "  Supports FAN MODE HIGH: %s\n"
+                "  Supports FAN MODE MIDDLE: %s\n"
+                "  Supports FAN MODE FOCUS: %s\n"
+                "  Supports FAN MODE DIFFUSE: %s\n"
+                "  Supports FAN MODE QUIET: %s",
+                YESNO(this->supports_fan_mode_on_), YESNO(this->supports_fan_mode_off_),
+                YESNO(this->supports_fan_mode_auto_), YESNO(this->supports_fan_mode_low_),
+                YESNO(this->supports_fan_mode_medium_), YESNO(this->supports_fan_mode_high_),
+                YESNO(this->supports_fan_mode_middle_), YESNO(this->supports_fan_mode_focus_),
+                YESNO(this->supports_fan_mode_diffuse_), YESNO(this->supports_fan_mode_quiet_));
+  ESP_LOGCONFIG(TAG,
+                "  Supports SWING MODE BOTH: %s\n"
+                "  Supports SWING MODE OFF: %s\n"
+                "  Supports SWING MODE HORIZONTAL: %s\n"
+                "  Supports SWING MODE VERTICAL: %s\n"
+                "  Supports TWO SET POINTS: %s",
+                YESNO(this->supports_swing_mode_both_), YESNO(this->supports_swing_mode_off_),
+                YESNO(this->supports_swing_mode_horizontal_), YESNO(this->supports_swing_mode_vertical_),
+                YESNO(this->supports_two_points_));
 
   ESP_LOGCONFIG(TAG, "  Supported PRESETS: ");
   for (auto &it : this->preset_config_) {

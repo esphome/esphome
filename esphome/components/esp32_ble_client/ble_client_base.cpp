@@ -45,8 +45,10 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void BLEClientBase::dump_config() {
-  ESP_LOGCONFIG(TAG, "  Address: %s", this->address_str().c_str());
-  ESP_LOGCONFIG(TAG, "  Auto-Connect: %s", TRUEFALSE(this->auto_connect_));
+  ESP_LOGCONFIG(TAG,
+                "  Address: %s\n"
+                "  Auto-Connect: %s",
+                this->address_str().c_str(), TRUEFALSE(this->auto_connect_));
   std::string state_name;
   switch (this->state()) {
     case espbt::ClientState::INIT:

@@ -2,4 +2,5 @@ substitutions:
   pin1: GPIO13
   pin2: GPIO14
 
-<<: !include common-idf.yaml
+packages:
+  common: !include common-idf.yaml

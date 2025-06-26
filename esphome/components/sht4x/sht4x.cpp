@@ -18,7 +18,7 @@ void SHT4XComponent::start_heater_() {
 }
 
 void SHT4XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sht4x...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
@@ -59,7 +59,7 @@ void SHT4XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHT4x:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with SHT4x failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

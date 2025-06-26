@@ -1,5 +1,3 @@
-from typing import Union
-
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
@@ -361,7 +359,7 @@ lv_image_list = LValidator(
 lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
 
 
-def lv_pct(value: Union[int, float]):
+def lv_pct(value: int | float):
     if isinstance(value, float):
         value = int(value * 100)
     return literal(f"lv_pct({value})")

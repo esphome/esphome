@@ -17,7 +17,7 @@ namespace rp2040_pwm {
 static const char *const TAG = "rp2040_pwm";
 
 void RP2040PWM::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up RP2040 PWM Output...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   this->setup_pwm_();
 }

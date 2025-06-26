@@ -1,7 +1,7 @@
 #ifdef USE_ESP_IDF
 #include <memory>
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "http_parser.h"
 
 #include "utils.h"

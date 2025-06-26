@@ -38,17 +38,21 @@ StatsdComponent::~StatsdComponent() {
 }
 
 void StatsdComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "statsD:");
-  ESP_LOGCONFIG(TAG, "  host: %s", this->host_);
-  ESP_LOGCONFIG(TAG, "  port: %d", this->port_);
+  ESP_LOGCONFIG(TAG,
+                "statsD:\n"
+                "  host: %s\n"
+                "  port: %d",
+                this->host_, this->port_);
   if (this->prefix_) {
     ESP_LOGCONFIG(TAG, "  prefix: %s", this->prefix_);
   }
 
   ESP_LOGCONFIG(TAG, "  metrics:");
   for (sensors_t s : this->sensors_) {
-    ESP_LOGCONFIG(TAG, "    - name: %s", s.name);
-    ESP_LOGCONFIG(TAG, "      type: %d", s.type);
+    ESP_LOGCONFIG(TAG,
+                  "    - name: %s\n"
+                  "      type: %d",
+                  s.name, s.type);
   }
 }
 

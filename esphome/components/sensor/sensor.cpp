@@ -38,7 +38,9 @@ StateClass Sensor::get_state_class() {
 
 void Sensor::publish_state(float state) {
   this->raw_state = state;
-  this->raw_callback_.call(state);
+  if (this->raw_callback_) {
+    this->raw_callback_->call(state);
+  }
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
@@ -51,7 +53,10 @@ void Sensor::publish_state(float state) {
 
 void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
 void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
-  this->raw_callback_.add(std::move(callback));
+  if (!this->raw_callback_) {
+    this->raw_callback_ = make_unique<CallbackManager<void(float)>>();
+  }
+  this->raw_callback_->add(std::move(callback));
 }
 
 void Sensor::add_filter(Filter *filter) {
@@ -88,13 +93,12 @@ float Sensor::get_raw_state() const { return this->raw_state; }
 std::string Sensor::unique_id() { return ""; }
 
 void Sensor::internal_send_state_to_frontend(float state) {
-  this->has_state_ = true;
+  this->set_has_state(true);
   this->state = state;
   ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
            this->get_unit_of_measurement().c_str(), this->get_accuracy_decimals());
   this->callback_.call(state);
 }
-bool Sensor::has_state() const { return this->has_state_; }
 
 }  // namespace sensor
 }  // namespace esphome

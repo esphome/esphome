@@ -1,5 +1,6 @@
 #include "ft5x06_touchscreen.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -8,7 +9,7 @@ namespace ft5x06 {
 static const char *const TAG = "ft5x06.touchscreen";
 
 void FT5x06Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up FT5x06 Touchscreen...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
@@ -81,9 +82,11 @@ void FT5x06Touchscreen::update_touches() {
 }
 
 void FT5x06Touchscreen::dump_config() {
-  ESP_LOGCONFIG(TAG, "FT5x06 Touchscreen:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
-  ESP_LOGCONFIG(TAG, "  Vendor ID: 0x%X", (int) this->vendor_id_);
+  ESP_LOGCONFIG(TAG,
+                "FT5x06 Touchscreen:\n"
+                "  Address: 0x%02X\n"
+                "  Vendor ID: 0x%X",
+                this->address_, (int) this->vendor_id_);
 }
 
 bool FT5x06Touchscreen::err_check_(i2c::ErrorCode err, const char *msg) {

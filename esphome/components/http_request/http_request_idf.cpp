@@ -26,8 +26,10 @@ struct UserData {
 
 void HttpRequestIDF::dump_config() {
   HttpRequestComponent::dump_config();
-  ESP_LOGCONFIG(TAG, "  Buffer Size RX: %u", this->buffer_size_rx_);
-  ESP_LOGCONFIG(TAG, "  Buffer Size TX: %u", this->buffer_size_tx_);
+  ESP_LOGCONFIG(TAG,
+                "  Buffer Size RX: %u\n"
+                "  Buffer Size TX: %u",
+                this->buffer_size_rx_, this->buffer_size_tx_);
 }
 
 esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {

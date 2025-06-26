@@ -3,7 +3,6 @@ import itertools
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Union
 
 from esphome import git
 import esphome.codegen as cg
@@ -58,8 +57,10 @@ from .const import (  # noqa
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_FRIENDLY,
@@ -70,12 +71,35 @@ from .const import (  # noqa
 from .gpio import esp32_pin_to_code  # noqa
 
 _LOGGER = logging.getLogger(__name__)
-CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["preferences"]
+CODEOWNERS = ["@esphome/core"]
 IS_TARGET_PLATFORM = True
 
-CONF_RELEASE = "release"
+CONF_ASSERTION_LEVEL = "assertion_level"
+CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
+CONF_RELEASE = "release"
+
+ASSERTION_LEVELS = {
+    "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
+    "ENABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE",
+    "SILENT": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT",
+}
+
+COMPILER_OPTIMIZATIONS = {
+    "DEBUG": "CONFIG_COMPILER_OPTIMIZATION_DEBUG",
+    "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
+    "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
+    "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
+}
+
+ARDUINO_ALLOWED_VARIANTS = [
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+]
 
 
 def get_cpu_frequencies(*frequencies):
@@ -88,8 +112,10 @@ CPU_FREQUENCIES = {
     VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C2: get_cpu_frequencies(80, 120),
     VARIANT_ESP32C3: get_cpu_frequencies(80, 160),
+    VARIANT_ESP32C5: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
+    VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
 }
 
 # Make sure not missed here if a new variant added.
@@ -124,12 +150,17 @@ def set_core_data(config):
         CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
+        if variant not in ARDUINO_ALLOWED_VARIANTS:
+            raise cv.Invalid(
+                f"ESPHome does not support using the Arduino framework for the {variant}. Please use the ESP-IDF framework instead.",
+                path=[CONF_FRAMEWORK, CONF_TYPE],
+            )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
-    CORE.data[KEY_ESP32][KEY_VARIANT] = config[CONF_VARIANT]
+    CORE.data[KEY_ESP32][KEY_VARIANT] = variant
     CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
 
     return config
@@ -189,7 +220,7 @@ class RawSdkconfigValue:
     value: str
 
 
-SdkconfigValueType = Union[bool, int, HexInt, str, RawSdkconfigValue]
+SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
@@ -206,8 +237,8 @@ def add_idf_component(
     ref: str = None,
     path: str = None,
     refresh: TimePeriod = None,
-    components: Optional[list[str]] = None,
-    submodules: Optional[list[str]] = None,
+    components: list[str] | None = None,
+    submodules: list[str] | None = None,
 ):
     """Add an esp-idf component to the project."""
     if not CORE.using_esp_idf:
@@ -296,11 +327,11 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(5, 1, 6)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(5, 3, 2)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(51, 3, 7)
+ESP_IDF_PLATFORM_VERSION = cv.Version(53, 3, 13)
 
 # List based on https://registry.platformio.org/tools/platformio/framework-espidf/versions
 SUPPORTED_PLATFORMIO_ESP_IDF_5X = [
@@ -369,8 +400,8 @@ def _arduino_check_versions(value):
 def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 1, 6), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(5, 1, 6), None),
+        "dev": (cv.Version(5, 3, 2), "https://github.com/espressif/esp-idf.git"),
+        "latest": (cv.Version(5, 3, 2), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
@@ -448,8 +479,8 @@ def _parse_platform_version(value):
         if ver.major >= 50:  # a pioarduino version
             if "-" in value:
                 # maybe a release candidate?...definitely not our default, just use it as-is...
-                return f"https://github.com/pioarduino/platform-espressif32.git#{value}"
-            return f"https://github.com/pioarduino/platform-espressif32.git#{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
+                return f"https://github.com/pioarduino/platform-espressif32/releases/download/{value}/platform-espressif32.zip"
+            return f"https://github.com/pioarduino/platform-espressif32/releases/download/{ver.major}.{ver.minor:02d}.{ver.patch:02d}/platform-espressif32.zip"
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
         return f"platformio/espressif32@{value}"
@@ -539,6 +570,10 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
 )
 
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
+CONF_ENABLE_LWIP_DHCP_SERVER = "enable_lwip_dhcp_server"
+CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
+CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
+
 ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -551,11 +586,30 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             },
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
+                    cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
+                        *ASSERTION_LEVELS, upper=True
+                    ),
+                    cv.Optional(CONF_COMPILER_OPTIMIZATION, default="SIZE"): cv.one_of(
+                        *COMPILER_OPTIMIZATIONS, upper=True
+                    ),
+                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
+                    cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
                     cv.Optional(
                         CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
                     ): cv.boolean,
                     cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
-                    cv.Optional(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES): cv.boolean,
+                    # DHCP server is needed for WiFi AP mode. When WiFi component is used,
+                    # it will handle disabling DHCP server when AP is not configured.
+                    # Default to false (disabled) when WiFi is not used.
+                    cv.OnlyWithout(
+                        CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=False
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
+                    ): cv.boolean,
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -576,6 +630,21 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
 )
 
 
+def _set_default_framework(config):
+    if CONF_FRAMEWORK not in config:
+        config = config.copy()
+
+        variant = config[CONF_VARIANT]
+        if variant in ARDUINO_ALLOWED_VARIANTS:
+            config[CONF_FRAMEWORK] = ARDUINO_FRAMEWORK_SCHEMA({})
+            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
+        else:
+            config[CONF_FRAMEWORK] = ESP_IDF_FRAMEWORK_SCHEMA({})
+            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
+
+    return config
+
+
 FRAMEWORK_ESP_IDF = "esp-idf"
 FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.typed_schema(
@@ -585,7 +654,6 @@ FRAMEWORK_SCHEMA = cv.typed_schema(
     },
     lower=True,
     space="-",
-    default_type=FRAMEWORK_ARDUINO,
 )
 
 
@@ -612,10 +680,11 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PARTITIONS): cv.file_,
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
-            cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
         }
     ),
     _detect_variant,
+    _set_default_framework,
     set_core_data,
 )
 
@@ -638,7 +707,7 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
-    if CONF_ADVANCED in conf and conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
+    if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
     add_extra_script(
@@ -669,8 +738,6 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv"
         )
-        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
-        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
 
         # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
         add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
@@ -684,16 +751,41 @@ async def to_code(config):
         # Set default CPU frequency
         add_idf_sdkconfig_option(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{freq}", True)
 
+        # Apply LWIP optimization settings
+        advanced = conf[CONF_ADVANCED]
+        # DHCP server: only disable if explicitly set to false
+        # WiFi component handles its own optimization when AP mode is not used
+        if (
+            CONF_ENABLE_LWIP_DHCP_SERVER in advanced
+            and not advanced[CONF_ENABLE_LWIP_DHCP_SERVER]
+        ):
+            add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+        if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, False):
+            add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
+        if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
+            add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
         if CONF_PARTITIONS in config:
             add_extra_build_file(
                 "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
             )
 
-        for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
-            add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+        if assertion_level := advanced.get(CONF_ASSERTION_LEVEL):
+            for key, flag in ASSERTION_LEVELS.items():
+                add_idf_sdkconfig_option(flag, assertion_level == key)
 
-        if conf[CONF_ADVANCED].get(CONF_IGNORE_EFUSE_MAC_CRC):
+        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
+        compiler_optimization = advanced.get(CONF_COMPILER_OPTIMIZATION)
+        for key, flag in COMPILER_OPTIMIZATIONS.items():
+            add_idf_sdkconfig_option(flag, compiler_optimization == key)
+
+        add_idf_sdkconfig_option(
+            "CONFIG_LWIP_ESP_LWIP_ASSERT",
+            conf[CONF_ADVANCED][CONF_ENABLE_LWIP_ASSERT],
+        )
+
+        if advanced.get(CONF_IGNORE_EFUSE_MAC_CRC):
             add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
             if (framework_ver.major, framework_ver.minor) >= (4, 4):
                 add_idf_sdkconfig_option(
@@ -703,7 +795,7 @@ async def to_code(config):
                 add_idf_sdkconfig_option(
                     "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
                 )
-        if conf[CONF_ADVANCED].get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
+        if advanced.get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
             _LOGGER.warning(
                 "Using experimental features in ESP-IDF may result in unexpected failures."
             )
@@ -715,6 +807,9 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+
+        for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
+            add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
         for component in conf[CONF_COMPONENTS]:
             source = component[CONF_SOURCE]

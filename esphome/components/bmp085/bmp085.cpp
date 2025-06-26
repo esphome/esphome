@@ -20,7 +20,7 @@ void BMP085Component::update() {
   this->set_timeout("temperature", 5, [this]() { this->read_temperature_(); });
 }
 void BMP085Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BMP085...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[22];
   if (!this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)) {
     this->mark_failed();
@@ -129,7 +129,7 @@ void BMP085Component::read_pressure_() {
   this->status_clear_warning();
 }
 bool BMP085Component::set_mode_(uint8_t mode) {
-  ESP_LOGV(TAG, "Setting mode to 0x%02X...", mode);
+  ESP_LOGV(TAG, "Setting mode to 0x%02X", mode);
   return this->write_byte(BMP085_REGISTER_CONTROL, mode);
 }
 float BMP085Component::get_setup_priority() const { return setup_priority::DATA; }

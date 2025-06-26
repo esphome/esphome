@@ -1,7 +1,7 @@
 #include "msa3xx.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace msa3xx {
@@ -118,7 +118,7 @@ const char *orientation_xy_to_string(OrientationXY orientation) {
 const char *orientation_z_to_string(bool orientation) { return orientation ? "Downwards looking" : "Upwards looking"; }
 
 void MSA3xxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MSA3xx...");
+  ESP_LOGCONFIG(TAG, "Running setup");
 
   uint8_t part_id{0xff};
   if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA_3XX_PART_ID)) {
@@ -159,15 +159,19 @@ void MSA3xxComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MSA3xx:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MSA3xx failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Model: %s", model_to_string(this->model_));
-  ESP_LOGCONFIG(TAG, "  Power Mode: %s", power_mode_to_string(this->power_mode_));
-  ESP_LOGCONFIG(TAG, "  Bandwidth: %s", bandwidth_to_string(this->bandwidth_));
-  ESP_LOGCONFIG(TAG, "  Range: %s", range_to_string(this->range_));
-  ESP_LOGCONFIG(TAG, "  Resolution: %s", res_to_string(this->resolution_));
-  ESP_LOGCONFIG(TAG, "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}", this->offset_x_, this->offset_y_, this->offset_z_);
-  ESP_LOGCONFIG(TAG, "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}", YESNO(this->swap_.x_polarity),
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Power Mode: %s\n"
+                "  Bandwidth: %s\n"
+                "  Range: %s\n"
+                "  Resolution: %s\n"
+                "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
+                "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
+                model_to_string(this->model_), power_mode_to_string(this->power_mode_),
+                bandwidth_to_string(this->bandwidth_), range_to_string(this->range_), res_to_string(this->resolution_),
+                this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->swap_.x_polarity),
                 YESNO(this->swap_.y_polarity), YESNO(this->swap_.z_polarity), YESNO(this->swap_.x_y_swap));
   LOG_UPDATE_INTERVAL(this);
 
@@ -248,10 +252,10 @@ void MSA3xxComponent::loop() {
 }
 
 void MSA3xxComponent::update() {
-  ESP_LOGV(TAG, "Updating MSA3xx...");
+  ESP_LOGV(TAG, "Updating");
 
   if (!this->is_ready()) {
-    ESP_LOGV(TAG, "Component MSA3xx not ready for update");
+    ESP_LOGV(TAG, "Not ready for update");
     return;
   }
   ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}; ", this->data_.x, this->data_.y,

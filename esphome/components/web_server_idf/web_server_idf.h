@@ -1,6 +1,7 @@
 #pragma once
 #ifdef USE_ESP_IDF
 
+#include "esphome/core/defines.h"
 #include <esp_http_server.h>
 
 #include <functional>
@@ -12,10 +13,12 @@
 #include <vector>
 
 namespace esphome {
+#ifdef USE_WEBSERVER
 namespace web_server {
 class WebServer;
 class ListEntitiesIterator;
 };  // namespace web_server
+#endif
 namespace web_server_idf {
 
 #define F(string_literal) (string_literal)
@@ -220,6 +223,7 @@ class AsyncWebHandler {
   virtual bool isRequestHandlerTrivial() { return true; }
 };
 
+#ifdef USE_WEBSERVER
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
@@ -307,10 +311,13 @@ class AsyncEventSource : public AsyncWebHandler {
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
 };
+#endif  // USE_WEBSERVER
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
+#ifdef USE_WEBSERVER
   friend class AsyncEventSourceResponse;
+#endif
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)

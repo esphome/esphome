@@ -4,7 +4,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components.esp32_ble import bt_uuid
+from esphome.components.esp32_ble import BTLoggers, bt_uuid
 import esphome.config_validation as cv
 from esphome.config_validation import UNDEFINED
 from esphome.const import (
@@ -525,6 +525,9 @@ async def to_code_characteristic(service_var, char_conf):
 
 
 async def to_code(config):
+    # Register the loggers this component needs
+    esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+
     var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)

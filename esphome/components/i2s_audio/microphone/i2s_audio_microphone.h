@@ -18,6 +18,7 @@ namespace i2s_audio {
 class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, public Component {
  public:
   void setup() override;
+  void dump_config() override;
   void start() override;
   void stop() override;
 
@@ -43,7 +44,11 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 #endif
 
  protected:
+  /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current setttings.
+  /// @return True if succesful, false otherwise
   bool start_driver_();
+
+  /// @brief Stops the I2S driver.
   void stop_driver_();
 
   /// @brief Attempts to correct a microphone DC offset; e.g., a microphones silent level is offset from 0. Applies a
@@ -76,6 +81,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   bool pdm_{false};
 
   bool correct_dc_offset_;
+  bool locked_driver_{false};
   int32_t dc_offset_{0};
 };
 

@@ -22,7 +22,7 @@ static const size_t SERIAL_NUMBER_LENGTH = 8;
 static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
 
 void SPS30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sps30...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   this->write_command(SPS30_CMD_SOFT_RESET);
   /// Deferred Sensor initialization
   this->set_timeout(500, [this]() {
@@ -73,10 +73,10 @@ void SPS30Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+        ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case SERIAL_NUMBER_REQUEST_FAILED:
         ESP_LOGW(TAG, "Unable to request sensor serial number");
@@ -91,14 +91,15 @@ void SPS30Component::dump_config() {
         ESP_LOGW(TAG, "Unable to read sensor firmware version");
         break;
       default:
-        ESP_LOGW(TAG, "Unknown setup error!");
+        ESP_LOGW(TAG, "Unknown setup error");
         break;
     }
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Serial Number: '%s'", this->serial_number_);
-  ESP_LOGCONFIG(TAG, "  Firmware version v%0d.%0d", (raw_firmware_version_ >> 8),
-                uint16_t(raw_firmware_version_ & 0xFF));
+  ESP_LOGCONFIG(TAG,
+                "  Serial Number: '%s'\n"
+                "  Firmware version v%0d.%0d",
+                this->serial_number_, (raw_firmware_version_ >> 8), uint16_t(raw_firmware_version_ & 0xFF));
   LOG_SENSOR("  ", "PM1.0 Weight Concentration", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5 Weight Concentration", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM4 Weight Concentration", this->pm_4_0_sensor_);
@@ -113,18 +114,18 @@ void SPS30Component::dump_config() {
 void SPS30Component::update() {
   /// Check if warning flag active (sensor reconnected?)
   if (this->status_has_warning()) {
-    ESP_LOGD(TAG, "Trying to reconnect the sensor...");
+    ESP_LOGD(TAG, "Trying to reconnect");
     if (this->write_command(SPS30_CMD_SOFT_RESET)) {
-      ESP_LOGD(TAG, "Sensor has soft-reset successfully. Waiting for reconnection in 500ms...");
+      ESP_LOGD(TAG, "Soft-reset successful. Waiting for reconnection in 500 ms");
       this->set_timeout(500, [this]() {
         this->start_continuous_measurement_();
         /// Sensor restarted and reading attempt made next cycle
         this->status_clear_warning();
         this->skipped_data_read_cycles_ = 0;
-        ESP_LOGD(TAG, "Sensor reconnected successfully. Resuming continuous measurement!");
+        ESP_LOGD(TAG, "Reconnect successful. Resuming continuous measurement");
       });
     } else {
-      ESP_LOGD(TAG, "Sensor soft-reset failed. Is the sensor offline?");
+      ESP_LOGD(TAG, "Soft-reset failed");
     }
     return;
   }
@@ -136,19 +137,19 @@ void SPS30Component::update() {
 
   uint16_t raw_read_status;
   if (!this->read_data(&raw_read_status, 1) || raw_read_status == 0x00) {
-    ESP_LOGD(TAG, "Sensor measurement not ready yet.");
+    ESP_LOGD(TAG, "Not ready yet");
     this->skipped_data_read_cycles_++;
     /// The following logic is required to address the cases when a sensor is quickly replaced before it's marked
     /// as failed so that new sensor is eventually forced to be reinitialized for continuous measurement.
     if (this->skipped_data_read_cycles_ > MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR) {
-      ESP_LOGD(TAG, "Sensor exceeded max allowed attempts. Sensor communication will be reinitialized.");
+      ESP_LOGD(TAG, "Exceeded max allowed attempts; communication will be reinitialized");
       this->status_set_warning();
     }
     return;
   }
 
   if (!this->write_command(SPS30_CMD_READ_MEASUREMENT)) {
-    ESP_LOGW(TAG, "Error reading measurement status!");
+    ESP_LOGW(TAG, "Error reading status");
     this->status_set_warning();
     return;
   }
@@ -156,7 +157,7 @@ void SPS30Component::update() {
   this->set_timeout(50, [this]() {
     uint16_t raw_data[20];
     if (!this->read_data(raw_data, 20)) {
-      ESP_LOGW(TAG, "Error reading measurement data!");
+      ESP_LOGW(TAG, "Error reading data");
       this->status_set_warning();
       return;
     }

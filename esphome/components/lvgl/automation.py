@@ -1,4 +1,5 @@
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -20,7 +21,7 @@ from .defines import (
     literal,
     static_cast,
 )
-from .lv_validation import lv_bool, lv_color, lv_image, opacity
+from .lv_validation import lv_bool, lv_color, lv_image, lv_milliseconds, opacity
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
@@ -128,14 +129,14 @@ async def lvgl_is_paused(config, condition_id, template_arg, args):
     LVGL_SCHEMA.extend(
         {
             cv.Required(CONF_TIMEOUT): cv.templatable(
-                cv.positive_time_period_milliseconds
+                lv_milliseconds,
             )
         }
     ),
 )
 async def lvgl_is_idle(config, condition_id, template_arg, args):
     lvgl = config[CONF_LVGL_ID]
-    timeout = await cg.templatable(config[CONF_TIMEOUT], [], cg.uint32)
+    timeout = await lv_milliseconds.process(config[CONF_TIMEOUT])
     async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
         lv_add(ReturnStatement(lvgl_comp.is_idle(timeout)))
     var = cg.new_Pvariable(

@@ -16,10 +16,12 @@ from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
     CONF_EXIT_REPARSE_ON_START,
+    CONF_MAX_COMMANDS_PER_LOOP,
+    CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
+    CONF_ON_PAGE,
     CONF_ON_SETUP,
     CONF_ON_SLEEP,
-    CONF_ON_PAGE,
     CONF_ON_WAKE,
     CONF_SKIP_CONNECTION_HANDSHAKE,
     CONF_START_UP_PAGE,
@@ -49,8 +51,27 @@ CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
-            cv.Optional(CONF_TFT_URL): cv.url,
+            cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
             cv.Optional(CONF_BRIGHTNESS): cv.percentage,
+            cv.Optional(CONF_COMMAND_SPACING): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(milliseconds=255)),
+            ),
+            cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
+            cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
+            cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
+            cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        BufferOverflowTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_PAGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PageTrigger),
+                }
+            ),
             cv.Optional(CONF_ON_SETUP): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SetupTrigger),
@@ -61,38 +82,21 @@ CONFIG_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SleepTrigger),
                 }
             ),
-            cv.Optional(CONF_ON_WAKE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(WakeTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_PAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PageTrigger),
-                }
-            ),
             cv.Optional(CONF_ON_TOUCH): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TouchTrigger),
                 }
             ),
-            cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation(
+            cv.Optional(CONF_ON_WAKE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        BufferOverflowTrigger
-                    ),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(WakeTrigger),
                 }
             ),
+            cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
+            cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
+            cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.int_range(min=3, max=65535),
             cv.Optional(CONF_WAKE_UP_PAGE): cv.uint8_t,
-            cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
-            cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
-            cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
-            cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
-            cv.Optional(CONF_COMMAND_SPACING): cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(max=TimePeriod(milliseconds=255)),
-            ),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -124,6 +128,10 @@ async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
+
+    if max_queue_size := config.get(CONF_MAX_QUEUE_SIZE):
+        cg.add_define("USE_NEXTION_MAX_QUEUE_SIZE")
+        cg.add(var.set_max_queue_size(max_queue_size))
 
     if command_spacing := config.get(CONF_COMMAND_SPACING):
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
@@ -166,6 +174,10 @@ async def to_code(config):
     cg.add(var.set_exit_reparse_on_start(config[CONF_EXIT_REPARSE_ON_START]))
 
     cg.add(var.set_skip_connection_handshake(config[CONF_SKIP_CONNECTION_HANDSHAKE]))
+
+    if max_commands_per_loop := config.get(CONF_MAX_COMMANDS_PER_LOOP):
+        cg.add_define("USE_NEXTION_MAX_COMMANDS_PER_LOOP")
+        cg.add(var.set_max_commands_per_loop(max_commands_per_loop))
 
     await display.register_display(var, config)
 

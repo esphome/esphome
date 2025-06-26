@@ -6,9 +6,12 @@ from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_OE_PIN,
     CONF_PAGES,
+    CONF_TRANSFORM,
     CONF_WAKEUP_PIN,
 )
 
@@ -36,7 +39,6 @@ CONF_SPH_PIN = "sph_pin"
 CONF_SPV_PIN = "spv_pin"
 CONF_VCOM_PIN = "vcom_pin"
 
-
 inkplate6_ns = cg.esphome_ns.namespace("inkplate6")
 Inkplate6 = inkplate6_ns.class_(
     "Inkplate6",
@@ -62,6 +64,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(Inkplate6),
             cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
+            cv.Optional(CONF_TRANSFORM): cv.Schema(
+                {
+                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                }
+            ),
             cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=10): cv.uint32_t,
             cv.Optional(CONF_MODEL, default="inkplate_6"): cv.enum(
@@ -109,7 +117,6 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("5s"))
     .extend(i2c.i2c_device_schema(0x48)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
-    cv.only_with_arduino,
 )
 
 
@@ -126,6 +133,9 @@ async def to_code(config):
         cg.add(var.set_writer(lambda_))
 
     cg.add(var.set_greyscale(config[CONF_GREYSCALE]))
+    if transform := config.get(CONF_TRANSFORM):
+        cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
+        cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
     cg.add(var.set_partial_updating(config[CONF_PARTIAL_UPDATING]))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
 

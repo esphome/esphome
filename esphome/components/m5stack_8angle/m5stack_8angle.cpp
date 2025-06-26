@@ -8,19 +8,19 @@ namespace m5stack_8angle {
 static const char *const TAG = "m5stack_8angle";
 
 void M5Stack8AngleComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up M5STACK_8ANGLE...");
+  ESP_LOGCONFIG(TAG, "Running setup");
   i2c::ErrorCode err;
 
   err = this->read(nullptr, 0);
   if (err != i2c::NO_ERROR) {
-    ESP_LOGE(TAG, "I2C error %02X...", err);
+    ESP_LOGE(TAG, "I2C error %02X", err);
     this->mark_failed();
     return;
   };
 
   err = this->read_register(M5STACK_8ANGLE_REGISTER_FW_VERSION, &this->fw_version_, 1);
   if (err != i2c::NO_ERROR) {
-    ESP_LOGE(TAG, "I2C error %02X...", err);
+    ESP_LOGE(TAG, "I2C error %02X", err);
     this->mark_failed();
     return;
   };
