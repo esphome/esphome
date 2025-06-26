@@ -358,6 +358,26 @@ class Logger : public Component {
     static const uint16_t RESET_COLOR_LEN = strlen(ESPHOME_LOG_RESET_COLOR);
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
+
+#ifdef USE_ESP32
+  // Disable loop when task buffer is empty (with USB CDC check)
+  inline void disable_loop_when_buffer_empty_() {
+    // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
+    // concurrently. If that happens between our check and disable_loop(), the enable request
+    // will be processed on the next main loop iteration since:
+    // - disable_loop() takes effect immediately
+    // - enable_loop_soon_any_context() sets a pending flag that's checked at loop start
+#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
+    // Only disable if not using USB CDC (which needs loop for connection detection)
+    if (this->uart_ != UART_SELECTION_USB_CDC) {
+      this->disable_loop();
+    }
+#else
+    // No USB CDC support, always safe to disable
+    this->disable_loop();
+#endif
+  }
+#endif
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

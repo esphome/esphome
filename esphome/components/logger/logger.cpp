@@ -48,6 +48,11 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // For non-main tasks, queue the message for callbacks - but only if we have any callbacks registered
   message_sent =
       this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
+  if (message_sent) {
+    // Enable logger loop to process the buffered message
+    // This is safe to call from any context including ISRs
+    this->enable_loop_soon_any_context();
+  }
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 
   // Emergency console logging for non-main tasks when ring buffer is full or disabled
@@ -139,6 +144,10 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 void Logger::init_log_buffer(size_t total_buffer_size) {
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+
+  // Start with loop disabled when using task buffer (unless using USB CDC)
+  // The loop will be enabled automatically when messages arrive
+  this->disable_loop_when_buffer_empty_();
 }
 #endif
 
@@ -189,6 +198,10 @@ void Logger::loop() {
         this->write_msg_(this->tx_buffer_);
       }
     }
+  } else {
+    // No messages to process, disable loop if appropriate
+    // This reduces overhead when there's no async logging activity
+    this->disable_loop_when_buffer_empty_();
   }
 #endif
 }
