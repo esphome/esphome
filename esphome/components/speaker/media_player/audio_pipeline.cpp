@@ -343,13 +343,12 @@ void AudioPipeline::read_task(void *params) {
     xEventGroupSetBits(this_pipeline->event_group_, EventGroupBits::READER_MESSAGE_FINISHED);
 
     // Wait until the pipeline notifies us the source of the media file
-    EventBits_t event_bits =
-        xEventGroupWaitBits(this_pipeline->event_group_,
-                            EventGroupBits::READER_COMMAND_INIT_FILE | EventGroupBits::READER_COMMAND_INIT_HTTP |
-                                EventGroupBits::PIPELINE_COMMAND_STOP,  // Bit message to read
-                            pdFALSE,                                    // Clear the bit on exit
-                            pdFALSE,                                    // Wait for all the bits,
-                            portMAX_DELAY);                             // Block indefinitely until bit is set
+    EventBits_t event_bits = xEventGroupWaitBits(
+        this_pipeline->event_group_,
+        EventGroupBits::READER_COMMAND_INIT_FILE | EventGroupBits::READER_COMMAND_INIT_HTTP,  // Bit message to read
+        pdFALSE,                                                                              // Clear the bit on exit
+        pdFALSE,                                                                              // Wait for all the bits,
+        portMAX_DELAY);  // Block indefinitely until bit is set
 
     if (!(event_bits & EventGroupBits::PIPELINE_COMMAND_STOP)) {
       xEventGroupClearBits(this_pipeline->event_group_, EventGroupBits::READER_MESSAGE_FINISHED |
@@ -434,12 +433,12 @@ void AudioPipeline::decode_task(void *params) {
     xEventGroupSetBits(this_pipeline->event_group_, EventGroupBits::DECODER_MESSAGE_FINISHED);
 
     // Wait until the reader notifies us that the media type is available
-    EventBits_t event_bits = xEventGroupWaitBits(this_pipeline->event_group_,
-                                                 EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE |
-                                                     EventGroupBits::PIPELINE_COMMAND_STOP,  // Bit message to read
-                                                 pdFALSE,                                    // Clear the bit on exit
-                                                 pdFALSE,                                    // Wait for all the bits,
-                                                 portMAX_DELAY);  // Block indefinitely until bit is set
+    EventBits_t event_bits =
+        xEventGroupWaitBits(this_pipeline->event_group_,
+                            EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE,  // Bit message to read
+                            pdFALSE,                                           // Clear the bit on exit
+                            pdFALSE,                                           // Wait for all the bits,
+                            portMAX_DELAY);                                    // Block indefinitely until bit is set
 
     xEventGroupClearBits(this_pipeline->event_group_,
                          EventGroupBits::DECODER_MESSAGE_FINISHED | EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE);
