@@ -3,7 +3,7 @@ name: Lock closed issues and PRs
 
 on:
   schedule:
-    - cron: "30 0 * * *" # Run daily at 00:30 UTC
+    - cron: "30 0 * * *"  # Run daily at 00:30 UTC
   workflow_dispatch:
 
 jobs:
