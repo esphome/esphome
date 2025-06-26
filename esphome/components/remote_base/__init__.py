@@ -1385,6 +1385,46 @@ async def rc6_action(var, config, args):
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
 
+# RC6Nbits
+RC6NbitsData, RC6NbitsBinarySensor, RC6NbitsTrigger, RC6NbitsAction, RC6NbitsDumper = declare_protocol("RC6Nbits")
+RC6NBITS_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NBITS): cv.hex_uint8_t,
+        cv.Required(CONF_CODE): cv.hex_uint64_t,
+    }
+)
+
+
+@register_binary_sensor("rc6nbits", RC6NbitsBinarySensor, RC6NBITS_SCHEMA)
+def rc6Nbits_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RC6NbitsData,
+                ("nbits", config[CONF_NBITS]),
+                ("code", config[CONF_CODE]),
+            )
+        )
+    )
+
+
+@register_trigger("rc6nbits", RC6NbitsTrigger, RC6NbitsData)
+def rc6Nbits_trigger(var, config):
+    pass
+
+
+@register_dumper("rc6nbits", RC6NbitsDumper)
+def rc6Nbits_dumper(var, config):
+    pass
+
+
+@register_action("rc6nbits", RC6NbitsAction, RC6NBITS_SCHEMA)
+async def rc6Nbits_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
+    cg.add(var.set_nbits(template_))
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint64)
+    cg.add(var.set_code(template_))
+
 
 # RC Switch Raw
 RC_SWITCH_TIMING_SCHEMA = cv.All([cv.uint8_t], cv.Length(min=2, max=2))
