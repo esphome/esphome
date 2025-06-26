@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <limits>
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
@@ -335,11 +337,16 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
+   * Note: This method is not called by ESPHome core code. It is only used by lambda functions
+   * in YAML configurations or by external components.
+   *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
-  void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
+  void set_loop_interval(uint32_t loop_interval) {
+    this->loop_interval_ = std::min(loop_interval, static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()));
+  }
 
-  uint32_t get_loop_interval() const { return this->loop_interval_; }
+  uint32_t get_loop_interval() const { return static_cast<uint32_t>(this->loop_interval_); }
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
@@ -618,6 +625,17 @@ class Application {
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
+  // === Member variables ordered by size to minimize padding ===
+
+  // Pointer-sized members first
+  Component *current_component_{nullptr};
+  const char *comment_{nullptr};
+  const char *compilation_time_{nullptr};
+
+  // size_t members
+  size_t dump_config_at_{SIZE_MAX};
+
+  // Vectors (largest members)
   std::vector<Component *> components_{};
 
   // Partitioned vector design for looping components
@@ -637,11 +655,6 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   std::vector<Component *> looping_components_{};
-  uint16_t looping_components_active_end_{0};
-
-  // For safe reentrant modifications during iteration
-  uint16_t current_loop_index_{0};
-  bool in_loop_{false};
 
 #ifdef USE_DEVICES
   std::vector<Device *> devices_{};
@@ -713,26 +726,39 @@ class Application {
   std::vector<update::UpdateEntity *> updates_{};
 #endif
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
+#endif
+
+  // String members
   std::string name_;
   std::string friendly_name_;
-  const char *comment_{nullptr};
-  const char *compilation_time_{nullptr};
-  bool name_add_mac_suffix_;
+
+  // 4-byte members
   uint32_t last_loop_{0};
-  uint32_t loop_interval_{16};
-  size_t dump_config_at_{SIZE_MAX};
-  uint8_t app_state_{0};
-  volatile bool has_pending_enable_loop_requests_{false};
-  Component *current_component_{nullptr};
   uint32_t loop_component_start_time_{0};
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
-  // Socket select management
-  std::vector<int> socket_fds_;     // Vector of all monitored socket file descriptors
+  int max_fd_{-1};  // Highest file descriptor number for select()
+#endif
+
+  // 2-byte members (grouped together for alignment)
+  uint16_t loop_interval_{16};  // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint16_t looping_components_active_end_{0};
+  uint16_t current_loop_index_{0};  // For safe reentrant modifications during iteration
+
+  // 1-byte members (grouped together to minimize padding)
+  uint8_t app_state_{0};
+  bool name_add_mac_suffix_;
+  bool in_loop_{false};
+  volatile bool has_pending_enable_loop_requests_{false};
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
-  int max_fd_{-1};                  // Highest file descriptor number for select()
-  fd_set base_read_fds_{};          // Cached fd_set rebuilt only when socket_fds_ changes
-  fd_set read_fds_{};               // Working fd_set for select(), copied from base_read_fds_
+
+  // Variable-sized members at end
+  fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
+  fd_set read_fds_{};       // Working fd_set for select(), copied from base_read_fds_
 #endif
 };
 
