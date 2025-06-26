@@ -17,8 +17,9 @@ namespace esphome {
 namespace ld2450 {
 
 static const char *const TAG = "ld2450";
-static const char *const NO_MAC("08:05:04:03:02:01");
-static const char *const UNKNOWN_MAC("unknown");
+static const char *const NO_MAC = "08:05:04:03:02:01";
+static const char *const UNKNOWN_MAC = "unknown";
+static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
 // LD2450 UART Serial Commands
 static const uint8_t CMD_ENABLE_CONF = 0x00FF;
@@ -97,13 +98,6 @@ static inline std::string get_direction(int16_t speed) {
   }
   return STATIONARY;
 }
-
-static inline std::string format_version(uint8_t *buffer) {
-  return str_sprintf("%u.%02X.%02X%02X%02X%02X", buffer[13], buffer[12], buffer[17], buffer[16], buffer[15],
-                     buffer[14]);
-}
-
-LD2450Component::LD2450Component() {}
 
 void LD2450Component::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
@@ -189,7 +183,7 @@ void LD2450Component::dump_config() {
                 "  Throttle: %ums\n"
                 "  MAC Address: %s\n"
                 "  Firmware version: %s",
-                this->throttle_, const_cast<char *>(this->mac_.c_str()), const_cast<char *>(this->version_.c_str()));
+                this->throttle_, this->mac_ == NO_MAC ? UNKNOWN_MAC : this->mac_.c_str(), this->version_.c_str());
 }
 
 void LD2450Component::loop() {
@@ -596,7 +590,7 @@ bool LD2450Component::handle_ack_data_(uint8_t *buffer, uint8_t len) {
 #endif
       break;
     case lowbyte(CMD_VERSION):
-      this->version_ = ld2450::format_version(buffer);
+      this->version_ = str_sprintf(VERSION_FMT, buffer[13], buffer[12], buffer[17], buffer[16], buffer[15], buffer[14]);
       ESP_LOGV(TAG, "Firmware version: %s", this->version_.c_str());
 #ifdef USE_TEXT_SENSOR
       if (this->version_text_sensor_ != nullptr) {
@@ -617,7 +611,7 @@ bool LD2450Component::handle_ack_data_(uint8_t *buffer, uint8_t len) {
 #endif
 #ifdef USE_SWITCH
       if (this->bluetooth_switch_ != nullptr) {
-        this->bluetooth_switch_->publish_state(this->mac_ != UNKNOWN_MAC);
+        this->bluetooth_switch_->publish_state(this->mac_ != NO_MAC);
       }
 #endif
       break;

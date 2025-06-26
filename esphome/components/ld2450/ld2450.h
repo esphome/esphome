@@ -141,7 +141,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 
  public:
-  LD2450Component();
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -197,17 +196,17 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool get_timeout_status_(uint32_t check_millis);
   uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
 
-  Target target_info_[MAX_TARGETS];
-  Zone zone_config_[MAX_ZONES];
-  uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
-  uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint32_t last_periodic_millis_ = 0;
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
   uint16_t throttle_ = 0;
   uint16_t timeout_ = 5;
+  uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
+  uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t zone_type_ = 0;
+  Target target_info_[MAX_TARGETS];
+  Zone zone_config_[MAX_ZONES];
   std::string version_{};
   std::string mac_{};
 #ifdef USE_NUMBER
