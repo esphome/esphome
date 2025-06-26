@@ -21,20 +21,105 @@ static const char *const NO_MAC = "08:05:04:03:02:01";
 static const char *const UNKNOWN_MAC = "unknown";
 static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
+enum BaudRateStructure : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8
+};
+
+// Zone type struct
+enum ZoneTypeStructure : uint8_t {
+  ZONE_DISABLED = 0,
+  ZONE_DETECTION = 1,
+  ZONE_FILTER = 2,
+};
+
+enum PeriodicDataStructure : uint8_t {
+  TARGET_X = 4,
+  TARGET_Y = 6,
+  TARGET_SPEED = 8,
+  TARGET_RESOLUTION = 10,
+};
+
+enum PeriodicDataValue : uint8_t {
+  HEAD = 0xAA,
+  END = 0x55,
+  CHECK = 0x00,
+};
+
+enum AckDataStructure : uint8_t {
+  COMMAND = 6,
+  COMMAND_STATUS = 7,
+};
+
+// Memory-efficient lookup tables
+struct StringToUint8 {
+  const char *str;
+  uint8_t value;
+};
+
+struct Uint8ToString {
+  uint8_t value;
+  const char *str;
+};
+
+constexpr StringToUint8 BAUD_RATES_BY_STR[] = {
+    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
+    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
+    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800},
+};
+
+constexpr Uint8ToString ZONE_TYPE_BY_UINT[] = {
+    {ZONE_DISABLED, "Disabled"},
+    {ZONE_DETECTION, "Detection"},
+    {ZONE_FILTER, "Filter"},
+};
+
+constexpr StringToUint8 ZONE_TYPE_BY_STR[] = {
+    {"Disabled", ZONE_DISABLED},
+    {"Detection", ZONE_DETECTION},
+    {"Filter", ZONE_FILTER},
+};
+
+// Helper functions for lookups
+template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
+  for (const auto &entry : arr) {
+    if (str == entry.str)
+      return entry.value;
+  }
+  return 0xFF;  // Not found
+}
+
+template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t value) {
+  for (const auto &entry : arr) {
+    if (value == entry.value)
+      return entry.str;
+  }
+  return "";  // Not found
+}
+
+// LD2450 serial command header & footer
+static const uint8_t CMD_FRAME_HEADER[4] = {0xFD, 0xFC, 0xFB, 0xFA};
+static const uint8_t CMD_FRAME_END[4] = {0x04, 0x03, 0x02, 0x01};
 // LD2450 UART Serial Commands
-static const uint8_t CMD_ENABLE_CONF = 0x00FF;
-static const uint8_t CMD_DISABLE_CONF = 0x00FE;
-static const uint8_t CMD_VERSION = 0x00A0;
-static const uint8_t CMD_MAC = 0x00A5;
-static const uint8_t CMD_RESET = 0x00A2;
-static const uint8_t CMD_RESTART = 0x00A3;
-static const uint8_t CMD_BLUETOOTH = 0x00A4;
-static const uint8_t CMD_SINGLE_TARGET_MODE = 0x0080;
-static const uint8_t CMD_MULTI_TARGET_MODE = 0x0090;
-static const uint8_t CMD_QUERY_TARGET_MODE = 0x0091;
-static const uint8_t CMD_SET_BAUD_RATE = 0x00A1;
-static const uint8_t CMD_QUERY_ZONE = 0x00C1;
-static const uint8_t CMD_SET_ZONE = 0x00C2;
+static const uint8_t CMD_ENABLE_CONF = 0xFF;
+static const uint8_t CMD_DISABLE_CONF = 0xFE;
+static const uint8_t CMD_VERSION = 0xA0;
+static const uint8_t CMD_MAC = 0xA5;
+static const uint8_t CMD_RESET = 0xA2;
+static const uint8_t CMD_RESTART = 0xA3;
+static const uint8_t CMD_BLUETOOTH = 0xA4;
+static const uint8_t CMD_SINGLE_TARGET_MODE = 0x80;
+static const uint8_t CMD_MULTI_TARGET_MODE = 0x90;
+static const uint8_t CMD_QUERY_TARGET_MODE = 0x91;
+static const uint8_t CMD_SET_BAUD_RATE = 0xA1;
+static const uint8_t CMD_QUERY_ZONE = 0xC1;
+static const uint8_t CMD_SET_ZONE = 0xC2;
 
 static inline uint16_t convert_seconds_to_ms(uint16_t value) { return value * 1000; };
 
@@ -720,7 +805,7 @@ void LD2450Component::set_bluetooth(bool enable) {
 // Set Baud rate
 void LD2450Component::set_baud_rate(const std::string &state) {
   this->set_config_mode_(true);
-  uint8_t cmd_value[2] = {BAUD_RATE_ENUM_TO_INT.at(state), 0x00};
+  uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, 2);
   this->set_timeout(200, [this]() { this->restart_(); });
 }
@@ -728,7 +813,7 @@ void LD2450Component::set_baud_rate(const std::string &state) {
 // Set Zone Type - one of: Disabled, Detection, Filter
 void LD2450Component::set_zone_type(const std::string &state) {
   ESP_LOGV(TAG, "Set zone type: %s", state.c_str());
-  uint8_t zone_type = ZONE_TYPE_ENUM_TO_INT.at(state);
+  uint8_t zone_type = find_uint8(ZONE_TYPE_BY_STR, state);
   this->zone_type_ = zone_type;
   this->send_set_zone_command_();
 }
@@ -736,7 +821,7 @@ void LD2450Component::set_zone_type(const std::string &state) {
 // Publish Zone Type to Select component
 void LD2450Component::publish_zone_type() {
 #ifdef USE_SELECT
-  std::string zone_type = ZONE_TYPE_INT_TO_ENUM.at(static_cast<ZoneTypeStructure>(this->zone_type_));
+  std::string zone_type = find_str(ZONE_TYPE_BY_UINT, this->zone_type_);
   if (this->zone_type_select_ != nullptr) {
     this->zone_type_select_->publish_state(zone_type);
   }
