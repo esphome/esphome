@@ -609,7 +609,7 @@ void PN7160::nci_fsm_transition_() {
       } else {
         this->nci_fsm_set_state_(NCIState::NFCC_INIT);
       }
-      // fall through
+      [[fallthrough]];
 
     case NCIState::NFCC_INIT:
       if (this->init_core_() != nfc::STATUS_OK) {
@@ -619,7 +619,7 @@ void PN7160::nci_fsm_transition_() {
       } else {
         this->nci_fsm_set_state_(NCIState::NFCC_CONFIG);
       }
-      // fall through
+      [[fallthrough]];
 
     case NCIState::NFCC_CONFIG:
       if (this->send_init_config_() != nfc::STATUS_OK) {
@@ -630,7 +630,7 @@ void PN7160::nci_fsm_transition_() {
         this->config_refresh_pending_ = false;
         this->nci_fsm_set_state_(NCIState::NFCC_SET_DISCOVER_MAP);
       }
-      // fall through
+      [[fallthrough]];
 
     case NCIState::NFCC_SET_DISCOVER_MAP:
       if (this->set_discover_map_() != nfc::STATUS_OK) {
@@ -640,7 +640,7 @@ void PN7160::nci_fsm_transition_() {
       } else {
         this->nci_fsm_set_state_(NCIState::NFCC_SET_LISTEN_MODE_ROUTING);
       }
-      // fall through
+      [[fallthrough]];
 
     case NCIState::NFCC_SET_LISTEN_MODE_ROUTING:
       if (this->set_listen_mode_routing_() != nfc::STATUS_OK) {
@@ -650,7 +650,7 @@ void PN7160::nci_fsm_transition_() {
       } else {
         this->nci_fsm_set_state_(NCIState::RFST_IDLE);
       }
-      // fall through
+      [[fallthrough]];
 
     case NCIState::RFST_IDLE:
       if (this->nci_state_error_ == NCIState::RFST_DISCOVERY) {
@@ -675,14 +675,14 @@ void PN7160::nci_fsm_transition_() {
 
     case NCIState::RFST_W4_HOST_SELECT:
       select_endpoint_();
-      // fall through
+      [[fallthrough]];
 
     // All cases below are waiting for NOTIFICATION messages
     case NCIState::RFST_DISCOVERY:
       if (this->config_refresh_pending_) {
         this->refresh_core_config_();
       }
-      // fall through
+      [[fallthrough]];
 
     case NCIState::RFST_LISTEN_ACTIVE:
     case NCIState::RFST_LISTEN_SLEEP:
