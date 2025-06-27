@@ -449,11 +449,7 @@ async def to_code(config):
     cg.add_define("USE_MICRO_WAKE_WORD")
     cg.add_define("USE_OTA_STATE_CALLBACK")
 
-    esp32.add_idf_component(
-        name="esp-tflite-micro",
-        repo="https://github.com/espressif/esp-tflite-micro",
-        ref="v1.3.3.1",
-    )
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
