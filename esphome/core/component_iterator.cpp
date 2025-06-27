@@ -375,7 +375,7 @@ void ComponentIterator::advance() {
   }
 
   if (advance_platform) {
-    this->state_ = static_cast<IteratorState>(static_cast<uint32_t>(this->state_) + 1);
+    this->state_ = static_cast<IteratorState>(static_cast<uint8_t>(this->state_) + 1);
     this->at_ = 0;
   } else if (success) {
     this->at_++;
