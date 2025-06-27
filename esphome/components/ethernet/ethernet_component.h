@@ -15,7 +15,7 @@
 namespace esphome {
 namespace ethernet {
 
-enum EthernetType {
+enum EthernetType : uint8_t {
   ETHERNET_TYPE_UNKNOWN = 0,
   ETHERNET_TYPE_LAN8720,
   ETHERNET_TYPE_RTL8201,
@@ -42,7 +42,7 @@ struct PHYRegister {
   uint32_t page;
 };
 
-enum class EthernetComponentState {
+enum class EthernetComponentState : uint8_t {
   STOPPED,
   CONNECTING,
   CONNECTED,
@@ -119,25 +119,31 @@ class EthernetComponent : public Component {
   uint32_t polling_interval_{0};
 #endif
 #else
-  uint8_t phy_addr_{0};
+  // Group all 32-bit members first
   int power_pin_{-1};
-  uint8_t mdc_pin_{23};
-  uint8_t mdio_pin_{18};
   emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
   emac_rmii_clock_gpio_t clk_gpio_{EMAC_CLK_IN_GPIO};
   std::vector<PHYRegister> phy_registers_{};
-#endif
-  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
-  optional<ManualIP> manual_ip_{};
 
+  // Group all 8-bit members together
+  uint8_t phy_addr_{0};
+  uint8_t mdc_pin_{23};
+  uint8_t mdio_pin_{18};
+#endif
+  optional<ManualIP> manual_ip_{};
+  uint32_t connect_begin_;
+
+  // Group all uint8_t types together (enums and bools)
+  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
+  EthernetComponentState state_{EthernetComponentState::STOPPED};
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
 #endif /* LWIP_IPV6 */
-  EthernetComponentState state_{EthernetComponentState::STOPPED};
-  uint32_t connect_begin_;
+
+  // Pointers at the end (naturally aligned)
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
