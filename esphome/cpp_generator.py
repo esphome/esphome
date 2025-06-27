@@ -617,7 +617,7 @@ def set_cpp_standard(standard: str) -> None:
     """Set C++ standard with compiler flag `-std={standard}`."""
     CORE.add_build_unflag("-std=gnu++11")
     CORE.add_build_unflag("-std=gnu++14")
-    CORE.add_build_unflag("-std=gnu++20")
+    CORE.add_build_unflag("-std=gnu++17")
     CORE.add_build_unflag("-std=gnu++23")
     CORE.add_build_unflag("-std=gnu++2a")
     CORE.add_build_unflag("-std=gnu++2b")
