@@ -610,7 +610,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                         CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
                     ): cv.boolean,
                     cv.Optional(
-                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=False
+                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=True
                     ): cv.boolean,
                     cv.Optional(
                         CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
@@ -770,7 +770,7 @@ async def to_code(config):
             and not advanced[CONF_ENABLE_LWIP_DHCP_SERVER]
         ):
             add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
-        if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, False):
+        if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, True):
             add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
         if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
             add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
