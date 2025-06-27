@@ -32,13 +32,13 @@ RUN /platformio_install_deps.py /platformio.ini --libraries
 ARG BUILD_VERSION
 
 LABEL \
-    org.opencontainers.image.authors="The ESPHome Authors" \
-    org.opencontainers.image.title="ESPHome" \
-    org.opencontainers.image.description="ESPHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems" \
+    org.opencontainers.image.authors="The ESPHome Authors, The JetHome Authors" \
+    org.opencontainers.image.title="ESPJHome" \
+    org.opencontainers.image.description="ESPJHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems" \
     org.opencontainers.image.url="https://esphome.io/" \
     org.opencontainers.image.documentation="https://esphome.io/" \
-    org.opencontainers.image.source="https://github.com/esphome/esphome" \
-    org.opencontainers.image.licenses="ESPHome" \
+    org.opencontainers.image.source="https://github.com/jethome-iot/esphome" \
+    org.opencontainers.image.licenses="ESPJHome" \
     org.opencontainers.image.version=${BUILD_VERSION}
 
 
@@ -72,8 +72,8 @@ COPY docker/ha-addon-rootfs/ /
 
 ARG BUILD_VERSION
 LABEL \
-    io.hass.name="ESPHome" \
-    io.hass.description="ESPHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems" \
+    io.hass.name="ESPJHome" \
+    io.hass.description="ESPJHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems" \
     io.hass.type="addon" \
     io.hass.version="${BUILD_VERSION}"
     # io.hass.arch is inherited from addon-debian-base
