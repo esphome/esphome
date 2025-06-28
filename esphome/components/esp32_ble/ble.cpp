@@ -1,7 +1,6 @@
 #ifdef USE_ESP32
 
 #include "ble.h"
-#include "ble_event_pool.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"

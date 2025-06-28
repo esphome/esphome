@@ -134,13 +134,13 @@ class BLEEvent {
   }
 
   // Destructor to clean up heap allocations
-  ~BLEEvent() { this->cleanup_heap_data(); }
+  ~BLEEvent() { this->release(); }
 
   // Default constructor for pre-allocation in pool
   BLEEvent() : type_(GAP) {}
 
-  // Clean up any heap-allocated data
-  void cleanup_heap_data() {
+  // Invoked on return to EventPool - clean up any heap-allocated data
+  void release() {
     if (this->type_ == GAP) {
       return;
     }
@@ -161,19 +161,19 @@ class BLEEvent {
 
   // Load new event data for reuse (replaces previous event data)
   void load_gap_event(esp_gap_ble_cb_event_t e, esp_ble_gap_cb_param_t *p) {
-    this->cleanup_heap_data();
+    this->release();
     this->type_ = GAP;
     this->init_gap_data_(e, p);
   }
 
   void load_gattc_event(esp_gattc_cb_event_t e, esp_gatt_if_t i, esp_ble_gattc_cb_param_t *p) {
-    this->cleanup_heap_data();
+    this->release();
     this->type_ = GATTC;
     this->init_gattc_data_(e, i, p);
   }
 
   void load_gatts_event(esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
-    this->cleanup_heap_data();
+    this->release();
     this->type_ = GATTS;
     this->init_gatts_data_(e, i, p);
   }
