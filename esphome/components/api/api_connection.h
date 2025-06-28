@@ -470,6 +470,10 @@ class APIConnection : public APIServerConnection {
   bool sent_ping_{false};
   bool service_call_subscription_{false};
   bool next_close_ = false;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  // When true, encode_message_to_buffer will only log, not encode
+  bool log_only_mode_{false};
+#endif
   uint8_t ping_retries_{0};
   // 8 bytes used, no padding needed
 
@@ -626,6 +630,10 @@ class APIConnection : public APIServerConnection {
 
   // State for batch buffer allocation
   bool batch_first_message_{false};
+
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void log_batch_item_(const DeferredBatch::BatchItem &item);
+#endif
 
   // Helper function to schedule a deferred message with known message type
   bool schedule_message_(EntityBase *entity, MessageCreator creator, uint16_t message_type) {

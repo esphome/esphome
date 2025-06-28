@@ -94,6 +94,19 @@ APIConnection::~APIConnection() {
 #endif
 }
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void APIConnection::log_batch_item_(const DeferredBatch::BatchItem &item) {
+  // Set log-only mode
+  this->log_only_mode_ = true;
+
+  // Call the creator - it will create the message and log it via encode_message_to_buffer
+  item.creator(item.entity, this, std::numeric_limits<uint16_t>::max(), true, item.message_type);
+
+  // Clear log-only mode
+  this->log_only_mode_ = false;
+}
+#endif
+
 void APIConnection::loop() {
   if (this->next_close_) {
     // requested a disconnect
@@ -249,6 +262,14 @@ void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
 // including header and footer overhead. Returns 0 if the message doesn't fit.
 uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint16_t message_type, APIConnection *conn,
                                                  uint32_t remaining_size, bool is_single) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  // If in log-only mode, just log and return
+  if (conn->log_only_mode_) {
+    conn->log_send_message_(msg.message_name(), msg.dump());
+    return 1;  // Return non-zero to indicate "success" for logging
+  }
+#endif
+
   // Calculate size
   uint32_t calculated_size = 0;
   msg.calculate_size(calculated_size);
@@ -275,11 +296,6 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint16_t mes
 
   // Encode directly into buffer
   msg.encode(buffer);
-
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  // Log the message for VV debugging
-  conn->log_send_message_(msg.message_name(), msg.dump());
-#endif
 
   // Calculate actual encoded size (not including header that was already added)
   size_t actual_payload_size = shared_buf.size() - size_before_encode;
@@ -1890,6 +1906,15 @@ void APIConnection::process_batch_() {
                api_error_to_str(err), errno);
     }
   }
+
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  // Log messages after send attempt for VV debugging
+  // It's safe to use the buffer for logging at this point regardless of send result
+  for (size_t i = 0; i < items_processed; i++) {
+    const auto &item = this->deferred_batch_.items[i];
+    this->log_batch_item_(item);
+  }
+#endif
 
   // Handle remaining items more efficiently
   if (items_processed < this->deferred_batch_.items.size()) {
