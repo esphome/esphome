@@ -4,9 +4,15 @@ import asyncio
 from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any
+import warnings
 
-from aioesphomeapi import APIClient, parse_log_message
-from aioesphomeapi.log_runner import async_run
+# Suppress protobuf version warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore", category=UserWarning, message=".*Protobuf gencode version.*"
+    )
+    from aioesphomeapi import APIClient, parse_log_message
+    from aioesphomeapi.log_runner import async_run
 
 from esphome.const import CONF_KEY, CONF_PASSWORD, CONF_PORT, __version__
 from esphome.core import CORE
