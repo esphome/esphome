@@ -65,10 +65,6 @@ uint32_t APIConnection::get_batch_delay_ms_() const { return this->parent_->get_
 void APIConnection::start() {
   this->last_traffic_ = App.get_loop_component_start_time();
 
-  // Set next_ping_retry_ to prevent immediate ping
-  // This ensures the first ping happens after the keepalive period
-  this->next_ping_retry_ = this->last_traffic_ + KEEPALIVE_TIMEOUT_MS;
-
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
     on_fatal_error();
@@ -176,20 +172,15 @@ void APIConnection::loop() {
       on_fatal_error();
       ESP_LOGW(TAG, "%s is unresponsive; disconnecting", this->get_client_combined_info().c_str());
     }
-  } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && now > this->next_ping_retry_) {
+  } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
     ESP_LOGVV(TAG, "Sending keepalive PING");
     this->sent_ping_ = this->send_message(PingRequest());
     if (!this->sent_ping_) {
-      this->next_ping_retry_ = now + PING_RETRY_INTERVAL;
-      this->ping_retries_++;
-      if (this->ping_retries_ >= MAX_PING_RETRIES) {
-        on_fatal_error();
-        ESP_LOGE(TAG, "%s: Ping failed %u times", this->get_client_combined_info().c_str(), this->ping_retries_);
-      } else if (this->ping_retries_ >= 10) {
-        ESP_LOGW(TAG, "%s: Ping retry %u", this->get_client_combined_info().c_str(), this->ping_retries_);
-      } else {
-        ESP_LOGD(TAG, "%s: Ping retry %u", this->get_client_combined_info().c_str(), this->ping_retries_);
-      }
+      // If we can't send the ping request directly (tx_buffer full),
+      // schedule it at the front of the batch so it will be sent with priority
+      ESP_LOGW(TAG, "Buffer full, ping queued");
+      this->schedule_message_front_(nullptr, &APIConnection::try_send_ping_request, PingRequest::MESSAGE_TYPE);
+      this->sent_ping_ = true;  // Mark as sent to avoid scheduling multiple pings
     }
   }
 
@@ -1773,6 +1764,11 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   items.emplace_back(entity, std::move(creator), message_type);
 }
 
+void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCreator creator, uint16_t message_type) {
+  // Insert at front for high priority messages (no deduplication check)
+  items.insert(items.begin(), BatchItem(entity, std::move(creator), message_type));
+}
+
 bool APIConnection::schedule_batch_() {
   if (!this->deferred_batch_.batch_scheduled) {
     this->deferred_batch_.batch_scheduled = true;
@@ -1961,6 +1957,12 @@ uint16_t APIConnection::try_send_disconnect_request(EntityBase *entity, APIConne
                                                     bool is_single) {
   DisconnectRequest req;
   return encode_message_to_buffer(req, DisconnectRequest::MESSAGE_TYPE, conn, remaining_size, is_single);
+}
+
+uint16_t APIConnection::try_send_ping_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                              bool is_single) {
+  PingRequest req;
+  return encode_message_to_buffer(req, PingRequest::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
 uint16_t APIConnection::get_estimated_message_size(uint16_t message_type) {
