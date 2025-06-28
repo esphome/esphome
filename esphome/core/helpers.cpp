@@ -76,23 +76,8 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
                                                0x9188, 0x83b9, 0xb5ea, 0xa7db, 0xd94c, 0xcb7d, 0xfd2e, 0xef1f};
 #endif
 
-// STL backports
-
-#if _GLIBCXX_RELEASE < 8
-std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
-std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
-std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
-std::string to_string(unsigned value) { return str_snprintf("%u", 32, value); }              // NOLINT
-std::string to_string(unsigned long value) { return str_snprintf("%lu", 32, value); }        // NOLINT
-std::string to_string(unsigned long long value) { return str_snprintf("%llu", 32, value); }  // NOLINT
-std::string to_string(float value) { return str_snprintf("%f", 32, value); }
-std::string to_string(double value) { return str_snprintf("%f", 32, value); }
-std::string to_string(long double value) { return str_snprintf("%Lf", 32, value); }
-#endif
-
 // Mathematics
 
-float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 uint8_t crc8(const uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
