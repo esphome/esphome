@@ -54,7 +54,7 @@ jobs:
 
   deploy-pypi:
     name: Build and publish to PyPi
-    if: github.repository == 'esphome/esphome' && github.event_name == 'release'
+    if: github.repository == 'jethome-iot/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -76,7 +76,7 @@ jobs:
 
   deploy-docker:
     name: Build ESPHome ${{ matrix.platform.arch }}
-    if: github.repository == 'esphome/esphome'
+    if: github.repository == 'jethome-iot/esphome'
     permissions:
       contents: read
       packages: write
@@ -104,8 +104,10 @@ jobs:
       - name: Log in to docker hub
         uses: docker/login-action@v3.4.0
         with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: cr.jethome.work
+          username: ${{ secrets.CR_USER }}
+          password: ${{ secrets.CR_TOKEN }}
+
       - name: Log in to the GitHub container registry
         uses: docker/login-action@v3.4.0
         with:

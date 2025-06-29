@@ -3,12 +3,13 @@ requires = ["setuptools==80.9.0", "wheel>=0.43,<0.46"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name        = "esphome"
+name        = "espjhome"
 license     = {text = "MIT"}
-description = "ESPHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems."
+description = "ESPJHome is fork of ESPHome which is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems. Extended by JetHome"
 readme      = "README.md"
 authors     = [
-  {name = "The ESPHome Authors", email = "esphome@openhomefoundation.org"}
+  {name = "The ESPHome Authors", email = "esphome@openhomefoundation.org"},
+  {name = "The JetHome Authors", email = "dev@jethome.com"}
 ]
 keywords    = ["home", "automation"]
 classifiers = [
@@ -26,14 +27,12 @@ dynamic = ["dependencies", "optional-dependencies", "version"]
 
 [project.urls]
 "Documentation"           = "https://esphome.io"
-"Source Code"             = "https://github.com/esphome/esphome"
-"Bug Tracker"             = "https://github.com/esphome/issues/issues"
-"Feature Request Tracker" = "https://github.com/esphome/feature-requests/issues"
-"Discord"                 = "https://discord.gg/KhAMKrd"
-"Forum"                   = "https://community.home-assistant.io/c/esphome"
-"Twitter"                 = "https://twitter.com/esphome_"
+"Source Code"             = "https://github.com/jethome-iot/esphome"
+"Bug Tracker"             = "https://github.com/jethome-iot/esphome/issues"
+"Feature Request Tracker" = "https://github.com/jethome-iot/esphome/issues"
 
 [project.scripts]
+espjhome = "esphome.__main__:main"
 esphome = "esphome.__main__:main"
 
 [tool.setuptools]

@@ -61,8 +61,8 @@ class DockerParams:
     @classmethod
     def for_type_arch(cls, build_type, arch):
         prefix = {
-            TYPE_DOCKER: "esphome/esphome",
-            TYPE_HA_ADDON: "esphome/esphome-hassio",
+            TYPE_DOCKER: "jethome-iot/espjhome",
+            TYPE_HA_ADDON: "jethome-iot/espjhome-hassio",
             TYPE_LINT: "esphome/esphome-lint",
         }[build_type]
         build_to = f"{prefix}-{arch}"
@@ -131,7 +131,7 @@ def main():
         }[channel]
         cache_img = f"ghcr.io/{params.build_to}:{cache_tag}"
 
-        imgs = [f"{params.build_to}:{tag}" for tag in tags_to_push]
+        imgs = [f"cr.jethome.work/{params.build_to}:{tag}" for tag in tags_to_push]
         imgs += [f"ghcr.io/{params.build_to}:{tag}" for tag in tags_to_push]
 
         # 3. build
@@ -163,7 +163,7 @@ def main():
     elif args.command == "manifest":
         manifest = DockerParams.for_type_arch(args.build_type, ARCH_AMD64).manifest_to
 
-        targets = [f"{manifest}:{tag}" for tag in tags_to_push]
+        targets = [f"cr.jethome.work/{manifest}:{tag}" for tag in tags_to_push]
         targets += [f"ghcr.io/{manifest}:{tag}" for tag in tags_to_push]
         # 1. Create manifests
         for target in targets:
@@ -172,6 +172,8 @@ def main():
                 src = f"{DockerParams.for_type_arch(args.build_type, arch).build_to}:{args.tag}"
                 if target.startswith("ghcr.io"):
                     src = f"ghcr.io/{src}"
+                if target.startswith("cr.jethome.work"):
+                    src = f"cr.jethome.work/{src}"
                 cmd.append(src)
             run_command(*cmd)
         # 2. Push manifests

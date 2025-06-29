@@ -71,7 +71,7 @@ runs:
         digest="${{ steps.build-ghcr.outputs.digest }}"
         touch "/tmp/digests/${{ inputs.build_type }}/ghcr/${digest#sha256:}"
 
-    - name: Build and push to dockerhub by digest
+    - name: Build and push to jhcr by digest
       id: build-dockerhub
       uses: docker/build-push-action@v6.18.0
       env:
@@ -88,7 +88,7 @@ runs:
           BUILD_VERSION=${{ inputs.version }}
           BUILD_OS=${{ inputs.base_os }}
         outputs: |
-          type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
+          type=image,name=cr.jethome.work/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
     - name: Export dockerhub digests
       shell: bash

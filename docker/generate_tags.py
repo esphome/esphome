@@ -8,6 +8,7 @@ CHANNEL_RELEASE = "release"
 
 GHCR = "ghcr"
 DOCKERHUB = "dockerhub"
+CR = "jhcr"
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -25,7 +26,7 @@ parser.add_argument(
 parser.add_argument(
     "--registry",
     type=str,
-    choices=[GHCR, DOCKERHUB],
+    choices=[GHCR, CR],
     required=False,
     action="append",
     help="The registry to build tags for.",
@@ -64,17 +65,19 @@ def main():
 
     suffix = f"-{args.suffix}" if args.suffix else ""
 
-    image_name = f"esphome/esphome{suffix}"
+    image_name = f"jethome-iot/espjhome{suffix}"
 
     print(f"channel={channel}")
 
     if args.registry is None:
-        args.registry = [GHCR, DOCKERHUB]
+        args.registry = [GHCR, CR]
     elif len(args.registry) == 1:
         if GHCR in args.registry:
             print(f"image=ghcr.io/{image_name}")
         if DOCKERHUB in args.registry:
             print(f"image=docker.io/{image_name}")
+        if CR in args.registry:
+            print(f"image=cr.jethome.work/{image_name}")
 
     print(f"image_name={image_name}")
 
@@ -85,6 +88,8 @@ def main():
             full_tags += [f"ghcr.io/{image_name}:{tag}"]
         if DOCKERHUB in args.registry:
             full_tags += [f"docker.io/{image_name}:{tag}"]
+        if CR in args.registry:
+            full_tags += [f"cr.jethome.work/{image_name}:{tag}"]
     print(f"tags={','.join(full_tags)}")
 
 
