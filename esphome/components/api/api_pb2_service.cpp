@@ -14,7 +14,7 @@ void APIServerConnectionBase::log_send_message_(const char *name, const std::str
 }
 #endif
 
-bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
+void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
       HelloRequest msg;
@@ -106,50 +106,50 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_subscribe_logs_request(msg);
       break;
     }
-    case 30: {
 #ifdef USE_COVER
+    case 30: {
       CoverCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_cover_command_request: %s", msg.dump().c_str());
 #endif
       this->on_cover_command_request(msg);
-#endif
       break;
     }
-    case 31: {
+#endif
 #ifdef USE_FAN
+    case 31: {
       FanCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_fan_command_request: %s", msg.dump().c_str());
 #endif
       this->on_fan_command_request(msg);
-#endif
       break;
     }
-    case 32: {
+#endif
 #ifdef USE_LIGHT
+    case 32: {
       LightCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_light_command_request: %s", msg.dump().c_str());
 #endif
       this->on_light_command_request(msg);
-#endif
       break;
     }
-    case 33: {
+#endif
 #ifdef USE_SWITCH
+    case 33: {
       SwitchCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_switch_command_request: %s", msg.dump().c_str());
 #endif
       this->on_switch_command_request(msg);
-#endif
       break;
     }
+#endif
     case 34: {
       SubscribeHomeassistantServicesRequest msg;
       msg.decode(msg_data, msg_size);
@@ -204,395 +204,394 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_execute_service_request(msg);
       break;
     }
-    case 45: {
 #ifdef USE_ESP32_CAMERA
+    case 45: {
       CameraImageRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_camera_image_request: %s", msg.dump().c_str());
 #endif
       this->on_camera_image_request(msg);
-#endif
       break;
     }
-    case 48: {
+#endif
 #ifdef USE_CLIMATE
+    case 48: {
       ClimateCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_climate_command_request: %s", msg.dump().c_str());
 #endif
       this->on_climate_command_request(msg);
-#endif
       break;
     }
-    case 51: {
+#endif
 #ifdef USE_NUMBER
+    case 51: {
       NumberCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_number_command_request: %s", msg.dump().c_str());
 #endif
       this->on_number_command_request(msg);
-#endif
       break;
     }
-    case 54: {
+#endif
 #ifdef USE_SELECT
+    case 54: {
       SelectCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_select_command_request: %s", msg.dump().c_str());
 #endif
       this->on_select_command_request(msg);
-#endif
       break;
     }
-    case 57: {
+#endif
 #ifdef USE_SIREN
+    case 57: {
       SirenCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_siren_command_request: %s", msg.dump().c_str());
 #endif
       this->on_siren_command_request(msg);
-#endif
       break;
     }
-    case 60: {
+#endif
 #ifdef USE_LOCK
+    case 60: {
       LockCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_lock_command_request: %s", msg.dump().c_str());
 #endif
       this->on_lock_command_request(msg);
-#endif
       break;
     }
-    case 62: {
+#endif
 #ifdef USE_BUTTON
+    case 62: {
       ButtonCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_button_command_request: %s", msg.dump().c_str());
 #endif
       this->on_button_command_request(msg);
-#endif
       break;
     }
-    case 65: {
+#endif
 #ifdef USE_MEDIA_PLAYER
+    case 65: {
       MediaPlayerCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_media_player_command_request: %s", msg.dump().c_str());
 #endif
       this->on_media_player_command_request(msg);
-#endif
       break;
     }
-    case 66: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 66: {
       SubscribeBluetoothLEAdvertisementsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_subscribe_bluetooth_le_advertisements_request: %s", msg.dump().c_str());
 #endif
       this->on_subscribe_bluetooth_le_advertisements_request(msg);
-#endif
       break;
     }
-    case 68: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 68: {
       BluetoothDeviceRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_device_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_device_request(msg);
-#endif
       break;
     }
-    case 70: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 70: {
       BluetoothGATTGetServicesRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_gatt_get_services_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_gatt_get_services_request(msg);
-#endif
       break;
     }
-    case 73: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 73: {
       BluetoothGATTReadRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_gatt_read_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_gatt_read_request(msg);
-#endif
       break;
     }
-    case 75: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 75: {
       BluetoothGATTWriteRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_gatt_write_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_gatt_write_request(msg);
-#endif
       break;
     }
-    case 76: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 76: {
       BluetoothGATTReadDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_gatt_read_descriptor_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_gatt_read_descriptor_request(msg);
-#endif
       break;
     }
-    case 77: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 77: {
       BluetoothGATTWriteDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_gatt_write_descriptor_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_gatt_write_descriptor_request(msg);
-#endif
       break;
     }
-    case 78: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 78: {
       BluetoothGATTNotifyRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_gatt_notify_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_gatt_notify_request(msg);
-#endif
       break;
     }
-    case 80: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 80: {
       SubscribeBluetoothConnectionsFreeRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_subscribe_bluetooth_connections_free_request: %s", msg.dump().c_str());
 #endif
       this->on_subscribe_bluetooth_connections_free_request(msg);
-#endif
       break;
     }
-    case 87: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 87: {
       UnsubscribeBluetoothLEAdvertisementsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_unsubscribe_bluetooth_le_advertisements_request: %s", msg.dump().c_str());
 #endif
       this->on_unsubscribe_bluetooth_le_advertisements_request(msg);
-#endif
       break;
     }
-    case 89: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 89: {
       SubscribeVoiceAssistantRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_subscribe_voice_assistant_request: %s", msg.dump().c_str());
 #endif
       this->on_subscribe_voice_assistant_request(msg);
-#endif
       break;
     }
-    case 91: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 91: {
       VoiceAssistantResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_response: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_response(msg);
-#endif
       break;
     }
-    case 92: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 92: {
       VoiceAssistantEventResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_event_response: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_event_response(msg);
-#endif
       break;
     }
-    case 96: {
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
+    case 96: {
       AlarmControlPanelCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_alarm_control_panel_command_request: %s", msg.dump().c_str());
 #endif
       this->on_alarm_control_panel_command_request(msg);
-#endif
       break;
     }
-    case 99: {
+#endif
 #ifdef USE_TEXT
+    case 99: {
       TextCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_text_command_request: %s", msg.dump().c_str());
 #endif
       this->on_text_command_request(msg);
-#endif
       break;
     }
-    case 102: {
+#endif
 #ifdef USE_DATETIME_DATE
+    case 102: {
       DateCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_date_command_request: %s", msg.dump().c_str());
 #endif
       this->on_date_command_request(msg);
-#endif
       break;
     }
-    case 105: {
+#endif
 #ifdef USE_DATETIME_TIME
+    case 105: {
       TimeCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_time_command_request: %s", msg.dump().c_str());
 #endif
       this->on_time_command_request(msg);
-#endif
       break;
     }
-    case 106: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 106: {
       VoiceAssistantAudio msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_audio: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_audio(msg);
-#endif
       break;
     }
-    case 111: {
+#endif
 #ifdef USE_VALVE
+    case 111: {
       ValveCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_valve_command_request: %s", msg.dump().c_str());
 #endif
       this->on_valve_command_request(msg);
-#endif
       break;
     }
-    case 114: {
+#endif
 #ifdef USE_DATETIME_DATETIME
+    case 114: {
       DateTimeCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_date_time_command_request: %s", msg.dump().c_str());
 #endif
       this->on_date_time_command_request(msg);
-#endif
       break;
     }
-    case 115: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 115: {
       VoiceAssistantTimerEventResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_timer_event_response: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_timer_event_response(msg);
-#endif
       break;
     }
-    case 118: {
+#endif
 #ifdef USE_UPDATE
+    case 118: {
       UpdateCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_update_command_request: %s", msg.dump().c_str());
 #endif
       this->on_update_command_request(msg);
-#endif
       break;
     }
-    case 119: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 119: {
       VoiceAssistantAnnounceRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_announce_request: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_announce_request(msg);
-#endif
       break;
     }
-    case 121: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 121: {
       VoiceAssistantConfigurationRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_configuration_request: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_configuration_request(msg);
-#endif
       break;
     }
-    case 123: {
+#endif
 #ifdef USE_VOICE_ASSISTANT
+    case 123: {
       VoiceAssistantSetConfiguration msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_set_configuration: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_set_configuration(msg);
-#endif
       break;
     }
-    case 124: {
+#endif
 #ifdef USE_API_NOISE
+    case 124: {
       NoiseEncryptionSetKeyRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_noise_encryption_set_key_request: %s", msg.dump().c_str());
 #endif
       this->on_noise_encryption_set_key_request(msg);
-#endif
       break;
     }
-    case 127: {
+#endif
 #ifdef USE_BLUETOOTH_PROXY
+    case 127: {
       BluetoothScannerSetModeRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_bluetooth_scanner_set_mode_request: %s", msg.dump().c_str());
 #endif
       this->on_bluetooth_scanner_set_mode_request(msg);
-#endif
       break;
     }
+#endif
     default:
-      return false;
+      break;
   }
-  return true;
 }
 
 void APIServerConnection::on_hello_request(const HelloRequest &msg) {

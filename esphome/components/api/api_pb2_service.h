@@ -199,7 +199,7 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_update_command_request(const UpdateCommandRequest &value){};
 #endif
  protected:
-  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
+  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
 class APIServerConnection : public APIServerConnectionBase {
