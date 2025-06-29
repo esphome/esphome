@@ -35,8 +35,8 @@ async def async_run_logs(config: dict[str, Any], address: str) -> None:
     port: int = int(conf[CONF_PORT])
     password: str = conf[CONF_PASSWORD]
     noise_psk: str | None = None
-    if CONF_ENCRYPTION in conf:
-        noise_psk = conf[CONF_ENCRYPTION][CONF_KEY]
+    if (encryption := conf.get(CONF_ENCRYPTION)) and (key := encryption.get(CONF_KEY)):
+        noise_psk = key
     _LOGGER.info("Starting log output from %s using esphome API", address)
     cli = APIClient(
         address,
