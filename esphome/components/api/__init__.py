@@ -110,9 +110,10 @@ CONFIG_SCHEMA = cv.All(
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): _encryption_schema,
-            cv.Optional(
-                CONF_BATCH_DELAY, default="100ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+            ),
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),

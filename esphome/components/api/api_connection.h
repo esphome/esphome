@@ -107,7 +107,7 @@ class APIConnection : public APIServerConnection {
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line);
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
-    if (!this->service_call_subscription_)
+    if (!this->flags_.service_call_subscription)
       return;
     this->send_message(call);
   }
@@ -164,7 +164,7 @@ class APIConnection : public APIServerConnection {
   void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
-    this->sent_ping_ = false;
+    this->flags_.sent_ping = false;
   }
   void on_home_assistant_state_response(const HomeAssistantStateResponse &msg) override;
 #ifdef USE_HOMEASSISTANT_TIME
@@ -177,16 +177,16 @@ class APIConnection : public APIServerConnection {
   DeviceInfoResponse device_info(const DeviceInfoRequest &msg) override;
   void list_entities(const ListEntitiesRequest &msg) override { this->list_entities_iterator_.begin(); }
   void subscribe_states(const SubscribeStatesRequest &msg) override {
-    this->state_subscription_ = true;
+    this->flags_.state_subscription = true;
     this->initial_state_iterator_.begin();
   }
   void subscribe_logs(const SubscribeLogsRequest &msg) override {
-    this->log_subscription_ = msg.level;
+    this->flags_.log_subscription = msg.level;
     if (msg.dump_config)
       App.schedule_dump_config();
   }
   void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) override {
-    this->service_call_subscription_ = true;
+    this->flags_.service_call_subscription = true;
   }
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
   GetTimeResponse get_time(const GetTimeRequest &msg) override {
@@ -198,9 +198,12 @@ class APIConnection : public APIServerConnection {
   NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) override;
 #endif
 
-  bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
+  bool is_authenticated() override {
+    return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
+  }
   bool is_connection_setup() override {
-    return this->connection_state_ == ConnectionState ::CONNECTED || this->is_authenticated();
+    return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
+           this->is_authenticated();
   }
   void on_fatal_error() override;
   void on_unauthenticated_access() override;
@@ -423,48 +426,27 @@ class APIConnection : public APIServerConnection {
   static uint16_t try_send_ping_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                         bool is_single);
 
-  // Pointers first (4 bytes each, naturally aligned)
+  // === Optimal member ordering for 32-bit systems ===
+
+  // Group 1: Pointers (4 bytes each on 32-bit)
   std::unique_ptr<APIFrameHelper> helper_;
   APIServer *parent_;
 
-  // 4-byte aligned types
-  uint32_t last_traffic_;
-  int state_subs_at_ = -1;
-
-  // Strings (12 bytes each on 32-bit)
-  std::string client_info_;
-  std::string client_peername_;
-
-  // 2-byte aligned types
-  uint16_t client_api_version_major_{0};
-  uint16_t client_api_version_minor_{0};
-
-  // Group all 1-byte types together to minimize padding
-  enum class ConnectionState : uint8_t {
-    WAITING_FOR_HELLO,
-    CONNECTED,
-    AUTHENTICATED,
-  } connection_state_{ConnectionState::WAITING_FOR_HELLO};
-  uint8_t log_subscription_{ESPHOME_LOG_LEVEL_NONE};
-  bool remove_{false};
-  bool state_subscription_{false};
-  bool sent_ping_{false};
-  bool service_call_subscription_{false};
-  bool next_close_ = false;
-  // 7 bytes used, 1 byte padding
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  // When true, encode_message_to_buffer will only log, not encode
-  bool log_only_mode_{false};
-#endif
-  uint8_t ping_retries_{0};
-  // 8 bytes used, no padding needed
-
-  // Larger objects at the end
+  // Group 2: Larger objects (must be 4-byte aligned)
+  // These contain vectors/pointers internally, so putting them early ensures good alignment
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;
 #ifdef USE_ESP32_CAMERA
   esp32_camera::CameraImageReader image_reader_;
 #endif
+
+  // Group 3: Strings (12 bytes each on 32-bit, 4-byte aligned)
+  std::string client_info_;
+  std::string client_peername_;
+
+  // Group 4: 4-byte types
+  uint32_t last_traffic_;
+  int state_subs_at_ = -1;
 
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size, bool is_single);
@@ -575,7 +557,6 @@ class APIConnection : public APIServerConnection {
 
     std::vector<BatchItem> items;
     uint32_t batch_start_time{0};
-    bool batch_scheduled{false};
 
     DeferredBatch() {
       // Pre-allocate capacity for typical batch sizes to avoid reallocation
@@ -588,13 +569,47 @@ class APIConnection : public APIServerConnection {
     void add_item_front(EntityBase *entity, MessageCreator creator, uint16_t message_type);
     void clear() {
       items.clear();
-      batch_scheduled = false;
       batch_start_time = 0;
     }
     bool empty() const { return items.empty(); }
   };
 
+  // DeferredBatch here (16 bytes, 4-byte aligned)
   DeferredBatch deferred_batch_;
+
+  // ConnectionState enum for type safety
+  enum class ConnectionState : uint8_t {
+    WAITING_FOR_HELLO = 0,
+    CONNECTED = 1,
+    AUTHENTICATED = 2,
+  };
+
+  // Group 5: Pack all small members together to minimize padding
+  // This group starts at a 4-byte boundary after DeferredBatch
+  struct APIFlags {
+    // Connection state only needs 2 bits (3 states)
+    uint8_t connection_state : 2;
+    // Log subscription needs 3 bits (log levels 0-7)
+    uint8_t log_subscription : 3;
+    // Boolean flags (1 bit each)
+    uint8_t remove : 1;
+    uint8_t state_subscription : 1;
+    uint8_t sent_ping : 1;
+
+    uint8_t service_call_subscription : 1;
+    uint8_t next_close : 1;
+    uint8_t batch_scheduled : 1;
+    uint8_t batch_first_message : 1;  // For batch buffer allocation
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    uint8_t log_only_mode : 1;
+#endif
+  } flags_{};  // 2 bytes total
+
+  // 2-byte types immediately after flags_ (no padding between them)
+  uint16_t client_api_version_major_{0};
+  uint16_t client_api_version_minor_{0};
+  // Total: 2 (flags) + 2 + 2 = 6 bytes, then 2 bytes padding to next 4-byte boundary
+
   uint32_t get_batch_delay_ms_() const;
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
@@ -611,9 +626,6 @@ class APIConnection : public APIServerConnection {
 
   bool schedule_batch_();
   void process_batch_();
-
-  // State for batch buffer allocation
-  bool batch_first_message_{false};
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void log_batch_item_(const DeferredBatch::BatchItem &item);

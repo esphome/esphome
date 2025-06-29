@@ -93,21 +93,21 @@ APIConnection::~APIConnection() {
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void APIConnection::log_batch_item_(const DeferredBatch::BatchItem &item) {
   // Set log-only mode
-  this->log_only_mode_ = true;
+  this->flags_.log_only_mode = true;
 
   // Call the creator - it will create the message and log it via encode_message_to_buffer
   item.creator(item.entity, this, std::numeric_limits<uint16_t>::max(), true, item.message_type);
 
   // Clear log-only mode
-  this->log_only_mode_ = false;
+  this->flags_.log_only_mode = false;
 }
 #endif
 
 void APIConnection::loop() {
-  if (this->next_close_) {
+  if (this->flags_.next_close) {
     // requested a disconnect
     this->helper_->close();
-    this->remove_ = true;
+    this->flags_.remove = true;
     return;
   }
 
@@ -148,15 +148,14 @@ void APIConnection::loop() {
         } else {
           this->read_message(0, buffer.type, nullptr);
         }
-        if (this->remove_)
+        if (this->flags_.remove)
           return;
       }
     }
   }
 
   // Process deferred batch if scheduled
-  if (this->deferred_batch_.batch_scheduled &&
-      now - this->deferred_batch_.batch_start_time >= this->get_batch_delay_ms_()) {
+  if (this->flags_.batch_scheduled && now - this->deferred_batch_.batch_start_time >= this->get_batch_delay_ms_()) {
     this->process_batch_();
   }
 
@@ -166,7 +165,7 @@ void APIConnection::loop() {
     this->initial_state_iterator_.advance();
   }
 
-  if (this->sent_ping_) {
+  if (this->flags_.sent_ping) {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
@@ -174,13 +173,13 @@ void APIConnection::loop() {
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
     ESP_LOGVV(TAG, "Sending keepalive PING");
-    this->sent_ping_ = this->send_message(PingRequest());
-    if (!this->sent_ping_) {
+    this->flags_.sent_ping = this->send_message(PingRequest());
+    if (!this->flags_.sent_ping) {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       ESP_LOGW(TAG, "Buffer full, ping queued");
       this->schedule_message_front_(nullptr, &APIConnection::try_send_ping_request, PingRequest::MESSAGE_TYPE);
-      this->sent_ping_ = true;  // Mark as sent to avoid scheduling multiple pings
+      this->flags_.sent_ping = true;  // Mark as sent to avoid scheduling multiple pings
     }
   }
 
@@ -240,13 +239,13 @@ DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
   ESP_LOGD(TAG, "%s disconnected", this->get_client_combined_info().c_str());
-  this->next_close_ = true;
+  this->flags_.next_close = true;
   DisconnectResponse resp;
   return resp;
 }
 void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
   this->helper_->close();
-  this->remove_ = true;
+  this->flags_.remove = true;
 }
 
 // Encodes a message to the buffer and returns the total number of bytes used,
@@ -255,7 +254,7 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint16_t mes
                                                  uint32_t remaining_size, bool is_single) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   // If in log-only mode, just log and return
-  if (conn->log_only_mode_) {
+  if (conn->flags_.log_only_mode) {
     conn->log_send_message_(msg.message_name(), msg.dump());
     return 1;  // Return non-zero to indicate "success" for logging
   }
@@ -1118,7 +1117,7 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
 
 #ifdef USE_ESP32_CAMERA
 void APIConnection::set_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
-  if (!this->state_subscription_)
+  if (!this->flags_.state_subscription)
     return;
   if (this->image_reader_.available())
     return;
@@ -1459,7 +1458,7 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
 #endif
 
 bool APIConnection::try_send_log_message(int level, const char *tag, const char *line) {
-  if (this->log_subscription_ < level)
+  if (this->flags_.log_subscription < level)
     return false;
 
   // Pre-calculate message size to avoid reallocations
@@ -1500,7 +1499,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
-  this->connection_state_ = ConnectionState::CONNECTED;
+  this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::CONNECTED);
   return resp;
 }
 ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
@@ -1511,7 +1510,7 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   resp.invalid_password = !correct;
   if (correct) {
     ESP_LOGD(TAG, "%s connected", this->get_client_combined_info().c_str());
-    this->connection_state_ = ConnectionState::AUTHENTICATED;
+    this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
     this->parent_->get_client_connected_trigger()->trigger(this->client_info_, this->client_peername_);
 #ifdef USE_HOMEASSISTANT_TIME
     if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1625,7 +1624,7 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
   state_subs_at_ = 0;
 }
 bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
-  if (this->remove_)
+  if (this->flags_.remove)
     return false;
   if (this->helper_->can_write_without_blocking())
     return true;
@@ -1675,7 +1674,7 @@ void APIConnection::on_no_setup_connection() {
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();
-  this->remove_ = true;
+  this->flags_.remove = true;
 }
 
 void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator creator, uint16_t message_type) {
@@ -1700,8 +1699,8 @@ void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCre
 }
 
 bool APIConnection::schedule_batch_() {
-  if (!this->deferred_batch_.batch_scheduled) {
-    this->deferred_batch_.batch_scheduled = true;
+  if (!this->flags_.batch_scheduled) {
+    this->flags_.batch_scheduled = true;
     this->deferred_batch_.batch_start_time = App.get_loop_component_start_time();
   }
   return true;
@@ -1710,14 +1709,14 @@ bool APIConnection::schedule_batch_() {
 ProtoWriteBuffer APIConnection::allocate_single_message_buffer(uint16_t size) { return this->create_buffer(size); }
 
 ProtoWriteBuffer APIConnection::allocate_batch_message_buffer(uint16_t size) {
-  ProtoWriteBuffer result = this->prepare_message_buffer(size, this->batch_first_message_);
-  this->batch_first_message_ = false;
+  ProtoWriteBuffer result = this->prepare_message_buffer(size, this->flags_.batch_first_message);
+  this->flags_.batch_first_message = false;
   return result;
 }
 
 void APIConnection::process_batch_() {
   if (this->deferred_batch_.empty()) {
-    this->deferred_batch_.batch_scheduled = false;
+    this->flags_.batch_scheduled = false;
     return;
   }
 
@@ -1770,7 +1769,7 @@ void APIConnection::process_batch_() {
 
   // Reserve based on estimated size (much more accurate than 24-byte worst-case)
   this->parent_->get_shared_buffer_ref().reserve(total_estimated_size + total_overhead);
-  this->batch_first_message_ = true;
+  this->flags_.batch_first_message = true;
 
   size_t items_processed = 0;
   uint16_t remaining_size = std::numeric_limits<uint16_t>::max();

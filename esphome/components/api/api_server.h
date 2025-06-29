@@ -40,8 +40,8 @@ class APIServer : public Component, public Controller {
   void set_port(uint16_t port);
   void set_password(const std::string &password);
   void set_reboot_timeout(uint32_t reboot_timeout);
-  void set_batch_delay(uint32_t batch_delay);
-  uint32_t get_batch_delay() const { return batch_delay_; }
+  void set_batch_delay(uint16_t batch_delay);
+  uint16_t get_batch_delay() const { return batch_delay_; }
 
   // Get reference to shared buffer for API connections
   std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -150,7 +150,6 @@ class APIServer : public Component, public Controller {
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
-  uint32_t batch_delay_{100};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
@@ -161,8 +160,9 @@ class APIServer : public Component, public Controller {
 
   // Group smaller types together
   uint16_t port_{6053};
+  uint16_t batch_delay_{100};
   bool shutting_down_ = false;
-  // 3 bytes used, 1 byte padding
+  // 5 bytes used, 3 bytes padding
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
