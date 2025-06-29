@@ -42,7 +42,7 @@ uart_config_t IDFUARTComponent::get_config_() {
       break;
   }
 
-  uart_config_t uart_config;
+  uart_config_t uart_config{};
   uart_config.baud_rate = this->baud_rate_;
   uart_config.data_bits = data_bits;
   uart_config.parity = parity;
