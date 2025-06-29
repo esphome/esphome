@@ -22,6 +22,7 @@ static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 class APIConnection : public APIServerConnection {
  public:
   friend class APIServer;
+  friend class ListEntitiesIterator;
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
   virtual ~APIConnection();
 
@@ -34,93 +35,74 @@ class APIConnection : public APIServerConnection {
   }
 #ifdef USE_BINARY_SENSOR
   bool send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor);
-  void send_binary_sensor_info(binary_sensor::BinarySensor *binary_sensor);
 #endif
 #ifdef USE_COVER
   bool send_cover_state(cover::Cover *cover);
-  void send_cover_info(cover::Cover *cover);
   void cover_command(const CoverCommandRequest &msg) override;
 #endif
 #ifdef USE_FAN
   bool send_fan_state(fan::Fan *fan);
-  void send_fan_info(fan::Fan *fan);
   void fan_command(const FanCommandRequest &msg) override;
 #endif
 #ifdef USE_LIGHT
   bool send_light_state(light::LightState *light);
-  void send_light_info(light::LightState *light);
   void light_command(const LightCommandRequest &msg) override;
 #endif
 #ifdef USE_SENSOR
   bool send_sensor_state(sensor::Sensor *sensor);
-  void send_sensor_info(sensor::Sensor *sensor);
 #endif
 #ifdef USE_SWITCH
   bool send_switch_state(switch_::Switch *a_switch);
-  void send_switch_info(switch_::Switch *a_switch);
   void switch_command(const SwitchCommandRequest &msg) override;
 #endif
 #ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state(text_sensor::TextSensor *text_sensor);
-  void send_text_sensor_info(text_sensor::TextSensor *text_sensor);
 #endif
 #ifdef USE_ESP32_CAMERA
   void set_camera_state(std::shared_ptr<esp32_camera::CameraImage> image);
-  void send_camera_info(esp32_camera::ESP32Camera *camera);
   void camera_image(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE
   bool send_climate_state(climate::Climate *climate);
-  void send_climate_info(climate::Climate *climate);
   void climate_command(const ClimateCommandRequest &msg) override;
 #endif
 #ifdef USE_NUMBER
   bool send_number_state(number::Number *number);
-  void send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
 #ifdef USE_DATETIME_DATE
   bool send_date_state(datetime::DateEntity *date);
-  void send_date_info(datetime::DateEntity *date);
   void date_command(const DateCommandRequest &msg) override;
 #endif
 #ifdef USE_DATETIME_TIME
   bool send_time_state(datetime::TimeEntity *time);
-  void send_time_info(datetime::TimeEntity *time);
   void time_command(const TimeCommandRequest &msg) override;
 #endif
 #ifdef USE_DATETIME_DATETIME
   bool send_datetime_state(datetime::DateTimeEntity *datetime);
-  void send_datetime_info(datetime::DateTimeEntity *datetime);
   void datetime_command(const DateTimeCommandRequest &msg) override;
 #endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text);
-  void send_text_info(text::Text *text);
   void text_command(const TextCommandRequest &msg) override;
 #endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select);
-  void send_select_info(select::Select *select);
   void select_command(const SelectCommandRequest &msg) override;
 #endif
 #ifdef USE_BUTTON
-  void send_button_info(button::Button *button);
   void button_command(const ButtonCommandRequest &msg) override;
 #endif
 #ifdef USE_LOCK
   bool send_lock_state(lock::Lock *a_lock);
-  void send_lock_info(lock::Lock *a_lock);
   void lock_command(const LockCommandRequest &msg) override;
 #endif
 #ifdef USE_VALVE
   bool send_valve_state(valve::Valve *valve);
-  void send_valve_info(valve::Valve *valve);
   void valve_command(const ValveCommandRequest &msg) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
   bool send_media_player_state(media_player::MediaPlayer *media_player);
-  void send_media_player_info(media_player::MediaPlayer *media_player);
   void media_player_command(const MediaPlayerCommandRequest &msg) override;
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line);
@@ -167,18 +149,15 @@ class APIConnection : public APIServerConnection {
 
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
-  void send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 
 #ifdef USE_EVENT
   void send_event(event::Event *event, const std::string &event_type);
-  void send_event_info(event::Event *event);
 #endif
 
 #ifdef USE_UPDATE
   bool send_update_state(update::UpdateEntity *update);
-  void send_update_info(update::UpdateEntity *update);
   void update_command(const UpdateCommandRequest &msg) override;
 #endif
 
