@@ -19,7 +19,6 @@ enum MeasurementMode { PERIODIC, LOW_POWER_PERIODIC, SINGLE_SHOT, SINGLE_SHOT_RH
 
 class SCD4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;

@@ -31,8 +31,6 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
 
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   /**
    * Modifies target address of AGS10.
    *
