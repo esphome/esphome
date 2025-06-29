@@ -338,6 +338,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   std::string message = ws->get_config_json();
   this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
+#ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
     message = json::build_json([group](JsonObject root) {
       root["name"] = group.second.name;
@@ -348,6 +349,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
     // since the only thing in the send buffer at this point is the initial ping/config
     this->try_send_nodefer(message.c_str(), "sorting_group");
   }
+#endif
 
   this->entities_iterator_->begin(ws->include_internal_);
 
