@@ -6,6 +6,7 @@
 #include <string>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace mqtt {
@@ -100,9 +101,24 @@ bool MQTTBackendESP32::initialize_() {
     handler_.reset(mqtt_client);
     is_initalized_ = true;
     esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
+#if defined(USE_MQTT_IDF_ENQUEUE)
+    // Create the task only after MQTT client is initialized successfully
+    // Use larger stack size when TLS is enabled
+    size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
+    xTaskCreate(esphome_mqtt_task, "esphome_mqtt", stack_size, (void *) this, TASK_PRIORITY, &this->task_handle_);
+    if (this->task_handle_ == nullptr) {
+      ESP_LOGE(TAG, "Failed to create MQTT task");
+      // Clean up MQTT client since we can't start the async task
+      handler_.reset();
+      is_initalized_ = false;
+      return false;
+    }
+    // Set the task handle so the queue can notify it
+    this->mqtt_queue_.set_task_to_notify(this->task_handle_);
+#endif
     return true;
   } else {
-    ESP_LOGE(TAG, "Failed to initialize IDF-MQTT");
+    ESP_LOGE(TAG, "Failed to init client");
     return false;
   }
 }
@@ -115,6 +131,26 @@ void MQTTBackendESP32::loop() {
     mqtt_event_handler_(event);
     mqtt_events_.pop();
   }
+
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  // Periodically log dropped messages to avoid blocking during spikes.
+  // During high load, many messages can be dropped in quick succession.
+  // Logging each drop immediately would flood the logs and potentially
+  // cause more drops if MQTT logging is enabled (cascade effect).
+  // Instead, we accumulate the count and log a summary periodically.
+  // IMPORTANT: Don't move this to the scheduler - if drops are due to memory
+  // pressure, the scheduler's heap allocations would make things worse.
+  uint32_t now = App.get_loop_component_start_time();
+  // Handle rollover: (now - last_time) works correctly with unsigned arithmetic
+  // even when now < last_time due to rollover
+  if ((now - this->last_dropped_log_time_) >= DROP_LOG_INTERVAL_MS) {
+    uint16_t dropped = this->mqtt_queue_.get_and_reset_dropped_count();
+    if (dropped > 0) {
+      ESP_LOGW(TAG, "Dropped %u messages (%us)", dropped, DROP_LOG_INTERVAL_MS / 1000);
+    }
+    this->last_dropped_log_time_ = now;
+  }
+#endif
 }
 
 void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
@@ -187,6 +223,86 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     instance->mqtt_events_.emplace(event);
   }
 }
+
+#if defined(USE_MQTT_IDF_ENQUEUE)
+void MQTTBackendESP32::esphome_mqtt_task(void *params) {
+  MQTTBackendESP32 *this_mqtt = (MQTTBackendESP32 *) params;
+
+  while (true) {
+    // Wait for notification indefinitely
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // Process all queued items
+    struct QueueElement *elem;
+    while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
+      if (this_mqtt->is_connected_) {
+        switch (elem->type) {
+          case MQTT_QUEUE_TYPE_SUBSCRIBE:
+            esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos);
+            break;
+
+          case MQTT_QUEUE_TYPE_UNSUBSCRIBE:
+            esp_mqtt_client_unsubscribe(this_mqtt->handler_.get(), elem->topic);
+            break;
+
+          case MQTT_QUEUE_TYPE_PUBLISH:
+            esp_mqtt_client_publish(this_mqtt->handler_.get(), elem->topic, elem->payload, elem->payload_len, elem->qos,
+                                    elem->retain);
+            break;
+
+          default:
+            ESP_LOGE(TAG, "Invalid operation type from MQTT queue");
+            break;
+        }
+      }
+      this_mqtt->mqtt_event_pool_.release(elem);
+    }
+  }
+
+  // Clean up any remaining items in the queue
+  struct QueueElement *elem;
+  while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
+    this_mqtt->mqtt_event_pool_.release(elem);
+  }
+
+  // Note: EventPool destructor will clean up the pool itself
+  // Task will delete itself
+  vTaskDelete(nullptr);
+}
+
+bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
+                                size_t len) {
+  auto *elem = this->mqtt_event_pool_.allocate();
+
+  if (!elem) {
+    // Queue is full - increment counter but don't log immediately.
+    // Logging here can cause a cascade effect: if MQTT logging is enabled,
+    // each dropped message would generate a log message, which could itself
+    // be sent via MQTT, causing more drops and more logs in a feedback loop
+    // that eventually triggers a watchdog reset. Instead, we log periodically
+    // in loop() to prevent blocking the event loop during spikes.
+    this->mqtt_queue_.increment_dropped_count();
+    return false;
+  }
+
+  elem->type = type;
+  elem->qos = qos;
+  elem->retain = retain;
+
+  // Use the helper to allocate and copy data
+  if (!elem->set_data(topic, payload, len)) {
+    // Allocation failed, return elem to pool
+    this->mqtt_event_pool_.release(elem);
+    // Increment counter without logging to avoid cascade effect during memory pressure
+    this->mqtt_queue_.increment_dropped_count();
+    return false;
+  }
+
+  // Push to queue - always succeeds since we allocated from the pool
+  this->mqtt_queue_.push(elem);
+  return true;
+}
+#endif  // USE_MQTT_IDF_ENQUEUE
 
 }  // namespace mqtt
 }  // namespace esphome
