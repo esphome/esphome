@@ -225,6 +225,11 @@ class LightState : public EntityBase, public Component {
   /// Gamma correction factor for the light.
   float gamma_correct_{};
 
+  /// Whether the light value should be written in the next cycle.
+  bool next_write_{true};
+  // for effects, true if a transformer (transition) is active.
+  bool is_transformer_active_ = false;
+
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
 
@@ -247,10 +252,6 @@ class LightState : public EntityBase, public Component {
 
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
-  /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
-  // for effects, true if a transformer (transition) is active.
-  bool is_transformer_active_ = false;
 };
 
 }  // namespace light

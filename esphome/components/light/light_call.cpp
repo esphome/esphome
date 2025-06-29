@@ -136,7 +136,7 @@ LightColorValues LightCall::validate_() {
 
   // Color mode check
   if (this->color_mode_.has_value() && !traits.supports_color_mode(this->color_mode_.value())) {
-    ESP_LOGW(TAG, "'%s' - This light does not support color mode %s!", name,
+    ESP_LOGW(TAG, "'%s' does not support color mode %s", name,
              LOG_STR_ARG(color_mode_to_human(this->color_mode_.value())));
     this->color_mode_.reset();
   }
@@ -152,20 +152,20 @@ LightColorValues LightCall::validate_() {
 
   // Brightness exists check
   if (this->brightness_.has_value() && *this->brightness_ > 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
-    ESP_LOGW(TAG, "'%s' - This light does not support setting brightness!", name);
+    ESP_LOGW(TAG, "'%s': setting brightness not supported", name);
     this->brightness_.reset();
   }
 
   // Transition length possible check
   if (this->transition_length_.has_value() && *this->transition_length_ != 0 &&
       !(color_mode & ColorCapability::BRIGHTNESS)) {
-    ESP_LOGW(TAG, "'%s' - This light does not support transitions!", name);
+    ESP_LOGW(TAG, "'%s': transitions not supported", name);
     this->transition_length_.reset();
   }
 
   // Color brightness exists check
   if (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f && !(color_mode & ColorCapability::RGB)) {
-    ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB brightness!", name);
+    ESP_LOGW(TAG, "'%s': color mode does not support setting RGB brightness", name);
     this->color_brightness_.reset();
   }
 
@@ -173,7 +173,7 @@ LightColorValues LightCall::validate_() {
   if ((this->red_.has_value() && *this->red_ > 0.0f) || (this->green_.has_value() && *this->green_ > 0.0f) ||
       (this->blue_.has_value() && *this->blue_ > 0.0f)) {
     if (!(color_mode & ColorCapability::RGB)) {
-      ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB color!", name);
+      ESP_LOGW(TAG, "'%s': color mode does not support setting RGB color", name);
       this->red_.reset();
       this->green_.reset();
       this->blue_.reset();
@@ -183,14 +183,14 @@ LightColorValues LightCall::validate_() {
   // White value exists check
   if (this->white_.has_value() && *this->white_ > 0.0f &&
       !(color_mode & ColorCapability::WHITE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
-    ESP_LOGW(TAG, "'%s' - This color mode does not support setting white value!", name);
+    ESP_LOGW(TAG, "'%s': color mode does not support setting white value", name);
     this->white_.reset();
   }
 
   // Color temperature exists check
   if (this->color_temperature_.has_value() &&
       !(color_mode & ColorCapability::COLOR_TEMPERATURE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
-    ESP_LOGW(TAG, "'%s' - This color mode does not support setting color temperature!", name);
+    ESP_LOGW(TAG, "'%s': color mode does not support setting color temperature", name);
     this->color_temperature_.reset();
   }
 
@@ -198,7 +198,7 @@ LightColorValues LightCall::validate_() {
   if ((this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||
       (this->warm_white_.has_value() && *this->warm_white_ > 0.0f)) {
     if (!(color_mode & ColorCapability::COLD_WARM_WHITE)) {
-      ESP_LOGW(TAG, "'%s' - This color mode does not support setting cold/warm white value!", name);
+      ESP_LOGW(TAG, "'%s': color mode does not support setting cold/warm white value", name);
       this->cold_white_.reset();
       this->warm_white_.reset();
     }
@@ -208,7 +208,7 @@ LightColorValues LightCall::validate_() {
   if (name_##_.has_value()) { \
     auto val = *name_##_; \
     if (val < (min) || val > (max)) { \
-      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [%.1f - %.1f]!", name, LOG_STR_LITERAL(upper_name), val, \
+      ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_LITERAL(upper_name), val, \
                (min), (max)); \
       name_##_ = clamp(val, (min), (max)); \
     } \
@@ -270,7 +270,7 @@ LightColorValues LightCall::validate_() {
 
   // Flash length check
   if (this->has_flash_() && *this->flash_length_ == 0) {
-    ESP_LOGW(TAG, "'%s' - Flash length must be greater than zero!", name);
+    ESP_LOGW(TAG, "'%s': flash length must be greater than zero", name);
     this->flash_length_.reset();
   }
 
@@ -284,18 +284,18 @@ LightColorValues LightCall::validate_() {
 
   // validate effect index
   if (this->has_effect_() && *this->effect_ > this->parent_->effects_.size()) {
-    ESP_LOGW(TAG, "'%s' - Invalid effect index %" PRIu32 "!", name, *this->effect_);
+    ESP_LOGW(TAG, "'%s': invalid effect index %" PRIu32, name, *this->effect_);
     this->effect_.reset();
   }
 
   if (this->has_effect_() && (this->has_transition_() || this->has_flash_())) {
-    ESP_LOGW(TAG, "'%s' - Effect cannot be used together with transition/flash!", name);
+    ESP_LOGW(TAG, "'%s': effect cannot be used with transition/flash", name);
     this->transition_length_.reset();
     this->flash_length_.reset();
   }
 
   if (this->has_flash_() && this->has_transition_()) {
-    ESP_LOGW(TAG, "'%s' - Flash cannot be used together with transition!", name);
+    ESP_LOGW(TAG, "'%s': flash cannot be used with transition", name);
     this->transition_length_.reset();
   }
 
@@ -311,7 +311,7 @@ LightColorValues LightCall::validate_() {
   }
 
   if (this->has_transition_() && !supports_transition) {
-    ESP_LOGW(TAG, "'%s' - Light does not support transitions!", name);
+    ESP_LOGW(TAG, "'%s': transitions not supported", name);
     this->transition_length_.reset();
   }
 
@@ -320,7 +320,7 @@ LightColorValues LightCall::validate_() {
   // Reason: When user turns off the light in frontend, the effect should also stop
   if (!this->has_flash_() && !this->state_.value_or(v.is_on())) {
     if (this->has_effect_()) {
-      ESP_LOGW(TAG, "'%s' - Cannot start an effect when turning off!", name);
+      ESP_LOGW(TAG, "'%s': cannot start effect when turning off", name);
       this->effect_.reset();
     } else if (this->parent_->active_effect_index_ != 0 && explicit_turn_off_request) {
       // Auto turn off effect
@@ -348,7 +348,7 @@ void LightCall::transform_parameters_() {
       !(*this->color_mode_ & ColorCapability::WHITE) &&                                                //
       !(*this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) &&                                    //
       traits.get_min_mireds() > 0.0f && traits.get_max_mireds() > 0.0f) {
-    ESP_LOGD(TAG, "'%s' - Setting cold/warm white channels using white/color temperature values.",
+    ESP_LOGD(TAG, "'%s': setting cold/warm white channels using white/color temperature values",
              this->parent_->get_name().c_str());
     if (this->color_temperature_.has_value()) {
       const float color_temp = clamp(*this->color_temperature_, traits.get_min_mireds(), traits.get_max_mireds());
@@ -388,8 +388,8 @@ ColorMode LightCall::compute_color_mode_() {
 
   // Don't change if the current mode is suitable.
   if (suitable_modes.count(current_mode) > 0) {
-    ESP_LOGI(TAG, "'%s' - Keeping current color mode %s for call without color mode.",
-             this->parent_->get_name().c_str(), LOG_STR_ARG(color_mode_to_human(current_mode)));
+    ESP_LOGI(TAG, "'%s': color mode not specified; retaining %s", this->parent_->get_name().c_str(),
+             LOG_STR_ARG(color_mode_to_human(current_mode)));
     return current_mode;
   }
 
@@ -398,7 +398,7 @@ ColorMode LightCall::compute_color_mode_() {
     if (supported_modes.count(mode) == 0)
       continue;
 
-    ESP_LOGI(TAG, "'%s' - Using color mode %s for call without color mode.", this->parent_->get_name().c_str(),
+    ESP_LOGI(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
   }
@@ -406,8 +406,8 @@ ColorMode LightCall::compute_color_mode_() {
   // There's no supported mode for this call, so warn, use the current more or a mode at random and let validation strip
   // out whatever we don't support.
   auto color_mode = current_mode != ColorMode::UNKNOWN ? current_mode : *supported_modes.begin();
-  ESP_LOGW(TAG, "'%s' - No color mode suitable for this call supported, defaulting to %s!",
-           this->parent_->get_name().c_str(), LOG_STR_ARG(color_mode_to_human(color_mode)));
+  ESP_LOGW(TAG, "'%s': no suitable color mode supported; defaulting to %s", this->parent_->get_name().c_str(),
+           LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
 std::set<ColorMode> LightCall::get_suitable_color_modes_() {
@@ -472,7 +472,7 @@ LightCall &LightCall::set_effect(const std::string &effect) {
     }
   }
   if (!found) {
-    ESP_LOGW(TAG, "'%s' - No such effect '%s'", this->parent_->get_name().c_str(), effect.c_str());
+    ESP_LOGW(TAG, "'%s': no such effect '%s'", this->parent_->get_name().c_str(), effect.c_str());
   }
   return *this;
 }

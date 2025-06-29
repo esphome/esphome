@@ -69,8 +69,8 @@ class ESPColorCorrection {
  protected:
   uint8_t gamma_table_[256];
   uint8_t gamma_reverse_table_[256];
-  Color max_brightness_;
   uint8_t local_brightness_{255};
+  Color max_brightness_;
 };
 
 }  // namespace light
