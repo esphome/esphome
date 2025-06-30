@@ -9,8 +9,6 @@ from esphome.const import (
     CONF_FREQUENCY,
     CONF_I2C_ID,
     CONF_ID,
-    CONF_INPUT,
-    CONF_OUTPUT,
     CONF_SCAN,
     CONF_SCL,
     CONF_SDA,
@@ -73,20 +71,15 @@ def validate_config(config):
     return config
 
 
-pin_with_input_and_output_support = pins.internal_gpio_pin_number(
-    {CONF_OUTPUT: True, CONF_INPUT: True}
-)
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): _bus_declare_type,
-            cv.Optional(CONF_SDA, default="SDA"): pin_with_input_and_output_support,
+            cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
                 cv.only_with_esp_idf, cv.boolean
             ),
-            cv.Optional(CONF_SCL, default="SCL"): pin_with_input_and_output_support,
+            cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
                 cv.only_with_esp_idf, cv.boolean
             ),
