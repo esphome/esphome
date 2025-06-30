@@ -66,9 +66,10 @@ ETHERNET_TYPES = {
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
+    "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
 }
 
-SPI_ETHERNET_TYPES = ["W5500"]
+SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
@@ -224,6 +225,7 @@ CONFIG_SCHEMA = cv.All(
             "KSZ8081RNA": RMII_SCHEMA,
             "W5500": SPI_SCHEMA,
             "OPENETH": BASE_SCHEMA,
+            "DM9051": SPI_SCHEMA,
         },
         upper=True,
     ),
@@ -278,7 +280,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if config[CONF_TYPE] == "W5500":
+    if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
         cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
         cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
@@ -296,7 +298,9 @@ async def to_code(config):
         cg.add_define("USE_ETHERNET_SPI")
         if CORE.using_esp_idf:
             add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-            add_idf_sdkconfig_option("CONFIG_ETH_SPI_ETHERNET_W5500", True)
+            add_idf_sdkconfig_option(
+                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
+            )
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
