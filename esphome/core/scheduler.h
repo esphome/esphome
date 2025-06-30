@@ -12,11 +12,40 @@ class Component;
 
 class Scheduler {
  public:
+  // Public API - accepts std::string for backward compatibility
   void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
-  bool cancel_timeout(Component *component, const std::string &name);
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
-  bool cancel_interval(Component *component, const std::string &name);
 
+  /** Set a timeout with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the scheduled task
+   *
+   * For dynamic strings, use the std::string overload instead.
+   */
+  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
+
+  bool cancel_timeout(Component *component, const std::string &name);
+  bool cancel_timeout(Component *component, const char *name);
+
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
+
+  /** Set an interval with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the scheduled task
+   *
+   * For dynamic strings, use the std::string overload instead.
+   */
+  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
+
+  bool cancel_interval(Component *component, const std::string &name);
+  bool cancel_interval(Component *component, const char *name);
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
   bool cancel_retry(Component *component, const std::string &name);
@@ -36,32 +65,86 @@ class Scheduler {
     // with a 16-bit rollover counter to create a 64-bit time that won't roll over for
     // billions of years. This ensures correct scheduling even when devices run for months.
     uint64_t next_execution_;
-    std::string name;
-    std::function<void()> callback;
-    enum Type : uint8_t { TIMEOUT, INTERVAL } type;
-    bool remove;
 
-    static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
-    const char *get_type_str() {
-      switch (this->type) {
-        case SchedulerItem::INTERVAL:
-          return "interval";
-        case SchedulerItem::TIMEOUT:
-          return "timeout";
-        default:
-          return "";
+    // Optimized name storage using tagged union
+    union {
+      const char *static_name;  // For string literals (no allocation)
+      char *dynamic_name;       // For allocated strings
+    } name_;
+
+    std::function<void()> callback;
+
+    // Bit-packed fields to minimize padding
+    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
+    bool remove : 1;
+    bool name_is_dynamic : 1;  // True if name was dynamically allocated (needs delete[])
+    // 5 bits padding
+
+    // Constructor
+    SchedulerItem()
+        : component(nullptr), interval(0), next_execution_(0), type(TIMEOUT), remove(false), name_is_dynamic(false) {
+      name_.static_name = nullptr;
+    }
+
+    // Destructor to clean up dynamic names
+    ~SchedulerItem() {
+      if (name_is_dynamic) {
+        delete[] name_.dynamic_name;
       }
     }
-    const char *get_source() {
-      return this->component != nullptr ? this->component->get_component_source() : "unknown";
+
+    // Delete copy operations to prevent accidental copies
+    SchedulerItem(const SchedulerItem &) = delete;
+    SchedulerItem &operator=(const SchedulerItem &) = delete;
+
+    // Default move operations
+    SchedulerItem(SchedulerItem &&) = default;
+    SchedulerItem &operator=(SchedulerItem &&) = default;
+
+    // Helper to get the name regardless of storage type
+    const char *get_name() const { return name_is_dynamic ? name_.dynamic_name : name_.static_name; }
+
+    // Helper to set name with proper ownership
+    void set_name(const char *name, bool make_copy = false) {
+      // Clean up old dynamic name if any
+      if (name_is_dynamic && name_.dynamic_name) {
+        delete[] name_.dynamic_name;
+        name_is_dynamic = false;
+      }
+
+      if (!name || !name[0]) {
+        name_.static_name = nullptr;
+      } else if (make_copy) {
+        // Make a copy for dynamic strings
+        size_t len = strlen(name);
+        name_.dynamic_name = new char[len + 1];
+        memcpy(name_.dynamic_name, name, len + 1);
+        name_is_dynamic = true;
+      } else {
+        // Use static string directly
+        name_.static_name = name;
+      }
     }
+
+    static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
+    const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
+    const char *get_source() const { return component ? component->get_component_source() : "unknown"; }
   };
+
+  // Common implementation for both timeout and interval
+  void set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string, const void *name_ptr,
+                         uint32_t delay, std::function<void()> func);
 
   uint64_t millis_();
   void cleanup_();
   void pop_raw_();
   void push_(std::unique_ptr<SchedulerItem> item);
+  // Common implementation for cancel operations
+  bool cancel_item_common_(Component *component, bool is_static_string, const void *name_ptr, SchedulerItem::Type type);
+
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
+  bool cancel_item_(Component *component, const char *name, SchedulerItem::Type type);
+
   bool empty_() {
     this->cleanup_();
     return this->items_.empty();

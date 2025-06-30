@@ -1,0 +1,164 @@
+esphome:
+  name: scheduler-string-test
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "Starting scheduler string tests"
+  platformio_options:
+    build_flags:
+      - "-DESPHOME_DEBUG_SCHEDULER"  # Enable scheduler debug logging
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+globals:
+  - id: timeout_counter
+    type: int
+    initial_value: '0'
+  - id: interval_counter
+    type: int
+    initial_value: '0'
+  - id: dynamic_counter
+    type: int
+    initial_value: '0'
+  - id: static_tests_done
+    type: bool
+    initial_value: 'false'
+  - id: dynamic_tests_done
+    type: bool
+    initial_value: 'false'
+  - id: results_reported
+    type: bool
+    initial_value: 'false'
+
+script:
+  - id: test_static_strings
+    then:
+      - logger.log: "Testing static string timeouts and intervals"
+      - lambda: |-
+          auto *component1 = id(test_sensor1);
+          // Test 1: Static string literals with set_timeout
+          App.scheduler.set_timeout(component1, "static_timeout_1", 50, []() {
+            ESP_LOGI("test", "Static timeout 1 fired");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 2: Static const char* with set_timeout
+          static const char* TIMEOUT_NAME = "static_timeout_2";
+          App.scheduler.set_timeout(component1, TIMEOUT_NAME, 100, []() {
+            ESP_LOGI("test", "Static timeout 2 fired");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 3: Static string literal with set_interval
+          App.scheduler.set_interval(component1, "static_interval_1", 200, []() {
+            ESP_LOGI("test", "Static interval 1 fired, count: %d", id(interval_counter));
+            id(interval_counter) += 1;
+            if (id(interval_counter) >= 3) {
+              App.scheduler.cancel_interval(id(test_sensor1), "static_interval_1");
+              ESP_LOGI("test", "Cancelled static interval 1");
+            }
+          });
+
+          // Test 4: Empty string (should be handled safely)
+          App.scheduler.set_timeout(component1, "", 150, []() {
+            ESP_LOGI("test", "Empty string timeout fired");
+          });
+
+          // Test 5: Cancel timeout with const char* literal
+          App.scheduler.set_timeout(component1, "cancel_static_timeout", 5000, []() {
+            ESP_LOGI("test", "This static timeout should be cancelled");
+          });
+          // Cancel using const char* directly
+          App.scheduler.cancel_timeout(component1, "cancel_static_timeout");
+          ESP_LOGI("test", "Cancelled static timeout using const char*");
+
+  - id: test_dynamic_strings
+    then:
+      - logger.log: "Testing dynamic string timeouts and intervals"
+      - lambda: |-
+          auto *component2 = id(test_sensor2);
+
+          // Test 6: Dynamic string with set_timeout (std::string)
+          std::string dynamic_name = "dynamic_timeout_" + std::to_string(id(dynamic_counter)++);
+          App.scheduler.set_timeout(component2, dynamic_name, 100, []() {
+            ESP_LOGI("test", "Dynamic timeout fired");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 7: Dynamic string with set_interval
+          std::string interval_name = "dynamic_interval_" + std::to_string(id(dynamic_counter)++);
+          App.scheduler.set_interval(component2, interval_name, 250, [interval_name]() {
+            ESP_LOGI("test", "Dynamic interval fired: %s", interval_name.c_str());
+            id(interval_counter) += 1;
+            if (id(interval_counter) >= 6) {
+              App.scheduler.cancel_interval(id(test_sensor2), interval_name);
+              ESP_LOGI("test", "Cancelled dynamic interval");
+            }
+          });
+
+          // Test 8: Cancel with different string object but same content
+          std::string cancel_name = "cancel_test";
+          App.scheduler.set_timeout(component2, cancel_name, 2000, []() {
+            ESP_LOGI("test", "This should be cancelled");
+          });
+
+          // Cancel using a different string object
+          std::string cancel_name_2 = "cancel_test";
+          App.scheduler.cancel_timeout(component2, cancel_name_2);
+          ESP_LOGI("test", "Cancelled timeout using different string object");
+
+  - id: report_results
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Final results - Timeouts: %d, Intervals: %d",
+                   id(timeout_counter), id(interval_counter));
+
+sensor:
+  - platform: template
+    name: Test Sensor 1
+    id: test_sensor1
+    lambda: return 1.0;
+    update_interval: never
+
+  - platform: template
+    name: Test Sensor 2
+    id: test_sensor2
+    lambda: return 2.0;
+    update_interval: never
+
+interval:
+  # Run static string tests after boot - using script to run once
+  - interval: 0.1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(static_tests_done) == false;'
+          then:
+            - lambda: 'id(static_tests_done) = true;'
+            - script.execute: test_static_strings
+            - logger.log: "Started static string tests"
+
+  # Run dynamic string tests after static tests
+  - interval: 0.2s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(static_tests_done) && !id(dynamic_tests_done);'
+          then:
+            - lambda: 'id(dynamic_tests_done) = true;'
+            - delay: 0.2s
+            - script.execute: test_dynamic_strings
+
+  # Report results after all tests
+  - interval: 0.2s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(dynamic_tests_done) && !id(results_reported);'
+          then:
+            - lambda: 'id(results_reported) = true;'
+            - delay: 1s
+            - script.execute: report_results
