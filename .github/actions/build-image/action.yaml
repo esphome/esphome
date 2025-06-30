@@ -39,7 +39,7 @@ runs:
     - id: cache-to
       shell: bash
       run: |-
-        if [[ "${{ github.ref }}" == "refs/heads/dev-jethub" ]] || [[ "${{ github.ref }}" == "refs/heads/dev" ]] ; then 
+        if [[ "${{ github.ref }}" == "refs/heads/dev-jethub" ]] || [[ "${{ github.ref }}" == "refs/heads/dev" ]] ; then
           echo "value=type=gha,mode=max" >> $GITHUB_OUTPUT
         else
           echo "value=" >> $GITHUB_OUTPUT
