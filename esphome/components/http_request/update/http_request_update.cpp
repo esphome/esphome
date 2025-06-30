@@ -57,7 +57,7 @@ void HttpRequestUpdate::update_task(void *params) {
   RAMAllocator<uint8_t> allocator;
   uint8_t *data = allocator.allocate(container->content_length);
   if (data == nullptr) {
-    std::string msg = str_sprintf("Failed to allocate %d bytes for manifest", container->content_length);
+    std::string msg = str_sprintf("Failed to allocate %zu bytes for manifest", container->content_length);
     this_update->status_set_error(msg.c_str());
     container->end();
     UPDATE_RETURN;
