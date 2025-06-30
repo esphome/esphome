@@ -163,12 +163,20 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
       this->is_connected_ = true;
+#if defined(USE_MQTT_IDF_ENQUEUE)
+      this->last_dropped_log_time_ = 0;
+      xTaskNotifyGive(this->task_handle_);
+#endif
       this->on_connect_.call(event.session_present);
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_DISCONNECTED");
       // TODO is there a way to get the disconnect reason?
       this->is_connected_ = false;
+#if defined(USE_MQTT_IDF_ENQUEUE)
+      this->last_dropped_log_time_ = 0;
+      xTaskNotifyGive(this->task_handle_);
+#endif
       this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
       break;
 

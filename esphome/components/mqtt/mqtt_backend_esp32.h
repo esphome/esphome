@@ -116,7 +116,7 @@ struct QueueElement {
 class MQTTBackendESP32 final : public MQTTBackend {
  public:
   static const size_t MQTT_BUFFER_SIZE = 4096;
-  static const size_t TASK_STACK_SIZE = 2048;
+  static const size_t TASK_STACK_SIZE = 3072;
   static const size_t TASK_STACK_SIZE_TLS = 4096;  // Larger stack for TLS operations
   static const ssize_t TASK_PRIORITY = 5;
   static const uint8_t MQTT_QUEUE_LENGTH = 30;  // 30*12 bytes = 360
