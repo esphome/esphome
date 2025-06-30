@@ -177,19 +177,22 @@ async def test_api_conditional_memory(
         async with api_client_connected() as client2:
             # Subscribe to states with new client
             states2: dict[int, EntityState] = {}
-            connected_future: asyncio.Future[None] = loop.create_future()
+            states_ready_future: asyncio.Future[None] = loop.create_future()
 
             def on_state2(state: EntityState) -> None:
                 states2[state.key] = state
-                # Check for reconnection
-                if state.key == client_connected.key and state.state is True:
-                    if not connected_future.done():
-                        connected_future.set_result(None)
+                # Check if we have received both required states
+                if (
+                    client_connected.key in states2
+                    and client_disconnected_event.key in states2
+                    and not states_ready_future.done()
+                ):
+                    states_ready_future.set_result(None)
 
             client2.subscribe_states(on_state2)
 
-            # Wait for connected state
-            await asyncio.wait_for(connected_future, timeout=5.0)
+            # Wait for both connected and disconnected event states
+            await asyncio.wait_for(states_ready_future, timeout=5.0)
 
             # Verify client is connected again (on_client_connected fired)
             assert states2[client_connected.key].state is True, (
