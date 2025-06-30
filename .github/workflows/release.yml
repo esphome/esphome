@@ -215,7 +215,7 @@ jobs:
             $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)
 
   deploy-ha-addon-repo:
-    if: 0 #TODO: github.repository == 'jethome-iot/esphome' && needs.init.outputs.branch_build == 'false'
+    if: false #TODO: github.repository == 'jethome-iot/esphome' && needs.init.outputs.branch_build == 'false'
     runs-on: ubuntu-latest
     needs:
       - init
@@ -242,7 +242,7 @@ jobs:
             })
 
   deploy-esphome-schema:
-    if: 0 #TODO: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
+    if: false #TODO: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
     runs-on: ubuntu-latest
     needs: [init]
     environment: ${{ needs.init.outputs.deploy_env }}
