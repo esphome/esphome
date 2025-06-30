@@ -100,6 +100,7 @@ CONFIG_SCHEMA = (
                 esp32=3232,
                 rp2040=2040,
                 bk72xx=8892,
+                ln882x=8820,
                 rtl87xx=8892,
             ): cv.port,
             cv.Optional(CONF_PASSWORD): cv.string,

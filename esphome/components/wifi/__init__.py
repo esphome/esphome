@@ -309,6 +309,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2040="light",
                 bk72xx="none",
                 rtl87xx="none",
+                ln882x="light",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,

@@ -1,0 +1,4 @@
+sensor:
+  - platform: adc
+    pin: PA0
+    name: Basic ADC Test

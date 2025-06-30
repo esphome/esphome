@@ -16,7 +16,11 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
-from esphome.components.libretiny.const import COMPONENT_BK72XX, COMPONENT_RTL87XX
+from esphome.components.libretiny.const import (
+    COMPONENT_BK72XX,
+    COMPONENT_LN882X,
+    COMPONENT_RTL87XX,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ARGS,
@@ -35,6 +39,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
@@ -100,6 +105,7 @@ UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 
 UART_SELECTION_LIBRETINY = {
     COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+    COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
     COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
 }
 
@@ -217,6 +223,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32_p4_idf=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
+                ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
             ): cv.All(
                 cv.only_on(
@@ -225,6 +232,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_ESP32,
                         PLATFORM_RP2040,
                         PLATFORM_BK72XX,
+                        PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
                     ]
                 ),

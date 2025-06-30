@@ -94,6 +94,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 esp32="10000b",
                 esp8266="1000b",
                 bk72xx="1000b",
+                ln882x="1000b",
                 rtl87xx="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
