@@ -292,21 +292,38 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
 }
 
 void AsyncEventSource::loop() {
-  for (auto *ses : this->sessions_) {
-    ses->loop();
+  // Clean up dead sessions safely
+  // This follows the ESP-IDF pattern where free_ctx marks resources as dead
+  // and the main loop handles the actual cleanup to avoid race conditions
+  auto it = this->sessions_.begin();
+  while (it != this->sessions_.end()) {
+    auto *ses = *it;
+    // If the session has a dead socket (marked by destroy callback)
+    if (ses->fd_.load() == 0) {
+      ESP_LOGD(TAG, "Removing dead event source session");
+      it = this->sessions_.erase(it);
+      delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+    } else {
+      ses->loop();
+      ++it;
+    }
   }
 }
 
 void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
-    ses->try_send_nodefer(message, event, id, reconnect);
+    if (ses->fd_.load() != 0) {  // Skip dead sessions
+      ses->try_send_nodefer(message, event, id, reconnect);
+    }
   }
 }
 
 void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
                                              message_generator_t *message_generator) {
   for (auto *ses : this->sessions_) {
-    ses->deferrable_send_state(source, event_type, message_generator);
+    if (ses->fd_.load() != 0) {  // Skip dead sessions
+      ses->deferrable_send_state(source, event_type, message_generator);
+    }
   }
 }
 
@@ -331,7 +348,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   req->free_ctx = AsyncEventSourceResponse::destroy;
 
   this->hd_ = req->handle;
-  this->fd_ = httpd_req_to_sockfd(req);
+  this->fd_.store(httpd_req_to_sockfd(req));
 
   // Configure reconnect timeout and send config
   // this should always go through since the tcp send buffer is empty on connect
@@ -362,8 +379,10 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  rsp->server_->sessions_.erase(rsp);
-  delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", rsp->fd_.load());
+  // Mark as dead by setting fd to 0 - will be cleaned up in the main loop
+  rsp->fd_.store(0);
+  // Note: We don't delete or remove from set here to avoid race conditions
 }
 
 // helper for allowing only unique entries in the queue
@@ -403,9 +422,11 @@ void AsyncEventSourceResponse::process_buffer_() {
     return;
   }
 
-  int bytes_sent = httpd_socket_send(this->hd_, this->fd_, event_buffer_.c_str() + event_bytes_sent_,
+  int bytes_sent = httpd_socket_send(this->hd_, this->fd_.load(), event_buffer_.c_str() + event_bytes_sent_,
                                      event_buffer_.size() - event_bytes_sent_, 0);
   if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || bytes_sent == HTTPD_SOCK_ERR_FAIL) {
+    // Socket error - just return, the connection will be closed by httpd
+    // and our destroy callback will be called
     return;
   }
   event_bytes_sent_ += bytes_sent;
@@ -425,7 +446,7 @@ void AsyncEventSourceResponse::loop() {
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
-  if (this->fd_ == 0) {
+  if (this->fd_.load() == 0) {
     return false;
   }
 

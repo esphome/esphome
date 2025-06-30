@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include <esp_http_server.h>
 
+#include <atomic>
 #include <functional>
 #include <list>
 #include <map>
@@ -271,7 +272,7 @@ class AsyncEventSourceResponse {
   static void destroy(void *p);
   AsyncEventSource *server_;
   httpd_handle_t hd_{};
-  int fd_{};
+  std::atomic<int> fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
