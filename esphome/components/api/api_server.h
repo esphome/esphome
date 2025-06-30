@@ -105,7 +105,18 @@ class APIServer : public Component, public Controller {
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
-  void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
+  void register_user_service(UserServiceDescriptor *descriptor) {
+#ifdef USE_API_YAML_SERVICES
+    // Vector is pre-allocated when services are defined in YAML
+    this->user_services_.push_back(descriptor);
+#else
+    // Lazy allocate vector on first use for CustomAPIDevice
+    if (!this->user_services_) {
+      this->user_services_ = std::make_unique<std::vector<UserServiceDescriptor *>>();
+    }
+    this->user_services_->push_back(descriptor);
+#endif
+  }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
@@ -134,19 +145,34 @@ class APIServer : public Component, public Controller {
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
-  const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
+  const std::vector<UserServiceDescriptor *> &get_user_services() const {
+#ifdef USE_API_YAML_SERVICES
+    return this->user_services_;
+#else
+    static const std::vector<UserServiceDescriptor *> EMPTY;
+    return this->user_services_ ? *this->user_services_ : EMPTY;
+#endif
+  }
 
+#ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+#endif
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
     return this->client_disconnected_trigger_;
   }
+#endif
 
  protected:
   void schedule_reboot_timeout_();
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
+#ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+#endif
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+#endif
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
@@ -156,7 +182,15 @@ class APIServer : public Component, public Controller {
   std::string password_;
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
   std::vector<HomeAssistantStateSubscription> state_subs_;
+#ifdef USE_API_YAML_SERVICES
+  // When services are defined in YAML, we know at compile time that services will be registered
   std::vector<UserServiceDescriptor *> user_services_;
+#else
+  // Services can still be registered at runtime by CustomAPIDevice components even when not
+  // defined in YAML. Using unique_ptr allows lazy allocation, saving 12 bytes in the common
+  // case where no services (YAML or custom) are used.
+  std::unique_ptr<std::vector<UserServiceDescriptor *>> user_services_;
+#endif
 
   // Group smaller types together
   uint16_t port_{6053};

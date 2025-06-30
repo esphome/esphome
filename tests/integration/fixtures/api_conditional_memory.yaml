@@ -1,0 +1,71 @@
+esphome:
+  name: api-conditional-memory-test
+host:
+api:
+  actions:
+    - action: test_simple_service
+      then:
+        - logger.log: "Simple service called"
+        - binary_sensor.template.publish:
+            id: service_called_sensor
+            state: ON
+    - action: test_service_with_args
+      variables:
+        arg_string: string
+        arg_int: int
+        arg_bool: bool
+        arg_float: float
+      then:
+        - logger.log:
+            format: "Service called with: %s, %d, %d, %.2f"
+            args: [arg_string.c_str(), arg_int, arg_bool, arg_float]
+        - sensor.template.publish:
+            id: service_arg_sensor
+            state: !lambda 'return arg_float;'
+  on_client_connected:
+    - logger.log:
+        format: "Client %s connected from %s"
+        args: [client_info.c_str(), client_address.c_str()]
+    - binary_sensor.template.publish:
+        id: client_connected
+        state: ON
+    - text_sensor.template.publish:
+        id: last_client_info
+        state: !lambda 'return client_info;'
+  on_client_disconnected:
+    - logger.log:
+        format: "Client %s disconnected from %s"
+        args: [client_info.c_str(), client_address.c_str()]
+    - binary_sensor.template.publish:
+        id: client_connected
+        state: OFF
+    - binary_sensor.template.publish:
+        id: client_disconnected_event
+        state: ON
+
+logger:
+  level: DEBUG
+
+binary_sensor:
+  - platform: template
+    name: "Client Connected"
+    id: client_connected
+    device_class: connectivity
+  - platform: template
+    name: "Client Disconnected Event"
+    id: client_disconnected_event
+  - platform: template
+    name: "Service Called"
+    id: service_called_sensor
+
+sensor:
+  - platform: template
+    name: "Service Argument Value"
+    id: service_arg_sensor
+    unit_of_measurement: ""
+    accuracy_decimals: 2
+
+text_sensor:
+  - platform: template
+    name: "Last Client Info"
+    id: last_client_info
