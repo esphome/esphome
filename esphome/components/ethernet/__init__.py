@@ -23,8 +23,10 @@ from esphome.const import (
     CONF_INTERRUPT_PIN,
     CONF_MANUAL_IP,
     CONF_MISO_PIN,
+    CONF_MODE,
     CONF_MOSI_PIN,
     CONF_PAGE_ID,
+    CONF_PIN,
     CONF_POLLING_INTERVAL,
     CONF_RESET_PIN,
     CONF_SPI,
@@ -49,6 +51,7 @@ PHYRegister = ethernet_ns.struct("PHYRegister")
 CONF_PHY_ADDR = "phy_addr"
 CONF_MDC_PIN = "mdc_pin"
 CONF_MDIO_PIN = "mdio_pin"
+CONF_CLK = "clk"
 CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
 CONF_PHY_REGISTERS = "phy_registers"
@@ -73,26 +76,18 @@ SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
-emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
+
 CLK_MODES = {
-    "GPIO0_IN": (
-        emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
-        emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO,
-    ),
-    "GPIO0_OUT": (
-        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-        emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO,
-    ),
-    "GPIO16_OUT": (
-        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO,
-    ),
-    "GPIO17_OUT": (
-        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO,
-    ),
+    "CLK_EXT_IN": emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
+    "CLK_OUT": emac_rmii_clock_mode_t.EMAC_CLK_OUT,
 }
 
+CLK_MODES_DEPRECATED = {
+    "GPIO0_IN": ("CLK_EXT_IN", 0),
+    "GPIO0_OUT": ("CLK_OUT", 0),
+    "GPIO16_OUT": ("CLK_OUT", 16),
+    "GPIO17_OUT": ("CLK_OUT", 17),
+}
 
 MANUAL_IP_SCHEMA = cv.Schema(
     {
@@ -154,6 +149,18 @@ def _validate(config):
                     f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                     f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                 )
+    elif config[CONF_TYPE] != "OPENETH":
+        if CONF_CLK_MODE in config:
+            LOGGER.warning(
+                "[ethernet] The 'clk_mode' option is deprecated and will be removed in ESPHome 2026.1. "
+                "Please update your configuration to use 'clk' instead."
+            )
+            mode = CLK_MODES_DEPRECATED[config[CONF_CLK_MODE]]
+            config[CONF_CLK] = CLK_SCHEMA({CONF_MODE: mode[0], CONF_PIN: mode[1]})
+            del config[CONF_CLK_MODE]
+        elif CONF_CLK not in config:
+            raise cv.Invalid("'clk' is a required option for [ethernet].")
+
     return config
 
 
@@ -177,14 +184,21 @@ PHY_REGISTER_SCHEMA = cv.Schema(
         cv.Optional(CONF_PAGE_ID): cv.hex_int,
     }
 )
+CLK_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MODE): cv.enum(CLK_MODES, upper=True, space="_"),
+        cv.Required(CONF_PIN): pins.internal_gpio_pin_number,
+    }
+)
 RMII_SCHEMA = BASE_SCHEMA.extend(
     cv.Schema(
         {
             cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_CLK_MODE, default="GPIO0_IN"): cv.enum(
-                CLK_MODES, upper=True, space="_"
+            cv.Optional(CONF_CLK_MODE): cv.enum(
+                CLK_MODES_DEPRECATED, upper=True, space="_"
             ),
+            cv.Optional(CONF_CLK): CLK_SCHEMA,
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
@@ -308,7 +322,8 @@ async def to_code(config):
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
         cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
-        cg.add(var.set_clk_mode(*CLK_MODES[config[CONF_CLK_MODE]]))
+        cg.add(var.set_clk_mode(config[CONF_CLK][CONF_MODE]))
+        cg.add(var.set_clk_pin(config[CONF_CLK][CONF_PIN]))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
         for register_value in config.get(CONF_PHY_REGISTERS, []):
