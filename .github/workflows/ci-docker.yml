@@ -5,7 +5,7 @@ name: CI for docker images
 
 on:
   push:
-    branches: [dev, beta, release]
+    branches: [dev-jethub, beta-jethub, release-jethub]
     paths:
       - "docker/**"
       - ".github/workflows/ci-docker.yml"

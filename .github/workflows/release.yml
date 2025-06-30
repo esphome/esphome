@@ -38,7 +38,7 @@ jobs:
             today="$(date --utc '+%Y%m%d')"
             TAG="${TAG}${today}"
             BRANCH=${GITHUB_REF#refs/heads/}
-            if [[ "$BRANCH" != "dev" ]]; then
+            if [[ "$BRANCH" != "dev-jethub" ]]; then
               TAG="${TAG}-${BRANCH}"
               BRANCH_BUILD="true"
               ENVIRONMENT=""
@@ -215,7 +215,7 @@ jobs:
             $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)
 
   deploy-ha-addon-repo:
-    if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
+    if: 0 #TODO: github.repository == 'jethome-iot/esphome' && needs.init.outputs.branch_build == 'false'
     runs-on: ubuntu-latest
     needs:
       - init
@@ -226,7 +226,7 @@ jobs:
         with:
           github-token: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
           script: |
-            let description = "ESPHome";
+            let description = "ESPJHome";
             if (context.eventName == "release") {
               description = ${{ toJSON(github.event.release.body) }};
             }
@@ -242,7 +242,7 @@ jobs:
             })
 
   deploy-esphome-schema:
-    if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
+    if: 0 #TODO: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
     runs-on: ubuntu-latest
     needs: [init]
     environment: ${{ needs.init.outputs.deploy_env }}
