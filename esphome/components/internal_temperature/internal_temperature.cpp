@@ -10,11 +10,7 @@ uint8_t temprature_sens_read();
 #elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || \
     defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32H2) || \
     defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32P4)
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-#include "driver/temp_sensor.h"
-#else
 #include "driver/temperature_sensor.h"
-#endif  // ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
 #ifdef USE_RP2040
@@ -31,12 +27,11 @@ namespace internal_temperature {
 
 static const char *const TAG = "internal_temperature";
 #ifdef USE_ESP32
-#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)) && \
-    (defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || \
-     defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32C2) || \
-     defined(USE_ESP32_VARIANT_ESP32P4))
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || \
+    defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32C2) || \
+    defined(USE_ESP32_VARIANT_ESP32P4)
 static temperature_sensor_handle_t tsensNew = NULL;
-#endif  // ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0) && USE_ESP32_VARIANT
+#endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
 
 void InternalTemperatureSensor::update() {
@@ -51,24 +46,11 @@ void InternalTemperatureSensor::update() {
 #elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || \
     defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32H2) || \
     defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32P4)
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-  temp_sensor_config_t tsens = TSENS_CONFIG_DEFAULT();
-  temp_sensor_set_config(tsens);
-  temp_sensor_start();
-#if defined(USE_ESP32_VARIANT_ESP32S3) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 4, 3))
-#error \
-    "ESP32-S3 internal temperature sensor requires ESP IDF V4.4.3 or higher. See https://github.com/esphome/issues/issues/4271"
-#endif
-  esp_err_t result = temp_sensor_read_celsius(&temperature);
-  temp_sensor_stop();
-  success = (result == ESP_OK);
-#else
   esp_err_t result = temperature_sensor_get_celsius(tsensNew, &temperature);
   success = (result == ESP_OK);
   if (!success) {
     ESP_LOGE(TAG, "Reading failed (%d)", result);
   }
-#endif  // ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
 #ifdef USE_RP2040
@@ -99,10 +81,9 @@ void InternalTemperatureSensor::update() {
 
 void InternalTemperatureSensor::setup() {
 #ifdef USE_ESP32
-#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)) && \
-    (defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || \
-     defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32C2) || \
-     defined(USE_ESP32_VARIANT_ESP32P4))
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || \
+    defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32C2) || \
+    defined(USE_ESP32_VARIANT_ESP32P4)
   ESP_LOGCONFIG(TAG, "Running setup");
 
   temperature_sensor_config_t tsens_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
@@ -120,7 +101,7 @@ void InternalTemperatureSensor::setup() {
     this->mark_failed();
     return;
   }
-#endif  // ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0) && USE_ESP32_VARIANT
+#endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
 }
 

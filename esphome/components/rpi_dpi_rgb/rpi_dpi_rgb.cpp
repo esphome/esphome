@@ -10,10 +10,8 @@ void RpiDpiRgb::setup() {
   this->reset_display_();
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
-#if ESP_IDF_VERSION_MAJOR >= 5
   config.bounce_buffer_size_px = this->width_ * 10;
   config.num_fbs = 1;
-#endif  // ESP_IDF_VERSION_MAJOR
   config.timings.h_res = this->width_;
   config.timings.v_res = this->height_;
   config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -47,10 +45,8 @@ void RpiDpiRgb::setup() {
   ESP_LOGCONFIG(TAG, "RPI_DPI_RGB setup complete");
 }
 void RpiDpiRgb::loop() {
-#if ESP_IDF_VERSION_MAJOR >= 5
   if (this->handle_ != nullptr)
     esp_lcd_rgb_panel_restart(this->handle_);
-#endif  // ESP_IDF_VERSION_MAJOR
 }
 
 void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,

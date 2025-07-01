@@ -14,49 +14,6 @@ namespace mqtt {
 static const char *const TAG = "mqtt.idf";
 
 bool MQTTBackendESP32::initialize_() {
-#if ESP_IDF_VERSION_MAJOR < 5
-  mqtt_cfg_.user_context = (void *) this;
-  mqtt_cfg_.buffer_size = MQTT_BUFFER_SIZE;
-
-  mqtt_cfg_.host = this->host_.c_str();
-  mqtt_cfg_.port = this->port_;
-  mqtt_cfg_.keepalive = this->keep_alive_;
-  mqtt_cfg_.disable_clean_session = !this->clean_session_;
-
-  if (!this->username_.empty()) {
-    mqtt_cfg_.username = this->username_.c_str();
-    if (!this->password_.empty()) {
-      mqtt_cfg_.password = this->password_.c_str();
-    }
-  }
-
-  if (!this->lwt_topic_.empty()) {
-    mqtt_cfg_.lwt_topic = this->lwt_topic_.c_str();
-    this->mqtt_cfg_.lwt_qos = this->lwt_qos_;
-    this->mqtt_cfg_.lwt_retain = this->lwt_retain_;
-
-    if (!this->lwt_message_.empty()) {
-      mqtt_cfg_.lwt_msg = this->lwt_message_.c_str();
-      mqtt_cfg_.lwt_msg_len = this->lwt_message_.size();
-    }
-  }
-
-  if (!this->client_id_.empty()) {
-    mqtt_cfg_.client_id = this->client_id_.c_str();
-  }
-  if (ca_certificate_.has_value()) {
-    mqtt_cfg_.cert_pem = ca_certificate_.value().c_str();
-    mqtt_cfg_.skip_cert_common_name_check = skip_cert_cn_check_;
-    mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_SSL;
-
-    if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
-      mqtt_cfg_.client_cert_pem = this->cl_certificate_.value().c_str();
-      mqtt_cfg_.client_key_pem = this->cl_key_.value().c_str();
-    }
-  } else {
-    mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_TCP;
-  }
-#else
   mqtt_cfg_.broker.address.hostname = this->host_.c_str();
   mqtt_cfg_.broker.address.port = this->port_;
   mqtt_cfg_.session.keepalive = this->keep_alive_;
@@ -95,7 +52,7 @@ bool MQTTBackendESP32::initialize_() {
   } else {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
   }
-#endif
+
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);

@@ -15,8 +15,7 @@ namespace adc {
 
 #ifdef USE_ESP32
 // clang-format off
-#if (ESP_IDF_VERSION_MAJOR == 4 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 7)) || \
-    (ESP_IDF_VERSION_MAJOR == 5 && \
+#if (ESP_IDF_VERSION_MAJOR == 5 && \
      ((ESP_IDF_VERSION_MINOR == 0 && ESP_IDF_VERSION_PATCH >= 5) || \
       (ESP_IDF_VERSION_MINOR == 1 && ESP_IDF_VERSION_PATCH >= 3) || \
       (ESP_IDF_VERSION_MINOR >= 2)) \
@@ -100,11 +99,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   adc1_channel_t channel1_{ADC1_CHANNEL_MAX};
   adc2_channel_t channel2_{ADC2_CHANNEL_MAX};
   bool autorange_{false};
-#if ESP_IDF_VERSION_MAJOR >= 5
   esp_adc_cal_characteristics_t cal_characteristics_[SOC_ADC_ATTEN_NUM] = {};
-#else
-  esp_adc_cal_characteristics_t cal_characteristics_[ADC_ATTEN_MAX] = {};
-#endif  // ESP_IDF_VERSION_MAJOR
 #endif  // USE_ESP32
 };
 

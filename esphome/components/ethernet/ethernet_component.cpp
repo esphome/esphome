@@ -122,25 +122,12 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
-#if ESP_IDF_VERSION_MAJOR >= 5
 #if CONFIG_ETH_SPI_ETHERNET_W5500
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
 #endif
 #if CONFIG_ETH_SPI_ETHERNET_DM9051
   eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(host, &devcfg);
 #endif
-#else
-  spi_device_handle_t spi_handle = nullptr;
-  err = spi_bus_add_device(host, &devcfg, &spi_handle);
-  ESPHL_ERROR_CHECK(err, "SPI bus add device error");
-
-#if CONFIG_ETH_SPI_ETHERNET_W5500
-  eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
-#endif
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
-  eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(spi_handle);
-#endif
-#endif  // ESP_IDF_VERSION_MAJOR >= 5
 
 #if CONFIG_ETH_SPI_ETHERNET_W5500
   w5500_config.int_gpio_num = this->interrupt_pin_;
@@ -211,11 +198,7 @@ void EthernetComponent::setup() {
     }
     case ETHERNET_TYPE_KSZ8081:
     case ETHERNET_TYPE_KSZ8081RNA: {
-#if ESP_IDF_VERSION_MAJOR >= 5
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
-#else
-      this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
-#endif
       break;
     }
 #endif
