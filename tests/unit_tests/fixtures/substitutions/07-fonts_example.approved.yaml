@@ -1,0 +1,30 @@
+substitutions: {}
+jinja:
+  macros:
+    get_glyphs:
+      parameters:
+        start: 0
+        end: 0
+      body: "#set ns = namespace(glyphs=[])\n#for code in range(start, end + 1)\n\
+        \  #set ns.glyphs = ns.glyphs + [\"%c\" | format(code)]\n#endfor\n${ ns.glyphs\
+        \ }\n"
+      upvalues: {}
+fonts:
+  - file: fonts/myfont.ttf
+    glyphs:
+      - áéíóúñ
+      - ぁ
+      - あ
+      - ぃ
+      - い
+      - ぅ
+      - う
+      - ぇ
+      - え
+      - ぉ
+      - お
+      - か
+      - が
+      - き
+      - ぎ
+      - く

@@ -1,0 +1,16 @@
+jinja:
+  macros:
+    get_glyphs:
+      parameters:
+        start: 0
+        end: 0
+      body: |
+        #set ns = namespace(glyphs=[])
+        #for code in range(start, end + 1)
+          #set ns.glyphs = ns.glyphs + ["%c" | format(code)]
+        #endfor
+        ${ ns.glyphs }
+
+fonts:
+  - file: "fonts/myfont.ttf"
+    glyphs: ${ ["áéíóúñ"] + get_glyphs(0x3041, 0x304F) }
