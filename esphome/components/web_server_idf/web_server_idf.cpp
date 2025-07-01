@@ -1,15 +1,24 @@
 #ifdef USE_ESP_IDF
 
 #include <cstdarg>
+#include <memory>
+#include <cstring>
+#include <cctype>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "esp_tls_crypto.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "utils.h"
-
 #include "web_server_idf.h"
+
+#ifdef USE_WEBSERVER_OTA
+#include <multipart_parser.h>
+#include "multipart.h"  // For parse_multipart_boundary and other utils
+#endif
 
 #ifdef USE_WEBSERVER
 #include "esphome/components/web_server/web_server.h"
@@ -72,18 +81,32 @@ void AsyncWebServer::begin() {
 esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
   ESP_LOGVV(TAG, "Enter AsyncWebServer::request_post_handler. uri=%s", r->uri);
   auto content_type = request_get_header(r, "Content-Type");
-  if (content_type.has_value() && *content_type != "application/x-www-form-urlencoded") {
-    ESP_LOGW(TAG, "Only application/x-www-form-urlencoded supported for POST request");
-    // fallback to get handler to support backward compatibility
-    return AsyncWebServer::request_handler(r);
-  }
 
   if (!request_has_header(r, "Content-Length")) {
-    ESP_LOGW(TAG, "Content length is requred for post: %s", r->uri);
+    ESP_LOGW(TAG, "Content length is required for post: %s", r->uri);
     httpd_resp_send_err(r, HTTPD_411_LENGTH_REQUIRED, nullptr);
     return ESP_OK;
   }
 
+  if (content_type.has_value()) {
+    const char *content_type_char = content_type.value().c_str();
+
+    // Check most common case first
+    if (stristr(content_type_char, "application/x-www-form-urlencoded") != nullptr) {
+      // Normal form data - proceed with regular handling
+#ifdef USE_WEBSERVER_OTA
+    } else if (stristr(content_type_char, "multipart/form-data") != nullptr) {
+      auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
+      return server->handle_multipart_upload_(r, content_type_char);
+#endif
+    } else {
+      ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type_char);
+      // fallback to get handler to support backward compatibility
+      return AsyncWebServer::request_handler(r);
+    }
+  }
+
+  // Handle regular form data
   if (r->content_len > HTTPD_MAX_REQ_HDR_LEN) {
     ESP_LOGW(TAG, "Request size is to big: %zu", r->content_len);
     httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
@@ -538,6 +561,97 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
   }
 }
 #endif
+
+#ifdef USE_WEBSERVER_OTA
+esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *content_type) {
+  static constexpr size_t MULTIPART_CHUNK_SIZE = 1460;       // Match Arduino AsyncWebServer buffer size
+  static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // Yield every 16KB to prevent watchdog
+
+  // Parse boundary and create reader
+  const char *boundary_start;
+  size_t boundary_len;
+  if (!parse_multipart_boundary(content_type, &boundary_start, &boundary_len)) {
+    ESP_LOGE(TAG, "Failed to parse multipart boundary");
+    httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
+    return ESP_FAIL;
+  }
+
+  AsyncWebServerRequest req(r);
+  AsyncWebHandler *handler = nullptr;
+  for (auto *h : this->handlers_) {
+    if (h->canHandle(&req)) {
+      handler = h;
+      break;
+    }
+  }
+
+  if (!handler) {
+    ESP_LOGW(TAG, "No handler found for OTA request");
+    httpd_resp_send_err(r, HTTPD_404_NOT_FOUND, nullptr);
+    return ESP_OK;
+  }
+
+  // Upload state
+  std::string filename;
+  size_t index = 0;
+  // Create reader on heap to reduce stack usage
+  auto reader = std::make_unique<MultipartReader>("--" + std::string(boundary_start, boundary_len));
+
+  // Configure callbacks
+  reader->set_data_callback([&](const uint8_t *data, size_t len) {
+    if (!reader->has_file() || !len)
+      return;
+
+    if (filename.empty()) {
+      filename = reader->get_current_part().filename;
+      ESP_LOGV(TAG, "Processing file: '%s'", filename.c_str());
+      handler->handleUpload(&req, filename, 0, nullptr, 0, false);  // Start
+    }
+
+    handler->handleUpload(&req, filename, index, const_cast<uint8_t *>(data), len, false);
+    index += len;
+  });
+
+  reader->set_part_complete_callback([&]() {
+    if (index > 0) {
+      handler->handleUpload(&req, filename, index, nullptr, 0, true);  // End
+      filename.clear();
+      index = 0;
+    }
+  });
+
+  // Process data
+  std::unique_ptr<char[]> buffer(new char[MULTIPART_CHUNK_SIZE]);
+  size_t bytes_since_yield = 0;
+
+  for (size_t remaining = r->content_len; remaining > 0;) {
+    int recv_len = httpd_req_recv(r, buffer.get(), std::min(remaining, MULTIPART_CHUNK_SIZE));
+
+    if (recv_len <= 0) {
+      httpd_resp_send_err(r, recv_len == HTTPD_SOCK_ERR_TIMEOUT ? HTTPD_408_REQ_TIMEOUT : HTTPD_400_BAD_REQUEST,
+                          nullptr);
+      return recv_len == HTTPD_SOCK_ERR_TIMEOUT ? ESP_ERR_TIMEOUT : ESP_FAIL;
+    }
+
+    if (reader->parse(buffer.get(), recv_len) != static_cast<size_t>(recv_len)) {
+      ESP_LOGW(TAG, "Multipart parser error");
+      httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
+      return ESP_FAIL;
+    }
+
+    remaining -= recv_len;
+    bytes_since_yield += recv_len;
+
+    if (bytes_since_yield > YIELD_INTERVAL_BYTES) {
+      vTaskDelay(1);
+      bytes_since_yield = 0;
+    }
+  }
+
+  handler->handleRequest(&req);
+  return ESP_OK;
+}
+#endif  // USE_WEBSERVER_OTA
 
 }  // namespace web_server_idf
 }  // namespace esphome

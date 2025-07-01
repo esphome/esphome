@@ -40,6 +40,7 @@ CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 
+
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
@@ -69,12 +70,6 @@ def default_url(config):
 def validate_local(config):
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
-    return config
-
-
-def validate_ota(config):
-    if CORE.using_esp_idf and config[CONF_OTA]:
-        raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
     return config
 
 
@@ -175,15 +170,7 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-            cv.SplitDefault(
-                CONF_OTA,
-                esp8266=True,
-                esp32_arduino=True,
-                esp32_idf=False,
-                bk72xx=True,
-                ln882x=True,
-                rtl87xx=True,
-            ): cv.boolean,
+            cv.Optional(CONF_OTA, default=True): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
@@ -200,7 +187,6 @@ CONFIG_SCHEMA = cv.All(
     ),
     default_url,
     validate_local,
-    validate_ota,
     validate_sorting_groups,
 )
 
@@ -286,6 +272,10 @@ async def to_code(config):
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
+    if config[CONF_OTA]:
+        # Define USE_WEBSERVER_OTA based only on web_server OTA config
+        # This allows web server OTA to work without loading the OTA component
+        cg.add_define("USE_WEBSERVER_OTA")
     cg.add(var.set_expose_log(config[CONF_LOG]))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")

@@ -17,3 +17,5 @@ dependencies:
     version: 2.0.11
     rules:
       - if: "target in [esp32h2, esp32p4]"
+  zorxx/multipart-parser:
+    version: 1.0.1

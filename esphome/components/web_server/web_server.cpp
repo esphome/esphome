@@ -299,8 +299,10 @@ void WebServer::setup() {
 #endif
   this->base_->add_handler(this);
 
+#ifdef USE_WEBSERVER_OTA
   if (this->allow_ota_)
     this->base_->add_ota_handler();
+#endif
 
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
@@ -2030,6 +2032,10 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 #endif
+
+  // No matching handler found - send 404
+  ESP_LOGV(TAG, "Request for unknown URL: %s", request->url().c_str());
+  request->send(404, "text/plain", "Not Found");
 }
 
 bool WebServer::isRequestHandlerTrivial() const { return false; }
