@@ -94,7 +94,7 @@ def clang_options(idedata):
             "-std=gnu++14",
         ]
     )
-    omit_flags+=("-std=c++11", "-std=gnu++11")
+    omit_flags+=("-std=c++11", "-std=gnu++11", "-std=c++14")
 
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(flag for flag in idedata["cxx_flags"] if flag not in omit_flags)
