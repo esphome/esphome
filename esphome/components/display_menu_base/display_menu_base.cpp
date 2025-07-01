@@ -21,9 +21,11 @@ void DisplayMenuComponent::recurse_menu_items_(MenuItemMenu *parent_menu) {
 
 void DisplayMenuComponent::generate_to_menu_items_(MenuItemMenu *menu) {
   size_t num_items = menu->items_size();
+#ifdef USE_GROUPS
   for (groups::Group *group : menu->groups()) {
     num_items += process_group_(menu, group);
   }
+#endif
 
   if (num_items == 0) {
     display_menu_base::MenuItem *back_item = new display_menu_base::MenuItem(display_menu_base::MENU_ITEM_BACK);
