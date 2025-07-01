@@ -451,96 +451,53 @@ class APIConnection : public APIServerConnection {
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size, bool is_single);
 
-  // Optimized MessageCreator class using tagged pointer
   class MessageCreator {
-    // Ensure pointer alignment allows LSB tagging
-    static_assert(alignof(std::string *) > 1, "String pointer alignment must be > 1 for LSB tagging");
-
    public:
     // Constructor for function pointer
-    MessageCreator(MessageCreatorPtr ptr) {
-      // Function pointers are always aligned, so LSB is 0
-      data_.ptr = ptr;
-    }
+    MessageCreator(MessageCreatorPtr ptr) { data_.function_ptr = ptr; }
 
     // Constructor for string state capture
-    explicit MessageCreator(const std::string &str_value) {
-      // Allocate string and tag the pointer
-      auto *str = new std::string(str_value);
-      // Set LSB to 1 to indicate string pointer
-      data_.tagged = reinterpret_cast<uintptr_t>(str) | 1;
-    }
+    explicit MessageCreator(const std::string &str_value) { data_.string_ptr = new std::string(str_value); }
 
-    // Destructor
-    ~MessageCreator() {
-      if (has_tagged_string_ptr_()) {
-        delete get_string_ptr_();
-      }
-    }
+    // No destructor - cleanup must be called explicitly with message_type
 
-    // Copy constructor
-    MessageCreator(const MessageCreator &other) {
-      if (other.has_tagged_string_ptr_()) {
-        auto *str = new std::string(*other.get_string_ptr_());
-        data_.tagged = reinterpret_cast<uintptr_t>(str) | 1;
-      } else {
-        data_ = other.data_;
-      }
-    }
+    // Delete copy operations - MessageCreator should only be moved
+    MessageCreator(const MessageCreator &other) = delete;
+    MessageCreator &operator=(const MessageCreator &other) = delete;
 
     // Move constructor
-    MessageCreator(MessageCreator &&other) noexcept : data_(other.data_) { other.data_.ptr = nullptr; }
+    MessageCreator(MessageCreator &&other) noexcept : data_(other.data_) { other.data_.function_ptr = nullptr; }
 
-    // Assignment operators (needed for batch deduplication)
-    MessageCreator &operator=(const MessageCreator &other) {
-      if (this != &other) {
-        // Clean up current string data if needed
-        if (has_tagged_string_ptr_()) {
-          delete get_string_ptr_();
-        }
-        // Copy new data
-        if (other.has_tagged_string_ptr_()) {
-          auto *str = new std::string(*other.get_string_ptr_());
-          data_.tagged = reinterpret_cast<uintptr_t>(str) | 1;
-        } else {
-          data_ = other.data_;
-        }
-      }
-      return *this;
-    }
-
+    // Move assignment
     MessageCreator &operator=(MessageCreator &&other) noexcept {
       if (this != &other) {
-        // Clean up current string data if needed
-        if (has_tagged_string_ptr_()) {
-          delete get_string_ptr_();
-        }
-        // Move data
+        // IMPORTANT: Caller must ensure cleanup() was called if this contains a string!
+        // In our usage, this happens in add_item() deduplication and vector::erase()
         data_ = other.data_;
-        // Reset other to safe state
-        other.data_.ptr = nullptr;
+        other.data_.function_ptr = nullptr;
       }
       return *this;
     }
 
-    // Call operator - now accepts message_type as parameter
+    // Call operator - uses message_type to determine union type
     uint16_t operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single,
                         uint16_t message_type) const;
 
-   private:
-    // Check if this contains a string pointer
-    bool has_tagged_string_ptr_() const { return (data_.tagged & 1) != 0; }
-
-    // Get the actual string pointer (clears the tag bit)
-    std::string *get_string_ptr_() const {
-      // NOLINTNEXTLINE(performance-no-int-to-ptr)
-      return reinterpret_cast<std::string *>(data_.tagged & ~uintptr_t(1));
+    // Manual cleanup method - must be called before destruction for string types
+    void cleanup(uint16_t message_type) {
+#ifdef USE_EVENT
+      if (message_type == EventResponse::MESSAGE_TYPE && data_.string_ptr != nullptr) {
+        delete data_.string_ptr;
+        data_.string_ptr = nullptr;
+      }
+#endif
     }
 
-    union {
-      MessageCreatorPtr ptr;
-      uintptr_t tagged;
-    } data_;  // 4 bytes on 32-bit
+   private:
+    union Data {
+      MessageCreatorPtr function_ptr;
+      std::string *string_ptr;
+    } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit - same as before
   };
 
   // Generic batching mechanism for both state updates and entity info
@@ -558,20 +515,46 @@ class APIConnection : public APIServerConnection {
     std::vector<BatchItem> items;
     uint32_t batch_start_time{0};
 
+   private:
+    // Helper to cleanup items from the beginning
+    void cleanup_items_(size_t count) {
+      for (size_t i = 0; i < count; i++) {
+        items[i].creator.cleanup(items[i].message_type);
+      }
+    }
+
+   public:
     DeferredBatch() {
       // Pre-allocate capacity for typical batch sizes to avoid reallocation
       items.reserve(8);
+    }
+
+    ~DeferredBatch() {
+      // Ensure cleanup of any remaining items
+      clear();
     }
 
     // Add item to the batch
     void add_item(EntityBase *entity, MessageCreator creator, uint16_t message_type);
     // Add item to the front of the batch (for high priority messages like ping)
     void add_item_front(EntityBase *entity, MessageCreator creator, uint16_t message_type);
+
+    // Clear all items with proper cleanup
     void clear() {
+      cleanup_items_(items.size());
       items.clear();
       batch_start_time = 0;
     }
+
+    // Remove processed items from the front with proper cleanup
+    void remove_front(size_t count) {
+      cleanup_items_(count);
+      items.erase(items.begin(), items.begin() + count);
+    }
+
     bool empty() const { return items.empty(); }
+    size_t size() const { return items.size(); }
+    const BatchItem &operator[](size_t index) const { return items[index]; }
   };
 
   // DeferredBatch here (16 bytes, 4-byte aligned)
