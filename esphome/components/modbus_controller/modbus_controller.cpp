@@ -152,6 +152,86 @@ void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t 
   this->send(function_code, start_address, number_of_registers, response.size(), response.data());
 }
 
+void ModbusController::on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) {
+  uint16_t number_of_registers;
+  uint16_t payload_offset;
+
+  if (function_code == 0x10) {
+    number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
+    if (number_of_registers == 0 || number_of_registers > 0x7B) {
+      ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
+      send_error(function_code, 3);
+      return;
+    }
+    uint16_t payload_size = data[4];
+    if (payload_size != number_of_registers * 2) {
+      ESP_LOGW(TAG, "Payload size of %d bytes is not 2 times the number of registers (%d). Sending exception response.",
+               payload_size, number_of_registers);
+      send_error(function_code, 3);
+      return;
+    }
+    payload_offset = 5;
+  } else if (function_code == 0x06) {
+    number_of_registers = 1;
+    payload_offset = 2;
+  } else {
+    ESP_LOGW(TAG, "Invalid function code 0x%X. Sending exception response.", function_code);
+    send_error(function_code, 1);
+    return;
+  }
+
+  uint16_t start_address = uint16_t(data[1]) | (uint16_t(data[0]) << 8);
+  ESP_LOGD(TAG,
+           "Received write holding registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
+           "0x%X.",
+           this->address_, function_code, start_address, number_of_registers);
+
+  auto for_each_register = [this, start_address, number_of_registers, payload_offset](
+                               const std::function<bool(ServerRegister *, uint16_t offset)> &callback) -> bool {
+    uint16_t offset = payload_offset;
+    for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
+      bool ok = false;
+      for (auto *server_register : this->server_registers_) {
+        if (server_register->address == current_address) {
+          ok = callback(server_register, offset);
+          current_address += server_register->register_count;
+          offset += server_register->register_count * sizeof(uint16_t);
+          break;
+        }
+      }
+
+      if (!ok) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // check all registers are writable before writing to any of them:
+  if (!for_each_register([](ServerRegister *server_register, uint16_t offset) -> bool {
+        return server_register->write_lambda != nullptr;
+      })) {
+    send_error(function_code, 1);
+    return;
+  }
+
+  // Actually write to the registers:
+  if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
+        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
+        return server_register->write_lambda(number);
+      })) {
+    send_error(function_code, 4);
+    return;
+  }
+
+  std::vector<uint8_t> response;
+  response.reserve(6);
+  response.push_back(this->address_);
+  response.push_back(function_code);
+  response.insert(response.end(), data.begin(), data.begin() + 4);
+  this->send_raw(response);
+}
+
 SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
   auto reg_it = std::find_if(
       std::begin(this->register_ranges_), std::end(this->register_ranges_),

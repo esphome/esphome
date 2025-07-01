@@ -33,7 +33,18 @@ modbus_controller:
         read_lambda: |-
           return 42.3;
     max_cmd_retries: 0
-
+  - id: modbus_controller3
+    address: 0x3
+    modbus_id: mod_bus2
+    server_registers:
+      - address: 0x0009
+        value_type: S_DWORD
+        read_lambda: |-
+          return 31;
+        write_lambda: |-
+          printf("address=%d, value=%d", x);
+          return true;
+    max_cmd_retries: 0
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
