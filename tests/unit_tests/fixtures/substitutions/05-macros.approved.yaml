@@ -1,0 +1,116 @@
+substitutions:
+  display_scale: 1.5
+  a: 10
+  b: 4
+  c: 79
+  func: double
+jinja:
+  macros:
+    multiply:
+      parameters:
+        a: 3
+        b: 4
+      body: ${a*b}
+      upvalues:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        d: 82
+        position: &id001
+          x: 4
+          y: 3
+    modulus:
+      parameters:
+        vec:
+          x: 0
+          y: 0
+      body: ${math.sqrt(vec.x*vec.x+vec.y*vec.y)}
+      upvalues:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        d: 82
+        position: *id001
+    scale:
+      parameters:
+        x: 0
+        factor: null
+      body: ${(x * (display_scale if factor is none else factor)) | round | int}
+      upvalues:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        d: 82
+        position: *id001
+    square:
+      parameters:
+        x: 0
+      body: ${x*x}
+      upvalues:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        d: 82
+        position: *id001
+    double:
+      parameters:
+        x: 0
+      body: ${x*2}
+      upvalues:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        d: 82
+        position: *id001
+    pin:
+      parameters:
+        number: 10
+        inverted: false
+      body: "#if number > 20\n${\n  {\n      \"number\": number,\n      \"inverted\"\
+        \ : inverted,\n      \"pullup\": true\n  }\n}\n#else\n${\n  {\n      \"number\"\
+        : number,\n      \"inverted\" : inverted,\n  }\n}\n#endif\n"
+      upvalues:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        d: 82
+        position: *id001
+  vars:
+    a: 7
+    b: 0
+    c: 3
+    d: 82
+    position: *id001
+testlist:
+  - The value of c is 79, not 3. Substitution is evaluated first
+  - Even if I do this, c is still 79.
+  - Substitutions are evaluated before jinja, 20
+  - The value of d is 82 since it is defined as a var
+  - Position x=4, y=3
+  - Distance = 5
+  - multiply(6,7) = 42
+  - multiply(2) = 8, because parameter b has a default value of 4
+  - multiply(a=5, b=7) = 35
+  - scale(100) = 150 because macro takes display_scale as default
+  - scale(100, 1.377892) = 138
+  - square(a) = 100
+  - double(b) = 8
+  - number: 10
+    inverted: true
+  - number: 10
+    inverted: false
+  - number: 22
+    inverted: false
+    pullup: true

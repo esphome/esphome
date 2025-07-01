@@ -1,0 +1,18 @@
+substitutions:
+  multiplier: 5
+
+packages:
+  mylib: !include
+    file: macro_package.yaml
+    vars:
+      factor: 7
+
+local_results:
+  - |
+    The value of testmacro(4) is ${testmacro(4)},
+    since the 'factor' package var is captured
+    by testmacro() as a closure.
+  - |
+    You will see, however, that
+    ${factor} is not substituted here, since
+    it is out of scope.

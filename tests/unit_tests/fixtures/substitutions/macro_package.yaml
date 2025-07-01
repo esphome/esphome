@@ -1,0 +1,17 @@
+defaults:
+  factor: 2
+  size: 9
+
+jinja:
+  macros:
+    testmacro:
+      parameters:
+        x: 1
+      return: factor * x
+
+package_result: |
+  This result is ${size * multiplier}.
+  Size value of size=${size} is captured from defaults
+  in macro_package.yaml when it is imported, but
+  evaluated later, when substitution "multiplier"
+  is available.

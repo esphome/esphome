@@ -1,0 +1,80 @@
+substitutions:
+  display_scale: 1.5
+  a: 10
+  b: 4
+  c: 79
+  func: double
+
+jinja:
+  macros:
+    multiply:
+      parameters:
+        a: 3
+        b: 4
+      return: a*b
+    modulus:
+      parameters:
+        vec:
+          x: 0
+          y: 0
+      return: math.sqrt(vec.x*vec.x+vec.y*vec.y)
+    scale:
+      parameters:
+        x: 0
+        factor: null
+      return: (x * (display_scale if factor is none else factor)) | round | int
+    square:
+      parameters:
+        x: 0
+      return: x*x
+    double:
+      parameters:
+        x: 0
+      return: x*2
+    pin:
+      parameters:
+        number: 10
+        inverted: false
+      body: |
+        #if number > 20
+        ${
+          {
+              "number": number,
+              "inverted" : inverted,
+              "pullup": true
+          }
+        }
+        #else
+        ${
+          {
+              "number": number,
+              "inverted" : inverted,
+          }
+        }
+        #endif
+  vars:
+    a: 7
+    b: 0
+    c: 3
+    d: 82
+    position:
+      x: 4
+      y: 3
+
+testlist:
+  - The value of c is ${c}, not 3. Substitution is evaluated first
+  - Even if I do this, c is still ${ c * 1 }.
+  - Substitutions are evaluated before jinja, ${ ${func}(a) }
+  - The value of d is ${d} since it is defined as a var
+  - Position x=${position.x}, y=${position.y}
+  - Distance = ${modulus(position) | int}
+  - multiply(6,7) = ${ multiply(6,7) }
+  - multiply(2) = ${ multiply(2) }, because parameter b has a default value of 4
+  - multiply(a=5, b=7) = ${multiply(a=5, b=7)}
+  - scale(100) = ${ scale(100) } because macro takes display_scale as default
+  - scale(100, 1.377892) = ${ scale(100, 1.377892) }
+  - square(a) = ${square(a)}
+  - double(b) = ${double(b)}
+  - ${pin(inverted=True)}
+  - ${pin()}
+  - ${pin(22)}
