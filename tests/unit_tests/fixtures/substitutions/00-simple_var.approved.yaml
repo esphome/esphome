@@ -1,0 +1,19 @@
+substitutions:
+  var1: '1'
+  var2: '2'
+  var21: '79'
+esphome:
+  name: test
+test_list:
+  - '1'
+  - '1'
+  - '1'
+  - '1'
+  - 'Values: 1 2'
+  - 'Value: 79'
+  - 1 + 2
+  - 1 * 2
+  - 'Undefined var: ${undefined_var}'
+  - ${undefined_var}
+  - $undefined_var
+  - ${ undefined_var }

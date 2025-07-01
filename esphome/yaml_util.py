@@ -292,8 +292,6 @@ class ESPHomeLoaderMixin:
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
             vars = fields.get(CONF_VARS)
-            if vars:
-                vars = {k: str(v) for k, v in vars.items()}
             return file, vars
 
         if isinstance(node, yaml.nodes.MappingNode):
