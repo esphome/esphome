@@ -1,8 +1,6 @@
-# Test configuration for ESP-IDF web server with OTA enabled
 esphome:
   name: test-web-server-ota-idf
 
-# Force ESP-IDF framework
 esp32:
   board: esp32dev
   framework:
@@ -15,17 +13,17 @@ packages:
 ota:
   - platform: esphome
     password: "test_ota_password"
+  - platform: web_server
 
-# Web server with OTA enabled
+# Web server configuration
 web_server:
   port: 8080
   version: 2
-  ota: true
   include_internal: true
 
 # Enable debug logging for OTA
 logger:
-  level: DEBUG
+  level: VERBOSE
   logs:
     web_server: VERBOSE
     web_server_idf: VERBOSE

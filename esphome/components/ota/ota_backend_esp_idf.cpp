@@ -56,7 +56,10 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_OK;
 }
 
-void IDFOTABackend::set_update_md5(const char *expected_md5) { memcpy(this->expected_bin_md5_, expected_md5, 32); }
+void IDFOTABackend::set_update_md5(const char *expected_md5) {
+  memcpy(this->expected_bin_md5_, expected_md5, 32);
+  this->md5_set_ = true;
+}
 
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
@@ -73,10 +76,12 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 }
 
 OTAResponseTypes IDFOTABackend::end() {
-  this->md5_.calculate();
-  if (!this->md5_.equals_hex(this->expected_bin_md5_)) {
-    this->abort();
-    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
+  if (this->md5_set_) {
+    this->md5_.calculate();
+    if (!this->md5_.equals_hex(this->expected_bin_md5_)) {
+      this->abort();
+      return OTA_RESPONSE_ERROR_MD5_MISMATCH;
+    }
   }
   esp_err_t err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;

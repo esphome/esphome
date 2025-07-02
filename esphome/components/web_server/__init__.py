@@ -33,6 +33,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -47,7 +48,7 @@ WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 sorting_groups = {}
 
 
-def default_url(config):
+def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_VERSION] == 1:
         if CONF_CSS_URL not in config:
@@ -67,13 +68,27 @@ def default_url(config):
     return config
 
 
-def validate_local(config):
+def validate_local(config: ConfigType) -> ConfigType:
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
     return config
 
 
-def validate_sorting_groups(config):
+def validate_ota_removed(config: ConfigType) -> ConfigType:
+    # Only raise error if OTA is explicitly enabled (True)
+    # If it's False or not specified, we can safely ignore it
+    if config.get(CONF_OTA):
+        raise cv.Invalid(
+            f"The '{CONF_OTA}' option has been removed from 'web_server'. "
+            f"Please use the new OTA platform structure instead:\n\n"
+            f"ota:\n"
+            f"  - platform: web_server\n\n"
+            f"See https://esphome.io/components/ota for more information."
+        )
+    return config
+
+
+def validate_sorting_groups(config: ConfigType) -> ConfigType:
     if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
         raise cv.Invalid(
             f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
@@ -84,7 +99,7 @@ def validate_sorting_groups(config):
 def _validate_no_sorting_component(
     sorting_component: str,
     webserver_version: int,
-    config: dict,
+    config: ConfigType,
     path: list[str] | None = None,
 ) -> None:
     if path is None:
@@ -107,7 +122,7 @@ def _validate_no_sorting_component(
                     )
 
 
-def _final_validate_sorting(config):
+def _final_validate_sorting(config: ConfigType) -> ConfigType:
     if (webserver_version := config.get(CONF_VERSION)) != 3:
         _validate_no_sorting_component(
             CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
@@ -170,7 +185,7 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-            cv.Optional(CONF_OTA, default=True): cv.boolean,
+            cv.Optional(CONF_OTA, default=False): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
@@ -188,6 +203,7 @@ CONFIG_SCHEMA = cv.All(
     default_url,
     validate_local,
     validate_sorting_groups,
+    validate_ota_removed,
 )
 
 
@@ -271,11 +287,8 @@ async def to_code(config):
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
-    cg.add(var.set_allow_ota(config[CONF_OTA]))
-    if config[CONF_OTA]:
-        # Define USE_WEBSERVER_OTA based only on web_server OTA config
-        # This allows web server OTA to work without loading the OTA component
-        cg.add_define("USE_WEBSERVER_OTA")
+    # OTA is now handled by the web_server OTA platform
+    # The CONF_OTA option is kept only for backwards compatibility validation
     cg.add(var.set_expose_log(config[CONF_LOG]))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")

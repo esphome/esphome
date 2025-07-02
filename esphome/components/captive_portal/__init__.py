@@ -12,7 +12,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
-AUTO_LOAD = ["web_server_base"]
+AUTO_LOAD = ["web_server_base", "ota.web_server"]
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@OttoWinter"]
 

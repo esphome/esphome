@@ -17,6 +17,9 @@
 namespace esphome {
 namespace web_server_base {
 
+class WebServerBase;
+extern WebServerBase *global_web_server_base;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 namespace internal {
 
 class MiddlewareHandler : public AsyncWebHandler {
@@ -110,55 +113,16 @@ class WebServerBase : public Component {
 
   void add_handler(AsyncWebHandler *handler);
 
-#ifdef USE_WEBSERVER_OTA
-  void add_ota_handler();
-#endif
-
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
  protected:
-#ifdef USE_WEBSERVER_OTA
-  friend class OTARequestHandler;
-#endif
-
   int initialized_{0};
   uint16_t port_{80};
   std::shared_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
   internal::Credentials credentials_;
 };
-
-#ifdef USE_WEBSERVER_OTA
-class OTARequestHandler : public AsyncWebHandler {
- public:
-  OTARequestHandler(WebServerBase *parent) : parent_(parent) {}
-  void handleRequest(AsyncWebServerRequest *request) override;
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override;
-  bool canHandle(AsyncWebServerRequest *request) const override {
-    return request->url() == "/update" && request->method() == HTTP_POST;
-  }
-
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  bool isRequestHandlerTrivial() const override { return false; }
-
- protected:
-  void report_ota_progress_(AsyncWebServerRequest *request);
-  void schedule_ota_reboot_();
-  void ota_init_(const char *filename);
-
-  uint32_t last_ota_progress_{0};
-  uint32_t ota_read_length_{0};
-  WebServerBase *parent_;
-
- private:
-#ifdef USE_ESP_IDF
-  void *ota_backend_{nullptr};
-  bool ota_success_{false};
-#endif
-};
-#endif  // USE_WEBSERVER_OTA
 
 }  // namespace web_server_base
 }  // namespace esphome

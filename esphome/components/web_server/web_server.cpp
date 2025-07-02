@@ -273,7 +273,11 @@ std::string WebServer::get_config_json() {
   return json::build_json([this](JsonObject root) {
     root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
     root["comment"] = App.get_comment();
-    root["ota"] = this->allow_ota_;
+#ifdef USE_WEBSERVER_OTA
+    root["ota"] = true;  // web_server OTA platform is configured
+#else
+    root["ota"] = false;
+#endif
     root["log"] = this->expose_log_;
     root["lang"] = "en";
   });
@@ -299,10 +303,7 @@ void WebServer::setup() {
 #endif
   this->base_->add_handler(this);
 
-#ifdef USE_WEBSERVER_OTA
-  if (this->allow_ota_)
-    this->base_->add_ota_handler();
-#endif
+  // OTA is now handled by the web_server OTA platform
 
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
