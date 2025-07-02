@@ -16,30 +16,6 @@ namespace display_menu_render_base {
 using namespace display_menu_base;
 
 #ifdef USE_SENSOR
-
-// Create lambda to generate text for menu_item
-template<bool with_name>
-auto make_sensor_lambda(sensor::Sensor *sensor_obj, const char *no_data_text, int8_t accuracy = -1) {
-  auto lambda = [=](const display_menu_base::MenuItem *it) -> std::string {
-    char buf[50];
-    char format_buf[10];
-    int symb_nums = 0;
-    if (with_name)
-      symb_nums += sprintf(buf, "%s: ", sensor_obj->get_name().c_str());
-
-    int8_t int_accuracy = (accuracy >= 0) ? accuracy : sensor_obj->get_accuracy_decimals();
-    sprintf(format_buf, "%%0.%df", int_accuracy);
-
-    if (sensor_obj->has_state()) {
-      sprintf(buf + symb_nums, format_buf, sensor_obj->state);
-    } else {
-      sprintf(buf + symb_nums, no_data_text);
-    }
-    return buf;
-  };
-  return lambda;
-};
-
 // Default render for sensor objects
 class SensorMenuRender : public MenuRenderInterface {
  public:

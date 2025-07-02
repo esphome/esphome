@@ -119,6 +119,27 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    */
   void publish_state(float state);
 
+  /** Get state value as string
+   * @tparam ARRAY_SIZE Internal buffer size
+   * @param no_data_text Text, if sensor hasn't state
+   * @param accuracy Number of digits after decimal point, if default value -1,
+   *                 get_accuracy_decimals() is used
+   */
+  template<size_t ARRAY_SIZE = 20>  // NOLINT
+  std::string state_to_string(const char *no_data_text = nullptr, int accuracy = -1) {
+    char buf[ARRAY_SIZE] = {0};
+    const size_t format_buf_size = 10;
+    char format_buf[format_buf_size];
+    int8_t int_accuracy = (accuracy >= 0) ? accuracy : this->get_accuracy_decimals();
+    snprintf(format_buf, format_buf_size, "%%0.%df", int_accuracy);
+    if (this->has_state()) {
+      snprintf(buf, ARRAY_SIZE, format_buf, this->state);
+    } else if (no_data_text != nullptr) {
+      snprintf(buf, ARRAY_SIZE, "%s", no_data_text);
+    }
+    return std::string(buf);
+  }
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Add a callback that will be called every time a filtered value arrives.
