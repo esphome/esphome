@@ -73,7 +73,7 @@ void DallasTemperatureSearcher::setup() {
   }
 
   // The first pass is to add all addresses from the saved addresses and add nullptr of the missing ones
-  for (uint8_t i = 0; i < this->saved_addresses_.size(); i++) {
+  for (size_t i = 0; i < this->saved_addresses_.size(); i++) {
     const uint64_t &address = this->saved_addresses_[i];
     auto it = std::find(addresses.begin(), addresses.end(), address);
 

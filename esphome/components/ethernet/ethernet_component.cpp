@@ -239,7 +239,7 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "GOT IPv6 event handler register error");
 #endif /* USE_NETWORK_IPV6 */
 
-  if (this->enable_on_boot_ == false) {
+  if (!this->enable_on_boot_) {
     ESP_LOGCONFIG(TAG, "Ethernet is disabled");
     return;
   }
