@@ -4,13 +4,13 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <strings.h>
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <strings.h>
 
 #ifdef USE_HOST
 #ifndef _WIN32
@@ -43,10 +43,10 @@
 #include <random>
 #endif
 #ifdef USE_ESP32
-#include "rom/crc.h"
-#include "esp_mac.h"
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
+#include "esp_mac.h"
+#include "rom/crc.h"
 #endif
 
 #ifdef USE_LIBRETINY
@@ -393,6 +393,21 @@ std::string format_hex_pretty(const uint16_t *data, size_t length) {
   return ret;
 }
 std::string format_hex_pretty(const std::vector<uint16_t> &data) { return format_hex_pretty(data.data(), data.size()); }
+std::string format_hex_pretty(const std::string &data) {
+  if (data.empty())
+    return "";
+  std::string ret;
+  ret.resize(3 * data.length() - 1);
+  for (size_t i = 0; i < data.length(); i++) {
+    ret[3 * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[3 * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    if (i != data.length() - 1)
+      ret[3 * i + 2] = '.';
+  }
+  if (data.length() > 4)
+    return ret + " (" + std::to_string(data.length()) + ")";
+  return ret;
+}
 
 std::string format_bin(const uint8_t *data, size_t length) {
   std::string result;

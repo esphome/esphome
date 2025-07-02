@@ -348,6 +348,8 @@ std::string format_hex_pretty(const uint16_t *data, size_t length);
 std::string format_hex_pretty(const std::vector<uint8_t> &data);
 /// Format the vector \p data in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const std::vector<uint16_t> &data);
+/// Format the string \p data in pretty-printed, human-readable hex.
+std::string format_hex_pretty(const std::string &data);
 /// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
   val = convert_big_endian(val);

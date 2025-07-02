@@ -3,6 +3,7 @@
 #include "api_pb2.h"
 #include "api_pb2_size.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #include <cinttypes>
 
@@ -3510,7 +3511,7 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  message: ");
-  out.append("'").append(this->message).append("'");
+  out.append(format_hex_pretty(this->message));
   out.append("\n");
 
   out.append("  send_failed: ");
@@ -3538,7 +3539,7 @@ void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("NoiseEncryptionSetKeyRequest {\n");
   out.append("  key: ");
-  out.append("'").append(this->key).append("'");
+  out.append(format_hex_pretty(this->key));
   out.append("\n");
   out.append("}");
 }
@@ -4284,7 +4285,7 @@ void CameraImageResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
 
   out.append("  done: ");
@@ -6811,7 +6812,7 @@ void BluetoothServiceData::dump_to(std::string &out) const {
   }
 
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
   out.append("}");
 }
@@ -6894,7 +6895,7 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  name: ");
-  out.append("'").append(this->name).append("'");
+  out.append(format_hex_pretty(this->name));
   out.append("\n");
 
   out.append("  rssi: ");
@@ -6987,7 +6988,7 @@ void BluetoothLERawAdvertisement::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
   out.append("}");
 }
@@ -7514,7 +7515,7 @@ void BluetoothGATTReadResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
   out.append("}");
 }
@@ -7578,7 +7579,7 @@ void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
   out.append("}");
 }
@@ -7670,7 +7671,7 @@ void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
   out.append("}");
 }
@@ -7772,7 +7773,7 @@ void BluetoothGATTNotifyDataResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
   out.append("}");
 }
@@ -8492,7 +8493,7 @@ void VoiceAssistantAudio::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("VoiceAssistantAudio {\n");
   out.append("  data: ");
-  out.append("'").append(this->data).append("'");
+  out.append(format_hex_pretty(this->data));
   out.append("\n");
 
   out.append("  end: ");
