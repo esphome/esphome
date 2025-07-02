@@ -42,7 +42,6 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
         const std::string header_value = evt->header_value;
         ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
         user_data->response_headers[header_name].push_back(header_value);
-        break;
       }
       break;
     }
