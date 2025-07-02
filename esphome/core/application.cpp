@@ -84,6 +84,10 @@ void Application::setup() {
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
+
+  // Clear setup priority overrides to free memory
+  clear_setup_priority_overrides();
+
   this->schedule_dump_config();
   this->calculate_looping_components_();
 }

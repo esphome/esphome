@@ -387,9 +387,7 @@ class Component {
   bool cancel_defer(const std::string &name);  // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
-  float setup_priority_override_{NAN};
   const char *component_source_{nullptr};
-  const char *error_message_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
   /// State of this component - each bit has a purpose:
   /// Bits 0-1: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED)
@@ -458,5 +456,8 @@ class WarnIfComponentBlockingGuard {
   uint32_t started_;
   Component *component_;
 };
+
+// Function to clear setup priority overrides after all components are set up
+void clear_setup_priority_overrides();
 
 }  // namespace esphome

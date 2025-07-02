@@ -2,7 +2,9 @@
 
 #include <cinttypes>
 #include <limits>
+#include <memory>
 #include <utility>
+#include <vector>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -11,6 +13,30 @@
 namespace esphome {
 
 static const char *const TAG = "component";
+
+// Global vectors for component data that doesn't belong in every instance.
+// Using vector instead of unordered_map for both because:
+// - Much lower memory overhead (8 bytes per entry vs 20+ for unordered_map)
+// - Linear search is fine for small n (typically < 5 entries)
+// - These are rarely accessed (setup only or error cases only)
+
+// Component error messages - only stores messages for failed components
+// Lazy allocated since most configs have zero failures
+// Note: We don't clear this vector because:
+// 1. Components are never destroyed in ESPHome
+// 2. Failed components remain failed (no recovery mechanism)
+// 3. Memory usage is minimal (only failures with custom messages are stored)
+static std::unique_ptr<std::vector<std::pair<const Component *, const char *>>> &get_component_error_messages() {
+  static std::unique_ptr<std::vector<std::pair<const Component *, const char *>>> instance;
+  return instance;
+}
+
+// Setup priority overrides - freed after setup completes
+// Typically < 5 entries, lazy allocated
+static std::unique_ptr<std::vector<std::pair<const Component *, float>>> &get_setup_priority_overrides() {
+  static std::unique_ptr<std::vector<std::pair<const Component *, float>>> instance;
+  return instance;
+}
 
 namespace setup_priority {
 
@@ -102,8 +128,17 @@ void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
   this->dump_config();
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(),
-             this->error_message_ ? this->error_message_ : "unspecified");
+    // Look up error message from global vector
+    const char *error_msg = "unspecified";
+    if (get_component_error_messages()) {
+      for (const auto &pair : *get_component_error_messages()) {
+        if (pair.first == this) {
+          error_msg = pair.second;
+          break;
+        }
+      }
+    }
+    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(), error_msg);
   }
 }
 
@@ -245,8 +280,21 @@ void Component::status_set_error(const char *message) {
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "Component %s set Error flag: %s", this->get_component_source(), message);
-  if (strcmp(message, "unspecified") != 0)
-    this->error_message_ = message;
+  if (strcmp(message, "unspecified") != 0) {
+    // Lazy allocate the error messages vector if needed
+    if (!get_component_error_messages()) {
+      get_component_error_messages() = std::make_unique<std::vector<std::pair<const Component *, const char *>>>();
+    }
+    // Check if this component already has an error message
+    for (auto &pair : *get_component_error_messages()) {
+      if (pair.first == this) {
+        pair.second = message;
+        return;
+      }
+    }
+    // Add new error message
+    get_component_error_messages()->emplace_back(this, message);
+  }
 }
 void Component::status_clear_warning() {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
@@ -270,11 +318,36 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
 }
 void Component::dump_config() {}
 float Component::get_actual_setup_priority() const {
-  if (std::isnan(this->setup_priority_override_))
-    return this->get_setup_priority();
-  return this->setup_priority_override_;
+  // Check if there's an override in the global vector
+  if (get_setup_priority_overrides()) {
+    // Linear search is fine for small n (typically < 5 overrides)
+    for (const auto &pair : *get_setup_priority_overrides()) {
+      if (pair.first == this) {
+        return pair.second;
+      }
+    }
+  }
+  return this->get_setup_priority();
 }
-void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
+void Component::set_setup_priority(float priority) {
+  // Lazy allocate the vector if needed
+  if (!get_setup_priority_overrides()) {
+    get_setup_priority_overrides() = std::make_unique<std::vector<std::pair<const Component *, float>>>();
+    // Reserve some space to avoid reallocations (most configs have < 10 overrides)
+    get_setup_priority_overrides()->reserve(10);
+  }
+
+  // Check if this component already has an override
+  for (auto &pair : *get_setup_priority_overrides()) {
+    if (pair.first == this) {
+      pair.second = priority;
+      return;
+    }
+  }
+
+  // Add new override
+  get_setup_priority_overrides()->emplace_back(this, priority);
+}
 
 bool Component::has_overridden_loop() const {
 #if defined(USE_HOST) || defined(CLANG_TIDY)
@@ -335,5 +408,10 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
 }
 
 WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
+
+void clear_setup_priority_overrides() {
+  // Free the setup priority map completely
+  get_setup_priority_overrides().reset();
+}
 
 }  // namespace esphome
