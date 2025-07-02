@@ -40,7 +40,7 @@ class RealTimeClock : public PollingComponent {
   /// Get the current time as the UTC epoch since January 1st 1970.
   time_t timestamp_now() { return ::time(nullptr); }
 
-  void add_on_time_sync_callback(std::function<void()> callback) {
+  void add_on_time_sync_callback(std::function<void()> &&callback) {
     this->time_sync_callback_.add(std::move(callback));
   };
 
