@@ -10,12 +10,12 @@ static const char *const TAG = "nextion";
 // Sleep safe commands
 void Nextion::soft_reset() { this->send_command_("rest"); }
 
-void Nextion::set_wake_up_page(uint8_t wake_up_page) {
+void Nextion::set_wake_up_page(int16_t wake_up_page) {
   this->wake_up_page_ = wake_up_page;
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", wake_up_page, true);
 }
 
-void Nextion::set_touch_sleep_timeout(uint32_t touch_sleep_timeout) {
+void Nextion::set_touch_sleep_timeout(uint16_t touch_sleep_timeout) {
   if (touch_sleep_timeout < 3) {
     ESP_LOGD(TAG, "Sleep timeout out of bounds (3-65535)");
     return;

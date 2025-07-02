@@ -164,7 +164,7 @@ void Nextion::dump_config() {
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
   if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:  %" PRIu32, this->touch_sleep_timeout_);
+    ESP_LOGCONFIG(TAG, "  Touch Timeout:  %" PRIu16, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
@@ -302,11 +302,11 @@ void Nextion::loop() {
     }
 
     // Check if a startup page has been set and send the command
-    if (this->start_up_page_ != -1) {
+    if (this->start_up_page_ >= 0) {
       this->goto_page(this->start_up_page_);
     }
 
-    if (this->wake_up_page_ != -1) {
+    if (this->wake_up_page_ >= 0) {
       this->set_wake_up_page(this->wake_up_page_);
     }
 
@@ -418,12 +418,12 @@ void Nextion::process_nextion_commands_() {
       ESP_LOGN(TAG, "Add 0xFF");
     }
 
-    this->nextion_event_ = this->command_data_[0];
+    const uint8_t nextion_event = this->command_data_[0];
 
     to_process_length -= 1;
     to_process = this->command_data_.substr(1, to_process_length);
 
-    switch (this->nextion_event_) {
+    switch (nextion_event) {
       case 0x00:  // instruction sent by user has failed
         ESP_LOGW(TAG, "Invalid instruction");
         this->remove_from_q_();
@@ -562,9 +562,9 @@ void Nextion::process_nextion_commands_() {
           break;
         }
 
-        uint16_t x = (uint16_t(to_process[0]) << 8) | to_process[1];
-        uint16_t y = (uint16_t(to_process[2]) << 8) | to_process[3];
-        uint8_t touch_event = to_process[4];  // 0 -> release, 1 -> press
+        const uint16_t x = (uint16_t(to_process[0]) << 8) | to_process[1];
+        const uint16_t y = (uint16_t(to_process[2]) << 8) | to_process[3];
+        const uint8_t touch_event = to_process[4];  // 0 -> release, 1 -> press
         ESP_LOGD(TAG, "Touch %s at %u,%u", touch_event ? "PRESS" : "RELEASE", x, y);
         break;
       }
@@ -820,15 +820,14 @@ void Nextion::process_nextion_commands_() {
         break;
       }
       default:
-        ESP_LOGW(TAG, "Unknown event: 0x%02X", this->nextion_event_);
+        ESP_LOGW(TAG, "Unknown event: 0x%02X", nextion_event);
         break;
     }
 
-    // ESP_LOGN(TAG, "nextion_event_ deleting from 0 to %d", to_process_length + COMMAND_DELIMITER.length() + 1);
     this->command_data_.erase(0, to_process_length + COMMAND_DELIMITER.length() + 1);
   }
 
-  uint32_t ms = App.get_loop_component_start_time();
+  const uint32_t ms = App.get_loop_component_start_time();
 
   if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
     for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
@@ -960,7 +959,6 @@ void Nextion::update_components_by_prefix(const std::string &prefix) {
 }
 
 uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag) {
-  uint16_t ret = 0;
   uint8_t c = 0;
   uint8_t nr_of_ff_bytes = 0;
   bool exit_flag = false;
@@ -1003,8 +1001,7 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   if (ff_flag)
     response = response.substr(0, response.length() - 3);  // Remove last 3 0xFF
 
-  ret = response.length();
-  return ret;
+  return response.length();
 }
 
 /**
