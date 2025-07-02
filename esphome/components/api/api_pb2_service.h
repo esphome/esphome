@@ -2,8 +2,9 @@
 // See script/api_protobuf/api_protobuf.py
 #pragma once
 
-#include "api_pb2.h"
 #include "esphome/core/defines.h"
+
+#include "api_pb2.h"
 
 namespace esphome {
 namespace api {
