@@ -132,7 +132,9 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_port(config[CONF_PORT]))
-    cg.add(var.set_password(config[CONF_PASSWORD]))
+    if config[CONF_PASSWORD]:
+        cg.add_define("USE_API_PASSWORD")
+        cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
 

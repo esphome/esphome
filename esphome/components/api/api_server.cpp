@@ -218,6 +218,7 @@ void APIServer::dump_config() {
 #endif
 }
 
+#ifdef USE_API_PASSWORD
 bool APIServer::uses_password() const { return !this->password_.empty(); }
 
 bool APIServer::check_password(const std::string &password) const {
@@ -248,6 +249,7 @@ bool APIServer::check_password(const std::string &password) const {
 
   return result == 0;
 }
+#endif
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
@@ -431,7 +433,9 @@ float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI;
 
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 
+#ifdef USE_API_PASSWORD
 void APIServer::set_password(const std::string &password) { this->password_ = password; }
+#endif
 
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 

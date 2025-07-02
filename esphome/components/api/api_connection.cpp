@@ -1503,7 +1503,10 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   return resp;
 }
 ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
-  bool correct = this->parent_->check_password(msg.password);
+  bool correct = true;
+#ifdef USE_API_PASSWORD
+  correct = this->parent_->check_password(msg.password);
+#endif
 
   ConnectResponse resp;
   // bool invalid_password = 1;
@@ -1524,7 +1527,11 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
 }
 DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
+#ifdef USE_API_PASSWORD
   resp.uses_password = this->parent_->uses_password();
+#else
+  resp.uses_password = false;
+#endif
   resp.name = App.get_name();
   resp.friendly_name = App.get_friendly_name();
   resp.suggested_area = App.get_area();
