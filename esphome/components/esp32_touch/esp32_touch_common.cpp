@@ -22,16 +22,20 @@ void ESP32TouchComponent::dump_config_base_() {
                 "  Sleep cycle: %.2fms\n"
                 "  Low Voltage Reference: %s\n"
                 "  High Voltage Reference: %s\n"
-                "  Voltage Attenuation: %s",
+                "  Voltage Attenuation: %s\n"
+                "  Release Timeout: %" PRIu32 "ms\n",
                 this->meas_cycle_ / (8000000.0f / 1000.0f), this->sleep_cycle_ / (150000.0f / 1000.0f), lv_s, hv_s,
-                atten_s);
+                atten_s, this->release_timeout_ms_);
 }
 
 void ESP32TouchComponent::dump_config_sensors_() {
   for (auto *child : this->children_) {
     LOG_BINARY_SENSOR("  ", "Touch Pad", child);
-    ESP_LOGCONFIG(TAG, "    Pad: T%" PRIu32, (uint32_t) child->get_touch_pad());
-    ESP_LOGCONFIG(TAG, "    Threshold: %" PRIu32, child->get_threshold());
+    ESP_LOGCONFIG(TAG,
+                  "    Pad: T%u\n"
+                  "    Threshold: %" PRIu32 "\n"
+                  "    Benchmark: %" PRIu32,
+                  (unsigned) child->touch_pad_, child->threshold_, child->benchmark_);
   }
 }
 
@@ -112,12 +116,11 @@ bool ESP32TouchComponent::should_check_for_releases_(uint32_t now) {
 }
 
 void ESP32TouchComponent::publish_initial_state_if_needed_(ESP32TouchBinarySensor *child, uint32_t now) {
-  touch_pad_t pad = child->get_touch_pad();
-  if (!this->initial_state_published_[pad]) {
+  if (!child->initial_state_published_) {
     // Check if enough time has passed since startup
     if (now > this->release_timeout_ms_) {
       child->publish_initial_state(false);
-      this->initial_state_published_[pad] = true;
+      child->initial_state_published_ = true;
       ESP_LOGV(TAG, "Touch Pad '%s' state: OFF (initial)", child->get_name().c_str());
     }
   }

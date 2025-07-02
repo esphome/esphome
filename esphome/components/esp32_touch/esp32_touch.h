@@ -93,7 +93,6 @@ class ESP32TouchComponent : public Component {
   uint32_t last_release_check_{0};
   uint32_t release_timeout_ms_{1500};
   uint32_t release_check_interval_ms_{50};
-  bool initial_state_published_[TOUCH_PAD_MAX] = {false};
 
   // Common configuration parameters
   uint16_t sleep_cycle_{4095};
@@ -123,13 +122,6 @@ class ESP32TouchComponent : public Component {
   };
 
  protected:
-  // Design note: last_touch_time_ does not require synchronization primitives because:
-  // 1. ESP32 guarantees atomic 32-bit aligned reads/writes
-  // 2. ISR only writes timestamps, main loop only reads
-  // 3. Timing tolerance allows for occasional stale reads (50ms check interval)
-  // 4. Queue operations provide implicit memory barriers
-  // Using atomic/critical sections would add overhead without meaningful benefit
-  uint32_t last_touch_time_[TOUCH_PAD_MAX] = {0};
   uint32_t iir_filter_{0};
 
   bool iir_filter_enabled_() const { return this->iir_filter_ > 0; }
@@ -146,9 +138,6 @@ class ESP32TouchComponent : public Component {
     touch_pad_t pad;
     uint32_t intr_mask;
   };
-
-  // Track last touch time for timeout-based release detection
-  uint32_t last_touch_time_[TOUCH_PAD_MAX] = {0};
 
  protected:
   // Filter configuration
@@ -255,11 +244,22 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
 
   touch_pad_t touch_pad_{TOUCH_PAD_MAX};
   uint32_t threshold_{0};
+  uint32_t benchmark_{};
 #ifdef USE_ESP32_VARIANT_ESP32
   uint32_t value_{0};
 #endif
   bool last_state_{false};
   const uint32_t wakeup_threshold_{0};
+
+  // Track last touch time for timeout-based release detection
+  // Design note: last_touch_time_ does not require synchronization primitives because:
+  // 1. ESP32 guarantees atomic 32-bit aligned reads/writes
+  // 2. ISR only writes timestamps, main loop only reads
+  // 3. Timing tolerance allows for occasional stale reads (50ms check interval)
+  // 4. Queue operations provide implicit memory barriers
+  // Using atomic/critical sections would add overhead without meaningful benefit
+  uint32_t last_touch_time_{};
+  bool initial_state_published_{};
 };
 
 }  // namespace esp32_touch
