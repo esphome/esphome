@@ -63,6 +63,7 @@ BASE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_PATH): cv.string,
             cv.Optional(CONF_USERNAME): cv.string,
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Exclusive(CONF_FILE, CONF_FILES): validate_yaml_filename,
@@ -115,6 +116,9 @@ def _process_base_package(config: dict) -> dict:
         password=config.get(CONF_PASSWORD),
     )
     files = []
+
+    if base_path := config.get(CONF_PATH):
+        repo_dir = repo_dir / base_path
 
     for file in config[CONF_FILES]:
         if isinstance(file, str):
