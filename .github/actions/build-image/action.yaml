@@ -72,7 +72,7 @@ runs:
         touch "/tmp/digests/${{ inputs.build_type }}/ghcr/${digest#sha256:}"
 
     - name: Build and push to jhcr by digest
-      id: build-dockerhub
+      id: build-jhcr
       uses: docker/build-push-action@v6.18.0
       env:
         DOCKER_BUILD_SUMMARY: false
@@ -93,6 +93,6 @@ runs:
     - name: Export dockerhub digests
       shell: bash
       run: |
-        mkdir -p /tmp/digests/${{ inputs.build_type }}/dockerhub
-        digest="${{ steps.build-dockerhub.outputs.digest }}"
-        touch "/tmp/digests/${{ inputs.build_type }}/dockerhub/${digest#sha256:}"
+        mkdir -p /tmp/digests/${{ inputs.build_type }}/jhcr
+        digest="${{ steps.build-jhcr.outputs.digest }}"
+        touch "/tmp/digests/${{ inputs.build_type }}/jhcr/${digest#sha256:}"
