@@ -150,7 +150,7 @@ def test_walk_files(fixture_path):
     actual = list(helpers.walk_files(path))
 
     # Ensure paths start with the root
-    assert all(p.startswith(str(path)) for p in actual)
+    assert all(p.is_relative_to(path) for p in actual)
 
 
 class Test_write_file_if_changed:

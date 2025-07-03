@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from esphome import vscode
@@ -45,7 +45,7 @@ RESULT_NO_ERROR = '{"type": "result", "yaml_errors": [], "validation_errors": []
 
 
 def test_multi_file():
-    source_path = os.path.join("dir_path", "x.yaml")
+    source_path = str(Path("dir_path", "x.yaml"))
     output_lines = _run_repl_test(
         [
             _validate(source_path),
@@ -62,7 +62,7 @@ esp8266:
 
     expected_lines = [
         _read_file(source_path),
-        _read_file(os.path.join("dir_path", "secrets.yaml")),
+        _read_file(str(Path("dir_path", "secrets.yaml"))),
         RESULT_NO_ERROR,
     ]
 
@@ -70,7 +70,7 @@ esp8266:
 
 
 def test_shows_correct_range_error():
-    source_path = os.path.join("dir_path", "x.yaml")
+    source_path = str(Path("dir_path", "x.yaml"))
     output_lines = _run_repl_test(
         [
             _validate(source_path),
@@ -98,7 +98,7 @@ esp8266:
 
 
 def test_shows_correct_loaded_file_error():
-    source_path = os.path.join("dir_path", "x.yaml")
+    source_path = str(Path("dir_path", "x.yaml"))
     output_lines = _run_repl_test(
         [
             _validate(source_path),
@@ -121,7 +121,7 @@ packages:
     validation_error = error["validation_errors"][0]
     assert validation_error["message"].startswith("[broad] is an invalid option for")
     range = validation_error["range"]
-    assert range["document"] == os.path.join("dir_path", ".pkg.esp8266.yaml")
+    assert range["document"] == str(Path("dir_path", ".pkg.esp8266.yaml"))
     assert range["start_line"] == 1
     assert range["start_col"] == 2
     assert range["end_line"] == 1

@@ -129,7 +129,7 @@ def generate_main() -> Generator[Callable[[str | Path], str]]:
     """Generates the C++ main.cpp from a given yaml file and returns it in string form."""
 
     def generator(path: str | Path) -> str:
-        CORE.config_path = str(path)
+        CORE.config_path = Path(path)
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
         return CORE.cpp_main_section

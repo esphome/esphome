@@ -38,6 +38,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt
 from esphome.helpers import cpp_string_escape
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -253,11 +254,11 @@ def validate_truetype_file(value):
     return CORE.relative_config_path(cv.file_(value))
 
 
-def add_local_file(value):
+def add_local_file(value: ConfigType) -> ConfigType:
     if value in FONT_CACHE:
         return value
-    path = value[CONF_PATH]
-    if not os.path.isfile(path):
+    path = Path(value[CONF_PATH])
+    if not path.is_file():
         raise cv.Invalid(f"File '{path}' not found.")
     FONT_CACHE[value] = path
     return value
@@ -318,7 +319,7 @@ def download_gfont(value):
         external_files.compute_local_file_dir(DOMAIN)
         / f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1.ttf"
     )
-    if not external_files.is_file_recent(str(path), value[CONF_REFRESH]):
+    if not external_files.is_file_recent(path, value[CONF_REFRESH]):
         _LOGGER.debug("download_gfont: path=%s", path)
         try:
             req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)

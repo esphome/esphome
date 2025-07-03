@@ -15,7 +15,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
-import os
+from pathlib import Path
 import re
 from string import ascii_letters, digits
 import uuid as uuid_
@@ -1613,30 +1613,28 @@ def directory(value):
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isdir(path):
+    if not path.is_dir():
         raise Invalid(
-            f"Path '{path}' is not a directory (full path: {os.path.abspath(path)})."
+            f"Path '{path}' is not a directory (full path: {path.resolve()})."
         )
     return value
 
 
-def file_(value):
+def file_(value) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isfile(path):
-        raise Invalid(
-            f"Path '{path}' is not a file (full path: {os.path.abspath(path)})."
-        )
-    return value
+    if not path.is_file():
+        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
+    return path
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"

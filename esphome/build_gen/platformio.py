@@ -63,7 +63,7 @@ def write_ini(content):
     update_storage_json()
     path = CORE.relative_build_path("platformio.ini")
 
-    if os.path.isfile(path):
+    if path.is_file():
         text = read_file(path)
         content_format = find_begin_end(
             text, INI_AUTO_GENERATE_BEGIN, INI_AUTO_GENERATE_END

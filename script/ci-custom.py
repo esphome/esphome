@@ -6,6 +6,7 @@ import collections
 import fnmatch
 import functools
 import os.path
+from pathlib import Path
 import re
 import sys
 import time
@@ -725,7 +726,7 @@ def main():
     files = list(EXECUTABLE_BIT.keys())
     # Match against re
     file_name_re = re.compile("|".join(args.files))
-    files = [p for p in files if file_name_re.search(p)]
+    files = [Path(p) for p in files if file_name_re.search(p)]
 
     if args.changed:
         files = filter_changed(files)

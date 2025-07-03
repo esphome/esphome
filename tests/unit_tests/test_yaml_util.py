@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from esphome import yaml_util
 from esphome.components import substitutions
 from esphome.core import EsphomeError
@@ -50,12 +52,12 @@ def test_parsing_with_custom_loader(fixture_path):
     """
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
-    loader_calls = []
+    loader_calls: list[str] = []
 
-    def custom_loader(fname):
-        loader_calls.append(fname)
+    def custom_loader(fname: Path):
+        loader_calls.append(str(fname))
 
-    with open(yaml_file, encoding="utf-8") as f_handle:
+    with yaml_file.open(encoding="utf-8") as f_handle:
         yaml_util.parse_yaml(yaml_file, f_handle, custom_loader)
 
     assert len(loader_calls) == 3

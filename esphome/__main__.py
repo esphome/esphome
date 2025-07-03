@@ -6,6 +6,7 @@ import getpass
 import importlib
 import logging
 import os
+from pathlib import Path
 import re
 import sys
 import time
@@ -501,7 +502,7 @@ def clean_mqtt(config: ConfigType, args: ArgsProtocol) -> int | None:
 def command_wizard(args: ArgsProtocol) -> int | None:
     from esphome import wizard
 
-    return wizard.wizard(args.configuration)
+    return wizard.wizard(Path(args.configuration))
 
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -737,8 +738,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
             return 1
     # Load existing yaml file
-    with open(CORE.config_path, mode="r+", encoding="utf-8") as raw_file:
-        raw_contents = raw_file.read()
+    raw_contents = CORE.config_path.read_text(encoding="utf-8")
 
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
@@ -753,7 +753,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     if match is None:
         new_raw = re.sub(
             rf"name:\s+[\"']?{old_name}[\"']?",
-            f'name: "{args.name}"',
+            f'name: "{new_name}"',
             raw_contents,
         )
     else:
@@ -773,19 +773,18 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
         new_raw = re.sub(
             rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
-            f'\\1: "{args.name}"',
+            f'\\1: "{new_name}"',
             raw_contents,
             flags=re.MULTILINE,
         )
 
-    new_path = os.path.join(CORE.config_dir, args.name + ".yaml")
+    new_path: Path = CORE.config_dir / (new_name + ".yaml")
     print(
         f"Updating {color(AnsiFore.CYAN, CORE.config_path)} to {color(AnsiFore.CYAN, new_path)}"
     )
     print()
 
-    with open(new_path, mode="w", encoding="utf-8") as new_file:
-        new_file.write(new_raw)
+    new_path.write_text(new_raw, encoding="utf-8")
 
     rc = run_external_process("esphome", "config", new_path)
     if rc != 0:
@@ -809,11 +808,11 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
-        os.remove(new_path)
+        new_path.unlink()
         return 1
 
     if CORE.config_path != new_path:
-        os.remove(CORE.config_path)
+        CORE.config_path.unlink()
 
     print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
@@ -1152,7 +1151,8 @@ def run_esphome(argv):
     _LOGGER.info("ESPHome %s", const.__version__)
 
     for conf_path in args.configuration:
-        if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
+        conf_path = Path(conf_path)
+        if any(conf_path.name == x for x in SECRETS_FILES):
             _LOGGER.warning("Skipping secrets file %s", conf_path)
             continue
 

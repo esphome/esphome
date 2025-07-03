@@ -1,7 +1,6 @@
 import collections
 import io
 import logging
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -274,20 +273,25 @@ class OrderedDict(collections.OrderedDict):
 
 def list_yaml_files(folders: list[str]) -> list[str]:
     files = filter_yaml_files(
-        [os.path.join(folder, p) for folder in folders for p in os.listdir(folder)]
+        [
+            folder / p
+            for folder in folders
+            for p in Path(folder).rglob("*")
+            if p.is_file()
+        ]
     )
     files.sort()
     return files
 
 
-def filter_yaml_files(files: list[str]) -> list[str]:
+def filter_yaml_files(files: list[Path]) -> list[Path]:
     return [
         f
         for f in files
         if (
-            os.path.splitext(f)[1] in (".yaml", ".yml")
-            and os.path.basename(f) not in ("secrets.yaml", "secrets.yml")
-            and not os.path.basename(f).startswith(".")
+            f.suffix in (".yaml", ".yml")
+            and f.name not in ("secrets.yaml", "secrets.yml")
+            and not f.name.startswith(".")
         )
     ]
 

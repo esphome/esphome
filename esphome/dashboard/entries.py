@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 import logging
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from esphome import const, util
@@ -287,12 +287,12 @@ class DashboardEntries:
         for file in util.list_yaml_files([self._config_dir]):
             try:
                 # Prefer the json storage path if it exists
-                stat = os.stat(ext_storage_path(os.path.basename(file)))
+                stat = ext_storage_path(file.name).stat()
             except OSError:
                 try:
                     # Fallback to the yaml file if the storage
                     # file does not exist or could not be generated
-                    stat = os.stat(file)
+                    stat = file.stat()
                 except OSError:
                     # File was deleted, ignore
                     continue
@@ -329,10 +329,10 @@ class DashboardEntry:
         "_to_dict",
     )
 
-    def __init__(self, path: str, cache_key: DashboardCacheKeyType) -> None:
+    def __init__(self, path: Path, cache_key: DashboardCacheKeyType) -> None:
         """Initialize the DashboardEntry."""
         self.path = path
-        self.filename: str = os.path.basename(path)
+        self.filename: str = path.name
         self._storage_path = ext_storage_path(self.filename)
         self.cache_key = cache_key
         self.storage: StorageJSON | None = None
@@ -365,7 +365,7 @@ class DashboardEntry:
                 "loaded_integrations": sorted(self.loaded_integrations),
                 "deployed_version": self.update_old,
                 "current_version": self.update_new,
-                "path": self.path,
+                "path": str(self.path),
                 "comment": self.comment,
                 "address": self.address,
                 "web_port": self.web_port,
