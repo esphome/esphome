@@ -22,36 +22,51 @@ async def test_host_mode_many_entities(
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Subscribe to state changes
         states: dict[int, EntityState] = {}
-        entity_count_future: asyncio.Future[int] = loop.create_future()
+        sensor_count_future: asyncio.Future[int] = loop.create_future()
 
         def on_state(state: EntityState) -> None:
             states[state.key] = state
-            # When we have received states from a good number of entities, resolve the future
-            if len(states) >= 50 and not entity_count_future.done():
-                entity_count_future.set_result(len(states))
+            # Count sensor states specifically
+            sensor_states = [
+                s
+                for s in states.values()
+                if hasattr(s, "state") and isinstance(s.state, float)
+            ]
+            # When we have received states from at least 50 sensors, resolve the future
+            if len(sensor_states) >= 50 and not sensor_count_future.done():
+                sensor_count_future.set_result(len(sensor_states))
 
         client.subscribe_states(on_state)
 
-        # Wait for states from at least 50 entities with timeout
+        # Wait for states from at least 50 sensors with timeout
         try:
-            entity_count = await asyncio.wait_for(entity_count_future, timeout=10.0)
+            sensor_count = await asyncio.wait_for(sensor_count_future, timeout=10.0)
         except asyncio.TimeoutError:
+            sensor_states = [
+                s
+                for s in states.values()
+                if hasattr(s, "state") and isinstance(s.state, float)
+            ]
             pytest.fail(
-                f"Did not receive states from at least 50 entities within 10 seconds. "
-                f"Received {len(states)} states: {list(states.keys())}"
+                f"Did not receive states from at least 50 sensors within 10 seconds. "
+                f"Received {len(sensor_states)} sensor states out of {len(states)} total states"
             )
 
         # Verify we received a good number of entity states
-        assert entity_count >= 50, f"Expected at least 50 entities, got {entity_count}"
-        assert len(states) >= 50, f"Expected at least 50 states, got {len(states)}"
+        assert len(states) >= 50, (
+            f"Expected at least 50 total states, got {len(states)}"
+        )
 
-        # Verify we have different entity types by checking some expected values
+        # Verify we have the expected sensor states
         sensor_states = [
             s
             for s in states.values()
             if hasattr(s, "state") and isinstance(s.state, float)
         ]
 
+        assert sensor_count >= 50, (
+            f"Expected at least 50 sensor states, got {sensor_count}"
+        )
         assert len(sensor_states) >= 50, (
             f"Expected at least 50 sensor states, got {len(sensor_states)}"
         )
