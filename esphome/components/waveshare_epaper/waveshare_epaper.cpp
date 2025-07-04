@@ -362,8 +362,9 @@ void HOT WaveshareEPaper4C::draw_absolute_pixel_internal(int x, int y, Color col
   const uint8_t subpos = x & 0x03;
   const uint8_t pixel_bits = this->color_to_hex(color);
 
-  this->buffer_[pos] &= ~(0xC0 >> (subpos * 2));
-  this->buffer_[pos] |= pixel_bits >> (subpos * 2);
+  const uint8_t offset_bits = (3 - subpos) * 2;
+  this->buffer_[pos] &= ~(0b11 << offset_bits);
+  this->buffer_[pos] |= pixel_bits << offset_bits;
 }
 
 uint8_t WaveshareEPaper4C::color_to_hex(Color color) {
@@ -371,15 +372,15 @@ uint8_t WaveshareEPaper4C::color_to_hex(Color color) {
   if (color.red > 127) {
     if (color.green > 170) {
       if (color.blue > 127) {
-        hex_code = 0b01 << 6;  // White
+        hex_code = 0b01;  // White
       } else {
-        hex_code = 0b10 << 6;  // Yellow
+        hex_code = 0b10;  // Yellow
       }
     } else {
-      hex_code = 0b11 << 6;  // Red
+      hex_code = 0b11;  // Red
     }
   } else {
-    hex_code = 0b00 << 6;  // Black
+    hex_code = 0b00;  // Black
   }
 
   return hex_code;
