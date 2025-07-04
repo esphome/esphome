@@ -299,7 +299,8 @@ void WebServer::setup() {
 }
 void WebServer::loop() {
 #ifdef USE_ESP32
-  if (xSemaphoreTake(this->to_schedule_lock_, 0L)) {
+  // Check atomic flag first to avoid taking semaphore when queue is empty
+  if (this->to_schedule_has_items_.load(std::memory_order_relaxed) && xSemaphoreTake(this->to_schedule_lock_, 0L)) {
     std::function<void()> fn;
     if (!to_schedule_.empty()) {
       // scheduler execute things out of order which may lead to incorrect state
@@ -307,6 +308,9 @@ void WebServer::loop() {
       // let's execute it directly from the loop
       fn = std::move(to_schedule_.front());
       to_schedule_.pop_front();
+      if (to_schedule_.empty()) {
+        this->to_schedule_has_items_.store(false, std::memory_order_relaxed);
+      }
     }
     xSemaphoreGive(this->to_schedule_lock_);
     if (fn) {
@@ -2061,6 +2065,7 @@ void WebServer::schedule_(std::function<void()> &&f) {
 #ifdef USE_ESP32
   xSemaphoreTake(this->to_schedule_lock_, portMAX_DELAY);
   to_schedule_.push_back(std::move(f));
+  this->to_schedule_has_items_.store(true, std::memory_order_relaxed);
   xSemaphoreGive(this->to_schedule_lock_);
 #else
   this->defer(std::move(f));

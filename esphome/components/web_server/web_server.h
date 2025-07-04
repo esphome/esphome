@@ -18,6 +18,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <deque>
+#include <atomic>
 #endif
 
 #if USE_WEBSERVER_VERSION >= 2
@@ -524,6 +525,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_ESP32
   std::deque<std::function<void()>> to_schedule_;
   SemaphoreHandle_t to_schedule_lock_;
+  std::atomic<bool> to_schedule_has_items_{false};
 #endif
 };
 
