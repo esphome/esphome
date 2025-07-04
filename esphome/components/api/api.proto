@@ -311,6 +311,7 @@ message BinarySensorStateResponse {
   // If the binary sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 
 // ==================== COVER ====================
@@ -360,6 +361,7 @@ message CoverStateResponse {
   float position = 3;
   float tilt = 4;
   CoverOperation current_operation = 5;
+  uint32 device_id = 6;
 }
 
 enum LegacyCoverCommand {
@@ -432,6 +434,7 @@ message FanStateResponse {
   FanDirection direction = 5;
   int32 speed_level = 6;
   string preset_mode = 7;
+  uint32 device_id = 8;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -513,6 +516,7 @@ message LightStateResponse {
   float cold_white = 12;
   float warm_white = 13;
   string effect = 9;
+  uint32 device_id = 14;
 }
 message LightCommandRequest {
   option (id) = 32;
@@ -598,6 +602,7 @@ message SensorStateResponse {
   // If the sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 
 // ==================== SWITCH ====================
@@ -628,6 +633,7 @@ message SwitchStateResponse {
 
   fixed32 key = 1;
   bool state = 2;
+  uint32 device_id = 3;
 }
 message SwitchCommandRequest {
   option (id) = 33;
@@ -669,6 +675,7 @@ message TextSensorStateResponse {
   // If the text sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 
 // ==================== SUBSCRIBE LOGS ====================
@@ -966,6 +973,7 @@ message ClimateStateResponse {
   string custom_preset = 13;
   float current_humidity = 14;
   float target_humidity = 15;
+  uint32 device_id = 16;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -1039,6 +1047,7 @@ message NumberStateResponse {
   // If the number does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 message NumberCommandRequest {
   option (id) = 51;
@@ -1080,6 +1089,7 @@ message SelectStateResponse {
   // If the select does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 message SelectCommandRequest {
   option (id) = 54;
@@ -1120,6 +1130,7 @@ message SirenStateResponse {
 
   fixed32 key = 1;
   bool state = 2;
+  uint32 device_id = 3;
 }
 message SirenCommandRequest {
   option (id) = 57;
@@ -1183,6 +1194,7 @@ message LockStateResponse {
   option (no_delay) = true;
   fixed32 key = 1;
   LockState state = 2;
+  uint32 device_id = 3;
 }
 message LockCommandRequest {
   option (id) = 60;
@@ -1282,6 +1294,7 @@ message MediaPlayerStateResponse {
   MediaPlayerState state = 2;
   float volume = 3;
   bool muted = 4;
+  uint32 device_id = 5;
 }
 message MediaPlayerCommandRequest {
   option (id) = 65;
@@ -1822,6 +1835,7 @@ message AlarmControlPanelStateResponse {
   option (no_delay) = true;
   fixed32 key = 1;
   AlarmControlPanelState state = 2;
+  uint32 device_id = 3;
 }
 
 message AlarmControlPanelCommandRequest {
@@ -1871,6 +1885,7 @@ message TextStateResponse {
   // If the Text does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 message TextCommandRequest {
   option (id) = 99;
@@ -1914,6 +1929,7 @@ message DateStateResponse {
   uint32 year = 3;
   uint32 month = 4;
   uint32 day = 5;
+  uint32 device_id = 6;
 }
 message DateCommandRequest {
   option (id) = 102;
@@ -1958,6 +1974,7 @@ message TimeStateResponse {
   uint32 hour = 3;
   uint32 minute = 4;
   uint32 second = 5;
+  uint32 device_id = 6;
 }
 message TimeCommandRequest {
   option (id) = 105;
@@ -1999,6 +2016,7 @@ message EventResponse {
 
   fixed32 key = 1;
   string event_type = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== VALVE ====================
@@ -2039,6 +2057,7 @@ message ValveStateResponse {
   fixed32 key = 1;
   float position = 2;
   ValveOperation current_operation = 3;
+  uint32 device_id = 4;
 }
 
 message ValveCommandRequest {
@@ -2082,6 +2101,7 @@ message DateTimeStateResponse {
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 2;
   fixed32 epoch_seconds = 3;
+  uint32 device_id = 4;
 }
 message DateTimeCommandRequest {
   option (id) = 114;
@@ -2128,6 +2148,7 @@ message UpdateStateResponse {
   string title = 8;
   string release_summary = 9;
   string release_url = 10;
+  uint32 device_id = 11;
 }
 enum UpdateCommand {
   UPDATE_COMMAND_NONE = 0;

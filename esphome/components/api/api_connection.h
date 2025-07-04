@@ -292,6 +292,9 @@ class APIConnection : public APIServerConnection {
   // Helper function to fill common entity state fields
   static void fill_entity_state_base(esphome::EntityBase *entity, StateResponseProtoMessage &response) {
     response.key = entity->get_object_id_hash();
+#ifdef USE_DEVICES
+    response.device_id = entity->get_device_id();
+#endif
   }
 
   // Non-template helper to encode any ProtoMessage

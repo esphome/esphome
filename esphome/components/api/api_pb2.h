@@ -303,6 +303,7 @@ class StateResponseProtoMessage : public ProtoMessage {
  public:
   ~StateResponseProtoMessage() override = default;
   uint32_t key{0};
+  uint32_t device_id{0};
 
  protected:
 };
@@ -577,7 +578,7 @@ class ListEntitiesBinarySensorResponse : public InfoResponseProtoMessage {
 class BinarySensorStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 21;
-  static constexpr uint16_t ESTIMATED_SIZE = 9;
+  static constexpr uint16_t ESTIMATED_SIZE = 13;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "binary_sensor_state_response"; }
 #endif
@@ -621,7 +622,7 @@ class ListEntitiesCoverResponse : public InfoResponseProtoMessage {
 class CoverStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 22;
-  static constexpr uint16_t ESTIMATED_SIZE = 19;
+  static constexpr uint16_t ESTIMATED_SIZE = 23;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "cover_state_response"; }
 #endif
@@ -692,7 +693,7 @@ class ListEntitiesFanResponse : public InfoResponseProtoMessage {
 class FanStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 23;
-  static constexpr uint16_t ESTIMATED_SIZE = 26;
+  static constexpr uint16_t ESTIMATED_SIZE = 30;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "fan_state_response"; }
 #endif
@@ -775,7 +776,7 @@ class ListEntitiesLightResponse : public InfoResponseProtoMessage {
 class LightStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 24;
-  static constexpr uint16_t ESTIMATED_SIZE = 63;
+  static constexpr uint16_t ESTIMATED_SIZE = 67;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "light_state_response"; }
 #endif
@@ -876,7 +877,7 @@ class ListEntitiesSensorResponse : public InfoResponseProtoMessage {
 class SensorStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 25;
-  static constexpr uint16_t ESTIMATED_SIZE = 12;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "sensor_state_response"; }
 #endif
@@ -917,7 +918,7 @@ class ListEntitiesSwitchResponse : public InfoResponseProtoMessage {
 class SwitchStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 26;
-  static constexpr uint16_t ESTIMATED_SIZE = 7;
+  static constexpr uint16_t ESTIMATED_SIZE = 11;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "switch_state_response"; }
 #endif
@@ -975,7 +976,7 @@ class ListEntitiesTextSensorResponse : public InfoResponseProtoMessage {
 class TextSensorStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 27;
-  static constexpr uint16_t ESTIMATED_SIZE = 16;
+  static constexpr uint16_t ESTIMATED_SIZE = 20;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "text_sensor_state_response"; }
 #endif
@@ -1371,7 +1372,7 @@ class ListEntitiesClimateResponse : public InfoResponseProtoMessage {
 class ClimateStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 47;
-  static constexpr uint16_t ESTIMATED_SIZE = 65;
+  static constexpr uint16_t ESTIMATED_SIZE = 70;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "climate_state_response"; }
 #endif
@@ -1470,7 +1471,7 @@ class ListEntitiesNumberResponse : public InfoResponseProtoMessage {
 class NumberStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 50;
-  static constexpr uint16_t ESTIMATED_SIZE = 12;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "number_state_response"; }
 #endif
@@ -1528,7 +1529,7 @@ class ListEntitiesSelectResponse : public InfoResponseProtoMessage {
 class SelectStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 53;
-  static constexpr uint16_t ESTIMATED_SIZE = 16;
+  static constexpr uint16_t ESTIMATED_SIZE = 20;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "select_state_response"; }
 #endif
@@ -1590,7 +1591,7 @@ class ListEntitiesSirenResponse : public InfoResponseProtoMessage {
 class SirenStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 56;
-  static constexpr uint16_t ESTIMATED_SIZE = 7;
+  static constexpr uint16_t ESTIMATED_SIZE = 11;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "siren_state_response"; }
 #endif
@@ -1659,7 +1660,7 @@ class ListEntitiesLockResponse : public InfoResponseProtoMessage {
 class LockStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 59;
-  static constexpr uint16_t ESTIMATED_SIZE = 7;
+  static constexpr uint16_t ESTIMATED_SIZE = 11;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "lock_state_response"; }
 #endif
@@ -1776,7 +1777,7 @@ class ListEntitiesMediaPlayerResponse : public InfoResponseProtoMessage {
 class MediaPlayerStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 64;
-  static constexpr uint16_t ESTIMATED_SIZE = 14;
+  static constexpr uint16_t ESTIMATED_SIZE = 18;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "media_player_state_response"; }
 #endif
@@ -2653,7 +2654,7 @@ class ListEntitiesAlarmControlPanelResponse : public InfoResponseProtoMessage {
 class AlarmControlPanelStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 95;
-  static constexpr uint16_t ESTIMATED_SIZE = 7;
+  static constexpr uint16_t ESTIMATED_SIZE = 11;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "alarm_control_panel_state_response"; }
 #endif
@@ -2716,7 +2717,7 @@ class ListEntitiesTextResponse : public InfoResponseProtoMessage {
 class TextStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 98;
-  static constexpr uint16_t ESTIMATED_SIZE = 16;
+  static constexpr uint16_t ESTIMATED_SIZE = 20;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "text_state_response"; }
 #endif
@@ -2775,7 +2776,7 @@ class ListEntitiesDateResponse : public InfoResponseProtoMessage {
 class DateStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 101;
-  static constexpr uint16_t ESTIMATED_SIZE = 19;
+  static constexpr uint16_t ESTIMATED_SIZE = 23;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "date_state_response"; }
 #endif
@@ -2837,7 +2838,7 @@ class ListEntitiesTimeResponse : public InfoResponseProtoMessage {
 class TimeStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 104;
-  static constexpr uint16_t ESTIMATED_SIZE = 19;
+  static constexpr uint16_t ESTIMATED_SIZE = 23;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "time_state_response"; }
 #endif
@@ -2901,7 +2902,7 @@ class ListEntitiesEventResponse : public InfoResponseProtoMessage {
 class EventResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 108;
-  static constexpr uint16_t ESTIMATED_SIZE = 14;
+  static constexpr uint16_t ESTIMATED_SIZE = 18;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "event_response"; }
 #endif
@@ -2915,6 +2916,7 @@ class EventResponse : public StateResponseProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
 #ifdef USE_VALVE
@@ -2943,7 +2945,7 @@ class ListEntitiesValveResponse : public InfoResponseProtoMessage {
 class ValveStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 110;
-  static constexpr uint16_t ESTIMATED_SIZE = 12;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "valve_state_response"; }
 #endif
@@ -3003,7 +3005,7 @@ class ListEntitiesDateTimeResponse : public InfoResponseProtoMessage {
 class DateTimeStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 113;
-  static constexpr uint16_t ESTIMATED_SIZE = 12;
+  static constexpr uint16_t ESTIMATED_SIZE = 16;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "date_time_state_response"; }
 #endif
@@ -3061,7 +3063,7 @@ class ListEntitiesUpdateResponse : public InfoResponseProtoMessage {
 class UpdateStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 117;
-  static constexpr uint16_t ESTIMATED_SIZE = 61;
+  static constexpr uint16_t ESTIMATED_SIZE = 65;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "update_state_response"; }
 #endif

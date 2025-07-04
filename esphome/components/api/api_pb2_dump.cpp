@@ -850,6 +850,11 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -936,6 +941,11 @@ void CoverStateResponse::dump_to(std::string &out) const {
 
   out.append("  current_operation: ");
   out.append(proto_enum_to_string<enums::CoverOperation>(this->current_operation));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -1072,6 +1082,11 @@ void FanStateResponse::dump_to(std::string &out) const {
 
   out.append("  preset_mode: ");
   out.append("'").append(this->preset_mode).append("'");
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -1274,6 +1289,11 @@ void LightStateResponse::dump_to(std::string &out) const {
 
   out.append("  effect: ");
   out.append("'").append(this->effect).append("'");
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -1482,6 +1502,11 @@ void SensorStateResponse::dump_to(std::string &out) const {
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -1542,6 +1567,11 @@ void SwitchStateResponse::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append(YESNO(this->state));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -1616,6 +1646,11 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
 
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -2122,6 +2157,11 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%g", this->target_humidity);
   out.append(buffer);
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 void ClimateCommandRequest::dump_to(std::string &out) const {
@@ -2308,6 +2348,11 @@ void NumberStateResponse::dump_to(std::string &out) const {
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 void NumberCommandRequest::dump_to(std::string &out) const {
@@ -2384,6 +2429,11 @@ void SelectStateResponse::dump_to(std::string &out) const {
 
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -2464,6 +2514,11 @@ void SirenStateResponse::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append(YESNO(this->state));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -2576,6 +2631,11 @@ void LockStateResponse::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append(proto_enum_to_string<enums::LockState>(this->state));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -2749,6 +2809,11 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
 
   out.append("  muted: ");
   out.append(YESNO(this->muted));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -3595,6 +3660,11 @@ void AlarmControlPanelStateResponse::dump_to(std::string &out) const {
   out.append("  state: ");
   out.append(proto_enum_to_string<enums::AlarmControlPanelState>(this->state));
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
@@ -3687,6 +3757,11 @@ void TextStateResponse::dump_to(std::string &out) const {
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 void TextCommandRequest::dump_to(std::string &out) const {
@@ -3766,6 +3841,11 @@ void DateStateResponse::dump_to(std::string &out) const {
 
   out.append("  day: ");
   sprintf(buffer, "%" PRIu32, this->day);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -3860,6 +3940,11 @@ void TimeStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%" PRIu32, this->second);
   out.append(buffer);
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 void TimeCommandRequest::dump_to(std::string &out) const {
@@ -3947,6 +4032,11 @@ void EventResponse::dump_to(std::string &out) const {
   out.append("  event_type: ");
   out.append("'").append(this->event_type).append("'");
   out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -4020,6 +4110,11 @@ void ValveStateResponse::dump_to(std::string &out) const {
 
   out.append("  current_operation: ");
   out.append(proto_enum_to_string<enums::ValveOperation>(this->current_operation));
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -4099,6 +4194,11 @@ void DateTimeStateResponse::dump_to(std::string &out) const {
 
   out.append("  epoch_seconds: ");
   sprintf(buffer, "%" PRIu32, this->epoch_seconds);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -4204,6 +4304,11 @@ void UpdateStateResponse::dump_to(std::string &out) const {
 
   out.append("  release_url: ");
   out.append("'").append(this->release_url).append("'");
+  out.append("\n");
+
+  out.append("  device_id: ");
+  sprintf(buffer, "%" PRIu32, this->device_id);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
