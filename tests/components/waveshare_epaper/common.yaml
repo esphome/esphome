@@ -454,6 +454,26 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
+  # 3.7 inch displays
+  - platform: waveshare_epaper
+    id: epd_3_70g
+    model: 3.70in-g
+    spi_id: spi_waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
   # 4.2 inch displays
   - platform: waveshare_epaper
     id: epd_4_20
