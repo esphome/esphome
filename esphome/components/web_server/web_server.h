@@ -127,6 +127,8 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   // footprint is more important than speed here)
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
+  uint16_t consecutive_send_failures_{0};
+  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 
   // helper for allowing only unique entries in the queue
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
