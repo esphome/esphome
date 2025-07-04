@@ -232,7 +232,7 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
   this->integration_time_ = integration_time;
   this->gain_ = gain;
   if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL,
-                        this->integration_time_ | this->gain_)) {  // NOLINT
+                        static_cast<uint8_t>(this->integration_time_) | static_cast<uint8_t>(this->gain_))) {
     ESP_LOGE(TAG, "I2C write failed");
   }
   // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.
