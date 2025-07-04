@@ -2086,8 +2086,8 @@ void WaveshareEPaper3P7InG::dump_config() {
 int WaveshareEPaper3P7InG::get_width_internal() { return 240; }
 int WaveshareEPaper3P7InG::get_height_internal() { return 416; }
 
-// Refresh time is usually 20s, so we use 35s to be save.
-uint32_t WaveshareEPaper3P7InG::idle_timeout_() { return 35000; }
+// Refresh time is usually 12s, so we use 20s to be save.
+uint32_t WaveshareEPaper3P7InG::idle_timeout_() { return 20000; }
 
 // ========================================================
 //     Good Display 2.9in black/white
