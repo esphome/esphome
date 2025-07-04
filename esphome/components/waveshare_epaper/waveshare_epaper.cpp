@@ -352,7 +352,10 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
   }
 }
 void WaveshareEPaper4C::fill(Color color) {
-  this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color);
+  const uint8_t pixel_bits = this->color_to_hex(color);
+  const uint8_t fill_pattern = (pixel_bits << 6) | (pixel_bits << 4) | (pixel_bits << 2) | (pixel_bits);
+
+  memset(this->buffer_, fill_pattern, this->get_buffer_length_());
 }
 void HOT WaveshareEPaper4C::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
