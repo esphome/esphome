@@ -319,6 +319,9 @@ uint32_t WaveshareEPaper::get_buffer_length_() {
 uint32_t WaveshareEPaperBWR::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 4u;
 }  // black and red buffer
+uint32_t WaveshareEPaper4C::get_buffer_length_() {
+  return this->get_width_controller() * this->get_height_internal() / 4u;
+}  // 4 colors buffer, 1 pixel = 2 bits, we will store 4 pixels in every byte
 uint32_t WaveshareEPaper7C::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
 }  // 7 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
@@ -348,6 +351,40 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
     this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
   }
 }
+void WaveshareEPaper4C::fill(Color color) {
+  this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color);
+}
+void HOT WaveshareEPaper4C::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
+
+  const uint32_t pos = (x + y * this->get_width_internal()) / 4u;
+  const uint8_t subpos = x & 0x03;
+  const uint8_t pixel_bits = this->color_to_hex(color);
+
+  this->buffer_[pos] &= ~(0xC0 >> (subpos * 2));
+  this->buffer_[pos] |= pixel_bits >> (subpos * 2);
+}
+
+uint8_t WaveshareEPaper4C::color_to_hex(Color color) {
+  uint8_t hex_code;
+  if (color.red > 127) {
+    if (color.green > 170) {
+      if (color.blue > 127) {
+        hex_code = 0b01 << 6;  // White
+      } else {
+        hex_code = 0b10 << 6;  // Yellow
+      }
+    } else {
+      hex_code = 0b11 << 6;  // Red
+    }
+  } else {
+    hex_code = 0b00 << 6;  // Black
+  }
+
+  return hex_code;
+}
+
 void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;

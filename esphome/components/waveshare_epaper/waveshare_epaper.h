@@ -83,6 +83,18 @@ class WaveshareEPaperBWR : public WaveshareEPaperBase {
   uint32_t get_buffer_length_() override;
 };
 
+class WaveshareEPaper4C : public WaveshareEPaperBase {
+ public:
+  uint8_t color_to_hex(Color color);
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  uint32_t get_buffer_length_() override;
+};
+
 class WaveshareEPaper7C : public WaveshareEPaperBase {
  public:
   uint8_t color_to_hex(Color color);
