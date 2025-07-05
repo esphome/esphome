@@ -380,6 +380,21 @@ class Component {
    */
   void defer(const std::string &name, std::function<void()> &&f);  // NOLINT
 
+  /** Defer a callback to the next loop() call with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the deferred task.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the deferred execution
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The name of the defer function (must have static lifetime)
+   * @param f The callback
+   */
+  void defer(const char *name, std::function<void()> &&f);  // NOLINT
+
   /// Defer a callback to the next loop() call.
   void defer(std::function<void()> &&f);  // NOLINT
 

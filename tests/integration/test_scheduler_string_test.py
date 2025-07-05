@@ -26,8 +26,11 @@ async def test_scheduler_string_test(
     static_interval_cancelled = asyncio.Event()
     empty_string_timeout_fired = asyncio.Event()
     static_timeout_cancelled = asyncio.Event()
+    static_defer_1_fired = asyncio.Event()
+    static_defer_2_fired = asyncio.Event()
     dynamic_timeout_fired = asyncio.Event()
     dynamic_interval_fired = asyncio.Event()
+    dynamic_defer_fired = asyncio.Event()
     cancel_test_done = asyncio.Event()
     final_results_logged = asyncio.Event()
 
@@ -72,6 +75,15 @@ async def test_scheduler_string_test(
         elif "Cancelled static timeout using const char*" in clean_line:
             static_timeout_cancelled.set()
 
+        # Check for static defer tests
+        elif "Static defer 1 fired" in clean_line:
+            static_defer_1_fired.set()
+            timeout_count += 1
+
+        elif "Static defer 2 fired" in clean_line:
+            static_defer_2_fired.set()
+            timeout_count += 1
+
         # Check for dynamic string tests
         elif "Dynamic timeout fired" in clean_line:
             dynamic_timeout_fired.set()
@@ -80,6 +92,11 @@ async def test_scheduler_string_test(
         elif "Dynamic interval fired" in clean_line:
             dynamic_interval_count += 1
             dynamic_interval_fired.set()
+
+        # Check for dynamic defer test
+        elif "Dynamic defer fired" in clean_line:
+            dynamic_defer_fired.set()
+            timeout_count += 1
 
         # Check for cancel test
         elif "Cancelled timeout using different string object" in clean_line:
@@ -133,6 +150,17 @@ async def test_scheduler_string_test(
             "Static timeout should have been cancelled"
         )
 
+        # Wait for static defer tests
+        try:
+            await asyncio.wait_for(static_defer_1_fired.wait(), timeout=0.5)
+        except asyncio.TimeoutError:
+            pytest.fail("Static defer 1 did not fire within 0.5 seconds")
+
+        try:
+            await asyncio.wait_for(static_defer_2_fired.wait(), timeout=0.5)
+        except asyncio.TimeoutError:
+            pytest.fail("Static defer 2 did not fire within 0.5 seconds")
+
         # Wait for dynamic string tests
         try:
             await asyncio.wait_for(dynamic_timeout_fired.wait(), timeout=1.0)
@@ -143,6 +171,12 @@ async def test_scheduler_string_test(
             await asyncio.wait_for(dynamic_interval_fired.wait(), timeout=1.5)
         except asyncio.TimeoutError:
             pytest.fail("Dynamic interval did not fire within 1.5 seconds")
+
+        # Wait for dynamic defer test
+        try:
+            await asyncio.wait_for(dynamic_defer_fired.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            pytest.fail("Dynamic defer did not fire within 1 second")
 
         # Wait for cancel test
         try:
@@ -157,7 +191,9 @@ async def test_scheduler_string_test(
             pytest.fail("Final results were not logged within 4 seconds")
 
         # Verify results
-        assert timeout_count >= 3, f"Expected at least 3 timeouts, got {timeout_count}"
+        assert timeout_count >= 6, (
+            f"Expected at least 6 timeouts (including defers), got {timeout_count}"
+        )
         assert interval_count >= 3, (
             f"Expected at least 3 interval fires, got {interval_count}"
         )
