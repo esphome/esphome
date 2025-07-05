@@ -33,7 +33,7 @@ void Rtttl::dump_config() {
 }
 
 void Rtttl::play(std::string rtttl) {
-  if (this->state_ != State::STATE_STOPPED && this->state_ != State::STATE_STOPPING) {
+  if (this->state_ != State::STOPPED && this->state_ != State::STOPPING) {
     size_t pos = this->rtttl_.find(':');
     size_t len = (pos != std::string::npos) ? pos : this->rtttl_.length();
     ESP_LOGW(TAG, "Already playing: %.*s", (int) len, this->rtttl_.c_str());
@@ -109,14 +109,14 @@ void Rtttl::play(std::string rtttl) {
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
-    this->set_state_(State::STATE_INIT);
+    this->set_state_(State::INIT);
     this->samples_sent_ = 0;
     this->samples_count_ = 0;
   }
 #endif
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
-    this->set_state_(State::STATE_RUNNING);
+    this->set_state_(State::RUNNING);
   }
 #endif
 }
@@ -125,7 +125,7 @@ void Rtttl::stop() {
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
     this->output_->set_level(0.0);
-    this->set_state_(STATE_STOPPED);
+    this->set_state_(State::STOPPED);
   }
 #endif
 #ifdef USE_SPEAKER
@@ -133,7 +133,7 @@ void Rtttl::stop() {
     if (this->speaker_->is_running()) {
       this->speaker_->stop();
     }
-    this->set_state_(STATE_STOPPING);
+    this->set_state_(State::STOPPING);
   }
 #endif
   this->position_ = this->rtttl_.length();
@@ -145,7 +145,7 @@ void Rtttl::finish_() {
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
     this->output_->set_level(0.0);
-    this->set_state_(State::STATE_STOPPED);
+    this->set_state_(State::STOPPED);
   }
 #endif
 #ifdef USE_SPEAKER
@@ -157,7 +157,7 @@ void Rtttl::finish_() {
     sample[1].right = 0;
     this->speaker_->play((uint8_t *) (&sample), 8);
     this->speaker_->finish();
-    this->set_state_(State::STATE_STOPPING);
+    this->set_state_(State::STOPPING);
   }
 #endif
   // Ensure no more notes are played in case finish_() is called for an error.
@@ -166,27 +166,27 @@ void Rtttl::finish_() {
 }
 
 void Rtttl::loop() {
-  if (this->state_ == State::STATE_STOPPED) {
+  if (this->state_ == State::STOPPED) {
     this->disable_loop();
     return;
   }
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
-    if (this->state_ == State::STATE_STOPPING) {
+    if (this->state_ == State::STOPPING) {
       if (this->speaker_->is_stopped()) {
-        this->set_state_(State::STATE_STOPPED);
+        this->set_state_(State::STOPPED);
       } else {
         return;
       }
-    } else if (this->state_ == State::STATE_INIT) {
+    } else if (this->state_ == State::INIT) {
       if (this->speaker_->is_stopped()) {
         this->speaker_->start();
-        this->set_state_(State::STATE_STARTING);
+        this->set_state_(State::STARTING);
       }
-    } else if (this->state_ == State::STATE_STARTING) {
+    } else if (this->state_ == State::STARTING) {
       if (this->speaker_->is_running()) {
-        this->set_state_(State::STATE_RUNNING);
+        this->set_state_(State::RUNNING);
       }
     }
     if (!this->speaker_->is_running()) {
@@ -375,15 +375,15 @@ void Rtttl::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const LogString *state_to_string(State state) {
   switch (state) {
-    case STATE_STOPPED:
+    case State::STOPPED:
       return LOG_STR("STATE_STOPPED");
-    case STATE_STARTING:
+    case State::STARTING:
       return LOG_STR("STATE_STARTING");
-    case STATE_RUNNING:
+    case State::RUNNING:
       return LOG_STR("STATE_RUNNING");
-    case STATE_STOPPING:
+    case State::STOPPING:
       return LOG_STR("STATE_STOPPING");
-    case STATE_INIT:
+    case State::INIT:
       return LOG_STR("STATE_INIT");
     default:
       return LOG_STR("UNKNOWN");
@@ -398,11 +398,11 @@ void Rtttl::set_state_(State state) {
            LOG_STR_ARG(state_to_string(state)));
 
   // Clear loop_done when transitioning from STOPPED to any other state
-  if (state == State::STATE_STOPPED) {
+  if (state == State::STOPPED) {
     this->disable_loop();
     this->on_finished_playback_callback_.call();
     ESP_LOGD(TAG, "Playback finished");
-  } else if (old_state == State::STATE_STOPPED) {
+  } else if (old_state == State::STOPPED) {
     this->enable_loop();
   }
 }
