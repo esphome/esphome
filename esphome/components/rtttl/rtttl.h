@@ -13,12 +13,12 @@
 
 namespace esphome::rtttl {
 
-enum State : uint8_t {
-  STATE_STOPPED = 0,
-  STATE_INIT,
-  STATE_STARTING,
-  STATE_RUNNING,
-  STATE_STOPPING,
+enum class State : uint8_t {
+  STOPPED = 0,
+  INIT,
+  STARTING,
+  RUNNING,
+  STOPPING,
 };
 
 class Rtttl : public Component {
@@ -35,7 +35,7 @@ class Rtttl : public Component {
   void stop();
   void dump_config() override;
 
-  bool is_playing() { return this->state_ != State::STATE_STOPPED; }
+  bool is_playing() { return this->state_ != State::STOPPED; }
   void loop() override;
 
   void add_on_finished_playback_callback(std::function<void()> callback) {
@@ -80,7 +80,7 @@ class Rtttl : public Component {
   /// The gain of the output.
   float gain_{0.6f};
   /// The current state of the RTTTL player.
-  State state_{State::STATE_STOPPED};
+  State state_{State::STOPPED};
 
 #ifdef USE_OUTPUT
   /// The output to write the sound to.
