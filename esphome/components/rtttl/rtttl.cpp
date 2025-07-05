@@ -15,10 +15,19 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
+#ifdef USE_SPEAKER
+static const size_t SAMPLE_BUFFER_SIZE = 2048;
+
+struct SpeakerSample {
+  int8_t left{0};
+  int8_t right{0};
+};
+
 inline double deg2rad(double degrees) {
   static const double PI_ON_180 = 4.0 * atan(1.0) / 180.0;
   return degrees * PI_ON_180;
 }
+#endif
 
 void Rtttl::dump_config() {
   ESP_LOGCONFIG(TAG,
