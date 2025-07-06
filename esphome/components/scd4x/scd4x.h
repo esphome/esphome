@@ -8,14 +8,20 @@
 namespace esphome {
 namespace scd4x {
 
-enum ERRORCODE {
+enum ErrorCode : uint8_t {
   COMMUNICATION_FAILED,
   SERIAL_NUMBER_IDENTIFICATION_FAILED,
   MEASUREMENT_INIT_FAILED,
   FRC_FAILED,
-  UNKNOWN
+  UNKNOWN,
 };
-enum MeasurementMode { PERIODIC, LOW_POWER_PERIODIC, SINGLE_SHOT, SINGLE_SHOT_RHT_ONLY };
+
+enum MeasurementMode : uint8_t {
+  PERIODIC,
+  LOW_POWER_PERIODIC,
+  SINGLE_SHOT,
+  SINGLE_SHOT_RHT_ONLY,
+};
 
 class SCD4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
@@ -39,15 +45,14 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
  protected:
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
   bool start_measurement_();
-  ERRORCODE error_code_;
 
-  bool initialized_{false};
-
-  float temperature_offset_;
   uint16_t altitude_compensation_;
-  bool ambient_pressure_compensation_;
   uint16_t ambient_pressure_;
+  bool initialized_{false};
+  bool ambient_pressure_compensation_;
   bool enable_asc_;
+  float temperature_offset_;
+  ErrorCode error_code_;
   MeasurementMode measurement_mode_{PERIODIC};
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
