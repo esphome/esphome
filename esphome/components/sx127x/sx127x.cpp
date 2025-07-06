@@ -252,15 +252,17 @@ size_t SX127x::get_max_packet_size() {
   }
 }
 
-void SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
+SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
   if (this->payload_length_ > 0 && this->payload_length_ != packet.size()) {
     ESP_LOGE(TAG, "Packet size does not match config");
-    return;
+    return SX127xError::INVALID_PARAMS;
   }
   if (packet.empty() || packet.size() > this->get_max_packet_size()) {
     ESP_LOGE(TAG, "Packet size out of range");
-    return;
+    return SX127xError::INVALID_PARAMS;
   }
+
+  SX127xError ret = SX127xError::NONE;
   if (this->modulation_ == MOD_LORA) {
     this->set_mode_standby();
     if (this->payload_length_ == 0) {
@@ -278,11 +280,13 @@ void SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
     this->write_fifo_(packet);
     this->set_mode_tx();
   }
+
   // wait until transmit completes, typically the delay will be less than 100 ms
   uint32_t start = millis();
   while (!this->dio0_pin_->digital_read()) {
     if (millis() - start > 4000) {
       ESP_LOGE(TAG, "Transmit packet failure");
+      ret = SX127xError::TIMEOUT;
       break;
     }
   }
@@ -291,6 +295,7 @@ void SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
   } else {
     this->set_mode_sleep();
   }
+  return ret;
 }
 
 void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr) {
@@ -335,13 +340,7 @@ void SX127x::loop() {
 }
 
 void SX127x::run_image_cal() {
-  uint32_t start = millis();
-  uint8_t mode = this->read_register_(REG_OP_MODE);
-  if ((mode & MODE_MASK) != MODE_STDBY) {
-    ESP_LOGE(TAG, "Need to be in standby for image cal");
-    return;
-  }
-  if (mode & MOD_LORA) {
+  if (this->modulation_ == MOD_LORA) {
     this->set_mode_(MOD_FSK, MODE_SLEEP);
     this->set_mode_(MOD_FSK, MODE_STDBY);
   }
@@ -350,13 +349,15 @@ void SX127x::run_image_cal() {
   } else {
     this->write_register_(REG_IMAGE_CAL, IMAGE_CAL_START);
   }
+  uint32_t start = millis();
   while (this->read_register_(REG_IMAGE_CAL) & IMAGE_CAL_RUNNING) {
     if (millis() - start > 20) {
       ESP_LOGE(TAG, "Image cal failure");
+      this->mark_failed();
       break;
     }
   }
-  if (mode & MOD_LORA) {
+  if (this->modulation_ == MOD_LORA) {
     this->set_mode_(this->modulation_, MODE_SLEEP);
     this->set_mode_(this->modulation_, MODE_STDBY);
   }
@@ -375,6 +376,7 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
     }
     if (millis() - start > 20) {
       ESP_LOGE(TAG, "Set mode failure");
+      this->mark_failed();
       break;
     }
   }
