@@ -50,10 +50,10 @@ void DaikinWrcClimate::transmit_state() {
   data->space(DAIKIN_WRC_HEADER_SPACE);
   data->mark(DAIKIN_WRC_HDR_MSG_MARK);
   data->space(DAIKIN_WRC_HDR_MSG_SPACE);
-  for (int i = 0; i < 16; i++) {
+  for (unsigned char i : remote_state) {
     for (uint8_t mask = 1; mask <= 8; mask <<= 1) {  // iterate through bit mask
       data->mark(DAIKIN_WRC_BIT_MARK);
-      bool bit = remote_state[i] & mask;
+      bool bit = i & mask;
       data->space(bit ? DAIKIN_WRC_ONE_SPACE : DAIKIN_WRC_ZERO_SPACE);
     }
   }
@@ -143,17 +143,9 @@ uint8_t DaikinWrcClimate::special_flags_() const {
 }
 
 uint8_t DaikinWrcClimate::temperature_() const {
-  // Force special temperatures depending on the mode
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return 0x24;
-    case climate::CLIMATE_MODE_DRY:
-      return 0x24;
-    default:
-      uint8_t temperature =
-          (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_WRC_TEMP_MIN, DAIKIN_WRC_TEMP_MAX));
-      return ((temperature / 10) << 4) | (temperature % 10);
-  }
+  uint8_t temperature =
+      (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_WRC_TEMP_MIN, DAIKIN_WRC_TEMP_MAX));
+  return ((temperature / 10) << 4) | (temperature % 10);
 }
 
 bool DaikinWrcClimate::parse_state_frame_(const uint8_t frame[]) {
