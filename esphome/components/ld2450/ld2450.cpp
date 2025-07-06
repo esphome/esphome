@@ -1,5 +1,6 @@
 #include "ld2450.h"
 #include <utility>
+#include <cmath>
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -123,16 +124,11 @@ static const uint8_t CMD_SET_ZONE = 0xC2;
 
 static inline uint16_t convert_seconds_to_ms(uint16_t value) { return value * 1000; };
 
-static inline std::string convert_signed_int_to_hex(int value) {
-  auto value_as_str = str_snprintf("%04x", 4, value & 0xFFFF);
-  return value_as_str;
-}
-
 static inline void convert_int_values_to_hex(const int *values, uint8_t *bytes) {
   for (int i = 0; i < 4; i++) {
-    std::string temp_hex = convert_signed_int_to_hex(values[i]);
-    bytes[i * 2] = std::stoi(temp_hex.substr(2, 2), nullptr, 16);      // Store high byte
-    bytes[i * 2 + 1] = std::stoi(temp_hex.substr(0, 2), nullptr, 16);  // Store low byte
+    uint16_t val = values[i] & 0xFFFF;
+    bytes[i * 2] = val & 0xFF;             // Store low byte first (little-endian)
+    bytes[i * 2 + 1] = (val >> 8) & 0xFF;  // Store high byte second
   }
 }
 
@@ -428,6 +424,12 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
 //  [AA FF 03 00] [0E 03 B1 86 10 00 40 01] [00 00 00 00 00 00 00 00] [00 00 00 00 00 00 00 00] [55 CC]
 //   Header       Target 1                  Target 2                  Target 3                  End
 void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
+  // Early throttle check - moved before any processing to save CPU cycles
+  if (App.get_loop_component_start_time() - this->last_periodic_millis_ < this->throttle_) {
+    ESP_LOGV(TAG, "Throttling: %d", this->throttle_);
+    return;
+  }
+
   if (len < 29) {  // header (4 bytes) + 8 x 3 target data + footer (2 bytes)
     ESP_LOGE(TAG, "Invalid message length");
     return;
@@ -438,11 +440,6 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
   }
   if (buffer[len - 2] != 0x55 || buffer[len - 1] != 0xCC) {  // footer
     ESP_LOGE(TAG, "Invalid message footer");
-    return;
-  }
-
-  if (App.get_loop_component_start_time() - this->last_periodic_millis_ < this->throttle_) {
-    ESP_LOGV(TAG, "Throttling: %d", this->throttle_);
     return;
   }
 
@@ -473,7 +470,10 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
     if (sx != nullptr) {
       val = ld2450::decode_coordinate(buffer[start], buffer[start + 1]);
       tx = val;
-      sx->publish_state(val);
+      if (this->cached_target_data_[index].x != val) {
+        sx->publish_state(val);
+        this->cached_target_data_[index].x = val;
+      }
     }
     // Y
     start = TARGET_Y + index * 8;
@@ -481,14 +481,20 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
     if (sy != nullptr) {
       val = ld2450::decode_coordinate(buffer[start], buffer[start + 1]);
       ty = val;
-      sy->publish_state(val);
+      if (this->cached_target_data_[index].y != val) {
+        sy->publish_state(val);
+        this->cached_target_data_[index].y = val;
+      }
     }
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
     sensor::Sensor *sr = this->move_resolution_sensors_[index];
     if (sr != nullptr) {
       val = (buffer[start + 1] << 8) | buffer[start];
-      sr->publish_state(val);
+      if (this->cached_target_data_[index].resolution != val) {
+        sr->publish_state(val);
+        this->cached_target_data_[index].resolution = val;
+      }
     }
 #endif
     // SPEED
@@ -502,13 +508,17 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
 #ifdef USE_SENSOR
     sensor::Sensor *ss = this->move_speed_sensors_[index];
     if (ss != nullptr) {
-      ss->publish_state(val);
+      if (this->cached_target_data_[index].speed != val) {
+        ss->publish_state(val);
+        this->cached_target_data_[index].speed = val;
+      }
     }
 #endif
     // DISTANCE
-    val = (uint16_t) sqrt(
-        pow(ld2450::decode_coordinate(buffer[TARGET_X + index * 8], buffer[(TARGET_X + index * 8) + 1]), 2) +
-        pow(ld2450::decode_coordinate(buffer[TARGET_Y + index * 8], buffer[(TARGET_Y + index * 8) + 1]), 2));
+    // Optimized: use already decoded tx and ty values, replace pow() with multiplication
+    int32_t x_squared = (int32_t) tx * tx;
+    int32_t y_squared = (int32_t) ty * ty;
+    val = (uint16_t) sqrt(x_squared + y_squared);
     td = val;
     if (val > 0) {
       target_count++;
@@ -516,7 +526,10 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
 #ifdef USE_SENSOR
     sensor::Sensor *sd = this->move_distance_sensors_[index];
     if (sd != nullptr) {
-      sd->publish_state(val);
+      if (this->cached_target_data_[index].distance != val) {
+        sd->publish_state(val);
+        this->cached_target_data_[index].distance = val;
+      }
     }
     // ANGLE
     angle = calculate_angle(static_cast<float>(ty), static_cast<float>(td));
@@ -525,7 +538,11 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
     }
     sensor::Sensor *sa = this->move_angle_sensors_[index];
     if (sa != nullptr) {
-      sa->publish_state(angle);
+      if (std::isnan(this->cached_target_data_[index].angle) ||
+          std::abs(this->cached_target_data_[index].angle - angle) > 0.1f) {
+        sa->publish_state(angle);
+        this->cached_target_data_[index].angle = angle;
+      }
     }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -536,7 +553,10 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
     }
     text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
     if (tsd != nullptr) {
-      tsd->publish_state(direction);
+      if (this->cached_target_data_[index].direction != direction) {
+        tsd->publish_state(direction);
+        this->cached_target_data_[index].direction = direction;
+      }
     }
 #endif
 
@@ -563,32 +583,50 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, uint8_t len) {
     // Publish Still Target Count in Zones
     sensor::Sensor *szstc = this->zone_still_target_count_sensors_[index];
     if (szstc != nullptr) {
-      szstc->publish_state(zone_still_targets);
+      if (this->cached_zone_data_[index].still_count != zone_still_targets) {
+        szstc->publish_state(zone_still_targets);
+        this->cached_zone_data_[index].still_count = zone_still_targets;
+      }
     }
     // Publish Moving Target Count in Zones
     sensor::Sensor *szmtc = this->zone_moving_target_count_sensors_[index];
     if (szmtc != nullptr) {
-      szmtc->publish_state(zone_moving_targets);
+      if (this->cached_zone_data_[index].moving_count != zone_moving_targets) {
+        szmtc->publish_state(zone_moving_targets);
+        this->cached_zone_data_[index].moving_count = zone_moving_targets;
+      }
     }
     // Publish All Target Count in Zones
     sensor::Sensor *sztc = this->zone_target_count_sensors_[index];
     if (sztc != nullptr) {
-      sztc->publish_state(zone_all_targets);
+      if (this->cached_zone_data_[index].total_count != zone_all_targets) {
+        sztc->publish_state(zone_all_targets);
+        this->cached_zone_data_[index].total_count = zone_all_targets;
+      }
     }
 
   }  // End loop thru zones
 
   // Target Count
   if (this->target_count_sensor_ != nullptr) {
-    this->target_count_sensor_->publish_state(target_count);
+    if (this->cached_global_data_.target_count != target_count) {
+      this->target_count_sensor_->publish_state(target_count);
+      this->cached_global_data_.target_count = target_count;
+    }
   }
   // Still Target Count
   if (this->still_target_count_sensor_ != nullptr) {
-    this->still_target_count_sensor_->publish_state(still_target_count);
+    if (this->cached_global_data_.still_count != still_target_count) {
+      this->still_target_count_sensor_->publish_state(still_target_count);
+      this->cached_global_data_.still_count = still_target_count;
+    }
   }
   // Moving Target Count
   if (this->moving_target_count_sensor_ != nullptr) {
-    this->moving_target_count_sensor_->publish_state(moving_target_count);
+    if (this->cached_global_data_.moving_count != moving_target_count) {
+      this->moving_target_count_sensor_->publish_state(moving_target_count);
+      this->cached_global_data_.moving_count = moving_target_count;
+    }
   }
 #endif
 

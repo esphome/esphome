@@ -5,6 +5,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <limits>
+#include <cmath>
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -100,7 +102,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void set_presence_timeout();
-  void set_throttle(uint16_t value) { this->throttle_ = value; };
+  void set_throttle(uint16_t value) { this->throttle_ = value; }
   void read_all_info();
   void query_zone_info();
   void restart_and_read_all_info();
@@ -164,6 +166,32 @@ class LD2450Component : public Component, public uart::UARTDevice {
   Zone zone_config_[MAX_ZONES];
   std::string version_{};
   std::string mac_{};
+
+  // Change detection - cache previous values to avoid redundant publishes
+  // All values are initialized to sentinel values that are outside the valid sensor ranges
+  // to ensure the first real measurement is always published
+  struct CachedTargetData {
+    int16_t x = std::numeric_limits<int16_t>::min();             // -32768, outside range of -4860 to 4860
+    int16_t y = std::numeric_limits<int16_t>::min();             // -32768, outside range of 0 to 7560
+    int16_t speed = std::numeric_limits<int16_t>::min();         // -32768, outside practical sensor range
+    uint16_t resolution = std::numeric_limits<uint16_t>::max();  // 65535, unlikely resolution value
+    uint16_t distance = std::numeric_limits<uint16_t>::max();    // 65535, outside range of 0 to ~8990
+    float angle = NAN;                                           // NAN, safe sentinel for floats
+    std::string direction = "";                                  // Empty string, will differ from any real direction
+  } cached_target_data_[MAX_TARGETS];
+
+  struct CachedZoneData {
+    uint8_t still_count = std::numeric_limits<uint8_t>::max();   // 255, unlikely zone count
+    uint8_t moving_count = std::numeric_limits<uint8_t>::max();  // 255, unlikely zone count
+    uint8_t total_count = std::numeric_limits<uint8_t>::max();   // 255, unlikely zone count
+  } cached_zone_data_[MAX_ZONES];
+
+  struct CachedGlobalData {
+    uint8_t target_count = std::numeric_limits<uint8_t>::max();  // 255, max 3 targets possible
+    uint8_t still_count = std::numeric_limits<uint8_t>::max();   // 255, max 3 targets possible
+    uint8_t moving_count = std::numeric_limits<uint8_t>::max();  // 255, max 3 targets possible
+  } cached_global_data_;
+
 #ifdef USE_NUMBER
   ESPPreferenceObject pref_;  // only used when numbers are in use
   ZoneOfNumbers zone_numbers_[MAX_ZONES];
