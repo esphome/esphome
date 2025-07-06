@@ -16,7 +16,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
 #ifdef USE_SPEAKER
-static const size_t SAMPLE_BUFFER_SIZE = 2048;
+static const uint16_t SAMPLE_BUFFER_SIZE = 2048;
 
 struct SpeakerSample {
   int8_t left{0};
@@ -50,7 +50,7 @@ void Rtttl::play(std::string rtttl) {
   this->default_octave_ = 6;
   this->note_duration_ = 0;
 
-  int bpm = 63;
+  uint8_t bpm = 63;
   uint8_t num;
 
   // Get name
@@ -320,7 +320,7 @@ void Rtttl::loop() {
       this->finish_();
       return;
     }
-    auto freq = NOTES[note_index];
+    uint16_t freq = NOTES[note_index];
     need_note_gap = freq == this->output_freq_;
 
     // Add small silence gap between same note
