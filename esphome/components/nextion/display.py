@@ -167,6 +167,7 @@ async def to_code(config):
         cg.add(var.set_wake_up_page(config[CONF_WAKE_UP_PAGE]))
 
     if CONF_START_UP_PAGE in config:
+        cg.add_define("USE_NEXTION_CONF_START_UP_PAGE")
         cg.add(var.set_start_up_page(config[CONF_START_UP_PAGE]))
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))

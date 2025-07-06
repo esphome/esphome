@@ -167,13 +167,15 @@ void Nextion::dump_config() {
     ESP_LOGCONFIG(TAG, "  Touch Timeout:  %" PRIu16, this->touch_sleep_timeout_);
   }
 
-  if (this->wake_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page:   %d", this->wake_up_page_);
+  if (this->wake_up_page_ != 255) {
+    ESP_LOGCONFIG(TAG, "  Wake Up Page:   %u", this->wake_up_page_);
   }
 
-  if (this->start_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page:  %d", this->start_up_page_);
+#ifdef USE_NEXTION_CONF_START_UP_PAGE
+  if (this->start_up_page_ != 255) {
+    ESP_LOGCONFIG(TAG, "  Start Up Page:  %u", this->start_up_page_);
   }
+#endif  // USE_NEXTION_CONF_START_UP_PAGE
 
 #ifdef USE_NEXTION_COMMAND_SPACING
   ESP_LOGCONFIG(TAG, "  Cmd spacing:      %u ms", this->command_pacer_.get_spacing());
@@ -301,12 +303,14 @@ void Nextion::loop() {
       this->set_backlight_brightness(this->brightness_.value());
     }
 
+#ifdef USE_NEXTION_CONF_START_UP_PAGE
     // Check if a startup page has been set and send the command
-    if (this->start_up_page_ >= 0) {
+    if (this->start_up_page_ != 255) {
       this->goto_page(this->start_up_page_);
     }
+#endif  // USE_NEXTION_CONF_START_UP_PAGE
 
-    if (this->wake_up_page_ >= 0) {
+    if (this->wake_up_page_ != 255) {
       this->set_wake_up_page(this->wake_up_page_);
     }
 
