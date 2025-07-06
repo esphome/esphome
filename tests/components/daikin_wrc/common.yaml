@@ -1,0 +1,25 @@
+remote_transmitter:
+  pin: ${ir_transmitter_pin}
+  carrier_duty_percent: 70%
+
+remote_receiver:
+  id: ir_receiver
+  pin:
+    number: ${ir_receiver_pin}
+    inverted: true
+    mode:
+      input: true
+      pullup: true
+  tolerance: 40%
+
+binary_sensor:
+  - platform: gpio
+    pin: ${state_sensor_pin}
+    id: condizionatore_state
+    internal: true
+
+climate:
+  - platform: daikin_wrc
+    name: Daikin WRC AC
+    receiver_id: ir_receiver
+    state_sensor_id: condizionatore_state

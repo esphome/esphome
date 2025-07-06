@@ -1,0 +1,6 @@
+substitutions:
+  ir_transmitter_pin: GPIO2
+  ir_receiver_pin: GPIO4
+  state_sensor_pin: GPIO3
+
+<<: !include common.yaml
