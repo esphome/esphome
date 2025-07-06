@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <memory>
+#include <deque>
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -142,8 +143,21 @@ class Scheduler {
   // Common implementation for cancel operations
   bool cancel_item_common_(Component *component, bool is_static_string, const void *name_ptr, SchedulerItem::Type type);
 
+ private:
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
   bool cancel_item_(Component *component, const char *name, SchedulerItem::Type type);
+
+  // Helper functions for cancel operations
+  bool matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
+                     SchedulerItem::Type type);
+
+  // Helper to execute a scheduler item
+  void execute_item_(SchedulerItem *item);
+
+  // Helper to check if item should be skipped
+  bool should_skip_item_(const SchedulerItem *item) const {
+    return item->remove || (item->component != nullptr && item->component->is_failed());
+  }
 
   bool empty_() {
     this->cleanup_();
@@ -153,6 +167,13 @@ class Scheduler {
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
+#if !defined(USE_ESP8266) && !defined(USE_RP2040)
+  // ESP8266 and RP2040 don't need the defer queue because:
+  // ESP8266: Single-core with no preemptive multitasking
+  // RP2040: Currently has empty mutex implementation in ESPHome
+  // Both platforms save 40 bytes of RAM by excluding this
+  std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
+#endif
   uint32_t last_millis_{0};
   uint16_t millis_major_{0};
   uint32_t to_remove_{0};

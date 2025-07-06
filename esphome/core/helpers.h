@@ -32,6 +32,10 @@
 #include <semphr.h>
 #endif
 
+#ifdef USE_HOST
+#include <mutex>
+#endif
+
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))

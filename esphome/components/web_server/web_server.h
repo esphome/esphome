@@ -14,12 +14,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#ifdef USE_ESP32
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <deque>
-#include <atomic>
-#endif
 
 #if USE_WEBSERVER_VERSION >= 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
@@ -504,7 +498,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
  protected:
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
-  void schedule_(std::function<void()> &&f);
   web_server_base::WebServerBase *base_;
 #ifdef USE_ARDUINO
   DeferredUpdateEventSourceList events_;
@@ -524,11 +517,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};
-#ifdef USE_ESP32
-  std::deque<std::function<void()>> to_schedule_;
-  SemaphoreHandle_t to_schedule_lock_;
-  std::atomic<bool> to_schedule_has_items_{false};
-#endif
 };
 
 }  // namespace web_server

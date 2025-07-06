@@ -645,7 +645,7 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 // System APIs
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_HOST)
+#if defined(USE_ESP8266) || defined(USE_RP2040)
 // ESP8266 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
 Mutex::Mutex() {}
 Mutex::~Mutex() {}
@@ -658,6 +658,13 @@ Mutex::~Mutex() {}
 void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
 bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
 void Mutex::unlock() { xSemaphoreGive(this->handle_); }
+#elif defined(USE_HOST)
+// Host platform uses std::mutex for proper thread synchronization
+Mutex::Mutex() { handle_ = new std::mutex(); }
+Mutex::~Mutex() { delete static_cast<std::mutex *>(handle_); }
+void Mutex::lock() { static_cast<std::mutex *>(handle_)->lock(); }
+bool Mutex::try_lock() { return static_cast<std::mutex *>(handle_)->try_lock(); }
+void Mutex::unlock() { static_cast<std::mutex *>(handle_)->unlock(); }
 #endif
 
 #if defined(USE_ESP8266)

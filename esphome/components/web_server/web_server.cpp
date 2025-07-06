@@ -255,11 +255,7 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 }
 #endif
 
-WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {
-#ifdef USE_ESP32
-  to_schedule_lock_ = xSemaphoreCreateMutex();
-#endif
-}
+WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
@@ -308,30 +304,7 @@ void WebServer::setup() {
   // getting a lot of events
   this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
 }
-void WebServer::loop() {
-#ifdef USE_ESP32
-  // Check atomic flag first to avoid taking semaphore when queue is empty
-  if (this->to_schedule_has_items_.load(std::memory_order_relaxed) && xSemaphoreTake(this->to_schedule_lock_, 0L)) {
-    std::function<void()> fn;
-    if (!to_schedule_.empty()) {
-      // scheduler execute things out of order which may lead to incorrect state
-      // this->defer(std::move(to_schedule_.front()));
-      // let's execute it directly from the loop
-      fn = std::move(to_schedule_.front());
-      to_schedule_.pop_front();
-      if (to_schedule_.empty()) {
-        this->to_schedule_has_items_.store(false, std::memory_order_relaxed);
-      }
-    }
-    xSemaphoreGive(this->to_schedule_lock_);
-    if (fn) {
-      fn();
-    }
-  }
-#endif
-
-  this->events_.loop();
-}
+void WebServer::loop() { this->events_.loop(); }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
@@ -526,13 +499,13 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       std::string data = this->switch_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("toggle")) {
-      this->schedule_([obj]() { obj->toggle(); });
+      this->defer([obj]() { obj->toggle(); });
       request->send(200);
     } else if (match.method_equals("turn_on")) {
-      this->schedule_([obj]() { obj->turn_on(); });
+      this->defer([obj]() { obj->turn_on(); });
       request->send(200);
     } else if (match.method_equals("turn_off")) {
-      this->schedule_([obj]() { obj->turn_off(); });
+      this->defer([obj]() { obj->turn_off(); });
       request->send(200);
     } else {
       request->send(404);
@@ -568,7 +541,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
       std::string data = this->button_json(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("press")) {
-      this->schedule_([obj]() { obj->press(); });
+      this->defer([obj]() { obj->press(); });
       request->send(200);
       return;
     } else {
@@ -648,7 +621,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       std::string data = this->fan_json(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("toggle")) {
-      this->schedule_([obj]() { obj->toggle().perform(); });
+      this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
     } else if (match.method_equals("turn_on") || match.method_equals("turn_off")) {
       auto call = match.method_equals("turn_on") ? obj->turn_on() : obj->turn_off();
@@ -680,7 +653,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
             return;
         }
       }
-      this->schedule_([call]() mutable { call.perform(); });
+      this->defer([call]() mutable { call.perform(); });
       request->send(200);
     } else {
       request->send(404);
@@ -729,7 +702,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       std::string data = this->light_json(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("toggle")) {
-      this->schedule_([obj]() { obj->toggle().perform(); });
+      this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
     } else if (match.method_equals("turn_on")) {
       auto call = obj->turn_on();
@@ -786,7 +759,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
         call.set_effect(effect);
       }
 
-      this->schedule_([call]() mutable { call.perform(); });
+      this->defer([call]() mutable { call.perform(); });
       request->send(200);
     } else if (match.method_equals("turn_off")) {
       auto call = obj->turn_off();
@@ -796,7 +769,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
           call.set_transition_length(*transition * 1000);
         }
       }
-      this->schedule_([call]() mutable { call.perform(); });
+      this->defer([call]() mutable { call.perform(); });
       request->send(200);
     } else {
       request->send(404);
@@ -881,7 +854,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -939,7 +912,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
         call.set_value(*value);
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1014,7 +987,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
       call.set_date(value);
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1073,7 +1046,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
       call.set_time(value);
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1131,7 +1104,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
       call.set_datetime(value);
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1248,7 +1221,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       call.set_option(option.c_str());  // NOLINT
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1335,7 +1308,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
         call.set_target_temperature(*target_temperature);
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1452,13 +1425,13 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       std::string data = this->lock_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("lock")) {
-      this->schedule_([obj]() { obj->lock(); });
+      this->defer([obj]() { obj->lock(); });
       request->send(200);
     } else if (match.method_equals("unlock")) {
-      this->schedule_([obj]() { obj->unlock(); });
+      this->defer([obj]() { obj->unlock(); });
       request->send(200);
     } else if (match.method_equals("open")) {
-      this->schedule_([obj]() { obj->open(); });
+      this->defer([obj]() { obj->open(); });
       request->send(200);
     } else {
       request->send(404);
@@ -1529,7 +1502,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1594,7 +1567,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
       return;
     }
 
-    this->schedule_([call]() mutable { call.perform(); });
+    this->defer([call]() mutable { call.perform(); });
     request->send(200);
     return;
   }
@@ -1695,7 +1668,7 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    this->schedule_([obj]() mutable { obj->perform(); });
+    this->defer([obj]() mutable { obj->perform(); });
     request->send(200);
     return;
   }
@@ -2071,17 +2044,6 @@ void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_na
   this->sorting_groups_[group_id] = SortingGroup{group_name, weight};
 }
 #endif
-
-void WebServer::schedule_(std::function<void()> &&f) {
-#ifdef USE_ESP32
-  xSemaphoreTake(this->to_schedule_lock_, portMAX_DELAY);
-  to_schedule_.push_back(std::move(f));
-  this->to_schedule_has_items_.store(true, std::memory_order_relaxed);
-  xSemaphoreGive(this->to_schedule_lock_);
-#else
-  this->defer(std::move(f));
-#endif
-}
 
 }  // namespace web_server
 }  // namespace esphome
