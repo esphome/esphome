@@ -25,6 +25,11 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
+#ifndef USE_API_YAML_SERVICES
+// Forward declaration of helper function
+const std::vector<UserServiceDescriptor *> &get_empty_user_services_instance();
+#endif
+
 class APIServer : public Component, public Controller {
  public:
   APIServer();
@@ -151,8 +156,11 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_YAML_SERVICES
     return this->user_services_;
 #else
-    static const std::vector<UserServiceDescriptor *> EMPTY;
-    return this->user_services_ ? *this->user_services_ : EMPTY;
+    if (this->user_services_) {
+      return *this->user_services_;
+    }
+    // Return reference to global empty instance (no guard needed)
+    return get_empty_user_services_instance();
 #endif
   }
 
