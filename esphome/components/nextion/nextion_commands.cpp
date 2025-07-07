@@ -38,7 +38,7 @@ void Nextion::sleep(bool sleep) {
 // Protocol reparse mode
 bool Nextion::set_protocol_reparse_mode(bool active_mode) {
   ESP_LOGV(TAG, "Reparse mode: %s", YESNO(active_mode));
-  this->ignore_is_setup_ = true;  // if not in reparse mode setup will fail, so it should be ignored
+  this->connection_state_.ignore_is_setup_ = true;  // if not in reparse mode setup will fail, so it should be ignored
   bool all_commands_sent = true;
   if (active_mode) {  // Sets active protocol reparse mode
     all_commands_sent &= this->send_command_("recmod=1");
@@ -48,10 +48,10 @@ bool Nextion::set_protocol_reparse_mode(bool active_mode) {
     all_commands_sent &= this->send_command_("recmod=0");  // Sending recmode=0 twice is recommended
     all_commands_sent &= this->send_command_("recmod=0");
   }
-  if (!this->nextion_reports_is_setup_) {  // No need to connect if is already setup
+  if (!this->connection_state_.nextion_reports_is_setup_) {  // No need to connect if is already setup
     all_commands_sent &= this->send_command_("connect");
   }
-  this->ignore_is_setup_ = false;
+  this->connection_state_.ignore_is_setup_ = false;
   return all_commands_sent;
 }
 
@@ -191,7 +191,7 @@ void Nextion::set_backlight_brightness(float brightness) {
 }
 
 void Nextion::set_auto_wake_on_touch(bool auto_wake_on_touch) {
-  this->auto_wake_on_touch_ = auto_wake_on_touch;
+  this->connection_state_.auto_wake_on_touch_ = auto_wake_on_touch;
   this->add_no_result_to_queue_with_set("auto_wake_on_touch", "thup", auto_wake_on_touch ? 1 : 0);
 }
 
