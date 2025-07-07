@@ -170,7 +170,7 @@ int BluetoothProxy::get_bluetooth_connections_free() {
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
     for (auto *connection : this->connections_) {
-      if (connection->get_address() != 0) {
+      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
         connection->disconnect();
       }
     }
