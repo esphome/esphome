@@ -51,7 +51,7 @@ enum IoCapability {
   IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
 };
 
-enum BLEComponentState {
+enum BLEComponentState : uint8_t {
   /** Nothing has been initialized yet. */
   BLE_COMPONENT_STATE_OFF = 0,
   /** BLE should be disabled on next loop. */
@@ -141,21 +141,31 @@ class ESP32BLE : public Component {
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
 
+  // Vectors (12 bytes each on 32-bit, naturally aligned to 4 bytes)
   std::vector<GAPEventHandler *> gap_event_handlers_;
   std::vector<GAPScanEventHandler *> gap_scan_event_handlers_;
   std::vector<GATTcEventHandler *> gattc_event_handlers_;
   std::vector<GATTsEventHandler *> gatts_event_handlers_;
   std::vector<BLEStatusEventHandler *> ble_status_event_handlers_;
-  BLEComponentState state_{BLE_COMPONENT_STATE_OFF};
 
+  // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
   esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
-  BLEAdvertising *advertising_{};
-  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
-  uint32_t advertising_cycle_time_{};
-  bool enable_on_boot_{};
+
+  // optional<string> (typically 16+ bytes on 32-bit, aligned to 4 bytes)
   optional<std::string> name_;
-  uint16_t appearance_{0};
+
+  // 4-byte aligned members
+  BLEAdvertising *advertising_{};             // 4 bytes (pointer)
+  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
+  uint32_t advertising_cycle_time_{};         // 4 bytes
+
+  // 2-byte aligned members
+  uint16_t appearance_{0};  // 2 bytes
+
+  // 1-byte aligned members (grouped together to minimize padding)
+  BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
+  bool enable_on_boot_{};                             // 1 byte
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
