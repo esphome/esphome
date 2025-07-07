@@ -260,180 +260,114 @@ bool APIServer::check_password(const std::string &password) const {
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
+// Macro for entities without extra parameters
+#define API_DISPATCH_UPDATE(entity_type, entity_name) \
+  void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+    if (obj->is_internal()) \
+      return; \
+    for (auto &c : this->clients_) \
+      c->send_##entity_name##_state(obj); \
+  }
+
+// Macro for entities with extra parameters (but parameters not used in send)
+#define API_DISPATCH_UPDATE_IGNORE_PARAMS(entity_type, entity_name, ...) \
+  void APIServer::on_##entity_name##_update(entity_type *obj, __VA_ARGS__) { /* NOLINT(bugprone-macro-parentheses) */ \
+    if (obj->is_internal()) \
+      return; \
+    for (auto &c : this->clients_) \
+      c->send_##entity_name##_state(obj); \
+  }
+
 #ifdef USE_BINARY_SENSOR
-void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_binary_sensor_state(obj);
-}
+API_DISPATCH_UPDATE(binary_sensor::BinarySensor, binary_sensor)
 #endif
 
 #ifdef USE_COVER
-void APIServer::on_cover_update(cover::Cover *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_cover_state(obj);
-}
+API_DISPATCH_UPDATE(cover::Cover, cover)
 #endif
 
 #ifdef USE_FAN
-void APIServer::on_fan_update(fan::Fan *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_fan_state(obj);
-}
+API_DISPATCH_UPDATE(fan::Fan, fan)
 #endif
 
 #ifdef USE_LIGHT
-void APIServer::on_light_update(light::LightState *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_light_state(obj);
-}
+API_DISPATCH_UPDATE(light::LightState, light)
 #endif
 
 #ifdef USE_SENSOR
-void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_sensor_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(sensor::Sensor, sensor, float state)
 #endif
 
 #ifdef USE_SWITCH
-void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_switch_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(switch_::Switch, switch, bool state)
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_text_sensor_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(text_sensor::TextSensor, text_sensor, const std::string &state)
 #endif
 
 #ifdef USE_CLIMATE
-void APIServer::on_climate_update(climate::Climate *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_climate_state(obj);
-}
+API_DISPATCH_UPDATE(climate::Climate, climate)
 #endif
 
 #ifdef USE_NUMBER
-void APIServer::on_number_update(number::Number *obj, float state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_number_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(number::Number, number, float state)
 #endif
 
 #ifdef USE_DATETIME_DATE
-void APIServer::on_date_update(datetime::DateEntity *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_date_state(obj);
-}
+API_DISPATCH_UPDATE(datetime::DateEntity, date)
 #endif
 
 #ifdef USE_DATETIME_TIME
-void APIServer::on_time_update(datetime::TimeEntity *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_time_state(obj);
-}
+API_DISPATCH_UPDATE(datetime::TimeEntity, time)
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-void APIServer::on_datetime_update(datetime::DateTimeEntity *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_datetime_state(obj);
-}
+API_DISPATCH_UPDATE(datetime::DateTimeEntity, datetime)
 #endif
 
 #ifdef USE_TEXT
-void APIServer::on_text_update(text::Text *obj, const std::string &state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_text_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(text::Text, text, const std::string &state)
 #endif
 
 #ifdef USE_SELECT
-void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_select_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(select::Select, select, const std::string &state, size_t index)
 #endif
 
 #ifdef USE_LOCK
-void APIServer::on_lock_update(lock::Lock *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_lock_state(obj);
-}
+API_DISPATCH_UPDATE(lock::Lock, lock)
 #endif
 
 #ifdef USE_VALVE
-void APIServer::on_valve_update(valve::Valve *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_valve_state(obj);
-}
+API_DISPATCH_UPDATE(valve::Valve, valve)
 #endif
 
 #ifdef USE_MEDIA_PLAYER
-void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_media_player_state(obj);
-}
+API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif
 
 #ifdef USE_EVENT
+// Event is a special case - it's the only entity that passes extra parameters to the send method
 void APIServer::on_event(event::Event *obj, const std::string &event_type) {
+  if (obj->is_internal())
+    return;
   for (auto &c : this->clients_)
     c->send_event(obj, event_type);
 }
 #endif
 
 #ifdef USE_UPDATE
+// Update is a special case - the method is called on_update, not on_update_update
 void APIServer::on_update(update::UpdateEntity *obj) {
+  if (obj->is_internal())
+    return;
   for (auto &c : this->clients_)
     c->send_update_state(obj);
 }
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_alarm_control_panel_state(obj);
-}
+API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
 
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
