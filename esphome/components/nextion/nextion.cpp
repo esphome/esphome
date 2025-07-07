@@ -13,14 +13,11 @@ void Nextion::setup() {
   this->is_setup_ = false;
   this->connection_state_.ignore_is_setup_ = true;
 
-  // Wake up the nextion
-  this->send_command_("bkcmd=0");
-  this->send_command_("sleep=0");
+  // Wake up the nextion and ensure clean communication state
+  this->send_command_("sleep=0");  // Exit sleep mode if sleeping
+  this->send_command_("bkcmd=0");  // Disable return data during init sequence
 
-  this->send_command_("bkcmd=0");
-  this->send_command_("sleep=0");
-
-  // Reboot it
+  // Reset device for clean state - critical for reliable communication
   this->send_command_("rest");
 
   this->connection_state_.ignore_is_setup_ = false;
@@ -140,6 +137,7 @@ void Nextion::reset_(bool reset_nextion) {
 
 void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "Nextion:");
+
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG, "  Skip handshake: YES");
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
@@ -151,18 +149,16 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
                 "  Exit reparse:   YES\n"
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-                "  Wake On Touch:  %s",
+                "  Wake On Touch:  %s\n"
+                "  Touch Timeout:  %" PRIu16,
                 this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(), YESNO(this->auto_wake_on_touch_));
+                this->flash_size_.c_str(), YESNO(this->connection_state_.auto_wake_on_touch_),
+                this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   ESP_LOGCONFIG(TAG, "  Max commands per loop: %u", this->max_commands_per_loop_);
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
-
-  if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:  %" PRIu16, this->touch_sleep_timeout_);
-  }
 
   if (this->wake_up_page_ != 255) {
     ESP_LOGCONFIG(TAG, "  Wake Up Page:   %u", this->wake_up_page_);
@@ -309,6 +305,10 @@ void Nextion::loop() {
 
     if (this->wake_up_page_ != 255) {
       this->set_wake_up_page(this->wake_up_page_);
+    }
+
+    if (this->touch_sleep_timeout_ != 0) {
+      this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
     }
 
     this->connection_state_.ignore_is_setup_ = false;

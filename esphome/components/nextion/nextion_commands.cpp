@@ -15,14 +15,15 @@ void Nextion::set_wake_up_page(uint8_t wake_up_page) {
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", wake_up_page, true);
 }
 
-void Nextion::set_touch_sleep_timeout(uint16_t touch_sleep_timeout) {
-  if (touch_sleep_timeout < 3) {
-    ESP_LOGD(TAG, "Sleep timeout out of bounds (3-65535)");
-    return;
+void Nextion::set_touch_sleep_timeout(const uint16_t touch_sleep_timeout) {
+  // Validate range: Nextion thsp command requires min 3, max 65535 seconds (0 disables)
+  if (touch_sleep_timeout != 0 && touch_sleep_timeout < 3) {
+    this->touch_sleep_timeout_ = 3;  // Auto-correct to minimum valid value
+  } else {
+    this->touch_sleep_timeout_ = touch_sleep_timeout;
   }
 
-  this->touch_sleep_timeout_ = touch_sleep_timeout;
-  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", touch_sleep_timeout, true);
+  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", this->touch_sleep_timeout_, true);
 }
 
 void Nextion::sleep(bool sleep) {

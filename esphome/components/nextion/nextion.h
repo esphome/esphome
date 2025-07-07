@@ -1164,18 +1164,39 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void update_components_by_prefix(const std::string &prefix);
 
   /**
-   * Set the touch sleep timeout of the display.
-   * @param timeout Timeout in seconds.
+   * Set the touch sleep timeout of the display using the `thsp` command.
+   *
+   * Sets internal No-touch-then-sleep timer to specified value in seconds.
+   * Nextion will auto-enter sleep mode if and when this timer expires.
+   *
+   * @param touch_sleep_timeout Timeout in seconds.
+   *                           Range: 3 to 65535 seconds (minimum 3 seconds, maximum ~18 hours 12 minutes 15 seconds)
+   *                           Use 0 to disable touch sleep timeout.
+   *
+   * @note Once `thsp` is set, it will persist until reboot or reset. The Nextion device
+   *       needs to exit sleep mode to issue `thsp=0` to disable sleep on no touch.
+   *
+   * @note The display will only wake up by a restart or by setting up `thup` (auto wake on touch).
+   *       See set_auto_wake_on_touch() to configure wake behavior.
    *
    * Example:
    * ```cpp
+   * // Set 30 second touch timeout
    * it.set_touch_sleep_timeout(30);
+   *
+   * // Set maximum timeout (~18 hours)
+   * it.set_touch_sleep_timeout(65535);
+   *
+   * // Disable touch sleep timeout
+   * it.set_touch_sleep_timeout(0);
    * ```
    *
-   * After 30 seconds the display will go to sleep. Note: the display will only wakeup by a restart or by setting up
-   * `thup`.
+   * Related Nextion instruction: `thsp=<value>`
+   *
+   * @see set_auto_wake_on_touch() Configure automatic wake on touch
+   * @see sleep() Manually control sleep state
    */
-  void set_touch_sleep_timeout(uint16_t touch_sleep_timeout);
+  void set_touch_sleep_timeout(uint16_t touch_sleep_timeout = 0);
 
   /**
    * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
