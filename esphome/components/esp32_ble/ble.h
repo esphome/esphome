@@ -25,10 +25,15 @@ namespace esphome {
 namespace esp32_ble {
 
 // Maximum number of BLE scan results to buffer
+// Sized to handle bursts of advertisements while allowing for processing delays
+// With 16 advertisements per batch and some safety margin:
+// - Without PSRAM: 24 entries (1.5× batch size)
+// - With PSRAM: 36 entries (2.25× batch size)
+// The reduced structure size (~80 bytes vs ~400 bytes) allows for larger buffers
 #ifdef USE_PSRAM
-static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 32;
+static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 36;
 #else
-static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 20;
+static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 24;
 #endif
 
 // Maximum size of the BLE event queue - must be power of 2 for lock-free queue
