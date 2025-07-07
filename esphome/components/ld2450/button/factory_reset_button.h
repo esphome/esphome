@@ -6,9 +6,9 @@
 namespace esphome {
 namespace ld2450 {
 
-class ResetButton : public button::Button, public Parented<LD2450Component> {
+class FactoryResetButton : public button::Button, public Parented<LD2450Component> {
  public:
-  ResetButton() = default;
+  FactoryResetButton() = default;
 
  protected:
   void press_action() override;

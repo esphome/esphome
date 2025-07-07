@@ -38,9 +38,17 @@ namespace ld2450 {
 
 // Constants
 static const uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
-static const uint8_t MAX_LINE_LENGTH = 60;          // Max characters for serial buffer
+static const uint8_t MAX_LINE_LENGTH = 41;          // Max characters for serial buffer
 static const uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
 static const uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
+
+enum Direction : uint8_t {
+  DIRECTION_APPROACHING = 0,
+  DIRECTION_MOVING_AWAY = 1,
+  DIRECTION_STATIONARY = 2,
+  DIRECTION_NA = 3,
+  DIRECTION_UNDEFINED = 4,
+};
 
 // Target coordinate struct
 struct Target {
@@ -67,19 +75,22 @@ struct ZoneOfNumbers {
 #endif
 
 class LD2450Component : public Component, public uart::UARTDevice {
-#ifdef USE_SENSOR
-  SUB_SENSOR(target_count)
-  SUB_SENSOR(still_target_count)
-  SUB_SENSOR(moving_target_count)
-#endif
 #ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(target)
   SUB_BINARY_SENSOR(moving_target)
   SUB_BINARY_SENSOR(still_target)
+  SUB_BINARY_SENSOR(target)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR(moving_target_count)
+  SUB_SENSOR(still_target_count)
+  SUB_SENSOR(target_count)
 #endif
 #ifdef USE_TEXT_SENSOR
-  SUB_TEXT_SENSOR(version)
   SUB_TEXT_SENSOR(mac)
+  SUB_TEXT_SENSOR(version)
+#endif
+#ifdef USE_NUMBER
+  SUB_NUMBER(presence_timeout)
 #endif
 #ifdef USE_SELECT
   SUB_SELECT(baud_rate)
@@ -90,11 +101,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   SUB_SWITCH(multi_target)
 #endif
 #ifdef USE_BUTTON
-  SUB_BUTTON(reset)
+  SUB_BUTTON(factory_reset)
   SUB_BUTTON(restart)
-#endif
-#ifdef USE_NUMBER
-  SUB_NUMBER(presence_timeout)
 #endif
 
  public:
@@ -138,10 +146,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
-  void handle_periodic_data_(uint8_t *buffer, uint8_t len);
-  bool handle_ack_data_(uint8_t *buffer, uint8_t len);
-  void process_zone_(uint8_t *buffer);
-  void readline_(int readch, uint8_t *buffer, uint8_t len);
+  void handle_periodic_data_();
+  bool handle_ack_data_();
+  void process_zone_();
+  void readline_(int readch);
   void get_version_();
   void get_mac_();
   void query_target_tracking_mode_();
@@ -159,13 +167,14 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t moving_presence_millis_ = 0;
   uint16_t throttle_ = 0;
   uint16_t timeout_ = 5;
-  uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
+  uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t zone_type_ = 0;
+  bool bluetooth_on_{false};
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
-  std::string version_{};
-  std::string mac_{};
 
   // Change detection - cache previous values to avoid redundant publishes
   // All values are initialized to sentinel values that are outside the valid sensor ranges
@@ -176,8 +185,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
     int16_t speed = std::numeric_limits<int16_t>::min();         // -32768, outside practical sensor range
     uint16_t resolution = std::numeric_limits<uint16_t>::max();  // 65535, unlikely resolution value
     uint16_t distance = std::numeric_limits<uint16_t>::max();    // 65535, outside range of 0 to ~8990
+    Direction direction = DIRECTION_UNDEFINED;                   // Undefined, will differ from any real direction
     float angle = NAN;                                           // NAN, safe sentinel for floats
-    std::string direction = "";                                  // Empty string, will differ from any real direction
   } cached_target_data_[MAX_TARGETS];
 
   struct CachedZoneData {
