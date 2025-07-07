@@ -172,9 +172,11 @@ async def to_code(config):
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))
 
-    cg.add(var.set_exit_reparse_on_start(config[CONF_EXIT_REPARSE_ON_START]))
+    if config[CONF_EXIT_REPARSE_ON_START]:
+        cg.add_define("USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START")
 
-    cg.add(var.set_skip_connection_handshake(config[CONF_SKIP_CONNECTION_HANDSHAKE]))
+    if config[CONF_SKIP_CONNECTION_HANDSHAKE]:
+        cg.add_define("USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE")
 
     if max_commands_per_loop := config.get(CONF_MAX_COMMANDS_PER_LOOP):
         cg.add_define("USE_NEXTION_MAX_COMMANDS_PER_LOOP")
