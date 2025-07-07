@@ -104,18 +104,19 @@ void APIServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
-      if (this->shutting_down_) {
-        // Don't try to send logs during shutdown
-        // as it could result in a recursion and
-        // we would be filling a buffer we are trying to clear
-        return;
-      }
-      for (auto &c : this->clients_) {
-        if (!c->flags_.remove)
-          c->try_send_log_message(level, tag, message);
-      }
-    });
+    logger::global_logger->add_on_log_callback(
+        [this](int level, const char *tag, const char *message, size_t message_len) {
+          if (this->shutting_down_) {
+            // Don't try to send logs during shutdown
+            // as it could result in a recursion and
+            // we would be filling a buffer we are trying to clear
+            return;
+          }
+          for (auto &c : this->clients_) {
+            if (!c->flags_.remove)
+              c->try_send_log_message(level, tag, message, message_len);
+          }
+        });
   }
 #endif
 

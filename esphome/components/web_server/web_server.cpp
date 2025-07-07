@@ -287,7 +287,8 @@ void WebServer::setup() {
   if (logger::global_logger != nullptr && this->expose_log_) {
     logger::global_logger->add_on_log_callback(
         // logs are not deferred, the memory overhead would be too large
-        [this](int level, const char *tag, const char *message) {
+        [this](int level, const char *tag, const char *message, size_t message_len) {
+          (void) message_len;
           this->events_.try_send_nodefer(message, "log", millis());
         });
   }

@@ -17,7 +17,7 @@ class Syslog : public Component, public Parented<udp::UDPComponent> {
 
  protected:
   int log_level_;
-  void log_(int level, const char *tag, const char *message) const;
+  void log_(int level, const char *tag, const char *message, size_t message_len) const;
   time::RealTimeClock *time_;
   bool strip_{true};
   int facility_{16};

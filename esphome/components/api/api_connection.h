@@ -107,7 +107,7 @@ class APIConnection : public APIServerConnection {
   bool send_media_player_state(media_player::MediaPlayer *media_player);
   void media_player_command(const MediaPlayerCommandRequest &msg) override;
 #endif
-  bool try_send_log_message(int level, const char *tag, const char *line);
+  bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
     if (!this->flags_.service_call_subscription)
       return;
