@@ -58,7 +58,7 @@ void SCD4XComponent::setup() {
       }
 
       // If pressure compensation available use it, else use altitude
-      if (this->ambient_pressure_compensation_) {
+      if (this->ambient_pressure_) {
         if (!this->update_ambient_pressure_compensation_(this->ambient_pressure_)) {
           ESP_LOGE(TAG, "Error setting ambient pressure compensation");
           this->error_code_ = MEASUREMENT_INIT_FAILED;
@@ -137,7 +137,7 @@ void SCD4XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
                   this->ambient_pressure_source_->get_name().c_str());
   } else {
-    if (this->ambient_pressure_compensation_) {
+    if (this->ambient_pressure_) {
       ESP_LOGCONFIG(TAG,
                     "  Altitude compensation disabled\n"
                     "  Ambient pressure compensation: %dmBar",
@@ -230,7 +230,7 @@ bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentrati
       // frc takes 400 ms
       // because this method will be used very rarly
       // the simple approach with delay is ok
-      delay(400);  // NOLINT'
+      delay(400);  // NOLINT
       if (!this->start_measurement_()) {
         return false;
       } else {
@@ -267,8 +267,7 @@ bool SCD4XComponent::factory_reset() {
 }
 
 void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_hpa) {
-  ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t) pressure_in_hpa;
+  uint16_t new_ambient_pressure = static_cast<uint16_t>(pressure_in_hpa);
   if (!this->initialized_) {
     this->ambient_pressure_ = new_ambient_pressure;
     return;
