@@ -46,8 +46,7 @@ class LightColorValues {
  public:
   /// Construct the LightColorValues with all attributes enabled, but state set to off.
   LightColorValues()
-      : color_mode_(ColorMode::UNKNOWN),
-        state_(0.0f),
+      : state_(0.0f),
         brightness_(1.0f),
         color_brightness_(1.0f),
         red_(1.0f),
@@ -56,7 +55,8 @@ class LightColorValues {
         white_(1.0f),
         color_temperature_{0.0f},
         cold_white_{1.0f},
-        warm_white_{1.0f} {}
+        warm_white_{1.0f},
+        color_mode_(ColorMode::UNKNOWN) {}
 
   LightColorValues(ColorMode color_mode, float state, float brightness, float color_brightness, float red, float green,
                    float blue, float white, float color_temperature, float cold_white, float warm_white) {
@@ -292,7 +292,6 @@ class LightColorValues {
   void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
 
  protected:
-  ColorMode color_mode_;
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
   float color_brightness_;
@@ -303,6 +302,7 @@ class LightColorValues {
   float color_temperature_;  ///< Color Temperature in Mired
   float cold_white_;
   float warm_white_;
+  ColorMode color_mode_;
 };
 
 }  // namespace light
