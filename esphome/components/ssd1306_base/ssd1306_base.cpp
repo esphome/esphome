@@ -224,7 +224,7 @@ bool SSD1306::is_sh1106_() const {
 }
 bool SSD1306::is_sh1107_() const { return this->model_ == SH1107_MODEL_128_64 || this->model_ == SH1107_MODEL_128_128; }
 bool SSD1306::is_ssd1305_() const {
-  return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_64;
+  return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_32;
 }
 void SSD1306::update() {
   this->do_update_();
