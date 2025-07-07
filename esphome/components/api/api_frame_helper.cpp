@@ -614,20 +614,14 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  uint16_t payload_len = static_cast<uint16_t>(raw_buffer->size() - frame_header_padding_);
-
   // Resize to include MAC space (required for Noise encryption)
-  raw_buffer->resize(raw_buffer->size() + frame_footer_size_);
-
-  // Use write_protobuf_packets with a single packet
-  std::vector<PacketInfo> packets;
-  packets.emplace_back(type, 0, payload_len);
-
-  return write_protobuf_packets(buffer, packets);
+  buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
+  PacketInfo packet{type, 0,
+                    static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+  return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
 }
 
-APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) {
+APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) {
   APIError aerr = state_action_();
   if (aerr != APIError::OK) {
     return aerr;
@@ -642,18 +636,15 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, co
   }
 
   std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
+  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
+
   this->reusable_iovs_.clear();
   this->reusable_iovs_.reserve(packets.size());
 
   // We need to encrypt each packet in place
   for (const auto &packet : packets) {
-    uint16_t type = packet.message_type;
-    uint16_t offset = packet.offset;
-    uint16_t payload_len = packet.payload_size;
-    uint16_t msg_len = 4 + payload_len;  // type(2) + data_len(2) + payload
-
     // The buffer already has padding at offset
-    uint8_t *buf_start = raw_buffer->data() + offset;
+    uint8_t *buf_start = buffer_data + packet.offset;
 
     // Write noise header
     buf_start[0] = 0x01;  // indicator
@@ -661,10 +652,10 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, co
 
     // Write message header (to be encrypted)
     const uint8_t msg_offset = 3;
-    buf_start[msg_offset + 0] = (uint8_t) (type >> 8);         // type high byte
-    buf_start[msg_offset + 1] = (uint8_t) type;                // type low byte
-    buf_start[msg_offset + 2] = (uint8_t) (payload_len >> 8);  // data_len high byte
-    buf_start[msg_offset + 3] = (uint8_t) payload_len;         // data_len low byte
+    buf_start[msg_offset] = static_cast<uint8_t>(packet.message_type >> 8);      // type high byte
+    buf_start[msg_offset + 1] = static_cast<uint8_t>(packet.message_type);       // type low byte
+    buf_start[msg_offset + 2] = static_cast<uint8_t>(packet.payload_size >> 8);  // data_len high byte
+    buf_start[msg_offset + 3] = static_cast<uint8_t>(packet.payload_size);       // data_len low byte
     // payload data is already in the buffer starting at offset + 7
 
     // Make sure we have space for MAC
@@ -673,7 +664,8 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, co
     // Encrypt the message in place
     NoiseBuffer mbuf;
     noise_buffer_init(mbuf);
-    noise_buffer_set_inout(mbuf, buf_start + msg_offset, msg_len, msg_len + frame_footer_size_);
+    noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + packet.payload_size,
+                           4 + packet.payload_size + frame_footer_size_);
 
     int err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
     if (err != 0) {
@@ -683,14 +675,12 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, co
     }
 
     // Fill in the encrypted size
-    buf_start[1] = (uint8_t) (mbuf.size >> 8);
-    buf_start[2] = (uint8_t) mbuf.size;
+    buf_start[1] = static_cast<uint8_t>(mbuf.size >> 8);
+    buf_start[2] = static_cast<uint8_t>(mbuf.size);
 
     // Add iovec for this encrypted packet
-    struct iovec iov;
-    iov.iov_base = buf_start;
-    iov.iov_len = 3 + mbuf.size;  // indicator + size + encrypted data
-    this->reusable_iovs_.push_back(iov);
+    this->reusable_iovs_.push_back(
+        {buf_start, static_cast<size_t>(3 + mbuf.size)});  // indicator + size + encrypted data
   }
 
   // Send all encrypted packets in one writev call
@@ -1029,18 +1019,11 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   return APIError::OK;
 }
 APIError APIPlaintextFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  uint16_t payload_len = static_cast<uint16_t>(raw_buffer->size() - frame_header_padding_);
-
-  // Use write_protobuf_packets with a single packet
-  std::vector<PacketInfo> packets;
-  packets.emplace_back(type, 0, payload_len);
-
-  return write_protobuf_packets(buffer, packets);
+  PacketInfo packet{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
+  return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
 }
 
-APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer,
-                                                         const std::vector<PacketInfo> &packets) {
+APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
@@ -1050,17 +1033,15 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
   }
 
   std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
+  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
+
   this->reusable_iovs_.clear();
   this->reusable_iovs_.reserve(packets.size());
 
   for (const auto &packet : packets) {
-    uint16_t type = packet.message_type;
-    uint16_t offset = packet.offset;
-    uint16_t payload_len = packet.payload_size;
-
     // Calculate varint sizes for header layout
-    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(payload_len));
-    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(type));
+    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.payload_size));
+    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.message_type));
     uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
     // Calculate where to start writing the header
@@ -1088,23 +1069,20 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
     //
     // The message starts at offset + frame_header_padding_
     // So we write the header starting at offset + frame_header_padding_ - total_header_len
-    uint8_t *buf_start = raw_buffer->data() + offset;
+    uint8_t *buf_start = buffer_data + packet.offset;
     uint32_t header_offset = frame_header_padding_ - total_header_len;
 
     // Write the plaintext header
     buf_start[header_offset] = 0x00;  // indicator
 
-    // Encode size varint directly into buffer
-    ProtoVarInt(payload_len).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
-
-    // Encode type varint directly into buffer
-    ProtoVarInt(type).encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
+    // Encode varints directly into buffer
+    ProtoVarInt(packet.payload_size).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
+    ProtoVarInt(packet.message_type)
+        .encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
 
     // Add iovec for this packet (header + payload)
-    struct iovec iov;
-    iov.iov_base = buf_start + header_offset;
-    iov.iov_len = total_header_len + payload_len;
-    this->reusable_iovs_.push_back(iov);
+    this->reusable_iovs_.push_back(
+        {buf_start + header_offset, static_cast<size_t>(total_header_len + packet.payload_size)});
   }
 
   // Send all packets in one writev call

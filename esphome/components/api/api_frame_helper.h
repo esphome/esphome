@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <deque>
 #include <limits>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -101,7 +102,7 @@ class APIFrameHelper {
   // Write multiple protobuf packets in a single operation
   // packets contains (message_type, offset, length) for each message in the buffer
   // The buffer contains all messages with appropriate padding before each
-  virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) = 0;
+  virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
   // Get the frame header padding required by this protocol
   virtual uint8_t frame_header_padding() = 0;
   // Get the frame footer size required by this protocol
@@ -194,7 +195,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) override;
+  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
   // Get the frame header padding required by this protocol
   uint8_t frame_header_padding() override { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
@@ -248,7 +249,7 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) override;
+  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
   uint8_t frame_header_padding() override { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
   uint8_t frame_footer_size() override { return frame_footer_size_; }
