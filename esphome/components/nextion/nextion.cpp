@@ -110,11 +110,19 @@ bool Nextion::check_connect_() {
   this->is_detected_ = (connect_info.size() == 7);
   if (this->is_detected_) {
     ESP_LOGN(TAG, "Connect info: %zu", connect_info.size());
-
+#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
     this->device_model_ = connect_info[2];
     this->firmware_version_ = connect_info[3];
     this->serial_number_ = connect_info[5];
     this->flash_size_ = connect_info[6];
+#else   // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+    ESP_LOGI(TAG,
+             "  Device Model:   %s\n"
+             "  FW Version:     %s\n"
+             "  Serial Number:  %s\n"
+             "  Flash Size:     %s\n",
+             connect_info[2].c_str(), connect_info[3].c_str(), connect_info[5].c_str(), connect_info[6].c_str());
+#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
   } else {
     ESP_LOGE(TAG, "Bad connect value: '%s'", response.c_str());
   }
@@ -142,18 +150,22 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Skip handshake: YES");
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG,
+#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
                 "  Device Model:   %s\n"
                 "  FW Version:     %s\n"
                 "  Serial Number:  %s\n"
                 "  Flash Size:     %s\n"
+#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
                 "  Exit reparse:   YES\n"
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
                 "  Wake On Touch:  %s\n"
                 "  Touch Timeout:  %" PRIu16,
+#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
                 this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(), YESNO(this->connection_state_.auto_wake_on_touch_),
-                this->touch_sleep_timeout_);
+                this->flash_size_.c_str(),
+#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+                YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP

@@ -15,6 +15,7 @@ from . import Nextion, nextion_ns, nextion_ref
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
+    CONF_DUMP_DEVICE_INFO,
     CONF_EXIT_REPARSE_ON_START,
     CONF_MAX_COMMANDS_PER_LOOP,
     CONF_MAX_QUEUE_SIZE,
@@ -57,6 +58,7 @@ CONFIG_SCHEMA = (
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
+            cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
@@ -173,6 +175,9 @@ async def to_code(config):
         cg.add(var.set_start_up_page(config[CONF_START_UP_PAGE]))
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))
+
+    if config[CONF_DUMP_DEVICE_INFO]:
+        cg.add_define("USE_NEXTION_CONFIG_DUMP_DEVICE_INFO")
 
     if config[CONF_EXIT_REPARSE_ON_START]:
         cg.add_define("USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START")
