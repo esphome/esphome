@@ -9,7 +9,7 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-async def test_defer_fifo_simple(
+async def test_scheduler_defer_fifo_simple(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
@@ -20,7 +20,7 @@ async def test_defer_fifo_simple(
         # Verify we can connect
         device_info = await client.device_info()
         assert device_info is not None
-        assert device_info.name == "defer-fifo-simple"
+        assert device_info.name == "scheduler-defer-fifo-simple"
 
         # List entities and services
         entity_info, services = await asyncio.wait_for(

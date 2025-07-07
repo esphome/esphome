@@ -1,5 +1,5 @@
 esphome:
-  name: defer-fifo-simple
+  name: scheduler-defer-fifo-simple
 
 host:
 

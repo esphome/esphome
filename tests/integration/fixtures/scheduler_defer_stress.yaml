@@ -1,5 +1,5 @@
 esphome:
-  name: defer-stress-test
+  name: scheduler-defer-stress-test
 
 external_components:
   - source:

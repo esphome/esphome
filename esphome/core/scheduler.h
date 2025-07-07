@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <memory>
+#include <cstring>
 #include <deque>
 
 #include "esphome/core/component.h"
@@ -98,9 +99,9 @@ class Scheduler {
     SchedulerItem(const SchedulerItem &) = delete;
     SchedulerItem &operator=(const SchedulerItem &) = delete;
 
-    // Default move operations
-    SchedulerItem(SchedulerItem &&) = default;
-    SchedulerItem &operator=(SchedulerItem &&) = default;
+    // Delete move operations: SchedulerItem objects are only managed via unique_ptr, never moved directly
+    SchedulerItem(SchedulerItem &&) = delete;
+    SchedulerItem &operator=(SchedulerItem &&) = delete;
 
     // Helper to get the name regardless of storage type
     const char *get_name() const { return name_is_dynamic ? name_.dynamic_name : name_.static_name; }
@@ -139,17 +140,42 @@ class Scheduler {
   uint64_t millis_();
   void cleanup_();
   void pop_raw_();
-  void push_(std::unique_ptr<SchedulerItem> item);
-  // Common implementation for cancel operations
-  bool cancel_item_common_(Component *component, bool is_static_string, const void *name_ptr, SchedulerItem::Type type);
 
  private:
-  bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
-  bool cancel_item_(Component *component, const char *name, SchedulerItem::Type type);
+  // Helper to cancel items by name - must be called with lock held
+  bool cancel_item_locked_(Component *component, const char *name, SchedulerItem::Type type);
 
-  // Helper functions for cancel operations
-  bool matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
-                     SchedulerItem::Type type);
+  // Helper to extract name as const char* from either static string or std::string
+  inline const char *get_name_cstr_(bool is_static_string, const void *name_ptr) {
+    return is_static_string ? static_cast<const char *>(name_ptr) : static_cast<const std::string *>(name_ptr)->c_str();
+  }
+
+  // Helper to check if a name is valid (not null and not empty)
+  inline bool is_name_valid_(const char *name) { return name != nullptr && name[0] != '\0'; }
+
+  // Common implementation for cancel operations
+  bool cancel_item_(Component *component, bool is_static_string, const void *name_ptr, SchedulerItem::Type type);
+
+  // Helper function to check if item matches criteria for cancellation
+  inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
+                                SchedulerItem::Type type) {
+    if (item->component != component || item->type != type || item->remove) {
+      return false;
+    }
+    const char *item_name = item->get_name();
+    if (item_name == nullptr) {
+      return false;
+    }
+    // Fast path: if pointers are equal
+    // This is effective because the core ESPHome codebase uses static strings (const char*)
+    // for component names. The std::string overloads exist only for compatibility with
+    // external components, but are rarely used in practice.
+    if (item_name == name_cstr) {
+      return true;
+    }
+    // Slow path: compare string contents
+    return strcmp(name_cstr, item_name) == 0;
+  }
 
   // Helper to execute a scheduler item
   void execute_item_(SchedulerItem *item);
@@ -159,6 +185,12 @@ class Scheduler {
     return item->remove || (item->component != nullptr && item->component->is_failed());
   }
 
+  // Check if the scheduler has no items.
+  // IMPORTANT: This method should only be called from the main thread (loop task).
+  // It performs cleanup of removed items and checks if the queue is empty.
+  // The items_.empty() check at the end is done without a lock for performance,
+  // which is safe because this is only called from the main thread while other
+  // threads only add items (never remove them).
   bool empty_() {
     this->cleanup_();
     return this->items_.empty();
