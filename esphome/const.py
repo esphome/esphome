@@ -1,5 +1,9 @@
 """Constants used by esphome."""
 
+from enum import Enum
+
+from esphome.enum import StrEnum
+
 __version__ = "2025.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
@@ -7,14 +11,55 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
-PLATFORM_BK72XX = "bk72xx"
-PLATFORM_ESP32 = "esp32"
-PLATFORM_ESP8266 = "esp8266"
-PLATFORM_HOST = "host"
-PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
-PLATFORM_LN882X = "ln882x"
-PLATFORM_RP2040 = "rp2040"
-PLATFORM_RTL87XX = "rtl87xx"
+
+class Platform(StrEnum):
+    """Platform identifiers for ESPHome."""
+
+    BK72XX = "bk72xx"
+    ESP32 = "esp32"
+    ESP8266 = "esp8266"
+    HOST = "host"
+    LIBRETINY_OLDSTYLE = "libretiny"
+    LN882X = "ln882x"
+    RP2040 = "rp2040"
+    RTL87XX = "rtl87xx"
+
+
+class Framework(StrEnum):
+    """Framework identifiers for ESPHome."""
+
+    ARDUINO = "arduino"
+    ESP_IDF = "esp-idf"
+    NATIVE = "host"
+
+
+class PlatformFramework(Enum):
+    """Combined platform-framework identifiers with tuple values."""
+
+    # ESP32 variants
+    ESP32_ARDUINO = (Platform.ESP32, Framework.ARDUINO)
+    ESP32_IDF = (Platform.ESP32, Framework.ESP_IDF)
+
+    # Arduino framework platforms
+    ESP8266_ARDUINO = (Platform.ESP8266, Framework.ARDUINO)
+    RP2040_ARDUINO = (Platform.RP2040, Framework.ARDUINO)
+    BK72XX_ARDUINO = (Platform.BK72XX, Framework.ARDUINO)
+    RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
+    LN882X_ARDUINO = (Platform.LN882X, Framework.ARDUINO)
+
+    # Host platform (native)
+    HOST_NATIVE = (Platform.HOST, Framework.NATIVE)
+
+
+# Maintain backward compatibility by reassigning after enum definition
+PLATFORM_BK72XX = Platform.BK72XX
+PLATFORM_ESP32 = Platform.ESP32
+PLATFORM_ESP8266 = Platform.ESP8266
+PLATFORM_HOST = Platform.HOST
+PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
+PLATFORM_LN882X = Platform.LN882X
+PLATFORM_RP2040 = Platform.RP2040
+PLATFORM_RTL87XX = Platform.RTL87XX
 
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}

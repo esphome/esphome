@@ -6,6 +6,7 @@ from pathlib import Path
 
 from esphome import automation, core
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
@@ -35,6 +36,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
+    PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -551,3 +553,16 @@ async def to_code(config: ConfigType) -> None:
             cg.add(dev.set_area_id(area_id_hash))
 
         cg.add(cg.App.register_device(dev))
+
+
+# Platform-specific source files for core
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "ring_buffer.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
+        # as they are only included when needed by the preprocessor
+    }
+)

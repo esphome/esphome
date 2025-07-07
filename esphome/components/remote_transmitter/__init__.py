@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CARRIER_DUTY_PERCENT,
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_PIN,
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
+    PlatformFramework,
 )
 from esphome.core import CORE
 
@@ -95,3 +97,19 @@ async def to_code(config):
         await automation.build_automation(
             var.get_complete_trigger(), [], on_complete_config
         )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "remote_transmitter_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "remote_transmitter_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "remote_transmitter_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

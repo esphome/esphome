@@ -3,6 +3,7 @@ import base64
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -313,3 +314,17 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
 @automation.register_condition("api.connected", APIConnectedCondition, {})
 async def api_connected_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled."""
+    # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
+    # This is a particularly large file that still needs to be opened and read
+    # all the way to the end even when ifdef'd out
+    #
+    # HAS_PROTO_MESSAGE_DUMP is defined when ESPHOME_LOG_HAS_VERY_VERBOSE is set,
+    # which happens when the logger level is VERY_VERBOSE
+    if get_logger_level() != "VERY_VERBOSE":
+        return ["api_pb2_dump.cpp"]
+
+    return []
