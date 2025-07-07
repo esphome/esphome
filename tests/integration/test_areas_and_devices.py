@@ -76,8 +76,8 @@ async def test_areas_and_devices(
         # Get entity list to verify device_id mapping
         entities = await client.list_entities_services()
 
-        # Collect sensor entities
-        sensor_entities = [e for e in entities[0] if hasattr(e, "device_id")]
+        # Collect sensor entities (all entities have device_id)
+        sensor_entities = entities[0]
         assert len(sensor_entities) >= 4, (
             f"Expected at least 4 sensor entities, got {len(sensor_entities)}"
         )

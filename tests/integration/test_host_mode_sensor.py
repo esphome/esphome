@@ -19,16 +19,17 @@ async def test_host_mode_with_sensor(
 ) -> None:
     """Test Host mode with a sensor component."""
     # Write, compile and run the ESPHome device, then connect to API
+    loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Subscribe to state changes
         states: dict[int, EntityState] = {}
-        sensor_future: asyncio.Future[EntityState] = asyncio.Future()
+        sensor_future: asyncio.Future[EntityState] = loop.create_future()
 
         def on_state(state: EntityState) -> None:
             states[state.key] = state
             # If this is our sensor with value 42.0, resolve the future
             if (
-                hasattr(state, "state")
+                isinstance(state, aioesphomeapi.SensorState)
                 and state.state == 42.0
                 and not sensor_future.done()
             ):

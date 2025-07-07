@@ -7,6 +7,7 @@ including RGB, color temperature, effects, transitions, and flash.
 import asyncio
 from typing import Any
 
+from aioesphomeapi import LightState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -76,7 +77,7 @@ async def test_light_calls(
         client.light_command(key=rgbcw_light.key, white=0.6)
         state = await wait_for_state_change(rgbcw_light.key)
         # White might need more tolerance or might not be directly settable
-        if hasattr(state, "white"):
+        if isinstance(state, LightState) and state.white is not None:
             assert state.white == pytest.approx(0.6, abs=0.1)
 
         # Test 8: color_temperature only

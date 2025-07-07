@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from aioesphomeapi import EntityState
+from aioesphomeapi import BinarySensorState, EntityState, SensorState, TextSensorState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -40,28 +40,22 @@ async def test_device_id_in_state(
         entity_device_mapping: dict[int, int] = {}
 
         for entity in all_entities:
-            if hasattr(entity, "name") and hasattr(entity, "key"):
-                if entity.name == "Temperature":
-                    entity_device_mapping[entity.key] = device_ids[
-                        "Temperature Monitor"
-                    ]
-                elif entity.name == "Humidity":
-                    entity_device_mapping[entity.key] = device_ids["Humidity Monitor"]
-                elif entity.name == "Motion Detected":
-                    entity_device_mapping[entity.key] = device_ids["Motion Sensor"]
-                elif entity.name == "Temperature Monitor Power":
-                    entity_device_mapping[entity.key] = device_ids[
-                        "Temperature Monitor"
-                    ]
-                elif entity.name == "Temperature Status":
-                    entity_device_mapping[entity.key] = device_ids[
-                        "Temperature Monitor"
-                    ]
-                elif entity.name == "Motion Light":
-                    entity_device_mapping[entity.key] = device_ids["Motion Sensor"]
-                elif entity.name == "No Device Sensor":
-                    # Entity without device_id should have device_id 0
-                    entity_device_mapping[entity.key] = 0
+            # All entities have name and key attributes
+            if entity.name == "Temperature":
+                entity_device_mapping[entity.key] = device_ids["Temperature Monitor"]
+            elif entity.name == "Humidity":
+                entity_device_mapping[entity.key] = device_ids["Humidity Monitor"]
+            elif entity.name == "Motion Detected":
+                entity_device_mapping[entity.key] = device_ids["Motion Sensor"]
+            elif entity.name == "Temperature Monitor Power":
+                entity_device_mapping[entity.key] = device_ids["Temperature Monitor"]
+            elif entity.name == "Temperature Status":
+                entity_device_mapping[entity.key] = device_ids["Temperature Monitor"]
+            elif entity.name == "Motion Light":
+                entity_device_mapping[entity.key] = device_ids["Motion Sensor"]
+            elif entity.name == "No Device Sensor":
+                # Entity without device_id should have device_id 0
+                entity_device_mapping[entity.key] = 0
 
         assert len(entity_device_mapping) >= 6, (
             f"Expected at least 6 mapped entities, got {len(entity_device_mapping)}"
@@ -111,7 +105,7 @@ async def test_device_id_in_state(
             (
                 s
                 for s in states.values()
-                if hasattr(s, "state")
+                if isinstance(s, SensorState)
                 and isinstance(s.state, float)
                 and s.device_id != 0
             ),
@@ -122,11 +116,7 @@ async def test_device_id_in_state(
 
         # Find a binary sensor state
         binary_sensor_state = next(
-            (
-                s
-                for s in states.values()
-                if hasattr(s, "state") and isinstance(s.state, bool)
-            ),
+            (s for s in states.values() if isinstance(s, BinarySensorState)),
             None,
         )
         assert binary_sensor_state is not None, "No binary sensor state found"
@@ -136,11 +126,7 @@ async def test_device_id_in_state(
 
         # Find a text sensor state
         text_sensor_state = next(
-            (
-                s
-                for s in states.values()
-                if hasattr(s, "state") and isinstance(s.state, str)
-            ),
+            (s for s in states.values() if isinstance(s, TextSensorState)),
             None,
         )
         assert text_sensor_state is not None, "No text sensor state found"

@@ -51,9 +51,6 @@ async def test_entity_icon(
             entity = entity_map[entity_name]
 
             # Check icon field
-            assert hasattr(entity, "icon"), (
-                f"{entity_name}: Entity should have icon attribute"
-            )
             assert entity.icon == expected_icon, (
                 f"{entity_name}: icon mismatch - "
                 f"expected '{expected_icon}', got '{entity.icon}'"
@@ -67,9 +64,6 @@ async def test_entity_icon(
             entity = entity_map[entity_name]
 
             # Check icon field is empty
-            assert hasattr(entity, "icon"), (
-                f"{entity_name}: Entity should have icon attribute"
-            )
             assert entity.icon == "", (
                 f"{entity_name}: icon should be empty string for entities without icons, "
                 f"got '{entity.icon}'"
