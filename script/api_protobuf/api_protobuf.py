@@ -290,7 +290,7 @@ class DoubleType(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1 according to protobuf spec
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%g", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%g", {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -312,7 +312,7 @@ class FloatType(TypeInfo):
     wire_type = WireType.FIXED32  # Uses wire type 5
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%g", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%g", {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -334,7 +334,7 @@ class Int64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -356,7 +356,7 @@ class UInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -378,7 +378,7 @@ class Int32Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%" PRId32, {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId32, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -400,7 +400,7 @@ class Fixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -422,7 +422,7 @@ class Fixed32Type(TypeInfo):
     wire_type = WireType.FIXED32  # Uses wire type 5
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu32, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -555,7 +555,7 @@ class UInt32Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu32, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -607,7 +607,7 @@ class SFixed32Type(TypeInfo):
     wire_type = WireType.FIXED32  # Uses wire type 5
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%" PRId32, {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId32, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -629,7 +629,7 @@ class SFixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -651,7 +651,7 @@ class SInt32Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%" PRId32, {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId32, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -673,7 +673,7 @@ class SInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'sprintf(buffer, "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
         o += "out.append(buffer);"
         return o
 
