@@ -355,7 +355,7 @@ class Logger : public Component {
   }
 
   inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    static const uint16_t RESET_COLOR_LEN = strlen(ESPHOME_LOG_RESET_COLOR);
+    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
 

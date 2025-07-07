@@ -184,7 +184,9 @@ void HOT Logger::write_msg_(const char *msg) {
   ) {
     puts(msg);
   } else {
-    uart_write_bytes(this->uart_num_, msg, strlen(msg));
+    // Use tx_buffer_at_ if msg points to tx_buffer_, otherwise fall back to strlen
+    size_t len = (msg == this->tx_buffer_) ? this->tx_buffer_at_ : strlen(msg);
+    uart_write_bytes(this->uart_num_, msg, len);
     uart_write_bytes(this->uart_num_, "\n", 1);
   }
 }
