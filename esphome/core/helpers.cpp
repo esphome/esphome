@@ -360,9 +360,22 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
-static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                        "abcdefghijklmnopqrstuvwxyz"
-                                        "0123456789+/";
+// Use C-style string constant to store in ROM instead of RAM (saves 24 bytes)
+static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                            "abcdefghijklmnopqrstuvwxyz"
+                                            "0123456789+/";
+
+// Helper function to find the index of a base64 character in the lookup table.
+// Returns the character's position (0-63) if found, or 0 if not found.
+// NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
+// This is safe because is_base64() is ALWAYS checked before calling this function,
+// preventing invalid characters from ever reaching here. The base64_decode function
+// stops processing at the first invalid character due to the is_base64() check in its
+// while loop condition, making this edge case harmless in practice.
+static inline uint8_t base64_find_char(char c) {
+  const char *pos = strchr(BASE64_CHARS, c);
+  return pos ? (pos - BASE64_CHARS) : 0;
+}
 
 static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
@@ -384,7 +397,7 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
       char_array_4[3] = char_array_3[2] & 0x3f;
 
       for (i = 0; (i < 4); i++)
-        ret += BASE64_CHARS[char_array_4[i]];
+        ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[i])];
       i = 0;
     }
   }
@@ -399,7 +412,7 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
     char_array_4[3] = char_array_3[2] & 0x3f;
 
     for (j = 0; (j < i + 1); j++)
-      ret += BASE64_CHARS[char_array_4[j]];
+      ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[j])];
 
     while ((i++ < 3))
       ret += '=';
@@ -426,12 +439,15 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   uint8_t char_array_4[4], char_array_3[3];
   std::vector<uint8_t> ret;
 
+  // SAFETY: The loop condition checks is_base64() before processing each character.
+  // This ensures base64_find_char() is only called on valid base64 characters,
+  // preventing the edge case where invalid chars would return 0 (same as 'A').
   while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
     char_array_4[i++] = encoded_string[in];
     in++;
     if (i == 4) {
       for (i = 0; i < 4; i++)
-        char_array_4[i] = BASE64_CHARS.find(char_array_4[i]);
+        char_array_4[i] = base64_find_char(char_array_4[i]);
 
       char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
       char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
@@ -448,7 +464,7 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
       char_array_4[j] = 0;
 
     for (j = 0; j < 4; j++)
-      char_array_4[j] = BASE64_CHARS.find(char_array_4[j]);
+      char_array_4[j] = base64_find_char(char_array_4[j]);
 
     char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
     char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
