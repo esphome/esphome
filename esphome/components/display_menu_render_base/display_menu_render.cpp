@@ -6,12 +6,11 @@ namespace display_menu_render_base {
 #ifdef USE_SENSOR
 size_t SensorMenuRender::render_entity(MenuItemMenu *menu, EntityBase *entity) {
   sensor::Sensor *sensor_obj = static_cast<sensor::Sensor *>(entity);
-  MenuItem *item = new MenuItem(MENU_ITEM_LABEL);
-
-  item->set_text([=](const display_menu_base::MenuItem *it) -> std::string {
-    return sensor_obj->get_name() + ": " + sensor_obj->state_to_string();
+  MenuItemValue *item = new MenuItemValue();
+  item->set_text(sensor_obj->get_name());
+  item->set_value_lambda([sensor_obj, this](const display_menu_base::MenuItem *it) -> std::string {
+    return sensor_obj->state_to_string(this->no_data_text_.c_str());
   });
-
   menu->add_generated_items(item);
   return 1;
 }

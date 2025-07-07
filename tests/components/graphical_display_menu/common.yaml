@@ -118,3 +118,6 @@ graphical_display_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("graphical_display_menu", "custom prev: %s", it->get_text().c_str());'
+    - type: value
+      text: "Value"
+      value_lambda: return "1234";

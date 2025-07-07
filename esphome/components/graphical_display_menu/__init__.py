@@ -19,6 +19,8 @@ from esphome.const import (
 CONF_MENU_ITEM_VALUE = "menu_item_value"
 CONF_ON_REDRAW = "on_redraw"
 CONF_RESTORE_PAGE = "restore_page"
+CONF_FILL_ROW = "fill_row"
+CONF_SHRINK_LABEL = "shrink_label"
 
 graphical_display_menu_ns = cg.esphome_ns.namespace("graphical_display_menu")
 GraphicalDisplayMenu = graphical_display_menu_ns.class_(
@@ -47,6 +49,8 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
             cv.Required(CONF_FONT): cv.use_id(font.Font),
             cv.Optional(CONF_MENU_ITEM_VALUE): cv.templatable(cv.string),
             cv.Optional(CONF_RESTORE_PAGE, default=True): cv.boolean,
+            cv.Optional(CONF_FILL_ROW, default=True): cv.boolean,
+            cv.Optional(CONF_SHRINK_LABEL, default=True): cv.boolean,
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_ON_REDRAW): automation.validate_automation(
@@ -87,6 +91,12 @@ async def to_code(config):
     if foreground_color_config := config.get(CONF_FOREGROUND_COLOR):
         foreground_color = await cg.get_variable(foreground_color_config)
         cg.add(var.set_foreground_color(foreground_color))
+
+    if fill_row_config := config.get(CONF_FILL_ROW):
+        cg.add(var.set_fill_row(fill_row_config))
+
+    if shrink_label_config := config.get(CONF_SHRINK_LABEL):
+        cg.add(var.set_shrink_label(shrink_label_config))
 
     if background_color_config := config.get(CONF_BACKGROUND_COLOR):
         background_color = await cg.get_variable(background_color_config)

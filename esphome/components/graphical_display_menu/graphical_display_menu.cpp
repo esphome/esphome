@@ -18,15 +18,18 @@ void GraphicalDisplayMenu::setup() {
 
   if (!this->menu_item_value_.has_value()) {
     this->menu_item_value_ = [](const MenuItemValueArguments *it) {
-      std::string label = " ";
+      std::string label;
       if (it->is_item_selected && it->is_menu_editing) {
-        label.append(">");
+        label.append(" >");
         label.append(it->item->get_value_text());
         label.append("<");
-      } else {
-        label.append("(");
+      } else if (it->item->get_type() == display_menu_base::MENU_ITEM_SWITCH) {
+        label.append(" (");
         label.append(it->item->get_value_text());
         label.append(")");
+      } else if (it->item->has_value()) {
+        label.append(": ");
+        label.append(it->item->get_value_text());
       }
       return label;
     };
@@ -62,6 +65,9 @@ void GraphicalDisplayMenu::set_font(display::BaseFont *font) { this->font_ = fon
 
 void GraphicalDisplayMenu::set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
 void GraphicalDisplayMenu::set_background_color(Color background_color) { this->background_color_ = background_color; }
+void GraphicalDisplayMenu::set_fill_row(bool val) { this->fill_row_ = val; }
+void GraphicalDisplayMenu::set_shrink_label(bool val) { this->shrink_label_ = val; }
+void GraphicalDisplayMenu::set_restore_page(bool val) { this->restore_page_ = val; }
 
 void GraphicalDisplayMenu::on_before_show() {
   if (this->display_ != nullptr) {
@@ -212,7 +218,7 @@ display::Rect GraphicalDisplayMenu::measure_item(display::Display *display, cons
   int height;
   display->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1, &width, &height);
 
-  dimensions.w = std::min((int16_t) width, bounds->w);
+  dimensions.w = this->fill_row_ ? bounds->w : std::min((int16_t) width, bounds->w);
   dimensions.h = std::min((int16_t) height, bounds->h);
 
   return dimensions;
@@ -229,13 +235,27 @@ inline void GraphicalDisplayMenu::draw_item(display::Display *display, const dis
   display->filled_rectangle(bounds->x, bounds->y, background_width, bounds->h, background_color);
 
   std::string label = item->get_text();
+  std::string value;
   if (item->has_value()) {
     MenuItemValueArguments args(item, selected, this->editing_);
-    label.append(this->menu_item_value_.value(&args));
+    value = this->menu_item_value_.value(&args);
   }
 
-  display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT, label.c_str(),
-                 background_color);
+  int width_label = background_width;
+
+  // Measure value size
+  int value_x1, value_y1, value_width = 0, value_height;
+  if (!value.empty()) {
+    display->get_text_bounds(0, 0, value.c_str(), this->font_, display::TextAlign::TOP_LEFT, &value_x1, &value_y1,
+                             &value_width, &value_height);
+    width_label -= value_width;
+  }
+  if (this->shrink_label_) {
+    label = this->display_->shrink_text_to_width(label, this->font_, width_label);
+  }
+  std::string res = label + value;
+
+  display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT, res.c_str());
 }
 
 void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, const uint8_t row, const bool selected) {

@@ -595,6 +595,13 @@ class Display : public PollingComponent {
   void get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1, int *width,
                        int *height);
 
+  /** Shrink text with '…' with given font and max width
+   * @param str source string
+   * @param font Font
+   * @param max_width Max width
+   */
+  std::string shrink_text_to_width(const std::string &str, BaseFont *font, uint16_t max_width);
+
   /// Internal method to set the display writer lambda.
   void set_writer(display_writer_t &&writer);
 

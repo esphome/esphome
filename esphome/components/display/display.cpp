@@ -583,6 +583,46 @@ void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, Te
       break;
   }
 }
+
+std::string Display::shrink_text_to_width(const std::string &str, BaseFont *font, uint16_t max_width) {
+  static const char DOTS_STR[] = "…";
+  const size_t str_size = str.size();
+
+  if (str_size < 4)
+    return str;
+
+  int str_x1, str_y1, str_width, str_height;
+  this->get_text_bounds(0, 0, str.c_str(), font, TextAlign::TOP_LEFT, &str_x1, &str_y1, &str_width, &str_height);
+
+  if (max_width >= str_width) {
+    return str;
+  }
+
+  const size_t buffer_size = str_size + sizeof(DOTS_STR) + 1;
+  std::unique_ptr<char[]> buffer_ptr(new char[buffer_size]{0});
+  char *buffer = buffer_ptr.get();
+
+  int mid_index = str_size / 2;
+  int left_end = mid_index;
+  int right_start = mid_index + 1;
+
+  bool direction_to_right = true;
+
+  while (max_width < str_width) {
+    memcpy(buffer, str.c_str(), left_end);
+    strlcpy(buffer + left_end, DOTS_STR, buffer_size - left_end);
+    strlcat(buffer, str.c_str() + right_start, buffer_size);
+
+    this->get_text_bounds(0, 0, buffer, font, TextAlign::TOP_LEFT, &str_x1, &str_y1, &str_width, &str_height);
+
+    direction_to_right ? left_end-- : right_start++;
+
+    direction_to_right = !direction_to_right;
+  }
+
+  return std::string(buffer);
+}
+
 void Display::print(int x, int y, BaseFont *font, Color color, const char *text, Color background) {
   this->print(x, y, font, color, TextAlign::TOP_LEFT, text, background);
 }
