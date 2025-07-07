@@ -50,7 +50,8 @@ void HttpRequestUpdate::update_task(void *params) {
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
     std::string msg = str_sprintf("Failed to fetch manifest from %s", this_update->source_url_.c_str());
-    this_update->status_set_error(msg.c_str());
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
     UPDATE_RETURN;
   }
 
@@ -58,7 +59,8 @@ void HttpRequestUpdate::update_task(void *params) {
   uint8_t *data = allocator.allocate(container->content_length);
   if (data == nullptr) {
     std::string msg = str_sprintf("Failed to allocate %zu bytes for manifest", container->content_length);
-    this_update->status_set_error(msg.c_str());
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
     container->end();
     UPDATE_RETURN;
   }
@@ -120,7 +122,8 @@ void HttpRequestUpdate::update_task(void *params) {
 
   if (!valid) {
     std::string msg = str_sprintf("Failed to parse JSON from %s", this_update->source_url_.c_str());
-    this_update->status_set_error(msg.c_str());
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
     UPDATE_RETURN;
   }
 
@@ -147,18 +150,34 @@ void HttpRequestUpdate::update_task(void *params) {
     this_update->update_info_.current_version = current_version;
   }
 
+  bool trigger_update_available = false;
+
   if (this_update->update_info_.latest_version.empty() ||
       this_update->update_info_.latest_version == this_update->update_info_.current_version) {
     this_update->state_ = update::UPDATE_STATE_NO_UPDATE;
   } else {
+    if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
+      trigger_update_available = true;
+    }
     this_update->state_ = update::UPDATE_STATE_AVAILABLE;
   }
 
-  this_update->update_info_.has_progress = false;
-  this_update->update_info_.progress = 0.0f;
+  // Defer to main loop to ensure thread-safe execution of:
+  // - status_clear_error() performs non-atomic read-modify-write on component_state_
+  // - publish_state() triggers API callbacks that write to the shared protobuf buffer
+  //   which can be corrupted if accessed concurrently from task and main loop threads
+  // - update_available trigger to ensure consistent state when the trigger fires
+  this_update->defer([this_update, trigger_update_available]() {
+    this_update->update_info_.has_progress = false;
+    this_update->update_info_.progress = 0.0f;
 
-  this_update->status_clear_error();
-  this_update->publish_state();
+    this_update->status_clear_error();
+    this_update->publish_state();
+
+    if (trigger_update_available) {
+      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
+    }
+  });
 
   UPDATE_RETURN;
 }
