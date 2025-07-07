@@ -12,45 +12,8 @@
 #include <cstdio>
 #include <cstring>
 
-#ifdef USE_HOST
-#ifndef _WIN32
-#include <net/if.h>
-#include <netinet/in.h>
-#include <sys/ioctl.h>
-#endif
-#include <unistd.h>
-#endif
-#if defined(USE_ESP8266)
-#include <osapi.h>
-#include <user_interface.h>
-// for xt_rsil()/xt_wsr_ps()
-#include <Arduino.h>
-#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
-#include <Esp.h>
-#elif defined(USE_ESP_IDF)
-#include <freertos/FreeRTOS.h>
-#include <freertos/portmacro.h>
-#include "esp_random.h"
-#include "esp_system.h"
-#elif defined(USE_RP2040)
-#if defined(USE_WIFI)
-#include <WiFi.h>
-#endif
-#include <hardware/structs/rosc.h>
-#include <hardware/sync.h>
-#elif defined(USE_HOST)
-#include <limits>
-#include <random>
-#endif
 #ifdef USE_ESP32
-#include "esp_efuse.h"
-#include "esp_efuse_table.h"
-#include "esp_mac.h"
 #include "rom/crc.h"
-#endif
-
-#ifdef USE_LIBRETINY
-#include <WiFi.h>  // for macAddress()
 #endif
 
 namespace esphome {
@@ -177,70 +140,7 @@ uint32_t fnv1_hash(const std::string &str) {
   return hash;
 }
 
-#ifdef USE_ESP32
-uint32_t random_uint32() { return esp_random(); }
-#elif defined(USE_ESP8266)
-uint32_t random_uint32() { return os_random(); }
-#elif defined(USE_RP2040)
-uint32_t random_uint32() {
-  uint32_t result = 0;
-  for (uint8_t i = 0; i < 32; i++) {
-    result <<= 1;
-    result |= rosc_hw->randombit;
-  }
-  return result;
-}
-#elif defined(USE_LIBRETINY)
-uint32_t random_uint32() { return rand(); }
-#elif defined(USE_HOST)
-uint32_t random_uint32() {
-  std::random_device dev;
-  std::mt19937 rng(dev());
-  std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
-  return dist(rng);
-}
-#endif
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
-#ifdef USE_ESP32
-bool random_bytes(uint8_t *data, size_t len) {
-  esp_fill_random(data, len);
-  return true;
-}
-#elif defined(USE_ESP8266)
-bool random_bytes(uint8_t *data, size_t len) { return os_get_random(data, len) == 0; }
-#elif defined(USE_RP2040)
-bool random_bytes(uint8_t *data, size_t len) {
-  while (len-- != 0) {
-    uint8_t result = 0;
-    for (uint8_t i = 0; i < 8; i++) {
-      result <<= 1;
-      result |= rosc_hw->randombit;
-    }
-    *data++ = result;
-  }
-  return true;
-}
-#elif defined(USE_LIBRETINY)
-bool random_bytes(uint8_t *data, size_t len) {
-  lt_rand_bytes(data, len);
-  return true;
-}
-#elif defined(USE_HOST)
-bool random_bytes(uint8_t *data, size_t len) {
-  FILE *fp = fopen("/dev/urandom", "r");
-  if (fp == nullptr) {
-    ESP_LOGW(TAG, "Could not open /dev/urandom, errno=%d", errno);
-    exit(1);
-  }
-  size_t read = fread(data, 1, len, fp);
-  if (read != len) {
-    ESP_LOGW(TAG, "Not enough data from /dev/urandom");
-    exit(1);
-  }
-  fclose(fp);
-  return true;
-}
-#endif
 
 // Strings
 
@@ -644,42 +544,6 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
   blue += delta;
 }
 
-// System APIs
-#if defined(USE_ESP8266) || defined(USE_RP2040)
-// ESP8266 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
-Mutex::Mutex() {}
-Mutex::~Mutex() {}
-void Mutex::lock() {}
-bool Mutex::try_lock() { return true; }
-void Mutex::unlock() {}
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
-Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
-Mutex::~Mutex() {}
-void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
-bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
-void Mutex::unlock() { xSemaphoreGive(this->handle_); }
-#elif defined(USE_HOST)
-// Host platform uses std::mutex for proper thread synchronization
-Mutex::Mutex() { handle_ = new std::mutex(); }
-Mutex::~Mutex() { delete static_cast<std::mutex *>(handle_); }
-void Mutex::lock() { static_cast<std::mutex *>(handle_)->lock(); }
-bool Mutex::try_lock() { return static_cast<std::mutex *>(handle_)->try_lock(); }
-void Mutex::unlock() { static_cast<std::mutex *>(handle_)->unlock(); }
-#endif
-
-#if defined(USE_ESP8266)
-IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
-IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
-// only affects the executing core
-// so should not be used as a mutex lock, only to get accurate timing
-IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
-IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
-#elif defined(USE_RP2040)
-IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
-IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
-#endif
-
 uint8_t HighFrequencyLoopRequester::num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void HighFrequencyLoopRequester::start() {
   if (this->started_)
@@ -695,45 +559,6 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
-#if defined(USE_HOST)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  static const uint8_t esphome_host_mac_address[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
-  memcpy(mac, esphome_host_mac_address, sizeof(esphome_host_mac_address));
-}
-#elif defined(USE_ESP32)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-#if defined(CONFIG_SOC_IEEE802154_SUPPORTED)
-  // When CONFIG_SOC_IEEE802154_SUPPORTED is defined, esp_efuse_mac_get_default
-  // returns the 802.15.4 EUI-64 address, so we read directly from eFuse instead.
-  if (has_custom_mac_address()) {
-    esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48);
-  } else {
-    esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
-  }
-#else
-  if (has_custom_mac_address()) {
-    esp_efuse_mac_get_custom(mac);
-  } else {
-    esp_efuse_mac_get_default(mac);
-  }
-#endif
-}
-#elif defined(USE_ESP8266)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  wifi_get_macaddr(STATION_IF, mac);
-}
-#elif defined(USE_RP2040)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-#ifdef USE_WIFI
-  WiFi.macAddress(mac);
-#endif
-}
-#elif defined(USE_LIBRETINY)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  WiFi.macAddress(mac);
-}
-#endif
-
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
@@ -746,23 +571,9 @@ std::string get_mac_address_pretty() {
   return format_mac_address_pretty(mac);
 }
 
-#ifdef USE_ESP32
-void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
+#ifndef USE_ESP32
+bool has_custom_mac_address() { return false; }
 #endif
-
-bool has_custom_mac_address() {
-#if defined(USE_ESP32) && !defined(USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC)
-  uint8_t mac[6];
-  // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
-#ifndef USE_ESP32_VARIANT_ESP32
-  return (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
-#else
-  return (esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
-#endif
-#else
-  return false;
-#endif
-}
 
 bool mac_address_is_valid(const uint8_t *mac) {
   bool is_all_zeros = true;
