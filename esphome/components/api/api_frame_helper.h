@@ -176,6 +176,9 @@ class APIFrameHelper {
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();
+
+  // Helper method to handle socket read results
+  APIError handle_socket_read_result_(ssize_t received);
 };
 
 #ifdef USE_API_NOISE

@@ -225,6 +225,22 @@ APIError APIFrameHelper::init_common_() {
 }
 
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->info_.c_str(), ##__VA_ARGS__)
+
+APIError APIFrameHelper::handle_socket_read_result_(ssize_t received) {
+  if (received == -1) {
+    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+      return APIError::WOULD_BLOCK;
+    }
+    state_ = State::FAILED;
+    HELPER_LOG("Socket read failed with errno %d", errno);
+    return APIError::SOCKET_READ_FAILED;
+  } else if (received == 0) {
+    state_ = State::FAILED;
+    HELPER_LOG("Connection closed");
+    return APIError::CONNECTION_CLOSED;
+  }
+  return APIError::OK;
+}
 // uncomment to log raw packets
 //#define HELPER_LOG_PACKETS
 
@@ -327,17 +343,9 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // no header information yet
     uint8_t to_read = 3 - rx_header_buf_len_;
     ssize_t received = this->socket_->read(&rx_header_buf_[rx_header_buf_len_], to_read);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
     rx_header_buf_len_ += static_cast<uint8_t>(received);
     if (static_cast<uint8_t>(received) != to_read) {
@@ -372,17 +380,9 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // more data to read
     uint16_t to_read = msg_size - rx_buf_len_;
     ssize_t received = this->socket_->read(&rx_buf_[rx_buf_len_], to_read);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
     rx_buf_len_ += static_cast<uint16_t>(received);
     if (static_cast<uint16_t>(received) != to_read) {
@@ -855,17 +855,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // Try to get to at least 3 bytes total (indicator + 2 varint bytes), then read one byte at a time
     ssize_t received =
         this->socket_->read(&rx_header_buf_[rx_header_buf_pos_], rx_header_buf_pos_ < 3 ? 3 - rx_header_buf_pos_ : 1);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
 
     // If this was the first read, validate the indicator byte
@@ -949,17 +941,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // more data to read
     uint16_t to_read = rx_header_parsed_len_ - rx_buf_len_;
     ssize_t received = this->socket_->read(&rx_buf_[rx_buf_len_], to_read);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
     rx_buf_len_ += static_cast<uint16_t>(received);
     if (static_cast<uint16_t>(received) != to_read) {
