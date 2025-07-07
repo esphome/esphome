@@ -2,6 +2,7 @@ esphome:
   name: api-conditional-memory-test
 host:
 api:
+  batch_delay: 0ms
   actions:
     - action: test_simple_service
       then:
