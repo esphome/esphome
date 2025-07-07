@@ -33,6 +33,7 @@
 #define USE_DEEP_SLEEP
 #define USE_DEVICES
 #define USE_DISPLAY
+#define USE_ENTITY_ICON
 #define USE_ESP32_IMPROV_STATE_CALLBACK
 #define USE_EVENT
 #define USE_FAN

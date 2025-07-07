@@ -80,7 +80,9 @@ class EntityBase {
 
   StringRef name_;
   const char *object_id_c_str_{nullptr};
+#ifdef USE_ENTITY_ICON
   const char *icon_c_str_{nullptr};
+#endif
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};

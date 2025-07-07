@@ -27,12 +27,22 @@ void EntityBase::set_name(const char *name) {
 
 // Entity Icon
 std::string EntityBase::get_icon() const {
+#ifdef USE_ENTITY_ICON
   if (this->icon_c_str_ == nullptr) {
     return "";
   }
   return this->icon_c_str_;
+#else
+  return "";
+#endif
 }
-void EntityBase::set_icon(const char *icon) { this->icon_c_str_ = icon; }
+void EntityBase::set_icon(const char *icon) {
+#ifdef USE_ENTITY_ICON
+  this->icon_c_str_ = icon;
+#else
+  // No-op when USE_ENTITY_ICON is not defined
+#endif
+}
 
 // Entity Object ID
 std::string EntityBase::get_object_id() const {

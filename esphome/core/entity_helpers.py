@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import logging
 
+import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_ID,
@@ -108,6 +109,8 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
     if CONF_INTERNAL in config:
         add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
+        # Add USE_ENTITY_ICON define when icons are used
+        cg.add_define("USE_ENTITY_ICON")
         add(var.set_icon(config[CONF_ICON]))
     if CONF_ENTITY_CATEGORY in config:
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
