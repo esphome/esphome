@@ -96,6 +96,7 @@ class SX127x : public Component,
   uint8_t read_register_(uint8_t reg);
   Trigger<std::vector<uint8_t>, float, float> *packet_trigger_{new Trigger<std::vector<uint8_t>, float, float>()};
   std::vector<SX127xListener *> listeners_;
+  std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
   InternalGPIOPin *dio0_pin_{nullptr};
   InternalGPIOPin *rst_pin_{nullptr};

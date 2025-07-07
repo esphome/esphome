@@ -318,24 +318,23 @@ void SX127x::loop() {
       uint8_t addr = this->read_register_(REG_FIFO_RX_CURR_ADDR);
       uint8_t rssi = this->read_register_(REG_PKT_RSSI_VALUE);
       int8_t snr = (int8_t) this->read_register_(REG_PKT_SNR_VALUE);
-      std::vector<uint8_t> packet(bytes);
+      this->packet_.resize(bytes);
       this->write_register_(REG_FIFO_ADDR_PTR, addr);
-      this->read_fifo_(packet);
+      this->read_fifo_(this->packet_);
       if (this->frequency_ > 700000000) {
-        this->call_listeners_(packet, (float) rssi - RSSI_OFFSET_HF, (float) snr / 4);
+        this->call_listeners_(this->packet_, (float) rssi - RSSI_OFFSET_HF, (float) snr / 4);
       } else {
-        this->call_listeners_(packet, (float) rssi - RSSI_OFFSET_LF, (float) snr / 4);
+        this->call_listeners_(this->packet_, (float) rssi - RSSI_OFFSET_LF, (float) snr / 4);
       }
     }
   } else if (this->packet_mode_) {
-    std::vector<uint8_t> packet;
     uint8_t payload_length = this->payload_length_;
     if (payload_length == 0) {
       payload_length = this->read_register_(REG_FIFO);
     }
-    packet.resize(payload_length);
-    this->read_fifo_(packet);
-    this->call_listeners_(packet, 0.0f, 0.0f);
+    this->packet_.resize(payload_length);
+    this->read_fifo_(this->packet_);
+    this->call_listeners_(this->packet_, 0.0f, 0.0f);
   }
 }
 
@@ -407,18 +406,6 @@ void SX127x::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
   LOG_PIN("  DIO0 Pin: ", this->dio0_pin_);
-  const char *shaping = "NONE";
-  if (this->shaping_ == CUTOFF_BR_X_2) {
-    shaping = "CUTOFF_BR_X_2";
-  } else if (this->shaping_ == CUTOFF_BR_X_1) {
-    shaping = "CUTOFF_BR_X_1";
-  } else if (this->shaping_ == GAUSSIAN_BT_0_3) {
-    shaping = "GAUSSIAN_BT_0_3";
-  } else if (this->shaping_ == GAUSSIAN_BT_0_5) {
-    shaping = "GAUSSIAN_BT_0_5";
-  } else if (this->shaping_ == GAUSSIAN_BT_1_0) {
-    shaping = "GAUSSIAN_BT_1_0";
-  }
   const char *pa_pin = "RFO";
   if (this->pa_pin_ == PA_PIN_BOOST) {
     pa_pin = "BOOST";
@@ -429,10 +416,9 @@ void SX127x::dump_config() {
                 "  Bandwidth: %" PRIu32 " Hz\n"
                 "  PA Pin: %s\n"
                 "  PA Power: %" PRIu8 " dBm\n"
-                "  PA Ramp: %" PRIu16 " us\n"
-                "  Shaping: %s",
+                "  PA Ramp: %" PRIu16 " us",
                 TRUEFALSE(this->auto_cal_), this->frequency_, BW_HZ[this->bandwidth_], pa_pin, this->pa_power_,
-                RAMP[this->pa_ramp_], shaping);
+                RAMP[this->pa_ramp_]);
   if (this->modulation_ == MOD_FSK) {
     ESP_LOGCONFIG(TAG, "  Deviation: %" PRIu32 " Hz", this->deviation_);
   }
@@ -459,14 +445,31 @@ void SX127x::dump_config() {
       ESP_LOGCONFIG(TAG, "  Sync Value: 0x%02x", this->sync_value_[0]);
     }
   } else {
+    const char *shaping = "NONE";
+    if (this->modulation_ == MOD_FSK) {
+      if (this->shaping_ == GAUSSIAN_BT_0_3) {
+        shaping = "GAUSSIAN_BT_0_3";
+      } else if (this->shaping_ == GAUSSIAN_BT_0_5) {
+        shaping = "GAUSSIAN_BT_0_5";
+      } else if (this->shaping_ == GAUSSIAN_BT_1_0) {
+        shaping = "GAUSSIAN_BT_1_0";
+      }
+    } else {
+      if (this->shaping_ == CUTOFF_BR_X_2) {
+        shaping = "CUTOFF_BR_X_2";
+      } else if (this->shaping_ == CUTOFF_BR_X_1) {
+        shaping = "CUTOFF_BR_X_1";
+      }
+    }
     ESP_LOGCONFIG(TAG,
+                  "  Shaping: %s\n"
                   "  Modulation: %s\n"
                   "  Bitrate: %" PRIu32 "b/s\n"
                   "  Bitsync: %s\n"
                   "  Rx Start: %s\n"
                   "  Rx Floor: %.1f dBm\n"
                   "  Packet Mode: %s",
-                  this->modulation_ == MOD_FSK ? "FSK" : "OOK", this->bitrate_, TRUEFALSE(this->bitsync_),
+                  shaping, this->modulation_ == MOD_FSK ? "FSK" : "OOK", this->bitrate_, TRUEFALSE(this->bitsync_),
                   TRUEFALSE(this->rx_start_), this->rx_floor_, TRUEFALSE(this->packet_mode_));
     if (this->packet_mode_) {
       ESP_LOGCONFIG(TAG, "  CRC Enable: %s", TRUEFALSE(this->crc_enable_));
