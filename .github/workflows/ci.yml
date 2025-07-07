@@ -214,16 +214,50 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           ./venv/Scripts/activate
-          pytest -vv --cov-report=xml --tb=native -n auto tests
+          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --cov-report=xml --tb=native -n auto tests
+          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5.4.3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  integration-tests:
+    name: Run integration tests
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.2.2
+      - name: Set up Python 3.13
+        id: python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Restore Python virtual environment
+        id: cache-venv
+        uses: actions/cache@v4.2.3
+        with:
+          path: venv
+          key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
+      - name: Create Python virtual environment
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          python --version
+          pip install -r requirements.txt -r requirements_test.txt
+          pip install -e .
+      - name: Register matcher
+        run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
+      - name: Run integration tests
+        run: |
+          . venv/bin/activate
+          pytest -vv --no-cov --tb=native -n auto tests/integration/
 
   clang-format:
     name: Check clang-format
@@ -494,6 +528,7 @@ jobs:
       - flake8
       - pylint
       - pytest
+      - integration-tests
       - pyupgrade
       - clang-tidy
       - list-components
