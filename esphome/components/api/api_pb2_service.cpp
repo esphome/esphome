@@ -204,7 +204,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_execute_service_request(msg);
       break;
     }
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
     case 45: {
       CameraImageRequest msg;
       msg.decode(msg_data, msg_size);
@@ -682,7 +682,7 @@ void APIServerConnection::on_button_command_request(const ButtonCommandRequest &
   }
 }
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 void APIServerConnection::on_camera_image_request(const CameraImageRequest &msg) {
   if (this->check_authenticated_()) {
     this->camera_image(msg);

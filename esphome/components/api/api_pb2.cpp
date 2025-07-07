@@ -2216,7 +2216,7 @@ void ExecuteServiceRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_repeated_message(total_size, 1, this->args);
 }
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 bool ListEntitiesCameraResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 5: {

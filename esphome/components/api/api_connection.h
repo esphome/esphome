@@ -60,8 +60,8 @@ class APIConnection : public APIServerConnection {
 #ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state(text_sensor::TextSensor *text_sensor);
 #endif
-#ifdef USE_ESP32_CAMERA
-  void set_camera_state(std::shared_ptr<esp32_camera::CameraImage> image);
+#ifdef USE_CAMERA
+  void set_camera_state(std::shared_ptr<camera::CameraImage> image);
   void camera_image(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE
@@ -425,7 +425,7 @@ class APIConnection : public APIServerConnection {
   static uint16_t try_send_update_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                        bool is_single);
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   static uint16_t try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                        bool is_single);
 #endif
@@ -455,8 +455,8 @@ class APIConnection : public APIServerConnection {
   // These contain vectors/pointers internally, so putting them early ensures good alignment
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;
-#ifdef USE_ESP32_CAMERA
-  esp32_camera::CameraImageReader image_reader_;
+#ifdef USE_CAMERA
+  std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
 
   // Group 3: Strings (12 bytes each on 32-bit, 4-byte aligned)

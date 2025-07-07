@@ -1273,7 +1273,7 @@ class ExecuteServiceRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 class ListEntitiesCameraResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 43;

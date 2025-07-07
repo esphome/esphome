@@ -71,7 +71,7 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
 
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void on_camera_image_request(const CameraImageRequest &value){};
 #endif
 
@@ -223,7 +223,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BUTTON
   virtual void button_command(const ButtonCommandRequest &msg) = 0;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void camera_image(const CameraImageRequest &msg) = 0;
 #endif
 #ifdef USE_CLIMATE
@@ -340,7 +340,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BUTTON
   void on_button_command_request(const ButtonCommandRequest &msg) override;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   void on_camera_image_request(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE

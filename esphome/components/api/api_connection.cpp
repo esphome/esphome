@@ -38,8 +38,8 @@ static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
 
 static const char *const TAG = "api.connection";
-#ifdef USE_ESP32_CAMERA
-static const int ESP32_CAMERA_STOP_STREAM = 5000;
+#ifdef USE_CAMERA
+static const int CAMERA_STOP_STREAM = 5000;
 #endif
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
@@ -57,6 +57,11 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
   this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
+#endif
+#ifdef USE_CAMERA
+  if (camera::Camera::instance() != nullptr) {
+    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
+  }
 #endif
 }
 
@@ -180,10 +185,10 @@ void APIConnection::loop() {
     }
   }
 
-#ifdef USE_ESP32_CAMERA
-  if (this->image_reader_.available() && this->helper_->can_write_without_blocking()) {
-    uint32_t to_send = std::min((size_t) MAX_PACKET_SIZE, this->image_reader_.available());
-    bool done = this->image_reader_.available() == to_send;
+#ifdef USE_CAMERA
+  if (this->image_reader_ && this->image_reader_->available() && this->helper_->can_write_without_blocking()) {
+    uint32_t to_send = std::min((size_t) MAX_PACKET_SIZE, this->image_reader_->available());
+    bool done = this->image_reader_->available() == to_send;
     uint32_t msg_size = 0;
     ProtoSize::add_fixed_field<4>(msg_size, 1, true);
     // partial message size calculated manually since its a special case
@@ -193,18 +198,18 @@ void APIConnection::loop() {
 
     auto buffer = this->create_buffer(msg_size);
     // fixed32 key = 1;
-    buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
+    buffer.encode_fixed32(1, camera::Camera::instance()->get_object_id_hash());
     // bytes data = 2;
-    buffer.encode_bytes(2, this->image_reader_.peek_data_buffer(), to_send);
+    buffer.encode_bytes(2, this->image_reader_->peek_data_buffer(), to_send);
     // bool done = 3;
     buffer.encode_bool(3, done);
 
     bool success = this->send_buffer(buffer, CameraImageResponse::MESSAGE_TYPE);
 
     if (success) {
-      this->image_reader_.consume_data(to_send);
+      this->image_reader_->consume_data(to_send);
       if (done) {
-        this->image_reader_.return_image();
+        this->image_reader_->return_image();
       }
     }
   }
@@ -1112,36 +1117,36 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
 }
 #endif
 
-#ifdef USE_ESP32_CAMERA
-void APIConnection::set_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
+#ifdef USE_CAMERA
+void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
-  if (this->image_reader_.available())
+  if (!this->image_reader_)
     return;
-  if (image->was_requested_by(esphome::esp32_camera::API_REQUESTER) ||
-      image->was_requested_by(esphome::esp32_camera::IDLE))
-    this->image_reader_.set_image(std::move(image));
+  if (this->image_reader_->available())
+    return;
+  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE))
+    this->image_reader_->set_image(std::move(image));
 }
 uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single) {
-  auto *camera = static_cast<esp32_camera::ESP32Camera *>(entity);
+  auto *camera = static_cast<camera::Camera *>(entity);
   ListEntitiesCameraResponse msg;
   msg.unique_id = get_default_unique_id("camera", camera);
   fill_entity_info_base(camera, msg);
   return encode_message_to_buffer(msg, ListEntitiesCameraResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::camera_image(const CameraImageRequest &msg) {
-  if (esp32_camera::global_esp32_camera == nullptr)
+  if (camera::Camera::instance() == nullptr)
     return;
 
   if (msg.single)
-    esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::API_REQUESTER);
+    camera::Camera::instance()->request_image(esphome::camera::API_REQUESTER);
   if (msg.stream) {
-    esp32_camera::global_esp32_camera->start_stream(esphome::esp32_camera::API_REQUESTER);
+    camera::Camera::instance()->start_stream(esphome::camera::API_REQUESTER);
 
-    App.scheduler.set_timeout(this->parent_, "api_esp32_camera_stop_stream", ESP32_CAMERA_STOP_STREAM, []() {
-      esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::API_REQUESTER);
-    });
+    App.scheduler.set_timeout(this->parent_, "api_camera_stop_stream", CAMERA_STOP_STREAM,
+                              []() { camera::Camera::instance()->stop_stream(esphome::camera::API_REQUESTER); });
   }
 }
 #endif

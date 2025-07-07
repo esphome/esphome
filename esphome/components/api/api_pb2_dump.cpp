@@ -1890,7 +1890,7 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
   }
   out.append("}");
 }
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesCameraResponse {\n");
