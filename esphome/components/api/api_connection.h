@@ -301,6 +301,11 @@ class APIConnection : public APIServerConnection {
   static uint16_t encode_message_to_buffer(ProtoMessage &msg, uint16_t message_type, APIConnection *conn,
                                            uint32_t remaining_size, bool is_single);
 
+#ifdef USE_VOICE_ASSISTANT
+  // Helper to check voice assistant validity and connection ownership
+  inline bool check_voice_assistant_api_connection_() const;
+#endif
+
   // Helper method to process multiple entities from an iterator in a batch
   template<typename Iterator> void process_iterator_batch_(Iterator &iterator) {
     size_t initial_size = this->deferred_batch_.size();
