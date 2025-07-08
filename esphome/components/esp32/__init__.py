@@ -189,7 +189,7 @@ def get_download_types(storage_json):
     ]
 
 
-def only_on_variant(*, supported=None, unsupported=None):
+def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This feature"):
     """Config validator for features only available on some ESP32 variants."""
     if supported is not None and not isinstance(supported, list):
         supported = [supported]
@@ -200,11 +200,11 @@ def only_on_variant(*, supported=None, unsupported=None):
         variant = get_esp32_variant()
         if supported is not None and variant not in supported:
             raise cv.Invalid(
-                f"This feature is only available on {', '.join(supported)}"
+                f"{msg_prefix} is only available on {', '.join(supported)}"
             )
         if unsupported is not None and variant in unsupported:
             raise cv.Invalid(
-                f"This feature is not available on {', '.join(unsupported)}"
+                f"{msg_prefix} is not available on {', '.join(unsupported)}"
             )
         return obj
 
