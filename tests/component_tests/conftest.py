@@ -1,29 +1,71 @@
 """Fixtures for component tests."""
 
+from __future__ import annotations
+
+from collections.abc import Callable, Generator
 from pathlib import Path
 import sys
+
+import pytest
 
 # Add package root to python path
 here = Path(__file__).parent
 package_root = here.parent.parent
 sys.path.insert(0, package_root.as_posix())
 
-import pytest  # noqa: E402
-
 from esphome.__main__ import generate_cpp_contents  # noqa: E402
 from esphome.config import read_config  # noqa: E402
 from esphome.core import CORE  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def config_path(request: pytest.FixtureRequest) -> Generator[None]:
+    """Set CORE.config_path to the component's config directory and reset it after the test."""
+    original_path = CORE.config_path
+    config_dir = Path(request.fspath).parent / "config"
+
+    # Check if config directory exists, if not use parent directory
+    if config_dir.exists():
+        # Set config_path to a dummy yaml file in the config directory
+        # This ensures CORE.config_dir points to the config directory
+        CORE.config_path = str(config_dir / "dummy.yaml")
+    else:
+        CORE.config_path = str(Path(request.fspath).parent / "dummy.yaml")
+
+    yield
+    CORE.config_path = original_path
+
+
 @pytest.fixture
-def generate_main():
+def component_fixture_path(request: pytest.FixtureRequest) -> Callable[[str], Path]:
+    """Return a function to get absolute paths relative to the component's fixtures directory."""
+
+    def _get_path(file_name: str) -> Path:
+        """Get the absolute path of a file relative to the component's fixtures directory."""
+        return (Path(request.fspath).parent / "fixtures" / file_name).absolute()
+
+    return _get_path
+
+
+@pytest.fixture
+def component_config_path(request: pytest.FixtureRequest) -> Callable[[str], Path]:
+    """Return a function to get absolute paths relative to the component's config directory."""
+
+    def _get_path(file_name: str) -> Path:
+        """Get the absolute path of a file relative to the component's config directory."""
+        return (Path(request.fspath).parent / "config" / file_name).absolute()
+
+    return _get_path
+
+
+@pytest.fixture
+def generate_main() -> Generator[Callable[[str | Path], str]]:
     """Generates the C++ main.cpp file and returns it in string form."""
 
-    def generator(path: str) -> str:
-        CORE.config_path = path
+    def generator(path: str | Path) -> str:
+        CORE.config_path = str(path)
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
-        print(CORE.cpp_main_section)
         return CORE.cpp_main_section
 
     yield generator

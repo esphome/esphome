@@ -1,0 +1,20 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32s3box
+
+image:
+  - file: image.png
+    byte_order: little_endian
+    id: cat_img
+    type: rgb565
+
+spi:
+  mosi_pin: 6
+  clk_pin: 7
+
+display:
+  - platform: mipi_spi
+    id: lcd_display
+    model: s3box
