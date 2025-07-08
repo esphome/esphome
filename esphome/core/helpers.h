@@ -344,20 +344,149 @@ template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &dat
   return format_hex(data.data(), data.size());
 }
 
-/// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const uint8_t *data, size_t length);
-/// Format the word array \p data of length \p len in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const uint16_t *data, size_t length);
-/// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const std::vector<uint8_t> &data);
-/// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const std::vector<uint16_t> &data);
-/// Format the string \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const std::string &data);
-/// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
+/** Format a byte array in pretty-printed, human-readable hex format.
+ *
+ * Converts binary data to a hexadecimal string representation with customizable formatting.
+ * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
+ * Optionally includes the total byte count in parentheses at the end.
+ *
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string, e.g., "A1.B2.C3.D4.E5 (5)" or "A1:B2:C3" depending on parameters.
+ *
+ * @note Returns empty string if data is nullptr or length is 0.
+ * @note The length will only be appended if show_length is true AND the length is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint8_t data[] = {0xA1, 0xB2, 0xC3};
+ * format_hex_pretty(data, 3);           // Returns "A1.B2.C3" (no length shown for <= 4 parts)
+ * uint8_t data2[] = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5};
+ * format_hex_pretty(data2, 5);          // Returns "A1.B2.C3.D4.E5 (5)"
+ * format_hex_pretty(data2, 5, ':');     // Returns "A1:B2:C3:D4:E5 (5)"
+ * format_hex_pretty(data2, 5, '.', false); // Returns "A1.B2.C3.D4.E5"
+ * @endcode
+ */
+std::string format_hex_pretty(const uint8_t *data, size_t length, char separator = '.', bool show_length = true);
+
+/** Format a 16-bit word array in pretty-printed, human-readable hex format.
+ *
+ * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
+ *
+ * @param data Pointer to the 16-bit word array to format.
+ * @param length Number of 16-bit words in the array.
+ * @param separator Character to use between hex words (default: '.').
+ * @param show_length Whether to append the word count in parentheses (default: true).
+ * @return Formatted hex string with 4-digit hex values per word.
+ *
+ * @note The length will only be appended if show_length is true AND the length is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint16_t data[] = {0xA1B2, 0xC3D4};
+ * format_hex_pretty(data, 2); // Returns "A1B2.C3D4" (no length shown for <= 4 parts)
+ * uint16_t data2[] = {0xA1B2, 0xC3D4, 0xE5F6};
+ * format_hex_pretty(data2, 3); // Returns "A1B2.C3D4.E5F6 (3)"
+ * @endcode
+ */
+std::string format_hex_pretty(const uint16_t *data, size_t length, char separator = '.', bool show_length = true);
+
+/** Format a byte vector in pretty-printed, human-readable hex format.
+ *
+ * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
+ * uppercase hex value with customizable separator.
+ *
+ * @param data Vector of bytes to format.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string representation of the vector contents.
+ *
+ * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::vector<uint8_t> data = {0xDE, 0xAD, 0xBE, 0xEF};
+ * format_hex_pretty(data);        // Returns "DE.AD.BE.EF" (no length shown for <= 4 parts)
+ * std::vector<uint8_t> data2 = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA};
+ * format_hex_pretty(data2);       // Returns "DE.AD.BE.EF.CA (5)"
+ * format_hex_pretty(data2, '-');  // Returns "DE-AD-BE-EF-CA (5)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator = '.', bool show_length = true);
+
+/** Format a 16-bit word vector in pretty-printed, human-readable hex format.
+ *
+ * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
+ * as a 4-digit uppercase hex value in big-endian order.
+ *
+ * @param data Vector of 16-bit words to format.
+ * @param separator Character to use between hex words (default: '.').
+ * @param show_length Whether to append the word count in parentheses (default: true).
+ * @return Formatted hex string representation of the vector contents.
+ *
+ * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::vector<uint16_t> data = {0x1234, 0x5678};
+ * format_hex_pretty(data); // Returns "1234.5678" (no length shown for <= 4 parts)
+ * std::vector<uint16_t> data2 = {0x1234, 0x5678, 0x9ABC};
+ * format_hex_pretty(data2); // Returns "1234.5678.9ABC (3)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator = '.', bool show_length = true);
+
+/** Format a string's bytes in pretty-printed, human-readable hex format.
+ *
+ * Treats each character in the string as a byte and formats it in hex.
+ * Useful for debugging binary data stored in std::string containers.
+ *
+ * @param data String whose bytes should be formatted as hex.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string representation of the string's byte contents.
+ *
+ * @note The length will only be appended if show_length is true AND the string length is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::string data = "ABC";  // ASCII: 0x41, 0x42, 0x43
+ * format_hex_pretty(data);   // Returns "41.42.43" (no length shown for <= 4 parts)
+ * std::string data2 = "ABCDE";
+ * format_hex_pretty(data2);  // Returns "41.42.43.44.45 (5)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::string &data, char separator = '.', bool show_length = true);
+
+/** Format an unsigned integer in pretty-printed, human-readable hex format.
+ *
+ * Converts the integer to big-endian byte order and formats each byte as hex.
+ * The most significant byte appears first in the output string.
+ *
+ * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
+ * @param val The unsigned integer value to format.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string with most significant byte first.
+ *
+ * @note The length will only be appended if show_length is true AND sizeof(T) is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint32_t value = 0x12345678;
+ * format_hex_pretty(value);        // Returns "12.34.56.78" (no length shown for <= 4 parts)
+ * uint64_t value2 = 0x123456789ABCDEF0;
+ * format_hex_pretty(value2);       // Returns "12.34.56.78.9A.BC.DE.F0 (8)"
+ * format_hex_pretty(value2, ':');  // Returns "12:34:56:78:9A:BC:DE:F0 (8)"
+ * format_hex_pretty<uint16_t>(0x1234); // Returns "12.34"
+ * @endcode
+ */
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
   val = convert_big_endian(val);
-  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
 }
 
 /// Format the byte array \p data of length \p len in binary.

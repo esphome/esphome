@@ -258,53 +258,60 @@ std::string format_hex(const uint8_t *data, size_t length) {
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
 
 static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
-std::string format_hex_pretty(const uint8_t *data, size_t length) {
-  if (length == 0)
+std::string format_hex_pretty(const uint8_t *data, size_t length, char separator, bool show_length) {
+  if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  ret.resize(3 * length - 1);
+  uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
+  ret.resize(multiple * length - 1);
   for (size_t i = 0; i < length; i++) {
-    ret[3 * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
-    ret[3 * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
-    if (i != length - 1)
-      ret[3 * i + 2] = '.';
+    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    if (separator && i != length - 1)
+      ret[multiple * i + 2] = separator;
   }
-  if (length > 4)
-    return ret + " (" + to_string(length) + ")";
+  if (show_length && length > 4)
+    return ret + " (" + std::to_string(length) + ")";
   return ret;
 }
-std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
+std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator, bool show_length) {
+  return format_hex_pretty(data.data(), data.size(), separator, show_length);
+}
 
-std::string format_hex_pretty(const uint16_t *data, size_t length) {
-  if (length == 0)
+std::string format_hex_pretty(const uint16_t *data, size_t length, char separator, bool show_length) {
+  if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  ret.resize(5 * length - 1);
+  uint8_t multiple = separator ? 5 : 4;  // 5 if separator is not \0, 4 otherwise
+  ret.resize(multiple * length - 1);
   for (size_t i = 0; i < length; i++) {
-    ret[5 * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
-    ret[5 * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
-    ret[5 * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
-    ret[5 * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
-    if (i != length - 1)
-      ret[5 * i + 2] = '.';
+    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    ret[multiple * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    ret[multiple * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    ret[multiple * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (separator && i != length - 1)
+      ret[multiple * i + 4] = separator;
   }
-  if (length > 4)
-    return ret + " (" + to_string(length) + ")";
+  if (show_length && length > 4)
+    return ret + " (" + std::to_string(length) + ")";
   return ret;
 }
-std::string format_hex_pretty(const std::vector<uint16_t> &data) { return format_hex_pretty(data.data(), data.size()); }
-std::string format_hex_pretty(const std::string &data) {
+std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator, bool show_length) {
+  return format_hex_pretty(data.data(), data.size(), separator, show_length);
+}
+std::string format_hex_pretty(const std::string &data, char separator, bool show_length) {
   if (data.empty())
     return "";
   std::string ret;
-  ret.resize(3 * data.length() - 1);
+  uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
+  ret.resize(multiple * data.length() - 1);
   for (size_t i = 0; i < data.length(); i++) {
-    ret[3 * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
-    ret[3 * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
-    if (i != data.length() - 1)
-      ret[3 * i + 2] = '.';
+    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    if (separator && i != data.length() - 1)
+      ret[multiple * i + 2] = separator;
   }
-  if (data.length() > 4)
+  if (show_length && data.length() > 4)
     return ret + " (" + std::to_string(data.length()) + ")";
   return ret;
 }
