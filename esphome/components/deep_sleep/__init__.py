@@ -1,6 +1,6 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import time
+from esphome.components import esp32, time
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
@@ -116,12 +116,20 @@ def validate_pin_number(value):
     return value
 
 
-def validate_config(config):
-    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_ESP32_EXT1_WAKEUP in config:
-        raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
-    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
-        raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
-    return config
+def _validate_ex1_wakeup_mode(value):
+    if value == "ALL_LOW":
+        esp32.only_on_variant(supported=[VARIANT_ESP32], msg_prefix="ALL_LOW")(value)
+    if value == "ANY_LOW":
+        esp32.only_on_variant(
+            supported=[
+                VARIANT_ESP32S2,
+                VARIANT_ESP32S3,
+                VARIANT_ESP32C6,
+                VARIANT_ESP32H2,
+            ],
+            msg_prefix="ANY_LOW",
+        )(value)
+    return value
 
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
@@ -148,6 +156,7 @@ WAKEUP_PIN_MODES = {
 esp_sleep_ext1_wakeup_mode_t = cg.global_ns.enum("esp_sleep_ext1_wakeup_mode_t")
 Ext1Wakeup = deep_sleep_ns.struct("Ext1Wakeup")
 EXT1_WAKEUP_MODES = {
+    "ANY_LOW": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ANY_LOW,
     "ALL_LOW": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ALL_LOW,
     "ANY_HIGH": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ANY_HIGH,
 }
@@ -187,16 +196,28 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
                 cv.only_on_esp32,
+                esp32.only_on_variant(
+                    unsupported=[VARIANT_ESP32C3], msg_prefix="Wakeup from ext1"
+                ),
                 cv.Schema(
                     {
                         cv.Required(CONF_PINS): cv.ensure_list(
                             pins.internal_gpio_input_pin_schema, validate_pin_number
                         ),
-                        cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
+                        cv.Required(CONF_MODE): cv.All(
+                            cv.enum(EXT1_WAKEUP_MODES, upper=True),
+                            _validate_ex1_wakeup_mode,
+                        ),
                     }
                 ),
             ),
-            cv.Optional(CONF_TOUCH_WAKEUP): cv.All(cv.only_on_esp32, cv.boolean),
+            cv.Optional(CONF_TOUCH_WAKEUP): cv.All(
+                cv.only_on_esp32,
+                esp32.only_on_variant(
+                    unsupported=[VARIANT_ESP32C3], msg_prefix="Wakeup from touch"
+                ),
+                cv.boolean,
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
