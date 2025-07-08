@@ -26,7 +26,6 @@ void SchedulerStringLifetimeComponent::run_string_lifetime_test() {
 
   // Schedule final check
   this->set_timeout("final_check", 200, [this]() {
-    ESP_LOGI(TAG, "String lifetime tests complete");
     ESP_LOGI(TAG, "Tests passed: %d", this->tests_passed_);
     ESP_LOGI(TAG, "Tests failed: %d", this->tests_failed_);
 
@@ -35,6 +34,7 @@ void SchedulerStringLifetimeComponent::run_string_lifetime_test() {
     } else {
       ESP_LOGE(TAG, "FAILURE: %d string lifetime tests failed!", this->tests_failed_);
     }
+    ESP_LOGI(TAG, "String lifetime tests complete");
   });
 }
 
