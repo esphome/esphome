@@ -263,7 +263,7 @@ std::string format_hex_pretty(const uint8_t *data, size_t length, char separator
     return "";
   std::string ret;
   uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
-  ret.resize(multiple * length - 1);
+  ret.resize(multiple * length - (separator ? 1 : 0));
   for (size_t i = 0; i < length; i++) {
     ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
     ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
@@ -283,7 +283,7 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
     return "";
   std::string ret;
   uint8_t multiple = separator ? 5 : 4;  // 5 if separator is not \0, 4 otherwise
-  ret.resize(multiple * length - 1);
+  ret.resize(multiple * length - (separator ? 1 : 0));
   for (size_t i = 0; i < length; i++) {
     ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
     ret[multiple * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
@@ -304,7 +304,7 @@ std::string format_hex_pretty(const std::string &data, char separator, bool show
     return "";
   std::string ret;
   uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
-  ret.resize(multiple * data.length() - 1);
+  ret.resize(multiple * data.length() - (separator ? 1 : 0));
   for (size_t i = 0; i < data.length(); i++) {
     ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
     ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
