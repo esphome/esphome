@@ -48,3 +48,10 @@ repos:
         entry: python3 script/run-in-env.py pylint
         language: system
         types: [python]
+      - id: clang-tidy-hash
+        name: Update clang-tidy hash
+        entry: python script/clang_tidy_hash.py --update-if-changed
+        language: python
+        files: ^(\.clang-tidy|platformio\.ini|requirements_dev\.txt)$
+        pass_filenames: false
+        additional_dependencies: []

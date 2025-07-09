@@ -297,6 +297,8 @@ jobs:
       - pylint
       - pytest
       - pyupgrade
+    env:
+      GH_TOKEN: ${{ github.token }}
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -335,6 +337,7 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
+
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -355,6 +358,20 @@ jobs:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}
 
+      - name: Cache platformio libdeps
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache@v4.2.3
+        with:
+          path: .pio/libdeps
+          key: pio-libdeps-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Cache platformio libdeps
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@v4.2.3
+        with:
+          path: .pio/libdeps
+          key: pio-libdeps-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
@@ -367,10 +384,28 @@ jobs:
           mkdir -p .temp
           pio run --list-targets -e esp32-idf-tidy
 
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          if python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run clang-tidy
         run: |
           . venv/bin/activate
-          script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (hash changed)"
+            script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+          fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
@@ -385,23 +420,14 @@ jobs:
     needs:
       - common
     if: github.event_name == 'pull_request'
+    env:
+      GH_TOKEN: ${{ github.token }}
     outputs:
       components: ${{ steps.list-components.outputs.components }}
       count: ${{ steps.list-components.outputs.count }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
-        with:
-          # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
-          fetch-depth: 500
-      - name: Get target branch
-        id: target-branch
-        run: |
-          echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
-      - name: Fetch ${{ steps.target-branch.outputs.branch }} branch
-        run: |
-          git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/${{ steps.target-branch.outputs.branch }}:refs/remotes/origin/${{ steps.target-branch.outputs.branch }}
-          git merge-base refs/remotes/origin/${{ steps.target-branch.outputs.branch }} HEAD
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -411,7 +437,7 @@ jobs:
         id: list-components
         run: |
           . venv/bin/activate
-          components=$(script/list-components.py --changed --branch ${{ steps.target-branch.outputs.branch }})
+          components=$(script/list-components.py --changed)
           output_components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')
           count=$(echo "$output_components" | jq length)
 

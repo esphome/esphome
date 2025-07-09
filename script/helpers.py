@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 import json
+import os
 import os.path
 from pathlib import Path
 import re
 import subprocess
+import time
 
 import colorama
 
@@ -12,13 +16,13 @@ temp_folder = os.path.join(root_path, ".temp")
 temp_header_file = os.path.join(temp_folder, "all-include.cpp")
 
 
-def styled(color, msg, reset=True):
+def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
     prefix = "".join(color) if isinstance(color, tuple) else color
     suffix = colorama.Style.RESET_ALL if reset else ""
     return prefix + msg + suffix
 
 
-def print_error_for_file(file, body):
+def print_error_for_file(file: str, body: str | None) -> None:
     print(
         styled(colorama.Fore.GREEN, "### File ")
         + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file)
@@ -29,17 +33,22 @@ def print_error_for_file(file, body):
         print()
 
 
-def build_all_include():
+def build_all_include() -> None:
     # Build a cpp file that includes all header files in this repo.
     # Otherwise header-only integrations would not be tested by clang-tidy
-    headers = []
-    for path in walk_files(basepath):
-        filetypes = (".h",)
-        ext = os.path.splitext(path)[1]
-        if ext in filetypes:
-            path = os.path.relpath(path, root_path)
-            include_p = path.replace(os.path.sep, "/")
-            headers.append(f'#include "{include_p}"')
+
+    # Use git ls-files to find all .h files in the esphome directory
+    # This is much faster than walking the filesystem
+    cmd = ["git", "ls-files", "esphome/**/*.h"]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+    # Process git output - git already returns paths relative to repo root
+    headers = [
+        f'#include "{include_p}"'
+        for line in proc.stdout.strip().split("\n")
+        if (include_p := line.replace(os.path.sep, "/"))
+    ]
+
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -48,29 +57,86 @@ def build_all_include():
     p.write_text(content, encoding="utf-8")
 
 
-def walk_files(path):
-    for root, _, files in os.walk(path):
-        for name in files:
-            yield os.path.join(root, name)
-
-
-def get_output(*args):
+def get_output(*args: str) -> str:
     with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
         output, _ = proc.communicate()
     return output.decode("utf-8")
 
 
-def get_err(*args):
+def get_err(*args: str) -> str:
     with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
         _, err = proc.communicate()
     return err.decode("utf-8")
 
 
-def splitlines_no_ends(string):
+def splitlines_no_ends(string: str) -> list[str]:
     return [s.strip() for s in string.splitlines()]
 
 
-def changed_files(branch="dev"):
+def _get_pr_number_from_github_env() -> str | None:
+    """Extract PR number from GitHub environment variables.
+
+    Returns:
+        PR number as string, or None if not found
+    """
+    # First try parsing GITHUB_REF (fastest)
+    github_ref = os.environ.get("GITHUB_REF", "")
+    if "/pull/" in github_ref:
+        return github_ref.split("/pull/")[1].split("/")[0]
+
+    # Fallback to GitHub event file
+    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if github_event_path and os.path.exists(github_event_path):
+        with open(github_event_path) as f:
+            event_data = json.load(f)
+            pr_data = event_data.get("pull_request", {})
+            if pr_number := pr_data.get("number"):
+                return str(pr_number)
+
+    return None
+
+
+def _get_changed_files_github_actions() -> list[str] | None:
+    """Get changed files in GitHub Actions environment.
+
+    Returns:
+        List of changed files, or None if should fall back to git method
+    """
+    event_name = os.environ.get("GITHUB_EVENT_NAME")
+
+    # For pull requests
+    if event_name == "pull_request":
+        pr_number = _get_pr_number_from_github_env()
+        if pr_number:
+            # Use GitHub CLI to get changed files directly
+            cmd = ["gh", "pr", "diff", pr_number, "--name-only"]
+            return _get_changed_files_from_command(cmd)
+
+    # For pushes (including squash-and-merge)
+    elif event_name == "push":
+        # For push events, we want to check what changed in this commit
+        try:
+            # Get the changed files in the last commit
+            return _get_changed_files_from_command(
+                ["git", "diff", "HEAD~1..HEAD", "--name-only"]
+            )
+        except:  # noqa: E722
+            # Fall back to the original method if this fails
+            pass
+
+    return None
+
+
+def changed_files(branch: str | None = None) -> list[str]:
+    # In GitHub Actions, we can use the API to get changed files more efficiently
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        github_files = _get_changed_files_github_actions()
+        if github_files is not None:
+            return github_files
+
+    # Original implementation for local development
+    if branch is None:
+        branch = "dev"
     check_remotes = ["upstream", "origin"]
     check_remotes.extend(splitlines_no_ends(get_output("git", "remote")))
     for remote in check_remotes:
@@ -83,25 +149,159 @@ def changed_files(branch="dev"):
             pass
     else:
         raise ValueError("Git not configured")
-    command = ["git", "diff", merge_base, "--name-only"]
-    changed = splitlines_no_ends(get_output(*command))
-    changed = [os.path.relpath(f, os.getcwd()) for f in changed]
-    changed.sort()
-    return changed
+    return _get_changed_files_from_command(["git", "diff", merge_base, "--name-only"])
 
 
-def filter_changed(files):
+def _get_changed_files_from_command(command: list[str]) -> list[str]:
+    """Run a git command to get changed files and return them as a list."""
+    proc = subprocess.run(command, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
+
+    changed_files = splitlines_no_ends(proc.stdout)
+    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    changed_files.sort()
+    return changed_files
+
+
+def get_changed_components() -> list[str] | None:
+    """Get list of changed components using list-components.py script.
+
+    This function:
+    1. First checks if any core files (esphome/core/*) changed - if so, returns None
+    2. Otherwise delegates to ./script/list-components.py --changed which:
+       - Analyzes all changed files
+       - Determines which components are affected (including dependencies)
+       - Returns a list of component names that need to be checked
+
+    Returns:
+        - None: Core files changed, need full scan
+        - Empty list: No components changed (only non-component files changed)
+        - List of strings: Names of components that need checking (e.g., ["wifi", "mqtt"])
+    """
+    # Check if any core files changed first
     changed = changed_files()
-    files = [f for f in files if f in changed]
-    print("Changed files:")
-    if not files:
-        print("    No changed files!")
-    for c in files:
-        print(f"    {c}")
+    if any(f.startswith("esphome/core/") for f in changed):
+        print("Core files changed - will run full clang-tidy scan")
+        return None
+
+    # Use list-components.py to get changed components
+    script_path = os.path.join(root_path, "script", "list-components.py")
+    cmd = [script_path, "--changed"]
+
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, close_fds=False
+        )
+        components = [c.strip() for c in result.stdout.strip().split("\n") if c.strip()]
+        return components
+    except subprocess.CalledProcessError:
+        # If the script fails, fall back to full scan
+        print("Could not determine changed components - will run full clang-tidy scan")
+        return None
+
+
+def _filter_changed_ci(files: list[str]) -> list[str]:
+    """Filter files based on changed components in CI environment.
+
+    This function implements intelligent filtering to reduce CI runtime by only
+    checking files that could be affected by the changes. It handles three scenarios:
+
+    1. Core files changed (returns None from get_changed_components):
+       - Triggered when any file in esphome/core/ is modified
+       - Action: Check ALL files (full scan)
+       - Reason: Core files are used throughout the codebase
+
+    2. No components changed (returns empty list from get_changed_components):
+       - Triggered when only non-component files changed (e.g., scripts, configs)
+       - Action: Check only the specific non-component files that changed
+       - Example: If only script/clang-tidy changed, only check that file
+
+    3. Specific components changed (returns list of component names):
+       - Component detection done by: ./script/list-components.py --changed
+       - That script analyzes which components are affected by the changed files
+         INCLUDING their dependencies
+       - Action: Check ALL files in each component that list-components.py identifies
+       - Example: If wifi.cpp changed, list-components.py might return ["wifi", "network"]
+                 if network depends on wifi. We then check ALL files in both
+                 esphome/components/wifi/ and esphome/components/network/
+       - Reason: Component files often have interdependencies (headers, base classes)
+
+    Args:
+        files: List of all files that clang-tidy would normally check
+
+    Returns:
+        Filtered list of files to check
+    """
+    components = get_changed_components()
+    if components is None:
+        # Scenario 1: Core files changed or couldn't determine components
+        # Action: Return all files for full scan
+        return files
+
+    if not components:
+        # Scenario 2: No components changed - only non-component files changed
+        # Action: Check only the specific non-component files that changed
+        changed = changed_files()
+        files = [
+            f for f in files if f in changed and not f.startswith("esphome/components/")
+        ]
+        if not files:
+            print("No files changed")
+        return files
+
+    # Scenario 3: Specific components changed
+    # Action: Check ALL files in each changed component
+    # Convert component list to set for O(1) lookups
+    component_set = set(components)
+    print(f"Changed components: {', '.join(sorted(components))}")
+
+    # The 'files' parameter contains ALL files in the codebase that clang-tidy would check.
+    # We filter this down to only files in the changed components.
+    # We check ALL files in each changed component (not just the changed files)
+    # because changes in one file can affect other files in the same component.
+    filtered_files = []
+    for f in files:
+        if f.startswith("esphome/components/"):
+            # Check if file belongs to any of the changed components
+            parts = f.split("/")
+            if len(parts) >= 3 and parts[2] in component_set:
+                filtered_files.append(f)
+
+    return filtered_files
+
+
+def _filter_changed_local(files: list[str]) -> list[str]:
+    """Filter files based on git changes for local development.
+
+    Args:
+        files: List of all files to filter
+
+    Returns:
+        Filtered list of files to check
+    """
+    # For local development, just check changed files directly
+    changed = changed_files()
+    return [f for f in files if f in changed]
+
+
+def filter_changed(files: list[str]) -> list[str]:
+    """Filter files to only those that changed or are in changed components.
+
+    Args:
+        files: List of files to filter
+    """
+    # When running from CI, use component-based filtering
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        files = _filter_changed_ci(files)
+    else:
+        files = _filter_changed_local(files)
+
+    print_file_list(files, "Files to check after filtering:")
     return files
 
 
-def filter_grep(files, value):
+def filter_grep(files: list[str], value: str) -> list[str]:
     matched = []
     for file in files:
         with open(file, encoding="utf-8") as handle:
@@ -111,7 +311,7 @@ def filter_grep(files, value):
     return matched
 
 
-def git_ls_files(patterns=None):
+def git_ls_files(patterns: list[str] | None = None) -> dict[str, int]:
     command = ["git", "ls-files", "-s"]
     if patterns is not None:
         command.extend(patterns)
@@ -122,6 +322,9 @@ def git_ls_files(patterns=None):
 
 
 def load_idedata(environment):
+    start_time = time.time()
+    print(f"Loading IDE data for environment '{environment}'...")
+
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     changed = False
@@ -142,7 +345,10 @@ def load_idedata(environment):
             changed = True
 
     if not changed:
-        return json.loads(temp_idedata.read_text())
+        data = json.loads(temp_idedata.read_text())
+        elapsed = time.time() - start_time
+        print(f"IDE data loaded from cache in {elapsed:.2f} seconds")
+        return data
 
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
@@ -158,6 +364,9 @@ def load_idedata(environment):
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
+
+    elapsed = time.time() - start_time
+    print(f"IDE data generated and cached in {elapsed:.2f} seconds")
     return data
 
 
@@ -194,6 +403,29 @@ def get_binary(name: str, version: str) -> str:
             """
         )
         raise
+
+
+def print_file_list(
+    files: list[str], title: str = "Files:", max_files: int = 20
+) -> None:
+    """Print a list of files with optional truncation for large lists.
+
+    Args:
+        files: List of file paths to print
+        title: Title to print before the list
+        max_files: Maximum number of files to show before truncating (default: 20)
+    """
+    print(title)
+    if not files:
+        print("    No files to check!")
+    elif len(files) <= max_files:
+        for f in sorted(files):
+            print(f"    {f}")
+    else:
+        sorted_files = sorted(files)
+        for f in sorted_files[:10]:
+            print(f"    {f}")
+        print(f"    ... and {len(files) - 10} more files")
 
 
 def get_usable_cpu_count() -> int:
