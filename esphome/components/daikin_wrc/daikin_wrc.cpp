@@ -160,8 +160,6 @@ bool DaikinWrcClimate::parse_state_frame_(const uint8_t frame[]) {
   }
   uint8_t mode = frame[2];
   bool power = frame[14] & 0x8;
-  // Temperature is given in degrees celcius * 2
-  // only update for states that use the temperature
   uint8_t temperature = (frame[13] * 10) + frame[12];
   if (((this->mode == climate::CLIMATE_MODE_OFF && power) || (this->mode != climate::CLIMATE_MODE_OFF && !power))) {
     switch (mode) {

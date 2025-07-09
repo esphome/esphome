@@ -5,7 +5,7 @@
 namespace esphome {
 namespace daikin_wrc {
 
-// Values for Daikin ARC43XXX IR Controllers
+// Values from Daikin WRC-PHC IR Remote
 // Temperature
 const uint8_t DAIKIN_WRC_TEMP_MIN = 16;  // Celsius
 const uint8_t DAIKIN_WRC_TEMP_MAX = 30;  // Celsius
@@ -59,14 +59,12 @@ class DaikinWrcClimate : public climate_ir::ClimateIR {
   binary_sensor::BinarySensor *state_sensor_{nullptr};
   climate::ClimateMode previous_mode_ = climate::CLIMATE_MODE_OFF;
 
-  // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   void control(const climate::ClimateCall &call) override;
   uint8_t operation_mode_() const;
   uint8_t fan_speed_() const;
   uint8_t special_flags_() const;
   uint8_t temperature_() const;
-  // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
 };
