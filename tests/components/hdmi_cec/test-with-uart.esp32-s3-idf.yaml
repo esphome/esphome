@@ -1,4 +1,4 @@
-#tested with Lilygo TDisplay S3
+# tested with Seeed Studio XIAO ESP32S3
 substitutions:
   uart_pin: GPIO10
   cec_pin: GPIO12

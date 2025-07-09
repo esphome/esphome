@@ -2,23 +2,26 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_UART_ID
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_DATA,
+    CONF_ID,
+    CONF_ON_MESSAGE,
+    CONF_PIN,
+    CONF_SOURCE,
+    CONF_TRIGGER_ID,
+    CONF_UART_ID,
+)
 
 CODEOWNERS = ["@JosVanEijndhoven"]
 
-CONF_PIN = "pin"
-CONF_ADDRESS = "address"
 CONF_PHYSICAL_ADDRESS = "physical_address"
 CONF_PROMISCUOUS_MODE = "promiscuous_mode"
 CONF_MONITOR_MODE = "monitor_mode"
 CONF_DECODE_MESSAGES = "decode_messages"
 CONF_OSD_NAME = "osd_name"
-CONF_ON_MESSAGE = "on_message"
-
-CONF_SOURCE = "source"
 CONF_DESTINATION = "destination"
 CONF_OPCODE = "opcode"
-CONF_DATA = "data"
 CONF_PARENT = "parent"
 
 
@@ -100,7 +103,7 @@ async def to_code(config):
     osd_name_bytes = bytes(
         config[CONF_OSD_NAME], "ascii", "ignore"
     )  # convert string to ascii bytes
-    osd_name_bytes = [x for x in osd_name_bytes]  # convert byte array to int array
+    osd_name_bytes = list(osd_name_bytes)  # convert bytes to ints
     osd_name_bytes = cg.std_vector.template(cg.uint8)(osd_name_bytes)
     cg.add(var.set_osd_name_bytes(osd_name_bytes))
 
