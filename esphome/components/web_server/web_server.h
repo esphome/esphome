@@ -78,7 +78,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred
   update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with
   multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's
-  implemented in a more straightforward way for ESP-IDF. Arudino platform will eventually go away and this workaround
+  implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
 #ifdef USE_ARDUINO
