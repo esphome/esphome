@@ -30,6 +30,48 @@ inline double deg2rad(double degrees) {
 }
 #endif
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+static const LogString *state_to_string(State state) {
+  switch (state) {
+    case State::STOPPED:
+      return LOG_STR("State::STOPPED");
+    case State::STARTING:
+      return LOG_STR("State::STARTING");
+    case State::RUNNING:
+      return LOG_STR("State::RUNNING");
+    case State::STOPPING:
+      return LOG_STR("State::STOPPING");
+    case State::INIT:
+      return LOG_STR("State::INIT");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+};
+#endif
+
+static uint8_t note_from_char(char note) {
+  switch (note) {
+    case 'c':
+      return 1;
+    case 'd':
+      return 3;
+    case 'e':
+      return 5;
+    case 'f':
+      return 6;
+    case 'g':
+      return 8;
+    case 'a':
+      return 10;
+    case 'h':
+    case 'b':
+      return 12;
+    case 'p':
+    default:
+      return 0;
+  }
+};
+
 void Rtttl::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Rtttl:\n"
@@ -258,35 +300,7 @@ void Rtttl::loop() {
         this->wholenote_ / this->default_duration_;  // we will need to check if we are a dotted note after
   }
 
-  uint8_t note;
-
-  switch (this->rtttl_[this->position_]) {
-    case 'c':
-      note = 1;
-      break;
-    case 'd':
-      note = 3;
-      break;
-    case 'e':
-      note = 5;
-      break;
-    case 'f':
-      note = 6;
-      break;
-    case 'g':
-      note = 8;
-      break;
-    case 'a':
-      note = 10;
-      break;
-    case 'h':
-    case 'b':
-      note = 12;
-      break;
-    case 'p':
-    default:
-      note = 0;
-  }
+  uint8_t note = note_from_char(this->rtttl_[this->position_]);
   this->position_++;
 
   // now, get optional '#' sharp
@@ -378,25 +392,6 @@ void Rtttl::loop() {
 
   this->last_note_ = millis();
 }
-
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-static const LogString *state_to_string(State state) {
-  switch (state) {
-    case State::STOPPED:
-      return LOG_STR("State::STOPPED");
-    case State::STARTING:
-      return LOG_STR("State::STARTING");
-    case State::RUNNING:
-      return LOG_STR("State::RUNNING");
-    case State::STOPPING:
-      return LOG_STR("State::STOPPING");
-    case State::INIT:
-      return LOG_STR("State::INIT");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-};
-#endif
 
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
