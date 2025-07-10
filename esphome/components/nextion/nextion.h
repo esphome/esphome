@@ -1426,7 +1426,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param int range_start Position of next byte to transfer.
    * @return position of last byte transferred, -1 for failure.
    */
-   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
+  int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
 #else
   /**
    * will request chunk_size chunks from the web server
