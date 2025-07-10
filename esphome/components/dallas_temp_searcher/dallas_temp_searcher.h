@@ -36,12 +36,17 @@ class DallasTemperatureSearcher : public Component, public one_wire::OneWireDevi
 
   void set_max_sensors_num(size_t max_num) { this->max_sensors_num_ = max_num; }
 
+  void set_name_prefix(const char *prefix) { this->name_prefix_ = StringRef(prefix); }
+
+  void set_name_start_addr_byte(uint8_t byte) { this->name_start_address_ = byte; }
+  void set_name_stop_addr_byte(uint8_t byte) { this->name_stop_address_ = byte; }
+
  protected:
   void set_default_parameters_(dallas_temp::DallasTemperatureSensor *sensor);
   void restore_sensors_count_();
   bool restore_address_data_(ESPPreferenceObject &obj);
 
-  dallas_temp::DallasTemperatureSensor *make_sensor_base_(const uint64_t &address, EntityBaseInfo &&info);
+  dallas_temp::DallasTemperatureSensor *make_sensor_base_(const uint64_t &address, const EntityBaseInfo &info);
   dallas_temp::DallasTemperatureSensor *make_sensor_with_address_(const uint64_t &address);
   dallas_temp::DallasTemperatureSensor *make_sensor_with_number_(const uint64_t &address, uint32_t number);
 
@@ -57,6 +62,10 @@ class DallasTemperatureSearcher : public Component, public one_wire::OneWireDevi
   SearchMode search_mode_ = SearchMode::ALL;
   ESPPreferenceObject sensors_count_pref_;
   std::vector<ESPPreferenceObject> addresses_pref_;
+  StringRef name_prefix_;
+
+  uint8_t name_start_address_ = 1;
+  uint8_t name_stop_address_ = 8;
 };
 
 }  // namespace dallas_temp_searcher
