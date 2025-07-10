@@ -45,3 +45,4 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_platformio_option("platform", "platformio/native")
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "strict")
