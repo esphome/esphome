@@ -308,7 +308,7 @@ async def to_code(config):
     cg.add(var.set_frame_buffer_count(config[CONF_FRAME_BUFFER_COUNT]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
-    cg.add_define("USE_ESP32_CAMERA")
+    cg.add_define("USE_CAMERA")
 
     if CORE.using_esp_idf:
         add_idf_component(name="espressif/esp32-camera", ref="2.0.15")

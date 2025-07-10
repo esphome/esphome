@@ -1920,7 +1920,7 @@ uint16_t APIConnection::get_estimated_message_size(uint16_t message_type) {
     case ListEntitiesClimateResponse::MESSAGE_TYPE:
       return ListEntitiesClimateResponse::ESTIMATED_SIZE;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
     case ListEntitiesCameraResponse::MESSAGE_TYPE:
       return ListEntitiesCameraResponse::ESTIMATED_SIZE;
 #endif
