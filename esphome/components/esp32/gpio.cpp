@@ -114,7 +114,6 @@ void ESP32InternalGPIOPin::setup() {
   if (flags_ & gpio::FLAG_OUTPUT) {
     gpio_set_drive_capability(pin_, drive_strength_);
   }
-  ESP_LOGD(TAG, "rtc: %d", SOC_GPIO_SUPPORT_RTC_INDEPENDENT);
 }
 
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
