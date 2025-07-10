@@ -204,6 +204,7 @@ jobs:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
       - name: Restore Python
+        id: restore-python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ matrix.python-version }}
@@ -225,11 +226,11 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Save Python virtual environment cache
-        if: github.ref == 'refs/heads/dev' && (matrix.os == 'windows-latest' || matrix.os == 'macOS-latest')
+        if: github.ref == 'refs/heads/dev'
         uses: actions/cache/save@v4.2.3
         with:
           path: venv
-          key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ needs.common.outputs.cache-key }}
+          key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
 
   integration-tests:
     name: Run integration tests
