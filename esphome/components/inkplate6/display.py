@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, i2c
+from esphome.components.esp32 import CONF_CPU_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
@@ -13,7 +14,9 @@ from esphome.const import (
     CONF_PAGES,
     CONF_TRANSFORM,
     CONF_WAKEUP_PIN,
+    PLATFORM_ESP32,
 )
+import esphome.final_validate as fv
 
 DEPENDENCIES = ["i2c", "esp32"]
 AUTO_LOAD = ["psram"]
@@ -118,6 +121,18 @@ CONFIG_SCHEMA = cv.All(
     .extend(i2c.i2c_device_schema(0x48)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
+
+
+def _validate_cpu_frequency(config):
+    esp32_config = fv.full_config.get()[PLATFORM_ESP32]
+    if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
+        raise cv.Invalid(
+            "Inkplate requires 240MHz CPU frequency (set in esp32 component)"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_cpu_frequency
 
 
 async def to_code(config):

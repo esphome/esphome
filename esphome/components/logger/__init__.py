@@ -16,7 +16,12 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
-from esphome.components.libretiny.const import COMPONENT_BK72XX, COMPONENT_RTL87XX
+from esphome.components.libretiny.const import (
+    COMPONENT_BK72XX,
+    COMPONENT_LN882X,
+    COMPONENT_RTL87XX,
+)
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ARGS,
@@ -35,8 +40,10 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    PlatformFramework,
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
 
@@ -100,6 +107,7 @@ UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 
 UART_SELECTION_LIBRETINY = {
     COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+    COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
     COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
 }
 
@@ -184,7 +192,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
-            cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.All(
+                cv.validate_bytes, cv.int_range(min=160, max=65535)
+            ),
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
@@ -215,6 +225,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32_p4_idf=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
+                ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
             ): cv.All(
                 cv.only_on(
@@ -223,6 +234,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_ESP32,
                         PLATFORM_RP2040,
                         PLATFORM_BK72XX,
+                        PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
                     ]
                 ),
@@ -434,3 +446,25 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
     return cg.new_Pvariable(action_id, template_arg, lambda_)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "logger_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "logger_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "logger_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "logger_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "logger_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "task_log_buffer.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+    }
+)

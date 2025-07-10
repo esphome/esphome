@@ -312,7 +312,7 @@ FileDecoderState AudioDecoder::decode_mp3_() {
   if (err) {
     switch (err) {
       case esp_audio_libs::helix_decoder::ERR_MP3_OUT_OF_MEMORY:
-        // Intentional fallthrough
+        [[fallthrough]];
       case esp_audio_libs::helix_decoder::ERR_MP3_NULL_POINTER:
         return FileDecoderState::FAILED;
         break;

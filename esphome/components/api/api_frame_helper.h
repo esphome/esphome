@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <deque>
 #include <limits>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -38,7 +39,7 @@ struct PacketInfo {
       : message_type(type), offset(off), payload_size(size), padding(0) {}
 };
 
-enum class APIError : int {
+enum class APIError : uint16_t {
   OK = 0,
   WOULD_BLOCK = 1001,
   BAD_HANDSHAKE_PACKET_LEN = 1002,
@@ -74,7 +75,7 @@ class APIFrameHelper {
   }
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
-  virtual APIError loop() = 0;
+  virtual APIError loop();
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   bool can_write_without_blocking() { return state_ == State::DATA && tx_buf_.empty(); }
   std::string getpeername() { return socket_->getpeername(); }
@@ -101,7 +102,7 @@ class APIFrameHelper {
   // Write multiple protobuf packets in a single operation
   // packets contains (message_type, offset, length) for each message in the buffer
   // The buffer contains all messages with appropriate padding before each
-  virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) = 0;
+  virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
   // Get the frame header padding required by this protocol
   virtual uint8_t frame_header_padding() = 0;
   // Get the frame footer size required by this protocol
@@ -175,6 +176,9 @@ class APIFrameHelper {
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();
+
+  // Helper method to handle socket read results
+  APIError handle_socket_read_result_(ssize_t received);
 };
 
 #ifdef USE_API_NOISE
@@ -194,7 +198,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) override;
+  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
   // Get the frame header padding required by this protocol
   uint8_t frame_header_padding() override { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
@@ -248,7 +252,7 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, const std::vector<PacketInfo> &packets) override;
+  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
   uint8_t frame_header_padding() override { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
   uint8_t frame_footer_size() override { return frame_footer_size_; }

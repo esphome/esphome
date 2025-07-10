@@ -14,11 +14,20 @@ import sys
 
 import pytest
 
+from esphome.core import CORE
+
 here = Path(__file__).parent
 
 # Configure location of package root
 package_root = here.parent.parent
 sys.path.insert(0, package_root.as_posix())
+
+
+@pytest.fixture(autouse=True)
+def reset_core():
+    """Reset CORE after each test."""
+    yield
+    CORE.reset()
 
 
 @pytest.fixture

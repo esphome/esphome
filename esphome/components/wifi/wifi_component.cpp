@@ -73,7 +73,7 @@ void WiFiComponent::start() {
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
-    ESP_LOGD(TAG, "Loaded saved settings: %s", save.ssid);
+    ESP_LOGD(TAG, "Loaded settings: %s", save.ssid);
 
     WiFiAP sta{};
     sta.set_ssid(save.ssid);
@@ -84,11 +84,11 @@ void WiFiComponent::start() {
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
     if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
-      ESP_LOGV(TAG, "Setting Output Power Option failed!");
+      ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 
     if (!this->wifi_apply_power_save_()) {
-      ESP_LOGV(TAG, "Setting Power Save Option failed!");
+      ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
 
     if (this->fast_connect_) {
@@ -102,7 +102,7 @@ void WiFiComponent::start() {
   } else if (this->has_ap()) {
     this->setup_ap_config_();
     if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
-      ESP_LOGV(TAG, "Setting Output Power Option failed!");
+      ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 #ifdef USE_CAPTIVE_PORTAL
     if (captive_portal::global_captive_portal != nullptr) {
@@ -181,7 +181,7 @@ void WiFiComponent::loop() {
 #ifdef USE_WIFI_AP
     if (this->has_ap() && !this->ap_setup_) {
       if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
-        ESP_LOGI(TAG, "Starting fallback AP!");
+        ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
         if (captive_portal::global_captive_portal != nullptr)
@@ -359,7 +359,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   if (ap.get_channel().has_value()) {
     ESP_LOGV(TAG, "  Channel: %u", *ap.get_channel());
   } else {
-    ESP_LOGV(TAG, "  Channel: Not Set");
+    ESP_LOGV(TAG, "  Channel not set");
   }
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
@@ -372,7 +372,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
 #endif
 
   if (!this->wifi_sta_connect_(ap)) {
-    ESP_LOGE(TAG, "wifi_sta_connect_ failed!");
+    ESP_LOGE(TAG, "wifi_sta_connect_ failed");
     this->retry_connect();
     return;
   }
@@ -500,20 +500,20 @@ void WiFiComponent::start_scanning() {
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
     if (millis() - this->action_started_ > 30000) {
-      ESP_LOGE(TAG, "Scan timeout!");
+      ESP_LOGE(TAG, "Scan timeout");
       this->retry_connect();
     }
     return;
   }
   this->scan_done_ = false;
 
-  ESP_LOGD(TAG, "Found networks:");
   if (this->scan_result_.empty()) {
-    ESP_LOGD(TAG, "  No network found!");
+    ESP_LOGW(TAG, "No networks found");
     this->retry_connect();
     return;
   }
 
+  ESP_LOGD(TAG, "Found networks:");
   for (auto &res : this->scan_result_) {
     for (auto &ap : this->sta_) {
       if (res.matches(ap)) {
@@ -561,7 +561,7 @@ void WiFiComponent::check_scanning_finished() {
   }
 
   if (!this->scan_result_[0].get_matches()) {
-    ESP_LOGW(TAG, "No matching network found!");
+    ESP_LOGW(TAG, "No matching network found");
     this->retry_connect();
     return;
   }
@@ -619,7 +619,7 @@ void WiFiComponent::check_connecting_finished() {
 
   if (status == WiFiSTAConnectStatus::CONNECTED) {
     if (wifi_ssid().empty()) {
-      ESP_LOGW(TAG, "Incomplete connection.");
+      ESP_LOGW(TAG, "Connection incomplete");
       this->retry_connect();
       return;
     }
@@ -663,7 +663,7 @@ void WiFiComponent::check_connecting_finished() {
   }
 
   if (this->error_from_callback_) {
-    ESP_LOGW(TAG, "Error while connecting to network.");
+    ESP_LOGW(TAG, "Connecting to network failed");
     this->retry_connect();
     return;
   }
@@ -679,7 +679,7 @@ void WiFiComponent::check_connecting_finished() {
   }
 
   if (status == WiFiSTAConnectStatus::ERROR_CONNECT_FAILED) {
-    ESP_LOGW(TAG, "Connection failed. Check credentials");
+    ESP_LOGW(TAG, "Connecting to network failed");
     this->retry_connect();
     return;
   }
@@ -700,7 +700,7 @@ void WiFiComponent::retry_connect() {
       (this->num_retried_ > 3 || this->error_from_callback_)) {
     if (this->num_retried_ > 5) {
       // If retry failed for more than 5 times, let's restart STA
-      ESP_LOGW(TAG, "Restarting WiFi adapter");
+      ESP_LOGW(TAG, "Restarting adapter");
       this->wifi_mode_(false, {});
       delay(100);  // NOLINT
       this->num_retried_ = 0;
@@ -741,11 +741,6 @@ void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->po
 
 void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
-std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
-  char buf[20];
-  sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return buf;
-}
 bool WiFiComponent::is_captive_portal_active_() {
 #ifdef USE_CAPTIVE_PORTAL
   return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
@@ -770,7 +765,7 @@ void WiFiComponent::load_fast_connect_settings_() {
     this->selected_ap_.set_bssid(bssid);
     this->selected_ap_.set_channel(fast_connect_save.channel);
 
-    ESP_LOGD(TAG, "Loaded saved fast_connect wifi settings");
+    ESP_LOGD(TAG, "Loaded fast_connect settings");
   }
 }
 
@@ -786,7 +781,7 @@ void WiFiComponent::save_fast_connect_settings_() {
 
     this->fast_connect_pref_.save(&fast_connect_save);
 
-    ESP_LOGD(TAG, "Saved fast_connect wifi settings");
+    ESP_LOGD(TAG, "Saved fast_connect settings");
   }
 }
 

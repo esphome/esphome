@@ -45,8 +45,15 @@ void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
   *height = this->glyph_data_->height;
 }
 
-Font::Font(const GlyphData *data, int data_nr, int baseline, int height, uint8_t bpp)
-    : baseline_(baseline), height_(height), bpp_(bpp) {
+Font::Font(const GlyphData *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
+           uint8_t bpp)
+    : baseline_(baseline),
+      height_(height),
+      descender_(descender),
+      linegap_(height - baseline - descender),
+      xheight_(xheight),
+      capheight_(capheight),
+      bpp_(bpp) {
   glyphs_.reserve(data_nr);
   for (int i = 0; i < data_nr; ++i)
     glyphs_.emplace_back(&data[i]);

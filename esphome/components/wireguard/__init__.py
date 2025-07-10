@@ -6,14 +6,7 @@ import esphome.codegen as cg
 from esphome.components import time
 from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_ID,
-    CONF_REBOOT_TIMEOUT,
-    CONF_TIME_ID,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-)
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_REBOOT_TIMEOUT, CONF_TIME_ID
 from esphome.core import TimePeriod
 
 CONF_NETMASK = "netmask"
@@ -125,9 +118,7 @@ async def to_code(config):
 
     # Workaround for crash on IDF 5+
     # See https://github.com/trombik/esp_wireguard/issues/33#issuecomment-1568503651
-    if CORE.using_esp_idf and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
-        5, 0, 0
-    ):
+    if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
 
     # This flag is added here because the esp_wireguard library statically

@@ -3,6 +3,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 from esphome.components.network import IPAddress
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
@@ -39,6 +40,7 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    PlatformFramework,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
@@ -309,6 +311,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2040="light",
                 bk72xx="none",
                 rtl87xx="none",
+                ln882x="light",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -525,3 +528,18 @@ async def wifi_set_sta_to_code(config, action_id, template_arg, args):
         await automation.build_automation(var.get_error_trigger(), [], on_error_config)
     await cg.register_component(var, config)
     return var
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "wifi_component_esp32_arduino.cpp": {PlatformFramework.ESP32_ARDUINO},
+        "wifi_component_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "wifi_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "wifi_component_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "wifi_component_pico_w.cpp": {PlatformFramework.RP2040_ARDUINO},
+    }
+)

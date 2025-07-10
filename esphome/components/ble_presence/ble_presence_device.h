@@ -105,7 +105,6 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
       this->set_found_(false);
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void set_found_(bool state) {

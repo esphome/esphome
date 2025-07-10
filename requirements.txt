@@ -10,17 +10,18 @@ tzlocal==5.3.1    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==6.1.18  # When updating platformio, also update /docker/Dockerfile
-esptool==4.8.1
+esptool==4.9.0
 click==8.1.7
 esphome-dashboard==20250514.0
-aioesphomeapi==32.2.4
+aioesphomeapi==34.2.0
 zeroconf==0.147.0
-puremagic==1.29
+puremagic==1.30
 ruamel.yaml==0.18.14 # dashboard_import
 esphome-glyphsets==0.2.0
 pillow==10.4.0
 cairosvg==2.8.2
 freetype-py==2.5.1
+jinja2==3.1.6
 
 # esp-idf requires this, but doesn't bundle it by default
 # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24

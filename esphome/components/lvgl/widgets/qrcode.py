@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SIZE, CONF_TEXT
 from esphome.cpp_generator import MockObjClass
 
-from ..defines import CONF_MAIN, literal
+from ..defines import CONF_MAIN
 from ..lv_validation import color, color_retmapper, lv_text
 from ..lvcode import LocalVariable, lv, lv_expr
 from ..schemas import TEXT_SCHEMA
@@ -34,7 +34,7 @@ class QrCodeType(WidgetType):
         )
 
     def get_uses(self):
-        return ("canvas", "img")
+        return ("canvas", "img", "label")
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         dark_color = color_retmapper(config[CONF_DARK_COLOR])
@@ -45,10 +45,8 @@ class QrCodeType(WidgetType):
     async def to_code(self, w: Widget, config):
         if (value := config.get(CONF_TEXT)) is not None:
             value = await lv_text.process(value)
-            with LocalVariable(
-                "qr_text", cg.const_char_ptr, value, modifier=""
-            ) as str_obj:
-                lv.qrcode_update(w.obj, str_obj, literal(f"strlen({str_obj})"))
+            with LocalVariable("qr_text", cg.std_string, value, modifier="") as str_obj:
+                lv.qrcode_update(w.obj, str_obj.c_str(), str_obj.size())
 
 
 qr_code_spec = QrCodeType()

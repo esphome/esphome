@@ -59,7 +59,6 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   void setup() override;
   void dump_config() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
 #ifdef USE_ESP32
   void set_filter_symbols(uint32_t filter_symbols) { this->filter_symbols_ = filter_symbols; }

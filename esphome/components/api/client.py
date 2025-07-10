@@ -4,9 +4,15 @@ import asyncio
 from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any
+import warnings
 
-from aioesphomeapi import APIClient, parse_log_message
-from aioesphomeapi.log_runner import async_run
+# Suppress protobuf version warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore", category=UserWarning, message=".*Protobuf gencode version.*"
+    )
+    from aioesphomeapi import APIClient, parse_log_message
+    from aioesphomeapi.log_runner import async_run
 
 from esphome.const import CONF_KEY, CONF_PASSWORD, CONF_PORT, __version__
 from esphome.core import CORE
@@ -29,8 +35,8 @@ async def async_run_logs(config: dict[str, Any], address: str) -> None:
     port: int = int(conf[CONF_PORT])
     password: str = conf[CONF_PASSWORD]
     noise_psk: str | None = None
-    if CONF_ENCRYPTION in conf:
-        noise_psk = conf[CONF_ENCRYPTION][CONF_KEY]
+    if (encryption := conf.get(CONF_ENCRYPTION)) and (key := encryption.get(CONF_KEY)):
+        noise_psk = key
     _LOGGER.info("Starting log output from %s using esphome API", address)
     cli = APIClient(
         address,

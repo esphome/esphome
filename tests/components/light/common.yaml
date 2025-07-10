@@ -114,7 +114,7 @@ light:
     warm_white_color_temperature: 500 mireds
   - platform: rgb
     id: test_rgb_light_initial_state
-    name: RGB Light
+    name: RGB Light Initial State
     red: test_ledc_1
     green: test_ledc_2
     blue: test_ledc_3

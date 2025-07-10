@@ -272,18 +272,13 @@ bool OpenTherm::init_esp32_timer_() {
   this->timer_idx_ = timer_idx;
 
   timer_config_t const config = {
-    .alarm_en = TIMER_ALARM_EN,
-    .counter_en = TIMER_PAUSE,
-    .intr_type = TIMER_INTR_LEVEL,
-    .counter_dir = TIMER_COUNT_UP,
-    .auto_reload = TIMER_AUTORELOAD_EN,
-#if ESP_IDF_VERSION_MAJOR >= 5
-    .clk_src = TIMER_SRC_CLK_DEFAULT,
-#endif
-    .divider = 80,
-#if defined(SOC_TIMER_GROUP_SUPPORT_XTAL) && ESP_IDF_VERSION_MAJOR < 5
-    .clk_src = TIMER_SRC_CLK_APB
-#endif
+      .alarm_en = TIMER_ALARM_EN,
+      .counter_en = TIMER_PAUSE,
+      .intr_type = TIMER_INTR_LEVEL,
+      .counter_dir = TIMER_COUNT_UP,
+      .auto_reload = TIMER_AUTORELOAD_EN,
+      .clk_src = TIMER_SRC_CLK_DEFAULT,
+      .divider = 80,
   };
 
   esp_err_t result;

@@ -3,7 +3,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
-from esphome.cpp_generator import MockObj
 
 from .defines import (
     CONF_STYLE_DEFINITIONS,
@@ -13,12 +12,13 @@ from .defines import (
     literal,
 )
 from .helpers import add_lv_use
-from .lvcode import LambdaContext, LocalVariable, lv, lv_assign, lv_variable
+from .lvcode import LambdaContext, LocalVariable, lv
 from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, STYLE_REMAP
-from .types import ObjUpdateAction, lv_lambda_t, lv_obj_t, lv_obj_t_ptr, lv_style_t
+from .types import ObjUpdateAction, lv_obj_t, lv_style_t
 from .widgets import (
     Widget,
     add_widgets,
+    collect_parts,
     set_obj_properties,
     theme_widget_map,
     wait_for_widgets,
@@ -37,12 +37,18 @@ async def style_set(svar, style):
             lv.call(f"style_set_{remapped_prop}", svar, literal(value))
 
 
+async def create_style(style, id_name):
+    style_id = ID(id_name, True, lv_style_t)
+    svar = cg.new_Pvariable(style_id)
+    lv.style_init(svar)
+    await style_set(svar, style)
+    return svar
+
+
 async def styles_to_code(config):
     """Convert styles to C__ code."""
     for style in config.get(CONF_STYLE_DEFINITIONS, ()):
-        svar = cg.new_Pvariable(style[CONF_ID])
-        lv.style_init(svar)
-        await style_set(svar, style)
+        await create_style(style, style[CONF_ID].id)
 
 
 @automation.register_action(
@@ -68,16 +74,18 @@ async def theme_to_code(config):
     if theme := config.get(CONF_THEME):
         add_lv_use(CONF_THEME)
         for w_name, style in theme.items():
-            if not isinstance(style, dict):
-                continue
-
-            lname = "lv_theme_apply_" + w_name
-            apply = lv_variable(lv_lambda_t, lname)
-            theme_widget_map[w_name] = apply
-            ow = Widget.create("obj", MockObj(ID("obj")), obj_spec)
-            async with LambdaContext([(lv_obj_t_ptr, "obj")], where=w_name) as context:
-                await set_obj_properties(ow, style)
-            lv_assign(apply, await context.get_lambda())
+            # Work around Python 3.10 bug with nested async comprehensions
+            # With Python 3.11 this could be simplified
+            styles = {}
+            for part, states in collect_parts(style).items():
+                styles[part] = {
+                    state: await create_style(
+                        props,
+                        "_lv_theme_style_" + w_name + "_" + part + "_" + state,
+                    )
+                    for state, props in states.items()
+                }
+            theme_widget_map[w_name] = styles
 
 
 async def add_top_layer(lv_component, config):

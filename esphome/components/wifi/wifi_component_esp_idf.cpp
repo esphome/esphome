@@ -219,14 +219,14 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
     return true;
 
   if (set_sta && !current_sta) {
-    ESP_LOGV(TAG, "Enabling STA.");
+    ESP_LOGV(TAG, "Enabling STA");
   } else if (!set_sta && current_sta) {
-    ESP_LOGV(TAG, "Disabling STA.");
+    ESP_LOGV(TAG, "Disabling STA");
   }
   if (set_ap && !current_ap) {
-    ESP_LOGV(TAG, "Enabling AP.");
+    ESP_LOGV(TAG, "Enabling AP");
   } else if (!set_ap && current_ap) {
-    ESP_LOGV(TAG, "Disabling AP.");
+    ESP_LOGV(TAG, "Disabling AP");
   }
 
   if (set_mode == WIFI_MODE_NULL && s_wifi_started) {
@@ -290,11 +290,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
   if (ap.get_ssid().size() > sizeof(conf.sta.ssid)) {
-    ESP_LOGE(TAG, "SSID is too long");
+    ESP_LOGE(TAG, "SSID too long");
     return false;
   }
   if (ap.get_password().size() > sizeof(conf.sta.password)) {
-    ESP_LOGE(TAG, "password is too long");
+    ESP_LOGE(TAG, "Password too long");
     return false;
   }
   memcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
@@ -490,7 +490,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
       err = esp_netif_dhcpc_start(s_sta_netif);
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "Starting DHCP client failed! %d", err);
+        ESP_LOGV(TAG, "Starting DHCP client failed: %d", err);
       }
       return err == ESP_OK;
     }
@@ -503,12 +503,12 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   info.netmask = manual_ip->subnet;
   err = esp_netif_dhcpc_stop(s_sta_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGV(TAG, "Stopping DHCP client failed! %s", esp_err_to_name(err));
+    ESP_LOGV(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(err));
   }
 
   err = esp_netif_set_ip_info(s_sta_netif, &info);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "Setting manual IP info failed! %s", esp_err_to_name(err));
+    ESP_LOGV(TAG, "Setting manual IP info failed: %s", esp_err_to_name(err));
   }
 
   esp_netif_dns_info_t dns;
@@ -665,7 +665,7 @@ void WiFiComponent::wifi_loop_() {
 void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   esp_err_t err;
   if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_START) {
-    ESP_LOGV(TAG, "Event: WiFi STA start");
+    ESP_LOGV(TAG, "STA start");
     // apply hostname
     err = esp_netif_set_hostname(s_sta_netif, App.get_name().c_str());
     if (err != ERR_OK) {
@@ -677,13 +677,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     wifi_apply_power_save_();
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
-    ESP_LOGV(TAG, "Event: WiFi STA stop");
+    ESP_LOGV(TAG, "STA stop");
     s_sta_started = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
     const auto &it = data->data.sta_authmode_change;
-    ESP_LOGV(TAG, "Event: Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode),
-             get_auth_mode_str(it.new_mode));
+    ESP_LOGV(TAG, "Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode), get_auth_mode_str(it.new_mode));
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
@@ -691,8 +690,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     assert(it.ssid_len <= 32);
     memcpy(buf, it.ssid, it.ssid_len);
     buf[it.ssid_len] = '\0';
-    ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
-             format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+    ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
+             format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
     s_sta_connected = true;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -702,14 +701,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     memcpy(buf, it.ssid, it.ssid_len);
     buf[it.ssid_len] = '\0';
     if (it.reason == WIFI_REASON_NO_AP_FOUND) {
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       s_sta_connect_not_found = true;
     } else if (it.reason == WIFI_REASON_ROAMING) {
-      ESP_LOGI(TAG, "Event: Disconnected ssid='%s' reason='Station Roaming'", buf);
+      ESP_LOGI(TAG, "Disconnected ssid='%s' reason='Station Roaming'", buf);
       return;
     } else {
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-               format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+               format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
@@ -721,24 +720,24 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
     esp_netif_create_ip6_linklocal(s_sta_netif);
 #endif /* USE_NETWORK_IPV6 */
-    ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
+    ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
     this->got_ipv4_address_ = true;
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
-    ESP_LOGV(TAG, "Event: Got IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
+    ESP_LOGV(TAG, "IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
     this->num_ipv6_addresses_++;
 #endif /* USE_NETWORK_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
-    ESP_LOGV(TAG, "Event: Lost IP");
+    ESP_LOGV(TAG, "Lost IP");
     this->got_ipv4_address_ = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_SCAN_DONE) {
     const auto &it = data->data.sta_scan_done;
-    ESP_LOGV(TAG, "Event: WiFi Scan Done status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
+    ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
     scan_result_.clear();
     this->scan_done_ = true;
@@ -772,28 +771,28 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
-    ESP_LOGV(TAG, "Event: WiFi AP start");
+    ESP_LOGV(TAG, "AP start");
     s_ap_started = true;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STOP) {
-    ESP_LOGV(TAG, "Event: WiFi AP stop");
+    ESP_LOGV(TAG, "AP stop");
     s_ap_started = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_PROBEREQRECVED) {
     const auto &it = data->data.ap_probe_req_rx;
-    ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+    ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_address_pretty(it.mac).c_str(), it.rssi);
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STACONNECTED) {
     const auto &it = data->data.ap_staconnected;
-    ESP_LOGV(TAG, "Event: AP client connected MAC=%s", format_mac_addr(it.mac).c_str());
+    ESP_LOGV(TAG, "AP client connected MAC=%s", format_mac_address_pretty(it.mac).c_str());
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STADISCONNECTED) {
     const auto &it = data->data.ap_stadisconnected;
-    ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s", format_mac_addr(it.mac).c_str());
+    ESP_LOGV(TAG, "AP client disconnected MAC=%s", format_mac_address_pretty(it.mac).c_str());
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_AP_STAIPASSIGNED) {
     const auto &it = data->data.ip_ap_staipassigned;
-    ESP_LOGV(TAG, "Event: AP client assigned IP %s", format_ip4_addr(it.ip).c_str());
+    ESP_LOGV(TAG, "AP client assigned IP %s", format_ip4_addr(it.ip).c_str());
   }
 }
 
@@ -873,7 +872,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   err = esp_netif_set_ip_info(s_ap_netif, &info);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_netif_set_ip_info failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_set_ip_info failed: %d", err);
     return false;
   }
 
@@ -889,14 +888,14 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_netif_dhcps_option failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_option failed: %d", err);
     return false;
   }
 
   err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_netif_dhcps_start failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_start failed: %d", err);
     return false;
   }
 
@@ -911,7 +910,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
   if (ap.get_ssid().size() > sizeof(conf.ap.ssid)) {
-    ESP_LOGE(TAG, "AP SSID is too long");
+    ESP_LOGE(TAG, "AP SSID too long");
     return false;
   }
   memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
@@ -926,7 +925,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
     if (ap.get_password().size() > sizeof(conf.ap.password)) {
-      ESP_LOGE(TAG, "AP password is too long");
+      ESP_LOGE(TAG, "AP password too long");
       return false;
     }
     memcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), ap.get_password().size());
@@ -937,12 +936,12 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_wifi_set_config failed! %d", err);
+    ESP_LOGE(TAG, "esp_wifi_set_config failed: %d", err);
     return false;
   }
 
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
-    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed!");
+    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed:");
     return false;
   }
 

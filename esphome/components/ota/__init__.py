@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -7,6 +8,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_PLATFORM,
     CONF_TRIGGER_ID,
+    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -120,3 +122,18 @@ async def ota_to_code(var, config):
         use_state_callback = True
     if use_state_callback:
         cg.add_define("USE_OTA_STATE_CALLBACK")
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "ota_backend_arduino_esp32.cpp": {PlatformFramework.ESP32_ARDUINO},
+        "ota_backend_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "ota_backend_arduino_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ota_backend_arduino_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

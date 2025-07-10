@@ -2,8 +2,9 @@
 // See script/api_protobuf/api_protobuf.py
 #pragma once
 
-#include "api_pb2.h"
 #include "esphome/core/defines.h"
+
+#include "api_pb2.h"
 
 namespace esphome {
 namespace api {
@@ -19,7 +20,7 @@ class APIServerConnectionBase : public ProtoService {
 
   template<typename T> bool send_message(const T &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-    this->log_send_message_(T::message_name(), msg.dump());
+    this->log_send_message_(msg.message_name(), msg.dump());
 #endif
     return this->send_message_(msg, T::MESSAGE_TYPE);
   }
@@ -70,7 +71,7 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
 
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void on_camera_image_request(const CameraImageRequest &value){};
 #endif
 
@@ -199,7 +200,7 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_update_command_request(const UpdateCommandRequest &value){};
 #endif
  protected:
-  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
+  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
 class APIServerConnection : public APIServerConnectionBase {
@@ -222,7 +223,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BUTTON
   virtual void button_command(const ButtonCommandRequest &msg) = 0;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void camera_image(const CameraImageRequest &msg) = 0;
 #endif
 #ifdef USE_CLIMATE
@@ -339,7 +340,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BUTTON
   void on_button_command_request(const ButtonCommandRequest &msg) override;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   void on_camera_image_request(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE

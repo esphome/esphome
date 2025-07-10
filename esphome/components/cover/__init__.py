@@ -33,8 +33,8 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
@@ -126,6 +126,9 @@ _COVER_SCHEMA = (
 )
 
 
+_COVER_SCHEMA.add_extra(entity_duplicate_validator("cover"))
+
+
 def cover_schema(
     class_: MockObjClass,
     *,
@@ -154,7 +157,7 @@ COVER_SCHEMA.add_extra(cv.deprecated_schema_constant("cover"))
 
 
 async def setup_cover_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "cover")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))

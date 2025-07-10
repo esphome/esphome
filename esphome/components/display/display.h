@@ -138,8 +138,6 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-#define PI 3.1415926535897932384626433832795
-
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;

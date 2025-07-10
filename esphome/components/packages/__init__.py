@@ -63,6 +63,7 @@ BASE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_PATH): cv.string,
             cv.Optional(CONF_USERNAME): cv.string,
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Exclusive(CONF_FILE, CONF_FILES): validate_yaml_filename,
@@ -74,7 +75,7 @@ BASE_SCHEMA = cv.All(
                             {
                                 cv.Required(CONF_PATH): validate_yaml_filename,
                                 cv.Optional(CONF_VARS, default={}): cv.Schema(
-                                    {cv.string: cv.string}
+                                    {cv.string: object}
                                 ),
                             }
                         ),
@@ -116,6 +117,9 @@ def _process_base_package(config: dict) -> dict:
     )
     files = []
 
+    if base_path := config.get(CONF_PATH):
+        repo_dir = repo_dir / base_path
+
     for file in config[CONF_FILES]:
         if isinstance(file, str):
             files.append({CONF_PATH: file, CONF_VARS: {}})
@@ -148,7 +152,6 @@ def _process_base_package(config: dict) -> dict:
                         raise cv.Invalid(
                             f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
                         )
-                vars = {k: str(v) for k, v in vars.items()}
                 new_yaml = yaml_util.substitute_vars(new_yaml, vars)
                 packages[f"{filename}{idx}"] = new_yaml
             except EsphomeError as e:

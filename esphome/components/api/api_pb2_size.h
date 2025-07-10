@@ -316,15 +316,13 @@ class ProtoSize {
   /**
    * @brief Calculates and adds the size of a nested message field to the total message size
    *
-   * This templated version directly takes a message object, calculates its size internally,
+   * This version takes a ProtoMessage object, calculates its size internally,
    * and updates the total_size reference. This eliminates the need for a temporary variable
    * at the call site.
    *
-   * @tparam MessageType The type of the nested message (inferred from parameter)
    * @param message The nested message object
    */
-  template<typename MessageType>
-  static inline void add_message_object(uint32_t &total_size, uint32_t field_id_size, const MessageType &message,
+  static inline void add_message_object(uint32_t &total_size, uint32_t field_id_size, const ProtoMessage &message,
                                         bool force = false) {
     uint32_t nested_size = 0;
     message.calculate_size(nested_size);

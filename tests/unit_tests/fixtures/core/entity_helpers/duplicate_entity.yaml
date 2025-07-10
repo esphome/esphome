@@ -1,0 +1,13 @@
+esphome:
+  name: test-duplicate
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    name: "Temperature"
+    lambda: return 21.0;
+  - platform: template
+    name: "Temperature"  # Duplicate - should fail
+    lambda: return 22.0;

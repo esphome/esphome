@@ -260,6 +260,22 @@ class Component {
    */
   void set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
+  /** Set an interval function with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the scheduled task
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The identifier for this interval function (must have static lifetime)
+   * @param interval The interval in ms
+   * @param f The function to call
+   */
+  void set_interval(const char *name, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
   void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   /** Cancel an interval function.
@@ -268,6 +284,7 @@ class Component {
    * @return Whether an interval functions was deleted.
    */
   bool cancel_interval(const std::string &name);  // NOLINT
+  bool cancel_interval(const char *name);         // NOLINT
 
   /** Set an retry function with a unique name. Empty name means no cancelling possible.
    *
@@ -328,6 +345,22 @@ class Component {
    */
   void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
+  /** Set a timeout function with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
+   * This means the name should be:
+   *   - A string literal (e.g., "init")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the timeout duration
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The identifier for this timeout function (must have static lifetime)
+   * @param timeout The timeout in ms
+   * @param f The function to call
+   */
+  void set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
   void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
@@ -336,6 +369,7 @@ class Component {
    * @return Whether a timeout functions was deleted.
    */
   bool cancel_timeout(const std::string &name);  // NOLINT
+  bool cancel_timeout(const char *name);         // NOLINT
 
   /** Defer a callback to the next loop() call.
    *
@@ -346,6 +380,21 @@ class Component {
    */
   void defer(const std::string &name, std::function<void()> &&f);  // NOLINT
 
+  /** Defer a callback to the next loop() call with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the deferred task.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the deferred execution
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The name of the defer function (must have static lifetime)
+   * @param f The callback
+   */
+  void defer(const char *name, std::function<void()> &&f);  // NOLINT
+
   /// Defer a callback to the next loop() call.
   void defer(std::function<void()> &&f);  // NOLINT
 
@@ -353,9 +402,7 @@ class Component {
   bool cancel_defer(const std::string &name);  // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
-  float setup_priority_override_{NAN};
   const char *component_source_{nullptr};
-  const char *error_message_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
   /// State of this component - each bit has a purpose:
   /// Bits 0-1: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED)
@@ -424,5 +471,8 @@ class WarnIfComponentBlockingGuard {
   uint32_t started_;
   Component *component_;
 };
+
+// Function to clear setup priority overrides after all components are set up
+void clear_setup_priority_overrides();
 
 }  // namespace esphome

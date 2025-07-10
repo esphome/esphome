@@ -2,7 +2,9 @@
 
 #include <cinttypes>
 #include <limits>
+#include <memory>
 #include <utility>
+#include <vector>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -11,6 +13,30 @@
 namespace esphome {
 
 static const char *const TAG = "component";
+
+// Global vectors for component data that doesn't belong in every instance.
+// Using vector instead of unordered_map for both because:
+// - Much lower memory overhead (8 bytes per entry vs 20+ for unordered_map)
+// - Linear search is fine for small n (typically < 5 entries)
+// - These are rarely accessed (setup only or error cases only)
+
+// Component error messages - only stores messages for failed components
+// Lazy allocated since most configs have zero failures
+// Note: We don't clear this vector because:
+// 1. Components are never destroyed in ESPHome
+// 2. Failed components remain failed (no recovery mechanism)
+// 3. Memory usage is minimal (only failures with custom messages are stored)
+
+// Using namespace-scope static to avoid guard variables (saves 16 bytes total)
+// This is safe because ESPHome is single-threaded during initialization
+namespace {
+// Error messages for failed components
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::unique_ptr<std::vector<std::pair<const Component *, const char *>>> component_error_messages;
+// Setup priority overrides - freed after setup completes
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::unique_ptr<std::vector<std::pair<const Component *, float>>> setup_priority_overrides;
+}  // namespace
 
 namespace setup_priority {
 
@@ -60,7 +86,15 @@ void Component::set_interval(const std::string &name, uint32_t interval, std::fu
   App.scheduler.set_interval(this, name, interval, std::move(f));
 }
 
+void Component::set_interval(const char *name, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_interval(this, name, interval, std::move(f));
+}
+
 bool Component::cancel_interval(const std::string &name) {  // NOLINT
+  return App.scheduler.cancel_interval(this, name);
+}
+
+bool Component::cancel_interval(const char *name) {  // NOLINT
   return App.scheduler.cancel_interval(this, name);
 }
 
@@ -77,7 +111,15 @@ void Component::set_timeout(const std::string &name, uint32_t timeout, std::func
   App.scheduler.set_timeout(this, name, timeout, std::move(f));
 }
 
+void Component::set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, name, timeout, std::move(f));
+}
+
 bool Component::cancel_timeout(const std::string &name) {  // NOLINT
+  return App.scheduler.cancel_timeout(this, name);
+}
+
+bool Component::cancel_timeout(const char *name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }
 
@@ -86,8 +128,17 @@ void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
   this->dump_config();
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(),
-             this->error_message_ ? this->error_message_ : "unspecified");
+    // Look up error message from global vector
+    const char *error_msg = "unspecified";
+    if (component_error_messages) {
+      for (const auto &pair : *component_error_messages) {
+        if (pair.first == this) {
+          error_msg = pair.second;
+          break;
+        }
+      }
+    }
+    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(), error_msg);
   }
 }
 
@@ -149,7 +200,7 @@ void Component::mark_failed() {
 }
 void Component::disable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGD(TAG, "%s loop disabled", this->get_component_source());
+    ESP_LOGVV(TAG, "%s loop disabled", this->get_component_source());
     this->component_state_ &= ~COMPONENT_STATE_MASK;
     this->component_state_ |= COMPONENT_STATE_LOOP_DONE;
     App.disable_component_loop_(this);
@@ -157,7 +208,7 @@ void Component::disable_loop() {
 }
 void Component::enable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGD(TAG, "%s loop enabled", this->get_component_source());
+    ESP_LOGVV(TAG, "%s loop enabled", this->get_component_source());
     this->component_state_ &= ~COMPONENT_STATE_MASK;
     this->component_state_ |= COMPONENT_STATE_LOOP;
     App.enable_component_loop_(this);
@@ -189,12 +240,15 @@ bool Component::is_in_loop_state() const {
   return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP;
 }
 void Component::defer(std::function<void()> &&f) {  // NOLINT
-  App.scheduler.set_timeout(this, "", 0, std::move(f));
+  App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), 0, std::move(f));
 }
 bool Component::cancel_defer(const std::string &name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }
 void Component::defer(const std::string &name, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, name, 0, std::move(f));
+}
+void Component::defer(const char *name, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, 0, std::move(f));
 }
 void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // NOLINT
@@ -229,8 +283,21 @@ void Component::status_set_error(const char *message) {
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "Component %s set Error flag: %s", this->get_component_source(), message);
-  if (strcmp(message, "unspecified") != 0)
-    this->error_message_ = message;
+  if (strcmp(message, "unspecified") != 0) {
+    // Lazy allocate the error messages vector if needed
+    if (!component_error_messages) {
+      component_error_messages = std::make_unique<std::vector<std::pair<const Component *, const char *>>>();
+    }
+    // Check if this component already has an error message
+    for (auto &pair : *component_error_messages) {
+      if (pair.first == this) {
+        pair.second = message;
+        return;
+      }
+    }
+    // Add new error message
+    component_error_messages->emplace_back(this, message);
+  }
 }
 void Component::status_clear_warning() {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
@@ -254,11 +321,36 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
 }
 void Component::dump_config() {}
 float Component::get_actual_setup_priority() const {
-  if (std::isnan(this->setup_priority_override_))
-    return this->get_setup_priority();
-  return this->setup_priority_override_;
+  // Check if there's an override in the global vector
+  if (setup_priority_overrides) {
+    // Linear search is fine for small n (typically < 5 overrides)
+    for (const auto &pair : *setup_priority_overrides) {
+      if (pair.first == this) {
+        return pair.second;
+      }
+    }
+  }
+  return this->get_setup_priority();
 }
-void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
+void Component::set_setup_priority(float priority) {
+  // Lazy allocate the vector if needed
+  if (!setup_priority_overrides) {
+    setup_priority_overrides = std::make_unique<std::vector<std::pair<const Component *, float>>>();
+    // Reserve some space to avoid reallocations (most configs have < 10 overrides)
+    setup_priority_overrides->reserve(10);
+  }
+
+  // Check if this component already has an override
+  for (auto &pair : *setup_priority_overrides) {
+    if (pair.first == this) {
+      pair.second = priority;
+      return;
+    }
+  }
+
+  // Add new override
+  setup_priority_overrides->emplace_back(this, priority);
+}
 
 bool Component::has_overridden_loop() const {
 #if defined(USE_HOST) || defined(CLANG_TIDY)
@@ -319,5 +411,10 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
 }
 
 WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
+
+void clear_setup_priority_overrides() {
+  // Free the setup priority map completely
+  setup_priority_overrides.reset();
+}
 
 }  // namespace esphome

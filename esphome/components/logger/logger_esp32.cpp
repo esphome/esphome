@@ -83,9 +83,7 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config.parity = UART_PARITY_DISABLE;
   uart_config.stop_bits = UART_STOP_BITS_1;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
   uart_config.source_clk = UART_SCLK_DEFAULT;
-#endif
   uart_param_config(uart_num, &uart_config);
   const int uart_buffer_size = tx_buffer_size;
   // Install UART driver using an event queue here
@@ -186,7 +184,9 @@ void HOT Logger::write_msg_(const char *msg) {
   ) {
     puts(msg);
   } else {
-    uart_write_bytes(this->uart_num_, msg, strlen(msg));
+    // Use tx_buffer_at_ if msg points to tx_buffer_, otherwise fall back to strlen
+    size_t len = (msg == this->tx_buffer_) ? this->tx_buffer_at_ : strlen(msg);
+    uart_write_bytes(this->uart_num_, msg, len);
     uart_write_bytes(this->uart_num_, "\n", 1);
   }
 }

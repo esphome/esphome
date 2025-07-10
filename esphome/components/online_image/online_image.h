@@ -201,9 +201,12 @@ template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
  public:
   OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
+  TEMPLATABLE_VALUE(bool, update)
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
-    this->parent_->update();
+    if (this->update_.value(x...)) {
+      this->parent_->update();
+    }
   }
 
  protected:

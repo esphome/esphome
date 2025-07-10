@@ -24,7 +24,7 @@ static const char *const TAG = "logger";
 //    - Messages are serialized through main loop for proper console output
 //    - Fallback to emergency console logging only if ring buffer is full
 //  - WITHOUT task log buffer: Only emergency console output, no callbacks
-void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
+void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag))
     return;
 
@@ -46,8 +46,13 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main tasks, queue the message for callbacks - but only if we have any callbacks registered
-  message_sent = this->log_buffer_->send_message_thread_safe(static_cast<uint8_t>(level), tag,
-                                                             static_cast<uint16_t>(line), current_task, format, args);
+  message_sent =
+      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
+  if (message_sent) {
+    // Enable logger loop to process the buffered message
+    // This is safe to call from any context including ISRs
+    this->enable_loop_soon_any_context();
+  }
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 
   // Emergency console logging for non-main tasks when ring buffer is full or disabled
@@ -58,7 +63,7 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
     // Maximum size for console log messages (includes null terminator)
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
-    int buffer_at = 0;                              // Initialize buffer position
+    uint16_t buffer_at = 0;                         // Initialize buffer position
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
                                                 MAX_CONSOLE_LOG_MSG_SIZE);
     this->write_msg_(console_buffer);
@@ -69,7 +74,7 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
 }
 #else
 // Implementation for all other platforms
-void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
+void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
@@ -85,7 +90,26 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // Implementation for ESP8266 with flash string support.
 // Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
-void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
+//
+// This function handles format strings stored in flash memory (PROGMEM) to save RAM.
+// The buffer is used in a special way to avoid allocating extra memory:
+//
+// Memory layout during execution:
+// Step 1: Copy format string from flash to buffer
+//         tx_buffer_: [format_string][null][.....................]
+//         tx_buffer_at_: ------------------^
+//         msg_start: saved here -----------^
+//
+// Step 2: format_log_to_buffer_with_terminator_ reads format string from beginning
+//         and writes formatted output starting at msg_start position
+//         tx_buffer_: [format_string][null][formatted_message][null]
+//         tx_buffer_at_: -------------------------------------^
+//
+// Step 3: Output the formatted message (starting at msg_start)
+//         write_msg_ and callbacks receive: this->tx_buffer_ + msg_start
+//         which points to: [formatted_message][null]
+//
+void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
@@ -116,13 +140,15 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   if (this->baud_rate_ > 0) {
     this->write_msg_(this->tx_buffer_ + msg_start);
   }
-  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start);
+  size_t msg_length =
+      this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
+  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start, msg_length);
 
   global_recursion_guard_ = false;
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
-inline int Logger::level_for(const char *tag) {
+inline uint8_t Logger::level_for(const char *tag) {
   auto it = this->log_levels_.find(tag);
   if (it != this->log_levels_.end())
     return it->second;
@@ -139,6 +165,10 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 void Logger::init_log_buffer(size_t total_buffer_size) {
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+
+  // Start with loop disabled when using task buffer (unless using USB CDC)
+  // The loop will be enabled automatically when messages arrive
+  this->disable_loop_when_buffer_empty_();
 }
 #endif
 
@@ -176,7 +206,8 @@ void Logger::loop() {
                                   this->tx_buffer_size_);
       this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
       this->tx_buffer_[this->tx_buffer_at_] = '\0';
-      this->log_callback_.call(message->level, message->tag, this->tx_buffer_);
+      size_t msg_len = this->tx_buffer_at_;  // We already know the length from tx_buffer_at_
+      this->log_callback_.call(message->level, message->tag, this->tx_buffer_, msg_len);
       // At this point all the data we need from message has been transferred to the tx_buffer
       // so we can release the message to allow other tasks to use it as soon as possible.
       this->log_buffer_->release_message_main_loop(received_token);
@@ -189,19 +220,23 @@ void Logger::loop() {
         this->write_msg_(this->tx_buffer_);
       }
     }
+  } else {
+    // No messages to process, disable loop if appropriate
+    // This reduces overhead when there's no async logging activity
+    this->disable_loop_when_buffer_empty_();
   }
 #endif
 }
 #endif
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
-void Logger::set_log_level(const std::string &tag, int log_level) { this->log_levels_[tag] = log_level; }
+void Logger::set_log_level(const std::string &tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
-void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
+void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
@@ -230,7 +265,7 @@ void Logger::dump_config() {
   }
 }
 
-void Logger::set_log_level(int level) {
+void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);

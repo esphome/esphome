@@ -317,7 +317,36 @@ void PacketTransport::update() {
   auto now = millis() / 1000;
   if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
     this->resend_ping_key_ = this->ping_pong_enable_;
+    ESP_LOGV(TAG, "Ping request, age %u", now - this->last_key_time_);
     this->last_key_time_ = now;
+  }
+  for (const auto &provider : this->providers_) {
+    uint32_t key_response_age = now - provider.second.last_key_response_time;
+    if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
+#ifdef USE_STATUS_SENSOR
+      if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", provider.first.c_str(), now, key_response_age);
+        provider.second.status_sensor->publish_state(false);
+      }
+#endif
+#ifdef USE_SENSOR
+      for (auto &sensor : this->remote_sensors_[provider.first]) {
+        sensor.second->publish_state(NAN);
+      }
+#endif
+#ifdef USE_BINARY_SENSOR
+      for (auto &sensor : this->remote_binary_sensors_[provider.first]) {
+        sensor.second->invalidate_state();
+      }
+#endif
+    } else {
+#ifdef USE_STATUS_SENSOR
+      if (provider.second.status_sensor != nullptr && !provider.second.status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", provider.first.c_str(), now, key_response_age);
+        provider.second.status_sensor->publish_state(true);
+      }
+#endif
+    }
   }
 }
 
@@ -437,7 +466,8 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     if (decoder.decode(PING_KEY, key) == DECODE_OK) {
       if (key == this->ping_key_) {
         ping_key_seen = true;
-        ESP_LOGV(TAG, "Found good ping key %X", (unsigned) key);
+        provider.last_key_response_time = millis() / 1000;
+        ESP_LOGV(TAG, "Found good ping key %X at timestamp %" PRIu32, (unsigned) key, provider.last_key_response_time);
       } else {
         ESP_LOGV(TAG, "Unknown ping key %X", (unsigned) key);
       }

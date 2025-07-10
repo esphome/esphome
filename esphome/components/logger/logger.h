@@ -61,7 +61,7 @@ static const char *const LOG_LEVEL_LETTERS[] = {
  *
  * Advanced configuration (pin selection, etc) is not supported.
  */
-enum UARTSelection {
+enum UARTSelection : uint8_t {
 #ifdef USE_LIBRETINY
   UART_SELECTION_DEFAULT = 0,
   UART_SELECTION_UART0,
@@ -129,10 +129,10 @@ class Logger : public Component {
 #endif
 
   /// Set the default log level for this logger.
-  void set_log_level(int level);
+  void set_log_level(uint8_t level);
   /// Set the log level of the specified tag.
-  void set_log_level(const std::string &tag, int log_level);
-  int get_log_level() { return this->current_level_; }
+  void set_log_level(const std::string &tag, uint8_t log_level);
+  uint8_t get_log_level() { return this->current_level_; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -140,19 +140,20 @@ class Logger : public Component {
   void pre_setup();
   void dump_config() override;
 
-  inline int level_for(const char *tag);
+  inline uint8_t level_for(const char *tag);
 
   /// Register a callback that will be called for every log message sent
-  void add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback);
+  void add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback);
 
   // add a listener for log level changes
-  void add_listener(std::function<void(int)> &&callback) { this->level_callback_.add(std::move(callback)); }
+  void add_listener(std::function<void(uint8_t)> &&callback) { this->level_callback_.add(std::move(callback)); }
 
   float get_setup_priority() const override;
 
-  void log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
+  void log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-  void log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);  // NOLINT
+  void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
+                    va_list args);  // NOLINT
 #endif
 
  protected:
@@ -160,8 +161,9 @@ class Logger : public Component {
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   // It's the caller's responsibility to initialize buffer_at (typically to 0)
-  inline void HOT format_log_to_buffer_with_terminator_(int level, const char *tag, int line, const char *format,
-                                                        va_list args, char *buffer, int *buffer_at, int buffer_size) {
+  inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
+                                                        va_list args, char *buffer, uint16_t *buffer_at,
+                                                        uint16_t buffer_size) {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
     this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
 #else
@@ -180,7 +182,7 @@ class Logger : public Component {
   }
 
   // Helper to format and send a log message to both console and callbacks
-  inline void HOT log_message_to_buffer_and_send_(int level, const char *tag, int line, const char *format,
+  inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
                                                   va_list args) {
     // Format to tx_buffer and prepare for output
     this->tx_buffer_at_ = 0;  // Initialize buffer position
@@ -190,15 +192,16 @@ class Logger : public Component {
     if (this->baud_rate_ > 0) {
       this->write_msg_(this->tx_buffer_);  // If logging is enabled, write to console
     }
-    this->log_callback_.call(level, tag, this->tx_buffer_);
+    this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
   }
 
   // Write the body of the log message to the buffer
-  inline void write_body_to_buffer_(const char *value, size_t length, char *buffer, int *buffer_at, int buffer_size) {
+  inline void write_body_to_buffer_(const char *value, size_t length, char *buffer, uint16_t *buffer_at,
+                                    uint16_t buffer_size) {
     // Calculate available space
-    const int available = buffer_size - *buffer_at;
-    if (available <= 0)
+    if (*buffer_at >= buffer_size)
       return;
+    const uint16_t available = buffer_size - *buffer_at;
 
     // Determine copy length (minimum of remaining capacity and string length)
     const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
@@ -211,7 +214,7 @@ class Logger : public Component {
   }
 
   // Format string to explicit buffer with varargs
-  inline void printf_to_buffer_(char *buffer, int *buffer_at, int buffer_size, const char *format, ...) {
+  inline void printf_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format, ...) {
     va_list arg;
     va_start(arg, format);
     this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, arg);
@@ -222,41 +225,50 @@ class Logger : public Component {
   const char *get_uart_selection_();
 #endif
 
+  // Group 4-byte aligned members first
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};
-  int tx_buffer_at_{0};
-  int tx_buffer_size_{0};
+#ifdef USE_ARDUINO
+  Stream *hw_serial_{nullptr};
+#endif
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  void *main_task_ = nullptr;  // Only used for thread name identification
+#endif
+#ifdef USE_ESP32
+  // Task-specific recursion guards:
+  // - Main task uses a dedicated member variable for efficiency
+  // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
+  pthread_key_t log_recursion_key_;  // 4 bytes
+#endif
+#ifdef USE_ESP_IDF
+  uart_port_t uart_num_;  // 4 bytes (enum defaults to int size)
+#endif
+
+  // Large objects (internally aligned)
+  std::map<std::string, uint8_t> log_levels_{};
+  CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
+  CallbackManager<void(uint8_t)> level_callback_{};
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
+#endif
+
+  // Group smaller types together at the end
+  uint16_t tx_buffer_at_{0};
+  uint16_t tx_buffer_size_{0};
+  uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   UARTSelection uart_{UART_SELECTION_UART0};
 #endif
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#ifdef USE_ARDUINO
-  Stream *hw_serial_{nullptr};
-#endif
-#ifdef USE_ESP_IDF
-  uart_port_t uart_num_;
-#endif
-  std::map<std::string, int> log_levels_{};
-  CallbackManager<void(int, const char *, const char *)> log_callback_{};
-  int current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
-#endif
 #ifdef USE_ESP32
-  // Task-specific recursion guards:
-  // - Main task uses a dedicated member variable for efficiency
-  // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
   bool main_task_recursion_guard_{false};
-  pthread_key_t log_recursion_key_;
 #else
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
-  CallbackManager<void(int)> level_callback_{};
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  void *main_task_ = nullptr;  // Only used for thread name identification
   const char *HOT get_thread_name_() {
     TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
     if (current_task == main_task_) {
@@ -297,11 +309,10 @@ class Logger : public Component {
   }
 #endif
 
-  inline void HOT write_header_to_buffer_(int level, const char *tag, int line, const char *thread_name, char *buffer,
-                                          int *buffer_at, int buffer_size) {
+  inline void HOT write_header_to_buffer_(uint8_t level, const char *tag, int line, const char *thread_name,
+                                          char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
     // Format header
-    if (level < 0)
-      level = 0;
+    // uint8_t level is already bounded 0-255, just ensure it's <= 7
     if (level > 7)
       level = 7;
 
@@ -320,12 +331,12 @@ class Logger : public Component {
     this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]: ", color, letter, tag, line);
   }
 
-  inline void HOT format_body_to_buffer_(char *buffer, int *buffer_at, int buffer_size, const char *format,
+  inline void HOT format_body_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format,
                                          va_list args) {
     // Get remaining capacity in the buffer
-    const int remaining = buffer_size - *buffer_at;
-    if (remaining <= 0)
+    if (*buffer_at >= buffer_size)
       return;
+    const uint16_t remaining = buffer_size - *buffer_at;
 
     const int ret = vsnprintf(buffer + *buffer_at, remaining, format, args);
 
@@ -334,7 +345,7 @@ class Logger : public Component {
     }
 
     // Update buffer_at with the formatted length (handle truncation)
-    int formatted_len = (ret >= remaining) ? remaining : ret;
+    uint16_t formatted_len = (ret >= remaining) ? remaining : ret;
     *buffer_at += formatted_len;
 
     // Remove all trailing newlines right after formatting
@@ -343,18 +354,38 @@ class Logger : public Component {
     }
   }
 
-  inline void HOT write_footer_to_buffer_(char *buffer, int *buffer_at, int buffer_size) {
-    static const int RESET_COLOR_LEN = strlen(ESPHOME_LOG_RESET_COLOR);
+  inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
+    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
+
+#ifdef USE_ESP32
+  // Disable loop when task buffer is empty (with USB CDC check)
+  inline void disable_loop_when_buffer_empty_() {
+    // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
+    // concurrently. If that happens between our check and disable_loop(), the enable request
+    // will be processed on the next main loop iteration since:
+    // - disable_loop() takes effect immediately
+    // - enable_loop_soon_any_context() sets a pending flag that's checked at loop start
+#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
+    // Only disable if not using USB CDC (which needs loop for connection detection)
+    if (this->uart_ != UART_SELECTION_USB_CDC) {
+      this->disable_loop();
+    }
+#else
+    // No USB CDC support, always safe to disable
+    this->disable_loop();
+#endif
+  }
+#endif
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger : public Trigger<int, const char *, const char *> {
+class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *> {
  public:
-  explicit LoggerMessageTrigger(Logger *parent, int level) {
+  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) {
     this->level_ = level;
-    parent->add_on_log_callback([this](int level, const char *tag, const char *message) {
+    parent->add_on_log_callback([this](uint8_t level, const char *tag, const char *message, size_t message_len) {
       if (level <= this->level_) {
         this->trigger(level, tag, message);
       }
@@ -362,7 +393,7 @@ class LoggerMessageTrigger : public Trigger<int, const char *, const char *> {
   }
 
  protected:
-  int level_;
+  uint8_t level_;
 };
 
 }  // namespace logger

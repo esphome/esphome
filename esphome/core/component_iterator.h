@@ -4,8 +4,8 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/helpers.h"
 
-#ifdef USE_ESP32_CAMERA
-#include "esphome/components/esp32_camera/esp32_camera.h"
+#ifdef USE_CAMERA
+#include "esphome/components/camera/camera.h"
 #endif
 
 namespace esphome {
@@ -48,8 +48,8 @@ class ComponentIterator {
 #ifdef USE_API
   virtual bool on_service(api::UserServiceDescriptor *service);
 #endif
-#ifdef USE_ESP32_CAMERA
-  virtual bool on_camera(esp32_camera::ESP32Camera *camera);
+#ifdef USE_CAMERA
+  virtual bool on_camera(camera::Camera *camera);
 #endif
 #ifdef USE_CLIMATE
   virtual bool on_climate(climate::Climate *climate) = 0;
@@ -93,7 +93,9 @@ class ComponentIterator {
   virtual bool on_end();
 
  protected:
-  enum class IteratorState {
+  // Iterates over all ESPHome entities (sensors, switches, lights, etc.)
+  // Supports up to 256 entity types and up to 65,535 entities of each type
+  enum class IteratorState : uint8_t {
     NONE = 0,
     BEGIN,
 #ifdef USE_BINARY_SENSOR
@@ -123,7 +125,7 @@ class ComponentIterator {
 #ifdef USE_API
     SERVICE,
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
     CAMERA,
 #endif
 #ifdef USE_CLIMATE
@@ -167,7 +169,7 @@ class ComponentIterator {
 #endif
     MAX,
   } state_{IteratorState::NONE};
-  size_t at_{0};
+  uint16_t at_{0};  // Supports up to 65,535 entities per type
   bool include_internal_{false};
 };
 

@@ -220,7 +220,9 @@ def gpio_flags_expr(mode):
 
 
 gpio_pin_schema = _schema_creator
-internal_gpio_pin_number = _internal_number_creator
+internal_gpio_pin_number = _internal_number_creator(
+    {CONF_OUTPUT: True, CONF_INPUT: True}
+)
 gpio_output_pin_schema = _schema_creator(
     {
         CONF_OUTPUT: True,

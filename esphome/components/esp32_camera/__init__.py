@@ -19,11 +19,11 @@ from esphome.const import (
     CONF_VSYNC_PIN,
 )
 from esphome.core import CORE
-from esphome.cpp_helpers import setup_entity
+from esphome.core.entity_helpers import setup_entity
 
 DEPENDENCIES = ["esp32"]
 
-AUTO_LOAD = ["psram"]
+AUTO_LOAD = ["camera", "psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
@@ -283,8 +283,9 @@ SETTERS = {
 
 
 async def to_code(config):
+    cg.add_define("USE_CAMERA")
     var = cg.new_Pvariable(config[CONF_ID])
-    await setup_entity(var, config)
+    await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
@@ -310,11 +311,7 @@ async def to_code(config):
     cg.add_define("USE_ESP32_CAMERA")
 
     if CORE.using_esp_idf:
-        add_idf_component(
-            name="esp32-camera",
-            repo="https://github.com/espressif/esp32-camera.git",
-            ref="v2.0.15",
-        )
+        add_idf_component(name="espressif/esp32-camera", ref="2.0.15")
 
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

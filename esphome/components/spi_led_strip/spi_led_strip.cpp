@@ -5,7 +5,7 @@ namespace spi_led_strip {
 
 SpiLedStrip::SpiLedStrip(uint16_t num_leds) {
   this->num_leds_ = num_leds;
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buffer_size_ = num_leds * 4 + 8;
   this->buf_ = allocator.allocate(this->buffer_size_);
   if (this->buf_ == nullptr) {

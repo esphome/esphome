@@ -1,0 +1,21 @@
+esphome:
+  name: test
+
+substitutions:
+  var1: "1"
+  var2: "2"
+  var21: "79"
+
+test_list:
+  - "$var1"
+  - "${var1}"
+  - $var1
+  - ${var1}
+  - "Values: $var1 ${var2}"
+  - "Value: ${var2${var1}}"
+  - "$var1 + $var2"
+  - "${ var1 } * ${ var2 }"
+  - "Undefined var: ${undefined_var}"
+  - ${undefined_var}
+  - $undefined_var
+  - ${ undefined_var }
