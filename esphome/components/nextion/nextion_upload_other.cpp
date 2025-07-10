@@ -1,7 +1,7 @@
 #include "nextion.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef USE_ESP8266
+#ifndef USE_ESP32
 
 #include <cinttypes>
 #include "esphome/components/network/util.h"
@@ -10,10 +10,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-#ifdef USE_ESP32
-#include <esp_heap_caps.h>
-#endif
-
 namespace esphome {
 namespace nextion {
 static const char *const TAG = "nextion.upload.arduino";
@@ -21,17 +17,9 @@ static const char *const TAG = "nextion.upload.arduino";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-inline uint32_t Nextion::get_free_heap_() {
-#if defined(USE_ESP32)
-  return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-#elif defined(USE_ESP8266)
-  return EspClass::getFreeHeap();
-#endif  // USE_ESP32 vs USE_ESP8266
-}
-
 int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   uint32_t range_size = this->tft_size_ - range_start;
-  ESP_LOGV(TAG, "Heap: %" PRIu32, this->get_free_heap_());
+  ESP_LOGV(TAG, "Heap: %" PRIu32, EspClass::getFreeHeap());
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
   ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
   if (range_size <= 0 or range_end <= range_start) {
@@ -95,14 +83,8 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
       const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
-#if defined(USE_ESP32) && defined(USE_PSRAM)
-      ESP_LOGD(TAG, "Upload: %0.2f%% (%" PRIu32 " left, heap: %" PRIu32 "+%" PRIu32 ")", upload_percentage,
-               this->content_length_, static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
-               static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
-#else
       ESP_LOGD(TAG, "Upload: %0.2f%% (%" PRIu32 " left, heap: %" PRIu32 ")", upload_percentage, this->content_length_,
-               this->get_free_heap_());
-#endif
+               EspClass::getFreeHeap());
       upload_first_chunk_sent_ = true;
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
         ESP_LOGD(TAG, "Recv: [%s]",
@@ -181,14 +163,11 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG, "Init HTTP client");
-  ESP_LOGV(TAG, "Heap: %" PRIu32, this->get_free_heap_());
+  ESP_LOGV(TAG, "Heap: %" PRIu32, EspClass::getFreeHeap());
   HTTPClient http_client;
   http_client.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
 
   bool begin_status = false;
-#ifdef USE_ESP32
-  begin_status = http_client.begin(this->tft_url_.c_str());
-#endif
 #ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http_client.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -256,7 +235,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   this->send_command_("sleep=0");
   this->send_command_("dim=100");
   delay(250);  // NOLINT
-  ESP_LOGV(TAG, "Heap: %" PRIu32, this->get_free_heap_());
+  ESP_LOGV(TAG, "Heap: %" PRIu32, EspClass::getFreeHeap());
 
   App.feed_wdt();
   char command[128];
@@ -269,7 +248,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGV(TAG, "Clear RX buffer");
   this->reset_(false);
   delay(250);  // NOLINT
-  ESP_LOGV(TAG, "Heap: %" PRIu32, this->get_free_heap_());
+  ESP_LOGV(TAG, "Heap: %" PRIu32, EspClass::getFreeHeap());
 
   ESP_LOGV(TAG, "Upload cmd: %s", command);
   this->send_command_(command);
@@ -290,7 +269,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Upload resp: [%s] %zu B",
            format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
            response.length());
-  ESP_LOGV(TAG, "Heap: %" PRIu32, this->get_free_heap_());
+  ESP_LOGV(TAG, "Heap: %" PRIu32, EspClass::getFreeHeap());
 
   if (response.find(0x05) != std::string::npos) {
     ESP_LOGV(TAG, "Upload prep done");
@@ -305,7 +284,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Upload TFT:");
   ESP_LOGD(TAG, "  URL:  %s", this->tft_url_.c_str());
   ESP_LOGD(TAG, "  Size: %d bytes", this->content_length_);
-  ESP_LOGD(TAG, "  Heap: %" PRIu32, this->get_free_heap_());
+  ESP_LOGD(TAG, "  Heap: %" PRIu32, EspClass::getFreeHeap());
 
   // Proceed with the content download as before
 
@@ -322,7 +301,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
       return this->upload_end_(false);
     }
     App.feed_wdt();
-    ESP_LOGV(TAG, "Heap: %" PRIu32 " left: %" PRIu32, this->get_free_heap_(), this->content_length_);
+    ESP_LOGV(TAG, "Heap: %" PRIu32 " left: %" PRIu32, EspClass::getFreeHeap(), this->content_length_);
   }
 
   ESP_LOGD(TAG, "Upload complete");
@@ -356,5 +335,5 @@ WiFiClient *Nextion::get_wifi_client_() {
 }  // namespace nextion
 }  // namespace esphome
 
-#endif  // USE_ESP8266
+#endif  // NOT USE_ESP32
 #endif  // USE_NEXTION_TFT_UPLOAD
