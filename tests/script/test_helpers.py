@@ -394,14 +394,51 @@ def test_get_changed_files_from_command_relative_paths() -> None:
         ["esphome/core/application.h", "esphome/core/defines.h"],
     ],
 )
-def test_get_changed_components_core_files_trigger_full_scan(
+def test_get_changed_components_core_cpp_files_trigger_full_scan(
     changed_files_list: list[str],
 ) -> None:
-    """Test that core file changes trigger full scan without calling subprocess."""
+    """Test that core C++/header file changes trigger full scan without calling subprocess."""
     with patch("helpers.changed_files") as mock_changed:
         mock_changed.return_value = changed_files_list
 
         # Should return None without calling subprocess
+        result = get_changed_components()
+        assert result is None
+
+
+def test_get_changed_components_core_python_files_no_full_scan() -> None:
+    """Test that core Python file changes do NOT trigger full scan."""
+    changed_files_list = [
+        "esphome/core/__init__.py",
+        "esphome/core/config.py",
+        "esphome/components/wifi/wifi.cpp",
+    ]
+
+    with patch("helpers.changed_files") as mock_changed:
+        mock_changed.return_value = changed_files_list
+
+        mock_result = Mock()
+        mock_result.stdout = "wifi\n"
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = get_changed_components()
+            # Should NOT return None - should call list-components.py
+            assert result == ["wifi"]
+
+
+def test_get_changed_components_mixed_core_files_with_cpp() -> None:
+    """Test that mixed Python and C++ core files still trigger full scan due to C++ file."""
+    changed_files_list = [
+        "esphome/core/__init__.py",
+        "esphome/core/config.py",
+        "esphome/core/helpers.cpp",  # This C++ file should trigger full scan
+        "esphome/components/wifi/wifi.cpp",
+    ]
+
+    with patch("helpers.changed_files") as mock_changed:
+        mock_changed.return_value = changed_files_list
+
+        # Should return None without calling subprocess due to helpers.cpp
         result = get_changed_components()
         assert result is None
 
@@ -451,7 +488,7 @@ def test_get_changed_components_script_failure() -> None:
 @pytest.mark.parametrize(
     ("components", "all_files", "expected_files"),
     [
-        # Core files changed (full scan)
+        # Core C++/header files changed (full scan)
         (
             None,
             ["esphome/components/wifi/wifi.cpp", "esphome/core/helpers.cpp"],
@@ -591,7 +628,7 @@ def test_filter_changed_empty_file_handling(
 
 
 def test_filter_changed_ci_full_scan() -> None:
-    """Test _filter_changed_ci when core files changed (full scan)."""
+    """Test _filter_changed_ci when core C++/header files changed (full scan)."""
     all_files = ["esphome/components/wifi/wifi.cpp", "esphome/core/helpers.cpp"]
 
     with patch("helpers.get_changed_components", return_value=None):

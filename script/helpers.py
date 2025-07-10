@@ -168,21 +168,26 @@ def get_changed_components() -> list[str] | None:
     """Get list of changed components using list-components.py script.
 
     This function:
-    1. First checks if any core files (esphome/core/*) changed - if so, returns None
+    1. First checks if any core C++/header files (esphome/core/*.{cpp,h,hpp,cc,cxx,c}) changed - if so, returns None
     2. Otherwise delegates to ./script/list-components.py --changed which:
        - Analyzes all changed files
        - Determines which components are affected (including dependencies)
        - Returns a list of component names that need to be checked
 
     Returns:
-        - None: Core files changed, need full scan
+        - None: Core C++/header files changed, need full scan
         - Empty list: No components changed (only non-component files changed)
         - List of strings: Names of components that need checking (e.g., ["wifi", "mqtt"])
     """
-    # Check if any core files changed first
+    # Check if any core C++ or header files changed first
     changed = changed_files()
-    if any(f.startswith("esphome/core/") for f in changed):
-        print("Core files changed - will run full clang-tidy scan")
+    core_cpp_changed = any(
+        f.startswith("esphome/core/")
+        and f.endswith((".cpp", ".h", ".hpp", ".cc", ".cxx", ".c"))
+        for f in changed
+    )
+    if core_cpp_changed:
+        print("Core C++/header files changed - will run full clang-tidy scan")
         return None
 
     # Use list-components.py to get changed components
@@ -207,10 +212,10 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
     This function implements intelligent filtering to reduce CI runtime by only
     checking files that could be affected by the changes. It handles three scenarios:
 
-    1. Core files changed (returns None from get_changed_components):
-       - Triggered when any file in esphome/core/ is modified
+    1. Core C++/header files changed (returns None from get_changed_components):
+       - Triggered when any C++/header file in esphome/core/ is modified
        - Action: Check ALL files (full scan)
-       - Reason: Core files are used throughout the codebase
+       - Reason: Core C++/header files are used throughout the codebase
 
     2. No components changed (returns empty list from get_changed_components):
        - Triggered when only non-component files changed (e.g., scripts, configs)
