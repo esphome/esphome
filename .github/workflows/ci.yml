@@ -344,6 +344,9 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
 
       - name: Restore Python
         uses: ./.github/actions/restore-python
