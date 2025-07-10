@@ -8,9 +8,19 @@ from typing import Any
 import pytest
 
 from esphome.config_validation import Invalid
-from esphome.const import CONF_DEVICE_ID, CONF_DISABLED_BY_DEFAULT, CONF_ICON, CONF_NAME
+from esphome.const import (
+    CONF_DEVICE_ID,
+    CONF_DISABLED_BY_DEFAULT,
+    CONF_ICON,
+    CONF_INTERNAL,
+    CONF_NAME,
+)
 from esphome.core import CORE, ID, entity_helpers
-from esphome.core.entity_helpers import get_base_entity_object_id, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    get_base_entity_object_id,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObj
 from esphome.helpers import sanitize, snake_case
 
@@ -493,11 +503,6 @@ async def test_setup_entity_disabled_by_default(
 
 def test_entity_duplicate_validator() -> None:
     """Test the entity_duplicate_validator function."""
-    from esphome.core.entity_helpers import entity_duplicate_validator
-
-    # Reset CORE unique_ids for clean test
-    CORE.unique_ids.clear()
-
     # Create validator for sensor platform
     validator = entity_duplicate_validator("sensor")
 
@@ -523,11 +528,6 @@ def test_entity_duplicate_validator() -> None:
 
 def test_entity_duplicate_validator_with_devices() -> None:
     """Test entity_duplicate_validator with devices."""
-    from esphome.core.entity_helpers import entity_duplicate_validator
-
-    # Reset CORE unique_ids for clean test
-    CORE.unique_ids.clear()
-
     # Create validator for sensor platform
     validator = entity_duplicate_validator("sensor")
 
@@ -605,3 +605,36 @@ def test_entity_different_platforms_yaml_validation(
     )
     # This should succeed
     assert result is not None
+
+
+def test_entity_duplicate_validator_internal_entities() -> None:
+    """Test that internal entities are excluded from duplicate name validation."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Temperature"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+    assert ("sensor", "temperature") in CORE.unique_ids
+
+    # Internal entity with same name should pass (not added to unique_ids)
+    config2 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
+    validated2 = validator(config2)
+    assert validated2 == config2
+    # Internal entity should not be added to unique_ids
+    assert len([k for k in CORE.unique_ids if k == ("sensor", "temperature")]) == 1
+
+    # Another internal entity with same name should also pass
+    config3 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
+    validated3 = validator(config3)
+    assert validated3 == config3
+    # Still only one entry in unique_ids (from the non-internal entity)
+    assert len([k for k in CORE.unique_ids if k == ("sensor", "temperature")]) == 1
+
+    # Non-internal entity with same name should fail
+    config4 = {CONF_NAME: "Temperature"}
+    with pytest.raises(
+        Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
+    ):
+        validator(config4)

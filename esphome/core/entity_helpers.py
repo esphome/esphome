@@ -187,6 +187,12 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
             # No name to validate
             return config
 
+        # Skip validation for internal entities
+        # Internal entities are not exposed to Home Assistant and don't use the hash-based
+        # entity state tracking system, so name collisions don't matter for them
+        if config.get(CONF_INTERNAL, False):
+            return config
+
         # Get the entity name
         entity_name = config[CONF_NAME]
 
