@@ -22,7 +22,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "nextion_upload_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF
+            PlatformFramework.ESP32_IDF,
         },
     }
 )
