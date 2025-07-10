@@ -349,28 +349,14 @@ jobs:
         uses: actions/cache@v4.2.3
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
         uses: actions/cache/restore@v4.2.3
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}
-
-      - name: Cache platformio libdeps
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@v4.2.3
-        with:
-          path: .pio/libdeps
-          key: pio-libdeps-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
-
-      - name: Cache platformio libdeps
-        if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@v4.2.3
-        with:
-          path: .pio/libdeps
-          key: pio-libdeps-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Register problem matchers
         run: |
