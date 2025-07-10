@@ -31,5 +31,21 @@ size_t SwitchMenuRender::render_entity(MenuItemMenu *menu, EntityBase *entity) {
 }
 #endif
 
+#ifdef USE_BINARY_SENSOR
+size_t BinarySensorMenuRender::render_entity(MenuItemMenu *menu, EntityBase *entity) {
+  auto *sensor_obj = static_cast<binary_sensor::BinarySensor *>(entity);
+  MenuItemBinarySensor *item = new MenuItemBinarySensor();
+
+  item->set_text(sensor_obj->get_name());
+  item->set_binary_sensor_variable(sensor_obj);
+  item->set_on_text(this->on_text_.c_str());
+  item->set_off_text(this->off_text_.c_str());
+  item->set_no_data_text(this->no_data_text_.c_str());
+
+  menu->add_generated_items(item);
+  return 1;
+}
+#endif
+
 }  // namespace display_menu_render_base
 }  // namespace esphome

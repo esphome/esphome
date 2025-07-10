@@ -3,6 +3,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -32,6 +35,7 @@ enum MenuItemType {
   MENU_ITEM_SWITCH,
   MENU_ITEM_COMMAND,
   MENU_ITEM_CUSTOM,
+  MENU_ITEM_BINARY_SENSOR,
   MENU_ITEM_VALUE
 };
 
@@ -122,6 +126,26 @@ class MenuItemEditable : public MenuItemValueBase {
  protected:
   bool immediate_edit_{false};
 };
+
+#ifdef USE_BINARY_SENSOR
+class MenuItemBinarySensor : public MenuItem {
+ public:
+  explicit MenuItemBinarySensor() : MenuItem(MENU_ITEM_BINARY_SENSOR) {}
+  void set_binary_sensor_variable(binary_sensor::BinarySensor *var) { this->binary_sensor_ = var; }
+  void set_on_text(const char *t) { this->on_text_ = StringRef(t); }
+  void set_off_text(const char *t) { this->off_text_ = StringRef(t); }
+  void set_no_data_text(const char *t) { this->no_data_text_ = StringRef(t); }
+
+  bool has_value() const override { return true; }
+  std::string get_value_text() const override;
+
+ protected:
+  binary_sensor::BinarySensor *binary_sensor_{nullptr};
+  StringRef on_text_;
+  StringRef off_text_;
+  StringRef no_data_text_;
+};
+#endif
 
 #ifdef USE_SELECT
 class MenuItemSelect : public MenuItemEditable {

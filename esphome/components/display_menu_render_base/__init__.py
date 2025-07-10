@@ -4,6 +4,7 @@ from esphome.components.graphical_display_menu import GraphicalDisplayMenu
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY,
+    CONF_BINARY_SENSOR,
     CONF_CUSTOM,
     CONF_GROUPS,
     CONF_ID,
@@ -17,6 +18,7 @@ from esphome.core.entity_types import ENTITY_TYPES
 import esphome.cpp_types as core_types
 
 display_menu_render_ns = cg.esphome_ns.namespace("display_menu_render_base")
+BinarySensorMenuRender = display_menu_render_ns.class_("BinarySensorMenuRender")
 SensorMenuRender = display_menu_render_ns.class_("SensorMenuRender")
 SwitchMenuRender = display_menu_render_ns.class_("SwitchMenuRender")
 LambdaMenuRender = display_menu_render_ns.class_("LambdaMenuRender")
@@ -48,6 +50,14 @@ BASE_RENDER_SCHEMA = cv.typed_schema(
                 cv.GenerateID(CONF_ID): cv.declare_id(SensorMenuRender),
                 cv.Optional(CONF_NO_DATA_TEXT, default="Nan"): cv.string_strict,
                 cv.Optional(CONF_ACCURACY, default=-1): cv.int_,
+            }
+        ),
+        CONF_BINARY_SENSOR: DISPLAY_MENU_RENDER_BASE_SCHEMA.extend(
+            {
+                cv.GenerateID(CONF_ID): cv.declare_id(BinarySensorMenuRender),
+                cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
+                cv.Optional(CONF_OFF_TEXT, default="Off"): cv.string_strict,
+                cv.Optional(CONF_NO_DATA_TEXT, default="Nan"): cv.string_strict,
             }
         ),
         CONF_CUSTOM: DISPLAY_MENU_RENDER_BASE_SCHEMA.extend(
@@ -88,6 +98,11 @@ async def render_to_code(var, config):
     if config.get(CONF_TYPE) == CONF_SENSOR:
         cg.add(var.set_no_data_text(config[CONF_NO_DATA_TEXT]))
         cg.add(var.set_accuracy(config[CONF_ACCURACY]))
+
+    if config.get(CONF_TYPE) == CONF_BINARY_SENSOR:
+        cg.add(var.set_on_text(config[CONF_ON_TEXT]))
+        cg.add(var.set_off_text(config[CONF_OFF_TEXT]))
+        cg.add(var.set_no_data_text(config[CONF_NO_DATA_TEXT]))
 
     if group_config := config.get(CONF_GROUPS):
         await groups.add_groups_to_storage(var, group_config)

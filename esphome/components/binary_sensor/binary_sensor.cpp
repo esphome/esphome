@@ -42,7 +42,7 @@ void BinarySensor::send_state_internal(bool state, bool is_initial) {
   }
 }
 
-BinarySensor::BinarySensor() : state(false) {}
+BinarySensor::BinarySensor() : EntityBase(EntityType::BINARY_SENSOR), state(false) {}
 
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;

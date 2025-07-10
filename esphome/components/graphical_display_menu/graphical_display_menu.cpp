@@ -22,11 +22,12 @@ void GraphicalDisplayMenu::setup() {
       if (it->is_item_selected && it->is_menu_editing) {
         label.append(" >");
         label.append(it->item->get_value_text());
-        label.append("<");
-      } else if (it->item->get_type() == display_menu_base::MENU_ITEM_SWITCH) {
+        label.append("< ");
+      } else if (it->item->get_type() == display_menu_base::MENU_ITEM_SWITCH ||
+                 it->item->get_type() == display_menu_base::MENU_ITEM_BINARY_SENSOR) {
         label.append(" (");
         label.append(it->item->get_value_text());
-        label.append(")");
+        label.append(") ");
       } else if (it->item->has_value()) {
         label.append(": ");
         label.append(it->item->get_value_text());

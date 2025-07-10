@@ -36,6 +36,20 @@ void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 
 void MenuItem::on_value_() { this->on_value_callbacks_.call(); }
 
+#ifdef USE_BINARY_SENSOR
+std::string MenuItemBinarySensor::get_value_text() const {
+  std::string result;
+
+  if (this->binary_sensor_->has_state()) {
+    result = this->binary_sensor_->state ? this->on_text_ : this->off_text_;
+  } else {
+    result = this->no_data_text_;
+  }
+
+  return result;
+}
+#endif
+
 #ifdef USE_SELECT
 std::string MenuItemSelect::get_value_text() const {
   std::string result;
