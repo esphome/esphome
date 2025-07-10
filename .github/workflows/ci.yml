@@ -224,6 +224,12 @@ jobs:
         uses: codecov/codecov-action@v5.4.3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Save Python virtual environment cache
+        if: github.ref == 'refs/heads/dev' && (matrix.os == 'windows-latest' || matrix.os == 'macOS-latest')
+        uses: actions/cache/save@v4.2.3
+        with:
+          path: venv
+          key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ needs.common.outputs.cache-key }}
 
   integration-tests:
     name: Run integration tests
