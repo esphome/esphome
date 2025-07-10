@@ -15,11 +15,10 @@
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
 #include <esp_http_client.h>
-#endif  // USE_ESP32
 #elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP8266
+#endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
