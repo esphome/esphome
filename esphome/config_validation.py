@@ -1055,6 +1055,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
     return validator
 
 
+bps = float_with_unit("bits per second", "(bps|bits/s|bit/s)?")
 frequency = float_with_unit("frequency", "(Hz|HZ|hz)?")
 resistance = float_with_unit("resistance", "(Ω|Ω|ohm|Ohm|OHM)?")
 current = float_with_unit("current", "(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
