@@ -411,7 +411,7 @@ def wizard(path):
     safe_print("Options:")
     for board_id, board_data in boards_list:
         safe_print(f" - {board_id} - {board_data['name']}")
-        boards.append(board_id)
+        boards.append(board_id.lower())
 
     while True:
         board = safe_input(color(AnsiFore.BOLD_WHITE, "(board): "))
