@@ -374,6 +374,7 @@ message CoverCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_COVER";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
 
@@ -387,6 +388,7 @@ message CoverCommandRequest {
   bool has_tilt = 6;
   float tilt = 7;
   bool stop = 8;
+  uint32 device_id = 9;
 }
 
 // ==================== FAN ====================
@@ -441,6 +443,7 @@ message FanCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_FAN";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -455,6 +458,7 @@ message FanCommandRequest {
   int32 speed_level = 11;
   bool has_preset_mode = 12;
   string preset_mode = 13;
+  uint32 device_id = 14;
 }
 
 // ==================== LIGHT ====================
@@ -523,6 +527,7 @@ message LightCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_LIGHT";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -551,6 +556,7 @@ message LightCommandRequest {
   uint32 flash_length = 17;
   bool has_effect = 18;
   string effect = 19;
+  uint32 device_id = 28;
 }
 
 // ==================== SENSOR ====================
@@ -640,9 +646,11 @@ message SwitchCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SWITCH";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool state = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== TEXT SENSOR ====================
@@ -850,12 +858,14 @@ message ListEntitiesCameraResponse {
 
 message CameraImageResponse {
   option (id) = 44;
+  option (base_class) = "StateResponseProtoMessage";
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_CAMERA";
 
   fixed32 key = 1;
   bytes data = 2;
   bool done = 3;
+  uint32 device_id = 4;
 }
 message CameraImageRequest {
   option (id) = 45;
@@ -980,6 +990,7 @@ message ClimateCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_CLIMATE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_mode = 2;
@@ -1005,6 +1016,7 @@ message ClimateCommandRequest {
   string custom_preset = 21;
   bool has_target_humidity = 22;
   float target_humidity = 23;
+  uint32 device_id = 24;
 }
 
 // ==================== NUMBER ====================
@@ -1054,9 +1066,11 @@ message NumberCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_NUMBER";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   float state = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== SELECT ====================
@@ -1096,9 +1110,11 @@ message SelectCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SELECT";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   string state = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== SIREN ====================
@@ -1137,6 +1153,7 @@ message SirenCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SIREN";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -1147,6 +1164,7 @@ message SirenCommandRequest {
   uint32 duration = 7;
   bool has_volume = 8;
   float volume = 9;
+  uint32 device_id = 10;
 }
 
 // ==================== LOCK ====================
@@ -1201,12 +1219,14 @@ message LockCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
   fixed32 key = 1;
   LockCommand command = 2;
 
   // Not yet implemented:
   bool has_code = 3;
   string code = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== BUTTON ====================
@@ -1232,8 +1252,10 @@ message ButtonCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BUTTON";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
+  uint32 device_id = 2;
 }
 
 // ==================== MEDIA PLAYER ====================
@@ -1301,6 +1323,7 @@ message MediaPlayerCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_MEDIA_PLAYER";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
 
@@ -1315,6 +1338,7 @@ message MediaPlayerCommandRequest {
 
   bool has_announcement = 8;
   bool announcement = 9;
+  uint32 device_id = 10;
 }
 
 // ==================== BLUETOOTH ====================
@@ -1843,9 +1867,11 @@ message AlarmControlPanelCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
   fixed32 key = 1;
   AlarmControlPanelStateCommand command = 2;
   string code = 3;
+  uint32 device_id = 4;
 }
 
 // ===================== TEXT =====================
@@ -1892,9 +1918,11 @@ message TextCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_TEXT";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   string state = 2;
+  uint32 device_id = 3;
 }
 
 
@@ -1936,11 +1964,13 @@ message DateCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_DATETIME_DATE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   uint32 year = 2;
   uint32 month = 3;
   uint32 day = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== DATETIME TIME ====================
@@ -1981,11 +2011,13 @@ message TimeCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_DATETIME_TIME";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   uint32 hour = 2;
   uint32 minute = 3;
   uint32 second = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== EVENT ====================
@@ -2065,11 +2097,13 @@ message ValveCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VALVE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_position = 2;
   float position = 3;
   bool stop = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== DATETIME DATETIME ====================
@@ -2108,9 +2142,11 @@ message DateTimeCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_DATETIME_DATETIME";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   fixed32 epoch_seconds = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== UPDATE ====================
@@ -2160,7 +2196,9 @@ message UpdateCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_UPDATE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   UpdateCommand command = 2;
+  uint32 device_id = 3;
 }

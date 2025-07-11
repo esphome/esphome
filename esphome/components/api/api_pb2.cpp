@@ -623,6 +623,10 @@ bool CoverCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->stop = value.as_bool();
       return true;
     }
+    case 9: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -654,6 +658,7 @@ void CoverCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->has_tilt);
   buffer.encode_float(7, this->tilt);
   buffer.encode_bool(8, this->stop);
+  buffer.encode_uint32(9, this->device_id);
 }
 void CoverCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
@@ -664,6 +669,7 @@ void CoverCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->has_tilt, false);
   ProtoSize::add_fixed_field<4>(total_size, 1, this->tilt != 0.0f, false);
   ProtoSize::add_bool_field(total_size, 1, this->stop, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_FAN
@@ -889,6 +895,10 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->has_preset_mode = value.as_bool();
       return true;
     }
+    case 14: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -927,6 +937,7 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_int32(11, this->speed_level);
   buffer.encode_bool(12, this->has_preset_mode);
   buffer.encode_string(13, this->preset_mode);
+  buffer.encode_uint32(14, this->device_id);
 }
 void FanCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
@@ -942,6 +953,7 @@ void FanCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_int32_field(total_size, 1, this->speed_level, false);
   ProtoSize::add_bool_field(total_size, 1, this->has_preset_mode, false);
   ProtoSize::add_string_field(total_size, 1, this->preset_mode, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_LIGHT
@@ -1247,6 +1259,10 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->has_effect = value.as_bool();
       return true;
     }
+    case 28: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -1335,6 +1351,7 @@ void LightCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(17, this->flash_length);
   buffer.encode_bool(18, this->has_effect);
   buffer.encode_string(19, this->effect);
+  buffer.encode_uint32(28, this->device_id);
 }
 void LightCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
@@ -1364,6 +1381,7 @@ void LightCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_uint32_field(total_size, 2, this->flash_length, false);
   ProtoSize::add_bool_field(total_size, 2, this->has_effect, false);
   ProtoSize::add_string_field(total_size, 2, this->effect, false);
+  ProtoSize::add_uint32_field(total_size, 2, this->device_id, false);
 }
 #endif
 #ifdef USE_SENSOR
@@ -1637,6 +1655,10 @@ bool SwitchCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->state = value.as_bool();
       return true;
     }
+    case 3: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -1654,10 +1676,12 @@ bool SwitchCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void SwitchCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->state);
+  buffer.encode_uint32(3, this->device_id);
 }
 void SwitchCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_bool_field(total_size, 1, this->state, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -2293,6 +2317,10 @@ bool CameraImageResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->done = value.as_bool();
       return true;
     }
+    case 4: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -2321,11 +2349,13 @@ void CameraImageResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bytes(2, reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size());
   buffer.encode_bool(3, this->done);
+  buffer.encode_uint32(4, this->device_id);
 }
 void CameraImageResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_string_field(total_size, 1, this->data, false);
   ProtoSize::add_bool_field(total_size, 1, this->done, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 bool CameraImageRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -2749,6 +2779,10 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->has_target_humidity = value.as_bool();
       return true;
     }
+    case 24: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -2817,6 +2851,7 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(21, this->custom_preset);
   buffer.encode_bool(22, this->has_target_humidity);
   buffer.encode_float(23, this->target_humidity);
+  buffer.encode_uint32(24, this->device_id);
 }
 void ClimateCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
@@ -2842,6 +2877,7 @@ void ClimateCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_string_field(total_size, 2, this->custom_preset, false);
   ProtoSize::add_bool_field(total_size, 2, this->has_target_humidity, false);
   ProtoSize::add_fixed_field<4>(total_size, 2, this->target_humidity != 0.0f, false);
+  ProtoSize::add_uint32_field(total_size, 2, this->device_id, false);
 }
 #endif
 #ifdef USE_NUMBER
@@ -2991,6 +3027,16 @@ void NumberStateResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->missing_state, false);
   ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
+bool NumberCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -3008,10 +3054,12 @@ bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void NumberCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_float(2, this->state);
+  buffer.encode_uint32(3, this->device_id);
 }
 void NumberCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_fixed_field<4>(total_size, 1, this->state != 0.0f, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_SELECT
@@ -3143,6 +3191,16 @@ void SelectStateResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->missing_state, false);
   ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
+bool SelectCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool SelectCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
@@ -3166,10 +3224,12 @@ bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void SelectCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_string(2, this->state);
+  buffer.encode_uint32(3, this->device_id);
 }
 void SelectCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_string_field(total_size, 1, this->state, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_SIREN
@@ -3327,6 +3387,10 @@ bool SirenCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->has_volume = value.as_bool();
       return true;
     }
+    case 10: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -3365,6 +3429,7 @@ void SirenCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(7, this->duration);
   buffer.encode_bool(8, this->has_volume);
   buffer.encode_float(9, this->volume);
+  buffer.encode_uint32(10, this->device_id);
 }
 void SirenCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
@@ -3376,6 +3441,7 @@ void SirenCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_uint32_field(total_size, 1, this->duration, false);
   ProtoSize::add_bool_field(total_size, 1, this->has_volume, false);
   ProtoSize::add_fixed_field<4>(total_size, 1, this->volume != 0.0f, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_LOCK
@@ -3517,6 +3583,10 @@ bool LockCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->has_code = value.as_bool();
       return true;
     }
+    case 5: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -3546,12 +3616,14 @@ void LockCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::LockCommand>(2, this->command);
   buffer.encode_bool(3, this->has_code);
   buffer.encode_string(4, this->code);
+  buffer.encode_uint32(5, this->device_id);
 }
 void LockCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_enum_field(total_size, 1, static_cast<uint32_t>(this->command), false);
   ProtoSize::add_bool_field(total_size, 1, this->has_code, false);
   ProtoSize::add_string_field(total_size, 1, this->code, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_BUTTON
@@ -3631,6 +3703,16 @@ void ListEntitiesButtonResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_string_field(total_size, 1, this->device_class, false);
   ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
+bool ButtonCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -3641,9 +3723,13 @@ bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
 }
-void ButtonCommandRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->key); }
+void ButtonCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_uint32(2, this->device_id);
+}
 void ButtonCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_MEDIA_PLAYER
@@ -3849,6 +3935,10 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->announcement = value.as_bool();
       return true;
     }
+    case 10: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -3887,6 +3977,7 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(7, this->media_url);
   buffer.encode_bool(8, this->has_announcement);
   buffer.encode_bool(9, this->announcement);
+  buffer.encode_uint32(10, this->device_id);
 }
 void MediaPlayerCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
@@ -3898,6 +3989,7 @@ void MediaPlayerCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_string_field(total_size, 1, this->media_url, false);
   ProtoSize::add_bool_field(total_size, 1, this->has_announcement, false);
   ProtoSize::add_bool_field(total_size, 1, this->announcement, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -5311,6 +5403,10 @@ bool AlarmControlPanelCommandRequest::decode_varint(uint32_t field_id, ProtoVarI
       this->command = value.as_enum<enums::AlarmControlPanelStateCommand>();
       return true;
     }
+    case 4: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5339,11 +5435,13 @@ void AlarmControlPanelCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_enum<enums::AlarmControlPanelStateCommand>(2, this->command);
   buffer.encode_string(3, this->code);
+  buffer.encode_uint32(4, this->device_id);
 }
 void AlarmControlPanelCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_enum_field(total_size, 1, static_cast<uint32_t>(this->command), false);
   ProtoSize::add_string_field(total_size, 1, this->code, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_TEXT
@@ -5487,6 +5585,16 @@ void TextStateResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->missing_state, false);
   ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
+bool TextCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool TextCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
@@ -5510,10 +5618,12 @@ bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void TextCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_string(2, this->state);
+  buffer.encode_uint32(3, this->device_id);
 }
 void TextCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_string_field(total_size, 1, this->state, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_DATETIME_DATE
@@ -5653,6 +5763,10 @@ bool DateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->day = value.as_uint32();
       return true;
     }
+    case 5: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5672,12 +5786,14 @@ void DateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(2, this->year);
   buffer.encode_uint32(3, this->month);
   buffer.encode_uint32(4, this->day);
+  buffer.encode_uint32(5, this->device_id);
 }
 void DateCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_uint32_field(total_size, 1, this->year, false);
   ProtoSize::add_uint32_field(total_size, 1, this->month, false);
   ProtoSize::add_uint32_field(total_size, 1, this->day, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_DATETIME_TIME
@@ -5817,6 +5933,10 @@ bool TimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->second = value.as_uint32();
       return true;
     }
+    case 5: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5836,12 +5956,14 @@ void TimeCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(2, this->hour);
   buffer.encode_uint32(3, this->minute);
   buffer.encode_uint32(4, this->second);
+  buffer.encode_uint32(5, this->device_id);
 }
 void TimeCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_uint32_field(total_size, 1, this->hour, false);
   ProtoSize::add_uint32_field(total_size, 1, this->minute, false);
   ProtoSize::add_uint32_field(total_size, 1, this->second, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_EVENT
@@ -6119,6 +6241,10 @@ bool ValveCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->stop = value.as_bool();
       return true;
     }
+    case 5: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -6142,12 +6268,14 @@ void ValveCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(2, this->has_position);
   buffer.encode_float(3, this->position);
   buffer.encode_bool(4, this->stop);
+  buffer.encode_uint32(5, this->device_id);
 }
 void ValveCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_bool_field(total_size, 1, this->has_position, false);
   ProtoSize::add_fixed_field<4>(total_size, 1, this->position != 0.0f, false);
   ProtoSize::add_bool_field(total_size, 1, this->stop, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_DATETIME_DATETIME
@@ -6261,6 +6389,16 @@ void DateTimeStateResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->epoch_seconds != 0, false);
   ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
+bool DateTimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -6278,10 +6416,12 @@ bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void DateTimeCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_fixed32(2, this->epoch_seconds);
+  buffer.encode_uint32(3, this->device_id);
 }
 void DateTimeCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_fixed_field<4>(total_size, 1, this->epoch_seconds != 0, false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 #ifdef USE_UPDATE
@@ -6455,6 +6595,10 @@ bool UpdateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->command = value.as_enum<enums::UpdateCommand>();
       return true;
     }
+    case 3: {
+      this->device_id = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -6472,10 +6616,12 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void UpdateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_enum<enums::UpdateCommand>(2, this->command);
+  buffer.encode_uint32(3, this->device_id);
 }
 void UpdateCommandRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0, false);
   ProtoSize::add_enum_field(total_size, 1, static_cast<uint32_t>(this->command), false);
+  ProtoSize::add_uint32_field(total_size, 1, this->device_id, false);
 }
 #endif
 
