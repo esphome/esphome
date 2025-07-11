@@ -66,10 +66,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if name is not empty
-    if (this->is_name_valid_(name_cstr)) {
-      LockGuard guard{this->lock_};
-      this->cancel_item_locked_(component, name_cstr, type);
-    }
+    LockGuard guard{this->lock_};
+    this->cancel_item_locked_(component, name_cstr, type);
     return;
   }
 
@@ -125,10 +123,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 
   LockGuard guard{this->lock_};
   // If name is provided, do atomic cancel-and-add
-  if (this->is_name_valid_(name_cstr)) {
-    // Cancel existing items
-    this->cancel_item_locked_(component, name_cstr, type);
-  }
+  // Cancel existing items
+  this->cancel_item_locked_(component, name_cstr, type);
   // Add new item directly to to_add_
   // since we have the lock held
   this->to_add_.push_back(std::move(item));
@@ -442,10 +438,6 @@ bool HOT Scheduler::cancel_item_(Component *component, bool is_static_string, co
   // Get the name as const char*
   const char *name_cstr = this->get_name_cstr_(is_static_string, name_ptr);
 
-  // Handle null or empty names
-  if (!this->is_name_valid_(name_cstr))
-    return false;
-
   // obtain lock because this function iterates and can be called from non-loop task context
   LockGuard guard{this->lock_};
   return this->cancel_item_locked_(component, name_cstr, type);
@@ -453,6 +445,11 @@ bool HOT Scheduler::cancel_item_(Component *component, bool is_static_string, co
 
 // Helper to cancel items by name - must be called with lock held
 bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_cstr, SchedulerItem::Type type) {
+  // Early return if name is invalid - no items to cancel
+  if (name_cstr == nullptr || name_cstr[0] == '\0') {
+    return false;
+  }
+
   size_t total_cancelled = 0;
 
   // Check all containers for matching items

@@ -150,9 +150,6 @@ class Scheduler {
     return is_static_string ? static_cast<const char *>(name_ptr) : static_cast<const std::string *>(name_ptr)->c_str();
   }
 
-  // Helper to check if a name is valid (not null and not empty)
-  inline bool is_name_valid_(const char *name) { return name != nullptr && name[0] != '\0'; }
-
   // Common implementation for cancel operations
   bool cancel_item_(Component *component, bool is_static_string, const void *name_ptr, SchedulerItem::Type type);
 
