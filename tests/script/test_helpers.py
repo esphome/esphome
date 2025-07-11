@@ -27,6 +27,7 @@ _filter_changed_ci = helpers._filter_changed_ci
 _filter_changed_local = helpers._filter_changed_local
 build_all_include = helpers.build_all_include
 print_file_list = helpers.print_file_list
+get_all_dependencies = helpers.get_all_dependencies
 
 
 @pytest.mark.parametrize(
@@ -152,6 +153,14 @@ def test_github_actions_push_event(monkeypatch: MonkeyPatch) -> None:
 
         mock_get.assert_called_once_with(["git", "diff", "HEAD~1..HEAD", "--name-only"])
         assert result == expected_files
+
+
+@pytest.fixture(autouse=True)
+def clear_caches():
+    """Clear function caches before each test."""
+    # Clear the cache for _get_changed_files_github_actions
+    _get_changed_files_github_actions.cache_clear()
+    yield
 
 
 def test_get_changed_files_github_actions_pull_request(
@@ -847,3 +856,159 @@ def test_print_file_list_default_title(capsys: pytest.CaptureFixture[str]) -> No
 
     assert "Files:" in captured.out
     assert "    test.cpp" in captured.out
+
+
+@pytest.mark.parametrize(
+    ("component_configs", "initial_components", "expected_components"),
+    [
+        # No dependencies
+        (
+            {"sensor": ([], [])},  # (dependencies, auto_load)
+            {"sensor"},
+            {"sensor"},
+        ),
+        # Simple dependencies
+        (
+            {
+                "sensor": (["esp32"], []),
+                "esp32": ([], []),
+            },
+            {"sensor"},
+            {"sensor", "esp32"},
+        ),
+        # Auto-load components
+        (
+            {
+                "light": ([], ["output", "power_supply"]),
+                "output": ([], []),
+                "power_supply": ([], []),
+            },
+            {"light"},
+            {"light", "output", "power_supply"},
+        ),
+        # Transitive dependencies
+        (
+            {
+                "comp_a": (["comp_b"], []),
+                "comp_b": (["comp_c"], []),
+                "comp_c": ([], []),
+            },
+            {"comp_a"},
+            {"comp_a", "comp_b", "comp_c"},
+        ),
+        # Dependencies with dots (sensor.base)
+        (
+            {
+                "my_comp": (["sensor.base", "binary_sensor.base"], []),
+                "sensor": ([], []),
+                "binary_sensor": ([], []),
+            },
+            {"my_comp"},
+            {"my_comp", "sensor", "binary_sensor"},
+        ),
+        # Circular dependencies (should not cause infinite loop)
+        (
+            {
+                "comp_a": (["comp_b"], []),
+                "comp_b": (["comp_a"], []),
+            },
+            {"comp_a"},
+            {"comp_a", "comp_b"},
+        ),
+    ],
+)
+def test_get_all_dependencies(
+    component_configs: dict[str, tuple[list[str], list[str]]],
+    initial_components: set[str],
+    expected_components: set[str],
+) -> None:
+    """Test dependency resolution for components."""
+    with patch("esphome.loader.get_component") as mock_get_component:
+
+        def get_component_side_effect(name: str):
+            if name in component_configs:
+                deps, auto_load = component_configs[name]
+                comp = Mock()
+                comp.dependencies = deps
+                comp.auto_load = auto_load
+                return comp
+            return None
+
+        mock_get_component.side_effect = get_component_side_effect
+
+        result = helpers.get_all_dependencies(initial_components)
+
+        assert result == expected_components
+
+
+def test_get_all_dependencies_handles_missing_components() -> None:
+    """Test handling of components that can't be loaded."""
+    with patch("esphome.loader.get_component") as mock_get_component:
+        # First component exists, its dependency doesn't
+        comp = Mock()
+        comp.dependencies = ["missing_comp"]
+        comp.auto_load = []
+
+        mock_get_component.side_effect = (
+            lambda name: comp if name == "existing" else None
+        )
+
+        result = helpers.get_all_dependencies({"existing", "nonexistent"})
+
+        # Should still include all components, even if some can't be loaded
+        assert result == {"existing", "nonexistent", "missing_comp"}
+
+
+def test_get_all_dependencies_empty_set() -> None:
+    """Test with empty initial component set."""
+    result = helpers.get_all_dependencies(set())
+    assert result == set()
+
+
+def test_get_components_from_integration_fixtures() -> None:
+    """Test extraction of components from fixture YAML files."""
+    yaml_content = {
+        "sensor": [{"platform": "template", "name": "test"}],
+        "binary_sensor": [{"platform": "gpio", "pin": 5}],
+        "esphome": {"name": "test"},
+        "api": {},
+    }
+    expected_components = {
+        "sensor",
+        "binary_sensor",
+        "esphome",
+        "api",
+        "template",
+        "gpio",
+    }
+
+    mock_yaml_file = Mock()
+
+    with (
+        patch("pathlib.Path.glob") as mock_glob,
+        patch("builtins.open", create=True),
+        patch("yaml.safe_load", return_value=yaml_content),
+    ):
+        mock_glob.return_value = [mock_yaml_file]
+
+        components = helpers.get_components_from_integration_fixtures()
+
+        assert components == expected_components
+
+
+@pytest.mark.parametrize(
+    "output,expected",
+    [
+        ("wifi\napi\nsensor\n", ["wifi", "api", "sensor"]),
+        ("wifi\n", ["wifi"]),
+        ("", []),
+        ("  \n  \n", []),
+        ("\n\n", []),
+        ("  wifi  \n  api  \n", ["wifi", "api"]),
+        ("wifi\n\napi\n\nsensor", ["wifi", "api", "sensor"]),
+    ],
+)
+def test_parse_list_components_output(output: str, expected: list[str]) -> None:
+    """Test parse_list_components_output function."""
+    result = helpers.parse_list_components_output(output)
+    assert result == expected

@@ -66,6 +66,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
@@ -87,6 +89,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
@@ -108,6 +112,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
@@ -129,6 +135,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
@@ -232,11 +240,54 @@ jobs:
           path: venv
           key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
 
+  determine-jobs:
+    name: Determine which jobs to run
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+    outputs:
+      integration-tests: ${{ steps.determine.outputs.integration-tests }}
+      clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
+      clang-format: ${{ steps.determine.outputs.clang-format }}
+      python-linters: ${{ steps.determine.outputs.python-linters }}
+      changed-components: ${{ steps.determine.outputs.changed-components }}
+      component-test-count: ${{ steps.determine.outputs.component-test-count }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.2.2
+        with:
+          # Fetch enough history to find the merge base
+          fetch-depth: 2
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Determine which tests to run
+        id: determine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . venv/bin/activate
+          output=$(python script/determine-jobs.py)
+          echo "Test determination output:"
+          echo "$output" | jq
+
+          # Extract individual fields
+          echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
+          echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
+          echo "clang-format=$(echo "$output" | jq -r '.clang_format')" >> $GITHUB_OUTPUT
+          echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
+          echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
+          echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
+
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-latest
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.integration-tests == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
@@ -271,6 +322,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-format == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.2.2
@@ -304,6 +357,8 @@ jobs:
       - pylint
       - pytest
       - pyupgrade
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy == 'true'
     env:
       GH_TOKEN: ${{ github.token }}
     strategy:
@@ -411,50 +466,18 @@ jobs:
         # yamllint disable-line rule:line-length
         if: always()
 
-  list-components:
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-    if: github.event_name == 'pull_request'
-    env:
-      GH_TOKEN: ${{ github.token }}
-    outputs:
-      components: ${{ steps.list-components.outputs.components }}
-      count: ${{ steps.list-components.outputs.count }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Find changed components
-        id: list-components
-        run: |
-          . venv/bin/activate
-          components=$(script/list-components.py --changed)
-          output_components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')
-          count=$(echo "$output_components" | jq length)
-
-          echo "components=$output_components" >> $GITHUB_OUTPUT
-          echo "count=$count" >> $GITHUB_OUTPUT
-
-          echo "$count Components:"
-          echo "$output_components" | jq
-
   test-build-components:
     name: Component test ${{ matrix.file }}
     runs-on: ubuntu-24.04
     needs:
       - common
-      - list-components
-    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) > 0 && fromJSON(needs.list-components.outputs.count) < 100
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0 && fromJSON(needs.determine-jobs.outputs.component-test-count) < 100
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: ${{ fromJson(needs.list-components.outputs.components) }}
+        file: ${{ fromJson(needs.determine-jobs.outputs.changed-components) }}
     steps:
       - name: Install dependencies
         run: |
@@ -482,8 +505,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
-      - list-components
-    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) >= 100
     outputs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
@@ -492,7 +515,7 @@ jobs:
       - name: Split components into 20 groups
         id: split
         run: |
-          components=$(echo '${{ needs.list-components.outputs.components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
+          components=$(echo '${{ needs.determine-jobs.outputs.changed-components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
           echo "components=$components" >> $GITHUB_OUTPUT
 
   test-build-components-split:
@@ -500,9 +523,9 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
-      - list-components
+      - determine-jobs
       - test-build-components-splitter
-    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) >= 100
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -553,7 +576,7 @@ jobs:
       - integration-tests
       - pyupgrade
       - clang-tidy
-      - list-components
+      - determine-jobs
       - test-build-components
       - test-build-components-splitter
       - test-build-components-split

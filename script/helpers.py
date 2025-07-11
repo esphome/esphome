@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import cache
 import json
 import os
 import os.path
@@ -7,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
+from typing import Any
 
 import colorama
 
@@ -14,6 +16,34 @@ root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", ".."))
 basepath = os.path.join(root_path, "esphome")
 temp_folder = os.path.join(root_path, ".temp")
 temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+
+# C++ file extensions used for clang-tidy and clang-format checks
+CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
+
+# Python file extensions
+PYTHON_FILE_EXTENSIONS = (".py", ".pyi")
+
+# YAML file extensions
+YAML_FILE_EXTENSIONS = (".yaml", ".yml")
+
+# Component path prefix
+ESPHOME_COMPONENTS_PATH = "esphome/components/"
+
+
+def parse_list_components_output(output: str) -> list[str]:
+    """Parse the output from list-components.py script.
+
+    The script outputs one component name per line.
+
+    Args:
+        output: The stdout from list-components.py
+
+    Returns:
+        List of component names, or empty list if no output
+    """
+    if not output or not output.strip():
+        return []
+    return [c.strip() for c in output.strip().split("\n") if c.strip()]
 
 
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
@@ -96,6 +126,7 @@ def _get_pr_number_from_github_env() -> str | None:
     return None
 
 
+@cache
 def _get_changed_files_github_actions() -> list[str] | None:
     """Get changed files in GitHub Actions environment.
 
@@ -135,7 +166,7 @@ def changed_files(branch: str | None = None) -> list[str]:
             return github_files
 
     # Original implementation for local development
-    if branch is None:
+    if not branch:  # Treat None and empty string the same
         branch = "dev"
     check_remotes = ["upstream", "origin"]
     check_remotes.extend(splitlines_no_ends(get_output("git", "remote")))
@@ -183,7 +214,7 @@ def get_changed_components() -> list[str] | None:
     changed = changed_files()
     core_cpp_changed = any(
         f.startswith("esphome/core/")
-        and f.endswith((".cpp", ".h", ".hpp", ".cc", ".cxx", ".c"))
+        and f.endswith(CPP_FILE_EXTENSIONS[:-1])  # Exclude .tcc for core files
         for f in changed
     )
     if core_cpp_changed:
@@ -198,8 +229,7 @@ def get_changed_components() -> list[str] | None:
         result = subprocess.run(
             cmd, capture_output=True, text=True, check=True, close_fds=False
         )
-        components = [c.strip() for c in result.stdout.strip().split("\n") if c.strip()]
-        return components
+        return parse_list_components_output(result.stdout)
     except subprocess.CalledProcessError:
         # If the script fails, fall back to full scan
         print("Could not determine changed components - will run full clang-tidy scan")
@@ -249,7 +279,9 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
         # Action: Check only the specific non-component files that changed
         changed = changed_files()
         files = [
-            f for f in files if f in changed and not f.startswith("esphome/components/")
+            f
+            for f in files
+            if f in changed and not f.startswith(ESPHOME_COMPONENTS_PATH)
         ]
         if not files:
             print("No files changed")
@@ -267,7 +299,7 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
     # because changes in one file can affect other files in the same component.
     filtered_files = []
     for f in files:
-        if f.startswith("esphome/components/"):
+        if f.startswith(ESPHOME_COMPONENTS_PATH):
             # Check if file belongs to any of the changed components
             parts = f.split("/")
             if len(parts) >= 3 and parts[2] in component_set:
@@ -326,7 +358,7 @@ def git_ls_files(patterns: list[str] | None = None) -> dict[str, int]:
     return {s[3].strip(): int(s[0]) for s in lines}
 
 
-def load_idedata(environment):
+def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
@@ -442,3 +474,83 @@ def get_usable_cpu_count() -> int:
     return (
         os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
     )
+
+
+def get_all_dependencies(component_names: set[str]) -> set[str]:
+    """Get all dependencies for a set of components.
+
+    Args:
+        component_names: Set of component names to get dependencies for
+
+    Returns:
+        Set of all components including dependencies and auto-loaded components
+    """
+    from esphome.const import KEY_CORE
+    from esphome.core import CORE
+    from esphome.loader import get_component
+
+    all_components: set[str] = set(component_names)
+
+    # Reset CORE to ensure clean state
+    CORE.reset()
+
+    # Set up fake config path for component loading
+    root = Path(__file__).parent.parent
+    CORE.config_path = str(root)
+    CORE.data[KEY_CORE] = {}
+
+    # Keep finding dependencies until no new ones are found
+    while True:
+        new_components: set[str] = set()
+
+        for comp_name in all_components:
+            comp = get_component(comp_name)
+            if not comp:
+                continue
+
+            # Add dependencies (extract component name before '.')
+            new_components.update(dep.split(".")[0] for dep in comp.dependencies)
+
+            # Add auto_load components
+            new_components.update(comp.auto_load)
+
+        # Check if we found any new components
+        new_components -= all_components
+        if not new_components:
+            break
+
+        all_components.update(new_components)
+
+    return all_components
+
+
+def get_components_from_integration_fixtures() -> set[str]:
+    """Extract all components used in integration test fixtures.
+
+    Returns:
+        Set of component names used in integration test fixtures
+    """
+    import yaml
+
+    components: set[str] = set()
+    fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
+
+    for yaml_file in fixtures_dir.glob("*.yaml"):
+        with open(yaml_file) as f:
+            config: dict[str, any] | None = yaml.safe_load(f)
+            if not config:
+                continue
+
+            # Add all top-level component keys
+            components.update(config.keys())
+
+            # Add platform components (e.g., output.template)
+            for value in config.values():
+                if not isinstance(value, list):
+                    continue
+
+                for item in value:
+                    if isinstance(item, dict) and "platform" in item:
+                        components.add(item["platform"])
+
+    return components
