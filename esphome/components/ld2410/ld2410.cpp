@@ -178,13 +178,8 @@ static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
 static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
 
-static bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  for (uint8_t i = 0; i < HEADER_FOOTER_SIZE; i++) {
-    if (header_footer[i] != buffer[i]) {
-      return false;  // Mismatch in header/footer
-    }
-  }
-  return true;  // Valid header/footer
+static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
+  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
 void LD2410Component::dump_config() {
@@ -300,14 +295,12 @@ void LD2410Component::send_command_(uint8_t command, const uint8_t *command_valu
   if (command_value != nullptr) {
     len += command_value_len;
   }
-  uint8_t len_cmd[] = {lowbyte(len), highbyte(len), command, 0x00};
+  // 2 length bytes (low, high) + 2 command bytes (low, high)
+  uint8_t len_cmd[] = {len, 0x00, command, 0x00};
   this->write_array(len_cmd, sizeof(len_cmd));
-
   // command value bytes
   if (command_value != nullptr) {
-    for (uint8_t i = 0; i < command_value_len; i++) {
-      this->write_byte(command_value[i]);
-    }
+    this->write_array(command_value, command_value_len);
   }
   // frame footer bytes
   this->write_array(CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
@@ -401,7 +394,7 @@ void LD2410Component::handle_periodic_data_() {
     /*
       Moving distance range: 18th byte
       Still distance range: 19th byte
-      Moving enery: 20~28th bytes
+      Moving energy: 20~28th bytes
     */
     for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_move_sensors_.size(); i++) {
       sensor::Sensor *s = this->gate_move_sensors_[i];
@@ -480,7 +473,7 @@ bool LD2410Component::handle_ack_data_() {
     ESP_LOGE(TAG, "Invalid status");
     return true;
   }
-  if (ld2410::two_byte_to_int(this->buffer_data_[8], this->buffer_data_[9]) != 0x00) {
+  if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
     return true;
   }
@@ -534,8 +527,8 @@ bool LD2410Component::handle_ack_data_() {
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
       const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
       ESP_LOGV(TAG,
-               "Light function is: %s\n"
-               "Light threshold is: %u\n"
+               "Light function: %s\n"
+               "Light threshold: %u\n"
                "Out pin level: %s",
                light_function_str, this->light_threshold_, out_pin_level_str);
 #ifdef USE_SELECT
@@ -600,7 +593,7 @@ bool LD2410Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY: {  // Query parameters response
-      if (this->buffer_data_[10] != 0xAA)
+      if (this->buffer_data_[10] != HEADER)
         return true;  // value head=0xAA
 #ifdef USE_NUMBER
       /*
@@ -656,17 +649,11 @@ void LD2410Component::readline_(int readch) {
   if (this->buffer_pos_ < 4) {
     return;  // Not enough data to process yet
   }
-  if (this->buffer_data_[this->buffer_pos_ - 4] == DATA_FRAME_FOOTER[0] &&
-      this->buffer_data_[this->buffer_pos_ - 3] == DATA_FRAME_FOOTER[1] &&
-      this->buffer_data_[this->buffer_pos_ - 2] == DATA_FRAME_FOOTER[2] &&
-      this->buffer_data_[this->buffer_pos_ - 1] == DATA_FRAME_FOOTER[3]) {
+  if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
     ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
     this->handle_periodic_data_();
     this->buffer_pos_ = 0;  // Reset position index for next message
-  } else if (this->buffer_data_[this->buffer_pos_ - 4] == CMD_FRAME_FOOTER[0] &&
-             this->buffer_data_[this->buffer_pos_ - 3] == CMD_FRAME_FOOTER[1] &&
-             this->buffer_data_[this->buffer_pos_ - 2] == CMD_FRAME_FOOTER[2] &&
-             this->buffer_data_[this->buffer_pos_ - 1] == CMD_FRAME_FOOTER[3]) {
+  } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
     ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
     if (this->handle_ack_data_()) {
       this->buffer_pos_ = 0;  // Reset position index for next message
@@ -772,7 +759,6 @@ void LD2410Component::set_max_distances_timeout() {
                        0x00};
   this->set_config_mode_(true);
   this->send_command_(CMD_MAXDIST_DURATION, value, sizeof(value));
-  delay(50);  // NOLINT
   this->query_parameters_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
@@ -802,7 +788,6 @@ void LD2410Component::set_gate_threshold(uint8_t gate) {
                        0x01, 0x00, lowbyte(motion), highbyte(motion), 0x00, 0x00,
                        0x02, 0x00, lowbyte(still),  highbyte(still),  0x00, 0x00};
   this->send_command_(CMD_GATE_SENS, value, sizeof(value));
-  delay(50);  // NOLINT
   this->query_parameters_();
   this->set_config_mode_(false);
 }
@@ -833,7 +818,6 @@ void LD2410Component::set_light_out_control() {
   this->set_config_mode_(true);
   uint8_t value[4] = {this->light_function_, this->light_threshold_, this->out_pin_level_, 0x00};
   this->send_command_(CMD_SET_LIGHT_CONTROL, value, sizeof(value));
-  delay(50);  // NOLINT
   this->query_light_control_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
