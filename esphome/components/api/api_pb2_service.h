@@ -69,7 +69,9 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_get_time_request(const GetTimeRequest &value){};
   virtual void on_get_time_response(const GetTimeResponse &value){};
 
+#ifdef USE_API_SERVICES
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
+#endif
 
 #ifdef USE_CAMERA
   virtual void on_camera_image_request(const CameraImageRequest &value){};
@@ -216,7 +218,9 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
   virtual GetTimeResponse get_time(const GetTimeRequest &msg) = 0;
+#ifdef USE_API_SERVICES
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
+#endif
 #ifdef USE_API_NOISE
   virtual NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) = 0;
 #endif
@@ -333,7 +337,9 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
   void on_get_time_request(const GetTimeRequest &msg) override;
+#ifdef USE_API_SERVICES
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
+#endif
 #ifdef USE_API_NOISE
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) override;
 #endif

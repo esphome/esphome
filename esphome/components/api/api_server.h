@@ -12,7 +12,9 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
+#ifdef USE_API_SERVICES
 #include "user_services.h"
+#endif
 
 #include <vector>
 
@@ -23,11 +25,6 @@ namespace api {
 struct SavedNoisePsk {
   psk_t psk;
 } PACKED;  // NOLINT
-#endif
-
-#ifndef USE_API_YAML_SERVICES
-// Forward declaration of helper function
-const std::vector<UserServiceDescriptor *> &get_empty_user_services_instance();
 #endif
 
 class APIServer : public Component, public Controller {
@@ -112,18 +109,9 @@ class APIServer : public Component, public Controller {
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
-  void register_user_service(UserServiceDescriptor *descriptor) {
-#ifdef USE_API_YAML_SERVICES
-    // Vector is pre-allocated when services are defined in YAML
-    this->user_services_.push_back(descriptor);
-#else
-    // Lazy allocate vector on first use for CustomAPIDevice
-    if (!this->user_services_) {
-      this->user_services_ = std::make_unique<std::vector<UserServiceDescriptor *>>();
-    }
-    this->user_services_->push_back(descriptor);
+#ifdef USE_API_SERVICES
+  void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
-  }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
@@ -152,17 +140,9 @@ class APIServer : public Component, public Controller {
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
-  const std::vector<UserServiceDescriptor *> &get_user_services() const {
-#ifdef USE_API_YAML_SERVICES
-    return this->user_services_;
-#else
-    if (this->user_services_) {
-      return *this->user_services_;
-    }
-    // Return reference to global empty instance (no guard needed)
-    return get_empty_user_services_instance();
+#ifdef USE_API_SERVICES
+  const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
-  }
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
@@ -194,14 +174,8 @@ class APIServer : public Component, public Controller {
 #endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
   std::vector<HomeAssistantStateSubscription> state_subs_;
-#ifdef USE_API_YAML_SERVICES
-  // When services are defined in YAML, we know at compile time that services will be registered
+#ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
-#else
-  // Services can still be registered at runtime by CustomAPIDevice components even when not
-  // defined in YAML. Using unique_ptr allows lazy allocation, saving 12 bytes in the common
-  // case where no services (YAML or custom) are used.
-  std::unique_ptr<std::vector<UserServiceDescriptor *>> user_services_;
 #endif
 
   // Group smaller types together

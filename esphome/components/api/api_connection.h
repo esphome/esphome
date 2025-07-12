@@ -195,7 +195,9 @@ class APIConnection : public APIServerConnection {
     // TODO
     return {};
   }
+#ifdef USE_API_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
+#endif
 #ifdef USE_API_NOISE
   NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) override;
 #endif

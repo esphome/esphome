@@ -24,8 +24,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
+DOMAIN = "api"
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@OttoWinter"]
@@ -51,6 +52,7 @@ SERVICE_ARG_NATIVE_TYPES = {
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
+CONF_CUSTOM_SERVICES = "custom_services"
 
 
 def validate_encryption_key(value):
@@ -115,6 +117,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
+            cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),
@@ -139,8 +142,11 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
 
+    # Set USE_API_SERVICES if any services are enabled
+    if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
+        cg.add_define("USE_API_SERVICES")
+
     if actions := config.get(CONF_ACTIONS, []):
-        cg.add_define("USE_API_YAML_SERVICES")
         for conf in actions:
             template_args = []
             func_args = []
@@ -317,7 +323,10 @@ async def api_connected_to_code(config, condition_id, template_arg, args):
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled."""
+    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled
+    and user_services.cpp when no services are defined."""
+    files_to_filter = []
+
     # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
     # This is a particularly large file that still needs to be opened and read
     # all the way to the end even when ifdef'd out
@@ -325,6 +334,11 @@ def FILTER_SOURCE_FILES() -> list[str]:
     # HAS_PROTO_MESSAGE_DUMP is defined when ESPHOME_LOG_HAS_VERY_VERBOSE is set,
     # which happens when the logger level is VERY_VERBOSE
     if get_logger_level() != "VERY_VERBOSE":
-        return ["api_pb2_dump.cpp"]
+        files_to_filter.append("api_pb2_dump.cpp")
 
-    return []
+    # user_services.cpp is only needed when services are defined
+    config = CORE.config.get(DOMAIN, {})
+    if config and not config.get(CONF_ACTIONS) and not config[CONF_CUSTOM_SERVICES]:
+        files_to_filter.append("user_services.cpp")
+
+    return files_to_filter

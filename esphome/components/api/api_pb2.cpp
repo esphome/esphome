@@ -2051,6 +2051,7 @@ void GetTimeResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixe
 void GetTimeResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->epoch_seconds != 0);
 }
+#ifdef USE_API_SERVICES
 bool ListEntitiesServicesArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -2245,6 +2246,7 @@ void ExecuteServiceRequest::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed_field<4>(total_size, 1, this->key != 0);
   ProtoSize::add_repeated_message(total_size, 1, this->args);
 }
+#endif
 #ifdef USE_CAMERA
 bool ListEntitiesCameraResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {

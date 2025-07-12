@@ -24,14 +24,6 @@ static const char *const TAG = "api";
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#ifndef USE_API_YAML_SERVICES
-// Global empty vector to avoid guard variables (saves 8 bytes)
-// This is initialized at program startup before any threads
-static const std::vector<UserServiceDescriptor *> empty_user_services{};
-
-const std::vector<UserServiceDescriptor *> &get_empty_user_services_instance() { return empty_user_services; }
-#endif
-
 APIServer::APIServer() {
   global_api_server = this;
   // Pre-allocate shared write buffer
