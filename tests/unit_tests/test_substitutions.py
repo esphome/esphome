@@ -47,9 +47,8 @@ def dict_diff(a, b, path=""):
         elif len(b) > len(a):
             for i in range(min_len, len(b)):
                 diffs.append(f"{path}[{i}] only in expected: {b[i]!r}")
-    else:
-        if a != b:
-            diffs.append(f"\t{path}: actual={a!r} expected={b!r}")
+    elif a != b:
+        diffs.append(f"\t{path}: actual={a!r} expected={b!r}")
     return diffs
 
 

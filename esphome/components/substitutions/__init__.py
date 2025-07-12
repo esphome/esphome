@@ -5,13 +5,8 @@ from esphome.config_helpers import Extend, Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
 from esphome.yaml_util import ESPHomeDataBase, make_data_base
-from .jinja import (
-    Jinja,
-    JinjaStr,
-    has_jinja,
-    TemplateError,
-    TemplateRuntimeError,
-)
+
+from .jinja import Jinja, JinjaStr, TemplateError, TemplateRuntimeError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
