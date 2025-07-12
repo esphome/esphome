@@ -59,7 +59,6 @@ class ProtoVarInt {
   uint32_t as_uint32() const { return this->value_; }
   uint64_t as_uint64() const { return this->value_; }
   bool as_bool() const { return this->value_; }
-  template<typename T> T as_enum() const { return static_cast<T>(this->as_uint32()); }
   int32_t as_int32() const {
     // Not ZigZag encoded
     return static_cast<int32_t>(this->as_int64());
@@ -133,15 +132,24 @@ class ProtoVarInt {
   uint64_t value_;
 };
 
+// Forward declaration for decode_to_message and encode_to_writer
+class ProtoMessage;
+
 class ProtoLengthDelimited {
  public:
   explicit ProtoLengthDelimited(const uint8_t *value, size_t length) : value_(value), length_(length) {}
   std::string as_string() const { return std::string(reinterpret_cast<const char *>(this->value_), this->length_); }
-  template<class C> C as_message() const {
-    auto msg = C();
-    msg.decode(this->value_, this->length_);
-    return msg;
-  }
+
+  /**
+   * Decode the length-delimited data into an existing ProtoMessage instance.
+   *
+   * This method allows decoding without templates, enabling use in contexts
+   * where the message type is not known at compile time. The ProtoMessage's
+   * decode() method will be called with the raw data and length.
+   *
+   * @param msg The ProtoMessage instance to decode into
+   */
+  void decode_to_message(ProtoMessage &msg) const;
 
  protected:
   const uint8_t *const value_;
@@ -263,9 +271,6 @@ class ProtoWriteBuffer {
     this->write((value >> 48) & 0xFF);
     this->write((value >> 56) & 0xFF);
   }
-  template<typename T> void encode_enum(uint32_t field_id, T value, bool force = false) {
-    this->encode_uint32(field_id, static_cast<uint32_t>(value), force);
-  }
   void encode_float(uint32_t field_id, float value, bool force = false) {
     if (value == 0.0f && !force)
       return;
@@ -306,18 +311,7 @@ class ProtoWriteBuffer {
     }
     this->encode_uint64(field_id, uvalue, force);
   }
-  template<class C> void encode_message(uint32_t field_id, const C &value, bool force = false) {
-    this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
-    size_t begin = this->buffer_->size();
-
-    value.encode(*this);
-
-    const uint32_t nested_length = this->buffer_->size() - begin;
-    // add size varint
-    std::vector<uint8_t> var;
-    ProtoVarInt(nested_length).encode(var);
-    this->buffer_->insert(this->buffer_->begin() + begin, var.begin(), var.end());
-  }
+  void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = false);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -344,6 +338,25 @@ class ProtoMessage {
   virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
   virtual bool decode_64bit(uint32_t field_id, Proto64Bit value) { return false; }
 };
+
+// Implementation of encode_message - must be after ProtoMessage is defined
+inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value, bool force) {
+  this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
+  size_t begin = this->buffer_->size();
+
+  value.encode(*this);
+
+  const uint32_t nested_length = this->buffer_->size() - begin;
+  // add size varint
+  std::vector<uint8_t> var;
+  ProtoVarInt(nested_length).encode(var);
+  this->buffer_->insert(this->buffer_->begin() + begin, var.begin(), var.end());
+}
+
+// Implementation of decode_to_message - must be after ProtoMessage is defined
+inline void ProtoLengthDelimited::decode_to_message(ProtoMessage &msg) const {
+  msg.decode(this->value_, this->length_);
+}
 
 template<typename T> const char *proto_enum_to_string(T value);
 

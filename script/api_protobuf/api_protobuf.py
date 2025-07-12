@@ -536,11 +536,26 @@ class MessageType(TypeInfo):
 
     @property
     def encode_func(self) -> str:
-        return f"encode_message<{self.cpp_type}>"
+        return "encode_message"
 
     @property
     def decode_length(self) -> str:
-        return f"value.as_message<{self.cpp_type}>()"
+        # Override to return None for message types because we can't use template-based
+        # decoding when the specific message type isn't known at compile time.
+        # Instead, we use the non-template decode_to_message() method which allows
+        # runtime polymorphism through virtual function calls.
+        return None
+
+    @property
+    def decode_length_content(self) -> str:
+        # Custom decode that doesn't use templates
+        return dedent(
+            f"""\
+        case {self.number}: {{
+          value.decode_to_message(this->{self.field_name});
+          return true;
+        }}"""
+        )
 
     def dump(self, name: str) -> str:
         o = f"{name}.dump_to(out);"
@@ -608,14 +623,18 @@ class EnumType(TypeInfo):
 
     @property
     def decode_varint(self) -> str:
-        return f"value.as_enum<{self.cpp_type}>()"
+        return f"static_cast<{self.cpp_type}>(value.as_uint32())"
 
     default_value = ""
     wire_type = WireType.VARINT  # Uses wire type 0
 
     @property
     def encode_func(self) -> str:
-        return f"encode_enum<{self.cpp_type}>"
+        return "encode_uint32"
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
 
     def dump(self, name: str) -> str:
         o = f"out.append(proto_enum_to_string<{self.cpp_type}>({name}));"
@@ -757,6 +776,16 @@ class RepeatedTypeInfo(TypeInfo):
     @property
     def decode_length_content(self) -> str:
         content = self._ti.decode_length
+        if content is None and isinstance(self._ti, MessageType):
+            # Special handling for non-template message decoding
+            return dedent(
+                f"""\
+        case {self.number}: {{
+          this->{self.field_name}.emplace_back();
+          value.decode_to_message(this->{self.field_name}.back());
+          return true;
+        }}"""
+            )
         if content is None:
             return None
         return dedent(
@@ -801,7 +830,10 @@ class RepeatedTypeInfo(TypeInfo):
     @property
     def encode_content(self) -> str:
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-        o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        if isinstance(self._ti, EnumType):
+            o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+        else:
+            o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
         o += "}"
         return o
 
