@@ -363,11 +363,11 @@ class ProtoService {
    * @return A ProtoWriteBuffer object with the reserved size.
    */
   virtual ProtoWriteBuffer create_buffer(uint32_t reserve_size) = 0;
-  virtual bool send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) = 0;
+  virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
   virtual void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) = 0;
 
   // Optimized method that pre-allocates buffer based on message size
-  bool send_message_(const ProtoMessage &msg, uint16_t message_type) {
+  bool send_message_(const ProtoMessage &msg, uint8_t message_type) {
     uint32_t msg_size = 0;
     msg.calculate_size(msg_size);
 

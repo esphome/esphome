@@ -475,7 +475,8 @@ void APIServer::on_shutdown() {
     if (!c->send_message(DisconnectRequest())) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE);
+      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
+                                 DisconnectRequest::ESTIMATED_SIZE);
     }
   }
 }

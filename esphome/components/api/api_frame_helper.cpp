@@ -613,7 +613,7 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = type;
   return APIError::OK;
 }
-APIError APINoiseFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
+APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
   // Resize to include MAC space (required for Noise encryption)
   buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
   PacketInfo packet{type, 0,
@@ -1002,7 +1002,7 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = rx_header_parsed_type_;
   return APIError::OK;
 }
-APIError APIPlaintextFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
+APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
   PacketInfo packet{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
   return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
 }

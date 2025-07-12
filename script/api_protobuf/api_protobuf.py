@@ -987,13 +987,24 @@ def build_message_type(
 
     # Add MESSAGE_TYPE method if this is a service message
     if message_id is not None:
+        # Validate that message_id fits in uint8_t
+        if message_id > 255:
+            raise ValueError(
+                f"Message ID {message_id} for {desc.name} exceeds uint8_t maximum (255)"
+            )
+
         # Add static constexpr for message type
-        public_content.append(f"static constexpr uint16_t MESSAGE_TYPE = {message_id};")
+        public_content.append(f"static constexpr uint8_t MESSAGE_TYPE = {message_id};")
 
         # Add estimated size constant
         estimated_size = calculate_message_estimated_size(desc)
+        # Validate that estimated_size fits in uint8_t
+        if estimated_size > 255:
+            raise ValueError(
+                f"Estimated size {estimated_size} for {desc.name} exceeds uint8_t maximum (255)"
+            )
         public_content.append(
-            f"static constexpr uint16_t ESTIMATED_SIZE = {estimated_size};"
+            f"static constexpr uint8_t ESTIMATED_SIZE = {estimated_size};"
         )
 
         # Add message_name method inline in header
