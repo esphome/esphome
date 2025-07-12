@@ -164,8 +164,8 @@ def validate_config(config):
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is not available with LORA")
         if CONF_DIO0_PIN not in config:
             raise cv.Invalid("Cannot use LoRa without dio0_pin")
-        if 0 < config[CONF_PREAMBLE_SIZE] < 6:
-            raise cv.Invalid("Minimum preamble size is 6 with LORA")
+        if config[CONF_PREAMBLE_SIZE] < 6:
+            raise cv.Invalid("Minimum 'preamble_size' is 6 with LORA")
         if config[CONF_SPREADING_FACTOR] == 6 and config[CONF_PAYLOAD_LENGTH] == 0:
             raise cv.Invalid("Payload length must be set when spreading factor is 6")
     else:

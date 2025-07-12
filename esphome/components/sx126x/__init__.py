@@ -167,8 +167,8 @@ def validate_config(config):
     if config[CONF_MODULATION] == "LORA":
         if config[CONF_BANDWIDTH] not in lora_bws:
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is not available with LORA")
-        if config[CONF_PREAMBLE_SIZE] > 0 and config[CONF_PREAMBLE_SIZE] < 6:
-            raise cv.Invalid("Minimum preamble size is 6 with LORA")
+        if config[CONF_PREAMBLE_SIZE] < 6:
+            raise cv.Invalid("Minimum 'preamble_size' is 6 with LORA")
         if config[CONF_SPREADING_FACTOR] == 6 and config[CONF_PAYLOAD_LENGTH] == 0:
             raise cv.Invalid("Payload length must be set when spreading factor is 6")
     else:
@@ -200,7 +200,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
             cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=256),
             cv.Optional(CONF_PREAMBLE_DETECT, default=2): cv.int_range(min=0, max=4),
-            cv.Required(CONF_PREAMBLE_SIZE): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_PREAMBLE_SIZE, default=8): cv.int_range(min=1, max=65535),
             cv.Required(CONF_RST_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
             cv.Required(CONF_RF_SWITCH): cv.boolean,
