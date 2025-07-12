@@ -268,7 +268,7 @@ async def component_to_code(config):
 
     # disable library compatibility checks
     cg.add_platformio_option("lib_ldf_mode", "off")
-    cg.add_platformio_option("lib_compat_mode", "strict")
+    cg.add_platformio_option("lib_compat_mode", "soft")
     # include <Arduino.h> in every file
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
     # dummy version code
