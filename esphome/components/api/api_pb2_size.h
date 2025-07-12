@@ -141,9 +141,9 @@ class ProtoSize {
   /**
    * @brief Calculates and adds the size of an int32 field to the total message size
    */
-  static inline void add_int32_field(uint32_t &total_size, uint32_t field_id_size, int32_t value, bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (value == 0 && !force) {
+  static inline void add_int32_field(uint32_t &total_size, uint32_t field_id_size, int32_t value) {
+    // Skip calculation if value is zero
+    if (value == 0) {
       return;  // No need to update total_size
     }
 
@@ -158,12 +158,25 @@ class ProtoSize {
   }
 
   /**
+   * @brief Calculates and adds the size of an int32 field to the total message size (repeated field version)
+   */
+  static inline void add_int32_field_repeated(uint32_t &total_size, uint32_t field_id_size, int32_t value) {
+    // Always calculate size for repeated fields
+    if (value < 0) {
+      // Negative values are encoded as 10-byte varints in protobuf
+      total_size += field_id_size + 10;
+    } else {
+      // For non-negative values, use the standard varint size
+      total_size += field_id_size + varint(static_cast<uint32_t>(value));
+    }
+  }
+
+  /**
    * @brief Calculates and adds the size of a uint32 field to the total message size
    */
-  static inline void add_uint32_field(uint32_t &total_size, uint32_t field_id_size, uint32_t value,
-                                      bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (value == 0 && !force) {
+  static inline void add_uint32_field(uint32_t &total_size, uint32_t field_id_size, uint32_t value) {
+    // Skip calculation if value is zero
+    if (value == 0) {
       return;  // No need to update total_size
     }
 
@@ -172,15 +185,32 @@ class ProtoSize {
   }
 
   /**
+   * @brief Calculates and adds the size of a uint32 field to the total message size (repeated field version)
+   */
+  static inline void add_uint32_field_repeated(uint32_t &total_size, uint32_t field_id_size, uint32_t value) {
+    // Always calculate size for repeated fields
+    total_size += field_id_size + varint(value);
+  }
+
+  /**
    * @brief Calculates and adds the size of a boolean field to the total message size
    */
-  static inline void add_bool_field(uint32_t &total_size, uint32_t field_id_size, bool value, bool force = false) {
-    // Skip calculation if value is false and not forced
-    if (!value && !force) {
+  static inline void add_bool_field(uint32_t &total_size, uint32_t field_id_size, bool value) {
+    // Skip calculation if value is false
+    if (!value) {
       return;  // No need to update total_size
     }
 
     // Boolean fields always use 1 byte when true
+    total_size += field_id_size + 1;
+  }
+
+  /**
+   * @brief Calculates and adds the size of a boolean field to the total message size (repeated field version)
+   */
+  static inline void add_bool_field_repeated(uint32_t &total_size, uint32_t field_id_size, bool value) {
+    // Always calculate size for repeated fields
+    // Boolean fields always use 1 byte
     total_size += field_id_size + 1;
   }
 
@@ -193,10 +223,9 @@ class ProtoSize {
    * @param is_nonzero Whether the value is non-zero
    */
   template<uint32_t NumBytes>
-  static inline void add_fixed_field(uint32_t &total_size, uint32_t field_id_size, bool is_nonzero,
-                                     bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (!is_nonzero && !force) {
+  static inline void add_fixed_field(uint32_t &total_size, uint32_t field_id_size, bool is_nonzero) {
+    // Skip calculation if value is zero
+    if (!is_nonzero) {
       return;  // No need to update total_size
     }
 
@@ -209,12 +238,23 @@ class ProtoSize {
    *
    * Enum fields are encoded as uint32 varints.
    */
-  static inline void add_enum_field(uint32_t &total_size, uint32_t field_id_size, uint32_t value, bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (value == 0 && !force) {
+  static inline void add_enum_field(uint32_t &total_size, uint32_t field_id_size, uint32_t value) {
+    // Skip calculation if value is zero
+    if (value == 0) {
       return;  // No need to update total_size
     }
 
+    // Enums are encoded as uint32
+    total_size += field_id_size + varint(value);
+  }
+
+  /**
+   * @brief Calculates and adds the size of an enum field to the total message size (repeated field version)
+   *
+   * Enum fields are encoded as uint32 varints.
+   */
+  static inline void add_enum_field_repeated(uint32_t &total_size, uint32_t field_id_size, uint32_t value) {
+    // Always calculate size for repeated fields
     // Enums are encoded as uint32
     total_size += field_id_size + varint(value);
   }
@@ -224,9 +264,9 @@ class ProtoSize {
    *
    * Sint32 fields use ZigZag encoding, which is more efficient for negative values.
    */
-  static inline void add_sint32_field(uint32_t &total_size, uint32_t field_id_size, int32_t value, bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (value == 0 && !force) {
+  static inline void add_sint32_field(uint32_t &total_size, uint32_t field_id_size, int32_t value) {
+    // Skip calculation if value is zero
+    if (value == 0) {
       return;  // No need to update total_size
     }
 
@@ -236,11 +276,23 @@ class ProtoSize {
   }
 
   /**
+   * @brief Calculates and adds the size of a sint32 field to the total message size (repeated field version)
+   *
+   * Sint32 fields use ZigZag encoding, which is more efficient for negative values.
+   */
+  static inline void add_sint32_field_repeated(uint32_t &total_size, uint32_t field_id_size, int32_t value) {
+    // Always calculate size for repeated fields
+    // ZigZag encoding for sint32: (n << 1) ^ (n >> 31)
+    uint32_t zigzag = (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
+    total_size += field_id_size + varint(zigzag);
+  }
+
+  /**
    * @brief Calculates and adds the size of an int64 field to the total message size
    */
-  static inline void add_int64_field(uint32_t &total_size, uint32_t field_id_size, int64_t value, bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (value == 0 && !force) {
+  static inline void add_int64_field(uint32_t &total_size, uint32_t field_id_size, int64_t value) {
+    // Skip calculation if value is zero
+    if (value == 0) {
       return;  // No need to update total_size
     }
 
@@ -249,16 +301,31 @@ class ProtoSize {
   }
 
   /**
+   * @brief Calculates and adds the size of an int64 field to the total message size (repeated field version)
+   */
+  static inline void add_int64_field_repeated(uint32_t &total_size, uint32_t field_id_size, int64_t value) {
+    // Always calculate size for repeated fields
+    total_size += field_id_size + varint(value);
+  }
+
+  /**
    * @brief Calculates and adds the size of a uint64 field to the total message size
    */
-  static inline void add_uint64_field(uint32_t &total_size, uint32_t field_id_size, uint64_t value,
-                                      bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (value == 0 && !force) {
+  static inline void add_uint64_field(uint32_t &total_size, uint32_t field_id_size, uint64_t value) {
+    // Skip calculation if value is zero
+    if (value == 0) {
       return;  // No need to update total_size
     }
 
     // Calculate and directly add to total_size
+    total_size += field_id_size + varint(value);
+  }
+
+  /**
+   * @brief Calculates and adds the size of a uint64 field to the total message size (repeated field version)
+   */
+  static inline void add_uint64_field_repeated(uint32_t &total_size, uint32_t field_id_size, uint64_t value) {
+    // Always calculate size for repeated fields
     total_size += field_id_size + varint(value);
   }
 
@@ -267,9 +334,9 @@ class ProtoSize {
    *
    * Sint64 fields use ZigZag encoding, which is more efficient for negative values.
    */
-  static inline void add_sint64_field(uint32_t &total_size, uint32_t field_id_size, int64_t value, bool force = false) {
-    // Skip calculation if value is zero and not forced
-    if (value == 0 && !force) {
+  static inline void add_sint64_field(uint32_t &total_size, uint32_t field_id_size, int64_t value) {
+    // Skip calculation if value is zero
+    if (value == 0) {
       return;  // No need to update total_size
     }
 
@@ -279,12 +346,23 @@ class ProtoSize {
   }
 
   /**
+   * @brief Calculates and adds the size of a sint64 field to the total message size (repeated field version)
+   *
+   * Sint64 fields use ZigZag encoding, which is more efficient for negative values.
+   */
+  static inline void add_sint64_field_repeated(uint32_t &total_size, uint32_t field_id_size, int64_t value) {
+    // Always calculate size for repeated fields
+    // ZigZag encoding for sint64: (n << 1) ^ (n >> 63)
+    uint64_t zigzag = (static_cast<uint64_t>(value) << 1) ^ (static_cast<uint64_t>(value >> 63));
+    total_size += field_id_size + varint(zigzag);
+  }
+
+  /**
    * @brief Calculates and adds the size of a string/bytes field to the total message size
    */
-  static inline void add_string_field(uint32_t &total_size, uint32_t field_id_size, const std::string &str,
-                                      bool force = false) {
-    // Skip calculation if string is empty and not forced
-    if (str.empty() && !force) {
+  static inline void add_string_field(uint32_t &total_size, uint32_t field_id_size, const std::string &str) {
+    // Skip calculation if string is empty
+    if (str.empty()) {
       return;  // No need to update total_size
     }
 
@@ -294,21 +372,40 @@ class ProtoSize {
   }
 
   /**
+   * @brief Calculates and adds the size of a string/bytes field to the total message size (repeated field version)
+   */
+  static inline void add_string_field_repeated(uint32_t &total_size, uint32_t field_id_size, const std::string &str) {
+    // Always calculate size for repeated fields
+    const uint32_t str_size = static_cast<uint32_t>(str.size());
+    total_size += field_id_size + varint(str_size) + str_size;
+  }
+
+  /**
    * @brief Calculates and adds the size of a nested message field to the total message size
    *
    * This helper function directly updates the total_size reference if the nested size
-   * is greater than zero or force is true.
+   * is greater than zero.
    *
    * @param nested_size The pre-calculated size of the nested message
    */
-  static inline void add_message_field(uint32_t &total_size, uint32_t field_id_size, uint32_t nested_size,
-                                       bool force = false) {
-    // Skip calculation if nested message is empty and not forced
-    if (nested_size == 0 && !force) {
+  static inline void add_message_field(uint32_t &total_size, uint32_t field_id_size, uint32_t nested_size) {
+    // Skip calculation if nested message is empty
+    if (nested_size == 0) {
       return;  // No need to update total_size
     }
 
     // Calculate and directly add to total_size
+    // Field ID + length varint + nested message content
+    total_size += field_id_size + varint(nested_size) + nested_size;
+  }
+
+  /**
+   * @brief Calculates and adds the size of a nested message field to the total message size (repeated field version)
+   *
+   * @param nested_size The pre-calculated size of the nested message
+   */
+  static inline void add_message_field_repeated(uint32_t &total_size, uint32_t field_id_size, uint32_t nested_size) {
+    // Always calculate size for repeated fields
     // Field ID + length varint + nested message content
     total_size += field_id_size + varint(nested_size) + nested_size;
   }
@@ -322,13 +419,26 @@ class ProtoSize {
    *
    * @param message The nested message object
    */
-  static inline void add_message_object(uint32_t &total_size, uint32_t field_id_size, const ProtoMessage &message,
-                                        bool force = false) {
+  static inline void add_message_object(uint32_t &total_size, uint32_t field_id_size, const ProtoMessage &message) {
     uint32_t nested_size = 0;
     message.calculate_size(nested_size);
 
     // Use the base implementation with the calculated nested_size
-    add_message_field(total_size, field_id_size, nested_size, force);
+    add_message_field(total_size, field_id_size, nested_size);
+  }
+
+  /**
+   * @brief Calculates and adds the size of a nested message field to the total message size (repeated field version)
+   *
+   * @param message The nested message object
+   */
+  static inline void add_message_object_repeated(uint32_t &total_size, uint32_t field_id_size,
+                                                 const ProtoMessage &message) {
+    uint32_t nested_size = 0;
+    message.calculate_size(nested_size);
+
+    // Use the base implementation with the calculated nested_size
+    add_message_field_repeated(total_size, field_id_size, nested_size);
   }
 
   /**
@@ -348,9 +458,9 @@ class ProtoSize {
       return;
     }
 
-    // For repeated fields, always use force=true
+    // Use the repeated field version for all messages
     for (const auto &message : messages) {
-      add_message_object(total_size, field_id_size, message, true);
+      add_message_object_repeated(total_size, field_id_size, message);
     }
   }
 };
