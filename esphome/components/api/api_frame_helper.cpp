@@ -5,7 +5,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "proto.h"
-#include "api_pb2_size.h"
 #include <cstring>
 #include <cinttypes>
 

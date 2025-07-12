@@ -1451,7 +1451,6 @@ def main() -> None:
 #include "esphome/core/defines.h"
 
 #include "proto.h"
-#include "api_pb2_size.h"
 
 namespace esphome {
 namespace api {
@@ -1461,7 +1460,6 @@ namespace api {
     cpp = FILE_HEADER
     cpp += """\
     #include "api_pb2.h"
-    #include "api_pb2_size.h"
     #include "esphome/core/log.h"
     #include "esphome/core/helpers.h"
 

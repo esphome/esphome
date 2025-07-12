@@ -1,7 +1,6 @@
 // This file was automatically generated with a tool.
 // See script/api_protobuf/api_protobuf.py
 #include "api_pb2.h"
-#include "api_pb2_size.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
