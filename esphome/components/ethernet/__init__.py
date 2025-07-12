@@ -342,5 +342,11 @@ async def to_code(config):
 
     cg.add_define("USE_ETHERNET")
 
+    # Disable WiFi when using Ethernet to save memory
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+        # Also disable WiFi/BT coexistence since WiFi is disabled
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
