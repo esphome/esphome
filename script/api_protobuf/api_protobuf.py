@@ -1059,6 +1059,11 @@ def build_message_type(
     # Get message ID if it's a service message
     message_id: int | None = get_opt(desc, pb.id)
 
+    # Get source direction to determine if we need decode/encode methods
+    source: int = get_opt(desc, pb.source, SOURCE_BOTH)
+    needs_decode = source in (SOURCE_BOTH, SOURCE_CLIENT)
+    needs_encode = source in (SOURCE_BOTH, SOURCE_SERVER)
+
     # Add MESSAGE_TYPE method if this is a service message
     if message_id is not None:
         # Validate that message_id fits in uint8_t
@@ -1101,18 +1106,21 @@ def build_message_type(
             protected_content.extend(ti.protected_content)
             public_content.extend(ti.public_content)
 
-        # Always include encode/decode logic for all fields
-        encode.append(ti.encode_content)
-        size_calc.append(ti.get_size_calculation(f"this->{ti.field_name}"))
+        # Only collect encode logic if this message needs it
+        if needs_encode:
+            encode.append(ti.encode_content)
+            size_calc.append(ti.get_size_calculation(f"this->{ti.field_name}"))
 
-        if ti.decode_varint_content:
-            decode_varint.append(ti.decode_varint_content)
-        if ti.decode_length_content:
-            decode_length.append(ti.decode_length_content)
-        if ti.decode_32bit_content:
-            decode_32bit.append(ti.decode_32bit_content)
-        if ti.decode_64bit_content:
-            decode_64bit.append(ti.decode_64bit_content)
+        # Only collect decode methods if this message needs them
+        if needs_decode:
+            if ti.decode_varint_content:
+                decode_varint.append(ti.decode_varint_content)
+            if ti.decode_length_content:
+                decode_length.append(ti.decode_length_content)
+            if ti.decode_32bit_content:
+                decode_32bit.append(ti.decode_32bit_content)
+            if ti.decode_64bit_content:
+                decode_64bit.append(ti.decode_64bit_content)
         if ti.dump_content:
             dump.append(ti.dump_content)
 
@@ -1158,8 +1166,8 @@ def build_message_type(
         prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
         protected_content.insert(0, prot)
 
-    # Only generate encode method if there are fields to encode
-    if encode:
+    # Only generate encode method if this message needs encoding and has fields
+    if needs_encode and encode:
         o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} "
@@ -1170,10 +1178,10 @@ def build_message_type(
         cpp += o
         prot = "void encode(ProtoWriteBuffer buffer) const override;"
         public_content.append(prot)
-    # If no fields to encode, the default implementation in ProtoMessage will be used
+    # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
-    # Add calculate_size method only if there are fields
-    if size_calc:
+    # Add calculate_size method only if this message needs encoding and has fields
+    if needs_encode and size_calc:
         o = f"void {desc.name}::calculate_size(uint32_t &total_size) const {{"
         # For a single field, just inline it for simplicity
         if len(size_calc) == 1 and len(size_calc[0]) + len(o) + 3 < 120:
@@ -1186,7 +1194,7 @@ def build_message_type(
         cpp += o
         prot = "void calculate_size(uint32_t &total_size) const override;"
         public_content.append(prot)
-    # If no fields to calculate size for, the default implementation in ProtoMessage will be used
+    # If no fields to calculate size for or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
     # dump_to method declaration in header
     prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
