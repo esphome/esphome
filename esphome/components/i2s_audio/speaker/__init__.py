@@ -180,7 +180,7 @@ async def to_code(config):
     await speaker.register_speaker(var, config)
 
     if config[CONF_DAC_TYPE] == "internal":
-        cg.add(var.set_internal_dac_mode(config[CONF_CHANNEL]))
+        cg.add(var.set_internal_dac_mode(config[CONF_MODE]))
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
         if use_legacy():
