@@ -24,7 +24,6 @@ class ResistanceSensor : public Component, public sensor::Sensor {
       this->process_(this->sensor_->state);
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void process_(float value);

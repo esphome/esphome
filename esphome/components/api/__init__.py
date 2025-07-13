@@ -3,6 +3,7 @@ import base64
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -23,8 +24,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
+DOMAIN = "api"
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@OttoWinter"]
@@ -50,6 +52,7 @@ SERVICE_ARG_NATIVE_TYPES = {
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
+CONF_CUSTOM_SERVICES = "custom_services"
 
 
 def validate_encryption_key(value):
@@ -110,9 +113,11 @@ CONFIG_SCHEMA = cv.All(
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): _encryption_schema,
-            cv.Optional(
-                CONF_BATCH_DELAY, default="100ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+            ),
+            cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),
@@ -131,27 +136,35 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_port(config[CONF_PORT]))
-    cg.add(var.set_password(config[CONF_PASSWORD]))
+    if config[CONF_PASSWORD]:
+        cg.add_define("USE_API_PASSWORD")
+        cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
 
-    for conf in config.get(CONF_ACTIONS, []):
-        template_args = []
-        func_args = []
-        service_arg_names = []
-        for name, var_ in conf[CONF_VARIABLES].items():
-            native = SERVICE_ARG_NATIVE_TYPES[var_]
-            template_args.append(native)
-            func_args.append((native, name))
-            service_arg_names.append(name)
-        templ = cg.TemplateArguments(*template_args)
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
-        )
-        cg.add(var.register_user_service(trigger))
-        await automation.build_automation(trigger, func_args, conf)
+    # Set USE_API_SERVICES if any services are enabled
+    if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
+        cg.add_define("USE_API_SERVICES")
+
+    if actions := config.get(CONF_ACTIONS, []):
+        for conf in actions:
+            template_args = []
+            func_args = []
+            service_arg_names = []
+            for name, var_ in conf[CONF_VARIABLES].items():
+                native = SERVICE_ARG_NATIVE_TYPES[var_]
+                template_args.append(native)
+                func_args.append((native, name))
+                service_arg_names.append(name)
+            templ = cg.TemplateArguments(*template_args)
+            trigger = cg.new_Pvariable(
+                conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
+            )
+            cg.add(var.register_user_service(trigger))
+            await automation.build_automation(trigger, func_args, conf)
 
     if CONF_ON_CLIENT_CONNECTED in config:
+        cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
         await automation.build_automation(
             var.get_client_connected_trigger(),
             [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
@@ -159,6 +172,7 @@ async def to_code(config):
         )
 
     if CONF_ON_CLIENT_DISCONNECTED in config:
+        cg.add_define("USE_API_CLIENT_DISCONNECTED_TRIGGER")
         await automation.build_automation(
             var.get_client_disconnected_trigger(),
             [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
@@ -177,7 +191,7 @@ async def to_code(config):
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.6")
+        cg.add_library("esphome/noise-c", "0.1.10")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
@@ -306,3 +320,25 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
 @automation.register_condition("api.connected", APIConnectedCondition, {})
 async def api_connected_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled
+    and user_services.cpp when no services are defined."""
+    files_to_filter = []
+
+    # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
+    # This is a particularly large file that still needs to be opened and read
+    # all the way to the end even when ifdef'd out
+    #
+    # HAS_PROTO_MESSAGE_DUMP is defined when ESPHOME_LOG_HAS_VERY_VERBOSE is set,
+    # which happens when the logger level is VERY_VERBOSE
+    if get_logger_level() != "VERY_VERBOSE":
+        files_to_filter.append("api_pb2_dump.cpp")
+
+    # user_services.cpp is only needed when services are defined
+    config = CORE.config.get(DOMAIN, {})
+    if config and not config.get(CONF_ACTIONS) and not config[CONF_CUSTOM_SERVICES]:
+        files_to_filter.append("user_services.cpp")
+
+    return files_to_filter

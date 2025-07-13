@@ -27,7 +27,7 @@ void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverCompone
   if (time_since_change <= arg->filter_us)
     return;
 
-  arg->buffer[arg->buffer_write_at = next] = now;
+  arg->buffer[arg->buffer_write_at = next] = now;  // NOLINT(clang-diagnostic-deprecated-volatile)
 }
 
 void RemoteReceiverComponent::setup() {

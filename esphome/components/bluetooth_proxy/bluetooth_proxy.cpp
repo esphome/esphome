@@ -52,11 +52,21 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-static constexpr size_t FLUSH_BATCH_SIZE = 8;
-static std::vector<api::BluetoothLERawAdvertisement> &get_batch_buffer() {
-  static std::vector<api::BluetoothLERawAdvertisement> batch_buffer;
-  return batch_buffer;
-}
+// Batch size for BLE advertisements to maximize WiFi efficiency
+// Each advertisement is up to 80 bytes when packaged (including protocol overhead)
+// Most advertisements are 20-30 bytes, allowing even more to fit per packet
+// 16 advertisements × 80 bytes (worst case) = 1280 bytes out of ~1320 bytes usable payload
+// This achieves ~97% WiFi MTU utilization while staying under the limit
+static constexpr size_t FLUSH_BATCH_SIZE = 16;
+
+namespace {
+// Batch buffer in anonymous namespace to avoid guard variable (saves 8 bytes)
+// This is initialized at program startup before any threads
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<api::BluetoothLERawAdvertisement> batch_buffer;
+}  // namespace
+
+static std::vector<api::BluetoothLERawAdvertisement> &get_batch_buffer() { return batch_buffer; }
 
 bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || !this->raw_advertisements_)
@@ -170,7 +180,7 @@ int BluetoothProxy::get_bluetooth_connections_free() {
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
     for (auto *connection : this->connections_) {
-      if (connection->get_address() != 0) {
+      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
         connection->disconnect();
       }
     }

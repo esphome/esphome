@@ -15,4 +15,3 @@ packages:
     file: $component_test_file
     vars:
       component_test_file: $component_test_file
-

@@ -46,13 +46,21 @@ async def test_host_mode_fan_preset(
         # Subscribe to states
         states: dict[int, FanState] = {}
         state_event = asyncio.Event()
+        initial_states_received = set()
 
         def on_state(state: FanState) -> None:
             if isinstance(state, FanState):
                 states[state.key] = state
+                initial_states_received.add(state.key)
                 state_event.set()
 
         client.subscribe_states(on_state)
+
+        # Wait for initial states to be received for all fans
+        expected_fan_keys = {fan.key for fan in fans}
+        while initial_states_received != expected_fan_keys:
+            state_event.clear()
+            await asyncio.wait_for(state_event.wait(), timeout=2.0)
 
         # Test 1: Turn on fan without speed or preset - should set speed to 100%
         state_event.clear()

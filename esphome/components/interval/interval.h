@@ -23,8 +23,6 @@ class IntervalTrigger : public Trigger<>, public PollingComponent {
 
   void set_startup_delay(const uint32_t startup_delay) { this->startup_delay_ = startup_delay; }
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
  protected:
   uint32_t startup_delay_{0};
   bool started_{false};

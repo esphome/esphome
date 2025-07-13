@@ -85,8 +85,6 @@ class ADE7880 : public i2c::I2CDevice, public PollingComponent {
 
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
  protected:
   ADE7880Store store_{};
   InternalGPIOPin *irq0_pin_{nullptr};

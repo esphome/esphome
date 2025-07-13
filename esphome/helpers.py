@@ -29,6 +29,53 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
+def fnv1a_32bit_hash(string: str) -> int:
+    """FNV-1a 32-bit hash function.
+
+    Note: This uses 32-bit hash instead of 64-bit for several reasons:
+    1. ESPHome targets 32-bit microcontrollers with limited RAM (often <320KB)
+    2. Using 64-bit hashes would double the RAM usage for storing IDs
+    3. 64-bit operations are slower on 32-bit processors
+
+    While there's a ~50% collision probability at ~77,000 unique IDs,
+    ESPHome validates for collisions at compile time, preventing any
+    runtime issues. In practice, most ESPHome installations only have
+    a handful of area_ids and device_ids (typically <10 areas and <100
+    devices), making collisions virtually impossible.
+    """
+    hash_value = 2166136261
+    for char in string:
+        hash_value ^= ord(char)
+        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+    return hash_value
+
+
+def strip_accents(value: str) -> str:
+    """Remove accents from a string."""
+    import unicodedata
+
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", str(value))
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def slugify(value: str) -> str:
+    """Convert a string to a valid C++ identifier slug."""
+    from esphome.const import ALLOWED_NAME_CHARS
+
+    value = (
+        strip_accents(value)
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace("__", "_")
+        .strip("_")
+    )
+    return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
+
+
 def indent_all_but_first_and_last(text, padding="  "):
     lines = text.splitlines(True)
     if len(lines) <= 2:

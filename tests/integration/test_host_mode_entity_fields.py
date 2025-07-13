@@ -25,8 +25,8 @@ async def test_host_mode_entity_fields(
         # Create a map of entity names to entity info
         entity_map = {}
         for entity in entities[0]:
-            if hasattr(entity, "name"):
-                entity_map[entity.name] = entity
+            # All entities should have a name attribute
+            entity_map[entity.name] = entity
 
         # Test entities that should be visible via API (non-internal)
         visible_test_cases = [

@@ -1,5 +1,7 @@
 """Helpers for config validation using voluptuous."""
 
+from __future__ import annotations
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -29,6 +31,7 @@ from esphome.const import (
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
     CONF_DAY,
+    CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -353,6 +356,13 @@ def icon(value):
     raise Invalid(
         'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
     )
+
+
+def sub_device_id(value: str | None) -> core.ID:
+    # Lazy import to avoid circular imports
+    from esphome.core.config import Device
+
+    return use_id(Device)(value)
 
 
 def boolean(value):
@@ -1045,6 +1055,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
     return validator
 
 
+bps = float_with_unit("bits per second", "(bps|bits/s|bit/s)?")
 frequency = float_with_unit("frequency", "(Hz|HZ|hz)?")
 resistance = float_with_unit("resistance", "(Ω|Ω|ohm|Ohm|OHM)?")
 current = float_with_unit("current", "(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
@@ -1896,6 +1907,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
         Optional(CONF_ENTITY_CATEGORY): entity_category,
+        Optional(CONF_DEVICE_ID): sub_device_id,
     }
 )
 
@@ -1964,7 +1976,7 @@ class Version:
         return f"{self.major}.{self.minor}.{self.patch}"
 
     @classmethod
-    def parse(cls, value: str) -> "Version":
+    def parse(cls, value: str) -> Version:
         match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")

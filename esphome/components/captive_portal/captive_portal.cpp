@@ -47,7 +47,6 @@ void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler(this);
-    this->base_->add_ota_handler();
   }
 
 #ifdef USE_ARDUINO

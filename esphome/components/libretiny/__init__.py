@@ -264,10 +264,11 @@ async def component_to_code(config):
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
-    cg.set_cpp_standard("gnu++17")
+    cg.set_cpp_standard("gnu++20")
 
     # disable library compatibility checks
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "soft")
     # include <Arduino.h> in every file
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
     # dummy version code

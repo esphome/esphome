@@ -16,7 +16,7 @@ class Filter {
  public:
   virtual optional<bool> new_value(bool value) = 0;
 
-  void input(bool value);
+  virtual void input(bool value);
 
   void output(bool value);
 
@@ -26,6 +26,16 @@ class Filter {
   Filter *next_{nullptr};
   BinarySensor *parent_{nullptr};
   Deduplicator<bool> dedup_;
+};
+
+class TimeoutFilter : public Filter, public Component {
+ public:
+  optional<bool> new_value(bool value) override { return value; }
+  void input(bool value) override;
+  template<typename T> void set_timeout_value(T timeout) { this->timeout_delay_ = timeout; }
+
+ protected:
+  TemplatableValue<uint32_t> timeout_delay_{};
 };
 
 class DelayedOnOffFilter : public Filter, public Component {

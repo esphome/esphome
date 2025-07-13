@@ -555,7 +555,7 @@ void VoiceAssistant::request_stop() {
       break;
     case State::AWAITING_RESPONSE:
       this->signal_stop_();
-      break;
+      // Fallthrough intended to stop a streaming TTS announcement that has potentially started
     case State::STREAMING_RESPONSE:
 #ifdef USE_MEDIA_PLAYER
       // Stop any ongoing media player announcement
@@ -599,6 +599,14 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
+#ifdef USE_MEDIA_PLAYER
+      this->started_streaming_tts_ = false;
+      for (auto arg : msg.data) {
+        if (arg.name == "url") {
+          this->tts_response_url_ = std::move(arg.value);
+        }
+      }
+#endif
       this->defer([this]() { this->start_trigger_->trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_START:
@@ -622,6 +630,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       if (text.empty()) {
         ESP_LOGW(TAG, "No text in STT_END event");
         return;
+      } else if (text.length() > 500) {
+        text = text.substr(0, 497) + "...";
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
       this->defer([this, text]() { this->stt_end_trigger_->trigger(text); });
@@ -631,6 +641,27 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGD(TAG, "Intent started");
       this->defer([this]() { this->intent_start_trigger_->trigger(); });
       break;
+    case api::enums::VOICE_ASSISTANT_INTENT_PROGRESS: {
+      ESP_LOGD(TAG, "Intent progress");
+      std::string tts_url_for_trigger = "";
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr) {
+        for (const auto &arg : msg.data) {
+          if ((arg.name == "tts_start_streaming") && (arg.value == "1") && !this->tts_response_url_.empty()) {
+            this->media_player_->make_call().set_media_url(this->tts_response_url_).set_announcement(true).perform();
+
+            this->media_player_wait_for_announcement_start_ = true;
+            this->media_player_wait_for_announcement_end_ = false;
+            this->started_streaming_tts_ = true;
+            tts_url_for_trigger = this->tts_response_url_;
+            this->tts_response_url_.clear();  // Reset streaming URL
+          }
+        }
+      }
+#endif
+      this->defer([this, tts_url_for_trigger]() { this->intent_progress_trigger_->trigger(tts_url_for_trigger); });
+      break;
+    }
     case api::enums::VOICE_ASSISTANT_INTENT_END: {
       for (auto arg : msg.data) {
         if (arg.name == "conversation_id") {
@@ -652,6 +683,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       if (text.empty()) {
         ESP_LOGW(TAG, "No text in TTS_START event");
         return;
+      }
+      if (text.length() > 500) {
+        text = text.substr(0, 497) + "...";
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
       this->defer([this, text]() {
@@ -678,7 +712,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
       this->defer([this, url]() {
 #ifdef USE_MEDIA_PLAYER
-        if (this->media_player_ != nullptr) {
+        if ((this->media_player_ != nullptr) && (!this->started_streaming_tts_)) {
           this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
 
           this->media_player_wait_for_announcement_start_ = true;

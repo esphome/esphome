@@ -39,6 +39,7 @@ CODEOWNERS = ["@martgras"]
 AUTO_LOAD = ["modbus"]
 
 CONF_READ_LAMBDA = "read_lambda"
+CONF_WRITE_LAMBDA = "write_lambda"
 CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
@@ -112,6 +113,22 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
+CPP_TYPE_REGISTER_MAP = {
+    "RAW": cg.uint16,
+    "U_WORD": cg.uint16,
+    "S_WORD": cg.int16,
+    "U_DWORD": cg.uint32,
+    "U_DWORD_R": cg.uint32,
+    "S_DWORD": cg.int32,
+    "S_DWORD_R": cg.int32,
+    "U_QWORD": cg.uint64,
+    "U_QWORD_R": cg.uint64,
+    "S_QWORD": cg.int64,
+    "S_QWORD_R": cg.int64,
+    "FP32": cg.float_,
+    "FP32_R": cg.float_,
+}
+
 ModbusCommandSentTrigger = modbus_controller_ns.class_(
     "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
 )
@@ -132,6 +149,7 @@ ModbusServerRegisterSchema = cv.Schema(
         cv.Required(CONF_ADDRESS): cv.positive_int,
         cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
+        cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
     }
 )
 
@@ -285,21 +303,35 @@ async def to_code(config):
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     if CONF_SERVER_REGISTERS in config:
         for server_register in config[CONF_SERVER_REGISTERS]:
+            server_register_var = cg.new_Pvariable(
+                server_register[CONF_ID],
+                server_register[CONF_ADDRESS],
+                server_register[CONF_VALUE_TYPE],
+                TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]],
+            )
+            cpp_type = CPP_TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]]
             cg.add(
-                var.add_server_register(
-                    cg.new_Pvariable(
-                        server_register[CONF_ID],
-                        server_register[CONF_ADDRESS],
-                        server_register[CONF_VALUE_TYPE],
-                        TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]],
+                server_register_var.set_read_lambda(
+                    cg.TemplateArguments(cpp_type),
+                    await cg.process_lambda(
+                        server_register[CONF_READ_LAMBDA],
+                        [(cg.uint16, "address")],
+                        return_type=cpp_type,
+                    ),
+                )
+            )
+            if CONF_WRITE_LAMBDA in server_register:
+                cg.add(
+                    server_register_var.set_write_lambda(
+                        cg.TemplateArguments(cpp_type),
                         await cg.process_lambda(
-                            server_register[CONF_READ_LAMBDA],
-                            [],
-                            return_type=cg.float_,
+                            server_register[CONF_WRITE_LAMBDA],
+                            parameters=[(cg.uint16, "address"), (cpp_type, "x")],
+                            return_type=cg.bool_,
                         ),
                     )
                 )
-            )
+            cg.add(var.add_server_register(server_register_var))
     await register_modbus_device(var, config)
     for conf in config.get(CONF_ON_COMMAND_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

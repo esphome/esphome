@@ -11,7 +11,6 @@ class CopyNumber : public number::Number, public Component {
   void set_source(number::Number *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void control(float value) override;

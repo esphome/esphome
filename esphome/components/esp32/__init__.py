@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from esphome import git
+from esphome import yaml_util
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -23,7 +23,6 @@ from esphome.const import (
     CONF_REFRESH,
     CONF_SOURCE,
     CONF_TYPE,
-    CONF_URL,
     CONF_VARIANT,
     CONF_VERSION,
     KEY_CORE,
@@ -32,14 +31,13 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
-    TYPE_GIT,
-    TYPE_LOCAL,
     __version__,
 )
 from esphome.core import CORE, HexInt, TimePeriod
 from esphome.cpp_generator import RawExpression
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
+from esphome.types import ConfigType
 
 from .boards import BOARDS
 from .const import (  # noqa
@@ -49,10 +47,8 @@ from .const import (  # noqa
     KEY_EXTRA_BUILD_FILES,
     KEY_PATH,
     KEY_REF,
-    KEY_REFRESH,
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
-    KEY_SUBMODULES,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -193,7 +189,7 @@ def get_download_types(storage_json):
     ]
 
 
-def only_on_variant(*, supported=None, unsupported=None):
+def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This feature"):
     """Config validator for features only available on some ESP32 variants."""
     if supported is not None and not isinstance(supported, list):
         supported = [supported]
@@ -204,11 +200,11 @@ def only_on_variant(*, supported=None, unsupported=None):
         variant = get_esp32_variant()
         if supported is not None and variant not in supported:
             raise cv.Invalid(
-                f"This feature is only available on {', '.join(supported)}"
+                f"{msg_prefix} is only available on {', '.join(supported)}"
             )
         if unsupported is not None and variant in unsupported:
             raise cv.Invalid(
-                f"This feature is not available on {', '.join(unsupported)}"
+                f"{msg_prefix} is not available on {', '.join(unsupported)}"
             )
         return obj
 
@@ -235,7 +231,7 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
 def add_idf_component(
     *,
     name: str,
-    repo: str,
+    repo: str = None,
     ref: str = None,
     path: str = None,
     refresh: TimePeriod = None,
@@ -245,30 +241,27 @@ def add_idf_component(
     """Add an esp-idf component to the project."""
     if not CORE.using_esp_idf:
         raise ValueError("Not an esp-idf project")
-    if components is None:
-        components = []
-    if name not in CORE.data[KEY_ESP32][KEY_COMPONENTS]:
+    if not repo and not ref and not path:
+        raise ValueError("Requires at least one of repo, ref or path")
+    if refresh or submodules or components:
+        _LOGGER.warning(
+            "The refresh, components and submodules parameters in add_idf_component() are "
+            "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
+            "an issue to the external_component author and ask them to update it."
+        )
+    if components:
+        for comp in components:
+            CORE.data[KEY_ESP32][KEY_COMPONENTS][comp] = {
+                KEY_REPO: repo,
+                KEY_REF: ref,
+                KEY_PATH: f"{path}/{comp}" if path else comp,
+            }
+    else:
         CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {
             KEY_REPO: repo,
             KEY_REF: ref,
             KEY_PATH: path,
-            KEY_REFRESH: refresh,
-            KEY_COMPONENTS: components,
-            KEY_SUBMODULES: submodules,
         }
-    else:
-        component_config = CORE.data[KEY_ESP32][KEY_COMPONENTS][name]
-        if components is not None:
-            component_config[KEY_COMPONENTS] = list(
-                set(component_config[KEY_COMPONENTS] + components)
-            )
-        if submodules is not None:
-            if component_config[KEY_SUBMODULES] is None:
-                component_config[KEY_SUBMODULES] = submodules
-            else:
-                component_config[KEY_SUBMODULES] = list(
-                    set(component_config[KEY_SUBMODULES] + submodules)
-                )
 
 
 def add_extra_script(stage: str, filename: str, path: str):
@@ -348,6 +341,7 @@ SUPPORTED_PLATFORMIO_ESP_IDF_5X = [
 # List based on https://github.com/pioarduino/esp-idf/releases
 SUPPORTED_PIOARDUINO_ESP_IDF_5X = [
     cv.Version(5, 5, 0),
+    cv.Version(5, 4, 2),
     cv.Version(5, 4, 1),
     cv.Version(5, 4, 0),
     cv.Version(5, 3, 3),
@@ -417,8 +411,8 @@ def _esp_idf_check_versions(value):
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
         source = value.get(CONF_SOURCE, None)
 
-    if version < cv.Version(4, 0, 0):
-        raise cv.Invalid("Only ESP-IDF 4.0+ is supported.")
+    if version < cv.Version(5, 0, 0):
+        raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
 
     # flag this for later *before* we set value[CONF_PLATFORM_VERSION] below
     has_platform_ver = CONF_PLATFORM_VERSION in value
@@ -428,20 +422,15 @@ def _esp_idf_check_versions(value):
     )
 
     if (
-        (is_platformio := _platform_is_platformio(value[CONF_PLATFORM_VERSION]))
-        and version.major >= 5
-        and version not in SUPPORTED_PLATFORMIO_ESP_IDF_5X
-    ):
+        is_platformio := _platform_is_platformio(value[CONF_PLATFORM_VERSION])
+    ) and version not in SUPPORTED_PLATFORMIO_ESP_IDF_5X:
         raise cv.Invalid(
             f"ESP-IDF {str(version)} not supported by platformio/espressif32"
         )
 
     if (
-        version.major < 5
-        or (
-            version in SUPPORTED_PLATFORMIO_ESP_IDF_5X
-            and version not in SUPPORTED_PIOARDUINO_ESP_IDF_5X
-        )
+        version in SUPPORTED_PLATFORMIO_ESP_IDF_5X
+        and version not in SUPPORTED_PIOARDUINO_ESP_IDF_5X
     ) and not has_platform_ver:
         raise cv.Invalid(
             f"ESP-IDF {value[CONF_VERSION]} may be supported by platformio/espressif32; please specify '{CONF_PLATFORM_VERSION}'"
@@ -575,6 +564,17 @@ CONF_ENABLE_LWIP_DHCP_SERVER = "enable_lwip_dhcp_server"
 CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
 CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 
+
+def _validate_idf_component(config: ConfigType) -> ConfigType:
+    """Validate IDF component config and warn about deprecated options."""
+    if CONF_REFRESH in config:
+        _LOGGER.warning(
+            "The 'refresh' option for IDF components is deprecated and has no effect. "
+            "It will be removed in ESPHome 2026.1. Please remove it from your configuration."
+        )
+    return config
+
+
 ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -606,7 +606,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                         CONF_ENABLE_LWIP_DHCP_SERVER, "wifi", default=False
                     ): cv.boolean,
                     cv.Optional(
-                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=False
+                        CONF_ENABLE_LWIP_MDNS_QUERIES, default=True
                     ): cv.boolean,
                     cv.Optional(
                         CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
@@ -614,15 +614,19 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_NAME): cv.string_strict,
-                        cv.Required(CONF_SOURCE): cv.SOURCE_SCHEMA,
-                        cv.Optional(CONF_PATH): cv.string,
-                        cv.Optional(CONF_REFRESH, default="1d"): cv.All(
-                            cv.string, cv.source_refresh
-                        ),
-                    }
+                cv.All(
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_NAME): cv.string_strict,
+                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_REF): cv.string,
+                            cv.Optional(CONF_PATH): cv.string,
+                            cv.Optional(CONF_REFRESH): cv.All(
+                                cv.string, cv.source_refresh
+                            ),
+                        }
+                    ),
+                    _validate_idf_component,
                 )
             ),
         }
@@ -696,13 +700,14 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
-    cg.set_cpp_standard("gnu++17")
+    cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
 
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "strict")
 
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
@@ -750,6 +755,9 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
 
+        # Disable dynamic log level control to save memory
+        add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
+
         # Set default CPU frequency
         add_idf_sdkconfig_option(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{freq}", True)
 
@@ -762,7 +770,7 @@ async def to_code(config):
             and not advanced[CONF_ENABLE_LWIP_DHCP_SERVER]
         ):
             add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
-        if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, False):
+        if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, True):
             add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
         if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
             add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
@@ -789,14 +797,9 @@ async def to_code(config):
 
         if advanced.get(CONF_IGNORE_EFUSE_MAC_CRC):
             add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
-            if (framework_ver.major, framework_ver.minor) >= (4, 4):
-                add_idf_sdkconfig_option(
-                    "CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE", False
-                )
-            else:
-                add_idf_sdkconfig_option(
-                    "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
-                )
+            add_idf_sdkconfig_option(
+                "CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE", False
+            )
         if advanced.get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES):
             _LOGGER.warning(
                 "Using experimental features in ESP-IDF may result in unexpected failures."
@@ -814,18 +817,12 @@ async def to_code(config):
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
         for component in conf[CONF_COMPONENTS]:
-            source = component[CONF_SOURCE]
-            if source[CONF_TYPE] == TYPE_GIT:
-                add_idf_component(
-                    name=component[CONF_NAME],
-                    repo=source[CONF_URL],
-                    ref=source.get(CONF_REF),
-                    path=component.get(CONF_PATH),
-                    refresh=component[CONF_REFRESH],
-                )
-            elif source[CONF_TYPE] == TYPE_LOCAL:
-                _LOGGER.warning("Local components are not implemented yet.")
-
+            add_idf_component(
+                name=component[CONF_NAME],
+                repo=component.get(CONF_SOURCE),
+                ref=component.get(CONF_REF),
+                path=component.get(CONF_PATH),
+            )
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
@@ -924,6 +921,26 @@ def _write_sdkconfig():
         write_file_if_changed(sdk_path, contents)
 
 
+def _write_idf_component_yml():
+    yml_path = Path(CORE.relative_build_path("src/idf_component.yml"))
+    if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
+        components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
+        dependencies = {}
+        for name, component in components.items():
+            dependency = {}
+            if component[KEY_REF]:
+                dependency["version"] = component[KEY_REF]
+            if component[KEY_REPO]:
+                dependency["git"] = component[KEY_REPO]
+            if component[KEY_PATH]:
+                dependency["path"] = component[KEY_PATH]
+            dependencies[name] = dependency
+        contents = yaml_util.dump({"dependencies": dependencies})
+    else:
+        contents = ""
+    write_file_if_changed(yml_path, contents)
+
+
 # Called by writer.py
 def copy_files():
     if CORE.using_arduino:
@@ -936,6 +953,7 @@ def copy_files():
             )
     if CORE.using_esp_idf:
         _write_sdkconfig()
+        _write_idf_component_yml()
         if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
             write_file_if_changed(
                 CORE.relative_build_path("partitions.csv"),
@@ -951,55 +969,6 @@ def copy_files():
             CORE.relative_build_path("version.txt"),
             __version__,
         )
-
-        import shutil
-
-        shutil.rmtree(CORE.relative_build_path("components"), ignore_errors=True)
-
-        if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
-            components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
-
-            for name, component in components.items():
-                repo_dir, _ = git.clone_or_update(
-                    url=component[KEY_REPO],
-                    ref=component[KEY_REF],
-                    refresh=component[KEY_REFRESH],
-                    domain="idf_components",
-                    submodules=component[KEY_SUBMODULES],
-                )
-                mkdir_p(CORE.relative_build_path("components"))
-                component_dir = repo_dir
-                if component[KEY_PATH] is not None:
-                    component_dir = component_dir / component[KEY_PATH]
-
-                if component[KEY_COMPONENTS] == ["*"]:
-                    shutil.copytree(
-                        component_dir,
-                        CORE.relative_build_path("components"),
-                        dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns(".git*"),
-                        symlinks=True,
-                        ignore_dangling_symlinks=True,
-                    )
-                elif len(component[KEY_COMPONENTS]) > 0:
-                    for comp in component[KEY_COMPONENTS]:
-                        shutil.copytree(
-                            component_dir / comp,
-                            CORE.relative_build_path(f"components/{comp}"),
-                            dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns(".git*"),
-                            symlinks=True,
-                            ignore_dangling_symlinks=True,
-                        )
-                else:
-                    shutil.copytree(
-                        component_dir,
-                        CORE.relative_build_path(f"components/{name}"),
-                        dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns(".git*"),
-                        symlinks=True,
-                        ignore_dangling_symlinks=True,
-                    )
 
     for _, file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].items():
         if file[KEY_PATH].startswith("http"):

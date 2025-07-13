@@ -11,7 +11,6 @@ class CopyBinarySensor : public binary_sensor::BinarySensor, public Component {
   void set_source(binary_sensor::BinarySensor *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   binary_sensor::BinarySensor *source_;

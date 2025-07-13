@@ -1,4 +1,20 @@
-from esphome.const import CONF_ID
+from collections.abc import Callable
+
+from esphome.const import (
+    CONF_ID,
+    CONF_LEVEL,
+    CONF_LOGGER,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    PlatformFramework,
+)
+from esphome.core import CORE
+
+# Pre-build lookup map from (platform, framework) tuples to PlatformFramework enum
+_PLATFORM_FRAMEWORK_LOOKUP = {
+    (pf.value[0].value, pf.value[1].value): pf for pf in PlatformFramework
+}
 
 
 class Extend:
@@ -103,3 +119,60 @@ def merge_config(full_old, full_new):
         return new
 
     return merge(full_old, full_new)
+
+
+def filter_source_files_from_platform(
+    files_map: dict[str, set[PlatformFramework]],
+) -> Callable[[], list[str]]:
+    """Helper to build a FILTER_SOURCE_FILES function from platform mapping.
+
+    Args:
+        files_map: Dict mapping filename to set of PlatformFramework enums
+                  that should compile this file
+
+    Returns:
+        Function that returns list of files to exclude for current platform
+    """
+
+    def filter_source_files() -> list[str]:
+        # Get current platform/framework
+        core_data = CORE.data.get(KEY_CORE, {})
+        target_platform = core_data.get(KEY_TARGET_PLATFORM)
+        target_framework = core_data.get(KEY_TARGET_FRAMEWORK)
+
+        if not target_platform or not target_framework:
+            return []
+
+        # Direct lookup of current PlatformFramework
+        current_platform_framework = _PLATFORM_FRAMEWORK_LOOKUP.get(
+            (target_platform, target_framework)
+        )
+
+        if not current_platform_framework:
+            return []
+
+        # Return files that should be excluded for current platform
+        return [
+            filename
+            for filename, platforms in files_map.items()
+            if current_platform_framework not in platforms
+        ]
+
+    return filter_source_files
+
+
+def get_logger_level() -> str:
+    """Get the configured logger level.
+
+    This is used by components to determine what logging features to include
+    based on the configured log level.
+
+    Returns:
+        The configured logger level string, defaults to "DEBUG" if not configured
+    """
+    # Check if logger config exists
+    if CONF_LOGGER not in CORE.config:
+        return "DEBUG"
+
+    logger_config = CORE.config[CONF_LOGGER]
+    return logger_config.get(CONF_LEVEL, "DEBUG")

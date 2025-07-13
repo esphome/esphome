@@ -4,53 +4,16 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <strings.h>
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <strings.h>
 
-#ifdef USE_HOST
-#ifndef _WIN32
-#include <net/if.h>
-#include <netinet/in.h>
-#include <sys/ioctl.h>
-#endif
-#include <unistd.h>
-#endif
-#if defined(USE_ESP8266)
-#include <osapi.h>
-#include <user_interface.h>
-// for xt_rsil()/xt_wsr_ps()
-#include <Arduino.h>
-#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
-#include <Esp.h>
-#elif defined(USE_ESP_IDF)
-#include <freertos/FreeRTOS.h>
-#include <freertos/portmacro.h>
-#include "esp_random.h"
-#include "esp_system.h"
-#elif defined(USE_RP2040)
-#if defined(USE_WIFI)
-#include <WiFi.h>
-#endif
-#include <hardware/structs/rosc.h>
-#include <hardware/sync.h>
-#elif defined(USE_HOST)
-#include <limits>
-#include <random>
-#endif
 #ifdef USE_ESP32
 #include "rom/crc.h"
-#include "esp_mac.h"
-#include "esp_efuse.h"
-#include "esp_efuse_table.h"
-#endif
-
-#ifdef USE_LIBRETINY
-#include <WiFi.h>  // for macAddress()
 #endif
 
 namespace esphome {
@@ -76,23 +39,8 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
                                                0x9188, 0x83b9, 0xb5ea, 0xa7db, 0xd94c, 0xcb7d, 0xfd2e, 0xef1f};
 #endif
 
-// STL backports
-
-#if _GLIBCXX_RELEASE < 8
-std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
-std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
-std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
-std::string to_string(unsigned value) { return str_snprintf("%u", 32, value); }              // NOLINT
-std::string to_string(unsigned long value) { return str_snprintf("%lu", 32, value); }        // NOLINT
-std::string to_string(unsigned long long value) { return str_snprintf("%llu", 32, value); }  // NOLINT
-std::string to_string(float value) { return str_snprintf("%f", 32, value); }
-std::string to_string(double value) { return str_snprintf("%f", 32, value); }
-std::string to_string(long double value) { return str_snprintf("%Lf", 32, value); }
-#endif
-
 // Mathematics
 
-float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 uint8_t crc8(const uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
@@ -192,70 +140,7 @@ uint32_t fnv1_hash(const std::string &str) {
   return hash;
 }
 
-#ifdef USE_ESP32
-uint32_t random_uint32() { return esp_random(); }
-#elif defined(USE_ESP8266)
-uint32_t random_uint32() { return os_random(); }
-#elif defined(USE_RP2040)
-uint32_t random_uint32() {
-  uint32_t result = 0;
-  for (uint8_t i = 0; i < 32; i++) {
-    result <<= 1;
-    result |= rosc_hw->randombit;
-  }
-  return result;
-}
-#elif defined(USE_LIBRETINY)
-uint32_t random_uint32() { return rand(); }
-#elif defined(USE_HOST)
-uint32_t random_uint32() {
-  std::random_device dev;
-  std::mt19937 rng(dev());
-  std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
-  return dist(rng);
-}
-#endif
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
-#ifdef USE_ESP32
-bool random_bytes(uint8_t *data, size_t len) {
-  esp_fill_random(data, len);
-  return true;
-}
-#elif defined(USE_ESP8266)
-bool random_bytes(uint8_t *data, size_t len) { return os_get_random(data, len) == 0; }
-#elif defined(USE_RP2040)
-bool random_bytes(uint8_t *data, size_t len) {
-  while (len-- != 0) {
-    uint8_t result = 0;
-    for (uint8_t i = 0; i < 8; i++) {
-      result <<= 1;
-      result |= rosc_hw->randombit;
-    }
-    *data++ = result;
-  }
-  return true;
-}
-#elif defined(USE_LIBRETINY)
-bool random_bytes(uint8_t *data, size_t len) {
-  lt_rand_bytes(data, len);
-  return true;
-}
-#elif defined(USE_HOST)
-bool random_bytes(uint8_t *data, size_t len) {
-  FILE *fp = fopen("/dev/urandom", "r");
-  if (fp == nullptr) {
-    ESP_LOGW(TAG, "Could not open /dev/urandom, errno=%d", errno);
-    exit(1);
-  }
-  size_t read = fread(data, 1, len, fp);
-  if (read != len) {
-    ESP_LOGW(TAG, "Not enough data from /dev/urandom");
-    exit(1);
-  }
-  fclose(fp);
-  return true;
-}
-#endif
 
 // Strings
 
@@ -356,6 +241,10 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   return chars;
 }
 
+std::string format_mac_address_pretty(const uint8_t *mac) {
+  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 static char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
 std::string format_hex(const uint8_t *data, size_t length) {
   std::string ret;
@@ -369,41 +258,63 @@ std::string format_hex(const uint8_t *data, size_t length) {
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
 
 static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
-std::string format_hex_pretty(const uint8_t *data, size_t length) {
-  if (length == 0)
+std::string format_hex_pretty(const uint8_t *data, size_t length, char separator, bool show_length) {
+  if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  ret.resize(3 * length - 1);
+  uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
+  ret.resize(multiple * length - (separator ? 1 : 0));
   for (size_t i = 0; i < length; i++) {
-    ret[3 * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
-    ret[3 * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
-    if (i != length - 1)
-      ret[3 * i + 2] = '.';
+    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    if (separator && i != length - 1)
+      ret[multiple * i + 2] = separator;
   }
-  if (length > 4)
-    return ret + " (" + to_string(length) + ")";
+  if (show_length && length > 4)
+    return ret + " (" + std::to_string(length) + ")";
   return ret;
 }
-std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
+std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator, bool show_length) {
+  return format_hex_pretty(data.data(), data.size(), separator, show_length);
+}
 
-std::string format_hex_pretty(const uint16_t *data, size_t length) {
-  if (length == 0)
+std::string format_hex_pretty(const uint16_t *data, size_t length, char separator, bool show_length) {
+  if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  ret.resize(5 * length - 1);
+  uint8_t multiple = separator ? 5 : 4;  // 5 if separator is not \0, 4 otherwise
+  ret.resize(multiple * length - (separator ? 1 : 0));
   for (size_t i = 0; i < length; i++) {
-    ret[5 * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
-    ret[5 * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
-    ret[5 * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
-    ret[5 * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
-    if (i != length - 1)
-      ret[5 * i + 2] = '.';
+    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    ret[multiple * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    ret[multiple * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    ret[multiple * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (separator && i != length - 1)
+      ret[multiple * i + 4] = separator;
   }
-  if (length > 4)
-    return ret + " (" + to_string(length) + ")";
+  if (show_length && length > 4)
+    return ret + " (" + std::to_string(length) + ")";
   return ret;
 }
-std::string format_hex_pretty(const std::vector<uint16_t> &data) { return format_hex_pretty(data.data(), data.size()); }
+std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator, bool show_length) {
+  return format_hex_pretty(data.data(), data.size(), separator, show_length);
+}
+std::string format_hex_pretty(const std::string &data, char separator, bool show_length) {
+  if (data.empty())
+    return "";
+  std::string ret;
+  uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
+  ret.resize(multiple * data.length() - (separator ? 1 : 0));
+  for (size_t i = 0; i < data.length(); i++) {
+    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    if (separator && i != data.length() - 1)
+      ret[multiple * i + 2] = separator;
+  }
+  if (show_length && data.length() > 4)
+    return ret + " (" + std::to_string(data.length()) + ")";
+  return ret;
+}
 
 std::string format_bin(const uint8_t *data, size_t length) {
   std::string result;
@@ -456,9 +367,22 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
-static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                        "abcdefghijklmnopqrstuvwxyz"
-                                        "0123456789+/";
+// Use C-style string constant to store in ROM instead of RAM (saves 24 bytes)
+static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                            "abcdefghijklmnopqrstuvwxyz"
+                                            "0123456789+/";
+
+// Helper function to find the index of a base64 character in the lookup table.
+// Returns the character's position (0-63) if found, or 0 if not found.
+// NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
+// This is safe because is_base64() is ALWAYS checked before calling this function,
+// preventing invalid characters from ever reaching here. The base64_decode function
+// stops processing at the first invalid character due to the is_base64() check in its
+// while loop condition, making this edge case harmless in practice.
+static inline uint8_t base64_find_char(char c) {
+  const char *pos = strchr(BASE64_CHARS, c);
+  return pos ? (pos - BASE64_CHARS) : 0;
+}
 
 static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
@@ -480,7 +404,7 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
       char_array_4[3] = char_array_3[2] & 0x3f;
 
       for (i = 0; (i < 4); i++)
-        ret += BASE64_CHARS[char_array_4[i]];
+        ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[i])];
       i = 0;
     }
   }
@@ -495,7 +419,7 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
     char_array_4[3] = char_array_3[2] & 0x3f;
 
     for (j = 0; (j < i + 1); j++)
-      ret += BASE64_CHARS[char_array_4[j]];
+      ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[j])];
 
     while ((i++ < 3))
       ret += '=';
@@ -522,12 +446,15 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   uint8_t char_array_4[4], char_array_3[3];
   std::vector<uint8_t> ret;
 
+  // SAFETY: The loop condition checks is_base64() before processing each character.
+  // This ensures base64_find_char() is only called on valid base64 characters,
+  // preventing the edge case where invalid chars would return 0 (same as 'A').
   while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
     char_array_4[i++] = encoded_string[in];
     in++;
     if (i == 4) {
       for (i = 0; i < 4; i++)
-        char_array_4[i] = BASE64_CHARS.find(char_array_4[i]);
+        char_array_4[i] = base64_find_char(char_array_4[i]);
 
       char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
       char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
@@ -544,7 +471,7 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
       char_array_4[j] = 0;
 
     for (j = 0; j < 4; j++)
-      char_array_4[j] = BASE64_CHARS.find(char_array_4[j]);
+      char_array_4[j] = base64_find_char(char_array_4[j]);
 
     char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
     char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
@@ -640,35 +567,6 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
   blue += delta;
 }
 
-// System APIs
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_HOST)
-// ESP8266 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
-Mutex::Mutex() {}
-Mutex::~Mutex() {}
-void Mutex::lock() {}
-bool Mutex::try_lock() { return true; }
-void Mutex::unlock() {}
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
-Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
-Mutex::~Mutex() {}
-void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
-bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
-void Mutex::unlock() { xSemaphoreGive(this->handle_); }
-#endif
-
-#if defined(USE_ESP8266)
-IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
-IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
-// only affects the executing core
-// so should not be used as a mutex lock, only to get accurate timing
-IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
-IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
-#elif defined(USE_RP2040)
-IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
-IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
-#endif
-
 uint8_t HighFrequencyLoopRequester::num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void HighFrequencyLoopRequester::start() {
   if (this->started_)
@@ -684,45 +582,6 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
-#if defined(USE_HOST)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  static const uint8_t esphome_host_mac_address[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
-  memcpy(mac, esphome_host_mac_address, sizeof(esphome_host_mac_address));
-}
-#elif defined(USE_ESP32)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-#if defined(CONFIG_SOC_IEEE802154_SUPPORTED)
-  // When CONFIG_SOC_IEEE802154_SUPPORTED is defined, esp_efuse_mac_get_default
-  // returns the 802.15.4 EUI-64 address, so we read directly from eFuse instead.
-  if (has_custom_mac_address()) {
-    esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48);
-  } else {
-    esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
-  }
-#else
-  if (has_custom_mac_address()) {
-    esp_efuse_mac_get_custom(mac);
-  } else {
-    esp_efuse_mac_get_default(mac);
-  }
-#endif
-}
-#elif defined(USE_ESP8266)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  wifi_get_macaddr(STATION_IF, mac);
-}
-#elif defined(USE_RP2040)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-#ifdef USE_WIFI
-  WiFi.macAddress(mac);
-#endif
-}
-#elif defined(USE_LIBRETINY)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  WiFi.macAddress(mac);
-}
-#endif
-
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
@@ -732,26 +591,12 @@ std::string get_mac_address() {
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return format_mac_address_pretty(mac);
 }
 
-#ifdef USE_ESP32
-void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
+#ifndef USE_ESP32
+bool has_custom_mac_address() { return false; }
 #endif
-
-bool has_custom_mac_address() {
-#if defined(USE_ESP32) && !defined(USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC)
-  uint8_t mac[6];
-  // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
-#ifndef USE_ESP32_VARIANT_ESP32
-  return (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
-#else
-  return (esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
-#endif
-#else
-  return false;
-#endif
-}
 
 bool mac_address_is_valid(const uint8_t *mac) {
   bool is_all_zeros = true;

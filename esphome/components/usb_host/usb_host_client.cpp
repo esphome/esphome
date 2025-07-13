@@ -70,7 +70,7 @@ static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
   ESP_LOGV(TAG, "bMaxPower %dmA", cfg_desc->bMaxPower * 2);
 }
 
-void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
+static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
   if (devc_desc == NULL) {
     return;
   }
@@ -92,8 +92,8 @@ void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
   ESP_LOGV(TAG, "bNumConfigurations %d", devc_desc->bNumConfigurations);
 }
 
-void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
-                                        print_class_descriptor_cb class_specific_cb) {
+static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
+                                               print_class_descriptor_cb class_specific_cb) {
   if (cfg_desc == nullptr) {
     return;
   }
@@ -128,9 +128,9 @@ void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
 static std::string get_descriptor_string(const usb_str_desc_t *desc) {
   char buffer[256];
   if (desc == nullptr)
-    return "(unknown)";
+    return "(unspecified)";
   char *p = buffer;
-  for (size_t i = 0; i != desc->bLength / 2; i++) {
+  for (int i = 0; i != desc->bLength / 2; i++) {
     auto c = desc->wData[i];
     if (c < 0x100)
       *p++ = static_cast<char>(c);
@@ -169,7 +169,7 @@ void USBClient::setup() {
     this->mark_failed();
     return;
   }
-  for (auto trq : this->trq_pool_) {
+  for (auto *trq : this->trq_pool_) {
     usb_host_transfer_alloc(64, 0, &trq->transfer);
     trq->client = this;
   }
@@ -197,7 +197,8 @@ void USBClient::loop() {
         ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
         if (desc->idVendor == this->vid_ && desc->idProduct == this->pid_ || this->vid_ == 0 && this->pid_ == 0) {
           usb_device_info_t dev_info;
-          if ((err = usb_host_device_info(this->device_handle_, &dev_info)) != ESP_OK) {
+          err = usb_host_device_info(this->device_handle_, &dev_info);
+          if (err != ESP_OK) {
             ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
             this->disconnect();
             break;
@@ -336,7 +337,7 @@ static void transfer_callback(usb_transfer_t *xfer) {
  * @throws None.
  */
 void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
-  auto trq = this->get_trq_();
+  auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
     return;
@@ -349,7 +350,6 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
-    this->disconnect();
   }
 }
 
@@ -364,7 +364,7 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
  * @throws None.
  */
 void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
-  auto trq = this->get_trq_();
+  auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
     return;

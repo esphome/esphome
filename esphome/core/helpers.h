@@ -32,94 +32,27 @@
 #include <semphr.h>
 #endif
 
+#ifdef USE_HOST
+#include <mutex>
+#endif
+
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
-
-// Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
-// Define a substitute constexpr keyword for those functions, until we can drop C++11 support.
-#if __cplusplus >= 201402L
-#define constexpr14 constexpr
-#else
-#define constexpr14 inline  // constexpr implies inline
-#endif
 
 namespace esphome {
 
 /// @name STL backports
 ///@{
 
-// Backports for various STL features we like to use. Pull in the STL implementation wherever available, to avoid
-// ambiguity and to provide a uniform API.
-
-// std::to_string() from C++11, available from libstdc++/g++ 8
-// See https://github.com/espressif/esp-idf/issues/1445
-#if _GLIBCXX_RELEASE >= 8
+// Keep "using" even after the removal of our backports, to avoid breaking existing code.
 using std::to_string;
-#else
-std::string to_string(int value);                 // NOLINT
-std::string to_string(long value);                // NOLINT
-std::string to_string(long long value);           // NOLINT
-std::string to_string(unsigned value);            // NOLINT
-std::string to_string(unsigned long value);       // NOLINT
-std::string to_string(unsigned long long value);  // NOLINT
-std::string to_string(float value);
-std::string to_string(double value);
-std::string to_string(long double value);
-#endif
-
-// std::is_trivially_copyable from C++11, implemented in libstdc++/g++ 5.1 (but minor releases can't be detected)
-#if _GLIBCXX_RELEASE >= 6
 using std::is_trivially_copyable;
-#else
-// Implementing this is impossible without compiler intrinsics, so don't bother. Invalid usage will be detected on
-// other variants that use a newer compiler anyway.
-// NOLINTNEXTLINE(readability-identifier-naming)
-template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
-#endif
-
-// std::make_unique() from C++14
-#if __cpp_lib_make_unique >= 201304
 using std::make_unique;
-#else
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-#endif
-
-// std::enable_if_t from C++14
-#if __cplusplus >= 201402L
 using std::enable_if_t;
-#else
-template<bool B, class T = void> using enable_if_t = typename std::enable_if<B, T>::type;
-#endif
-
-// std::clamp from C++17
-#if __cpp_lib_clamp >= 201603
 using std::clamp;
-#else
-template<typename T, typename Compare> constexpr const T &clamp(const T &v, const T &lo, const T &hi, Compare comp) {
-  return comp(v, lo) ? lo : comp(hi, v) ? hi : v;
-}
-template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &hi) {
-  return clamp(v, lo, hi, std::less<T>{});
-}
-#endif
-
-// std::is_invocable from C++17
-#if __cpp_lib_is_invocable >= 201703
 using std::is_invocable;
-#else
-// https://stackoverflow.com/a/37161919/8924614
-template<class T, class... Args> struct is_invocable {  // NOLINT(readability-identifier-naming)
-  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
-  template<class U> static auto test(...) -> decltype(std::false_type());
-  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
-};
-#endif
-
-// std::bit_cast from C++20
 #if __cpp_lib_bit_cast >= 201806
 using std::bit_cast;
 #else
@@ -134,30 +67,28 @@ To bit_cast(const From &src) {
   return dst;
 }
 #endif
+using std::lerp;
 
 // std::byteswap from C++23
-template<typename T> constexpr14 T byteswap(T n) {
+template<typename T> constexpr T byteswap(T n) {
   T m;
   for (size_t i = 0; i < sizeof(T); i++)
     reinterpret_cast<uint8_t *>(&m)[i] = reinterpret_cast<uint8_t *>(&n)[sizeof(T) - 1 - i];
   return m;
 }
-template<> constexpr14 uint8_t byteswap(uint8_t n) { return n; }
-template<> constexpr14 uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
-template<> constexpr14 uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
-template<> constexpr14 uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
-template<> constexpr14 int8_t byteswap(int8_t n) { return n; }
-template<> constexpr14 int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
-template<> constexpr14 int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
-template<> constexpr14 int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+template<> constexpr uint8_t byteswap(uint8_t n) { return n; }
+template<> constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> constexpr int8_t byteswap(int8_t n) { return n; }
+template<> constexpr int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> constexpr int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
 
 ///@}
 
 /// @name Mathematics
 ///@{
-
-/// Linearly interpolate between \p start and \p end by \p completion (between 0 and 1).
-float lerp(float completion, float start, float end);
 
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
@@ -203,8 +134,7 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-constexpr14 T encode_value(const uint8_t *bytes) {
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
   T val = 0;
   for (size_t i = 0; i < sizeof(T); i++) {
     val <<= 8;
@@ -214,12 +144,12 @@ constexpr14 T encode_value(const uint8_t *bytes) {
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-constexpr14 T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+constexpr T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-constexpr14 std::array<uint8_t, sizeof(T)> decode_value(T val) {
+constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
   std::array<uint8_t, sizeof(T)> ret{};
   for (size_t i = sizeof(T); i > 0; i--) {
     ret[i - 1] = val & 0xFF;
@@ -246,7 +176,7 @@ inline uint32_t reverse_bits(uint32_t x) {
 }
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.
-template<typename T> constexpr14 T convert_big_endian(T val) {
+template<typename T> constexpr T convert_big_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return byteswap(val);
 #else
@@ -255,7 +185,7 @@ template<typename T> constexpr14 T convert_big_endian(T val) {
 }
 
 /// Convert a value between host byte order and little endian (least significant byte first) order.
-template<typename T> constexpr14 T convert_little_endian(T val) {
+template<typename T> constexpr T convert_little_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return val;
 #else
@@ -275,9 +205,6 @@ bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
 bool str_endswith(const std::string &str, const std::string &end);
-
-/// Convert the value to a string (added as extra overload so that to_string() can be used on all stringifiable types).
-inline std::string to_string(const std::string &val) { return val; }
 
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
@@ -402,6 +329,8 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
   return parse_hex<T>(str.c_str(), str.length());
 }
 
+/// Format the six-byte array \p mac into a MAC address.
+std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
@@ -415,18 +344,149 @@ template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &dat
   return format_hex(data.data(), data.size());
 }
 
-/// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const uint8_t *data, size_t length);
-/// Format the word array \p data of length \p len in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const uint16_t *data, size_t length);
-/// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const std::vector<uint8_t> &data);
-/// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const std::vector<uint16_t> &data);
-/// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
+/** Format a byte array in pretty-printed, human-readable hex format.
+ *
+ * Converts binary data to a hexadecimal string representation with customizable formatting.
+ * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
+ * Optionally includes the total byte count in parentheses at the end.
+ *
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string, e.g., "A1.B2.C3.D4.E5 (5)" or "A1:B2:C3" depending on parameters.
+ *
+ * @note Returns empty string if data is nullptr or length is 0.
+ * @note The length will only be appended if show_length is true AND the length is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint8_t data[] = {0xA1, 0xB2, 0xC3};
+ * format_hex_pretty(data, 3);           // Returns "A1.B2.C3" (no length shown for <= 4 parts)
+ * uint8_t data2[] = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5};
+ * format_hex_pretty(data2, 5);          // Returns "A1.B2.C3.D4.E5 (5)"
+ * format_hex_pretty(data2, 5, ':');     // Returns "A1:B2:C3:D4:E5 (5)"
+ * format_hex_pretty(data2, 5, '.', false); // Returns "A1.B2.C3.D4.E5"
+ * @endcode
+ */
+std::string format_hex_pretty(const uint8_t *data, size_t length, char separator = '.', bool show_length = true);
+
+/** Format a 16-bit word array in pretty-printed, human-readable hex format.
+ *
+ * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
+ *
+ * @param data Pointer to the 16-bit word array to format.
+ * @param length Number of 16-bit words in the array.
+ * @param separator Character to use between hex words (default: '.').
+ * @param show_length Whether to append the word count in parentheses (default: true).
+ * @return Formatted hex string with 4-digit hex values per word.
+ *
+ * @note The length will only be appended if show_length is true AND the length is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint16_t data[] = {0xA1B2, 0xC3D4};
+ * format_hex_pretty(data, 2); // Returns "A1B2.C3D4" (no length shown for <= 4 parts)
+ * uint16_t data2[] = {0xA1B2, 0xC3D4, 0xE5F6};
+ * format_hex_pretty(data2, 3); // Returns "A1B2.C3D4.E5F6 (3)"
+ * @endcode
+ */
+std::string format_hex_pretty(const uint16_t *data, size_t length, char separator = '.', bool show_length = true);
+
+/** Format a byte vector in pretty-printed, human-readable hex format.
+ *
+ * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
+ * uppercase hex value with customizable separator.
+ *
+ * @param data Vector of bytes to format.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string representation of the vector contents.
+ *
+ * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::vector<uint8_t> data = {0xDE, 0xAD, 0xBE, 0xEF};
+ * format_hex_pretty(data);        // Returns "DE.AD.BE.EF" (no length shown for <= 4 parts)
+ * std::vector<uint8_t> data2 = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA};
+ * format_hex_pretty(data2);       // Returns "DE.AD.BE.EF.CA (5)"
+ * format_hex_pretty(data2, '-');  // Returns "DE-AD-BE-EF-CA (5)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator = '.', bool show_length = true);
+
+/** Format a 16-bit word vector in pretty-printed, human-readable hex format.
+ *
+ * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
+ * as a 4-digit uppercase hex value in big-endian order.
+ *
+ * @param data Vector of 16-bit words to format.
+ * @param separator Character to use between hex words (default: '.').
+ * @param show_length Whether to append the word count in parentheses (default: true).
+ * @return Formatted hex string representation of the vector contents.
+ *
+ * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::vector<uint16_t> data = {0x1234, 0x5678};
+ * format_hex_pretty(data); // Returns "1234.5678" (no length shown for <= 4 parts)
+ * std::vector<uint16_t> data2 = {0x1234, 0x5678, 0x9ABC};
+ * format_hex_pretty(data2); // Returns "1234.5678.9ABC (3)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator = '.', bool show_length = true);
+
+/** Format a string's bytes in pretty-printed, human-readable hex format.
+ *
+ * Treats each character in the string as a byte and formats it in hex.
+ * Useful for debugging binary data stored in std::string containers.
+ *
+ * @param data String whose bytes should be formatted as hex.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string representation of the string's byte contents.
+ *
+ * @note The length will only be appended if show_length is true AND the string length is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::string data = "ABC";  // ASCII: 0x41, 0x42, 0x43
+ * format_hex_pretty(data);   // Returns "41.42.43" (no length shown for <= 4 parts)
+ * std::string data2 = "ABCDE";
+ * format_hex_pretty(data2);  // Returns "41.42.43.44.45 (5)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::string &data, char separator = '.', bool show_length = true);
+
+/** Format an unsigned integer in pretty-printed, human-readable hex format.
+ *
+ * Converts the integer to big-endian byte order and formats each byte as hex.
+ * The most significant byte appears first in the output string.
+ *
+ * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
+ * @param val The unsigned integer value to format.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string with most significant byte first.
+ *
+ * @note The length will only be appended if show_length is true AND sizeof(T) is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint32_t value = 0x12345678;
+ * format_hex_pretty(value);        // Returns "12.34.56.78" (no length shown for <= 4 parts)
+ * uint64_t value2 = 0x123456789ABCDEF0;
+ * format_hex_pretty(value2);       // Returns "12.34.56.78.9A.BC.DE.F0 (8)"
+ * format_hex_pretty(value2, ':');  // Returns "12:34:56:78:9A:BC:DE:F0 (8)"
+ * format_hex_pretty<uint16_t>(0x1234); // Returns "12.34"
+ * @endcode
+ */
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
   val = convert_big_endian(val);
-  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
 }
 
 /// Format the byte array \p data of length \p len in binary.

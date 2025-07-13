@@ -997,7 +997,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   auto config = this->preset_config_.find(preset);
 
   if (config != this->preset_config_.end()) {
-    ESP_LOGI(TAG, "Preset %s requested", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+    ESP_LOGV(TAG, "Preset %s requested", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     if (this->change_preset_internal_(config->second) || (!this->preset.has_value()) ||
         this->preset.value() != preset) {
       // Fire any preset changed trigger if defined
@@ -1015,7 +1015,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
     this->custom_preset.reset();
     this->preset = preset;
   } else {
-    ESP_LOGE(TAG, "Preset %s is not configured, ignoring.", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+    ESP_LOGW(TAG, "Preset %s not configured; ignoring", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
   }
 }
 
@@ -1023,7 +1023,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
   auto config = this->custom_preset_config_.find(custom_preset);
 
   if (config != this->custom_preset_config_.end()) {
-    ESP_LOGI(TAG, "Custom preset %s requested", custom_preset.c_str());
+    ESP_LOGV(TAG, "Custom preset %s requested", custom_preset.c_str());
     if (this->change_preset_internal_(config->second) || (!this->custom_preset.has_value()) ||
         this->custom_preset.value() != custom_preset) {
       // Fire any preset changed trigger if defined
@@ -1041,7 +1041,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
     this->preset.reset();
     this->custom_preset = custom_preset;
   } else {
-    ESP_LOGE(TAG, "Custom Preset %s is not configured, ignoring.", custom_preset.c_str());
+    ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset.c_str());
   }
 }
 
@@ -1298,7 +1298,7 @@ void ThermostatClimate::dump_config() {
   if (this->supports_two_points_) {
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
   }
-  ESP_LOGCONFIG(TAG, "  Start-up Delay Enabled: %s", YESNO(this->use_startup_delay_));
+  ESP_LOGCONFIG(TAG, "  Use Start-up Delay: %s", YESNO(this->use_startup_delay_));
   if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG,
                   "  Cooling Parameters:\n"
@@ -1353,44 +1353,47 @@ void ThermostatClimate::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %" PRIu32 "s", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
   ESP_LOGCONFIG(TAG,
-                "  Supports AUTO: %s\n"
-                "  Supports HEAT/COOL: %s\n"
-                "  Supports COOL: %s\n"
-                "  Supports DRY: %s\n"
-                "  Supports FAN_ONLY: %s\n"
-                "  Supports FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s\n"
-                "  Supports FAN_ONLY_COOLING: %s",
-                YESNO(this->supports_auto_), YESNO(this->supports_heat_cool_), YESNO(this->supports_cool_),
-                YESNO(this->supports_dry_), YESNO(this->supports_fan_only_),
+                "  Supported MODES:\n"
+                "    AUTO: %s\n"
+                "    HEAT/COOL: %s\n"
+                "    HEAT: %s\n"
+                "    COOL: %s\n"
+                "    DRY: %s\n"
+                "    FAN_ONLY: %s\n"
+                "    FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s\n"
+                "    FAN_ONLY_COOLING: %s",
+                YESNO(this->supports_auto_), YESNO(this->supports_heat_cool_), YESNO(this->supports_heat_),
+                YESNO(this->supports_cool_), YESNO(this->supports_dry_), YESNO(this->supports_fan_only_),
                 YESNO(this->supports_fan_only_action_uses_fan_mode_timer_), YESNO(this->supports_fan_only_cooling_));
   if (this->supports_cool_) {
-    ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
+    ESP_LOGCONFIG(TAG, "    FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
   }
   if (this->supports_heat_) {
-    ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
+    ESP_LOGCONFIG(TAG, "    FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
   }
-  ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG,
-                "  Supports FAN MODE ON: %s\n"
-                "  Supports FAN MODE OFF: %s\n"
-                "  Supports FAN MODE AUTO: %s\n"
-                "  Supports FAN MODE LOW: %s\n"
-                "  Supports FAN MODE MEDIUM: %s\n"
-                "  Supports FAN MODE HIGH: %s\n"
-                "  Supports FAN MODE MIDDLE: %s\n"
-                "  Supports FAN MODE FOCUS: %s\n"
-                "  Supports FAN MODE DIFFUSE: %s\n"
-                "  Supports FAN MODE QUIET: %s",
+                "  Supported FAN MODES:\n"
+                "    ON: %s\n"
+                "    OFF: %s\n"
+                "    AUTO: %s\n"
+                "    LOW: %s\n"
+                "    MEDIUM: %s\n"
+                "    HIGH: %s\n"
+                "    MIDDLE: %s\n"
+                "    FOCUS: %s\n"
+                "    DIFFUSE: %s\n"
+                "    QUIET: %s",
                 YESNO(this->supports_fan_mode_on_), YESNO(this->supports_fan_mode_off_),
                 YESNO(this->supports_fan_mode_auto_), YESNO(this->supports_fan_mode_low_),
                 YESNO(this->supports_fan_mode_medium_), YESNO(this->supports_fan_mode_high_),
                 YESNO(this->supports_fan_mode_middle_), YESNO(this->supports_fan_mode_focus_),
                 YESNO(this->supports_fan_mode_diffuse_), YESNO(this->supports_fan_mode_quiet_));
   ESP_LOGCONFIG(TAG,
-                "  Supports SWING MODE BOTH: %s\n"
-                "  Supports SWING MODE OFF: %s\n"
-                "  Supports SWING MODE HORIZONTAL: %s\n"
-                "  Supports SWING MODE VERTICAL: %s\n"
+                "  Supported SWING MODES:\n"
+                "    BOTH: %s\n"
+                "    OFF: %s\n"
+                "    HORIZONTAL: %s\n"
+                "    VERTICAL: %s\n"
                 "  Supports TWO SET POINTS: %s",
                 YESNO(this->supports_swing_mode_both_), YESNO(this->supports_swing_mode_off_),
                 YESNO(this->supports_swing_mode_horizontal_), YESNO(this->supports_swing_mode_vertical_),

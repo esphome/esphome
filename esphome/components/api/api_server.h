@@ -12,7 +12,9 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
+#ifdef USE_API_SERVICES
 #include "user_services.h"
+#endif
 
 #include <vector>
 
@@ -35,13 +37,15 @@ class APIServer : public Component, public Controller {
   void dump_config() override;
   void on_shutdown() override;
   bool teardown() override;
+#ifdef USE_API_PASSWORD
   bool check_password(const std::string &password) const;
   bool uses_password() const;
-  void set_port(uint16_t port);
   void set_password(const std::string &password);
+#endif
+  void set_port(uint16_t port);
   void set_reboot_timeout(uint32_t reboot_timeout);
-  void set_batch_delay(uint32_t batch_delay);
-  uint32_t get_batch_delay() const { return batch_delay_; }
+  void set_batch_delay(uint16_t batch_delay);
+  uint16_t get_batch_delay() const { return batch_delay_; }
 
   // Get reference to shared buffer for API connections
   std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -105,7 +109,9 @@ class APIServer : public Component, public Controller {
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
+#ifdef USE_API_SERVICES
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
+#endif
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
@@ -134,35 +140,49 @@ class APIServer : public Component, public Controller {
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+#ifdef USE_API_SERVICES
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
+#endif
 
+#ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+#endif
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
     return this->client_disconnected_trigger_;
   }
+#endif
 
  protected:
+  void schedule_reboot_timeout_();
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
+#ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+#endif
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+#endif
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
-  uint32_t batch_delay_{100};
-  uint32_t last_connected_{0};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
+#ifdef USE_API_PASSWORD
   std::string password_;
+#endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
   std::vector<HomeAssistantStateSubscription> state_subs_;
+#ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
+#endif
 
   // Group smaller types together
   uint16_t port_{6053};
+  uint16_t batch_delay_{100};
   bool shutting_down_ = false;
-  // 3 bytes used, 1 byte padding
+  // 5 bytes used, 3 bytes padding
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();

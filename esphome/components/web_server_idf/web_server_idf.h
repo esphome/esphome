@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include <esp_http_server.h>
 
+#include <atomic>
 #include <functional>
 #include <list>
 #include <map>
@@ -203,6 +204,9 @@ class AsyncWebServer {
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+#ifdef USE_WEBSERVER_OTA
+  esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
+#endif
   std::vector<AsyncWebHandler *> handlers_;
   std::function<void(AsyncWebServerRequest *request)> on_not_found_{};
 };
@@ -271,7 +275,7 @@ class AsyncEventSourceResponse {
   static void destroy(void *p);
   AsyncEventSource *server_;
   httpd_handle_t hd_{};
-  int fd_{};
+  std::atomic<int> fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
@@ -324,10 +328,7 @@ class DefaultHeaders {
   void addHeader(const char *name, const char *value) { this->headers_.emplace_back(name, value); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  static DefaultHeaders &Instance() {
-    static DefaultHeaders instance;
-    return instance;
-  }
+  static DefaultHeaders &Instance();
 
  protected:
   std::vector<std::pair<std::string, std::string>> headers_;

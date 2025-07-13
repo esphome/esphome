@@ -97,12 +97,12 @@ class AddressableLight : public LightOutput, public Component {
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
-  bool effect_active_{false};
   ESPColorCorrection correction_{};
+  LightState *state_parent_{nullptr};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
-  LightState *state_parent_{nullptr};
+  bool effect_active_{false};
 };
 
 class AddressableLightTransformer : public LightTransitionTransformer {
@@ -114,9 +114,9 @@ class AddressableLightTransformer : public LightTransitionTransformer {
 
  protected:
   AddressableLight &light_;
-  Color target_color_{};
   float last_transition_progress_{0.0f};
   float accumulated_alpha_{0.0f};
+  Color target_color_{};
 };
 
 }  // namespace light

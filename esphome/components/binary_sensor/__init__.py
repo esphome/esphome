@@ -60,8 +60,8 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -148,6 +148,7 @@ BinarySensorCondition = binary_sensor_ns.class_("BinarySensorCondition", Conditi
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
+TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter, cg.Component)
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter, cg.Component)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Component)
@@ -169,6 +170,19 @@ def register_filter(name, filter_type, schema):
 @register_filter("invert", InvertFilter, {})
 async def invert_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id)
+
+
+@register_filter(
+    "timeout",
+    TimeoutFilter,
+    cv.templatable(cv.positive_time_period_milliseconds),
+)
+async def timeout_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id)
+    await cg.register_component(var, {})
+    template_ = await cg.templatable(config, [], cg.uint32)
+    cg.add(var.set_timeout_value(template_))
+    return var
 
 
 @register_filter(
@@ -491,6 +505,9 @@ _BINARY_SENSOR_SCHEMA = (
 )
 
 
+_BINARY_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("binary_sensor"))
+
+
 def binary_sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -521,7 +538,7 @@ BINARY_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("binary_sensor"))
 
 
 async def setup_binary_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "binary_sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))

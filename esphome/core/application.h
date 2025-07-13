@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <limits>
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
@@ -8,6 +10,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
+
+#ifdef USE_DEVICES
+#include "esphome/core/device.h"
+#endif
+#ifdef USE_AREAS
+#include "esphome/core/area.h"
+#endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <sys/select.h>
@@ -87,7 +96,7 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const char *area, const char *comment,
+  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
                  const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
@@ -102,10 +111,16 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
-    this->area_ = area;
     this->comment_ = comment;
     this->compilation_time_ = compilation_time;
   }
+
+#ifdef USE_DEVICES
+  void register_device(Device *device) { this->devices_.push_back(device); }
+#endif
+#ifdef USE_AREAS
+  void register_area(Area *area) { this->areas_.push_back(area); }
+#endif
 
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
@@ -264,6 +279,12 @@ class Application {
 #ifdef USE_UPDATE
   void reserve_update(size_t count) { this->updates_.reserve(count); }
 #endif
+#ifdef USE_AREAS
+  void reserve_area(size_t count) { this->areas_.reserve(count); }
+#endif
+#ifdef USE_DEVICES
+  void reserve_device(size_t count) { this->devices_.reserve(count); }
+#endif
 
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
@@ -285,7 +306,15 @@ class Application {
   const std::string &get_friendly_name() const { return this->friendly_name_; }
 
   /// Get the area of this Application set by pre_setup().
-  std::string get_area() const { return this->area_ == nullptr ? "" : this->area_; }
+  const char *get_area() const {
+#ifdef USE_AREAS
+    // If we have areas registered, return the name of the first one (which is the top-level area)
+    if (!this->areas_.empty() && this->areas_[0] != nullptr) {
+      return this->areas_[0]->get_name();
+    }
+#endif
+    return "";
+  }
 
   /// Get the comment of this Application set by pre_setup().
   std::string get_comment() const { return this->comment_; }
@@ -308,11 +337,16 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
+   * Note: This method is not called by ESPHome core code. It is only used by lambda functions
+   * in YAML configurations or by external components.
+   *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
-  void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
+  void set_loop_interval(uint32_t loop_interval) {
+    this->loop_interval_ = std::min(loop_interval, static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()));
+  }
 
-  uint32_t get_loop_interval() const { return this->loop_interval_; }
+  uint32_t get_loop_interval() const { return static_cast<uint32_t>(this->loop_interval_); }
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
@@ -334,220 +368,111 @@ class Application {
 
   uint8_t get_app_state() const { return this->app_state_; }
 
+// Helper macro for entity getter method declarations - reduces code duplication
+// When USE_DEVICE_ID is enabled in the future, this can be conditionally compiled to add device_id parameter
+#define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
+  entity_type *get_##entity_name##_by_key(uint32_t key, bool include_internal = false) { \
+    for (auto *obj : this->entities_member##_) { \
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) \
+        return obj; \
+    } \
+    return nullptr; \
+  }
+
+#ifdef USE_DEVICES
+  const std::vector<Device *> &get_devices() { return this->devices_; }
+#endif
+#ifdef USE_AREAS
+  const std::vector<Area *> &get_areas() { return this->areas_; }
+#endif
 #ifdef USE_BINARY_SENSOR
   const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() { return this->binary_sensors_; }
-  binary_sensor::BinarySensor *get_binary_sensor_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->binary_sensors_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(binary_sensor::BinarySensor, binary_sensor, binary_sensors)
 #endif
 #ifdef USE_SWITCH
   const std::vector<switch_::Switch *> &get_switches() { return this->switches_; }
-  switch_::Switch *get_switch_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->switches_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(switch_::Switch, switch, switches)
 #endif
 #ifdef USE_BUTTON
   const std::vector<button::Button *> &get_buttons() { return this->buttons_; }
-  button::Button *get_button_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->buttons_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(button::Button, button, buttons)
 #endif
 #ifdef USE_SENSOR
   const std::vector<sensor::Sensor *> &get_sensors() { return this->sensors_; }
-  sensor::Sensor *get_sensor_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->sensors_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(sensor::Sensor, sensor, sensors)
 #endif
 #ifdef USE_TEXT_SENSOR
   const std::vector<text_sensor::TextSensor *> &get_text_sensors() { return this->text_sensors_; }
-  text_sensor::TextSensor *get_text_sensor_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->text_sensors_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(text_sensor::TextSensor, text_sensor, text_sensors)
 #endif
 #ifdef USE_FAN
   const std::vector<fan::Fan *> &get_fans() { return this->fans_; }
-  fan::Fan *get_fan_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->fans_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(fan::Fan, fan, fans)
 #endif
 #ifdef USE_COVER
   const std::vector<cover::Cover *> &get_covers() { return this->covers_; }
-  cover::Cover *get_cover_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->covers_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(cover::Cover, cover, covers)
 #endif
 #ifdef USE_LIGHT
   const std::vector<light::LightState *> &get_lights() { return this->lights_; }
-  light::LightState *get_light_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->lights_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(light::LightState, light, lights)
 #endif
 #ifdef USE_CLIMATE
   const std::vector<climate::Climate *> &get_climates() { return this->climates_; }
-  climate::Climate *get_climate_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->climates_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(climate::Climate, climate, climates)
 #endif
 #ifdef USE_NUMBER
   const std::vector<number::Number *> &get_numbers() { return this->numbers_; }
-  number::Number *get_number_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->numbers_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(number::Number, number, numbers)
 #endif
 #ifdef USE_DATETIME_DATE
   const std::vector<datetime::DateEntity *> &get_dates() { return this->dates_; }
-  datetime::DateEntity *get_date_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->dates_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(datetime::DateEntity, date, dates)
 #endif
 #ifdef USE_DATETIME_TIME
   const std::vector<datetime::TimeEntity *> &get_times() { return this->times_; }
-  datetime::TimeEntity *get_time_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->times_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(datetime::TimeEntity, time, times)
 #endif
 #ifdef USE_DATETIME_DATETIME
   const std::vector<datetime::DateTimeEntity *> &get_datetimes() { return this->datetimes_; }
-  datetime::DateTimeEntity *get_datetime_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->datetimes_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(datetime::DateTimeEntity, datetime, datetimes)
 #endif
 #ifdef USE_TEXT
   const std::vector<text::Text *> &get_texts() { return this->texts_; }
-  text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->texts_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(text::Text, text, texts)
 #endif
 #ifdef USE_SELECT
   const std::vector<select::Select *> &get_selects() { return this->selects_; }
-  select::Select *get_select_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->selects_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(select::Select, select, selects)
 #endif
 #ifdef USE_LOCK
   const std::vector<lock::Lock *> &get_locks() { return this->locks_; }
-  lock::Lock *get_lock_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->locks_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(lock::Lock, lock, locks)
 #endif
 #ifdef USE_VALVE
   const std::vector<valve::Valve *> &get_valves() { return this->valves_; }
-  valve::Valve *get_valve_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->valves_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(valve::Valve, valve, valves)
 #endif
 #ifdef USE_MEDIA_PLAYER
   const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
-  media_player::MediaPlayer *get_media_player_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->media_players_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(media_player::MediaPlayer, media_player, media_players)
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
   const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
     return this->alarm_control_panels_;
   }
-  alarm_control_panel::AlarmControlPanel *get_alarm_control_panel_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->alarm_control_panels_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
 #endif
 
 #ifdef USE_EVENT
   const std::vector<event::Event *> &get_events() { return this->events_; }
-  event::Event *get_event_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->events_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(event::Event, event, events)
 #endif
 
 #ifdef USE_UPDATE
   const std::vector<update::UpdateEntity *> &get_updates() { return this->updates_; }
-  update::UpdateEntity *get_update_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->updates_) {
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    }
-    return nullptr;
-  }
+  GET_ENTITY_METHOD(update::UpdateEntity, update, updates)
 #endif
 
   Scheduler scheduler;
@@ -585,6 +510,17 @@ class Application {
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
+  // === Member variables ordered by size to minimize padding ===
+
+  // Pointer-sized members first
+  Component *current_component_{nullptr};
+  const char *comment_{nullptr};
+  const char *compilation_time_{nullptr};
+
+  // size_t members
+  size_t dump_config_at_{SIZE_MAX};
+
+  // Vectors (largest members)
   std::vector<Component *> components_{};
 
   // Partitioned vector design for looping components
@@ -604,12 +540,13 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   std::vector<Component *> looping_components_{};
-  uint16_t looping_components_active_end_{0};
 
-  // For safe reentrant modifications during iteration
-  uint16_t current_loop_index_{0};
-  bool in_loop_{false};
-
+#ifdef USE_DEVICES
+  std::vector<Device *> devices_{};
+#endif
+#ifdef USE_AREAS
+  std::vector<Area *> areas_{};
+#endif
 #ifdef USE_BINARY_SENSOR
   std::vector<binary_sensor::BinarySensor *> binary_sensors_{};
 #endif
@@ -674,27 +611,39 @@ class Application {
   std::vector<update::UpdateEntity *> updates_{};
 #endif
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
+#endif
+
+  // String members
   std::string name_;
   std::string friendly_name_;
-  const char *area_{nullptr};
-  const char *comment_{nullptr};
-  const char *compilation_time_{nullptr};
-  bool name_add_mac_suffix_;
+
+  // 4-byte members
   uint32_t last_loop_{0};
-  uint32_t loop_interval_{16};
-  size_t dump_config_at_{SIZE_MAX};
-  uint8_t app_state_{0};
-  volatile bool has_pending_enable_loop_requests_{false};
-  Component *current_component_{nullptr};
   uint32_t loop_component_start_time_{0};
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
-  // Socket select management
-  std::vector<int> socket_fds_;     // Vector of all monitored socket file descriptors
+  int max_fd_{-1};  // Highest file descriptor number for select()
+#endif
+
+  // 2-byte members (grouped together for alignment)
+  uint16_t loop_interval_{16};  // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint16_t looping_components_active_end_{0};
+  uint16_t current_loop_index_{0};  // For safe reentrant modifications during iteration
+
+  // 1-byte members (grouped together to minimize padding)
+  uint8_t app_state_{0};
+  bool name_add_mac_suffix_;
+  bool in_loop_{false};
+  volatile bool has_pending_enable_loop_requests_{false};
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
-  int max_fd_{-1};                  // Highest file descriptor number for select()
-  fd_set base_read_fds_{};          // Cached fd_set rebuilt only when socket_fds_ changes
-  fd_set read_fds_{};               // Working fd_set for select(), copied from base_read_fds_
+
+  // Variable-sized members at end
+  fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
+  fd_set read_fds_{};       // Working fd_set for select(), copied from base_read_fds_
 #endif
 };
 

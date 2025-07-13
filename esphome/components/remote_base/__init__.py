@@ -57,7 +57,7 @@ RemoteReceiverBinarySensorBase = ns.class_(
 RemoteReceiverTrigger = ns.class_(
     "RemoteReceiverTrigger", automation.Trigger, RemoteReceiverListener
 )
-RemoteTransmitterDumper = ns.class_("RemoteTransmitterDumper")
+RemoteReceiverDumperBase = ns.class_("RemoteReceiverDumperBase")
 RemoteTransmittable = ns.class_("RemoteTransmittable")
 RemoteTransmitterActionBase = ns.class_(
     "RemoteTransmitterActionBase", RemoteTransmittable, automation.Action
@@ -126,8 +126,10 @@ def register_trigger(name, type, data_type):
     return decorator
 
 
-def register_dumper(name, type):
-    registerer = DUMPER_REGISTRY.register(name, type, {})
+def register_dumper(name, type, schema=None):
+    if schema is None:
+        schema = {}
+    registerer = DUMPER_REGISTRY.register(name, type, schema)
 
     def decorator(func):
         async def new_func(config, dumper_id):
@@ -189,7 +191,7 @@ def declare_protocol(name):
     binary_sensor_ = ns.class_(f"{name}BinarySensor", RemoteReceiverBinarySensorBase)
     trigger = ns.class_(f"{name}Trigger", RemoteReceiverTrigger)
     action = ns.class_(f"{name}Action", RemoteTransmitterActionBase)
-    dumper = ns.class_(f"{name}Dumper", RemoteTransmitterDumper)
+    dumper = ns.class_(f"{name}Dumper", RemoteReceiverDumperBase)
     return data, binary_sensor_, trigger, action, dumper
 
 
@@ -1405,7 +1407,7 @@ rc_switch_protocols = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
-RCSwitchDumper = ns.class_("RCSwitchDumper", RemoteTransmitterDumper)
+RCSwitchDumper = ns.class_("RCSwitchDumper", RemoteReceiverDumperBase)
 RCSwitchRawAction = ns.class_("RCSwitchRawAction", RemoteTransmitterActionBase)
 RCSwitchTypeAAction = ns.class_("RCSwitchTypeAAction", RemoteTransmitterActionBase)
 RCSwitchTypeBAction = ns.class_("RCSwitchTypeBAction", RemoteTransmitterActionBase)

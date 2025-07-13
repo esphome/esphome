@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_DMA,
     CONF_VALUE,
+    PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
 
@@ -94,6 +96,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 esp32="10000b",
                 esp8266="1000b",
                 bk72xx="1000b",
+                ln882x="1000b",
                 rtl87xx="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
@@ -169,3 +172,19 @@ async def to_code(config):
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "remote_receiver_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "remote_receiver_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "remote_receiver_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

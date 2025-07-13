@@ -20,6 +20,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
+    PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
@@ -522,6 +523,9 @@ class EsphomeCore:
         # Dict to track platform entity counts for pre-allocation
         # Key: platform name (e.g. "sensor", "binary_sensor"), Value: count
         self.platform_counts: defaultdict[str, int] = defaultdict(int)
+        # Track entity unique IDs to handle duplicates
+        # Set of (device_id, platform, sanitized_name) tuples
+        self.unique_ids: set[tuple[str, str, str]] = set()
         # Whether ESPHome was started in verbose mode
         self.verbose = False
         # Whether ESPHome was started in quiet mode
@@ -553,6 +557,7 @@ class EsphomeCore:
         self.loaded_integrations = set()
         self.component_ids = set()
         self.platform_counts = defaultdict(int)
+        self.unique_ids = set()
         PIN_SCHEMA_REGISTRY.reset()
 
     @property
@@ -658,8 +663,12 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_RTL87XX
 
     @property
+    def is_ln882x(self):
+        return self.target_platform == PLATFORM_LN882X
+
+    @property
     def is_libretiny(self):
-        return self.is_bk72xx or self.is_rtl87xx
+        return self.is_bk72xx or self.is_rtl87xx or self.is_ln882x
 
     @property
     def is_host(self):

@@ -13,6 +13,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -31,6 +32,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
@@ -423,3 +425,18 @@ def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso:
         {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "spi_arduino.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "spi_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+    }
+)

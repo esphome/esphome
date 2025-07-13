@@ -14,11 +14,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#ifdef USE_ESP32
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <deque>
-#endif
 
 #if USE_WEBSERVER_VERSION >= 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
@@ -40,12 +35,31 @@ namespace web_server {
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
-  std::string domain;  ///< The domain of the component, for example "sensor"
-  std::string id;      ///< The id of the device that's being accessed, for example "living_room_fan"
-  std::string method;  ///< The method that's being called, for example "turn_on"
+  const char *domain;  ///< Pointer to domain within URL, for example "sensor"
+  const char *id;      ///< Pointer to id within URL, for example "living_room_fan"
+  const char *method;  ///< Pointer to method within URL, for example "turn_on"
+  uint8_t domain_len;  ///< Length of domain string
+  uint8_t id_len;      ///< Length of id string
+  uint8_t method_len;  ///< Length of method string
   bool valid;          ///< Whether this match is valid
+
+  // Helper methods for string comparisons
+  bool domain_equals(const char *str) const {
+    return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
+  }
+
+  bool id_equals(const std::string &str) const {
+    return id && id_len == str.length() && memcmp(id, str.c_str(), id_len) == 0;
+  }
+
+  bool method_equals(const char *str) const {
+    return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
+  }
+
+  bool method_empty() const { return method_len == 0; }
 };
 
+#ifdef USE_WEBSERVER_SORTING
 struct SortingComponents {
   float weight;
   uint64_t group_id;
@@ -55,6 +69,7 @@ struct SortingGroup {
   std::string name;
   float weight;
 };
+#endif
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
@@ -63,7 +78,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred
   update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with
   multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's
-  implemented in a more straightforward way for ESP-IDF. Arudino platform will eventually go away and this workaround
+  implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
 #ifdef USE_ARDUINO
@@ -106,6 +121,8 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   // footprint is more important than speed here)
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
+  uint16_t consecutive_send_failures_{0};
+  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 
   // helper for allowing only unique entries in the queue
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
@@ -192,11 +209,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param include_internal Whether internal components should be displayed.
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
-  /** Set whether or not the webserver should expose the OTA form and handler.
-   *
-   * @param allow_ota.
-   */
-  void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
   /** Set whether or not the webserver should expose the Log.
    *
    * @param expose_log.
@@ -474,15 +486,18 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() const override;  // NOLINT(readability-identifier-naming)
 
+#ifdef USE_WEBSERVER_SORTING
   void add_entity_config(EntityBase *entity, float weight, uint64_t group);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
   std::map<EntityBase *, SortingComponents> sorting_entitys_;
   std::map<uint64_t, SortingGroup> sorting_groups_;
+#endif
+
   bool include_internal_{false};
 
  protected:
-  void schedule_(std::function<void()> &&f);
+  void add_sorting_info_(JsonObject &root, EntityBase *entity);
   web_server_base::WebServerBase *base_;
 #ifdef USE_ARDUINO
   DeferredUpdateEventSourceList events_;
@@ -501,12 +516,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool allow_ota_{true};
   bool expose_log_{true};
-#ifdef USE_ESP32
-  std::deque<std::function<void()>> to_schedule_;
-  SemaphoreHandle_t to_schedule_lock_;
-#endif
 };
 
 }  // namespace web_server

@@ -5,7 +5,8 @@ packages:
   - !include package.yaml
   - github://esphome/esphome/tests/components/template/common.yaml@dev
   - url: https://github.com/esphome/esphome
-    file: tests/components/binary_sensor_map/common.yaml
+    path: tests/components/absolute_humidity
+    file: common.yaml
     ref: dev
     refresh: 1d
 

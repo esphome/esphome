@@ -161,7 +161,6 @@ class PN7160 : public nfc::Nfcc, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void loop() override;
 
   void set_dwl_req_pin(GPIOPin *dwl_req_pin) { this->dwl_req_pin_ = dwl_req_pin; }

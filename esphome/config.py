@@ -67,6 +67,42 @@ ConfigPath = list[str | int]
 path_context = contextvars.ContextVar("Config path")
 
 
+def _process_platform_config(
+    result: Config,
+    component_name: str,
+    platform_name: str,
+    platform_config: ConfigType,
+    path: ConfigPath,
+) -> None:
+    """Process a platform configuration and add necessary validation steps.
+
+    This is shared between LoadValidationStep and AutoLoadValidationStep to avoid duplication.
+    """
+    # Get the platform manifest
+    platform = get_platform(component_name, platform_name)
+    if platform is None:
+        result.add_str_error(
+            f"Platform not found: '{component_name}.{platform_name}'", path
+        )
+        return
+
+    # Add platform to loaded integrations
+    CORE.loaded_integrations.add(platform_name)
+    CORE.loaded_platforms.add(f"{component_name}/{platform_name}")
+
+    # Process platform's AUTO_LOAD
+    for load in platform.auto_load:
+        if load not in result:
+            result.add_validation_step(AutoLoadValidationStep(load))
+
+    # Add validation steps for the platform
+    p_domain = f"{component_name}.{platform_name}"
+    result.add_output_path(path, p_domain)
+    result.add_validation_step(
+        MetadataValidationStep(path, p_domain, platform_config, platform)
+    )
+
+
 def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
     if len(path) < len(other):
         return False
@@ -379,26 +415,11 @@ class LoadValidationStep(ConfigValidationStep):
                     path,
                 )
                 continue
-            # Remove temp output path and construct new one
+            # Remove temp output path
             result.remove_output_path(path, p_domain)
-            p_domain = f"{self.domain}.{p_name}"
-            result.add_output_path(path, p_domain)
-            # Try Load platform
-            platform = get_platform(self.domain, p_name)
-            if platform is None:
-                result.add_str_error(f"Platform not found: '{p_domain}'", path)
-                continue
-            CORE.loaded_integrations.add(p_name)
-            CORE.loaded_platforms.add(f"{self.domain}/{p_name}")
 
-            # Process AUTO_LOAD
-            for load in platform.auto_load:
-                if load not in result:
-                    result.add_validation_step(AutoLoadValidationStep(load))
-
-            result.add_validation_step(
-                MetadataValidationStep(path, p_domain, p_config, platform)
-            )
+            # Process the platform configuration
+            _process_platform_config(result, self.domain, p_name, p_config, path)
 
 
 class AutoLoadValidationStep(ConfigValidationStep):
@@ -413,10 +434,56 @@ class AutoLoadValidationStep(ConfigValidationStep):
         self.domain = domain
 
     def run(self, result: Config) -> None:
-        if self.domain in result:
-            # already loaded
+        # Regular component auto-load (no platform)
+        if "." not in self.domain:
+            if self.domain in result:
+                # already loaded
+                return
+            result.add_validation_step(LoadValidationStep(self.domain, core.AutoLoad()))
             return
-        result.add_validation_step(LoadValidationStep(self.domain, core.AutoLoad()))
+
+        # Platform-specific auto-load (e.g., "ota.web_server")
+        component_name, _, platform_name = self.domain.partition(".")
+
+        # Check if component exists
+        if component_name not in result:
+            # Component doesn't exist, load it first
+            result.add_validation_step(LoadValidationStep(component_name, []))
+            # Re-run this step after the component is loaded
+            result.add_validation_step(AutoLoadValidationStep(self.domain))
+            return
+
+        # Component exists, check if it's a platform component
+        component = get_component(component_name)
+        if component is None or not component.is_platform_component:
+            result.add_str_error(
+                f"Component {component_name} is not a platform component, "
+                f"cannot auto-load platform {platform_name}",
+                [component_name],
+            )
+            return
+
+        # Ensure the component config is a list
+        component_conf = result.get(component_name)
+        if not isinstance(component_conf, list):
+            component_conf = result[component_name] = []
+
+        # Check if platform already exists
+        if any(
+            isinstance(conf, dict) and conf.get(CONF_PLATFORM) == platform_name
+            for conf in component_conf
+        ):
+            return
+
+        # Add and process the platform configuration
+        platform_conf = core.AutoLoad()
+        platform_conf[CONF_PLATFORM] = platform_name
+        component_conf.append(platform_conf)
+
+        path = [component_name, len(component_conf) - 1]
+        _process_platform_config(
+            result, component_name, platform_name, platform_conf, path
+        )
 
 
 class MetadataValidationStep(ConfigValidationStep):
@@ -788,7 +855,6 @@ def validate_config(
         }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
         try:
-            substitutions.do_substitution_pass(config, command_line_substitutions)
             substitutions.do_substitution_pass(config, command_line_substitutions)
         except vol.Invalid as err:
             result.add_error(err)

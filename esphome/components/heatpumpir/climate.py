@@ -70,6 +70,7 @@ PROTOCOLS = {
     "airway": Protocol.PROTOCOL_AIRWAY,
     "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
     "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
+    "philco_phs32": Protocol.PROTOCOL_PHILCO_PHS32,
     "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     "r51m": Protocol.PROTOCOL_R51M,
 }

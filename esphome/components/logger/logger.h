@@ -143,7 +143,7 @@ class Logger : public Component {
   inline uint8_t level_for(const char *tag);
 
   /// Register a callback that will be called for every log message sent
-  void add_on_log_callback(std::function<void(uint8_t, const char *, const char *)> &&callback);
+  void add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback);
 
   // add a listener for log level changes
   void add_listener(std::function<void(uint8_t)> &&callback) { this->level_callback_.add(std::move(callback)); }
@@ -192,7 +192,7 @@ class Logger : public Component {
     if (this->baud_rate_ > 0) {
       this->write_msg_(this->tx_buffer_);  // If logging is enabled, write to console
     }
-    this->log_callback_.call(level, tag, this->tx_buffer_);
+    this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
   }
 
   // Write the body of the log message to the buffer
@@ -246,7 +246,7 @@ class Logger : public Component {
 
   // Large objects (internally aligned)
   std::map<std::string, uint8_t> log_levels_{};
-  CallbackManager<void(uint8_t, const char *, const char *)> log_callback_{};
+  CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
   CallbackManager<void(uint8_t)> level_callback_{};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
@@ -355,9 +355,29 @@ class Logger : public Component {
   }
 
   inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    static const uint16_t RESET_COLOR_LEN = strlen(ESPHOME_LOG_RESET_COLOR);
+    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
+
+#ifdef USE_ESP32
+  // Disable loop when task buffer is empty (with USB CDC check)
+  inline void disable_loop_when_buffer_empty_() {
+    // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
+    // concurrently. If that happens between our check and disable_loop(), the enable request
+    // will be processed on the next main loop iteration since:
+    // - disable_loop() takes effect immediately
+    // - enable_loop_soon_any_context() sets a pending flag that's checked at loop start
+#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
+    // Only disable if not using USB CDC (which needs loop for connection detection)
+    if (this->uart_ != UART_SELECTION_USB_CDC) {
+      this->disable_loop();
+    }
+#else
+    // No USB CDC support, always safe to disable
+    this->disable_loop();
+#endif
+  }
+#endif
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -365,7 +385,7 @@ class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>
  public:
   explicit LoggerMessageTrigger(Logger *parent, uint8_t level) {
     this->level_ = level;
-    parent->add_on_log_callback([this](uint8_t level, const char *tag, const char *message) {
+    parent->add_on_log_callback([this](uint8_t level, const char *tag, const char *message, size_t message_len) {
       if (level <= this->level_) {
         this->trigger(level, tag, message);
       }

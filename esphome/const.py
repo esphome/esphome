@@ -1,19 +1,65 @@
 """Constants used by esphome."""
 
-__version__ = "2025.7.0-dev"
+from enum import Enum
+
+from esphome.enum import StrEnum
+
+__version__ = "2025.8.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
-PLATFORM_BK72XX = "bk72xx"
-PLATFORM_ESP32 = "esp32"
-PLATFORM_ESP8266 = "esp8266"
-PLATFORM_HOST = "host"
-PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
-PLATFORM_RP2040 = "rp2040"
-PLATFORM_RTL87XX = "rtl87xx"
+
+class Platform(StrEnum):
+    """Platform identifiers for ESPHome."""
+
+    BK72XX = "bk72xx"
+    ESP32 = "esp32"
+    ESP8266 = "esp8266"
+    HOST = "host"
+    LIBRETINY_OLDSTYLE = "libretiny"
+    LN882X = "ln882x"
+    RP2040 = "rp2040"
+    RTL87XX = "rtl87xx"
+
+
+class Framework(StrEnum):
+    """Framework identifiers for ESPHome."""
+
+    ARDUINO = "arduino"
+    ESP_IDF = "esp-idf"
+    NATIVE = "host"
+
+
+class PlatformFramework(Enum):
+    """Combined platform-framework identifiers with tuple values."""
+
+    # ESP32 variants
+    ESP32_ARDUINO = (Platform.ESP32, Framework.ARDUINO)
+    ESP32_IDF = (Platform.ESP32, Framework.ESP_IDF)
+
+    # Arduino framework platforms
+    ESP8266_ARDUINO = (Platform.ESP8266, Framework.ARDUINO)
+    RP2040_ARDUINO = (Platform.RP2040, Framework.ARDUINO)
+    BK72XX_ARDUINO = (Platform.BK72XX, Framework.ARDUINO)
+    RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
+    LN882X_ARDUINO = (Platform.LN882X, Framework.ARDUINO)
+
+    # Host platform (native)
+    HOST_NATIVE = (Platform.HOST, Framework.NATIVE)
+
+
+# Maintain backward compatibility by reassigning after enum definition
+PLATFORM_BK72XX = Platform.BK72XX
+PLATFORM_ESP32 = Platform.ESP32
+PLATFORM_ESP8266 = Platform.ESP8266
+PLATFORM_HOST = Platform.HOST
+PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
+PLATFORM_LN882X = Platform.LN882X
+PLATFORM_RP2040 = Platform.RP2040
+PLATFORM_RTL87XX = Platform.RTL87XX
 
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
@@ -56,6 +102,8 @@ CONF_AP = "ap"
 CONF_APPARENT_POWER = "apparent_power"
 CONF_ARDUINO_VERSION = "arduino_version"
 CONF_AREA = "area"
+CONF_AREA_ID = "area_id"
+CONF_AREAS = "areas"
 CONF_ARGS = "args"
 CONF_ASSUMED_STATE = "assumed_state"
 CONF_AT = "at"
@@ -217,6 +265,7 @@ CONF_DEST = "dest"
 CONF_DEVICE = "device"
 CONF_DEVICE_CLASS = "device_class"
 CONF_DEVICE_FACTOR = "device_factor"
+CONF_DEVICE_ID = "device_id"
 CONF_DEVICES = "devices"
 CONF_DIELECTRIC_CONSTANT = "dielectric_constant"
 CONF_DIMENSIONS = "dimensions"
@@ -650,6 +699,7 @@ CONF_PAYLOAD = "payload"
 CONF_PAYLOAD_AVAILABLE = "payload_available"
 CONF_PAYLOAD_NOT_AVAILABLE = "payload_not_available"
 CONF_PERIOD = "period"
+CONF_PERMITTIVITY = "permittivity"
 CONF_PH = "ph"
 CONF_PHASE_A = "phase_a"
 CONF_PHASE_ANGLE = "phase_angle"
@@ -1096,7 +1146,7 @@ UNIT_KILOMETER_PER_HOUR = "km/h"
 UNIT_KILOVOLT_AMPS = "kVA"
 UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
 UNIT_KILOVOLT_AMPS_REACTIVE = "kVAR"
-UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
+UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
@@ -1132,7 +1182,7 @@ UNIT_VOLT = "V"
 UNIT_VOLT_AMPS = "VA"
 UNIT_VOLT_AMPS_HOURS = "VAh"
 UNIT_VOLT_AMPS_REACTIVE = "var"
-UNIT_VOLT_AMPS_REACTIVE_HOURS = "VARh"
+UNIT_VOLT_AMPS_REACTIVE_HOURS = "varh"
 UNIT_WATT = "W"
 UNIT_WATT_HOURS = "Wh"
 

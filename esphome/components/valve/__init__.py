@@ -22,8 +22,8 @@ from esphome.const import (
     DEVICE_CLASS_WATER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
@@ -103,6 +103,9 @@ _VALVE_SCHEMA = (
 )
 
 
+_VALVE_SCHEMA.add_extra(entity_duplicate_validator("valve"))
+
+
 def valve_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -132,7 +135,7 @@ VALVE_SCHEMA.add_extra(cv.deprecated_schema_constant("valve"))
 
 
 async def _setup_valve_core(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "valve")
 
     if device_class_config := config.get(CONF_DEVICE_CLASS):
         cg.add(var.set_device_class(device_class_config))

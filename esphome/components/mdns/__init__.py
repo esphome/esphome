@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
@@ -8,8 +9,7 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_SERVICE,
     CONF_SERVICES,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
+    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -85,15 +85,8 @@ async def to_code(config):
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
 
-    if CORE.using_esp_idf and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
-        5, 0, 0
-    ):
-        add_idf_component(
-            name="mdns",
-            repo="https://github.com/espressif/esp-protocols.git",
-            ref="mdns-v1.8.2",
-            path="components/mdns",
-        )
+    if CORE.using_esp_idf:
+        add_idf_component(name="espressif/mdns", ref="1.8.2")
 
     cg.add_define("USE_MDNS")
 
@@ -117,3 +110,21 @@ async def to_code(config):
         )
 
         cg.add(var.add_extra_service(exp))
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "mdns_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "mdns_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "mdns_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "mdns_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "mdns_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

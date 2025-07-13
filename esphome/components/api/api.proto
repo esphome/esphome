@@ -188,6 +188,17 @@ message DeviceInfoRequest {
   // Empty
 }
 
+message AreaInfo {
+  uint32 area_id = 1;
+  string name = 2;
+}
+
+message DeviceInfo {
+  uint32 device_id = 1;
+  string name = 2;
+  uint32 area_id = 3;
+}
+
 message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
@@ -236,6 +247,12 @@ message DeviceInfoResponse {
 
   // Supports receiving and saving api encryption key
   bool api_encryption_supported = 19;
+
+  repeated DeviceInfo devices = 20;
+  repeated AreaInfo areas = 21;
+
+  // Top-level area info to phase out suggested_area
+  AreaInfo area = 22;
 }
 
 message ListEntitiesRequest {
@@ -280,6 +297,7 @@ message ListEntitiesBinarySensorResponse {
   bool disabled_by_default = 7;
   string icon = 8;
   EntityCategory entity_category = 9;
+  uint32 device_id = 10;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -293,6 +311,7 @@ message BinarySensorStateResponse {
   // If the binary sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 
 // ==================== COVER ====================
@@ -315,6 +334,7 @@ message ListEntitiesCoverResponse {
   string icon = 10;
   EntityCategory entity_category = 11;
   bool supports_stop = 12;
+  uint32 device_id = 13;
 }
 
 enum LegacyCoverState {
@@ -341,6 +361,7 @@ message CoverStateResponse {
   float position = 3;
   float tilt = 4;
   CoverOperation current_operation = 5;
+  uint32 device_id = 6;
 }
 
 enum LegacyCoverCommand {
@@ -353,6 +374,7 @@ message CoverCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_COVER";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
 
@@ -366,6 +388,7 @@ message CoverCommandRequest {
   bool has_tilt = 6;
   float tilt = 7;
   bool stop = 8;
+  uint32 device_id = 9;
 }
 
 // ==================== FAN ====================
@@ -388,6 +411,7 @@ message ListEntitiesFanResponse {
   string icon = 10;
   EntityCategory entity_category = 11;
   repeated string supported_preset_modes = 12;
+  uint32 device_id = 13;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -412,12 +436,14 @@ message FanStateResponse {
   FanDirection direction = 5;
   int32 speed_level = 6;
   string preset_mode = 7;
+  uint32 device_id = 8;
 }
 message FanCommandRequest {
   option (id) = 31;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_FAN";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -432,6 +458,7 @@ message FanCommandRequest {
   int32 speed_level = 11;
   bool has_preset_mode = 12;
   string preset_mode = 13;
+  uint32 device_id = 14;
 }
 
 // ==================== LIGHT ====================
@@ -471,6 +498,7 @@ message ListEntitiesLightResponse {
   bool disabled_by_default = 13;
   string icon = 14;
   EntityCategory entity_category = 15;
+  uint32 device_id = 16;
 }
 message LightStateResponse {
   option (id) = 24;
@@ -492,12 +520,14 @@ message LightStateResponse {
   float cold_white = 12;
   float warm_white = 13;
   string effect = 9;
+  uint32 device_id = 14;
 }
 message LightCommandRequest {
   option (id) = 32;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_LIGHT";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -526,6 +556,7 @@ message LightCommandRequest {
   uint32 flash_length = 17;
   bool has_effect = 18;
   string effect = 19;
+  uint32 device_id = 28;
 }
 
 // ==================== SENSOR ====================
@@ -563,6 +594,7 @@ message ListEntitiesSensorResponse {
   SensorLastResetType legacy_last_reset_type = 11;
   bool disabled_by_default = 12;
   EntityCategory entity_category = 13;
+  uint32 device_id = 14;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -576,6 +608,7 @@ message SensorStateResponse {
   // If the sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 
 // ==================== SWITCH ====================
@@ -595,6 +628,7 @@ message ListEntitiesSwitchResponse {
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
   string device_class = 9;
+  uint32 device_id = 10;
 }
 message SwitchStateResponse {
   option (id) = 26;
@@ -605,15 +639,18 @@ message SwitchStateResponse {
 
   fixed32 key = 1;
   bool state = 2;
+  uint32 device_id = 3;
 }
 message SwitchCommandRequest {
   option (id) = 33;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SWITCH";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool state = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== TEXT SENSOR ====================
@@ -632,6 +669,7 @@ message ListEntitiesTextSensorResponse {
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   string device_class = 8;
+  uint32 device_id = 9;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -645,6 +683,7 @@ message TextSensorStateResponse {
   // If the text sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 
 // ==================== SUBSCRIBE LOGS ====================
@@ -768,18 +807,21 @@ enum ServiceArgType {
   SERVICE_ARG_TYPE_STRING_ARRAY = 7;
 }
 message ListEntitiesServicesArgument {
+  option (ifdef) = "USE_API_SERVICES";
   string name = 1;
   ServiceArgType type = 2;
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
   option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_SERVICES";
 
   string name = 1;
   fixed32 key = 2;
   repeated ListEntitiesServicesArgument args = 3;
 }
 message ExecuteServiceArgument {
+  option (ifdef) = "USE_API_SERVICES";
   bool bool_ = 1;
   int32 legacy_int = 2;
   float float_ = 3;
@@ -795,6 +837,7 @@ message ExecuteServiceRequest {
   option (id) = 42;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_SERVICES";
 
   fixed32 key = 1;
   repeated ExecuteServiceArgument args = 2;
@@ -805,7 +848,7 @@ message ListEntitiesCameraResponse {
   option (id) = 43;
   option (base_class) = "InfoResponseProtoMessage";
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_ESP32_CAMERA";
+  option (ifdef) = "USE_CAMERA";
 
   string object_id = 1;
   fixed32 key = 2;
@@ -814,21 +857,24 @@ message ListEntitiesCameraResponse {
   bool disabled_by_default = 5;
   string icon = 6;
   EntityCategory entity_category = 7;
+  uint32 device_id = 8;
 }
 
 message CameraImageResponse {
   option (id) = 44;
+  option (base_class) = "StateResponseProtoMessage";
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_ESP32_CAMERA";
+  option (ifdef) = "USE_CAMERA";
 
   fixed32 key = 1;
   bytes data = 2;
   bool done = 3;
+  uint32 device_id = 4;
 }
 message CameraImageRequest {
   option (id) = 45;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_ESP32_CAMERA";
+  option (ifdef) = "USE_CAMERA";
   option (no_delay) = true;
 
   bool single = 1;
@@ -916,6 +962,7 @@ message ListEntitiesClimateResponse {
   bool supports_target_humidity = 23;
   float visual_min_humidity = 24;
   float visual_max_humidity = 25;
+  uint32 device_id = 26;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -940,12 +987,14 @@ message ClimateStateResponse {
   string custom_preset = 13;
   float current_humidity = 14;
   float target_humidity = 15;
+  uint32 device_id = 16;
 }
 message ClimateCommandRequest {
   option (id) = 48;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_CLIMATE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_mode = 2;
@@ -971,6 +1020,7 @@ message ClimateCommandRequest {
   string custom_preset = 21;
   bool has_target_humidity = 22;
   float target_humidity = 23;
+  uint32 device_id = 24;
 }
 
 // ==================== NUMBER ====================
@@ -999,6 +1049,7 @@ message ListEntitiesNumberResponse {
   string unit_of_measurement = 11;
   NumberMode mode = 12;
   string device_class = 13;
+  uint32 device_id = 14;
 }
 message NumberStateResponse {
   option (id) = 50;
@@ -1012,15 +1063,18 @@ message NumberStateResponse {
   // If the number does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 message NumberCommandRequest {
   option (id) = 51;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_NUMBER";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   float state = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== SELECT ====================
@@ -1039,6 +1093,7 @@ message ListEntitiesSelectResponse {
   repeated string options = 6;
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
+  uint32 device_id = 9;
 }
 message SelectStateResponse {
   option (id) = 53;
@@ -1052,15 +1107,18 @@ message SelectStateResponse {
   // If the select does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 message SelectCommandRequest {
   option (id) = 54;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SELECT";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   string state = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== SIREN ====================
@@ -1081,6 +1139,7 @@ message ListEntitiesSirenResponse {
   bool supports_duration = 8;
   bool supports_volume = 9;
   EntityCategory entity_category = 10;
+  uint32 device_id = 11;
 }
 message SirenStateResponse {
   option (id) = 56;
@@ -1091,12 +1150,14 @@ message SirenStateResponse {
 
   fixed32 key = 1;
   bool state = 2;
+  uint32 device_id = 3;
 }
 message SirenCommandRequest {
   option (id) = 57;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SIREN";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -1107,6 +1168,7 @@ message SirenCommandRequest {
   uint32 duration = 7;
   bool has_volume = 8;
   float volume = 9;
+  uint32 device_id = 10;
 }
 
 // ==================== LOCK ====================
@@ -1144,6 +1206,7 @@ message ListEntitiesLockResponse {
 
   // Not yet implemented:
   string code_format = 11;
+  uint32 device_id = 12;
 }
 message LockStateResponse {
   option (id) = 59;
@@ -1153,18 +1216,21 @@ message LockStateResponse {
   option (no_delay) = true;
   fixed32 key = 1;
   LockState state = 2;
+  uint32 device_id = 3;
 }
 message LockCommandRequest {
   option (id) = 60;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
   fixed32 key = 1;
   LockCommand command = 2;
 
   // Not yet implemented:
   bool has_code = 3;
   string code = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== BUTTON ====================
@@ -1183,14 +1249,17 @@ message ListEntitiesButtonResponse {
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   string device_class = 8;
+  uint32 device_id = 9;
 }
 message ButtonCommandRequest {
   option (id) = 62;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BUTTON";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
+  uint32 device_id = 2;
 }
 
 // ==================== MEDIA PLAYER ====================
@@ -1238,6 +1307,8 @@ message ListEntitiesMediaPlayerResponse {
   bool supports_pause = 8;
 
   repeated MediaPlayerSupportedFormat supported_formats = 9;
+
+  uint32 device_id = 10;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;
@@ -1249,12 +1320,14 @@ message MediaPlayerStateResponse {
   MediaPlayerState state = 2;
   float volume = 3;
   bool muted = 4;
+  uint32 device_id = 5;
 }
 message MediaPlayerCommandRequest {
   option (id) = 65;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_MEDIA_PLAYER";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
 
@@ -1269,6 +1342,7 @@ message MediaPlayerCommandRequest {
 
   bool has_announcement = 8;
   bool announcement = 9;
+  uint32 device_id = 10;
 }
 
 // ==================== BLUETOOTH ====================
@@ -1778,6 +1852,7 @@ message ListEntitiesAlarmControlPanelResponse {
   uint32 supported_features = 8;
   bool requires_code = 9;
   bool requires_code_to_arm = 10;
+  uint32 device_id = 11;
 }
 
 message AlarmControlPanelStateResponse {
@@ -1788,6 +1863,7 @@ message AlarmControlPanelStateResponse {
   option (no_delay) = true;
   fixed32 key = 1;
   AlarmControlPanelState state = 2;
+  uint32 device_id = 3;
 }
 
 message AlarmControlPanelCommandRequest {
@@ -1795,9 +1871,11 @@ message AlarmControlPanelCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
   fixed32 key = 1;
   AlarmControlPanelStateCommand command = 2;
   string code = 3;
+  uint32 device_id = 4;
 }
 
 // ===================== TEXT =====================
@@ -1823,6 +1901,7 @@ message ListEntitiesTextResponse {
   uint32 max_length = 9;
   string pattern = 10;
   TextMode mode = 11;
+  uint32 device_id = 12;
 }
 message TextStateResponse {
   option (id) = 98;
@@ -1836,15 +1915,18 @@ message TextStateResponse {
   // If the Text does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+  uint32 device_id = 4;
 }
 message TextCommandRequest {
   option (id) = 99;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_TEXT";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   string state = 2;
+  uint32 device_id = 3;
 }
 
 
@@ -1863,6 +1945,7 @@ message ListEntitiesDateResponse {
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
+  uint32 device_id = 8;
 }
 message DateStateResponse {
   option (id) = 101;
@@ -1878,17 +1961,20 @@ message DateStateResponse {
   uint32 year = 3;
   uint32 month = 4;
   uint32 day = 5;
+  uint32 device_id = 6;
 }
 message DateCommandRequest {
   option (id) = 102;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_DATETIME_DATE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   uint32 year = 2;
   uint32 month = 3;
   uint32 day = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== DATETIME TIME ====================
@@ -1906,6 +1992,7 @@ message ListEntitiesTimeResponse {
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
+  uint32 device_id = 8;
 }
 message TimeStateResponse {
   option (id) = 104;
@@ -1921,17 +2008,20 @@ message TimeStateResponse {
   uint32 hour = 3;
   uint32 minute = 4;
   uint32 second = 5;
+  uint32 device_id = 6;
 }
 message TimeCommandRequest {
   option (id) = 105;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_DATETIME_TIME";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   uint32 hour = 2;
   uint32 minute = 3;
   uint32 second = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== EVENT ====================
@@ -1952,6 +2042,7 @@ message ListEntitiesEventResponse {
   string device_class = 8;
 
   repeated string event_types = 9;
+  uint32 device_id = 10;
 }
 message EventResponse {
   option (id) = 108;
@@ -1961,6 +2052,7 @@ message EventResponse {
 
   fixed32 key = 1;
   string event_type = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== VALVE ====================
@@ -1983,6 +2075,7 @@ message ListEntitiesValveResponse {
   bool assumed_state = 9;
   bool supports_position = 10;
   bool supports_stop = 11;
+  uint32 device_id = 12;
 }
 
 enum ValveOperation {
@@ -2000,6 +2093,7 @@ message ValveStateResponse {
   fixed32 key = 1;
   float position = 2;
   ValveOperation current_operation = 3;
+  uint32 device_id = 4;
 }
 
 message ValveCommandRequest {
@@ -2007,11 +2101,13 @@ message ValveCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VALVE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_position = 2;
   float position = 3;
   bool stop = 4;
+  uint32 device_id = 5;
 }
 
 // ==================== DATETIME DATETIME ====================
@@ -2029,6 +2125,7 @@ message ListEntitiesDateTimeResponse {
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
+  uint32 device_id = 8;
 }
 message DateTimeStateResponse {
   option (id) = 113;
@@ -2042,15 +2139,18 @@ message DateTimeStateResponse {
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 2;
   fixed32 epoch_seconds = 3;
+  uint32 device_id = 4;
 }
 message DateTimeCommandRequest {
   option (id) = 114;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_DATETIME_DATETIME";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   fixed32 epoch_seconds = 2;
+  uint32 device_id = 3;
 }
 
 // ==================== UPDATE ====================
@@ -2069,6 +2169,7 @@ message ListEntitiesUpdateResponse {
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   string device_class = 8;
+  uint32 device_id = 9;
 }
 message UpdateStateResponse {
   option (id) = 117;
@@ -2087,6 +2188,7 @@ message UpdateStateResponse {
   string title = 8;
   string release_summary = 9;
   string release_url = 10;
+  uint32 device_id = 11;
 }
 enum UpdateCommand {
   UPDATE_COMMAND_NONE = 0;
@@ -2098,7 +2200,9 @@ message UpdateCommandRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_UPDATE";
   option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   UpdateCommand command = 2;
+  uint32 device_id = 3;
 }

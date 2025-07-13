@@ -61,7 +61,7 @@ uint32_t Aggregator::aggregate() {
 
 void ADCSensor::update() {
   float value_v = this->sample();
-  ESP_LOGV(TAG, "'%s': Got voltage=%.4fV", this->get_name().c_str(), value_v);
+  ESP_LOGV(TAG, "'%s': Voltage=%.4fV", this->get_name().c_str(), value_v);
   this->publish_state(value_v);
 }
 

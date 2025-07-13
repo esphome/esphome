@@ -466,7 +466,7 @@ LVGL_SCHEMA = cv.All(
                 ): lvalid.lv_color,
                 cv.Optional(df.CONF_THEME): cv.Schema(
                     {
-                        cv.Optional(name): obj_schema(w)
+                        cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
                         for name, w in WIDGET_TYPES.items()
                     }
                 ),

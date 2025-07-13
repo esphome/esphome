@@ -691,7 +691,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     memcpy(buf, it.ssid, it.ssid_len);
     buf[it.ssid_len] = '\0';
     ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
-             format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+             format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
     s_sta_connected = true;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -708,7 +708,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       return;
     } else {
       ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-               format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+               format_mac_address_pretty(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
@@ -780,15 +780,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_PROBEREQRECVED) {
     const auto &it = data->data.ap_probe_req_rx;
-    ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+    ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_address_pretty(it.mac).c_str(), it.rssi);
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STACONNECTED) {
     const auto &it = data->data.ap_staconnected;
-    ESP_LOGV(TAG, "AP client connected MAC=%s", format_mac_addr(it.mac).c_str());
+    ESP_LOGV(TAG, "AP client connected MAC=%s", format_mac_address_pretty(it.mac).c_str());
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STADISCONNECTED) {
     const auto &it = data->data.ap_stadisconnected;
-    ESP_LOGV(TAG, "AP client disconnected MAC=%s", format_mac_addr(it.mac).c_str());
+    ESP_LOGV(TAG, "AP client disconnected MAC=%s", format_mac_address_pretty(it.mac).c_str());
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_AP_STAIPASSIGNED) {
     const auto &it = data->data.ip_ap_staipassigned;

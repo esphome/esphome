@@ -7,11 +7,12 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
 
-AUTO_LOAD = ["web_server_base"]
+AUTO_LOAD = ["web_server_base", "ota.web_server"]
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@OttoWinter"]
 
@@ -27,7 +28,15 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_LN882X,
+            PLATFORM_RTL87XX,
+        ]
+    ),
 )
 
 

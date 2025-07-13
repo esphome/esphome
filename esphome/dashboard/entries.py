@@ -9,6 +9,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 from esphome import const, util
+from esphome.enum import StrEnum
 from esphome.storage_json import StorageJSON, ext_storage_path
 
 from .const import (
@@ -18,7 +19,6 @@ from .const import (
     EVENT_ENTRY_STATE_CHANGED,
     EVENT_ENTRY_UPDATED,
 )
-from .enum import StrEnum
 from .util.subprocess import async_run_system_command
 
 if TYPE_CHECKING:
