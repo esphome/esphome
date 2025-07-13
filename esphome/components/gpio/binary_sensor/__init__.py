@@ -1,10 +1,15 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_PIN
+from esphome.const import CONF_ID, CONF_NAME, CONF_NUMBER, CONF_PIN
+from esphome.core import CORE
 
 from .. import gpio_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 GPIOBinarySensor = gpio_ns.class_(
     "GPIOBinarySensor", binary_sensor.BinarySensor, cg.Component
@@ -41,6 +46,22 @@ async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    cg.add(var.set_use_interrupt(config[CONF_USE_INTERRUPT]))
-    if config[CONF_USE_INTERRUPT]:
+    # Check for ESP8266 GPIO16 interrupt limitation
+    # GPIO16 on ESP8266 is a special pin that doesn't support interrupts through
+    # the Arduino attachInterrupt() function. This is the only known GPIO pin
+    # across all supported platforms that has this limitation, so we handle it
+    # here instead of in the platform-specific code.
+    use_interrupt = config[CONF_USE_INTERRUPT]
+    if use_interrupt and CORE.is_esp8266 and config[CONF_PIN][CONF_NUMBER] == 16:
+        _LOGGER.warning(
+            "GPIO binary_sensor '%s': GPIO16 on ESP8266 doesn't support interrupts. "
+            "Falling back to polling mode (same as in ESPHome <2025.7). "
+            "The sensor will work exactly as before, but other pins have better "
+            "performance with interrupts.",
+            config.get(CONF_NAME, config[CONF_ID]),
+        )
+        use_interrupt = False
+
+    cg.add(var.set_use_interrupt(use_interrupt))
+    if use_interrupt:
         cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
