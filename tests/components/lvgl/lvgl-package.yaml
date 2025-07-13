@@ -919,21 +919,21 @@ lvgl:
                       text_color: 0xFFFFFF
                       scales:
                         - ticks:
-                            width: 1
+                            width: !lambda return 1;
                             count: 61
-                            length: 20
+                            length: 20%
                             color: 0xFFFFFF
                           range_from: 0
                           range_to: 60
                           angle_range: 360
-                          rotation: 270
+                          rotation: !lambda return 2700;
                           indicators:
                             - line:
                                 opa: 50%
                                 id: minute_hand
                                 color: 0xFF0000
-                                r_mod: -1
-                                width: 3
+                                r_mod: !lambda return -1;
+                                width: !lambda return 3;
                         -
                           angle_range: 330
                           rotation: 300
