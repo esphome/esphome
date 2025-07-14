@@ -184,8 +184,14 @@ void ESP32Camera::loop() {
   // check if we can return the image
   if (this->can_return_image_()) {
     // return image
-    auto *fb = this->current_image_->get_raw_buffer();
-    xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
+    if (this->config_.pixel_format == PIXFORMAT_JPEG) {
+      auto *fb = this->current_image_->get_raw_buffer();
+      xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
+    } else {
+      // for non-JPEG format, we need to free the data and raw buffer
+      free(this->current_image_->get_data_buffer());
+      free(this->current_image_->get_raw_buffer());
+    }
     this->current_image_.reset();
   }
 
@@ -211,6 +217,35 @@ void ESP32Camera::loop() {
     ESP_LOGW(TAG, "Got invalid frame from camera!");
     xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     return;
+  }
+
+  // for non-JPEG format, we need to convert the frame to JPEG
+  if (this->config_.pixel_format != PIXFORMAT_JPEG) {
+    uint8_t *jpg_buf;
+    size_t jpg_buf_len;
+    size_t width = fb->width;
+    size_t height = fb->height;
+    struct timeval timestamp = fb->timestamp;
+    bool ok = frame2jpg(fb, 100 - this->config_.jpeg_quality, &jpg_buf, &jpg_buf_len);
+    // return the original frame buffer to the queue
+    xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
+    if (!ok) {
+      ESP_LOGE(TAG, "Failed to convert frame to JPEG!");
+      return;
+    }
+    // create a new camera_fb_t for the JPEG data
+    fb = (camera_fb_t *) malloc(sizeof(camera_fb_t));
+    if (fb == nullptr) {
+      ESP_LOGE(TAG, "Failed to allocate memory for camera frame buffer!");
+      free(jpg_buf);
+      return;
+    }
+    fb->buf = jpg_buf;
+    fb->len = jpg_buf_len;
+    fb->width = width;
+    fb->height = height;
+    fb->format = PIXFORMAT_JPEG;
+    fb->timestamp = timestamp;
   }
   this->current_image_ = std::make_shared<ESP32CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
@@ -341,6 +376,37 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
       break;
     case ESP32_CAMERA_SIZE_2560X1920:
       this->config_.frame_size = FRAMESIZE_QSXGA;
+      break;
+  }
+}
+void ESP32Camera::set_pixel_format(ESP32CameraPixelFormat format) {
+  switch (format) {
+    case ESP32_PIXEL_FORMAT_RGB565:
+      this->config_.pixel_format = PIXFORMAT_RGB565;
+      break;
+    case ESP32_PIXEL_FORMAT_YUV422:
+      this->config_.pixel_format = PIXFORMAT_YUV422;
+      break;
+    case ESP32_PIXEL_FORMAT_YUV420:
+      this->config_.pixel_format = PIXFORMAT_YUV420;
+      break;
+    case ESP32_PIXEL_FORMAT_GRAYSCALE:
+      this->config_.pixel_format = PIXFORMAT_GRAYSCALE;
+      break;
+    case ESP32_PIXEL_FORMAT_JPEG:
+      this->config_.pixel_format = PIXFORMAT_JPEG;
+      break;
+    case ESP32_PIXEL_FORMAT_RGB888:
+      this->config_.pixel_format = PIXFORMAT_RGB888;
+      break;
+    case ESP32_PIXEL_FORMAT_RAW:
+      this->config_.pixel_format = PIXFORMAT_RAW;
+      break;
+    case ESP32_PIXEL_FORMAT_RGB444:
+      this->config_.pixel_format = PIXFORMAT_RGB444;
+      break;
+    case ESP32_PIXEL_FORMAT_RGB555:
+      this->config_.pixel_format = PIXFORMAT_RGB555;
       break;
   }
 }
