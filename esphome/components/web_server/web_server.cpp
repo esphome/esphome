@@ -1887,7 +1887,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     void (WebServer::*handler)(AsyncWebServerRequest *, const UrlMatch &);
   };
 
-  static const ComponentRoute routes[] = {
+  static const ComponentRoute ROUTES[] = {
 #ifdef USE_SENSOR
       {"sensor", &WebServer::handle_sensor_request},
 #endif
@@ -1948,7 +1948,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   };
 
   // Check each route
-  for (const auto &route : routes) {
+  for (const auto &route : ROUTES) {
     if (match.domain_equals(route.domain)) {
       (this->*route.handler)(request, match);
       return;
