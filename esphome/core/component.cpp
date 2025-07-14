@@ -138,7 +138,7 @@ void Component::call_dump_config() {
         }
       }
     }
-    ESP_LOGE(TAG, "  Component %s is marked FAILED: %s", this->get_component_source(), error_msg);
+    ESP_LOGE(TAG, "  %s is marked FAILED: %s", this->get_component_source(), error_msg);
   }
 }
 
@@ -191,7 +191,7 @@ bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   return false;
 }
 void Component::mark_failed() {
-  ESP_LOGE(TAG, "Component %s was marked as failed", this->get_component_source());
+  ESP_LOGE(TAG, "%s was marked as failed", this->get_component_source());
   this->component_state_ &= ~COMPONENT_STATE_MASK;
   this->component_state_ |= COMPONENT_STATE_FAILED;
   this->status_set_error();
@@ -229,7 +229,7 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
-    ESP_LOGI(TAG, "Component %s is being reset to construction state", this->get_component_source());
+    ESP_LOGI(TAG, "%s is being reset to construction state", this->get_component_source());
     this->component_state_ &= ~COMPONENT_STATE_MASK;
     this->component_state_ |= COMPONENT_STATE_CONSTRUCTION;
     // Clear error status when resetting
@@ -275,14 +275,14 @@ void Component::status_set_warning(const char *message) {
     return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "Component %s set Warning flag: %s", this->get_component_source(), message);
+  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(), message);
 }
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
-  ESP_LOGE(TAG, "Component %s set Error flag: %s", this->get_component_source(), message);
+  ESP_LOGE(TAG, "%s set Error flag: %s", this->get_component_source(), message);
   if (strcmp(message, "unspecified") != 0) {
     // Lazy allocate the error messages vector if needed
     if (!component_error_messages) {
@@ -303,13 +303,13 @@ void Component::status_clear_warning() {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "Component %s cleared Warning flag", this->get_component_source());
+  ESP_LOGW(TAG, "%s cleared Warning flag", this->get_component_source());
 }
 void Component::status_clear_error() {
   if ((this->component_state_ & STATUS_LED_ERROR) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_ERROR;
-  ESP_LOGE(TAG, "Component %s cleared Error flag", this->get_component_source());
+  ESP_LOGE(TAG, "%s cleared Error flag", this->get_component_source());
 }
 void Component::status_momentary_warning(const std::string &name, uint32_t length) {
   this->status_set_warning();
@@ -403,7 +403,7 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   }
   if (should_warn) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms)", src, blocking_time);
+    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms)", src, blocking_time);
     ESP_LOGW(TAG, "Components should block for at most 30 ms");
   }
 
