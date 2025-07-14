@@ -4,7 +4,7 @@
 
 ci:
   autoupdate_commit_msg: 'pre-commit: autoupdate'
-  autoupdate_schedule: weekly
+  autoupdate_schedule: off  # Disabled until ruff versions are synced between deps and pre-commit
   # Skip hooks that have issues in pre-commit CI environment
   skip: [pylint, clang-tidy-hash, yamllint]
 

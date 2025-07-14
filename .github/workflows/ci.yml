@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v4.2.2
       - name: Generate cache-key
         id: cache-key
-        run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
+        run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
         uses: actions/setup-python@v5.6.0
@@ -58,54 +58,8 @@ jobs:
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_test.txt
+          pip install -r requirements.txt -r requirements_test.txt pre-commit
           pip install -e .
-
-  ruff:
-    name: Check ruff
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.python-linters == 'true'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run Ruff
-        run: |
-          . venv/bin/activate
-          ruff format esphome tests
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
-
-  flake8:
-    name: Check flake8
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.python-linters == 'true'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run flake8
-        run: |
-          . venv/bin/activate
-          flake8 esphome
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
 
   pylint:
     name: Check pylint
@@ -248,7 +202,6 @@ jobs:
     outputs:
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
-      clang-format: ${{ steps.determine.outputs.clang-format }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
@@ -276,7 +229,6 @@ jobs:
           # Extract individual fields
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
-          echo "clang-format=$(echo "$output" | jq -r '.clang_format')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
@@ -317,41 +269,12 @@ jobs:
           . venv/bin/activate
           pytest -vv --no-cov --tb=native -n auto tests/integration/
 
-  clang-format:
-    name: Check clang-format
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.clang-format == 'true'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Install clang-format
-        run: |
-          . venv/bin/activate
-          pip install clang-format -c requirements_dev.txt
-      - name: Run clang-format
-        run: |
-          . venv/bin/activate
-          script/clang-format -i
-          git diff-index --quiet HEAD --
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
-
   clang-tidy-deps:
     name: Clang-tidy dependencies
     runs-on: ubuntu-24.04
     needs:
       - common
       - ci-custom
-      - clang-format
       - pytest
       - determine-jobs
     if: |
@@ -573,15 +496,32 @@ jobs:
             ./script/test_build_components -e compile -c $component
           done
 
+  pre-commit-ci-lite:
+    name: pre-commit.ci lite
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    if: github.event_name == 'pull_request' && github.base_ref != 'beta' && github.base_ref != 'release'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.2.2
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - uses: pre-commit/action@v3.0.1
+        env:
+          SKIP: pylint,clang-tidy-hash,yamllint
+      - uses: pre-commit-ci/lite-action@v1.1.0
+        if: always()
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-24.04
     needs:
       - common
-      - ruff
       - ci-custom
-      - clang-format
-      - flake8
       - pylint
       - pytest
       - integration-tests
@@ -592,6 +532,7 @@ jobs:
       - test-build-components
       - test-build-components-splitter
       - test-build-components-split
+      - pre-commit-ci-lite
     if: always()
     steps:
       - name: Success
