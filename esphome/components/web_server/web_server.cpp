@@ -1711,162 +1711,161 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
 #endif
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) const {
-  if (request->url() == "/")
+  const auto &url = request->url();
+  const auto method = request->method();
+
+  // Simple URL checks
+  if (url == "/")
     return true;
 
 #ifdef USE_ARDUINO
-  if (request->url() == "/events") {
+  if (url == "/events")
     return true;
-  }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (request->url() == "/0.css")
+  if (url == "/0.css")
     return true;
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (request->url() == "/0.js")
+  if (url == "/0.js")
     return true;
 #endif
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+  if (method == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA))
     return true;
-  }
 #endif
 
-  // Store the URL to prevent temporary string destruction
-  // request->url() returns a reference to a String (on Arduino) or std::string (on ESP-IDF)
-  // UrlMatch stores pointers to the string's data, so we must ensure the string outlives match_url()
-  const auto &url = request->url();
+  // Parse URL for component checks
   UrlMatch match = match_url(url.c_str(), url.length(), true);
   if (!match.valid)
     return false;
+
+  // Common pattern check
+  bool is_get = method == HTTP_GET;
+  bool is_post = method == HTTP_POST;
+  bool is_get_or_post = is_get || is_post;
+
+  if (!is_get_or_post)
+    return false;
+
+  // GET-only components
+  if (is_get) {
 #ifdef USE_SENSOR
-  if (request->method() == HTTP_GET && match.domain_equals("sensor"))
-    return true;
+    if (match.domain_equals("sensor"))
+      return true;
 #endif
-
-#ifdef USE_SWITCH
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("switch"))
-    return true;
-#endif
-
-#ifdef USE_BUTTON
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("button"))
-    return true;
-#endif
-
 #ifdef USE_BINARY_SENSOR
-  if (request->method() == HTTP_GET && match.domain_equals("binary_sensor"))
-    return true;
+    if (match.domain_equals("binary_sensor"))
+      return true;
 #endif
-
-#ifdef USE_FAN
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("fan"))
-    return true;
-#endif
-
-#ifdef USE_LIGHT
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("light"))
-    return true;
-#endif
-
 #ifdef USE_TEXT_SENSOR
-  if (request->method() == HTTP_GET && match.domain_equals("text_sensor"))
-    return true;
+    if (match.domain_equals("text_sensor"))
+      return true;
 #endif
-
-#ifdef USE_COVER
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("cover"))
-    return true;
-#endif
-
-#ifdef USE_NUMBER
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("number"))
-    return true;
-#endif
-
-#ifdef USE_DATETIME_DATE
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("date"))
-    return true;
-#endif
-
-#ifdef USE_DATETIME_TIME
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("time"))
-    return true;
-#endif
-
-#ifdef USE_DATETIME_DATETIME
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("datetime"))
-    return true;
-#endif
-
-#ifdef USE_TEXT
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("text"))
-    return true;
-#endif
-
-#ifdef USE_SELECT
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("select"))
-    return true;
-#endif
-
-#ifdef USE_CLIMATE
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("climate"))
-    return true;
-#endif
-
-#ifdef USE_LOCK
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("lock"))
-    return true;
-#endif
-
-#ifdef USE_VALVE
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("valve"))
-    return true;
-#endif
-
-#ifdef USE_ALARM_CONTROL_PANEL
-  if ((request->method() == HTTP_GET || request->method() == HTTP_POST) && match.domain_equals("alarm_control_panel"))
-    return true;
-#endif
-
 #ifdef USE_EVENT
-  if (request->method() == HTTP_GET && match.domain_equals("event"))
-    return true;
+    if (match.domain_equals("event"))
+      return true;
 #endif
+  }
 
-#ifdef USE_UPDATE
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain_equals("update"))
-    return true;
+  // GET+POST components
+  if (is_get_or_post) {
+#ifdef USE_SWITCH
+    if (match.domain_equals("switch"))
+      return true;
 #endif
+#ifdef USE_BUTTON
+    if (match.domain_equals("button"))
+      return true;
+#endif
+#ifdef USE_FAN
+    if (match.domain_equals("fan"))
+      return true;
+#endif
+#ifdef USE_LIGHT
+    if (match.domain_equals("light"))
+      return true;
+#endif
+#ifdef USE_COVER
+    if (match.domain_equals("cover"))
+      return true;
+#endif
+#ifdef USE_NUMBER
+    if (match.domain_equals("number"))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATE
+    if (match.domain_equals("date"))
+      return true;
+#endif
+#ifdef USE_DATETIME_TIME
+    if (match.domain_equals("time"))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATETIME
+    if (match.domain_equals("datetime"))
+      return true;
+#endif
+#ifdef USE_TEXT
+    if (match.domain_equals("text"))
+      return true;
+#endif
+#ifdef USE_SELECT
+    if (match.domain_equals("select"))
+      return true;
+#endif
+#ifdef USE_CLIMATE
+    if (match.domain_equals("climate"))
+      return true;
+#endif
+#ifdef USE_LOCK
+    if (match.domain_equals("lock"))
+      return true;
+#endif
+#ifdef USE_VALVE
+    if (match.domain_equals("valve"))
+      return true;
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+    if (match.domain_equals("alarm_control_panel"))
+      return true;
+#endif
+#ifdef USE_UPDATE
+    if (match.domain_equals("update"))
+      return true;
+#endif
+  }
 
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
-  if (request->url() == "/") {
+  const auto &url = request->url();
+
+  // Handle static routes first
+  if (url == "/") {
     this->handle_index_request(request);
     return;
   }
 
 #ifdef USE_ARDUINO
-  if (request->url() == "/events") {
+  if (url == "/events") {
     this->events_.add_new_client(this, request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (request->url() == "/0.css") {
+  if (url == "/0.css") {
     this->handle_css_request(request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (request->url() == "/0.js") {
+  if (url == "/0.js") {
     this->handle_js_request(request);
     return;
   }
@@ -1879,147 +1878,85 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 
-  // See comment in canHandle() for why we store the URL reference
-  const auto &url = request->url();
+  // Parse URL for component routing
   UrlMatch match = match_url(url.c_str(), url.length(), false);
 
+  // Component routing using minimal code repetition
+  struct ComponentRoute {
+    const char *domain;
+    void (WebServer::*handler)(AsyncWebServerRequest *, const UrlMatch &);
+  };
+
+  static const ComponentRoute routes[] = {
 #ifdef USE_SENSOR
-  if (match.domain_equals("sensor")) {
-    this->handle_sensor_request(request, match);
-    return;
-  }
+      {"sensor", &WebServer::handle_sensor_request},
 #endif
-
 #ifdef USE_SWITCH
-  if (match.domain_equals("switch")) {
-    this->handle_switch_request(request, match);
-    return;
-  }
+      {"switch", &WebServer::handle_switch_request},
 #endif
-
 #ifdef USE_BUTTON
-  if (match.domain_equals("button")) {
-    this->handle_button_request(request, match);
-    return;
-  }
+      {"button", &WebServer::handle_button_request},
 #endif
-
 #ifdef USE_BINARY_SENSOR
-  if (match.domain_equals("binary_sensor")) {
-    this->handle_binary_sensor_request(request, match);
-    return;
-  }
+      {"binary_sensor", &WebServer::handle_binary_sensor_request},
 #endif
-
 #ifdef USE_FAN
-  if (match.domain_equals("fan")) {
-    this->handle_fan_request(request, match);
-    return;
-  }
+      {"fan", &WebServer::handle_fan_request},
 #endif
-
 #ifdef USE_LIGHT
-  if (match.domain_equals("light")) {
-    this->handle_light_request(request, match);
-    return;
-  }
+      {"light", &WebServer::handle_light_request},
 #endif
-
 #ifdef USE_TEXT_SENSOR
-  if (match.domain_equals("text_sensor")) {
-    this->handle_text_sensor_request(request, match);
-    return;
-  }
+      {"text_sensor", &WebServer::handle_text_sensor_request},
 #endif
-
 #ifdef USE_COVER
-  if (match.domain_equals("cover")) {
-    this->handle_cover_request(request, match);
-    return;
-  }
+      {"cover", &WebServer::handle_cover_request},
 #endif
-
 #ifdef USE_NUMBER
-  if (match.domain_equals("number")) {
-    this->handle_number_request(request, match);
-    return;
-  }
+      {"number", &WebServer::handle_number_request},
 #endif
-
 #ifdef USE_DATETIME_DATE
-  if (match.domain_equals("date")) {
-    this->handle_date_request(request, match);
-    return;
-  }
+      {"date", &WebServer::handle_date_request},
 #endif
-
 #ifdef USE_DATETIME_TIME
-  if (match.domain_equals("time")) {
-    this->handle_time_request(request, match);
-    return;
-  }
+      {"time", &WebServer::handle_time_request},
 #endif
-
 #ifdef USE_DATETIME_DATETIME
-  if (match.domain_equals("datetime")) {
-    this->handle_datetime_request(request, match);
-    return;
-  }
+      {"datetime", &WebServer::handle_datetime_request},
 #endif
-
 #ifdef USE_TEXT
-  if (match.domain_equals("text")) {
-    this->handle_text_request(request, match);
-    return;
-  }
+      {"text", &WebServer::handle_text_request},
 #endif
-
 #ifdef USE_SELECT
-  if (match.domain_equals("select")) {
-    this->handle_select_request(request, match);
-    return;
-  }
+      {"select", &WebServer::handle_select_request},
 #endif
-
 #ifdef USE_CLIMATE
-  if (match.domain_equals("climate")) {
-    this->handle_climate_request(request, match);
-    return;
-  }
+      {"climate", &WebServer::handle_climate_request},
 #endif
-
 #ifdef USE_LOCK
-  if (match.domain_equals("lock")) {
-    this->handle_lock_request(request, match);
-
-    return;
-  }
+      {"lock", &WebServer::handle_lock_request},
 #endif
-
 #ifdef USE_VALVE
-  if (match.domain_equals("valve")) {
-    this->handle_valve_request(request, match);
-    return;
-  }
+      {"valve", &WebServer::handle_valve_request},
 #endif
-
 #ifdef USE_ALARM_CONTROL_PANEL
-  if (match.domain_equals("alarm_control_panel")) {
-    this->handle_alarm_control_panel_request(request, match);
-
-    return;
-  }
+      {"alarm_control_panel", &WebServer::handle_alarm_control_panel_request},
 #endif
-
 #ifdef USE_UPDATE
-  if (match.domain_equals("update")) {
-    this->handle_update_request(request, match);
-    return;
-  }
+      {"update", &WebServer::handle_update_request},
 #endif
+  };
+
+  // Check each route
+  for (const auto &route : routes) {
+    if (match.domain_equals(route.domain)) {
+      (this->*route.handler)(request, match);
+      return;
+    }
+  }
 
   // No matching handler found - send 404
-  ESP_LOGV(TAG, "Request for unknown URL: %s", request->url().c_str());
+  ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
   request->send(404, "text/plain", "Not Found");
 }
 
