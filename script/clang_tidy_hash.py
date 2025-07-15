@@ -62,26 +62,6 @@ def get_clang_tidy_version_from_requirements() -> str:
     return "clang-tidy version not found"
 
 
-def extract_platformio_flags() -> str:
-    """Extract clang-tidy related flags from platformio.ini"""
-    flags: list[str] = []
-    in_clangtidy_section = False
-
-    platformio_path = Path(__file__).parent.parent / "platformio.ini"
-    lines = read_file_lines(platformio_path)
-    for line in lines:
-        line = line.strip()
-        if line.startswith("[flags:clangtidy]"):
-            in_clangtidy_section = True
-            continue
-        elif line.startswith("[") and in_clangtidy_section:
-            break
-        elif in_clangtidy_section and line and not line.startswith("#"):
-            flags.append(line)
-
-    return "\n".join(sorted(flags))
-
-
 def read_file_bytes(path: Path) -> bytes:
     """Read bytes from a file."""
     with open(path, "rb") as f:
@@ -101,9 +81,10 @@ def calculate_clang_tidy_hash() -> str:
     version = get_clang_tidy_version_from_requirements()
     hasher.update(version.encode())
 
-    # Hash relevant platformio.ini sections
-    pio_flags = extract_platformio_flags()
-    hasher.update(pio_flags.encode())
+    # Hash the entire platformio.ini file
+    platformio_path = Path(__file__).parent.parent / "platformio.ini"
+    platformio_content = read_file_bytes(platformio_path)
+    hasher.update(platformio_content)
 
     return hasher.hexdigest()
 

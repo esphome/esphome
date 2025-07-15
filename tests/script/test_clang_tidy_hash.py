@@ -44,67 +44,36 @@ def test_get_clang_tidy_version_from_requirements(
     assert result == expected
 
 
-@pytest.mark.parametrize(
-    ("platformio_content", "expected_flags"),
-    [
-        (
-            "[env:esp32]\n"
-            "platform = espressif32\n"
-            "\n"
-            "[flags:clangtidy]\n"
-            "build_flags = -Wall\n"
-            "extra_flags = -Wextra\n"
-            "\n"
-            "[env:esp8266]\n",
-            "build_flags = -Wall\nextra_flags = -Wextra",
-        ),
-        (
-            "[flags:clangtidy]\n# Comment line\nbuild_flags = -O2\n\n[next_section]\n",
-            "build_flags = -O2",
-        ),
-        (
-            "[flags:clangtidy]\nflag_c = -std=c99\nflag_b = -Wall\nflag_a = -O2\n",
-            "flag_a = -O2\nflag_b = -Wall\nflag_c = -std=c99",  # Sorted
-        ),
-        (
-            "[env:esp32]\nplatform = espressif32\n",  # No clangtidy section
-            "",
-        ),
-    ],
-)
-def test_extract_platformio_flags(platformio_content: str, expected_flags: str) -> None:
-    """Test extracting clang-tidy flags from platformio.ini."""
-    # Mock read_file_lines to return our test content
-    with patch("clang_tidy_hash.read_file_lines") as mock_read:
-        mock_read.return_value = platformio_content.splitlines(keepends=True)
-
-        result = clang_tidy_hash.extract_platformio_flags()
-
-    assert result == expected_flags
-
-
 def test_calculate_clang_tidy_hash() -> None:
     """Test calculating hash from all configuration sources."""
     clang_tidy_content = b"Checks: '-*,readability-*'\n"
     requirements_version = "clang-tidy==18.1.5"
-    pio_flags = "build_flags = -Wall"
+    platformio_content = b"[env:esp32]\nplatform = espressif32\n"
 
     # Expected hash calculation
     expected_hasher = hashlib.sha256()
     expected_hasher.update(clang_tidy_content)
     expected_hasher.update(requirements_version.encode())
-    expected_hasher.update(pio_flags.encode())
+    expected_hasher.update(platformio_content)
     expected_hash = expected_hasher.hexdigest()
 
     # Mock the dependencies
     with (
-        patch("clang_tidy_hash.read_file_bytes", return_value=clang_tidy_content),
+        patch("clang_tidy_hash.read_file_bytes") as mock_read_bytes,
         patch(
             "clang_tidy_hash.get_clang_tidy_version_from_requirements",
             return_value=requirements_version,
         ),
-        patch("clang_tidy_hash.extract_platformio_flags", return_value=pio_flags),
     ):
+        # Set up mock to return different content based on the file being read
+        def read_file_mock(path: Path) -> bytes:
+            if ".clang-tidy" in str(path):
+                return clang_tidy_content
+            elif "platformio.ini" in str(path):
+                return platformio_content
+            return b""
+
+        mock_read_bytes.side_effect = read_file_mock
         result = clang_tidy_hash.calculate_clang_tidy_hash()
 
     assert result == expected_hash
