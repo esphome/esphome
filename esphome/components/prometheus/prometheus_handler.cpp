@@ -306,78 +306,87 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   float brightness, r, g, b, w;
   color.as_brightness(&brightness);
   color.as_rgbw(&r, &g, &b, &w);
-  stream->print(ESPHOME_F("esphome_light_color{id=\""));
-  stream->print(relabel_id_(obj).c_str());
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
-  stream->print(ESPHOME_F("\",channel=\"brightness\"} "));
-  stream->print(brightness);
-  stream->print(ESPHOME_F("\n"));
-  stream->print(ESPHOME_F("esphome_light_color{id=\""));
-  stream->print(relabel_id_(obj).c_str());
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
-  stream->print(ESPHOME_F("\",channel=\"r\"} "));
-  stream->print(r);
-  stream->print(ESPHOME_F("\n"));
-  stream->print(ESPHOME_F("esphome_light_color{id=\""));
-  stream->print(relabel_id_(obj).c_str());
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
-  stream->print(ESPHOME_F("\",channel=\"g\"} "));
-  stream->print(g);
-  stream->print(ESPHOME_F("\n"));
-  stream->print(ESPHOME_F("esphome_light_color{id=\""));
-  stream->print(relabel_id_(obj).c_str());
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
-  stream->print(ESPHOME_F("\",channel=\"b\"} "));
-  stream->print(b);
-  stream->print(ESPHOME_F("\n"));
-  stream->print(ESPHOME_F("esphome_light_color{id=\""));
-  stream->print(relabel_id_(obj).c_str());
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
-  stream->print(ESPHOME_F("\",channel=\"w\"} "));
-  stream->print(w);
-  stream->print(ESPHOME_F("\n"));
-  // Effect
-  std::string effect = obj->get_effect_name();
-  if (effect == "None") {
-    stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
+  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::BRIGHTNESS) > 0) {
+    stream->print(ESPHOME_F("esphome_light_color{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\",effect=\"None\"} 0\n"));
-  } else {
-    stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
+    stream->print(ESPHOME_F("\",channel=\"brightness\"} "));
+    stream->print(brightness);
+    stream->print(ESPHOME_F("\n"));
+  }
+  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB) > 0) {
+    stream->print(ESPHOME_F("esphome_light_color{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\",effect=\""));
-    stream->print(effect.c_str());
-    stream->print(ESPHOME_F("\"} 1\n"));
+    stream->print(ESPHOME_F("\",channel=\"r\"} "));
+    stream->print(r);
+    stream->print(ESPHOME_F("\n"));
+    stream->print(ESPHOME_F("esphome_light_color{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\",channel=\"g\"} "));
+    stream->print(g);
+    stream->print(ESPHOME_F("\n"));
+    stream->print(ESPHOME_F("esphome_light_color{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\",channel=\"b\"} "));
+    stream->print(b);
+    stream->print(ESPHOME_F("\n"));
+  }
+  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_WHITE) > 0) {
+    stream->print(ESPHOME_F("esphome_light_color{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\",channel=\"w\"} "));
+    stream->print(w);
+    stream->print(ESPHOME_F("\n"));
+  }
+  // No effects, so we can skip this
+  if (!obj->get_effects().empty()) {
+    // Effect
+    std::string effect = obj->get_effect_name();
+    if (effect == "None") {
+      stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
+      stream->print(relabel_id_(obj).c_str());
+      add_area_label_(stream, area);
+      add_node_label_(stream, node);
+      add_friendly_name_label_(stream, friendly_name);
+      stream->print(ESPHOME_F("\",name=\""));
+      stream->print(relabel_name_(obj).c_str());
+      stream->print(ESPHOME_F("\",effect=\"None\"} 0\n"));
+    } else {
+      stream->print(ESPHOME_F("esphome_light_effect_active{id=\""));
+      stream->print(relabel_id_(obj).c_str());
+      add_area_label_(stream, area);
+      add_node_label_(stream, node);
+      add_friendly_name_label_(stream, friendly_name);
+      stream->print(ESPHOME_F("\",name=\""));
+      stream->print(relabel_name_(obj).c_str());
+      stream->print(ESPHOME_F("\",effect=\""));
+      stream->print(effect.c_str());
+      stream->print(ESPHOME_F("\"} 1\n"));
+    }
   }
 }
 #endif
