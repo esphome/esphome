@@ -189,8 +189,10 @@ void ESP32Camera::loop() {
       xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     } else {
       // for non-JPEG format, we need to free the data and raw buffer
-      free(this->current_image_->get_data_buffer());
-      free(this->current_image_->get_raw_buffer());
+      auto *jpg_buf = this->current_image_->get_data_buffer();
+      free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
+      auto *fb = this->current_image_->get_raw_buffer();
+      free(fb);  // NOLINT(cppcoreguidelines-no-malloc)
     }
     this->current_image_.reset();
   }
@@ -234,10 +236,10 @@ void ESP32Camera::loop() {
       return;
     }
     // create a new camera_fb_t for the JPEG data
-    fb = (camera_fb_t *) malloc(sizeof(camera_fb_t));
+    fb = (camera_fb_t *) malloc(sizeof(camera_fb_t));  // NOLINT(cppcoreguidelines-no-malloc)
     if (fb == nullptr) {
       ESP_LOGE(TAG, "Failed to allocate memory for camera frame buffer!");
-      free(jpg_buf);
+      free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
       return;
     }
     fb->buf = jpg_buf;
