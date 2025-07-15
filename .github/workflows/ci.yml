@@ -246,30 +246,13 @@ jobs:
           . venv/bin/activate
           pytest -vv --no-cov --tb=native -n auto tests/integration/
 
-  clang-tidy-deps:
-    name: Clang-tidy dependencies
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - ci-custom
-      - pytest
-      - determine-jobs
-    if: |
-      always() &&
-      needs.determine-jobs.outputs.clang-tidy == 'true'
-    steps:
-      - run: echo "All clang-tidy dependencies ready"
-
   clang-tidy:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
     needs:
-      - clang-tidy-deps
+      - common
       - determine-jobs
-    if: |
-      always() &&
-      needs.determine-jobs.outputs.clang-tidy == 'true' &&
-      needs.clang-tidy-deps.result == 'success'
+    if: needs.determine-jobs.outputs.clang-tidy == 'true'
     env:
       GH_TOKEN: ${{ github.token }}
     strategy:
@@ -502,7 +485,6 @@ jobs:
       - pylint
       - pytest
       - integration-tests
-      - clang-tidy-deps
       - clang-tidy
       - determine-jobs
       - test-build-components
