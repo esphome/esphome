@@ -27,6 +27,7 @@ void DaikinWrcClimate::control(const climate::ClimateCall &call) {
 }
 
 void DaikinWrcClimate::transmit_state() {
+  this->last_sent_time_ = millis();
   uint8_t remote_state[16] = {0x6, 0x1, 0x2, 0x1, 0x0, 0x0, 0x0, 0x0, 0x2, 0x6, 0x2, 0x4, 0x2, 0x2, 0xc, 0x0};
 
   remote_state[2] = this->operation_mode_();
@@ -229,6 +230,8 @@ bool DaikinWrcClimate::parse_state_frame_(const uint8_t frame[]) {
 }
 
 bool DaikinWrcClimate::on_receive(remote_base::RemoteReceiveData data) {
+  if (millis() - this->last_sent_time_ < 500)
+    return false;  // To ignore self sent command
   uint8_t state_frame[DAIKIN_WRC_STATE_FRAME_SIZE] = {};
   if (!data.expect_item(DAIKIN_WRC_HEADER_MARK, DAIKIN_WRC_HEADER_SPACE) ||
       !data.expect_item(DAIKIN_WRC_HEADER_MARK, DAIKIN_WRC_HEADER_SPACE) ||

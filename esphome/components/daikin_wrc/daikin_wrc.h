@@ -56,6 +56,7 @@ class DaikinWrcClimate : public climate_ir::ClimateIR {
   void setup() override;
 
  protected:
+  unsigned long last_sent_time_{0};
   binary_sensor::BinarySensor *state_sensor_{nullptr};
   climate::ClimateMode previous_mode_ = climate::CLIMATE_MODE_OFF;
 
