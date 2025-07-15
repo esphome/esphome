@@ -27,13 +27,15 @@ repos:
           - pydocstyle==5.1.1
         files: ^(esphome|tests)/.+\.py$
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v5.0.0
     hooks:
       - id: no-commit-to-branch
         args:
           - --branch=dev
           - --branch=release
           - --branch=beta
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.20.0
     hooks:
@@ -43,6 +45,7 @@ repos:
     rev: v1.37.1
     hooks:
       - id: yamllint
+        exclude: ^(\.clang-format|\.clang-tidy)$
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v13.0.1
     hooks:

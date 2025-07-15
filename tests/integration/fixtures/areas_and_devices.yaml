@@ -54,4 +54,3 @@ sensor:
     device_id: smart_switch_device
     lambda: return 4.0;
     update_interval: 0.1s
-

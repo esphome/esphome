@@ -126,7 +126,8 @@ def write_file_content(path: Path, content: str) -> None:
 def write_hash(hash_value: str) -> None:
     """Write hash to file"""
     hash_file = Path(__file__).parent.parent / ".clang-tidy.hash"
-    write_file_content(hash_file, hash_value)
+    # Strip any trailing newlines to ensure consistent formatting
+    write_file_content(hash_file, hash_value.strip() + "\n")
 
 
 def main() -> None:

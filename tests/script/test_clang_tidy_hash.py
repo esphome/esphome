@@ -158,7 +158,7 @@ def test_write_hash() -> None:
         mock_write.assert_called_once()
         args = mock_write.call_args[0]
         assert str(args[0]).endswith(".clang-tidy.hash")
-        assert args[1] == hash_value
+        assert args[1] == hash_value.strip() + "\n"
 
 
 @pytest.mark.parametrize(
