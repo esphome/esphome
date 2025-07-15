@@ -177,6 +177,10 @@ optional<FanRestoreState> Fan::restore_state_() {
   return {};
 }
 void Fan::save_state_() {
+  if (this->restore_mode_ == FanRestoreMode::NO_RESTORE) {
+    return;
+  }
+
   FanRestoreState state{};
   state.state = this->state;
   state.oscillating = this->oscillating;
