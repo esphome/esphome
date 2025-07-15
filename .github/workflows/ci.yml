@@ -489,7 +489,7 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
       - uses: pre-commit/action@v3.0.1
         env:
-          SKIP: pylint,clang-tidy-hash,yamllint
+          SKIP: pylint,clang-tidy-hash
       - uses: pre-commit-ci/lite-action@v1.1.0
         if: always()
 
