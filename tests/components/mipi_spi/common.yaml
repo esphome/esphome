@@ -35,4 +35,3 @@ display:
         allow_other_uses: true
       - number: ${enable_pin}
     bus_mode: single
-

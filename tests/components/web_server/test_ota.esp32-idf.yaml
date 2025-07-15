@@ -27,4 +27,3 @@ logger:
   logs:
     web_server: VERBOSE
     web_server_idf: VERBOSE
-

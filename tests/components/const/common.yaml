@@ -41,4 +41,3 @@ display:
       - delay 120ms
       - [0x29]
       - delay 20ms
-

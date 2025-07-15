@@ -162,6 +162,9 @@ def get_ini_content():
     # Sort to avoid changing build unflags order
     CORE.add_platformio_option("build_unflags", sorted(CORE.build_unflags))
 
+    # Add extra script for C++ flags
+    CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])
+
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 
@@ -221,6 +224,9 @@ def write_platformio_project():
     if not get_bool_env(ENV_NOGITIGNORE):
         write_gitignore()
     write_platformio_ini(content)
+
+    # Write extra script for C++ specific flags
+    write_cxx_flags_script()
 
 
 DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
@@ -394,3 +400,20 @@ def write_gitignore():
     if not os.path.isfile(path):
         with open(file=path, mode="w", encoding="utf-8") as f:
             f.write(GITIGNORE_CONTENT)
+
+
+CXX_FLAGS_FILE_NAME = "cxx_flags.py"
+CXX_FLAGS_FILE_CONTENTS = """# Auto-generated ESPHome script for C++ specific compiler flags
+Import("env")
+
+# Add C++ specific flags
+"""
+
+
+def write_cxx_flags_script() -> None:
+    path = CORE.relative_build_path(CXX_FLAGS_FILE_NAME)
+    contents = CXX_FLAGS_FILE_CONTENTS
+    if not CORE.is_host:
+        contents += 'env.Append(CXXFLAGS=["-Wno-volatile"])'
+        contents += "\n"
+    write_file_if_changed(path, contents)

@@ -17,4 +17,3 @@ udp:
         id: my_udp
         data: !lambda |-
           return std::vector<uint8_t>{1,3,4,5,6};
-

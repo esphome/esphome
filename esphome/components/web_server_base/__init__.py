@@ -40,4 +40,4 @@ async def to_code(config):
         if CORE.is_esp8266:
             cg.add_library("ESP8266WiFi", None)
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
-        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.7.8")
+        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.7.10")

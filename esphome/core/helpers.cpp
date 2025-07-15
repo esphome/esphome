@@ -258,7 +258,9 @@ std::string format_hex(const uint8_t *data, size_t length) {
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
 
 static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
-std::string format_hex_pretty(const uint8_t *data, size_t length, char separator, bool show_length) {
+
+// Shared implementation for uint8_t and string hex formatting
+static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
   if (data == nullptr || length == 0)
     return "";
   std::string ret;
@@ -273,6 +275,10 @@ std::string format_hex_pretty(const uint8_t *data, size_t length, char separator
   if (show_length && length > 4)
     return ret + " (" + std::to_string(length) + ")";
   return ret;
+}
+
+std::string format_hex_pretty(const uint8_t *data, size_t length, char separator, bool show_length) {
+  return format_hex_pretty_uint8(data, length, separator, show_length);
 }
 std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator, bool show_length) {
   return format_hex_pretty(data.data(), data.size(), separator, show_length);
@@ -300,20 +306,7 @@ std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator,
   return format_hex_pretty(data.data(), data.size(), separator, show_length);
 }
 std::string format_hex_pretty(const std::string &data, char separator, bool show_length) {
-  if (data.empty())
-    return "";
-  std::string ret;
-  uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
-  ret.resize(multiple * data.length() - (separator ? 1 : 0));
-  for (size_t i = 0; i < data.length(); i++) {
-    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
-    ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
-    if (separator && i != data.length() - 1)
-      ret[multiple * i + 2] = separator;
-  }
-  if (show_length && data.length() > 4)
-    return ret + " (" + std::to_string(data.length()) + ")";
-  return ret;
+  return format_hex_pretty_uint8(reinterpret_cast<const uint8_t *>(data.data()), data.length(), separator, show_length);
 }
 
 std::string format_bin(const uint8_t *data, size_t length) {

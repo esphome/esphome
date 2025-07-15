@@ -20,14 +20,16 @@ adjusted_ids = set()
 
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(
-        {
-            cv.GenerateID(): cv.declare_id(EspLdo),
-            cv.Required(CONF_VOLTAGE): cv.All(
-                cv.voltage, cv.float_range(min=0.5, max=2.7)
-            ),
-            cv.Required(CONF_CHANNEL): cv.one_of(*CHANNELS, int=True),
-            cv.Optional(CONF_ADJUSTABLE, default=False): cv.boolean,
-        }
+        cv.COMPONENT_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(EspLdo),
+                cv.Required(CONF_VOLTAGE): cv.All(
+                    cv.voltage, cv.float_range(min=0.5, max=2.7)
+                ),
+                cv.Required(CONF_CHANNEL): cv.one_of(*CHANNELS, int=True),
+                cv.Optional(CONF_ADJUSTABLE, default=False): cv.boolean,
+            }
+        )
     ),
     cv.only_with_esp_idf,
     only_on_variant(supported=[VARIANT_ESP32P4]),
