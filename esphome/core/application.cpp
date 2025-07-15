@@ -309,6 +309,12 @@ void Application::disable_component_loop_(Component *component) {
         if (this->in_loop_ && i == this->current_loop_index_) {
           // Decrement so we'll process the swapped component next
           this->current_loop_index_--;
+          // Update the loop start time to current time so the swapped component
+          // gets correct timing instead of inheriting stale timing.
+          // This prevents integer underflow in timing calculations by ensuring
+          // the swapped component starts with a fresh timing reference, avoiding
+          // errors caused by stale or wrapped timing values.
+          this->loop_component_start_time_ = millis();
         }
       }
       return;
