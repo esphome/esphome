@@ -792,7 +792,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
     light::LightJSONSchema::dump_json(*obj, root);
     if (start_config == DETAIL_ALL) {
-      JsonArray opt = root.createNestedArray("effects");
+      JsonArray opt = root["effects"].to<JsonArray>();
       opt.add("None");
       for (auto const &option : obj->get_effects()) {
         opt.add(option->get_name());
@@ -1238,7 +1238,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
   return json::build_json([this, obj, value, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
     if (start_config == DETAIL_ALL) {
-      JsonArray opt = root.createNestedArray("option");
+      JsonArray opt = root["option"].to<JsonArray>();
       for (auto &option : obj->traits.get_options()) {
         opt.add(option);
       }
@@ -1322,6 +1322,7 @@ std::string WebServer::climate_all_json_generator(WebServer *web_server, void *s
   return web_server->climate_json((climate::Climate *) (source), DETAIL_ALL);
 }
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([this, obj, start_config](JsonObject root) {
     set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
     const auto traits = obj->get_traits();
@@ -1330,32 +1331,32 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
     char buf[16];
 
     if (start_config == DETAIL_ALL) {
-      JsonArray opt = root.createNestedArray("modes");
+      JsonArray opt = root["modes"].to<JsonArray>();
       for (climate::ClimateMode m : traits.get_supported_modes())
         opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
       if (!traits.get_supported_custom_fan_modes().empty()) {
-        JsonArray opt = root.createNestedArray("fan_modes");
+        JsonArray opt = root["fan_modes"].to<JsonArray>();
         for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
           opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
       }
 
       if (!traits.get_supported_custom_fan_modes().empty()) {
-        JsonArray opt = root.createNestedArray("custom_fan_modes");
+        JsonArray opt = root["custom_fan_modes"].to<JsonArray>();
         for (auto const &custom_fan_mode : traits.get_supported_custom_fan_modes())
           opt.add(custom_fan_mode);
       }
       if (traits.get_supports_swing_modes()) {
-        JsonArray opt = root.createNestedArray("swing_modes");
+        JsonArray opt = root["swing_modes"].to<JsonArray>();
         for (auto swing_mode : traits.get_supported_swing_modes())
           opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
       }
       if (traits.get_supports_presets() && obj->preset.has_value()) {
-        JsonArray opt = root.createNestedArray("presets");
+        JsonArray opt = root["presets"].to<JsonArray>();
         for (climate::ClimatePreset m : traits.get_supported_presets())
           opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
       }
       if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
-        JsonArray opt = root.createNestedArray("custom_presets");
+        JsonArray opt = root["custom_presets"].to<JsonArray>();
         for (auto const &custom_preset : traits.get_supported_custom_presets())
           opt.add(custom_preset);
       }
@@ -1407,6 +1408,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
         root["state"] = root["target_temperature"];
     }
   });
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 #endif
 
@@ -1635,7 +1637,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
       root["event_type"] = event_type;
     }
     if (start_config == DETAIL_ALL) {
-      JsonArray event_types = root.createNestedArray("event_types");
+      JsonArray event_types = root["event_types"].to<JsonArray>();
       for (auto const &event_type : obj->get_event_types()) {
         event_types.add(event_type);
       }
@@ -1682,6 +1684,7 @@ std::string WebServer::update_all_json_generator(WebServer *web_server, void *so
   return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([this, obj, start_config](JsonObject root) {
     set_json_id(root, obj, "update-" + obj->get_object_id(), start_config);
     root["value"] = obj->update_info.latest_version;
@@ -1707,6 +1710,7 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
       this->add_sorting_info_(root, obj);
     }
   });
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 #endif
 
