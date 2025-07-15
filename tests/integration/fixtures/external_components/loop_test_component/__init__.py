@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_COMPONENTS, CONF_ID, CONF_NAME
+from esphome.const import CONF_COMPONENTS, CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL
 
 CODEOWNERS = ["@esphome/tests"]
 
@@ -10,10 +10,15 @@ LoopTestComponent = loop_test_component_ns.class_("LoopTestComponent", cg.Compon
 LoopTestISRComponent = loop_test_component_ns.class_(
     "LoopTestISRComponent", cg.Component
 )
+LoopTestUpdateComponent = loop_test_component_ns.class_(
+    "LoopTestUpdateComponent", cg.PollingComponent
+)
 
 CONF_DISABLE_AFTER = "disable_after"
 CONF_TEST_REDUNDANT_OPERATIONS = "test_redundant_operations"
 CONF_ISR_COMPONENTS = "isr_components"
+CONF_UPDATE_COMPONENTS = "update_components"
+CONF_DISABLE_LOOP_AFTER = "disable_loop_after"
 
 COMPONENT_CONFIG_SCHEMA = cv.Schema(
     {
@@ -31,11 +36,23 @@ ISR_COMPONENT_CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+UPDATE_COMPONENT_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(LoopTestUpdateComponent),
+        cv.Required(CONF_NAME): cv.string,
+        cv.Optional(CONF_DISABLE_LOOP_AFTER, default=0): cv.int_,
+        cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval,
+    }
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LoopTestComponent),
         cv.Required(CONF_COMPONENTS): cv.ensure_list(COMPONENT_CONFIG_SCHEMA),
         cv.Optional(CONF_ISR_COMPONENTS): cv.ensure_list(ISR_COMPONENT_CONFIG_SCHEMA),
+        cv.Optional(CONF_UPDATE_COMPONENTS): cv.ensure_list(
+            UPDATE_COMPONENT_CONFIG_SCHEMA
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -94,3 +111,12 @@ async def to_code(config):
         var = cg.new_Pvariable(isr_config[CONF_ID])
         await cg.register_component(var, isr_config)
         cg.add(var.set_name(isr_config[CONF_NAME]))
+
+    # Create update test components
+    for update_config in config.get(CONF_UPDATE_COMPONENTS, []):
+        var = cg.new_Pvariable(update_config[CONF_ID])
+        await cg.register_component(var, update_config)
+
+        cg.add(var.set_name(update_config[CONF_NAME]))
+        cg.add(var.set_disable_loop_after(update_config[CONF_DISABLE_LOOP_AFTER]))
+        cg.add(var.set_update_interval(update_config[CONF_UPDATE_INTERVAL]))

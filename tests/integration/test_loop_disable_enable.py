@@ -45,11 +45,18 @@ async def test_loop_disable_enable(
     isr_component_disabled = asyncio.Event()
     isr_component_re_enabled = asyncio.Event()
     isr_component_pure_re_enabled = asyncio.Event()
+    # Events for update component testing
+    update_component_loop_disabled = asyncio.Event()
+    update_component_manual_update_called = asyncio.Event()
 
     # Track loop counts for components
     self_disable_10_counts: list[int] = []
     normal_component_counts: list[int] = []
     isr_component_counts: list[int] = []
+    # Track update component behavior
+    update_component_loop_count = 0
+    update_component_update_count = 0
+    update_component_manual_update_count = 0
 
     def on_log_line(line: str) -> None:
         """Process each log line from the process output."""
@@ -59,6 +66,7 @@ async def test_loop_disable_enable(
         if (
             "loop_test_component" not in clean_line
             and "loop_test_isr_component" not in clean_line
+            and "Manually calling component.update" not in clean_line
         ):
             return
 
@@ -111,6 +119,23 @@ async def test_loop_disable_enable(
                 isr_component_re_enabled.set()
             elif "Running after pure ISR re-enable!" in clean_line:
                 isr_component_pure_re_enabled.set()
+
+        # Update component events
+        elif "[update_test]" in clean_line:
+            if "LoopTestUpdateComponent loop count:" in clean_line:
+                nonlocal update_component_loop_count
+                update_component_loop_count = int(
+                    clean_line.split("LoopTestUpdateComponent loop count: ")[1]
+                )
+            elif "LoopTestUpdateComponent update() called" in clean_line:
+                nonlocal update_component_update_count
+                update_component_update_count += 1
+                if "Manually calling component.update" in " ".join(log_messages[-5:]):
+                    nonlocal update_component_manual_update_count
+                    update_component_manual_update_count += 1
+                    update_component_manual_update_called.set()
+            elif "Disabling loop after" in clean_line:
+                update_component_loop_disabled.set()
 
     # Write, compile and run the ESPHome device with log callback
     async with (
@@ -204,4 +229,29 @@ async def test_loop_disable_enable(
         final_count = len(isr_component_counts)
         assert final_count > 10, (
             f"Component didn't run after pure ISR enable: got {final_count} counts total"
+        )
+
+        # Test component.update functionality when loop is disabled
+        # Wait for update component to disable its loop
+        try:
+            await asyncio.wait_for(update_component_loop_disabled.wait(), timeout=3.0)
+        except asyncio.TimeoutError:
+            pytest.fail("Update component did not disable its loop within 3 seconds")
+
+        # Verify it ran exactly 3 loops before disabling
+        assert update_component_loop_count == 3, (
+            f"Expected 3 loop iterations before disable, got {update_component_loop_count}"
+        )
+
+        # Wait for manual component.update to be called
+        try:
+            await asyncio.wait_for(
+                update_component_manual_update_called.wait(), timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            pytest.fail("Manual component.update was not called within 5 seconds")
+
+        # The key test: verify that manual component.update worked after loop was disabled
+        assert update_component_manual_update_count >= 1, (
+            "component.update did not fire after loop was disabled"
         )
