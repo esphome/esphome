@@ -84,29 +84,6 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
-  pyupgrade:
-    name: Check pyupgrade
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.python-linters == 'true'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run pyupgrade
-        run: |
-          . venv/bin/activate
-          pyupgrade ${{ env.PYUPGRADE_TARGET }} `find esphome -name "*.py" -type f`
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
-
   ci-custom:
     name: Run script/ci-custom
     runs-on: ubuntu-24.04
@@ -525,7 +502,6 @@ jobs:
       - pylint
       - pytest
       - integration-tests
-      - pyupgrade
       - clang-tidy-deps
       - clang-tidy
       - determine-jobs
