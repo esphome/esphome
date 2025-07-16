@@ -152,7 +152,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
 
   // Finalize
   if (final) {
-    ESP_LOGD(TAG, "OTA final chunk: index=%u, len=%u, total_read=%u, contentLength=%u", index, len,
+    ESP_LOGD(TAG, "OTA final chunk: index=%zu, len=%zu, total_read=%u, contentLength=%zu", index, len,
              this->ota_read_length_, request->contentLength());
 
     // For Arduino framework, the Update library tracks expected size from firmware header
