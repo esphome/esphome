@@ -31,7 +31,6 @@ APIServer::APIServer() {
 }
 
 void APIServer::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->setup_controller();
 
 #ifdef USE_API_NOISE
@@ -105,7 +104,7 @@ void APIServer::setup() {
             return;
           }
           for (auto &c : this->clients_) {
-            if (!c->flags_.remove)
+            if (!c->flags_.remove && c->get_log_subscription_level() >= level)
               c->try_send_log_message(level, tag, message, message_len);
           }
         });
@@ -205,22 +204,20 @@ void APIServer::loop() {
 
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "API Server:\n"
+                "Server:\n"
                 "  Address: %s:%u",
                 network::get_use_address().c_str(), this->port_);
 #ifdef USE_API_NOISE
-  ESP_LOGCONFIG(TAG, "  Using noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
+  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
-    ESP_LOGCONFIG(TAG, "  Supports noise encryption: YES");
+    ESP_LOGCONFIG(TAG, "  Supports encryption: YES");
   }
 #else
-  ESP_LOGCONFIG(TAG, "  Using noise encryption: NO");
+  ESP_LOGCONFIG(TAG, "  Noise encryption: NO");
 #endif
 }
 
 #ifdef USE_API_PASSWORD
-bool APIServer::uses_password() const { return !this->password_.empty(); }
-
 bool APIServer::check_password(const std::string &password) const {
   // depend only on input password length
   const char *a = this->password_.c_str();
@@ -428,7 +425,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   ESP_LOGD(TAG, "Noise PSK saved");
   if (make_active) {
     this->set_timeout(100, [this, psk]() {
-      ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
+      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       this->set_noise_psk(psk);
       for (auto &c : this->clients_) {
         c->send_message(DisconnectRequest());

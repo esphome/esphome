@@ -510,13 +510,13 @@ def test_entity_duplicate_validator() -> None:
     config1 = {CONF_NAME: "Temperature"}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", "temperature") in CORE.unique_ids
 
     # Second entity with different name should pass
     config2 = {CONF_NAME: "Humidity"}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("sensor", "humidity") in CORE.unique_ids
+    assert ("", "sensor", "humidity") in CORE.unique_ids
 
     # Duplicate entity should fail
     config3 = {CONF_NAME: "Temperature"}
@@ -535,36 +535,24 @@ def test_entity_duplicate_validator_with_devices() -> None:
     device1 = ID("device1", type="Device")
     device2 = ID("device2", type="Device")
 
-    # First entity on device1 should pass
+    # Same name on different devices should pass
     config1 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("sensor", "temperature") in CORE.unique_ids
+    assert ("device1", "sensor", "temperature") in CORE.unique_ids
 
-    # Same name on different device should now fail
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device2}
+    validated2 = validator(config2)
+    assert validated2 == config2
+    assert ("device2", "sensor", "temperature") in CORE.unique_ids
+
+    # Duplicate on same device should fail
+    config3 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     with pytest.raises(
         Invalid,
-        match=r"Duplicate sensor entity with name 'Temperature' found. Each entity must have a unique name within its platform across all devices.",
+        match=r"Duplicate sensor entity with name 'Temperature' found on device 'device1'",
     ):
-        validator(config2)
-
-    # Different name on device2 should pass
-    config3 = {CONF_NAME: "Humidity", CONF_DEVICE_ID: device2}
-    validated3 = validator(config3)
-    assert validated3 == config3
-    assert ("sensor", "humidity") in CORE.unique_ids
-
-    # Empty names should use device names and be allowed
-    config4 = {CONF_NAME: "", CONF_DEVICE_ID: device1}
-    validated4 = validator(config4)
-    assert validated4 == config4
-    assert ("sensor", "device1") in CORE.unique_ids
-
-    config5 = {CONF_NAME: "", CONF_DEVICE_ID: device2}
-    validated5 = validator(config5)
-    assert validated5 == config5
-    assert ("sensor", "device2") in CORE.unique_ids
+        validator(config3)
 
 
 def test_duplicate_entity_yaml_validation(
@@ -588,10 +576,10 @@ def test_duplicate_entity_with_devices_yaml_validation(
     )
     assert result is None
 
-    # Check for the duplicate entity error message
+    # Check for the duplicate entity error message with device
     captured = capsys.readouterr()
     assert (
-        "Duplicate sensor entity with name 'Temperature' found. Each entity must have a unique name within its platform across all devices."
+        "Duplicate sensor entity with name 'Temperature' found on device 'device1'"
         in captured.out
     )
 
@@ -616,21 +604,22 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     config1 = {CONF_NAME: "Temperature"}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("sensor", "temperature") in CORE.unique_ids
+    # New format includes device_id (empty string for main device)
+    assert ("", "sensor", "temperature") in CORE.unique_ids
 
     # Internal entity with same name should pass (not added to unique_ids)
     config2 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
     validated2 = validator(config2)
     assert validated2 == config2
     # Internal entity should not be added to unique_ids
-    assert len([k for k in CORE.unique_ids if k == ("sensor", "temperature")]) == 1
+    assert len([k for k in CORE.unique_ids if k == ("", "sensor", "temperature")]) == 1
 
     # Another internal entity with same name should also pass
     config3 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
     validated3 = validator(config3)
     assert validated3 == config3
     # Still only one entry in unique_ids (from the non-internal entity)
-    assert len([k for k in CORE.unique_ids if k == ("sensor", "temperature")]) == 1
+    assert len([k for k in CORE.unique_ids if k == ("", "sensor", "temperature")]) == 1
 
     # Non-internal entity with same name should fail
     config4 = {CONF_NAME: "Temperature"}

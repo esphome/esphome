@@ -42,15 +42,13 @@ void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerSta
   this->api_connection_->send_message(resp);
 }
 
+#ifdef USE_ESP32_BLE_DEVICE
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || this->raw_advertisements_)
-    return false;
-
-  ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
-           device.get_rssi());
-  this->send_api_packet_(device);
-  return true;
+  // This method should never be called since bluetooth_proxy always uses raw advertisements
+  // but we need to provide an implementation to satisfy the virtual method requirement
+  return false;
 }
+#endif
 
 // Batch size for BLE advertisements to maximize WiFi efficiency
 // Each advertisement is up to 80 bytes when packaged (including protocol overhead)
@@ -69,7 +67,7 @@ std::vector<api::BluetoothLERawAdvertisement> batch_buffer;
 static std::vector<api::BluetoothLERawAdvertisement> &get_batch_buffer() { return batch_buffer; }
 
 bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) {
-  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || !this->raw_advertisements_)
+  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
     return false;
 
   // Get the batch buffer reference
@@ -116,6 +114,7 @@ void BluetoothProxy::flush_pending_advertisements() {
   this->api_connection_->send_message(resp);
 }
 
+#ifdef USE_ESP32_BLE_DEVICE
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
@@ -153,14 +152,14 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
 
   this->api_connection_->send_message(resp);
 }
+#endif  // USE_ESP32_BLE_DEVICE
 
 void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "Bluetooth Proxy:");
   ESP_LOGCONFIG(TAG,
                 "  Active: %s\n"
-                "  Connections: %d\n"
-                "  Raw advertisements: %s",
-                YESNO(this->active_), this->connections_.size(), YESNO(this->raw_advertisements_));
+                "  Connections: %d",
+                YESNO(this->active_), this->connections_.size());
 }
 
 int BluetoothProxy::get_bluetooth_connections_free() {
@@ -188,15 +187,13 @@ void BluetoothProxy::loop() {
   }
 
   // Flush any pending BLE advertisements that have been accumulated but not yet sent
-  if (this->raw_advertisements_) {
-    static uint32_t last_flush_time = 0;
-    uint32_t now = App.get_loop_component_start_time();
+  static uint32_t last_flush_time = 0;
+  uint32_t now = App.get_loop_component_start_time();
 
-    // Flush accumulated advertisements every 100ms
-    if (now - last_flush_time >= 100) {
-      this->flush_pending_advertisements();
-      last_flush_time = now;
-    }
+  // Flush accumulated advertisements every 100ms
+  if (now - last_flush_time >= 100) {
+    this->flush_pending_advertisements();
+    last_flush_time = now;
   }
   for (auto *connection : this->connections_) {
     if (connection->send_service_ == connection->service_count_) {
@@ -318,9 +315,7 @@ void BluetoothProxy::loop() {
 }
 
 esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
-  if (this->raw_advertisements_)
-    return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
-  return esp32_ble_tracker::AdvertisementParserType::PARSED_ADVERTISEMENTS;
+  return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
 }
 
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
@@ -565,7 +560,6 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     return;
   }
   this->api_connection_ = api_connection;
-  this->raw_advertisements_ = flags & BluetoothProxySubscriptionFlag::SUBSCRIPTION_RAW_ADVERTISEMENTS;
   this->parent_->recalculate_advertisement_parser_types();
 
   this->send_bluetooth_scanner_state_(this->parent_->get_scanner_state());
@@ -577,7 +571,6 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
     return;
   }
   this->api_connection_ = nullptr;
-  this->raw_advertisements_ = false;
   this->parent_->recalculate_advertisement_parser_types();
 }
 

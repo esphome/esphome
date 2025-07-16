@@ -129,21 +129,16 @@ bool MQTTComponent::send_discovery_() {
             root[MQTT_PAYLOAD_NOT_AVAILABLE] = this->availability_->payload_not_available;
         }
 
-        std::string unique_id = this->unique_id();
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
-        if (!unique_id.empty()) {
-          root[MQTT_UNIQUE_ID] = unique_id;
+        if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
+          char friendly_name_hash[9];
+          sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name()));
+          friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
+          root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
         } else {
-          if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
-            char friendly_name_hash[9];
-            sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name()));
-            friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
-            root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
-          } else {
-            // default to almost-unique ID. It's a hack but the only way to get that
-            // gorgeous device registry view.
-            root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
-          }
+          // default to almost-unique ID. It's a hack but the only way to get that
+          // gorgeous device registry view.
+          root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
         }
 
         const std::string &node_name = App.get_name();
@@ -286,7 +281,6 @@ void MQTTComponent::call_dump_config() {
   this->dump_config();
 }
 void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
-std::string MQTTComponent::unique_id() { return ""; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden

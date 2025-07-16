@@ -141,6 +141,7 @@ void ESP32BLETracker::loop() {
       }
 
       if (this->parse_advertisements_) {
+#ifdef USE_ESP32_BLE_DEVICE
         ESPBTDevice device;
         device.parse_scan_rst(scan_result);
 
@@ -162,6 +163,7 @@ void ESP32BLETracker::loop() {
         if (!found && !this->scan_continuous_) {
           this->print_bt_device_info(device);
         }
+#endif  // USE_ESP32_BLE_DEVICE
       }
 
       // Move to next entry in ring buffer
@@ -511,6 +513,7 @@ void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_callbacks_.call(state);
 }
 
+#ifdef USE_ESP32_BLE_DEVICE
 ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(beacon_data_)); }
 optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data) {
   if (!data.uuid.contains(0x4C, 0x00))
@@ -751,13 +754,16 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
     }
   }
 }
+
 std::string ESPBTDevice::address_str() const {
   char mac[24];
   snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", this->address_[0], this->address_[1], this->address_[2],
            this->address_[3], this->address_[4], this->address_[5]);
   return mac;
 }
+
 uint64_t ESPBTDevice::address_uint64() const { return esp32_ble::ble_addr_to_uint64(this->address_); }
+#endif  // USE_ESP32_BLE_DEVICE
 
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
@@ -796,6 +802,7 @@ void ESP32BLETracker::dump_config() {
   }
 }
 
+#ifdef USE_ESP32_BLE_DEVICE
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   const uint64_t address = device.address_uint64();
   for (auto &disc : this->already_discovered_) {
@@ -866,8 +873,9 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
   return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
          ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
 }
+#endif  // USE_ESP32_BLE_DEVICE
 
 }  // namespace esp32_ble_tracker
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32

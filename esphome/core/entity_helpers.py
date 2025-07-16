@@ -198,9 +198,12 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
 
         # Get device name if entity is on a sub-device
         device_name = None
+        device_id = ""  # Empty string for main device
         if CONF_DEVICE_ID in config:
             device_id_obj = config[CONF_DEVICE_ID]
             device_name = device_id_obj.id
+            # Use the device ID string directly for uniqueness
+            device_id = device_id_obj.id
 
         # Calculate what object_id will actually be used
         # This handles empty names correctly by using device/friendly names
@@ -209,11 +212,12 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         )
 
         # Check for duplicates
-        unique_key = (platform, name_key)
+        unique_key = (device_id, platform, name_key)
         if unique_key in CORE.unique_ids:
+            device_prefix = f" on device '{device_id}'" if device_id else ""
             raise cv.Invalid(
-                f"Duplicate {platform} entity with name '{entity_name}' found. "
-                f"Each entity must have a unique name within its platform across all devices."
+                f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
+                f"Each entity on a device must have a unique name within its platform."
             )
 
         # Add to tracking set

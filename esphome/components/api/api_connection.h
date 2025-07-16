@@ -209,6 +209,7 @@ class APIConnection : public APIServerConnection {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
   void on_fatal_error() override;
   void on_unauthenticated_access() override;
   void on_no_setup_connection() override;
@@ -273,35 +274,42 @@ class APIConnection : public APIServerConnection {
   ProtoWriteBuffer allocate_batch_message_buffer(uint16_t size);
 
  protected:
-  // Helper function to fill common entity info fields
-  static void fill_entity_info_base(esphome::EntityBase *entity, InfoResponseProtoMessage &response) {
-    // Set common fields that are shared by all entity types
-    response.key = entity->get_object_id_hash();
-    response.object_id = entity->get_object_id();
-
-    if (entity->has_own_name())
-      response.name = entity->get_name();
-
-    // Set common EntityBase properties
-    response.icon = entity->get_icon();
-    response.disabled_by_default = entity->is_disabled_by_default();
-    response.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
-#ifdef USE_DEVICES
-    response.device_id = entity->get_device_id();
-#endif
-  }
-
-  // Helper function to fill common entity state fields
-  static void fill_entity_state_base(esphome::EntityBase *entity, StateResponseProtoMessage &response) {
-    response.key = entity->get_object_id_hash();
-#ifdef USE_DEVICES
-    response.device_id = entity->get_device_id();
-#endif
-  }
+  // Helper function to handle authentication completion
+  void complete_authentication_();
 
   // Non-template helper to encode any ProtoMessage
   static uint16_t encode_message_to_buffer(ProtoMessage &msg, uint8_t message_type, APIConnection *conn,
                                            uint32_t remaining_size, bool is_single);
+
+  // Helper to fill entity state base and encode message
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg, uint8_t message_type,
+                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
+    msg.key = entity->get_object_id_hash();
+#ifdef USE_DEVICES
+    msg.device_id = entity->get_device_id();
+#endif
+    return encode_message_to_buffer(msg, message_type, conn, remaining_size, is_single);
+  }
+
+  // Helper to fill entity info base and encode message
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg, uint8_t message_type,
+                                              APIConnection *conn, uint32_t remaining_size, bool is_single) {
+    // Set common fields that are shared by all entity types
+    msg.key = entity->get_object_id_hash();
+    msg.object_id = entity->get_object_id();
+
+    if (entity->has_own_name())
+      msg.name = entity->get_name();
+
+    // Set common EntityBase properties
+    msg.icon = entity->get_icon();
+    msg.disabled_by_default = entity->is_disabled_by_default();
+    msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
+#ifdef USE_DEVICES
+    msg.device_id = entity->get_device_id();
+#endif
+    return encode_message_to_buffer(msg, message_type, conn, remaining_size, is_single);
+  }
 
 #ifdef USE_VOICE_ASSISTANT
   // Helper to check voice assistant validity and connection ownership

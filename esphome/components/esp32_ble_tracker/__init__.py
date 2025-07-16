@@ -31,6 +31,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
+from esphome.enum import StrEnum
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
@@ -49,6 +51,25 @@ DEFAULT_MAX_CONNECTIONS = 3
 IDF_MAX_CONNECTIONS = 9
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# Enum for BLE features
+class BLEFeatures(StrEnum):
+    ESP_BT_DEVICE = "ESP_BT_DEVICE"
+
+
+# Set to track which features are needed by components
+_required_features: set[BLEFeatures] = set()
+
+
+def register_ble_features(features: set[BLEFeatures]) -> None:
+    """Register BLE features that a component needs.
+
+    Args:
+        features: Set of BLEFeatures enum members
+    """
+    _required_features.update(features)
+
 
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_(
@@ -277,6 +298,15 @@ async def to_code(config):
     cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
+
+    # Register ESP_BT_DEVICE feature if any of the automation triggers are used
+    if (
+        config.get(CONF_ON_BLE_ADVERTISE)
+        or config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE)
+        or config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE)
+    ):
+        register_ble_features({BLEFeatures.ESP_BT_DEVICE})
+
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:
@@ -334,6 +364,11 @@ async def to_code(config):
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")
+
+    # Add feature-specific defines based on what's needed
+    if BLEFeatures.ESP_BT_DEVICE in _required_features:
+        cg.add_define("USE_ESP32_BLE_DEVICE")
+
     if config.get(CONF_SOFTWARE_COEXISTENCE):
         cg.add_define("USE_ESP32_BLE_SOFTWARE_COEXISTENCE")
 
@@ -382,13 +417,43 @@ async def esp32_ble_tracker_stop_scan_action_to_code(
     return var
 
 
-async def register_ble_device(var, config):
+async def register_ble_device(
+    var: cg.SafeExpType, config: ConfigType
+) -> cg.SafeExpType:
+    register_ble_features({BLEFeatures.ESP_BT_DEVICE})
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
     return var
 
 
-async def register_client(var, config):
+async def register_client(var: cg.SafeExpType, config: ConfigType) -> cg.SafeExpType:
+    register_ble_features({BLEFeatures.ESP_BT_DEVICE})
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
+    cg.add(paren.register_client(var))
+    return var
+
+
+async def register_raw_ble_device(
+    var: cg.SafeExpType, config: ConfigType
+) -> cg.SafeExpType:
+    """Register a BLE device listener that only needs raw advertisement data.
+
+    This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
+    will not be compiled in if this is the only registration method used.
+    """
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
+    cg.add(paren.register_listener(var))
+    return var
+
+
+async def register_raw_client(
+    var: cg.SafeExpType, config: ConfigType
+) -> cg.SafeExpType:
+    """Register a BLE client that only needs raw advertisement data.
+
+    This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
+    will not be compiled in if this is the only registration method used.
+    """
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
     return var

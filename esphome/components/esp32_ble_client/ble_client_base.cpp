@@ -105,6 +105,7 @@ void BLEClientBase::dump_config() {
   }
 }
 
+#ifdef USE_ESP32_BLE_DEVICE
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   if (!this->auto_connect_)
     return false;
@@ -122,6 +123,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   this->remote_addr_type_ = device.get_address_type();
   return true;
 }
+#endif
 
 void BLEClientBase::connect() {
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Attempting BLE connection", this->connection_index_, this->address_str_.c_str(),

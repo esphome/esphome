@@ -41,7 +41,7 @@ async def test_host_mode_many_entities(
         # Wait for states from at least 50 sensors with timeout
         try:
             sensor_count = await asyncio.wait_for(sensor_count_future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             sensor_states = [
                 s
                 for s in states.values()

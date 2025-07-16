@@ -23,3 +23,7 @@ extend google.protobuf.MessageOptions {
     optional bool no_delay = 1040 [default=false];
     optional string base_class = 1041;
 }
+
+extend google.protobuf.FieldOptions {
+    optional string field_ifdef = 1042;
+}

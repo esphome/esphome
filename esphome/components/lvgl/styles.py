@@ -76,6 +76,7 @@ async def theme_to_code(config):
         for w_name, style in theme.items():
             # Work around Python 3.10 bug with nested async comprehensions
             # With Python 3.11 this could be simplified
+            # TODO: Now that we require Python 3.11+, this can be updated to use nested comprehensions
             styles = {}
             for part, states in collect_parts(style).items():
                 styles[part] = {

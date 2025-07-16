@@ -8,7 +8,6 @@ from pathlib import Path
 import re
 from subprocess import call
 import sys
-from textwrap import dedent
 from typing import Any
 
 import aioesphomeapi.api_options_pb2 as pb
@@ -74,6 +73,30 @@ def indent_list(text: str, padding: str = "  ") -> list[str]:
 
 def indent(text: str, padding: str = "  ") -> str:
     return "\n".join(indent_list(text, padding))
+
+
+def wrap_with_ifdef(content: str | list[str], ifdef: str | None) -> list[str]:
+    """Wrap content with #ifdef directives if ifdef is provided.
+
+    Args:
+        content: Single string or list of strings to wrap
+        ifdef: The ifdef condition, or None to skip wrapping
+
+    Returns:
+        List of strings with ifdef wrapping if needed
+    """
+    if not ifdef:
+        if isinstance(content, str):
+            return [content]
+        return content
+
+    result = [f"#ifdef {ifdef}"]
+    if isinstance(content, str):
+        result.append(content)
+    else:
+        result.extend(content)
+    result.append("#endif")
+    return result
 
 
 def camel_to_snake(name: str) -> str:
@@ -157,13 +180,7 @@ class TypeInfo(ABC):
         content = self.decode_varint
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name} = {content};
-          return true;
-        }}"""
-        )
+        return f"case {self.number}: this->{self.field_name} = {content}; break;"
 
     decode_varint = None
 
@@ -172,13 +189,7 @@ class TypeInfo(ABC):
         content = self.decode_length
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name} = {content};
-          return true;
-        }}"""
-        )
+        return f"case {self.number}: this->{self.field_name} = {content}; break;"
 
     decode_length = None
 
@@ -187,13 +198,7 @@ class TypeInfo(ABC):
         content = self.decode_32bit
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name} = {content};
-          return true;
-        }}"""
-        )
+        return f"case {self.number}: this->{self.field_name} = {content}; break;"
 
     decode_32bit = None
 
@@ -202,13 +207,7 @@ class TypeInfo(ABC):
         content = self.decode_64bit
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name} = {content};
-          return true;
-        }}"""
-        )
+        return f"case {self.number}: this->{self.field_name} = {content}; break;"
 
     decode_64bit = None
 
@@ -265,26 +264,6 @@ class TypeInfo(ABC):
         value = value_expr if value_expr else name
         return f"ProtoSize::{method}(total_size, {field_id_size}, {value});"
 
-    def _get_fixed_size_calculation(
-        self, name: str, force: bool, num_bytes: int, zero_check: str
-    ) -> str:
-        """Helper for fixed-size field calculations.
-
-        Args:
-            name: Field name
-            force: Whether this is for a repeated field
-            num_bytes: Number of bytes (4 or 8)
-            zero_check: Expression to check for zero value (e.g., "!= 0.0f")
-        """
-        field_id_size = self.calculate_field_id_size()
-        # Fixed-size repeated fields are handled differently in RepeatedTypeInfo
-        # so we should never get force=True here
-        assert not force, (
-            "Fixed-size repeated fields should be handled by RepeatedTypeInfo"
-        )
-        method = f"add_fixed_field<{num_bytes}>"
-        return f"ProtoSize::{method}(total_size, {field_id_size}, {name} {zero_check});"
-
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         """Calculate the size needed for encoding this field.
@@ -313,6 +292,37 @@ class TypeInfo(ABC):
 
 TYPE_INFO: dict[int, TypeInfo] = {}
 
+# Unsupported 64-bit types that would add overhead for embedded systems
+# TYPE_DOUBLE = 1, TYPE_FIXED64 = 6, TYPE_SFIXED64 = 16, TYPE_SINT64 = 18
+UNSUPPORTED_TYPES = {1: "double", 6: "fixed64", 16: "sfixed64", 18: "sint64"}
+
+
+def validate_field_type(field_type: int, field_name: str = "") -> None:
+    """Validate that the field type is supported by ESPHome API.
+
+    Raises ValueError for unsupported 64-bit types.
+    """
+    if field_type in UNSUPPORTED_TYPES:
+        type_name = UNSUPPORTED_TYPES[field_type]
+        field_info = f" (field: {field_name})" if field_name else ""
+        raise ValueError(
+            f"64-bit type '{type_name}'{field_info} is not supported by ESPHome API. "
+            "These types add significant overhead for embedded systems. "
+            "If you need 64-bit support, please add the necessary encoding/decoding "
+            "functions to proto.h/proto.cpp first."
+        )
+
+
+def get_type_info_for_field(field: descriptor.FieldDescriptorProto) -> TypeInfo:
+    """Get the appropriate TypeInfo for a field, handling repeated fields.
+
+    Also validates that the field type is supported.
+    """
+    if field.label == 3:  # repeated
+        return RepeatedTypeInfo(field)
+    validate_field_type(field.type, field.name)
+    return TYPE_INFO[field.type](field)
+
 
 def register_type(name: int):
     """Decorator to register a type with a name and number."""
@@ -339,7 +349,8 @@ class DoubleType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 8, "!= 0.0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_double_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -362,7 +373,8 @@ class FloatType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 4, "!= 0.0f")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_float_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -445,7 +457,8 @@ class Fixed64Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 8, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_fixed64_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -468,7 +481,8 @@ class Fixed32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 4, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_fixed32_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -549,13 +563,7 @@ class MessageType(TypeInfo):
     @property
     def decode_length_content(self) -> str:
         # Custom decode that doesn't use templates
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          value.decode_to_message(this->{self.field_name});
-          return true;
-        }}"""
-        )
+        return f"case {self.number}: value.decode_to_message(this->{self.field_name}); break;"
 
     def dump(self, name: str) -> str:
         o = f"{name}.dump_to(out);"
@@ -663,7 +671,8 @@ class SFixed32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 4, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_sfixed32_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -686,7 +695,8 @@ class SFixed64Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 8, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_sfixed64_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -738,6 +748,7 @@ class SInt64Type(TypeInfo):
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
         super().__init__(field)
+        validate_field_type(field.type, field.name)
         self._ti: TypeInfo = TYPE_INFO[field.type](field)
 
     @property
@@ -765,12 +776,8 @@ class RepeatedTypeInfo(TypeInfo):
         content = self._ti.decode_varint
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name}.push_back({content});
-          return true;
-        }}"""
+        return (
+            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
         )
 
     @property
@@ -778,22 +785,11 @@ class RepeatedTypeInfo(TypeInfo):
         content = self._ti.decode_length
         if content is None and isinstance(self._ti, MessageType):
             # Special handling for non-template message decoding
-            return dedent(
-                f"""\
-        case {self.number}: {{
-          this->{self.field_name}.emplace_back();
-          value.decode_to_message(this->{self.field_name}.back());
-          return true;
-        }}"""
-            )
+            return f"case {self.number}: this->{self.field_name}.emplace_back(); value.decode_to_message(this->{self.field_name}.back()); break;"
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name}.push_back({content});
-          return true;
-        }}"""
+        return (
+            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
         )
 
     @property
@@ -801,12 +797,8 @@ class RepeatedTypeInfo(TypeInfo):
         content = self._ti.decode_32bit
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name}.push_back({content});
-          return true;
-        }}"""
+        return (
+            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
         )
 
     @property
@@ -814,12 +806,8 @@ class RepeatedTypeInfo(TypeInfo):
         content = self._ti.decode_64bit
         if content is None:
             return None
-        return dedent(
-            f"""\
-        case {self.number}: {{
-          this->{self.field_name}.push_back({content});
-          return true;
-        }}"""
+        return (
+            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
         )
 
     @property
@@ -889,14 +877,15 @@ class RepeatedTypeInfo(TypeInfo):
 
 def build_type_usage_map(
     file_desc: descriptor.FileDescriptorProto,
-) -> tuple[dict[str, str | None], dict[str, str | None]]:
+) -> tuple[dict[str, str | None], dict[str, str | None], dict[str, int]]:
     """Build mappings for both enums and messages to their ifdefs based on usage.
 
     Returns:
-        tuple: (enum_ifdef_map, message_ifdef_map)
+        tuple: (enum_ifdef_map, message_ifdef_map, message_source_map)
     """
     enum_ifdef_map: dict[str, str | None] = {}
     message_ifdef_map: dict[str, str | None] = {}
+    message_source_map: dict[str, int] = {}
 
     # Build maps of which types are used by which messages
     enum_usage: dict[
@@ -983,7 +972,44 @@ def build_type_usage_map(
                 message_ifdef_map[message.name] = parent_ifdefs.pop()
                 changed = True
 
-    return enum_ifdef_map, message_ifdef_map
+    # Build message source map
+    # First pass: Get explicit sources for messages with source option or id
+    for msg in file_desc.message_type:
+        if msg.options.HasExtension(pb.source):
+            # Explicit source option takes precedence
+            message_source_map[msg.name] = get_opt(msg, pb.source, SOURCE_BOTH)
+        elif msg.options.HasExtension(pb.id):
+            # Service messages (with id) default to SOURCE_BOTH
+            message_source_map[msg.name] = SOURCE_BOTH
+
+    # Second pass: Determine sources for embedded messages based on their usage
+    for msg in file_desc.message_type:
+        if msg.name in message_source_map:
+            continue  # Already has explicit source
+
+        if msg.name in message_usage:
+            # Get sources from all parent messages that use this one
+            parent_sources = {
+                message_source_map[parent]
+                for parent in message_usage[msg.name]
+                if parent in message_source_map
+            }
+
+            # Combine parent sources
+            if not parent_sources:
+                # No parent has explicit source, default to encode-only
+                message_source_map[msg.name] = SOURCE_SERVER
+            elif len(parent_sources) > 1:
+                # Multiple different sources or SOURCE_BOTH present
+                message_source_map[msg.name] = SOURCE_BOTH
+            else:
+                # Inherit single parent source
+                message_source_map[msg.name] = parent_sources.pop()
+        else:
+            # Not used by any message and no explicit source - default to encode-only
+            message_source_map[msg.name] = SOURCE_SERVER
+
+    return enum_ifdef_map, message_ifdef_map, message_source_map
 
 
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
@@ -1025,10 +1051,7 @@ def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
     total_size = 0
 
     for field in desc.field:
-        if field.label == 3:  # repeated
-            ti = RepeatedTypeInfo(field)
-        else:
-            ti = TYPE_INFO[field.type](field)
+        ti = get_type_info_for_field(field)
 
         # Add estimated size for this field
         total_size += ti.get_estimated_size()
@@ -1038,7 +1061,8 @@ def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
 
 def build_message_type(
     desc: descriptor.DescriptorProto,
-    base_class_fields: dict[str, list[descriptor.FieldDescriptorProto]] = None,
+    base_class_fields: dict[str, list[descriptor.FieldDescriptorProto]],
+    message_source_map: dict[str, int],
 ) -> tuple[str, str, str]:
     public_content: list[str] = []
     protected_content: list[str] = []
@@ -1060,7 +1084,7 @@ def build_message_type(
     message_id: int | None = get_opt(desc, pb.id)
 
     # Get source direction to determine if we need decode/encode methods
-    source: int = get_opt(desc, pb.source, SOURCE_BOTH)
+    source = message_source_map[desc.name]
     needs_decode = source in (SOURCE_BOTH, SOURCE_CLIENT)
     needs_encode = source in (SOURCE_BOTH, SOURCE_SERVER)
 
@@ -1103,64 +1127,104 @@ def build_message_type(
         # Skip field declarations for fields that are in the base class
         # but include their encode/decode logic
         if field.name not in common_field_names:
-            protected_content.extend(ti.protected_content)
-            public_content.extend(ti.public_content)
+            # Check for field_ifdef option
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
+            if ti.protected_content:
+                protected_content.extend(
+                    wrap_with_ifdef(ti.protected_content, field_ifdef)
+                )
+            if ti.public_content:
+                public_content.extend(wrap_with_ifdef(ti.public_content, field_ifdef))
 
         # Only collect encode logic if this message needs it
         if needs_encode:
-            encode.append(ti.encode_content)
-            size_calc.append(ti.get_size_calculation(f"this->{ti.field_name}"))
+            # Check for field_ifdef option
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
+            encode.extend(wrap_with_ifdef(ti.encode_content, field_ifdef))
+            size_calc.extend(
+                wrap_with_ifdef(
+                    ti.get_size_calculation(f"this->{ti.field_name}"), field_ifdef
+                )
+            )
 
         # Only collect decode methods if this message needs them
         if needs_decode:
+            # Check for field_ifdef option for decode as well
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
             if ti.decode_varint_content:
-                decode_varint.append(ti.decode_varint_content)
+                decode_varint.extend(
+                    wrap_with_ifdef(ti.decode_varint_content, field_ifdef)
+                )
             if ti.decode_length_content:
-                decode_length.append(ti.decode_length_content)
+                decode_length.extend(
+                    wrap_with_ifdef(ti.decode_length_content, field_ifdef)
+                )
             if ti.decode_32bit_content:
-                decode_32bit.append(ti.decode_32bit_content)
+                decode_32bit.extend(
+                    wrap_with_ifdef(ti.decode_32bit_content, field_ifdef)
+                )
             if ti.decode_64bit_content:
-                decode_64bit.append(ti.decode_64bit_content)
+                decode_64bit.extend(
+                    wrap_with_ifdef(ti.decode_64bit_content, field_ifdef)
+                )
         if ti.dump_content:
-            dump.append(ti.dump_content)
+            # Check for field_ifdef option for dump as well
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
+            dump.extend(wrap_with_ifdef(ti.dump_content, field_ifdef))
 
     cpp = ""
     if decode_varint:
-        decode_varint.append("default:\n  return false;")
         o = f"bool {desc.name}::decode_varint(uint32_t field_id, ProtoVarInt value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_varint), "    ") + "\n"
+        o += "    default: return false;\n"
         o += "  }\n"
+        o += "  return true;\n"
         o += "}\n"
         cpp += o
         prot = "bool decode_varint(uint32_t field_id, ProtoVarInt value) override;"
         protected_content.insert(0, prot)
     if decode_length:
-        decode_length.append("default:\n  return false;")
         o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_length), "    ") + "\n"
+        o += "    default: return false;\n"
         o += "  }\n"
+        o += "  return true;\n"
         o += "}\n"
         cpp += o
         prot = "bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;"
         protected_content.insert(0, prot)
     if decode_32bit:
-        decode_32bit.append("default:\n  return false;")
         o = f"bool {desc.name}::decode_32bit(uint32_t field_id, Proto32Bit value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_32bit), "    ") + "\n"
+        o += "    default: return false;\n"
         o += "  }\n"
+        o += "  return true;\n"
         o += "}\n"
         cpp += o
         prot = "bool decode_32bit(uint32_t field_id, Proto32Bit value) override;"
         protected_content.insert(0, prot)
     if decode_64bit:
-        decode_64bit.append("default:\n  return false;")
         o = f"bool {desc.name}::decode_64bit(uint32_t field_id, Proto64Bit value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_64bit), "    ") + "\n"
+        o += "    default: return false;\n"
         o += "  }\n"
+        o += "  return true;\n"
         o += "}\n"
         cpp += o
         prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
@@ -1225,7 +1289,9 @@ def build_message_type(
     if base_class:
         out = f"class {desc.name} : public {base_class} {{\n"
     else:
-        out = f"class {desc.name} : public ProtoMessage {{\n"
+        # Determine inheritance based on whether the message needs decoding
+        base_class = "ProtoDecodableMessage" if needs_decode else "ProtoMessage"
+        out = f"class {desc.name} : public {base_class} {{\n"
     out += " public:\n"
     out += indent("\n".join(public_content)) + "\n"
     out += "\n"
@@ -1326,6 +1392,7 @@ def find_common_fields(
 def build_base_class(
     base_class_name: str,
     common_fields: list[descriptor.FieldDescriptorProto],
+    messages: list[descriptor.DescriptorProto],
 ) -> tuple[str, str, str]:
     """Build the base class definition and implementation."""
     public_content = []
@@ -1334,17 +1401,21 @@ def build_base_class(
     # For base classes, we only declare the fields but don't handle encode/decode
     # The derived classes will handle encoding/decoding with their specific field numbers
     for field in common_fields:
-        if field.label == 3:  # repeated
-            ti = RepeatedTypeInfo(field)
-        else:
-            ti = TYPE_INFO[field.type](field)
+        ti = get_type_info_for_field(field)
 
         # Only add field declarations, not encode/decode logic
         protected_content.extend(ti.protected_content)
         public_content.extend(ti.public_content)
 
+    # Determine if any message using this base class needs decoding
+    needs_decode = any(
+        get_opt(msg, pb.source, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_CLIENT)
+        for msg in messages
+    )
+
     # Build header
-    out = f"class {base_class_name} : public ProtoMessage {{\n"
+    parent_class = "ProtoDecodableMessage" if needs_decode else "ProtoMessage"
+    out = f"class {base_class_name} : public {parent_class} {{\n"
     out += " public:\n"
 
     # Add destructor with override
@@ -1382,7 +1453,9 @@ def generate_base_classes(
 
         if common_fields:
             # Generate base class
-            header, cpp, dump_cpp = build_base_class(base_class_name, common_fields)
+            header, cpp, dump_cpp = build_base_class(
+                base_class_name, common_fields, messages
+            )
             all_headers.append(header)
             all_cpp.append(cpp)
             all_dump_cpp.append(dump_cpp)
@@ -1494,7 +1567,7 @@ namespace api {
     content += "namespace enums {\n\n"
 
     # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map = build_type_usage_map(file)
+    enum_ifdef_map, message_ifdef_map, message_source_map = build_type_usage_map(file)
 
     # Simple grouping of enums by ifdef
     current_ifdef = None
@@ -1548,7 +1621,7 @@ namespace api {
     current_ifdef = None
 
     for m in mt:
-        s, c, dc = build_message_type(m, base_class_fields)
+        s, c, dc = build_message_type(m, base_class_fields, message_source_map)
         msg_ifdef = message_ifdef_map.get(m.name)
 
         # Handle ifdef changes

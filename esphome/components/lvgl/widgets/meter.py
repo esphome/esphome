@@ -264,7 +264,7 @@ class MeterType(WidgetType):
                                 color_start,
                                 color_end,
                                 v[CONF_LOCAL],
-                                size.process(v[CONF_WIDTH]),
+                                await size.process(v[CONF_WIDTH]),
                             ),
                         )
                     if t == CONF_IMAGE:

@@ -53,7 +53,7 @@ async def test_scheduler_null_name(
             # Wait for test completion
             try:
                 await asyncio.wait_for(test_complete_future, timeout=10.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pytest.fail(
                     "Test did not complete within timeout - likely crashed due to NULL name"
                 )

@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -139,6 +140,27 @@ def get_hw_interface_list():
     return []
 
 
+def one_of_interface_validator(additional_values: list[str] | None = None) -> Any:
+    """Helper to create a one_of validator for SPI interfaces.
+
+    This delays evaluation of get_hw_interface_list() until validation time,
+    avoiding access to CORE.data during module import.
+
+    Args:
+        additional_values: List of additional valid values to include
+    """
+    if additional_values is None:
+        additional_values = []
+
+    def validator(value: str) -> str:
+        return cv.one_of(
+            *sum(get_hw_interface_list(), additional_values),
+            lower=True,
+        )(value)
+
+    return cv.All(cv.string, validator)
+
+
 # Given an SPI name, return the index of it in the available list
 def get_spi_index(name):
     for i, ilist in enumerate(get_hw_interface_list()):
@@ -274,9 +296,8 @@ SPI_SINGLE_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_SW): cv.invalid(
                 "force_sw is deprecated - use interface: software"
             ),
-            cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
-                *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
-                lower=True,
+            cv.Optional(CONF_INTERFACE, default="any"): one_of_interface_validator(
+                ["software", "hardware", "any"]
             ),
             cv.Optional(CONF_DATA_PINS): cv.invalid(
                 "'data_pins' should be used with 'type: quad or octal' only"
@@ -309,10 +330,9 @@ def spi_mode_schema(mode):
                     cv.ensure_list(pins.internal_gpio_output_pin_number),
                     cv.Length(min=pin_count, max=pin_count),
                 ),
-                cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
-                    *sum(get_hw_interface_list(), ["hardware"]),
-                    lower=True,
-                ),
+                cv.Optional(
+                    CONF_INTERFACE, default="hardware"
+                ): one_of_interface_validator(["hardware"]),
                 cv.Optional(CONF_MISO_PIN): cv.invalid(
                     f"'miso_pin' should not be used with {mode} SPI"
                 ),

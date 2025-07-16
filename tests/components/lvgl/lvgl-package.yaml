@@ -928,6 +928,12 @@ lvgl:
                           angle_range: 360
                           rotation: !lambda return 2700;
                           indicators:
+                            - tick_style:
+                                start_value: 0
+                                end_value: 60
+                                color_start: 0x0000bd
+                                color_end: 0xbd0000
+                                width: !lambda return 1;
                             - line:
                                 opa: 50%
                                 id: minute_hand

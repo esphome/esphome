@@ -50,7 +50,7 @@ async def test_host_mode_many_entities_multiple_connections(
                 asyncio.wait_for(client1_ready, timeout=10.0),
                 asyncio.wait_for(client2_ready, timeout=10.0),
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"One or both clients did not receive enough states within 10 seconds. "
                 f"Client1: {len(states1)}, Client2: {len(states2)}"

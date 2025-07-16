@@ -91,7 +91,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 #endif
 
-  const auto now = this->millis_();
+  const auto now = this->millis_64_(millis());
 
   // Type-specific setup
   if (type == SchedulerItem::INTERVAL) {
@@ -193,9 +193,7 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
             name.c_str(), initial_wait_time, max_attempts, backoff_increase_factor);
 
   if (backoff_increase_factor < 0.0001) {
-    ESP_LOGE(TAG,
-             "set_retry(name='%s'): backoff_factor cannot be close to zero nor negative (%0.1f). Using 1.0 instead",
-             name.c_str(), backoff_increase_factor);
+    ESP_LOGE(TAG, "backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor, name.c_str());
     backoff_increase_factor = 1;
   }
 
@@ -215,19 +213,19 @@ bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) 
   return this->cancel_timeout(component, "retry$" + name);
 }
 
-optional<uint32_t> HOT Scheduler::next_schedule_in() {
+optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // It calls empty_() and accesses items_[0] without holding a lock, which is only
   // safe when called from the main thread. Other threads must not call this method.
   if (this->empty_())
     return {};
   auto &item = this->items_[0];
-  const auto now = this->millis_();
-  if (item->next_execution_ < now)
+  const auto now_64 = this->millis_64_(now);
+  if (item->next_execution_ < now_64)
     return 0;
-  return item->next_execution_ - now;
+  return item->next_execution_ - now_64;
 }
-void HOT Scheduler::call() {
+void HOT Scheduler::call(uint32_t now) {
 #if !defined(USE_ESP8266) && !defined(USE_RP2040)
   // Process defer queue first to guarantee FIFO execution order for deferred items.
   // Previously, defer() used the heap which gave undefined order for equal timestamps,
@@ -256,22 +254,22 @@ void HOT Scheduler::call() {
     // Execute callback without holding lock to prevent deadlocks
     // if the callback tries to call defer() again
     if (!this->should_skip_item_(item.get())) {
-      this->execute_item_(item.get());
+      this->execute_item_(item.get(), now);
     }
   }
 #endif
 
-  const auto now = this->millis_();
+  const auto now_64 = this->millis_64_(now);
   this->process_to_add();
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   static uint64_t last_print = 0;
 
-  if (now - last_print > 2000) {
-    last_print = now;
+  if (now_64 - last_print > 2000) {
+    last_print = now_64;
     std::vector<std::unique_ptr<SchedulerItem>> old_items;
-    ESP_LOGD(TAG, "Items: count=%zu, now=%" PRIu64 " (%u, %" PRIu32 ")", this->items_.size(), now, this->millis_major_,
-             this->last_millis_);
+    ESP_LOGD(TAG, "Items: count=%zu, now=%" PRIu64 " (%u, %" PRIu32 ")", this->items_.size(), now_64,
+             this->millis_major_, this->last_millis_);
     while (!this->empty_()) {
       std::unique_ptr<SchedulerItem> item;
       {
@@ -283,7 +281,7 @@ void HOT Scheduler::call() {
       const char *name = item->get_name();
       ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64,
                item->get_type_str(), item->get_source(), name ? name : "(null)", item->interval,
-               item->next_execution_ - now, item->next_execution_);
+               item->next_execution_ - now_64, item->next_execution_);
 
       old_items.push_back(std::move(item));
     }
@@ -328,7 +326,7 @@ void HOT Scheduler::call() {
     {
       // Don't copy-by value yet
       auto &item = this->items_[0];
-      if (item->next_execution_ > now) {
+      if (item->next_execution_ > now_64) {
         // Not reached timeout yet, done for this call
         break;
       }
@@ -342,13 +340,13 @@ void HOT Scheduler::call() {
       const char *item_name = item->get_name();
       ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
                item->get_type_str(), item->get_source(), item_name ? item_name : "(null)", item->interval,
-               item->next_execution_, now);
+               item->next_execution_, now_64);
 #endif
 
       // Warning: During callback(), a lot of stuff can happen, including:
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
-      this->execute_item_(item.get());
+      this->execute_item_(item.get(), now);
     }
 
     {
@@ -367,7 +365,7 @@ void HOT Scheduler::call() {
       }
 
       if (item->type == SchedulerItem::INTERVAL) {
-        item->next_execution_ = now + item->interval;
+        item->next_execution_ = now_64 + item->interval;
         // Add new item directly to to_add_
         // since we have the lock held
         this->to_add_.push_back(std::move(item));
@@ -423,11 +421,9 @@ void HOT Scheduler::pop_raw_() {
 }
 
 // Helper to execute a scheduler item
-void HOT Scheduler::execute_item_(SchedulerItem *item) {
+void HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
-
-  uint32_t now_ms = millis();
-  WarnIfComponentBlockingGuard guard{item->component, now_ms};
+  WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
   guard.finish();
 }
@@ -486,15 +482,15 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   return total_cancelled > 0;
 }
 
-uint64_t Scheduler::millis_() {
-  // Get the current 32-bit millis value
-  const uint32_t now = millis();
+uint64_t Scheduler::millis_64_(uint32_t now) {
   // Check for rollover by comparing with last value
   if (now < this->last_millis_) {
     // Detected rollover (happens every ~49.7 days)
     this->millis_major_++;
+#ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Incrementing scheduler major at %" PRIu64 "ms",
              now + (static_cast<uint64_t>(this->millis_major_) << 32));
+#endif
   }
   this->last_millis_ = now;
   // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time
