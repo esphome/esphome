@@ -5,6 +5,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     VARIANT_ESP32S2,
@@ -85,6 +86,16 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         3: adc_channel_t.ADC_CHANNEL_3,
         4: adc_channel_t.ADC_CHANNEL_4,
     },
+    # ESP32-C5 ADC1 pin mapping - based on official ESP-IDF documentation
+    # https://docs.espressif.com/projects/esp-idf/en/latest/esp32c5/api-reference/peripherals/gpio.html
+    VARIANT_ESP32C5: {
+        1: adc_channel_t.ADC_CHANNEL_0,
+        2: adc_channel_t.ADC_CHANNEL_1,
+        3: adc_channel_t.ADC_CHANNEL_2,
+        4: adc_channel_t.ADC_CHANNEL_3,
+        5: adc_channel_t.ADC_CHANNEL_4,
+        6: adc_channel_t.ADC_CHANNEL_5,
+    },
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c6/include/soc/adc_channel.h
     VARIANT_ESP32C6: {
         0: adc_channel_t.ADC_CHANNEL_0,
@@ -155,6 +166,8 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
     VARIANT_ESP32C3: {
         5: adc_channel_t.ADC_CHANNEL_0,
     },
+    # ESP32-C5 has no ADC2 channels
+    VARIANT_ESP32C5: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c6/include/soc/adc_channel.h
     VARIANT_ESP32C6: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
