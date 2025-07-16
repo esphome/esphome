@@ -290,7 +290,7 @@ message ListEntitiesBinarySensorResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string device_class = 5;
   bool is_status_binary_sensor = 6;
@@ -324,7 +324,7 @@ message ListEntitiesCoverResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   bool assumed_state = 5;
   bool supports_position = 6;
@@ -401,7 +401,7 @@ message ListEntitiesFanResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   bool supports_oscillation = 5;
   bool supports_speed = 6;
@@ -484,7 +484,7 @@ message ListEntitiesLightResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   repeated ColorMode supported_color_modes = 12;
   // next four supports_* are for legacy clients, newer clients should use color modes
@@ -582,7 +582,7 @@ message ListEntitiesSensorResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   string unit_of_measurement = 6;
@@ -621,7 +621,7 @@ message ListEntitiesSwitchResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool assumed_state = 6;
@@ -663,7 +663,7 @@ message ListEntitiesTextSensorResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -853,7 +853,7 @@ message ListEntitiesCameraResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
   bool disabled_by_default = 5;
   string icon = 6;
   EntityCategory entity_category = 7;
@@ -937,7 +937,7 @@ message ListEntitiesClimateResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   bool supports_current_temperature = 5;
   bool supports_two_point_target_temperature = 6;
@@ -1038,7 +1038,7 @@ message ListEntitiesNumberResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   float min_value = 6;
@@ -1087,7 +1087,7 @@ message ListEntitiesSelectResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   repeated string options = 6;
@@ -1131,7 +1131,7 @@ message ListEntitiesSirenResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -1194,7 +1194,7 @@ message ListEntitiesLockResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -1243,7 +1243,7 @@ message ListEntitiesButtonResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -1298,7 +1298,7 @@ message ListEntitiesMediaPlayerResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -1845,7 +1845,7 @@ message ListEntitiesAlarmControlPanelResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
@@ -1892,7 +1892,7 @@ message ListEntitiesTextResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
@@ -1940,7 +1940,7 @@ message ListEntitiesDateResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -1987,7 +1987,7 @@ message ListEntitiesTimeResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -2034,7 +2034,7 @@ message ListEntitiesEventResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -2065,7 +2065,7 @@ message ListEntitiesValveResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -2120,7 +2120,7 @@ message ListEntitiesDateTimeResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;
@@ -2163,7 +2163,7 @@ message ListEntitiesUpdateResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4; // Deprecated: was string unique_id
 
   string icon = 5;
   bool disabled_by_default = 6;

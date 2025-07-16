@@ -96,7 +96,6 @@ void Sensor::clear_filters() {
 }
 float Sensor::get_state() const { return this->state; }
 float Sensor::get_raw_state() const { return this->raw_state; }
-std::string Sensor::unique_id() { return ""; }
 
 void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);

@@ -56,8 +56,6 @@ float ADCSensor::sample() {
   return aggr.aggregate() / 1024.0f;
 }
 
-std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
-
 }  // namespace adc
 }  // namespace esphome
 
