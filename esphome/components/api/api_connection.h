@@ -209,6 +209,7 @@ class APIConnection : public APIServerConnection {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
   void on_fatal_error() override;
   void on_unauthenticated_access() override;
   void on_no_setup_connection() override;

@@ -1404,9 +1404,6 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
 #endif
 
 bool APIConnection::try_send_log_message(int level, const char *tag, const char *line, size_t message_len) {
-  if (this->flags_.log_subscription < level)
-    return false;
-
   // Pre-calculate message size to avoid reallocations
   uint32_t msg_size = 0;
 

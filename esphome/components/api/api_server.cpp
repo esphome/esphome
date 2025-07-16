@@ -104,7 +104,7 @@ void APIServer::setup() {
             return;
           }
           for (auto &c : this->clients_) {
-            if (!c->flags_.remove)
+            if (!c->flags_.remove && c->get_log_subscription_level() >= level)
               c->try_send_log_message(level, tag, message, message_len);
           }
         });
