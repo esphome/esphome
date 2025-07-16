@@ -31,7 +31,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void dump_config() override;
 
   void run_later(std::function<void()> &&f);  // NOLINT
+#ifdef USE_ESP32_BLE_DEVICE
   bool parse_device(const espbt::ESPBTDevice &device) override;
+#endif
   void on_scan_end() override {}
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
