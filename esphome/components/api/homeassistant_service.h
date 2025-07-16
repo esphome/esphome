@@ -11,6 +11,15 @@ namespace esphome {
 namespace api {
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
+ private:
+  // Helper to convert value to string - handles the case where value is already a string
+  template<typename T> static std::string value_to_string(T &&val) { return to_string(std::forward<T>(val)); }
+
+  // Overloads for string types - needed because std::to_string doesn't support them
+  static std::string value_to_string(const char *val) { return std::string(val); }  // For lambdas returning .c_str()
+  static std::string value_to_string(const std::string &val) { return val; }
+  static std::string value_to_string(std::string &&val) { return std::move(val); }
+
  public:
   TemplatableStringValue() : TemplatableValue<std::string, X...>() {}
 
@@ -19,7 +28,7 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
 
   template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
   TemplatableStringValue(F f)
-      : TemplatableValue<std::string, X...>([f](X... x) -> std::string { return to_string(f(x...)); }) {}
+      : TemplatableValue<std::string, X...>([f](X... x) -> std::string { return value_to_string(f(x...)); }) {}
 };
 
 template<typename... Ts> class TemplatableKeyValuePair {
