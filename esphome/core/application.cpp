@@ -71,7 +71,7 @@ void Application::setup() {
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
-      this->scheduler.call();
+      this->scheduler.call(millis());
       this->feed_wdt();
       for (uint32_t j = 0; j <= i; j++) {
         // Update loop_component_start_time_ right before calling each component
@@ -97,10 +97,10 @@ void Application::setup() {
 void Application::loop() {
   uint8_t new_app_state = 0;
 
-  this->scheduler.call();
-
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
+
+  this->scheduler.call(last_op_end_time);
 
   // Feed WDT with time
   this->feed_wdt(last_op_end_time);
@@ -160,7 +160,7 @@ void Application::loop() {
     this->yield_with_select_(0);
   } else {
     uint32_t delay_time = this->loop_interval_ - elapsed;
-    uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
+    uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
     // next_schedule is max 0.5*delay_time
     // otherwise interval=0 schedules result in constant looping with almost no sleep
     next_schedule = std::max(next_schedule, delay_time / 2);
