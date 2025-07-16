@@ -6,6 +6,7 @@ import collections
 import fnmatch
 import functools
 import os.path
+from pathlib import Path
 import re
 import sys
 import time
@@ -57,17 +58,30 @@ file_types = (
     "",
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
-ignore_types = (".ico", ".png", ".woff", ".woff2", "")
+py_include = ("*.py",)
+ignore_types = (
+    ".ico",
+    ".png",
+    ".woff",
+    ".woff2",
+    "",
+    ".ttf",
+    ".otf",
+    ".pcf",
+    ".apng",
+    ".gif",
+    ".webp",
+)
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
 LINT_POST_CHECKS = []
-EXECUTABLE_BIT = {}
+EXECUTABLE_BIT: dict[str, int] = {}
 
-errors = collections.defaultdict(list)
+errors: collections.defaultdict[Path, list] = collections.defaultdict(list)
 
 
-def add_errors(fname, errs):
+def add_errors(fname: Path, errs: list[tuple[int, int, str] | None]) -> None:
     if not isinstance(errs, list):
         errs = [errs]
     for err in errs:
@@ -184,7 +198,7 @@ def lint_content_find_check(find, only_first=False, **kwargs):
                 find_ = find(fname, content)
             errs = []
             for line, col in find_all(content, find_):
-                err = func(fname)
+                err = func(fname, line, col, content)
                 errs.append((line + 1, col + 1, err))
                 if only_first:
                     break
@@ -228,11 +242,13 @@ def lint_ext_check(fname):
         "docker/ha-addon-rootfs/**",
         "docker/*.py",
         "script/*",
-        "setup.py",
+        "CLAUDE.md",
+        "GEMINI.md",
+        ".github/copilot-instructions.md",
     ]
 )
-def lint_executable_bit(fname):
-    ex = EXECUTABLE_BIT[fname]
+def lint_executable_bit(fname: Path) -> str | None:
+    ex = EXECUTABLE_BIT[str(fname)]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
@@ -249,23 +265,24 @@ def lint_executable_bit(fname):
         "esphome/dashboard/static/ext-searchbox.js",
     ],
 )
-def lint_tabs(fname):
+def lint_tabs(fname, line, col, content):
     return "File contains tab character. Please convert tabs to spaces."
 
 
 @lint_content_find_check("\r", only_first=True)
-def lint_newline(fname):
+def lint_newline(fname, line, col, content):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
-@lint_content_check(exclude=["*.svg"])
+@lint_content_check(exclude=["*.svg", ".clang-tidy.hash"])
 def lint_end_newline(fname, content):
     if content and not content.endswith("\n"):
         return "File does not end with a newline, please add an empty line at the end of the file."
     return None
 
 
-CPP_RE_EOL = r"\s*?(?://.*?)?$"
+CPP_RE_EOL = r".*?(?://.*?)?$"
+PY_RE_EOL = r".*?(?:#.*?)?$"
 
 
 def highlight(s):
@@ -273,12 +290,13 @@ def highlight(s):
 
 
 @lint_re_check(
-    r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
+    r"^#define\s+([a-zA-Z0-9_]+)\s+(0b[10]+|0x[0-9a-fA-F]+|\d+)\s*?(?:\/\/.*?)?$",
     include=cpp_include,
     exclude=[
         "esphome/core/log.h",
         "esphome/components/socket/headers.h",
         "esphome/core/defines.h",
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_no_defines(fname, match):
@@ -304,7 +322,12 @@ def lint_no_long_delays(fname, match):
     )
 
 
-@lint_content_check(include=["esphome/const.py"])
+@lint_content_check(
+    include=[
+        "esphome/const.py",
+        "esphome/components/const/__init__.py",
+    ]
+)
 def lint_const_ordered(fname, content):
     """Lint that value in const.py are ordered.
 
@@ -474,23 +497,24 @@ def lint_no_byte_datatype(fname, match):
 def lint_constants_usage():
     errs = []
     for constant, uses in CONSTANTS_USES.items():
-        if len(uses) < 4:
+        if len(uses) < 3:
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(uses)})"
+            f"constant to const.py (Uses: {', '.join(uses)}) in a separate PR. "
+            "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
 
 
-def relative_cpp_search_text(fname, content):
-    parts = fname.split("/")
+def relative_cpp_search_text(fname: Path, content) -> str:
+    parts = fname.parts
     integration = parts[2]
     return f'#include "esphome/components/{integration}'
 
 
 @lint_content_find_check(relative_cpp_search_text, include=["esphome/components/*.cpp"])
-def lint_relative_cpp_import(fname):
+def lint_relative_cpp_import(fname, line, col, content):
     return (
         "Component contains absolute import - Components must always use "
         "relative imports.\n"
@@ -501,10 +525,24 @@ def lint_relative_cpp_import(fname):
     )
 
 
-def relative_py_search_text(fname, content):
-    parts = fname.split("/")
+def relative_py_search_text(fname: Path, content: str) -> str:
+    parts = fname.parts
     integration = parts[2]
     return f"esphome.components.{integration}"
+
+
+def convert_path_to_relative(abspath, current):
+    """Convert an absolute path to a relative import path."""
+    if abspath == current:
+        return "."
+    absparts = abspath.split(".")
+    curparts = current.split(".")
+    uplen = len(curparts)
+    while absparts and curparts and absparts[0] == curparts[0]:
+        absparts.pop(0)
+        curparts.pop(0)
+        uplen -= 1
+    return "." * uplen + ".".join(absparts)
 
 
 @lint_content_find_check(
@@ -515,14 +553,19 @@ def relative_py_search_text(fname, content):
         "esphome/components/web_server/__init__.py",
     ],
 )
-def lint_relative_py_import(fname):
+def lint_relative_py_import(fname, line, col, content):
+    import_line = content.splitlines()[line]
+    abspath = import_line[col:].split(" ")[0]
+    current = fname.removesuffix(".py").replace(os.path.sep, ".")
+    replacement = convert_path_to_relative(abspath, current)
+    newline = import_line.replace(abspath, replacement)
     return (
         "Component contains absolute import - Components must always use "
         "relative imports within the integration.\n"
         "Change:\n"
-        '  from esphome.components.abc import abc_ns"\n'
+        f"    {import_line}\n"
         "to:\n"
-        "  from . import abc_ns\n\n"
+        f"    {newline}\n"
     )
 
 
@@ -539,24 +582,32 @@ def lint_relative_py_import(fname):
         "esphome/components/rp2040/core.cpp",
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
+        "esphome/components/zephyr/core.cpp",
+        "esphome/components/esp32/helpers.cpp",
+        "esphome/components/esp8266/helpers.cpp",
+        "esphome/components/rp2040/helpers.cpp",
+        "esphome/components/libretiny/helpers.cpp",
+        "esphome/components/host/helpers.cpp",
+        "esphome/components/zephyr/helpers.cpp",
+        "esphome/components/http_request/httplib.h",
     ],
 )
-def lint_namespace(fname, content):
-    expected_name = re.match(
-        r"^esphome/components/([^/]+)/.*", fname.replace(os.path.sep, "/")
-    ).group(1)
-    search = f"namespace {expected_name}"
-    if search in content:
+def lint_namespace(fname: Path, content: str) -> str | None:
+    expected_name = fname.parts[2]
+    # Check for both old style and C++17 nested namespace syntax
+    search_old = f"namespace {expected_name}"
+    search_new = f"namespace esphome::{expected_name}"
+    if search_old in content or search_new in content:
         return None
     return (
         "Invalid namespace found in C++ file. All integration C++ files should put all "
         "functions in a separate namespace that matches the integration's name. "
-        f"Please make sure the file contains {highlight(search)}"
+        f"Please make sure the file contains {highlight(search_old)} or {highlight(search_new)}"
     )
 
 
 @lint_content_find_check('"esphome.h"', include=cpp_include, exclude=["tests/custom.h"])
-def lint_esphome_h(fname):
+def lint_esphome_h(fname, line, col, content):
     return (
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
@@ -574,11 +625,6 @@ def lint_pragma_once(fname, content):
     return None
 
 
-@lint_re_check(
-    r"(whitelist|blacklist|slave)",
-    exclude=["script/ci-custom.py"],
-    flags=re.IGNORECASE | re.MULTILINE,
-)
 def lint_inclusive_language(fname, match):
     # From https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb
     return (
@@ -596,6 +642,21 @@ def lint_inclusive_language(fname, match):
     )
 
 
+lint_re_check(
+    r"(whitelist|blacklist|slave)" + PY_RE_EOL,
+    include=py_include,
+    exclude=["script/ci-custom.py"],
+    flags=re.IGNORECASE | re.MULTILINE,
+)(lint_inclusive_language)
+
+
+lint_re_check(
+    r"(whitelist|blacklist|slave)" + CPP_RE_EOL,
+    include=cpp_include,
+    flags=re.IGNORECASE | re.MULTILINE,
+)(lint_inclusive_language)
+
+
 @lint_re_check(r"[\t\r\f\v ]+$")
 def lint_trailing_whitespace(fname, match):
     return "Trailing whitespace detected"
@@ -609,13 +670,17 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/button/button.h",
         "esphome/components/climate/climate.h",
         "esphome/components/cover/cover.h",
+        "esphome/components/datetime/date_entity.h",
+        "esphome/components/datetime/time_entity.h",
+        "esphome/components/datetime/datetime_entity.h",
         "esphome/components/display/display.h",
+        "esphome/components/event/event.h",
         "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",
-        "esphome/components/text/text.h",
+        "esphome/components/one_wire/one_wire.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
         "esphome/components/nextion/nextion_base.h",
@@ -623,14 +688,17 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/sensor/sensor.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
+        "esphome/components/text/text.h",
         "esphome/components/text_sensor/text_sensor.h",
+        "esphome/components/valve/valve.h",
         "esphome/core/component.h",
         "esphome/core/gpio.h",
+        "esphome/core/log_const_en.h",
         "esphome/core/log.h",
         "tests/custom.h",
     ],
 )
-def lint_log_in_header(fname):
+def lint_log_in_header(fname, line, col, content):
     return (
         "Found reference to ESP_LOG in header file. Using ESP_LOG* in header files "
         "is currently not possible - please move the definition to a source file (.cpp)"
@@ -652,8 +720,7 @@ def main():
     )
     args = parser.parse_args()
 
-    global EXECUTABLE_BIT
-    EXECUTABLE_BIT = git_ls_files()
+    EXECUTABLE_BIT.update(git_ls_files())
     files = list(EXECUTABLE_BIT.keys())
     # Match against re
     file_name_re = re.compile("|".join(args.files))
@@ -665,9 +732,9 @@ def main():
     files.sort()
 
     for fname in files:
-        _, ext = os.path.splitext(fname)
+        fname = Path(fname)
         run_checks(LINT_FILE_CHECKS, fname, fname)
-        if ext in ignore_types:
+        if fname.suffix in ignore_types:
             continue
         try:
             with codecs.open(fname, "r", encoding="utf-8") as f_handle:

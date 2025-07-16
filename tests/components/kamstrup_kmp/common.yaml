@@ -1,0 +1,25 @@
+uart:
+  tx_pin: ${uart_tx_pin}
+  rx_pin: ${uart_rx_pin}
+  baud_rate: 1200
+  stop_bits: 2
+
+sensor:
+  - platform: kamstrup_kmp
+    heat_energy:
+      name: Heat Energy
+    power:
+      name: Power
+    temp1:
+      name: Temperature 1
+    temp2:
+      name: Temperature 2
+    temp_diff:
+      name: Temperature Difference
+    flow:
+      name: Flow
+    volume:
+      name: Volume
+    custom:
+      - name: Custom 1
+        command: 0x1234

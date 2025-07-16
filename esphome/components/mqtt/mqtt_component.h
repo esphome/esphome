@@ -77,6 +77,10 @@ class MQTTComponent : public Component {
 
   virtual bool is_internal();
 
+  /// Set QOS for state messages.
+  void set_qos(uint8_t qos);
+  uint8_t get_qos() const;
+
   /// Set whether state message should be retained.
   void set_retain(bool retain);
   bool get_retain() const;
@@ -84,6 +88,9 @@ class MQTTComponent : public Component {
   /// Disable discovery. Sets friendly name to "".
   void disable_discovery();
   bool is_discovery_enabled() const;
+
+  /// Set the QOS for subscribe messages (used in discovery).
+  void set_subscribe_qos(uint8_t qos);
 
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual std::string component_type() const = 0;
@@ -157,13 +164,6 @@ class MQTTComponent : public Component {
    */
   virtual const EntityBase *get_entity() const = 0;
 
-  /** A unique ID for this MQTT component, empty for no unique id. See unique ID requirements:
-   * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
-   *
-   * @return The unique id as a string.
-   */
-  virtual std::string unique_id();
-
   /// Get the friendly name of this MQTT component.
   virtual std::string friendly_name() const;
 
@@ -199,6 +199,8 @@ class MQTTComponent : public Component {
 
   bool command_retain_{false};
   bool retain_{true};
+  uint8_t qos_{0};
+  uint8_t subscribe_qos_{0};
   bool discovery_enabled_{true};
   bool resend_state_{false};
 };

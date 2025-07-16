@@ -1,5 +1,6 @@
 #include "filter.h"
 #include <cmath>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "sensor.h"
@@ -50,6 +51,7 @@ optional<float> MedianFilter::new_value(float value) {
     if (!this->queue_.empty()) {
       // Copy queue without NaN values
       std::vector<float> median_queue;
+      median_queue.reserve(this->queue_.size());
       for (auto v : this->queue_) {
         if (!std::isnan(v)) {
           median_queue.push_back(v);
@@ -79,7 +81,7 @@ SkipInitialFilter::SkipInitialFilter(size_t num_to_ignore) : num_to_ignore_(num_
 optional<float> SkipInitialFilter::new_value(float value) {
   if (num_to_ignore_ > 0) {
     num_to_ignore_--;
-    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %u left", this, value, num_to_ignore_);
+    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %zu left", this, value, num_to_ignore_);
     return {};
   }
 
@@ -118,7 +120,7 @@ optional<float> QuantileFilter::new_value(float value) {
       size_t queue_size = quantile_queue.size();
       if (queue_size) {
         size_t position = ceilf(queue_size * this->quantile_) - 1;
-        ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %d/%d", this, position + 1, queue_size);
+        ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, queue_size);
         result = quantile_queue[position];
       }
     }
@@ -223,7 +225,7 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
 
 // ExponentialMovingAverageFilter
 ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at)
-    : send_every_(send_every), send_at_(send_every - send_first_at), alpha_(alpha) {}
+    : alpha_(alpha), send_every_(send_every), send_at_(send_every - send_first_at) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!std::isnan(value)) {
     if (this->first_value_) {
@@ -252,7 +254,9 @@ ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period
 
 optional<float> ThrottleAverageFilter::new_value(float value) {
   ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::new_value(value=%f)", this, value);
-  if (!std::isnan(value)) {
+  if (std::isnan(value)) {
+    this->have_nan_ = true;
+  } else {
     this->sum_ += value;
     this->n_++;
   }
@@ -262,12 +266,14 @@ void ThrottleAverageFilter::setup() {
   this->set_interval("throttle_average", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
-      this->output(NAN);
+      if (this->have_nan_)
+        this->output(NAN);
     } else {
       this->output(this->sum_ / this->n_);
       this->sum_ = 0.0f;
       this->n_ = 0;
     }
+    this->have_nan_ = false;
   });
 }
 float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
@@ -284,43 +290,77 @@ optional<float> LambdaFilter::new_value(float value) {
 }
 
 // OffsetFilter
-OffsetFilter::OffsetFilter(float offset) : offset_(offset) {}
+OffsetFilter::OffsetFilter(TemplatableValue<float> offset) : offset_(std::move(offset)) {}
 
-optional<float> OffsetFilter::new_value(float value) { return value + this->offset_; }
+optional<float> OffsetFilter::new_value(float value) { return value + this->offset_.value(); }
 
 // MultiplyFilter
-MultiplyFilter::MultiplyFilter(float multiplier) : multiplier_(multiplier) {}
+MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_(std::move(multiplier)) {}
 
-optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_; }
+optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
 // FilterOutValueFilter
-FilterOutValueFilter::FilterOutValueFilter(float value_to_filter_out) : value_to_filter_out_(value_to_filter_out) {}
+FilterOutValueFilter::FilterOutValueFilter(std::vector<TemplatableValue<float>> values_to_filter_out)
+    : values_to_filter_out_(std::move(values_to_filter_out)) {}
 
 optional<float> FilterOutValueFilter::new_value(float value) {
-  if (std::isnan(this->value_to_filter_out_)) {
-    if (std::isnan(value)) {
-      return {};
-    } else {
-      return value;
+  int8_t accuracy = this->parent_->get_accuracy_decimals();
+  float accuracy_mult = powf(10.0f, accuracy);
+  for (auto filter_value : this->values_to_filter_out_) {
+    if (std::isnan(filter_value.value())) {
+      if (std::isnan(value)) {
+        return {};
+      }
+      continue;
     }
-  } else {
-    int8_t accuracy = this->parent_->get_accuracy_decimals();
-    float accuracy_mult = powf(10.0f, accuracy);
-    float rounded_filter_out = roundf(accuracy_mult * this->value_to_filter_out_);
+    float rounded_filter_out = roundf(accuracy_mult * filter_value.value());
     float rounded_value = roundf(accuracy_mult * value);
     if (rounded_filter_out == rounded_value) {
       return {};
-    } else {
-      return value;
     }
   }
+  return value;
 }
 
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_) {
+    this->last_input_ = now;
+    return value;
+  }
+  return {};
+}
+
+// ThrottleWithPriorityFilter
+ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
+                                                       std::vector<TemplatableValue<float>> prioritized_values)
+    : min_time_between_inputs_(min_time_between_inputs), prioritized_values_(std::move(prioritized_values)) {}
+
+optional<float> ThrottleWithPriorityFilter::new_value(float value) {
+  bool is_prioritized_value = false;
+  int8_t accuracy = this->parent_->get_accuracy_decimals();
+  float accuracy_mult = powf(10.0f, accuracy);
+  const uint32_t now = App.get_loop_component_start_time();
+  // First, determine if the new value is one of the prioritized values
+  for (auto prioritized_value : this->prioritized_values_) {
+    if (std::isnan(prioritized_value.value())) {
+      if (std::isnan(value)) {
+        is_prioritized_value = true;
+        break;
+      }
+      continue;
+    }
+    float rounded_prioritized_value = roundf(accuracy_mult * prioritized_value.value());
+    float rounded_value = roundf(accuracy_mult * value);
+    if (rounded_prioritized_value == rounded_value) {
+      is_prioritized_value = true;
+      break;
+    }
+  }
+  // Finally, determine if the new value should be throttled and pass it through if not
+  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ || is_prioritized_value) {
     this->last_input_ = now;
     return value;
   }
@@ -329,19 +369,17 @@ optional<float> ThrottleFilter::new_value(float value) {
 
 // DeltaFilter
 DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), percentage_mode_(percentage_mode), last_value_(NAN) {}
+    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
 optional<float> DeltaFilter::new_value(float value) {
   if (std::isnan(value)) {
     if (std::isnan(this->last_value_)) {
       return {};
     } else {
-      if (this->percentage_mode_) {
-        this->current_delta_ = fabsf(value * this->delta_);
-      }
       return this->last_value_ = value;
     }
   }
-  if (std::isnan(this->last_value_) || fabsf(value - this->last_value_) >= this->current_delta_) {
+  float diff = fabsf(value - this->last_value_);
+  if (std::isnan(this->last_value_) || (diff > 0.0f && diff >= this->current_delta_)) {
     if (this->percentage_mode_) {
       this->current_delta_ = fabsf(value * this->delta_);
     }
@@ -355,11 +393,15 @@ OrFilter::OrFilter(std::vector<Filter *> filters) : filters_(std::move(filters))
 OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
 
 optional<float> OrFilter::PhiNode::new_value(float value) {
-  this->or_parent_->output(value);
+  if (!this->or_parent_->has_value_) {
+    this->or_parent_->output(value);
+    this->or_parent_->has_value_ = true;
+  }
 
   return {};
 }
 optional<float> OrFilter::new_value(float value) {
+  this->has_value_ = false;
   for (Filter *filter : this->filters_)
     filter->input(value);
 
@@ -375,11 +417,17 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
 
 // TimeoutFilter
 optional<float> TimeoutFilter::new_value(float value) {
-  this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_); });
+  if (this->value_.has_value()) {
+    this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_.value().value()); });
+  } else {
+    this->set_timeout("timeout", this->time_period_, [this, value]() { this->output(value); });
+  }
   return value;
 }
 
-TimeoutFilter::TimeoutFilter(uint32_t time_period, float new_value) : time_period_(time_period), value_(new_value) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value)
+    : time_period_(time_period), value_(new_value) {}
 float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // DebounceFilter
@@ -462,6 +510,37 @@ optional<float> RoundFilter::new_value(float value) {
     return roundf(accuracy_mult * value) / accuracy_mult;
   }
   return value;
+}
+
+RoundMultipleFilter::RoundMultipleFilter(float multiple) : multiple_(multiple) {}
+optional<float> RoundMultipleFilter::new_value(float value) {
+  if (std::isfinite(value)) {
+    return value - remainderf(value, this->multiple_);
+  }
+  return value;
+}
+
+optional<float> ToNTCResistanceFilter::new_value(float value) {
+  if (!std::isfinite(value)) {
+    return NAN;
+  }
+  double k = 273.15;
+  // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
+  double t = value + k;
+  double y = (this->a_ - 1 / (t)) / (2 * this->c_);
+  double x = sqrt(pow(this->b_ / (3 * this->c_), 3) + y * y);
+  double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));
+  return resistance;
+}
+
+optional<float> ToNTCTemperatureFilter::new_value(float value) {
+  if (!std::isfinite(value)) {
+    return NAN;
+  }
+  double lr = log(double(value));
+  double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
+  double temp = float(1.0 / v - 273.15);
+  return temp;
 }
 
 }  // namespace sensor

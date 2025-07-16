@@ -1,0 +1,7 @@
+button:
+  - platform: restart
+    name: Restart Button
+
+switch:
+  - platform: restart
+    name: Restart Switch

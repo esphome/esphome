@@ -19,8 +19,6 @@ void TLC5947::setup() {
   }
 
   this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
-
-  ESP_LOGCONFIG(TAG, "Done setting up TLC5947 output component.");
 }
 void TLC5947::dump_config() {
   ESP_LOGCONFIG(TAG, "TLC5947:");
@@ -58,6 +56,15 @@ void TLC5947::loop() {
   this->lat_pin_->digital_write(false);
 
   this->update_ = false;
+}
+
+void TLC5947::set_channel_value(uint16_t channel, uint16_t value) {
+  if (channel >= this->num_chips_ * N_CHANNELS_PER_CHIP)
+    return;
+  if (this->pwm_amounts_[channel] != value) {
+    this->update_ = true;
+  }
+  this->pwm_amounts_[channel] = value;
 }
 
 }  // namespace tlc5947

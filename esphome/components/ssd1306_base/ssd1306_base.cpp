@@ -1,6 +1,6 @@
 #include "ssd1306_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ssd1306_base {
@@ -176,7 +176,7 @@ void SSD1306::setup() {
   // Disable scrolling mode (0x2E)
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
 
-  // Contrast and brighrness
+  // Contrast and brightness
   // SSD1306 does not have brightness setting
   set_contrast(this->contrast_);
   if (this->is_ssd1305_())
@@ -224,7 +224,7 @@ bool SSD1306::is_sh1106_() const {
 }
 bool SSD1306::is_sh1107_() const { return this->model_ == SH1107_MODEL_128_64 || this->model_ == SH1107_MODEL_128_128; }
 bool SSD1306::is_ssd1305_() const {
-  return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_64;
+  return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_32;
 }
 void SSD1306::update() {
   this->do_update_();
@@ -236,6 +236,7 @@ void SSD1306::set_invert(bool invert) {
   // Inverse display mode (0xA6, 0xA7)
   this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
 }
+float SSD1306::get_contrast() { return this->contrast_; };
 void SSD1306::set_contrast(float contrast) {
   // validation
   this->contrast_ = clamp(contrast, 0.0F, 1.0F);
@@ -243,6 +244,7 @@ void SSD1306::set_contrast(float contrast) {
   this->command(SSD1306_COMMAND_SET_CONTRAST);
   this->command(int(SSD1306_MAX_CONTRAST * (this->contrast_)));
 }
+float SSD1306::get_brightness() { return this->brightness_; };
 void SSD1306::set_brightness(float brightness) {
   // validation
   if (!this->is_ssd1305_())

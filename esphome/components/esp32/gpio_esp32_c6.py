@@ -1,8 +1,7 @@
 import logging
 
-from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
-
 import esphome.config_validation as cv
+from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
 _ESP32C6_SPI_PSRAM_PINS = {
@@ -37,7 +36,7 @@ def esp32_c6_validate_supports(value):
     is_input = mode[CONF_INPUT]
 
     if num < 0 or num > 23:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-23)")
+        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-23)")
     if is_input:
         # All ESP32 pins support input mode
         pass

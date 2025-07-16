@@ -1,0 +1,15 @@
+esphome:
+  name: componenttesthost
+  friendly_name: $component_name
+
+host:
+  mac_address: "62:23:45:AF:B3:DD"
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

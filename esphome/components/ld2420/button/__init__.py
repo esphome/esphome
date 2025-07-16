@@ -2,13 +2,15 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FACTORY_RESET,
     DEVICE_CLASS_RESTART,
-    ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_DATABASE,
     ICON_RESTART,
     ICON_RESTART_ALERT,
-    ICON_DATABASE,
 )
+
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
 LD2420ApplyConfigButton = ld2420_ns.class_("LD2420ApplyConfigButton", button.Button)
@@ -19,7 +21,6 @@ LD2420FactoryResetButton = ld2420_ns.class_("LD2420FactoryResetButton", button.B
 CONF_APPLY_CONFIG = "apply_config"
 CONF_REVERT_CONFIG = "revert_config"
 CONF_RESTART_MODULE = "restart_module"
-CONF_FACTORY_RESET = "factory_reset"
 
 
 CONFIG_SCHEMA = {

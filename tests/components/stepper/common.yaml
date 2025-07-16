@@ -1,0 +1,27 @@
+stepper:
+  - platform: a4988
+    id: test_stepper
+    step_pin: 3
+    dir_pin: 4
+    sleep_pin: 5
+    max_speed: 250 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 200 steps/s^2
+
+switch:
+  - platform: template
+    name: Stepper Switch
+    assumed_state: true
+    turn_on_action:
+      - stepper.set_target:
+          id: test_stepper
+          target: !lambda |-
+            static int32_t i = 0;
+            i += 1000;
+            if (i > 5000) {
+              i = -5000;
+            }
+            return i;
+      - stepper.report_position:
+          id: test_stepper
+          position: 0

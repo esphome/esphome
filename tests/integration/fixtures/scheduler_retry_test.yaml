@@ -1,0 +1,307 @@
+esphome:
+  name: scheduler-retry-test
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "Starting scheduler retry tests"
+      # Run all tests sequentially with delays
+      - script.execute: run_all_tests
+
+host:
+api:
+logger:
+  level: VERY_VERBOSE
+
+globals:
+  - id: simple_retry_counter
+    type: int
+    initial_value: '0'
+  - id: backoff_retry_counter
+    type: int
+    initial_value: '0'
+  - id: backoff_last_attempt_time
+    type: uint32_t
+    initial_value: '0'
+  - id: immediate_done_counter
+    type: int
+    initial_value: '0'
+  - id: cancel_retry_counter
+    type: int
+    initial_value: '0'
+  - id: empty_name_retry_counter
+    type: int
+    initial_value: '0'
+  - id: script_retry_counter
+    type: int
+    initial_value: '0'
+  - id: multiple_same_name_counter
+    type: int
+    initial_value: '0'
+  - id: const_char_retry_counter
+    type: int
+    initial_value: '0'
+  - id: static_char_retry_counter
+    type: int
+    initial_value: '0'
+  - id: mixed_cancel_result
+    type: bool
+    initial_value: 'false'
+
+# Using different component types for each test to ensure isolation
+sensor:
+  - platform: template
+    name: Simple Retry Test Sensor
+    id: simple_retry_sensor
+    lambda: return 1.0;
+    update_interval: never
+
+  - platform: template
+    name: Backoff Retry Test Sensor
+    id: backoff_retry_sensor
+    lambda: return 2.0;
+    update_interval: never
+
+  - platform: template
+    name: Immediate Done Test Sensor
+    id: immediate_done_sensor
+    lambda: return 3.0;
+    update_interval: never
+
+binary_sensor:
+  - platform: template
+    name: Cancel Retry Test Binary Sensor
+    id: cancel_retry_binary_sensor
+    lambda: return false;
+
+  - platform: template
+    name: Empty Name Test Binary Sensor
+    id: empty_name_binary_sensor
+    lambda: return true;
+
+switch:
+  - platform: template
+    name: Script Retry Test Switch
+    id: script_retry_switch
+    optimistic: true
+
+  - platform: template
+    name: Multiple Same Name Test Switch
+    id: multiple_same_name_switch
+    optimistic: true
+
+script:
+  - id: run_all_tests
+    then:
+      # Test 1: Simple retry
+      - logger.log: "=== Test 1: Simple retry ==="
+      - lambda: |-
+          auto *component = id(simple_retry_sensor);
+          App.scheduler.set_retry(component, "simple_retry", 50, 3,
+            [](uint8_t retry_countdown) {
+              id(simple_retry_counter)++;
+              ESP_LOGI("test", "Simple retry attempt %d (countdown=%d)",
+                       id(simple_retry_counter), retry_countdown);
+
+              if (id(simple_retry_counter) >= 2) {
+                ESP_LOGI("test", "Simple retry succeeded on attempt %d", id(simple_retry_counter));
+                return RetryResult::DONE;
+              }
+              return RetryResult::RETRY;
+            });
+
+      # Test 2: Backoff retry
+      - logger.log: "=== Test 2: Retry with backoff ==="
+      - lambda: |-
+          auto *component = id(backoff_retry_sensor);
+
+          App.scheduler.set_retry(component, "backoff_retry", 50, 4,
+            [](uint8_t retry_countdown) {
+              id(backoff_retry_counter)++;
+              uint32_t now = millis();
+              uint32_t interval = 0;
+
+              // Only calculate interval after first attempt
+              if (id(backoff_retry_counter) > 1) {
+                interval = now - id(backoff_last_attempt_time);
+              }
+              id(backoff_last_attempt_time) = now;
+
+              ESP_LOGI("test", "Backoff retry attempt %d (countdown=%d, interval=%dms)",
+                       id(backoff_retry_counter), retry_countdown, interval);
+
+              if (id(backoff_retry_counter) == 1) {
+                ESP_LOGI("test", "First call was immediate");
+              } else if (id(backoff_retry_counter) == 2) {
+                ESP_LOGI("test", "Second call interval: %dms (expected ~50ms)", interval);
+              } else if (id(backoff_retry_counter) == 3) {
+                ESP_LOGI("test", "Third call interval: %dms (expected ~100ms)", interval);
+              } else if (id(backoff_retry_counter) == 4) {
+                ESP_LOGI("test", "Fourth call interval: %dms (expected ~200ms)", interval);
+                ESP_LOGI("test", "Backoff retry completed");
+                return RetryResult::DONE;
+              }
+
+              return RetryResult::RETRY;
+            }, 2.0f);
+
+      # Test 3: Immediate done
+      - logger.log: "=== Test 3: Immediate done ==="
+      - lambda: |-
+          auto *component = id(immediate_done_sensor);
+          App.scheduler.set_retry(component, "immediate_done", 50, 5,
+            [](uint8_t retry_countdown) {
+              id(immediate_done_counter)++;
+              ESP_LOGI("test", "Immediate done retry called (countdown=%d)", retry_countdown);
+              return RetryResult::DONE;
+            });
+
+      # Test 4: Cancel retry
+      - logger.log: "=== Test 4: Cancel retry ==="
+      - lambda: |-
+          auto *component = id(cancel_retry_binary_sensor);
+          App.scheduler.set_retry(component, "cancel_test", 30, 10,
+            [](uint8_t retry_countdown) {
+              id(cancel_retry_counter)++;
+              ESP_LOGI("test", "Cancel test retry attempt %d", id(cancel_retry_counter));
+              return RetryResult::RETRY;
+            });
+
+          // Cancel it after 100ms
+          App.scheduler.set_timeout(component, "cancel_timer", 100, []() {
+            bool cancelled = App.scheduler.cancel_retry(id(cancel_retry_binary_sensor), "cancel_test");
+            ESP_LOGI("test", "Retry cancellation result: %s", cancelled ? "true" : "false");
+            ESP_LOGI("test", "Cancel retry ran %d times before cancellation", id(cancel_retry_counter));
+          });
+
+      # Test 5: Empty name retry
+      - logger.log: "=== Test 5: Empty name retry ==="
+      - lambda: |-
+          auto *component = id(empty_name_binary_sensor);
+          App.scheduler.set_retry(component, "", 100, 5,
+            [](uint8_t retry_countdown) {
+              id(empty_name_retry_counter)++;
+              ESP_LOGI("test", "Empty name retry attempt %d", id(empty_name_retry_counter));
+              return RetryResult::RETRY;
+            });
+
+          // Try to cancel after 150ms
+          App.scheduler.set_timeout(component, "empty_cancel_timer", 150, []() {
+            bool cancelled = App.scheduler.cancel_retry(id(empty_name_binary_sensor), "");
+            ESP_LOGI("test", "Empty name retry cancel result: %s",
+                     cancelled ? "true" : "false");
+            ESP_LOGI("test", "Empty name retry ran %d times", id(empty_name_retry_counter));
+          });
+
+      # Test 6: Component method
+      - logger.log: "=== Test 6: Component::set_retry method ==="
+      - lambda: |-
+          class TestRetryComponent : public Component {
+          public:
+            void test_retry() {
+              this->set_retry(50, 3,
+                [](uint8_t retry_countdown) {
+                  id(script_retry_counter)++;
+                  ESP_LOGI("test", "Component retry attempt %d", id(script_retry_counter));
+                  if (id(script_retry_counter) >= 2) {
+                    return RetryResult::DONE;
+                  }
+                  return RetryResult::RETRY;
+                }, 1.5f);
+            }
+          };
+
+          static TestRetryComponent test_component;
+          test_component.test_retry();
+
+      # Test 7: Multiple same name
+      - logger.log: "=== Test 7: Multiple retries with same name ==="
+      - lambda: |-
+          auto *component = id(multiple_same_name_switch);
+
+          // Set first retry
+          App.scheduler.set_retry(component, "duplicate_retry", 100, 5,
+            [](uint8_t retry_countdown) {
+              id(multiple_same_name_counter) += 1;
+              ESP_LOGI("test", "First duplicate retry - should not run");
+              return RetryResult::RETRY;
+            });
+
+          // Set second retry with same name (should cancel first)
+          App.scheduler.set_retry(component, "duplicate_retry", 50, 3,
+            [](uint8_t retry_countdown) {
+              id(multiple_same_name_counter) += 10;
+              ESP_LOGI("test", "Second duplicate retry attempt (counter=%d)",
+                       id(multiple_same_name_counter));
+              if (id(multiple_same_name_counter) >= 20) {
+                return RetryResult::DONE;
+              }
+              return RetryResult::RETRY;
+            });
+
+      # Test 8: Const char* overloads
+      - logger.log: "=== Test 8: Const char* overloads ==="
+      - lambda: |-
+          auto *component = id(simple_retry_sensor);
+
+          // Test 8a: Direct string literal
+          App.scheduler.set_retry(component, "const_char_test", 30, 2,
+            [](uint8_t retry_countdown) {
+              id(const_char_retry_counter)++;
+              ESP_LOGI("test", "Const char retry %d", id(const_char_retry_counter));
+              return RetryResult::DONE;
+            });
+
+      # Test 9: Static const char* variable
+      - logger.log: "=== Test 9: Static const char* ==="
+      - lambda: |-
+          auto *component = id(backoff_retry_sensor);
+
+          static const char* STATIC_NAME = "static_retry_test";
+          App.scheduler.set_retry(component, STATIC_NAME, 20, 1,
+            [](uint8_t retry_countdown) {
+              id(static_char_retry_counter)++;
+              ESP_LOGI("test", "Static const char retry %d", id(static_char_retry_counter));
+              return RetryResult::DONE;
+            });
+
+          // Cancel with same static const char*
+          App.scheduler.set_timeout(component, "static_cancel", 10, []() {
+            static const char* STATIC_NAME = "static_retry_test";
+            bool result = App.scheduler.cancel_retry(id(backoff_retry_sensor), STATIC_NAME);
+            ESP_LOGI("test", "Static cancel result: %s", result ? "true" : "false");
+          });
+
+      # Test 10: Mix string and const char* cancel
+      - logger.log: "=== Test 10: Mixed string/const char* ==="
+      - lambda: |-
+          auto *component = id(immediate_done_sensor);
+
+          // Set with std::string
+          std::string str_name = "mixed_retry";
+          App.scheduler.set_retry(component, str_name, 40, 3,
+            [](uint8_t retry_countdown) {
+              ESP_LOGI("test", "Mixed retry - should be cancelled");
+              return RetryResult::RETRY;
+            });
+
+          // Cancel with const char*
+          id(mixed_cancel_result) = App.scheduler.cancel_retry(component, "mixed_retry");
+          ESP_LOGI("test", "Mixed cancel result: %s", id(mixed_cancel_result) ? "true" : "false");
+
+      # Wait for all tests to complete before reporting
+      - delay: 500ms
+
+      # Final report
+      - logger.log: "=== Retry Test Results ==="
+      - lambda: |-
+          ESP_LOGI("test", "Simple retry counter: %d (expected 2)", id(simple_retry_counter));
+          ESP_LOGI("test", "Backoff retry counter: %d (expected 4)", id(backoff_retry_counter));
+          ESP_LOGI("test", "Immediate done counter: %d (expected 1)", id(immediate_done_counter));
+          ESP_LOGI("test", "Cancel retry counter: %d (expected 2-4)", id(cancel_retry_counter));
+          ESP_LOGI("test", "Empty name retry counter: %d (expected 1-2)", id(empty_name_retry_counter));
+          ESP_LOGI("test", "Component retry counter: %d (expected 2)", id(script_retry_counter));
+          ESP_LOGI("test", "Multiple same name counter: %d (expected 20+)", id(multiple_same_name_counter));
+          ESP_LOGI("test", "Const char retry counter: %d (expected 1)", id(const_char_retry_counter));
+          ESP_LOGI("test", "Static char retry counter: %d (expected 1)", id(static_char_retry_counter));
+          ESP_LOGI("test", "Mixed cancel result: %s (expected true)", id(mixed_cancel_result) ? "true" : "false");
+          ESP_LOGI("test", "All retry tests completed");

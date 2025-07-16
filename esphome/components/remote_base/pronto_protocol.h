@@ -12,6 +12,7 @@ std::vector<uint16_t> encode_pronto(const std::string &str);
 
 struct ProntoData {
   std::string data;
+  int delta;
 
   bool operator==(const ProntoData &rhs) const;
 };
@@ -40,10 +41,12 @@ DECLARE_REMOTE_PROTOCOL(Pronto)
 template<typename... Ts> class ProntoAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(std::string, data)
+  TEMPLATABLE_VALUE(int, delta)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     ProntoData data{};
     data.data = this->data_.value(x...);
+    data.delta = this->delta_.value(x...);
     ProntoProtocol().encode(dst, data);
   }
 };

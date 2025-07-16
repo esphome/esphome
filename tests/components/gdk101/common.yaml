@@ -1,0 +1,27 @@
+i2c:
+  - id: i2c_gdk101
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+gdk101:
+  id: my_gdk101
+
+sensor:
+  - platform: gdk101
+    gdk101_id: my_gdk101
+    radiation_dose_per_1m:
+      name: Radiation Dose @ 1 min
+    radiation_dose_per_10m:
+      name: Radiation Dose @ 10 min
+    status:
+      name: Status
+    version:
+      name: FW Version
+    measurement_duration:
+      name: Measuring Time
+
+binary_sensor:
+  - platform: gdk101
+    gdk101_id: my_gdk101
+    vibrations:
+      name: Vibrations

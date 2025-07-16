@@ -1,20 +1,21 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c, sensor
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_HEATER,
     CONF_HUMIDITY,
     CONF_ID,
+    CONF_LEVEL,
+    CONF_MODEL,
+    CONF_STATUS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_PERCENT,
-    CONF_HEATER,
     UNIT_EMPTY,
-    CONF_LEVEL,
-    CONF_STATUS,
+    UNIT_PERCENT,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -23,10 +24,15 @@ htu21d_ns = cg.esphome_ns.namespace("htu21d")
 HTU21DComponent = htu21d_ns.class_(
     "HTU21DComponent", cg.PollingComponent, i2c.I2CDevice
 )
-
 SetHeaterLevelAction = htu21d_ns.class_("SetHeaterLevelAction", automation.Action)
 SetHeaterAction = htu21d_ns.class_("SetHeaterAction", automation.Action)
+HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
 
+MODELS = {
+    "HTU21D": HTU21DSensorModels.HTU21D_SENSOR_MODEL_HTU21D,
+    "SI7021": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SI7021,
+    "SHT21": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SHT21,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -49,6 +55,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_MODEL, default="HTU21D"): cv.enum(MODELS, upper=True),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -72,6 +79,8 @@ async def to_code(config):
     if CONF_HEATER in config:
         sens = await sensor.new_sensor(config[CONF_HEATER])
         cg.add(var.set_heater(sens))
+
+    cg.add(var.set_sensor_model(config[CONF_MODEL]))
 
 
 @automation.register_action(

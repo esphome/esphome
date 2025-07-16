@@ -1,0 +1,7 @@
+sensor:
+  - platform: ultrasonic
+    id: ultrasonic_sensor1
+    name: Ultrasonic Sensor
+    echo_pin: 4
+    trigger_pin: 5
+    timeout: 5.5m

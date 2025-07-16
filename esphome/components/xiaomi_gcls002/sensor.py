@@ -1,22 +1,22 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
+    CONF_CONDUCTIVITY,
+    CONF_ID,
+    CONF_ILLUMINANCE,
     CONF_MAC_ADDRESS,
+    CONF_MOISTURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_TEMPERATURE,
+    ICON_FLOWER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_PERCENT,
-    CONF_ID,
-    CONF_MOISTURE,
-    CONF_ILLUMINANCE,
     UNIT_LUX,
-    CONF_CONDUCTIVITY,
     UNIT_MICROSIEMENS_PER_CENTIMETER,
-    ICON_FLOWER,
+    UNIT_PERCENT,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]

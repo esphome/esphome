@@ -1,6 +1,6 @@
 #include "xpt2046.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include <algorithm>
 
@@ -32,9 +32,8 @@ void XPT2046Component::update_touches() {
 
   int16_t touch_pressure_1 = this->read_adc_(0xB1 /* touch_pressure_1 */);
   int16_t touch_pressure_2 = this->read_adc_(0xC1 /* touch_pressure_2 */);
-  ESP_LOGVV(TAG, "touch_pressure  %d, %d", touch_pressure_1, touch_pressure_2);
-  z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
-
+  z_raw = touch_pressure_1 + 0xfff - touch_pressure_2;
+  ESP_LOGVV(TAG, "Touchscreen Update z = %d", z_raw);
   touch = (z_raw >= this->threshold_);
   if (touch) {
     read_adc_(0xD1 /* X */);  // dummy Y measure, 1st is always noisy
@@ -53,7 +52,7 @@ void XPT2046Component::update_touches() {
     x_raw = best_two_avg(data[1], data[3], data[5]);
     y_raw = best_two_avg(data[0], data[2], data[4]);
 
-    ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
+    ESP_LOGD(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
 
     this->add_raw_touch_position_(0, x_raw, y_raw, z_raw);
   }
@@ -63,21 +62,22 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "XPT2046:");
 
   LOG_PIN("  IRQ Pin: ", this->irq_pin_);
-  ESP_LOGCONFIG(TAG, "  X min: %d", this->x_raw_min_);
-  ESP_LOGCONFIG(TAG, "  X max: %d", this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Y min: %d", this->y_raw_min_);
-  ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
-
-  ESP_LOGCONFIG(TAG, "  Swap X/Y: %s", YESNO(this->swap_x_y_));
-  ESP_LOGCONFIG(TAG, "  Invert X: %s", YESNO(this->invert_x_));
-  ESP_LOGCONFIG(TAG, "  Invert Y: %s", YESNO(this->invert_y_));
-
-  ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
+  ESP_LOGCONFIG(TAG,
+                "  X min: %d\n"
+                "  X max: %d\n"
+                "  Y min: %d\n"
+                "  Y max: %d\n"
+                "  Swap X/Y: %s\n"
+                "  Invert X: %s\n"
+                "  Invert Y: %s\n"
+                "  threshold: %d",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_, YESNO(this->swap_x_y_),
+                YESNO(this->invert_x_), YESNO(this->invert_y_), this->threshold_);
 
   LOG_UPDATE_INTERVAL(this);
 }
 
-float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
+// float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
 
 int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t value3) {
   int16_t delta_a, delta_b, delta_c;

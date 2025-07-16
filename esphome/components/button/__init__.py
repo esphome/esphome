@@ -1,23 +1,24 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_PRESS,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
+    CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_IDENTIFY,
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
@@ -43,27 +44,32 @@ ButtonPressTrigger = button_ns.class_(
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
-BUTTON_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-        cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
-            }
-        ),
-    }
+_BUTTON_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
+                }
+            ),
+        }
+    )
 )
 
-_UNDEF = object()
+
+_BUTTON_SCHEMA.add_extra(entity_duplicate_validator("button"))
 
 
 def button_schema(
     class_: MockObjClass,
     *,
-    icon: str = _UNDEF,
-    entity_category: str = _UNDEF,
-    device_class: str = _UNDEF,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {cv.GenerateID(): cv.declare_id(class_)}
 
@@ -72,14 +78,19 @@ def button_schema(
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
     ]:
-        if default is not _UNDEF:
+        if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return BUTTON_SCHEMA.extend(schema)
+    return _BUTTON_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+BUTTON_SCHEMA = button_schema(Button)
+BUTTON_SCHEMA.add_extra(cv.deprecated_schema_constant("button"))
 
 
 async def setup_button_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "button")
 
     for conf in config.get(CONF_ON_PRESS, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -92,11 +103,15 @@ async def setup_button_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
+
 
 async def register_button(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_button(var))
+    CORE.register_platform_component("button", var)
     await setup_button_core_(var, config)
 
 
@@ -119,7 +134,6 @@ async def button_press_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(button_ns.using)
-    cg.add_define("USE_BUTTON")

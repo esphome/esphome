@@ -1,5 +1,7 @@
 #include "commands.h"
 
+#include <cmath>
+
 #include "esphome/core/log.h"
 
 #include "dfrobot_sen0395.h"
@@ -19,7 +21,7 @@ uint8_t Command::execute(DfrobotSen0395Component *parent) {
         if (this->retries_left_ > 0) {
           this->retries_left_ -= 1;
           this->cmd_sent_ = false;
-          ESP_LOGD(TAG, "Retrying...");
+          ESP_LOGD(TAG, "Retrying");
           return 0;
         } else {
           this->parent_->find_prompt_();
@@ -31,7 +33,7 @@ uint8_t Command::execute(DfrobotSen0395Component *parent) {
         if (this->retries_left_ > 0) {
           this->retries_left_ -= 1;
           this->cmd_sent_ = false;
-          ESP_LOGD(TAG, "Retrying...");
+          ESP_LOGD(TAG, "Retrying");
           return 0;
         } else {
           this->parent_->find_prompt_();
@@ -49,7 +51,7 @@ uint8_t Command::execute(DfrobotSen0395Component *parent) {
       if (this->retries_left_ > 0) {
         this->retries_left_ -= 1;
         this->cmd_sent_ = false;
-        ESP_LOGD(TAG, "Retrying...");
+        ESP_LOGD(TAG, "Retrying");
       } else {
         return 1;  // Command done
       }
@@ -194,32 +196,22 @@ uint8_t DetRangeCfgCommand::on_message(std::string &message) {
   return 0;  // Command not done yet.
 }
 
-OutputLatencyCommand::OutputLatencyCommand(float delay_after_detection, float delay_after_disappear) {
-  delay_after_detection = round(delay_after_detection / 0.025) * 0.025;
-  delay_after_disappear = round(delay_after_disappear / 0.025) * 0.025;
-  if (delay_after_detection < 0)
-    delay_after_detection = 0;
-  if (delay_after_detection > 1638.375)
-    delay_after_detection = 1638.375;
-  if (delay_after_disappear < 0)
-    delay_after_disappear = 0;
-  if (delay_after_disappear > 1638.375)
-    delay_after_disappear = 1638.375;
-
-  this->delay_after_detection_ = delay_after_detection;
-  this->delay_after_disappear_ = delay_after_disappear;
-
-  this->cmd_ = str_sprintf("outputLatency -1 %.0f %.0f", delay_after_detection / 0.025, delay_after_disappear / 0.025);
+SetLatencyCommand::SetLatencyCommand(float delay_after_detection, float delay_after_disappear) {
+  delay_after_detection = std::round(delay_after_detection / 0.025f) * 0.025f;
+  delay_after_disappear = std::round(delay_after_disappear / 0.025f) * 0.025f;
+  this->delay_after_detection_ = clamp(delay_after_detection, 0.0f, 1638.375f);
+  this->delay_after_disappear_ = clamp(delay_after_disappear, 0.0f, 1638.375f);
+  this->cmd_ = str_sprintf("setLatency %.03f %.03f", this->delay_after_detection_, this->delay_after_disappear_);
 };
 
-uint8_t OutputLatencyCommand::on_message(std::string &message) {
+uint8_t SetLatencyCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
     return 1;  // Command done
   } else if (message == "Done") {
     ESP_LOGI(TAG, "Updated output latency config:");
-    ESP_LOGI(TAG, "Signal that someone was detected is delayed by %.02fs.", this->delay_after_detection_);
-    ESP_LOGI(TAG, "Signal that nobody is detected anymore is delayed by %.02fs.", this->delay_after_disappear_);
+    ESP_LOGI(TAG, "Signal that someone was detected is delayed by %.03f s.", this->delay_after_detection_);
+    ESP_LOGI(TAG, "Signal that nobody is detected anymore is delayed by %.03f s.", this->delay_after_disappear_);
     ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
     return 1;  // Command done
   }

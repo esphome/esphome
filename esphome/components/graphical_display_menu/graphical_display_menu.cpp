@@ -36,14 +36,18 @@ void GraphicalDisplayMenu::setup() {
 }
 
 void GraphicalDisplayMenu::dump_config() {
-  ESP_LOGCONFIG(TAG, "Graphical Display Menu");
-  ESP_LOGCONFIG(TAG, "Has Display: %s", YESNO(this->display_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Popup Mode: %s", YESNO(this->display_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Advanced Drawing Mode: %s", YESNO(this->display_ == nullptr));
-  ESP_LOGCONFIG(TAG, "Has Font: %s", YESNO(this->font_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Mode: %s", this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick");
-  ESP_LOGCONFIG(TAG, "Active: %s", YESNO(this->active_));
-  ESP_LOGCONFIG(TAG, "Menu items:");
+  ESP_LOGCONFIG(TAG,
+                "Graphical Display Menu\n"
+                "Has Display: %s\n"
+                "Popup Mode: %s\n"
+                "Advanced Drawing Mode: %s\n"
+                "Has Font: %s\n"
+                "Mode: %s\n"
+                "Active: %s\n"
+                "Menu items:",
+                YESNO(this->display_ != nullptr), YESNO(this->display_ != nullptr), YESNO(this->display_ == nullptr),
+                YESNO(this->font_ != nullptr),
+                this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick", YESNO(this->active_));
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
     ESP_LOGCONFIG(TAG, "  %i: %s (Type: %s, Immediate Edit: %s)", i, item->get_text().c_str(),
@@ -104,20 +108,22 @@ void GraphicalDisplayMenu::draw(display::Display *display, const display::Rect *
 }
 
 void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const display::Rect *bounds) {
-  int total_height = 0;
+  int16_t total_height = 0;
+  int16_t max_width = 0;
   int y_padding = 2;
   bool scroll_menu_items = false;
   std::vector<display::Rect> menu_dimensions;
   int number_items_fit_to_screen = 0;
   const int max_item_index = this->displayed_item_->items_size() - 1;
 
-  for (size_t i = 0; i <= max_item_index; i++) {
+  for (size_t i = 0; max_item_index >= 0 && i <= static_cast<size_t>(max_item_index); i++) {
     const auto *item = this->displayed_item_->get_item(i);
     const bool selected = i == this->cursor_index_;
     const display::Rect item_dimensions = this->measure_item(display, item, bounds, selected);
 
     menu_dimensions.push_back(item_dimensions);
     total_height += item_dimensions.h + (i == 0 ? 0 : y_padding);
+    max_width = std::max(max_width, item_dimensions.w);
 
     if (total_height <= bounds->h) {
       number_items_fit_to_screen++;
@@ -166,8 +172,10 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   // Render the items into the view port
   display->start_clipping(*bounds);
 
-  int y_offset = bounds->y;
-  for (size_t i = first_item_index; i <= last_item_index; i++) {
+  display->filled_rectangle(bounds->x, bounds->y, max_width, total_height, this->background_color_);
+  auto y_offset = bounds->y;
+  for (size_t i = static_cast<size_t>(first_item_index);
+       last_item_index >= 0 && i <= static_cast<size_t>(last_item_index); i++) {
     const auto *item = this->displayed_item_->get_item(i);
     const bool selected = i == this->cursor_index_;
     display::Rect dimensions = menu_dimensions[i];
@@ -176,7 +184,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
     dimensions.x = bounds->x;
     this->draw_item(display, item, &dimensions, selected);
 
-    y_offset = dimensions.y + dimensions.h + y_padding;
+    y_offset += dimensions.h + y_padding;
   }
 
   display->end_clipping();
@@ -219,9 +227,7 @@ inline void GraphicalDisplayMenu::draw_item(display::Display *display, const dis
   // int background_width = std::max(bounds->width, available_width);
   int background_width = bounds->w;
 
-  if (selected) {
-    display->filled_rectangle(bounds->x, bounds->y, background_width, bounds->h, background_color);
-  }
+  display->filled_rectangle(bounds->x, bounds->y, background_width, bounds->h, background_color);
 
   std::string label = item->get_text();
   if (item->has_value()) {
@@ -229,7 +235,8 @@ inline void GraphicalDisplayMenu::draw_item(display::Display *display, const dis
     label.append(this->menu_item_value_.value(&args));
   }
 
-  display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT, label.c_str());
+  display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT, label.c_str(),
+                 background_color);
 }
 
 void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, const uint8_t row, const bool selected) {

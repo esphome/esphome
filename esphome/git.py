@@ -1,23 +1,28 @@
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 import hashlib
 import logging
+from pathlib import Path
 import re
 import subprocess
 import urllib.parse
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Callable, Optional
 
 import esphome.config_validation as cv
 from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
+# Special value to indicate never refresh
+NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
+
 
 def run_git_command(cmd, cwd=None) -> str:
     _LOGGER.debug("Running git command: %s", " ".join(cmd))
     try:
-        ret = subprocess.run(cmd, cwd=cwd, capture_output=True, check=False)
+        ret = subprocess.run(
+            cmd, cwd=cwd, capture_output=True, check=False, close_fds=False
+        )
     except FileNotFoundError as err:
         raise cv.Invalid(
             "git is not installed but required for external_components.\n"
@@ -45,12 +50,12 @@ def clone_or_update(
     *,
     url: str,
     ref: str = None,
-    refresh: Optional[TimePeriodSeconds],
+    refresh: TimePeriodSeconds | None,
     domain: str,
     username: str = None,
     password: str = None,
-    submodules: Optional[list[str]] = None,
-) -> tuple[Path, Optional[Callable[[], None]]]:
+    submodules: list[str] | None = None,
+) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
 
     if username is not None and password is not None:
@@ -59,17 +64,14 @@ def clone_or_update(
         )
 
     repo_dir = _compute_destination_path(key, domain)
-    fetch_pr_branch = ref is not None and ref.startswith("pull/")
     if not repo_dir.is_dir():
         _LOGGER.info("Cloning %s", key)
         _LOGGER.debug("Location: %s", repo_dir)
         cmd = ["git", "clone", "--depth=1"]
-        if ref is not None and not fetch_pr_branch:
-            cmd += ["--branch", ref]
         cmd += ["--", url, str(repo_dir)]
         run_git_command(cmd)
 
-        if fetch_pr_branch:
+        if ref is not None:
             # We need to fetch the PR branch first, otherwise git will complain
             # about missing objects
             _LOGGER.info("Fetching %s", ref)
@@ -86,6 +88,11 @@ def clone_or_update(
 
     else:
         # Check refresh needed
+        # Skip refresh if NEVER_REFRESH is specified
+        if refresh == NEVER_REFRESH:
+            _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
+            return repo_dir, None
+
         file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
         # On first clone, FETCH_HEAD does not exists
         if not file_timestamp.exists():

@@ -1,0 +1,7 @@
+wifi:
+  networks:
+    - ssid: MySSID
+      eap:
+        username: username
+        password: password
+        identity: identity

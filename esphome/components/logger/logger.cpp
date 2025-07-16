@@ -1,455 +1,296 @@
 #include "logger.h"
 #include <cinttypes>
-
-#ifdef USE_ESP_IDF
-#include <driver/uart.h>
-
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
-#include <driver/usb_serial_jtag.h>
-#include <esp_vfs_dev.h>
-#include <esp_vfs_usb_serial_jtag.h>
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+#include <memory>  // For unique_ptr
 #endif
 
-#include "freertos/FreeRTOS.h"
-#include "esp_idf_version.h"
-
-#include <cstdint>
-#include <cstdio>
-#include <fcntl.h>
-
-#endif  // USE_ESP_IDF
-
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
-#include <esp_log.h>
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_ESP_IDF
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-static const char *const LOG_LEVEL_COLORS[] = {
-    "",                                            // NONE
-    ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GREEN),    // INFO
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_MAGENTA),  // CONFIG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_CYAN),     // DEBUG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),     // VERBOSE
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
-};
-static const char *const LOG_LEVEL_LETTERS[] = {
-    "",    // NONE
-    "E",   // ERROR
-    "W",   // WARNING
-    "I",   // INFO
-    "C",   // CONFIG
-    "D",   // DEBUG
-    "V",   // VERBOSE
-    "VV",  // VERY_VERBOSE
-};
-
-void Logger::write_header_(int level, const char *tag, int line) {
-  if (level < 0)
-    level = 0;
-  if (level > 7)
-    level = 7;
-
-  const char *color = LOG_LEVEL_COLORS[level];
-  const char *letter = LOG_LEVEL_LETTERS[level];
-  this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
-}
-
-void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
-  if (level > this->level_for(tag) || recursion_guard_)
+#ifdef USE_ESP32
+// Implementation for ESP32 (multi-task platform with task-specific tracking)
+// Main task always uses direct buffer access for console output and callbacks
+//
+// For non-main tasks:
+//  - WITH task log buffer: Prefer sending to ring buffer for async processing
+//    - Avoids allocating stack memory for console output in normal operation
+//    - Prevents console corruption from concurrent writes by multiple tasks
+//    - Messages are serialized through main loop for proper console output
+//    - Fallback to emergency console logging only if ring buffer is full
+//  - WITHOUT task log buffer: Only emergency console output, no callbacks
+void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
+  if (level > this->level_for(tag))
     return;
 
-  recursion_guard_ = true;
-  this->reset_buffer_();
-  this->write_header_(level, tag, line);
-  this->vprintf_to_buffer_(format, args);
-  this->write_footer_();
-  this->log_message_(level, tag);
-  recursion_guard_ = false;
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  bool is_main_task = (current_task == main_task_);
+
+  // Check and set recursion guard - uses pthread TLS for per-task state
+  if (this->check_and_set_task_log_recursion_(is_main_task)) {
+    return;  // Recursion detected
+  }
+
+  // Main task uses the shared buffer for efficiency
+  if (is_main_task) {
+    this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+    this->reset_task_log_recursion_(is_main_task);
+    return;
+  }
+
+  bool message_sent = false;
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  // For non-main tasks, queue the message for callbacks - but only if we have any callbacks registered
+  message_sent =
+      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
+  if (message_sent) {
+    // Enable logger loop to process the buffered message
+    // This is safe to call from any context including ISRs
+    this->enable_loop_soon_any_context();
+  }
+#endif  // USE_ESPHOME_TASK_LOG_BUFFER
+
+  // Emergency console logging for non-main tasks when ring buffer is full or disabled
+  // This is a fallback mechanism to ensure critical log messages are visible
+  // Note: This may cause interleaved/corrupted console output if multiple tasks
+  // log simultaneously, but it's better than losing important messages entirely
+  if (!message_sent && this->baud_rate_ > 0) {  // If logging is enabled, write to console
+    // Maximum size for console log messages (includes null terminator)
+    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
+    char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
+    uint16_t buffer_at = 0;                         // Initialize buffer position
+    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
+                                                MAX_CONSOLE_LOG_MSG_SIZE);
+    this->write_msg_(console_buffer);
+  }
+
+  // Reset the recursion guard for this task
+  this->reset_task_log_recursion_(is_main_task);
 }
+#else
+// Implementation for all other platforms
+void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
+  if (level > this->level_for(tag) || global_recursion_guard_)
+    return;
+
+  global_recursion_guard_ = true;
+
+  // Format and send to both console and callbacks
+  this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+
+  global_recursion_guard_ = false;
+}
+#endif  // !USE_ESP32
+
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
+// Implementation for ESP8266 with flash string support.
+// Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
+//
+// This function handles format strings stored in flash memory (PROGMEM) to save RAM.
+// The buffer is used in a special way to avoid allocating extra memory:
+//
+// Memory layout during execution:
+// Step 1: Copy format string from flash to buffer
+//         tx_buffer_: [format_string][null][.....................]
+//         tx_buffer_at_: ------------------^
+//         msg_start: saved here -----------^
+//
+// Step 2: format_log_to_buffer_with_terminator_ reads format string from beginning
+//         and writes formatted output starting at msg_start position
+//         tx_buffer_: [format_string][null][formatted_message][null]
+//         tx_buffer_at_: -------------------------------------^
+//
+// Step 3: Output the formatted message (starting at msg_start)
+//         write_msg_ and callbacks receive: this->tx_buffer_ + msg_start
+//         which points to: [formatted_message][null]
+//
+void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
-  if (level > this->level_for(tag) || recursion_guard_)
+  if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  recursion_guard_ = true;
-  this->reset_buffer_();
-  // copy format string
+  global_recursion_guard_ = true;
+  this->tx_buffer_at_ = 0;
+
+  // Copy format string from progmem
   auto *format_pgm_p = reinterpret_cast<const uint8_t *>(format);
-  size_t len = 0;
   char ch = '.';
-  while (!this->is_buffer_full_() && ch != '\0') {
+  while (this->tx_buffer_at_ < this->tx_buffer_size_ && ch != '\0') {
     this->tx_buffer_[this->tx_buffer_at_++] = ch = (char) progmem_read_byte(format_pgm_p++);
   }
-  // Buffer full form copying format
-  if (this->is_buffer_full_())
-    return;
 
-  // length of format string, includes null terminator
-  uint32_t offset = this->tx_buffer_at_;
-
-  // now apply vsnprintf
-  this->write_header_(level, tag, line);
-  this->vprintf_to_buffer_(this->tx_buffer_, args);
-  this->write_footer_();
-  this->log_message_(level, tag, offset);
-  recursion_guard_ = false;
-}
-#endif
-
-#ifdef USE_ESP_IDF
-void Logger::init_uart_() {
-  uart_config_t uart_config{};
-  uart_config.baud_rate = (int) baud_rate_;
-  uart_config.data_bits = UART_DATA_8_BITS;
-  uart_config.parity = UART_PARITY_DISABLE;
-  uart_config.stop_bits = UART_STOP_BITS_1;
-  uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-  uart_config.source_clk = UART_SCLK_DEFAULT;
-#endif
-  uart_param_config(this->uart_num_, &uart_config);
-  const int uart_buffer_size = tx_buffer_size_;
-  // Install UART driver using an event queue here
-  uart_driver_install(this->uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
-}
-
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-void Logger::init_usb_cdc_() {}
-#endif
-
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
-void Logger::init_usb_serial_jtag_() {
-  setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
-
-  // Minicom, screen, idf_monitor send CR when ENTER key is pressed
-  esp_vfs_dev_usb_serial_jtag_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
-  // Move the caret to the beginning of the next line on '\n'
-  esp_vfs_dev_usb_serial_jtag_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
-
-  // Enable non-blocking mode on stdin and stdout
-  fcntl(fileno(stdout), F_SETFL, 0);
-  fcntl(fileno(stdin), F_SETFL, 0);
-
-  usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
-  usb_serial_jtag_config.rx_buffer_size = 512;
-  usb_serial_jtag_config.tx_buffer_size = 512;
-
-  esp_err_t ret = ESP_OK;
-  // Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes
-  ret = usb_serial_jtag_driver_install(&usb_serial_jtag_config);
-  if (ret != ESP_OK) {
+  // Buffer full from copying format
+  if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
+    global_recursion_guard_ = false;  // Make sure to reset the recursion guard before returning
     return;
   }
 
-  // Tell vfs to use usb-serial-jtag driver
-  esp_vfs_usb_serial_jtag_use_driver();
-}
-#endif
-#endif
+  // Save the offset before calling format_log_to_buffer_with_terminator_
+  // since it will increment tx_buffer_at_ to the end of the formatted string
+  uint32_t msg_start = this->tx_buffer_at_;
+  this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
+                                              &this->tx_buffer_at_, this->tx_buffer_size_);
 
-int HOT Logger::level_for(const char *tag) {
-  // Uses std::vector<> for low memory footprint, though the vector
-  // could be sorted to minimize lookup times. This feature isn't used that
-  // much anyway so it doesn't matter too much.
-  for (auto &it : this->log_levels_) {
-    if (it.tag == tag) {
-      return it.level;
-    }
-  }
-  return ESPHOME_LOG_LEVEL;
-}
-void HOT Logger::log_message_(int level, const char *tag, int offset) {
-  // remove trailing newline
-  if (this->tx_buffer_[this->tx_buffer_at_ - 1] == '\n') {
-    this->tx_buffer_at_--;
-  }
-  // make sure null terminator is present
-  this->set_null_terminator_();
-
-  const char *msg = this->tx_buffer_ + offset;
+  // Write to console and send callback starting at the msg_start
   if (this->baud_rate_ > 0) {
-#ifdef USE_ARDUINO
-    this->hw_serial_->println(msg);
-#endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
-    if (
-#if defined(USE_ESP32_VARIANT_ESP32S2)
-        this->uart_ == UART_SELECTION_USB_CDC
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
-        this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#elif defined(USE_ESP32_VARIANT_ESP32S3)
-        this->uart_ == UART_SELECTION_USB_CDC || this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#else
-        /* DISABLES CODE */ (false)  // NOLINT
-#endif
-    ) {
-      puts(msg);
-    } else {
-      uart_write_bytes(this->uart_num_, msg, strlen(msg));
-      uart_write_bytes(this->uart_num_, "\n", 1);
-    }
-#endif
+    this->write_msg_(this->tx_buffer_ + msg_start);
   }
+  size_t msg_length =
+      this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
+  this->log_callback_.call(level, tag, this->tx_buffer_ + msg_start, msg_length);
 
-#ifdef USE_ESP32
-  // Suppress network-logging if memory constrained, but still log to serial
-  // ports. In some configurations (eg BLE enabled) there may be some transient
-  // memory exhaustion, and trying to log when OOM can lead to a crash. Skipping
-  // here usually allows the stack to recover instead.
-  // See issue #1234 for analysis.
-  if (xPortGetFreeHeapSize() < 2048)
-    return;
-#endif
-#ifdef USE_HOST
-  puts(msg);
-#endif
+  global_recursion_guard_ = false;
+}
+#endif  // USE_STORE_LOG_STR_IN_FLASH
 
-  this->log_callback_.call(level, tag, msg);
+inline uint8_t Logger::level_for(const char *tag) {
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+  auto it = this->log_levels_.find(tag);
+  if (it != this->log_levels_.end())
+    return it->second;
+#endif
+  return this->current_level_;
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  this->main_task_ = xTaskGetCurrentTaskHandle();
+#elif defined(USE_ZEPHYR)
+  this->main_task_ = k_current_get();
+#endif
 }
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+void Logger::init_log_buffer(size_t total_buffer_size) {
+  this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
 
-#ifndef USE_LIBRETINY
-void Logger::pre_setup() {
-  if (this->baud_rate_ > 0) {
-#ifdef USE_ARDUINO
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-#ifdef USE_ESP8266
-      case UART_SELECTION_UART0_SWAP:
-#endif
-#ifdef USE_RP2040
-        this->hw_serial_ = &Serial1;
-        Serial1.begin(this->baud_rate_);
-#else
-#if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial0;
-        Serial0.begin(this->baud_rate_);
-#else
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-#endif
-#endif
-#ifdef USE_ESP8266
-        if (this->uart_ == UART_SELECTION_UART0_SWAP) {
-          Serial.swap();
-        }
-        Serial.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-#endif
-        break;
-      case UART_SELECTION_UART1:
-#ifdef USE_RP2040
-        this->hw_serial_ = &Serial2;
-        Serial2.begin(this->baud_rate_);
-#else
-        this->hw_serial_ = &Serial1;
-        Serial1.begin(this->baud_rate_);
-#endif
-#ifdef USE_ESP8266
-        Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-#endif
-        break;
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
-      case UART_SELECTION_UART2:
-        this->hw_serial_ = &Serial2;
-        Serial2.begin(this->baud_rate_);
-        break;
-#endif
-#if defined(USE_ESP32) && \
-    (defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3))
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3)
-      case UART_SELECTION_USB_CDC:
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
-      case UART_SELECTION_USB_SERIAL_JTAG:
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3)
-#if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial;
-        Serial.setTxTimeoutMs(0);  // workaround for 2.0.9 crash when there's no data connection
-        Serial.begin(this->baud_rate_);
-#else
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-#endif  // ARDUINO_USB_CDC_ON_BOOT
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
-        break;
-#endif  // USE_ESP32 && (USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3)
-#ifdef USE_RP2040
-      case UART_SELECTION_USB_CDC:
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-        break;
-#endif  // USE_RP2040
-    }
-#endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
-    this->uart_num_ = UART_NUM_0;
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-        this->uart_num_ = UART_NUM_0;
-        break;
-      case UART_SELECTION_UART1:
-        this->uart_num_ = UART_NUM_1;
-        break;
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3) && !defined(USE_ESP32_VARIANT_ESP32H2)
-      case UART_SELECTION_UART2:
-        this->uart_num_ = UART_NUM_2;
-        break;
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3 &&
-        // !USE_ESP32_VARIANT_ESP32H2
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-      case UART_SELECTION_USB_CDC:
-        this->uart_num_ = -1;
-        this->init_usb_cdc_();
-        break;
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
-      case UART_SELECTION_USB_SERIAL_JTAG:
-        this->uart_num_ = -1;
-        this->init_usb_serial_jtag_();
-        break;
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3 ||
-        // USE_ESP32_VARIANT_ESP32H2
-    }
-    if (this->uart_num_ >= 0) {
-      this->init_uart_();
-    }
-#endif  // USE_ESP_IDF
-  }
-#ifdef USE_ESP8266
-  else {
-    uart_set_debug(UART_NO);
-  }
-#endif  // USE_ESP8266
-
-  global_logger = this;
-#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
-  esp_log_set_vprintf(esp_idf_log_vprintf_);
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    esp_log_level_set("*", ESP_LOG_VERBOSE);
-  }
-#endif  // USE_ESP_IDF || USE_ESP32_FRAMEWORK_ARDUINO
-
-  ESP_LOGI(TAG, "Log initialized");
+  // Start with loop disabled when using task buffer (unless using USB CDC)
+  // The loop will be enabled automatically when messages arrive
+  this->disable_loop_when_buffer_empty_();
 }
-#else  // USE_LIBRETINY
-void Logger::pre_setup() {
-  if (this->baud_rate_ > 0) {
-    switch (this->uart_) {
-#if LT_HW_UART0
-      case UART_SELECTION_UART0:
-        this->hw_serial_ = &Serial0;
-        Serial0.begin(this->baud_rate_);
-        break;
 #endif
-#if LT_HW_UART1
-      case UART_SELECTION_UART1:
-        this->hw_serial_ = &Serial1;
-        Serial1.begin(this->baud_rate_);
-        break;
-#endif
-#if LT_HW_UART2
-      case UART_SELECTION_UART2:
-        this->hw_serial_ = &Serial2;
-        Serial2.begin(this->baud_rate_);
-        break;
-#endif
-      default:
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-        if (this->uart_ != UART_SELECTION_DEFAULT) {
-          ESP_LOGW(TAG, "  The chosen logger UART port is not available on this board."
-                        "The default port was used instead.");
-        }
-        break;
-    }
 
-    // change lt_log() port to match default Serial
-    if (this->uart_ == UART_SELECTION_DEFAULT) {
-      this->uart_ = (UARTSelection) (LT_UART_DEFAULT_SERIAL + 1);
-      lt_log_set_port(LT_UART_DEFAULT_SERIAL);
-    } else {
-      lt_log_set_port(this->uart_ - 1);
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+void Logger::loop() { this->process_messages_(); }
+#endif
+
+void Logger::process_messages_() {
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  // Process any buffered messages when available
+  if (this->log_buffer_->has_messages()) {
+    logger::TaskLogBuffer::LogMessage *message;
+    const char *text;
+    void *received_token;
+
+    // Process messages from the buffer
+    while (this->log_buffer_->borrow_message_main_loop(&message, &text, &received_token)) {
+      this->tx_buffer_at_ = 0;
+      // Use the thread name that was stored when the message was created
+      // This avoids potential crashes if the task no longer exists
+      const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      this->write_header_to_buffer_(message->level, message->tag, message->line, thread_name, this->tx_buffer_,
+                                    &this->tx_buffer_at_, this->tx_buffer_size_);
+      this->write_body_to_buffer_(text, message->text_length, this->tx_buffer_, &this->tx_buffer_at_,
+                                  this->tx_buffer_size_);
+      this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+      this->tx_buffer_[this->tx_buffer_at_] = '\0';
+      size_t msg_len = this->tx_buffer_at_;  // We already know the length from tx_buffer_at_
+      this->log_callback_.call(message->level, message->tag, this->tx_buffer_, msg_len);
+      // At this point all the data we need from message has been transferred to the tx_buffer
+      // so we can release the message to allow other tasks to use it as soon as possible.
+      this->log_buffer_->release_message_main_loop(received_token);
+
+      // Write to console from the main loop to prevent corruption from concurrent writes
+      // This ensures all log messages appear on the console in a clean, serialized manner
+      // Note: Messages may appear slightly out of order due to async processing, but
+      // this is preferred over corrupted/interleaved console output
+      if (this->baud_rate_ > 0) {
+        this->write_msg_(this->tx_buffer_);
+      }
     }
+  } else {
+    // No messages to process, disable loop if appropriate
+    // This reduces overhead when there's no async logging activity
+    this->disable_loop_when_buffer_empty_();
   }
-
-  global_logger = this;
-  ESP_LOGI(TAG, "Log initialized");
+#endif
 }
-#endif  // USE_LIBRETINY
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
-void Logger::set_log_level(const std::string &tag, int log_level) {
-  this->log_levels_.push_back(LogLevelOverride{tag, log_level});
-}
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
+#endif
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
-void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
+void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
-const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
-#ifdef USE_ESP32
-const char *const UART_SELECTIONS[] = {
-    "UART0",           "UART1",
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3) && !defined(USE_ESP32_VARIANT_ESP32H2)
-    "UART2",
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARINT_ESP32C6 && !USE_ESP32_VARIANT_ESP32S2 &&
-        // !USE_ESP32_VARIANT_ESP32S3 && !USE_ESP32_VARIANT_ESP32H2
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-    "USB_CDC",
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
-    "USB_SERIAL_JTAG",
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
+
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+// ESP8266: PSTR() cannot be used in array initializers, so we need to declare
+// each string separately as a global constant first
+static const char LOG_LEVEL_NONE[] PROGMEM = "NONE";
+static const char LOG_LEVEL_ERROR[] PROGMEM = "ERROR";
+static const char LOG_LEVEL_WARN[] PROGMEM = "WARN";
+static const char LOG_LEVEL_INFO[] PROGMEM = "INFO";
+static const char LOG_LEVEL_CONFIG[] PROGMEM = "CONFIG";
+static const char LOG_LEVEL_DEBUG[] PROGMEM = "DEBUG";
+static const char LOG_LEVEL_VERBOSE[] PROGMEM = "VERBOSE";
+static const char LOG_LEVEL_VERY_VERBOSE[] PROGMEM = "VERY_VERBOSE";
+
+static const LogString *const LOG_LEVELS[] = {
+    reinterpret_cast<const LogString *>(LOG_LEVEL_NONE),    reinterpret_cast<const LogString *>(LOG_LEVEL_ERROR),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_WARN),    reinterpret_cast<const LogString *>(LOG_LEVEL_INFO),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_CONFIG),  reinterpret_cast<const LogString *>(LOG_LEVEL_DEBUG),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_VERBOSE), reinterpret_cast<const LogString *>(LOG_LEVEL_VERY_VERBOSE),
 };
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
-#endif  // USE_ESP8266
-#ifdef USE_RP2040
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
-#endif  // USE_RP2040
-#ifdef USE_LIBRETINY
-const char *const UART_SELECTIONS[] = {"DEFAULT", "UART0", "UART1", "UART2"};
-#endif  // USE_LIBRETINY
-void Logger::dump_config() {
-  ESP_LOGCONFIG(TAG, "Logger:");
-  ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
-  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
-  ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
+#else
+static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #endif
 
-  for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
+void Logger::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Logger:\n"
+                "  Max Level: %s\n"
+                "  Initial Level: %s",
+                LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]), LOG_STR_ARG(LOG_LEVELS[this->current_level_]));
+#ifndef USE_HOST
+  ESP_LOGCONFIG(TAG,
+                "  Log Baud Rate: %" PRIu32 "\n"
+                "  Hardware UART: %s",
+                this->baud_rate_, LOG_STR_ARG(get_uart_selection_()));
+#endif
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  if (this->log_buffer_) {
+    ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u", this->log_buffer_->size());
   }
+#endif
+
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+  for (auto &it : this->log_levels_) {
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LOG_LEVELS[it.second]));
+  }
+#endif
 }
-void Logger::write_footer_() { this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR)); }
+
+void Logger::set_log_level(uint8_t level) {
+  if (level > ESPHOME_LOG_LEVEL) {
+    level = ESPHOME_LOG_LEVEL;
+    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]));
+  }
+  this->current_level_ = level;
+  this->level_callback_.call(level);
+}
 
 Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger

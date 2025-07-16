@@ -1,0 +1,6 @@
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
+  reset_pin: GPIO15
+
+<<: !include common.yaml

@@ -1,6 +1,6 @@
 #include "bme680_bsec.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <string>
 
 namespace esphome {
@@ -15,8 +15,6 @@ std::vector<BME680BSECComponent *>
 uint8_t BME680BSECComponent::work_buffer_[BSEC_MAX_WORKBUFFER_SIZE] = {0};
 
 void BME680BSECComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BME680(%s) via BSEC...", this->device_id_.c_str());
-
   uint8_t new_idx = BME680BSECComponent::instances.size();
   BME680BSECComponent::instances.push_back(this);
 
@@ -52,17 +50,33 @@ void BME680BSECComponent::setup() {
 
 void BME680BSECComponent::set_config_() {
   if (this->sample_rate_ == SAMPLE_RATE_ULP) {
-    const uint8_t config[] = {
+    if (this->supply_voltage_ == SUPPLY_VOLTAGE_3V3) {
+      const uint8_t config[] = {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
-    };
-    this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-  } else {
-    const uint8_t config[] = {
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    } else {  // SUPPLY_VOLTAGE_1V8
+      const uint8_t config[] = {
+#include "config/generic_18v_300s_28d/bsec_iaq.txt"
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    }
+  } else {  // SAMPLE_RATE_LP
+    if (this->supply_voltage_ == SUPPLY_VOLTAGE_3V3) {
+      const uint8_t config[] = {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
-    };
-    this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    } else {  // SUPPLY_VOLTAGE_1V8
+      const uint8_t config[] = {
+#include "config/generic_18v_3s_28d/bsec_iaq.txt"
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    }
   }
 }
 
@@ -143,10 +157,15 @@ void BME680BSECComponent::dump_config() {
              this->bme680_status_);
   }
 
-  ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
-  ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile");
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_));
-  ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_ms_);
+  ESP_LOGCONFIG(TAG,
+                "  Temperature Offset: %.2f\n"
+                "  IAQ Mode: %s\n"
+                "  Supply Voltage: %sV\n"
+                "  Sample Rate: %s\n"
+                "  State Save Interval: %ims",
+                this->temperature_offset_, this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile",
+                this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8",
+                BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_), this->state_save_interval_ms_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->temperature_sample_rate_));

@@ -1,0 +1,10 @@
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
+
+packages:
+  base: !include common.yaml
+
+display:
+  - id: !extend main_lcd
+    tft_url: http://esphome.io/default35.tft

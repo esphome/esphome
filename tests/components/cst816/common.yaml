@@ -1,0 +1,44 @@
+i2c:
+  - id: i2c_cst816
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+spi:
+  - id: spi_ili9xxx
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+
+display:
+  - id: my_display
+    platform: ili9xxx
+    dimensions: 480x320
+    model: ST7796
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${disp_reset_pin}
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    auto_clear_enabled: false
+    invert_colors: false
+
+touchscreen:
+  - id: ts_cst816
+    platform: cst816
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
+    skip_probe: false
+    transform:
+      mirror_x: false
+      mirror_y: false
+      swap_xy: false
+
+binary_sensor:
+  - platform: touchscreen
+    name: Home Button
+    use_raw: true
+    x_min: 0
+    x_max: 480
+    y_min: 320
+    y_max: 360

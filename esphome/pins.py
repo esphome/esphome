@@ -1,20 +1,24 @@
-import operator
+from collections.abc import Callable
 from functools import reduce
-import esphome.config_validation as cv
-from esphome.core import CORE
+from logging import Logger
+import operator
+from typing import Any
 
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_INPUT,
+    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
-    CONF_IGNORE_STRAPPING_WARNING,
-    CONF_ALLOW_OTHER_USES,
-    CONF_INVERTED,
 )
+from esphome.core import CORE
+from esphome.cpp_generator import MockObjClass
 
 
 class PinRegistry(dict):
@@ -216,7 +220,9 @@ def gpio_flags_expr(mode):
 
 
 gpio_pin_schema = _schema_creator
-internal_gpio_pin_number = _internal_number_creator
+internal_gpio_pin_number = _internal_number_creator(
+    {CONF_OUTPUT: True, CONF_INPUT: True}
+)
 gpio_output_pin_schema = _schema_creator(
     {
         CONF_OUTPUT: True,
@@ -262,7 +268,7 @@ internal_gpio_input_pullup_pin_number = _internal_number_creator(
 )
 
 
-def check_strapping_pin(conf, strapping_pin_list, logger):
+def check_strapping_pin(conf, strapping_pin_list: set[int], logger: Logger):
     num = conf[CONF_NUMBER]
     if num in strapping_pin_list and not conf.get(CONF_IGNORE_STRAPPING_WARNING):
         logger.warning(
@@ -291,11 +297,11 @@ def gpio_validate_modes(value):
 
 
 def gpio_base_schema(
-    pin_type,
-    number_validator,
+    pin_type: MockObjClass,
+    number_validator: Callable[[Any], Any],
     modes=GPIO_STANDARD_MODES,
-    mode_validator=gpio_validate_modes,
-    invertable=True,
+    mode_validator: Callable[[Any], Any] = gpio_validate_modes,
+    invertible: bool = True,
 ):
     """
     Generate a base gpio pin schema
@@ -303,7 +309,7 @@ def gpio_base_schema(
     :param number_validator: A validator for the pin number
     :param modes: The available modes, default is all standard modes
     :param mode_validator: A validator function for the pin mode
-    :param invertable: If the pin supports hardware inversion
+    :param invertible: If the pin supports hardware inversion
     :return: A schema for the pin
     """
     mode_default = len(modes) == 1
@@ -311,14 +317,24 @@ def gpio_base_schema(
         map(lambda m: (cv.Optional(m, default=mode_default), cv.boolean), modes)
     )
 
+    def _number_validator(value):
+        if isinstance(value, str) and value.upper().startswith("GPIOX"):
+            raise cv.Invalid(
+                f"Found placeholder '{value}' when expecting a GPIO pin number.\n"
+                "You must replace this with an actual pin number."
+            )
+        return number_validator(value)
+
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(pin_type),
-            cv.Required(CONF_NUMBER): number_validator,
+            cv.Required(CONF_NUMBER): _number_validator,
             cv.Optional(CONF_ALLOW_OTHER_USES): cv.boolean,
             cv.Optional(CONF_MODE, default={}): cv.All(mode_dict, mode_validator),
         }
     )
-    if invertable:
+
+    if invertible:
         return schema.extend({cv.Optional(CONF_INVERTED, default=False): cv.boolean})
+
     return schema

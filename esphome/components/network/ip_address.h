@@ -1,8 +1,11 @@
 #pragma once
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include <cstdint>
 #include <string>
 #include <cstdio>
 #include <array>
+#include "esphome/core/helpers.h"
 #include "esphome/core/macros.h"
 
 #if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
@@ -46,12 +49,14 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
   }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
+  IPAddress(const char *in_address) { ipaddr_aton(in_address, &ip_addr_); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
@@ -77,6 +82,13 @@ struct IPAddress {
   }
 #endif /* LWIP_IPV6 */
   IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  IPAddress(esp_ip_addr_t *other_ip) {
+#if LWIP_IPV6
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
+#else
+    memcpy((void *) &ip_addr_, (void *) &other_ip->u_addr.ip4, sizeof(ip_addr_));
+#endif
+  }
   operator esp_ip_addr_t() const {
     esp_ip_addr_t tmp;
 #if LWIP_IPV6
@@ -106,10 +118,11 @@ struct IPAddress {
   operator arduino_ns::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
 #endif
 
-  bool is_set() { return !ip_addr_isany(&ip_addr_); }
+  bool is_set() { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
   bool is_ip4() { return IP_IS_V4(&ip_addr_); }
   bool is_ip6() { return IP_IS_V6(&ip_addr_); }
-  std::string str() const { return ipaddr_ntoa(&ip_addr_); }
+  bool is_multicast() { return ip_addr_ismulticast(&ip_addr_); }
+  std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
@@ -128,5 +141,8 @@ struct IPAddress {
   ip_addr_t ip_addr_;
 };
 
+using IPAddresses = std::array<IPAddress, 5>;
+
 }  // namespace network
 }  // namespace esphome
+#endif

@@ -29,7 +29,7 @@ enum MAX6956GPIORegisters {
   MAX6956_PORT_CONFIG_START = 0x09,   // Port Configuration P7, P6, P5, P4
   MAX6956_CURRENT_START = 0x12,       // Current054
   MAX6956_1PORT_VALUE_START = 0x20,   // Port 0 only (virtual port, no action)
-  MAX6956_8PORTS_VALUE_START = 0x44,  // 8 ports 4–11 (data bits D0–D7)
+  MAX6956_8PORTS_VALUE_START = 0x44,  // 8 ports 4-11 (data bits D0-D7)
 };
 
 enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
@@ -82,6 +82,8 @@ class MAX6956GPIOPin : public GPIOPin {
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
+
+  gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
   MAX6956 *parent_;

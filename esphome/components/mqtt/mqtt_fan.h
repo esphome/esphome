@@ -15,6 +15,8 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
  public:
   explicit MQTTFanComponent(fan::Fan *state);
 
+  MQTT_COMPONENT_CUSTOM_TOPIC(direction, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(direction, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(speed_level, command)

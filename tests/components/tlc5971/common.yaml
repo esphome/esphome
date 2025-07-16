@@ -1,0 +1,12 @@
+tlc5971:
+  clock_pin: ${clock_pin}
+  data_pin: ${data_pin}
+
+output:
+  - platform: tlc5971
+    id: output_1
+    channel: 0
+    max_power: 0.8
+  - platform: tlc5971
+    id: output_2
+    channel: 1

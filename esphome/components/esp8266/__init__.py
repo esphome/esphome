@@ -1,10 +1,13 @@
 import logging
-import os
+from pathlib import Path
 
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
     CONF_FRAMEWORK,
+    CONF_PLATFORM_VERSION,
     CONF_SOURCE,
     CONF_VERSION,
     KEY_CORE,
@@ -12,29 +15,27 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP8266,
+    ThreadModel,
 )
-from esphome.core import CORE, coroutine_with_priority
-import esphome.config_validation as cv
-import esphome.codegen as cg
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed
 
+from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
-    CONF_RESTORE_FROM_FLASH,
     CONF_EARLY_PIN_INIT,
+    CONF_RESTORE_FROM_FLASH,
     KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_PIN_INITIAL_STATES,
     esp8266_ns,
 )
-from .boards import BOARDS, ESP8266_LD_SCRIPTS
-
 from .gpio import PinInitialState, add_pin_initial_states_array
-
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
+IS_TARGET_PLATFORM = True
 
 
 def set_core_data(config):
@@ -83,20 +84,22 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 0, 2)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 1, 2)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
 ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 3)
 # for arduino 3 framework versions
 ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
+# for arduino 4 framework versions
+ARDUINO_4_PLATFORM_VERSION = cv.Version(4, 2, 1)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(3, 0, 2), "https://github.com/esp8266/Arduino.git"),
-        "latest": (cv.Version(3, 0, 2), None),
+        "dev": (cv.Version(3, 1, 2), "https://github.com/esp8266/Arduino.git"),
+        "latest": (cv.Version(3, 1, 2), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -116,7 +119,9 @@ def _arduino_check_versions(value):
 
     platform_version = value.get(CONF_PLATFORM_VERSION)
     if platform_version is None:
-        if version >= cv.Version(3, 0, 0):
+        if version >= cv.Version(3, 1, 0):
+            platform_version = _parse_platform_version(str(ARDUINO_4_PLATFORM_VERSION))
+        elif version >= cv.Version(3, 0, 0):
             platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
         elif version >= cv.Version(2, 5, 0):
             platform_version = _parse_platform_version(str(ARDUINO_2_PLATFORM_VERSION))
@@ -142,7 +147,6 @@ def _parse_platform_version(value):
         return value
 
 
-CONF_PLATFORM_VERSION = "platform_version"
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -172,16 +176,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1000)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
 
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "strict")
 
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP8266")
+    cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
+    cg.add_define(ThreadModel.SINGLE)
 
     cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
@@ -238,7 +245,7 @@ async def to_code(config):
         if ver <= cv.Version(2, 3, 0):
             # No ld script support
             ld_script = None
-        if ver <= cv.Version(2, 4, 2):
+        elif ver <= cv.Version(2, 4, 2):
             # Old ld script path
             ld_script = ld_scripts[0]
         else:
@@ -252,8 +259,8 @@ async def to_code(config):
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),

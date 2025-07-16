@@ -1,10 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DATA_PIN,
     CONF_CS_PIN,
+    CONF_DATA_PIN,
     CONF_ID,
     CONF_LAMBDA,
     CONF_READ_PIN,

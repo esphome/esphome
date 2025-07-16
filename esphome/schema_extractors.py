@@ -8,7 +8,6 @@ originally do.
 However there is a property to further disable decorator
 impact."""
 
-
 # This is set to true by script/build_language_schema.py
 # only, so data is collected (again functionality is not modified)
 EnableSchemaExtraction = False
@@ -43,7 +42,6 @@ def schema_extractor_extended(func):
 
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
-            assert len(args) == 2
             extended_schemas[repr(ret)] = args
             return ret
 

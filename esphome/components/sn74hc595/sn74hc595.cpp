@@ -7,8 +7,6 @@ namespace sn74hc595 {
 static const char *const TAG = "sn74hc595";
 
 void SN74HC595Component::pre_setup_() {
-  ESP_LOGCONFIG(TAG, "Setting up SN74HC595...");
-
   if (this->have_oe_pin_) {  // disable output
     this->oe_pin_->setup();
     this->oe_pin_->digital_write(true);
@@ -73,8 +71,8 @@ void SN74HC595GPIOComponent::write_gpio() {
   while (value != this->value_bytes_.rend() && inverted != this->inverted_bytes_.rend()) {
     for (int8_t i = 7; i >= 0; i--) {
       bool value_bit = (*value >> i) & 1;
-      bool value_inverted = (*inverted >> i) & 1;
-      this->data_pin_->digital_write(value_bit != value_inverted);
+      bool inverted_bit = (*inverted >> i) & 1;
+      this->data_pin_->digital_write(value_bit != inverted_bit);
       this->clock_pin_->digital_write(true);
       this->clock_pin_->digital_write(false);
     }
@@ -112,8 +110,12 @@ void SN74HC595Component::write_gpio() {
 
 float SN74HC595Component::get_setup_priority() const { return setup_priority::IO; }
 
-void SN74HC595GPIOPin::digital_write(bool value) { this->parent_->digital_write_(this->pin_, value); }
-void SN74HC595GPIOPin::set_inverted(bool inverted) { this->parent_->set_inverted_(this->pin_, inverted); }
+void SN74HC595GPIOPin::digital_write(bool value) {
+  this->parent_->digital_write_(this->pin_, value);
+}
+void SN74HC595GPIOPin::set_inverted(bool inverted) {
+  this->parent_->set_inverted_(this->pin_, inverted);
+}
 std::string SN74HC595GPIOPin::dump_summary() const { return str_snprintf("%u via SN74HC595", 18, pin_); }
 
 }  // namespace sn74hc595

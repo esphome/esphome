@@ -1,11 +1,9 @@
 from collections.abc import Iterator
-
 import math
 
 import pytest
 
-from esphome import cpp_generator as cg
-from esphome import cpp_types as ct
+from esphome import cpp_generator as cg, cpp_types as ct
 
 
 class TestExpressions:
@@ -156,10 +154,7 @@ class TestLambdaExpression:
         actual = str(target)
 
         assert actual == (
-            "[=](int32_t foo, float bar) {\n"
-            "  if ((foo == 5) && (bar < 10))) {\n"
-            "  }\n"
-            "}"
+            "[=](int32_t foo, float bar) {\n  if ((foo == 5) && (bar < 10))) {\n  }\n}"
         )
 
     def test_str__with_return(self):

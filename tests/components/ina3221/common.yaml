@@ -1,0 +1,19 @@
+i2c:
+  - id: i2c_ina3221
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: ina3221
+    address: 0x40
+    channel_1:
+      shunt_resistance: 0.1 ohm
+      current:
+        name: INA3221 Channel 1 Current
+      power:
+        name: INA3221 Channel 1 Power
+      bus_voltage:
+        name: INA3221 Channel 1 Bus Voltage
+      shunt_voltage:
+        name: INA3221 Channel 1 Shunt Voltage
+    update_interval: 15s

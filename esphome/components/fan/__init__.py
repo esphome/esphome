@@ -1,30 +1,38 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DIRECTION,
+    CONF_DIRECTION_COMMAND_TOPIC,
+    CONF_DIRECTION_STATE_TOPIC,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
+    CONF_OFF_SPEED_CYCLE,
+    CONF_ON_DIRECTION_SET,
+    CONF_ON_OSCILLATING_SET,
+    CONF_ON_PRESET_SET,
+    CONF_ON_SPEED_SET,
+    CONF_ON_STATE,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
     CONF_OSCILLATING,
     CONF_OSCILLATION_COMMAND_TOPIC,
     CONF_OSCILLATION_STATE_TOPIC,
+    CONF_RESTORE_MODE,
     CONF_SPEED,
+    CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_LEVEL_COMMAND_TOPIC,
     CONF_SPEED_LEVEL_STATE_TOPIC,
-    CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
-    CONF_OFF_SPEED_CYCLE,
-    CONF_ON_SPEED_SET,
-    CONF_ON_TURN_OFF,
-    CONF_ON_TURN_ON,
-    CONF_ON_PRESET_SET,
     CONF_TRIGGER_ID,
-    CONF_DIRECTION,
-    CONF_RESTORE_MODE,
+    CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
@@ -55,63 +63,136 @@ TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
+FanStateTrigger = fan_ns.class_(
+    "FanStateTrigger", automation.Trigger.template(Fan.operator("ptr"))
+)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
-FanSpeedSetTrigger = fan_ns.class_("FanSpeedSetTrigger", automation.Trigger.template())
+FanDirectionSetTrigger = fan_ns.class_(
+    "FanDirectionSetTrigger", automation.Trigger.template(FanDirection)
+)
+FanOscillatingSetTrigger = fan_ns.class_(
+    "FanOscillatingSetTrigger", automation.Trigger.template(cg.bool_)
+)
+FanSpeedSetTrigger = fan_ns.class_(
+    "FanSpeedSetTrigger", automation.Trigger.template(cg.int_)
+)
 FanPresetSetTrigger = fan_ns.class_(
-    "FanPresetSetTrigger", automation.Trigger.template()
+    "FanPresetSetTrigger", automation.Trigger.template(cg.std_string)
 )
 
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
 FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.template())
 
-FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(Fan),
-        cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
-            RESTORE_MODES, upper=True, space="_"
-        ),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
-        cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_SPEED_LEVEL_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_SPEED_LEVEL_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_SPEED_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_SPEED_SET): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanSpeedSetTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PRESET_SET): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanPresetSetTrigger),
-            }
-        ),
-    }
+_FAN_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
+            cv.Optional(CONF_DIRECTION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_DIRECTION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_SPEED_LEVEL_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_SPEED_LEVEL_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_SPEED_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_DIRECTION_SET): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FanDirectionSetTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_OSCILLATING_SET): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FanOscillatingSetTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_SPEED_SET): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanSpeedSetTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_PRESET_SET): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanPresetSetTrigger),
+                }
+            ),
+        }
+    )
 )
+
+
+_FAN_SCHEMA.add_extra(entity_duplicate_validator("fan"))
+
+
+def fan_schema(
+    class_: cg.Pvariable,
+    *,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+    default_restore_mode: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+        (
+            CONF_RESTORE_MODE,
+            default_restore_mode,
+            cv.enum(RESTORE_MODES, upper=True, space="_"),
+        ),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _FAN_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+FAN_SCHEMA = fan_schema(Fan)
+FAN_SCHEMA.add_extra(cv.deprecated_schema_constant("fan"))
 
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(cv.string_strict),
@@ -147,70 +228,84 @@ def validate_preset_modes(value):
 
 
 async def setup_fan_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "fan")
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if CONF_OSCILLATION_STATE_TOPIC in config:
+        if (
+            direction_state_topic := config.get(CONF_DIRECTION_STATE_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_direction_state_topic(direction_state_topic))
+        if (
+            direction_command_topic := config.get(CONF_DIRECTION_COMMAND_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_direction_command_topic(direction_command_topic))
+        if (
+            oscillation_state_topic := config.get(CONF_OSCILLATION_STATE_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_oscillation_state_topic(oscillation_state_topic))
+        if (
+            oscillation_command_topic := config.get(CONF_OSCILLATION_COMMAND_TOPIC)
+        ) is not None:
             cg.add(
-                mqtt_.set_custom_oscillation_state_topic(
-                    config[CONF_OSCILLATION_STATE_TOPIC]
-                )
+                mqtt_.set_custom_oscillation_command_topic(oscillation_command_topic)
             )
-        if CONF_OSCILLATION_COMMAND_TOPIC in config:
+        if (
+            speed_level_state_topic := config.get(CONF_SPEED_LEVEL_STATE_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_speed_level_state_topic(speed_level_state_topic))
+        if (
+            speed_level_command_topic := config.get(CONF_SPEED_LEVEL_COMMAND_TOPIC)
+        ) is not None:
             cg.add(
-                mqtt_.set_custom_oscillation_command_topic(
-                    config[CONF_OSCILLATION_COMMAND_TOPIC]
-                )
+                mqtt_.set_custom_speed_level_command_topic(speed_level_command_topic)
             )
-        if CONF_SPEED_LEVEL_STATE_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_speed_level_state_topic(
-                    config[CONF_SPEED_LEVEL_STATE_TOPIC]
-                )
-            )
-        if CONF_SPEED_LEVEL_COMMAND_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_speed_level_command_topic(
-                    config[CONF_SPEED_LEVEL_COMMAND_TOPIC]
-                )
-            )
-        if CONF_SPEED_STATE_TOPIC in config:
-            cg.add(mqtt_.set_custom_speed_state_topic(config[CONF_SPEED_STATE_TOPIC]))
-        if CONF_SPEED_COMMAND_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC])
-            )
+        if (speed_state_topic := config.get(CONF_SPEED_STATE_TOPIC)) is not None:
+            cg.add(mqtt_.set_custom_speed_state_topic(speed_state_topic))
+        if (speed_command_topic := config.get(CONF_SPEED_COMMAND_TOPIC)) is not None:
+            cg.add(mqtt_.set_custom_speed_command_topic(speed_command_topic))
 
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
+
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(Fan.operator("ptr"), "x")], conf)
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_DIRECTION_SET, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(FanDirection, "x")], conf)
+    for conf in config.get(CONF_ON_OSCILLATING_SET, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.bool_, "x")], conf)
     for conf in config.get(CONF_ON_SPEED_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(cg.int_, "x")], conf)
     for conf in config.get(CONF_ON_PRESET_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
 
 async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_fan(var))
+    CORE.register_platform_component("fan", var)
     await setup_fan_core_(var, config)
 
 
-async def create_fan_state(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_fan(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_fan(var, config)
-    await cg.register_component(var, config)
     return var
 
 
@@ -250,14 +345,14 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
 async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_OSCILLATING in config:
-        template_ = await cg.templatable(config[CONF_OSCILLATING], args, bool)
+    if (oscillating := config.get(CONF_OSCILLATING)) is not None:
+        template_ = await cg.templatable(oscillating, args, bool)
         cg.add(var.set_oscillating(template_))
-    if CONF_SPEED in config:
-        template_ = await cg.templatable(config[CONF_SPEED], args, int)
+    if (speed := config.get(CONF_SPEED)) is not None:
+        template_ = await cg.templatable(speed, args, int)
         cg.add(var.set_speed(template_))
-    if CONF_DIRECTION in config:
-        template_ = await cg.templatable(config[CONF_DIRECTION], args, FanDirection)
+    if (direction := config.get(CONF_DIRECTION)) is not None:
+        template_ = await cg.templatable(direction, args, FanDirection)
         cg.add(var.set_direction(template_))
     return var
 
@@ -303,7 +398,6 @@ async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_FAN")
     cg.add_global(fan_ns.using)

@@ -1,0 +1,11 @@
+substitutions:
+  pin: GPIO38
+  clock_resolution: "2000000"
+  rmt_symbols: "64"
+
+packages:
+  common: !include esp32-common.yaml
+
+remote_transmitter:
+  - id: !extend xmitr
+    use_dma: "true"

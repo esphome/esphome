@@ -1,0 +1,8 @@
+output:
+  - platform: esp8266_pwm
+    id: out
+    pin: 4
+    frequency: 50Hz
+  - platform: esp8266_pwm
+    id: out2
+    pin: 5

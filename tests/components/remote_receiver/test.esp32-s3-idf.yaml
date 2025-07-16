@@ -1,0 +1,13 @@
+substitutions:
+  pin: GPIO38
+  clock_resolution: "2000000"
+  filter_symbols: "2"
+  receive_symbols: "4"
+  rmt_symbols: "64"
+
+packages:
+  common: !include esp32-common.yaml
+
+remote_receiver:
+  - id: !extend rcvr
+    use_dma: "true"

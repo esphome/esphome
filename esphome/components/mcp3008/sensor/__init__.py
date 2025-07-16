@@ -1,15 +1,16 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_NUMBER,
-    UNIT_VOLT,
-    STATE_CLASS_MEASUREMENT,
+    CONF_REFERENCE_VOLTAGE,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_VOLT,
 )
 
-from .. import mcp3008_ns, MCP3008
+from .. import MCP3008, mcp3008_ns
 
 AUTO_LOAD = ["voltage_sampler"]
 
@@ -22,7 +23,6 @@ MCP3008Sensor = mcp3008_ns.class_(
     voltage_sampler.VoltageSampler,
     cg.Parented.template(MCP3008),
 )
-CONF_REFERENCE_VOLTAGE = "reference_voltage"
 CONF_MCP3008_ID = "mcp3008_id"
 
 CONFIG_SCHEMA = (

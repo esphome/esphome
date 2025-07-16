@@ -72,10 +72,9 @@ void AlarmControlPanelCall::validate_() {
       this->state_.reset();
       return;
     }
-    if (state == ACP_STATE_DISARMED &&
-        !(this->parent_->is_state_armed(this->parent_->get_state()) ||
-          this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_ARMING ||
-          this->parent_->get_state() == ACP_STATE_TRIGGERED)) {
+    if (state == ACP_STATE_DISARMED && !this->parent_->is_state_armed(this->parent_->get_state()) &&
+        this->parent_->get_state() != ACP_STATE_PENDING && this->parent_->get_state() != ACP_STATE_ARMING &&
+        this->parent_->get_state() != ACP_STATE_TRIGGERED) {
       ESP_LOGW(TAG, "Cannot disarm when not armed");
       this->state_.reset();
       return;

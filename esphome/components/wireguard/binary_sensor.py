@@ -1,15 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_STATUS,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
-from . import Wireguard
+from . import CONF_WIREGUARD_ID, Wireguard
 
-CONF_WIREGUARD_ID = "wireguard_id"
 CONF_ENABLED = "enabled"
 
 DEPENDENCIES = ["wireguard"]

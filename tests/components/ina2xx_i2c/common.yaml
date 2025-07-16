@@ -1,0 +1,20 @@
+i2c:
+  - id: i2c_ina2xx
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: ina2xx_i2c
+    i2c_id: i2c_ina2xx
+    address: 0x40
+    model: INA228
+    shunt_resistance: 0.001130 ohm
+    max_current: 40 A
+    adc_range: 1
+    temperature_coefficient: 50
+    shunt_voltage: "INA2xx Shunt Voltage"
+    bus_voltage: "INA2xx Bus Voltage"
+    current: "INA2xx Current"
+    power: "INA2xx Power"
+    energy: "INA2xx Energy"
+    charge: "INA2xx Charge"

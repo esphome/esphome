@@ -1,0 +1,23 @@
+uart:
+  - id: uart_sdm_meter
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+sensor:
+  - platform: sdm_meter
+    phase_a:
+      current:
+        name: Phase A Current
+      voltage:
+        name: Phase A Voltage
+      active_power:
+        name: Phase A Power
+      power_factor:
+        name: Phase A Power Factor
+      apparent_power:
+        name: Phase A Apparent Power
+      reactive_power:
+        name: Phase A Reactive Power
+      phase_angle:
+        name: Phase A Phase Angle

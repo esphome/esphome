@@ -2,6 +2,11 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/preferences.h"
+#include "esphome/core/scheduler.h"
+#include "esphome/core/application.h"
 
 #include <vector>
 
@@ -125,6 +130,27 @@ class LoopTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
 };
 
+#ifdef ESPHOME_PROJECT_NAME
+class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
+ public:
+  void setup() override {
+    uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
+    ESPPreferenceObject pref = global_preferences->make_preference<char[30]>(hash, true);
+    char previous_version[30];
+    char current_version[30] = ESPHOME_PROJECT_VERSION_30;
+    if (pref.load(&previous_version)) {
+      int cmp = strcmp(previous_version, current_version);
+      if (cmp < 0) {
+        this->trigger(previous_version);
+      }
+    }
+    pref.save(&current_version);
+    global_preferences->sync();
+  }
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
+};
+#endif
+
 template<typename... Ts> class DelayAction : public Action<Ts...>, public Component {
  public:
   explicit DelayAction() = default;
@@ -134,14 +160,23 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   void play_complex(Ts... x) override {
     auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
-    this->set_timeout(this->delay_.value(x...), f);
+
+    // If num_running_ > 1, we have multiple instances running in parallel
+    // In single/restart/queued modes, only one instance runs at a time
+    // Parallel mode uses skip_cancel=true to allow multiple delays to coexist
+    // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
+    // Users should set max_runs on parallel scripts to limit concurrent executions.
+    // Issue #10264: This is a workaround for parallel script delays interfering with each other.
+    App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
+                                    /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
+                                    /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout(""); }
+  void stop() override { this->cancel_timeout("delay"); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
@@ -255,10 +290,11 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<uint32_t, Ts...>([this](uint32_t iteration, Ts... x) {
       iteration++;
-      if (iteration >= this->count_.value(x...))
+      if (iteration >= this->count_.value(x...)) {
         this->play_next_tuple_(this->var_);
-      else
+      } else {
         this->then_.play(iteration, x...);
+      }
     }));
   }
 

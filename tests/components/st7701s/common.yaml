@@ -1,0 +1,45 @@
+spi:
+  - id: spi_st7701s
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+
+display:
+  - platform: st7701s
+    spi_mode: MODE3
+    color_order: RGB
+    dimensions:
+      width: 480
+      height: 480
+    invert_colors: true
+    transform:
+      mirror_x: true
+      mirror_y: true
+    cs_pin: ${cs_pin}
+    reset_pin: ${reset_pin}
+    de_pin: ${de_pin}
+    hsync_pin: ${hsync_pin}
+    vsync_pin: ${vsync_pin}
+    pclk_pin: ${pclk_pin}
+    init_sequence:
+      - 1
+      - [0x23, 0xA, 0xB]
+      - delay 20ms
+      - [0x23, 0xA, 0xB]
+      - delay 0.2s
+    data_pins:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15

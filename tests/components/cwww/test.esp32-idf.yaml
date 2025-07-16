@@ -1,0 +1,14 @@
+substitutions:
+  light_platform: ledc
+  pin_o1: GPIO16
+  pin_o2: GPIO17
+
+packages:
+  device_base: !include common.yaml
+
+output:
+  - id: !extend light_output_1
+    channel: 0
+  - id: !extend light_output_2
+    channel: 1
+    phase_angle: 180°

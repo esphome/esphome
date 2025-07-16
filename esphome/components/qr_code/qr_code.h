@@ -24,6 +24,8 @@ class QrCode : public Component {
 
   void generate_qr_code();
 
+  uint8_t get_size();
+
  protected:
   std::string value_;
   qrcodegen_Ecc ecc_;

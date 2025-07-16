@@ -1,0 +1,4 @@
+sensor:
+  - platform: duty_cycle
+    pin: 4
+    name: Duty Cycle Sensor

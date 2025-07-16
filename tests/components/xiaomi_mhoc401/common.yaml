@@ -1,0 +1,12 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_mhoc401
+    mac_address: E7:50:59:32:A0:1C
+    bindkey: "eef418daf699a0c188f3bfd17e4565d9"
+    temperature:
+      name: MHO-C303 Temperature
+    humidity:
+      name: MHO-C303 Humidity
+    battery_level:
+      name: MHO-C303 Battery Level

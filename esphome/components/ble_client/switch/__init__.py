@@ -1,7 +1,8 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, switch
 import esphome.config_validation as cv
-from esphome.components import switch, ble_client
 from esphome.const import ICON_BLUETOOTH
+
 from .. import ble_client_ns
 
 BLEClientSwitch = ble_client_ns.class_(

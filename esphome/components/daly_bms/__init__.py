@@ -1,9 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import uart
-from esphome.const import CONF_ID, CONF_ADDRESS
+import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, CONF_ID
 
 CODEOWNERS = ["@s1lvi0"]
+MULTI_CONF = True
 DEPENDENCIES = ["uart"]
 
 CONF_BMS_DALY_ID = "bms_daly_id"

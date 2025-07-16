@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_tca9548a
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+tca9548a:
+  - id: multiplex0
+    address: 0x70
+    channels:
+      - bus_id: multiplex0_chan0
+        channel: 0
+    i2c_id: i2c_tca9548a
+  - id: multiplex1
+    address: 0x71
+    i2c_id: multiplex0_chan0

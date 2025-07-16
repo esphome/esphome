@@ -1,24 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_DIMENSIONS,
-)
-from esphome.core.entity_helpers import inherit_property_from
 from esphome.components import lcd_base
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
     DisplayMenuComponent,
     display_menu_to_code,
 )
+import esphome.config_validation as cv
+from esphome.const import CONF_DIMENSIONS, CONF_DISPLAY_ID, CONF_ID
+from esphome.core.entity_helpers import inherit_property_from
 
 CODEOWNERS = ["@numo68"]
 
 AUTO_LOAD = ["display_menu_base"]
 
 lcd_menu_ns = cg.esphome_ns.namespace("lcd_menu")
-
-CONF_DISPLAY_ID = "display_id"
 
 CONF_MARK_SELECTED = "mark_selected"
 CONF_MARK_EDITING = "mark_editing"
