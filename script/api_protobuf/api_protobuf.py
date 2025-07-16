@@ -313,6 +313,37 @@ class TypeInfo(ABC):
 
 TYPE_INFO: dict[int, TypeInfo] = {}
 
+# Unsupported 64-bit types that would add overhead for embedded systems
+# TYPE_DOUBLE = 1, TYPE_FIXED64 = 6, TYPE_SFIXED64 = 16, TYPE_SINT64 = 18
+UNSUPPORTED_TYPES = {1: "double", 6: "fixed64", 16: "sfixed64", 18: "sint64"}
+
+
+def validate_field_type(field_type: int, field_name: str = "") -> None:
+    """Validate that the field type is supported by ESPHome API.
+
+    Raises ValueError for unsupported 64-bit types.
+    """
+    if field_type in UNSUPPORTED_TYPES:
+        type_name = UNSUPPORTED_TYPES[field_type]
+        field_info = f" (field: {field_name})" if field_name else ""
+        raise ValueError(
+            f"64-bit type '{type_name}'{field_info} is not supported by ESPHome API. "
+            "These types add significant overhead for embedded systems. "
+            "If you need 64-bit support, please add the necessary encoding/decoding "
+            "functions to proto.h/proto.cpp first."
+        )
+
+
+def get_type_info_for_field(field: descriptor.FieldDescriptorProto) -> TypeInfo:
+    """Get the appropriate TypeInfo for a field, handling repeated fields.
+
+    Also validates that the field type is supported.
+    """
+    if field.label == 3:  # repeated
+        return RepeatedTypeInfo(field)
+    validate_field_type(field.type, field.name)
+    return TYPE_INFO[field.type](field)
+
 
 def register_type(name: int):
     """Decorator to register a type with a name and number."""
@@ -738,6 +769,7 @@ class SInt64Type(TypeInfo):
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
         super().__init__(field)
+        validate_field_type(field.type, field.name)
         self._ti: TypeInfo = TYPE_INFO[field.type](field)
 
     @property
@@ -1025,10 +1057,7 @@ def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
     total_size = 0
 
     for field in desc.field:
-        if field.label == 3:  # repeated
-            ti = RepeatedTypeInfo(field)
-        else:
-            ti = TYPE_INFO[field.type](field)
+        ti = get_type_info_for_field(field)
 
         # Add estimated size for this field
         total_size += ti.get_estimated_size()
@@ -1334,10 +1363,7 @@ def build_base_class(
     # For base classes, we only declare the fields but don't handle encode/decode
     # The derived classes will handle encoding/decoding with their specific field numbers
     for field in common_fields:
-        if field.label == 3:  # repeated
-            ti = RepeatedTypeInfo(field)
-        else:
-            ti = TYPE_INFO[field.type](field)
+        ti = get_type_info_for_field(field)
 
         # Only add field declarations, not encode/decode logic
         protected_content.extend(ti.protected_content)

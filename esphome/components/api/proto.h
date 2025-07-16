@@ -175,23 +175,7 @@ class Proto32Bit {
   const uint32_t value_;
 };
 
-class Proto64Bit {
- public:
-  explicit Proto64Bit(uint64_t value) : value_(value) {}
-  uint64_t as_fixed64() const { return this->value_; }
-  int64_t as_sfixed64() const { return static_cast<int64_t>(this->value_); }
-  double as_double() const {
-    union {
-      uint64_t raw;
-      double value;
-    } s{};
-    s.raw = this->value_;
-    return s.value;
-  }
-
- protected:
-  const uint64_t value_;
-};
+// NOTE: Proto64Bit class removed - wire type 1 (64-bit fixed) not supported
 
 class ProtoWriteBuffer {
  public:
@@ -258,20 +242,10 @@ class ProtoWriteBuffer {
     this->write((value >> 16) & 0xFF);
     this->write((value >> 24) & 0xFF);
   }
-  void encode_fixed64(uint32_t field_id, uint64_t value, bool force = false) {
-    if (value == 0 && !force)
-      return;
-
-    this->encode_field_raw(field_id, 1);  // type 1: 64-bit fixed64
-    this->write((value >> 0) & 0xFF);
-    this->write((value >> 8) & 0xFF);
-    this->write((value >> 16) & 0xFF);
-    this->write((value >> 24) & 0xFF);
-    this->write((value >> 32) & 0xFF);
-    this->write((value >> 40) & 0xFF);
-    this->write((value >> 48) & 0xFF);
-    this->write((value >> 56) & 0xFF);
-  }
+  // NOTE: Wire type 1 (64-bit fixed: double, fixed64, sfixed64) is intentionally
+  // not supported to reduce overhead on embedded systems. All ESPHome devices are
+  // 32-bit microcontrollers where 64-bit operations are expensive. If 64-bit support
+  // is needed in the future, the necessary encoding/decoding functions must be added.
   void encode_float(uint32_t field_id, float value, bool force = false) {
     if (value == 0.0f && !force)
       return;
@@ -337,7 +311,7 @@ class ProtoMessage {
   virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }
   virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
   virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
-  virtual bool decode_64bit(uint32_t field_id, Proto64Bit value) { return false; }
+  // NOTE: decode_64bit removed - wire type 1 not supported
 };
 
 class ProtoSize {
@@ -662,33 +636,8 @@ class ProtoSize {
     total_size += field_id_size + varint(value);
   }
 
-  /**
-   * @brief Calculates and adds the size of a sint64 field to the total message size
-   *
-   * Sint64 fields use ZigZag encoding, which is more efficient for negative values.
-   */
-  static inline void add_sint64_field(uint32_t &total_size, uint32_t field_id_size, int64_t value) {
-    // Skip calculation if value is zero
-    if (value == 0) {
-      return;  // No need to update total_size
-    }
-
-    // ZigZag encoding for sint64: (n << 1) ^ (n >> 63)
-    uint64_t zigzag = (static_cast<uint64_t>(value) << 1) ^ (static_cast<uint64_t>(value >> 63));
-    total_size += field_id_size + varint(zigzag);
-  }
-
-  /**
-   * @brief Calculates and adds the size of a sint64 field to the total message size (repeated field version)
-   *
-   * Sint64 fields use ZigZag encoding, which is more efficient for negative values.
-   */
-  static inline void add_sint64_field_repeated(uint32_t &total_size, uint32_t field_id_size, int64_t value) {
-    // Always calculate size for repeated fields
-    // ZigZag encoding for sint64: (n << 1) ^ (n >> 63)
-    uint64_t zigzag = (static_cast<uint64_t>(value) << 1) ^ (static_cast<uint64_t>(value >> 63));
-    total_size += field_id_size + varint(zigzag);
-  }
+  // NOTE: sint64 support functions (add_sint64_field, add_sint64_field_repeated) removed
+  // sint64 type is not supported by ESPHome API to reduce overhead on embedded systems
 
   /**
    * @brief Calculates and adds the size of a string/bytes field to the total message size
