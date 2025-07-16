@@ -65,13 +65,13 @@ async def test_runtime_stats(
         # Wait for first "Total stats" log (should happen at 1s)
         try:
             await asyncio.wait_for(first_stats_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("First 'Total stats' log not seen within 5 seconds")
 
         # Wait for second "Total stats" log (should happen at 2s)
         try:
             await asyncio.wait_for(second_stats_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(f"Second 'Total stats' log not seen. Total seen: {stats_count}")
 
         # Verify we got at least 2 stats logs

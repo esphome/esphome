@@ -41,7 +41,7 @@ async def test_host_mode_api_password(
             # Wait for at least one state with timeout
             try:
                 await asyncio.wait_for(state_future, timeout=5.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pytest.fail("No states received within timeout")
 
             # Should have received at least one state (the test sensor)
