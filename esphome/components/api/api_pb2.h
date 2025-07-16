@@ -491,22 +491,50 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string esphome_version{};
   std::string compilation_time{};
   std::string model{};
+#ifdef USE_DEEP_SLEEP
   bool has_deep_sleep{false};
+#endif
+#ifdef ESPHOME_PROJECT_NAME
   std::string project_name{};
+#endif
+#ifdef ESPHOME_PROJECT_NAME
   std::string project_version{};
+#endif
+#ifdef USE_WEBSERVER
   uint32_t webserver_port{0};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
   uint32_t legacy_bluetooth_proxy_version{0};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
   uint32_t bluetooth_proxy_feature_flags{0};
+#endif
   std::string manufacturer{};
   std::string friendly_name{};
+#ifdef USE_VOICE_ASSISTANT
   uint32_t legacy_voice_assistant_version{0};
+#endif
+#ifdef USE_VOICE_ASSISTANT
   uint32_t voice_assistant_feature_flags{0};
+#endif
+#ifdef USE_AREAS
   std::string suggested_area{};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
   std::string bluetooth_mac_address{};
+#endif
+#ifdef USE_API_NOISE
   bool api_encryption_supported{false};
+#endif
+#ifdef USE_DEVICES
   std::vector<DeviceInfo> devices{};
+#endif
+#ifdef USE_AREAS
   std::vector<AreaInfo> areas{};
+#endif
+#ifdef USE_AREAS
   AreaInfo area{};
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

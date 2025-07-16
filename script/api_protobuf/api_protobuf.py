@@ -75,6 +75,30 @@ def indent(text: str, padding: str = "  ") -> str:
     return "\n".join(indent_list(text, padding))
 
 
+def wrap_with_ifdef(content: str | list[str], ifdef: str | None) -> list[str]:
+    """Wrap content with #ifdef directives if ifdef is provided.
+
+    Args:
+        content: Single string or list of strings to wrap
+        ifdef: The ifdef condition, or None to skip wrapping
+
+    Returns:
+        List of strings with ifdef wrapping if needed
+    """
+    if not ifdef:
+        if isinstance(content, str):
+            return [content]
+        return content
+
+    result = [f"#ifdef {ifdef}"]
+    if isinstance(content, str):
+        result.append(content)
+    else:
+        result.extend(content)
+    result.append("#endif")
+    return result
+
+
 def camel_to_snake(name: str) -> str:
     # https://stackoverflow.com/a/1176023
     s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
@@ -1064,26 +1088,62 @@ def build_message_type(
         # Skip field declarations for fields that are in the base class
         # but include their encode/decode logic
         if field.name not in common_field_names:
-            protected_content.extend(ti.protected_content)
-            public_content.extend(ti.public_content)
+            # Check for field_ifdef option
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
+            if ti.protected_content:
+                protected_content.extend(
+                    wrap_with_ifdef(ti.protected_content, field_ifdef)
+                )
+            if ti.public_content:
+                public_content.extend(wrap_with_ifdef(ti.public_content, field_ifdef))
 
         # Only collect encode logic if this message needs it
         if needs_encode:
-            encode.append(ti.encode_content)
-            size_calc.append(ti.get_size_calculation(f"this->{ti.field_name}"))
+            # Check for field_ifdef option
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
+            encode.extend(wrap_with_ifdef(ti.encode_content, field_ifdef))
+            size_calc.extend(
+                wrap_with_ifdef(
+                    ti.get_size_calculation(f"this->{ti.field_name}"), field_ifdef
+                )
+            )
 
         # Only collect decode methods if this message needs them
         if needs_decode:
+            # Check for field_ifdef option for decode as well
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
             if ti.decode_varint_content:
-                decode_varint.append(ti.decode_varint_content)
+                decode_varint.extend(
+                    wrap_with_ifdef(ti.decode_varint_content, field_ifdef)
+                )
             if ti.decode_length_content:
-                decode_length.append(ti.decode_length_content)
+                decode_length.extend(
+                    wrap_with_ifdef(ti.decode_length_content, field_ifdef)
+                )
             if ti.decode_32bit_content:
-                decode_32bit.append(ti.decode_32bit_content)
+                decode_32bit.extend(
+                    wrap_with_ifdef(ti.decode_32bit_content, field_ifdef)
+                )
             if ti.decode_64bit_content:
-                decode_64bit.append(ti.decode_64bit_content)
+                decode_64bit.extend(
+                    wrap_with_ifdef(ti.decode_64bit_content, field_ifdef)
+                )
         if ti.dump_content:
-            dump.append(ti.dump_content)
+            # Check for field_ifdef option for dump as well
+            field_ifdef = None
+            if field.options.HasExtension(pb.field_ifdef):
+                field_ifdef = field.options.Extensions[pb.field_ifdef]
+
+            dump.extend(wrap_with_ifdef(ti.dump_content, field_ifdef))
 
     cpp = ""
     if decode_varint:

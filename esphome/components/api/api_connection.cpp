@@ -1463,7 +1463,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #endif
   resp.name = App.get_name();
   resp.friendly_name = App.get_friendly_name();
+#ifdef USE_AREAS
   resp.suggested_area = App.get_area();
+#endif
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
