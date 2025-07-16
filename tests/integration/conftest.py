@@ -395,7 +395,7 @@ async def wait_and_connect_api_client(
         # Wait for connection with timeout
         try:
             await asyncio.wait_for(connected_future, timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(f"Failed to connect to API after {timeout} seconds")
 
         yield client
@@ -575,12 +575,12 @@ async def run_binary_and_wait_for_port(
             process.send_signal(signal.SIGINT)
             try:
                 await asyncio.wait_for(process.wait(), timeout=SIGINT_TIMEOUT)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # If SIGINT didn't work, try SIGTERM
                 process.terminate()
                 try:
                     await asyncio.wait_for(process.wait(), timeout=SIGTERM_TIMEOUT)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Last resort: SIGKILL
                     process.kill()
                     await process.wait()

@@ -206,7 +206,7 @@ async def test_duplicate_entities_not_allowed_on_different_devices(
         # Wait for all entity states
         try:
             await asyncio.wait_for(states_future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"Did not receive all entity states within 10 seconds. "
                 f"Expected {expected_count}, received {state_count}"

@@ -84,7 +84,7 @@ async def test_scheduler_recursive_timeout(
         # Wait for test to complete
         try:
             await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"Recursive timeout test timed out. Got sequence: {execution_sequence}"
             )

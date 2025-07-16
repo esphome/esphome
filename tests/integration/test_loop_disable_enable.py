@@ -150,7 +150,7 @@ async def test_loop_disable_enable(
         # Wait for self_disable_10 to disable itself
         try:
             await asyncio.wait_for(self_disable_10_disabled.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("self_disable_10 did not disable itself within 10 seconds")
 
         # Verify it ran at least 10 times before disabling
@@ -164,7 +164,7 @@ async def test_loop_disable_enable(
         # Wait for normal_component to run at least 10 times
         try:
             await asyncio.wait_for(normal_component_10_loops.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"normal_component did not reach 10 loops within timeout, got {len(normal_component_counts)}"
             )
@@ -172,12 +172,12 @@ async def test_loop_disable_enable(
         # Wait for redundant operation tests
         try:
             await asyncio.wait_for(redundant_enable_tested.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("redundant_enable did not test enabling when already enabled")
 
         try:
             await asyncio.wait_for(redundant_disable_tested.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 "redundant_disable did not test disabling when will be disabled"
             )
@@ -185,7 +185,7 @@ async def test_loop_disable_enable(
         # Wait to see if self_disable_10 gets re-enabled
         try:
             await asyncio.wait_for(self_disable_10_re_enabled.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("self_disable_10 was not re-enabled within 5 seconds")
 
         # Component was re-enabled - verify it ran more times
@@ -198,7 +198,7 @@ async def test_loop_disable_enable(
         # Wait for ISR component to disable itself after 5 loops
         try:
             await asyncio.wait_for(isr_component_disabled.wait(), timeout=3.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("ISR component did not disable itself within 3 seconds")
 
         # Verify it ran exactly 5 times before disabling
@@ -210,7 +210,7 @@ async def test_loop_disable_enable(
         # Wait for component to be re-enabled by periodic ISR simulation and run again
         try:
             await asyncio.wait_for(isr_component_re_enabled.wait(), timeout=2.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("ISR component was not re-enabled after ISR call")
 
         # Verify it's running again after ISR enable
@@ -222,7 +222,7 @@ async def test_loop_disable_enable(
         # Wait for pure ISR enable (no main loop enable) to work
         try:
             await asyncio.wait_for(isr_component_pure_re_enabled.wait(), timeout=2.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("ISR component was not re-enabled by pure ISR call")
 
         # Verify it ran after pure ISR enable
@@ -235,7 +235,7 @@ async def test_loop_disable_enable(
         # Wait for update component to disable its loop
         try:
             await asyncio.wait_for(update_component_loop_disabled.wait(), timeout=3.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Update component did not disable its loop within 3 seconds")
 
         # Verify it ran exactly 3 loops before disabling
@@ -248,7 +248,7 @@ async def test_loop_disable_enable(
             await asyncio.wait_for(
                 update_component_manual_update_called.wait(), timeout=5.0
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Manual component.update was not called within 5 seconds")
 
         # The key test: verify that manual component.update worked after loop was disabled

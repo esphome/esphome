@@ -112,7 +112,7 @@ async def test_scheduler_rapid_cancellation(
         # Wait for test to complete with timeout
         try:
             await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(f"Test timed out. Stats: {test_stats}")
 
         # Check for any errors

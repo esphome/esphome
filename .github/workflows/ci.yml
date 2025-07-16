@@ -20,8 +20,8 @@ permissions:
   contents: read
 
 env:
-  DEFAULT_PYTHON: "3.10"
-  PYUPGRADE_TARGET: "--py310-plus"
+  DEFAULT_PYTHON: "3.11"
+  PYUPGRADE_TARGET: "--py311-plus"
 
 concurrency:
   # yamllint disable-line rule:line-length
@@ -112,7 +112,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "3.10"
           - "3.11"
           - "3.12"
           - "3.13"
@@ -128,13 +127,9 @@ jobs:
             os: windows-latest
           - python-version: "3.12"
             os: windows-latest
-          - python-version: "3.10"
-            os: windows-latest
           - python-version: "3.13"
             os: macOS-latest
           - python-version: "3.12"
-            os: macOS-latest
-          - python-version: "3.10"
             os: macOS-latest
     runs-on: ${{ matrix.os }}
     needs:

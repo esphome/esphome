@@ -85,7 +85,7 @@ async def test_scheduler_defer_cancel(
         try:
             await asyncio.wait_for(test_complete_future, timeout=10.0)
             executed_defer = await asyncio.wait_for(test_result_future, timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Test did not complete within timeout")
 
         # Verify that only defer 10 was executed
