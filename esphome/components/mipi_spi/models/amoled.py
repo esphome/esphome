@@ -67,6 +67,14 @@ RM690B0 = DriverChip(
     ),
 )
 
-T4_S3_AMOLED = RM690B0.extend("T4-S3", width=450, offset_width=16, bus_mode=TYPE_QUAD)
+T4_S3_AMOLED = RM690B0.extend(
+    "T4-S3",
+    width=450,
+    offset_width=16,
+    cs_pin=11,
+    reset_pin=13,
+    enable_pin=9,
+    bus_mode=TYPE_QUAD,
+)
 
 models = {}
