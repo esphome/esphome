@@ -530,27 +530,26 @@ def get_components_from_integration_fixtures() -> set[str]:
     Returns:
         Set of component names used in integration test fixtures
     """
-    import yaml
+    from esphome import yaml_util
 
     components: set[str] = set()
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        with open(yaml_file) as f:
-            config: dict[str, any] | None = yaml.safe_load(f)
-            if not config:
+        config: dict[str, any] | None = yaml_util.load_yaml(str(yaml_file))
+        if not config:
+            continue
+
+        # Add all top-level component keys
+        components.update(config.keys())
+
+        # Add platform components (e.g., output.template)
+        for value in config.values():
+            if not isinstance(value, list):
                 continue
 
-            # Add all top-level component keys
-            components.update(config.keys())
-
-            # Add platform components (e.g., output.template)
-            for value in config.values():
-                if not isinstance(value, list):
-                    continue
-
-                for item in value:
-                    if isinstance(item, dict) and "platform" in item:
-                        components.add(item["platform"])
+            for item in value:
+                if isinstance(item, dict) and "platform" in item:
+                    components.add(item["platform"])
 
     return components
