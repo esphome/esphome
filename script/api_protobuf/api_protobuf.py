@@ -240,26 +240,6 @@ class TypeInfo(ABC):
         value = value_expr if value_expr else name
         return f"ProtoSize::{method}(total_size, {field_id_size}, {value});"
 
-    def _get_fixed_size_calculation(
-        self, name: str, force: bool, num_bytes: int, zero_check: str
-    ) -> str:
-        """Helper for fixed-size field calculations.
-
-        Args:
-            name: Field name
-            force: Whether this is for a repeated field
-            num_bytes: Number of bytes (4 or 8)
-            zero_check: Expression to check for zero value (e.g., "!= 0.0f")
-        """
-        field_id_size = self.calculate_field_id_size()
-        # Fixed-size repeated fields are handled differently in RepeatedTypeInfo
-        # so we should never get force=True here
-        assert not force, (
-            "Fixed-size repeated fields should be handled by RepeatedTypeInfo"
-        )
-        method = f"add_fixed_field<{num_bytes}>"
-        return f"ProtoSize::{method}(total_size, {field_id_size}, {name} {zero_check});"
-
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         """Calculate the size needed for encoding this field.
@@ -345,7 +325,8 @@ class DoubleType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 8, "!= 0.0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_double_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -368,7 +349,8 @@ class FloatType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 4, "!= 0.0f")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_float_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -451,7 +433,8 @@ class Fixed64Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 8, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_fixed64_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -474,7 +457,8 @@ class Fixed32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 4, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_fixed32_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -663,7 +647,8 @@ class SFixed32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 4, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_sfixed32_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -686,7 +671,8 @@ class SFixed64Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_fixed_size_calculation(name, force, 8, "!= 0")
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_sfixed64_field(total_size, {field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
