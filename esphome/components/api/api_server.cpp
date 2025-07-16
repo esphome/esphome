@@ -219,8 +219,6 @@ void APIServer::dump_config() {
 }
 
 #ifdef USE_API_PASSWORD
-bool APIServer::uses_password() const { return !this->password_.empty(); }
-
 bool APIServer::check_password(const std::string &password) const {
   // depend only on input password length
   const char *a = this->password_.c_str();

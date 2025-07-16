@@ -273,6 +273,9 @@ class APIConnection : public APIServerConnection {
   ProtoWriteBuffer allocate_batch_message_buffer(uint16_t size);
 
  protected:
+  // Helper function to handle authentication completion
+  void complete_authentication_();
+
   // Helper function to fill common entity info fields
   static void fill_entity_info_base(esphome::EntityBase *entity, InfoResponseProtoMessage &response) {
     // Set common fields that are shared by all entity types
