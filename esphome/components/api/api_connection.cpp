@@ -86,8 +86,8 @@ void APIConnection::start() {
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", this->get_client_combined_info().c_str(),
-             api_error_to_str(err), errno);
+    ESP_LOGW(TAG, "%s: Helper init failed %s errno=%d", this->get_client_combined_info().c_str(), api_error_to_str(err),
+             errno);
     return;
   }
   this->client_info_ = helper_->getpeername();
@@ -119,7 +119,7 @@ void APIConnection::loop() {
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->get_client_combined_info().c_str(),
+    ESP_LOGW(TAG, "%s: Socket operation failed %s errno=%d", this->get_client_combined_info().c_str(),
              api_error_to_str(err), errno);
     return;
   }
@@ -136,14 +136,8 @@ void APIConnection::loop() {
         break;
       } else if (err != APIError::OK) {
         on_fatal_error();
-        if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
-          ESP_LOGW(TAG, "%s: Connection reset", this->get_client_combined_info().c_str());
-        } else if (err == APIError::CONNECTION_CLOSED) {
-          ESP_LOGW(TAG, "%s: Connection closed", this->get_client_combined_info().c_str());
-        } else {
-          ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->get_client_combined_info().c_str(),
-                   api_error_to_str(err), errno);
-        }
+        ESP_LOGW(TAG, "%s: Reading failed %s errno=%d", this->get_client_combined_info().c_str(), api_error_to_str(err),
+                 errno);
         return;
       } else {
         this->last_traffic_ = now;
@@ -1612,7 +1606,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->get_client_combined_info().c_str(),
+    ESP_LOGW(TAG, "%s: Socket operation failed %s errno=%d", this->get_client_combined_info().c_str(),
              api_error_to_str(err), errno);
     return false;
   }
@@ -1633,12 +1627,8 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
     return false;
   if (err != APIError::OK) {
     on_fatal_error();
-    if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset", this->get_client_combined_info().c_str());
-    } else {
-      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", this->get_client_combined_info().c_str(),
-               api_error_to_str(err), errno);
-    }
+    ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", this->get_client_combined_info().c_str(),
+             api_error_to_str(err), errno);
     return false;
   }
   // Do not set last_traffic_ on send
@@ -1646,11 +1636,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
 }
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s requested access without authentication", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s access without authentication", this->get_client_combined_info().c_str());
 }
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s requested access without full connection", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s access without full connection", this->get_client_combined_info().c_str());
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();
@@ -1815,12 +1805,8 @@ void APIConnection::process_batch_() {
       this->helper_->write_protobuf_packets(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, packet_info);
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     on_fatal_error();
-    if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset during batch write", this->get_client_combined_info().c_str());
-    } else {
-      ESP_LOGW(TAG, "%s: Batch write failed %s errno=%d", this->get_client_combined_info().c_str(),
-               api_error_to_str(err), errno);
-    }
+    ESP_LOGW(TAG, "%s: Batch write failed %s errno=%d", this->get_client_combined_info().c_str(), api_error_to_str(err),
+             errno);
   }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP

@@ -426,7 +426,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   ESP_LOGD(TAG, "Noise PSK saved");
   if (make_active) {
     this->set_timeout(100, [this, psk]() {
-      ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
+      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       this->set_noise_psk(psk);
       for (auto &c : this->clients_) {
         c->send_message(DisconnectRequest());
