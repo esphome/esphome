@@ -180,7 +180,8 @@ void APIConnection::loop() {
       on_fatal_error();
       ESP_LOGW(TAG, "%s is unresponsive; disconnecting", this->get_client_combined_info().c_str());
     }
-  } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
+  } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
+    // Only send ping if we're not disconnecting
     ESP_LOGVV(TAG, "Sending keepalive PING");
     this->flags_.sent_ping = this->send_message(PingRequest());
     if (!this->flags_.sent_ping) {
@@ -1665,8 +1666,15 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
 
 void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCreator creator, uint8_t message_type,
                                                   uint8_t estimated_size) {
-  // Insert at front for high priority messages (no deduplication check)
-  items.insert(items.begin(), BatchItem(entity, std::move(creator), message_type, estimated_size));
+  // Add high priority message and swap to front
+  // This avoids expensive vector::insert which shifts all elements
+  // Note: We only ever have one high-priority message at a time (ping OR disconnect)
+  // If we're disconnecting, pings are blocked, so this simple swap is sufficient
+  items.emplace_back(entity, std::move(creator), message_type, estimated_size);
+  if (items.size() > 1) {
+    // Swap the new high-priority item to the front
+    std::swap(items.front(), items.back());
+  }
 }
 
 bool APIConnection::schedule_batch_() {
