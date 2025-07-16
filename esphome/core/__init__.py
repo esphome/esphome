@@ -21,6 +21,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_HOST,
     PLATFORM_LN882X,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
@@ -671,6 +672,10 @@ class EsphomeCore:
         return self.is_bk72xx or self.is_rtl87xx or self.is_ln882x
 
     @property
+    def is_nrf52(self):
+        return self.target_platform == PLATFORM_NRF52
+
+    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
@@ -685,6 +690,10 @@ class EsphomeCore:
     @property
     def using_esp_idf(self):
         return self.target_framework == "esp-idf"
+
+    @property
+    def using_zephyr(self):
+        return self.target_framework == "zephyr"
 
     def add_job(self, func, *args, **kwargs) -> None:
         self.event_loop.add_job(func, *args, **kwargs)

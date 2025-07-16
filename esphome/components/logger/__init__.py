@@ -21,6 +21,11 @@ from esphome.components.libretiny.const import (
     COMPONENT_LN882X,
     COMPONENT_RTL87XX,
 )
+from esphome.components.zephyr import (
+    zephyr_add_cdc_acm,
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -41,6 +46,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
     PlatformFramework,
@@ -115,6 +121,8 @@ ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
+UART_SELECTION_NRF52 = [USB_CDC, UART0]
+
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
     UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
@@ -167,6 +175,8 @@ def uart_selection(value):
             return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
+    if CORE.is_nrf52:
+        return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
 
 
@@ -185,6 +195,7 @@ LoggerMessageTrigger = logger_ns.class_(
     "LoggerMessageTrigger",
     automation.Trigger.template(cg.int_, cg.const_char_ptr, cg.const_char_ptr),
 )
+
 
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONFIG_SCHEMA = cv.All(
@@ -227,6 +238,7 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
+                nrf52=USB_CDC,
             ): cv.All(
                 cv.only_on(
                     [
@@ -236,6 +248,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_BK72XX,
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
+                        PLATFORM_NRF52,
                     ]
                 ),
                 uart_selection,
@@ -358,6 +371,15 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
+    if CORE.using_zephyr:
+        if config[CONF_HARDWARE_UART] == UART0:
+            zephyr_add_overlay("""&uart0 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == UART1:
+            zephyr_add_overlay("""&uart1 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == USB_CDC:
+            zephyr_add_prj_conf("UART_LINE_CTRL", True)
+            zephyr_add_cdc_acm(config, 0)
+
     # Register at end for safe mode
     await cg.register_component(log, config)
 
@@ -462,6 +484,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "logger_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
         "task_log_buffer.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,

@@ -6,6 +6,7 @@ import tzlocal
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
@@ -25,7 +26,7 @@ from esphome.const import (
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -341,6 +342,8 @@ async def register_time(time_var, config):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("POSIX_CLOCK", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 

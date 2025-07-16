@@ -21,6 +21,7 @@ class Platform(StrEnum):
     HOST = "host"
     LIBRETINY_OLDSTYLE = "libretiny"
     LN882X = "ln882x"
+    NRF52 = "nrf52"
     RP2040 = "rp2040"
     RTL87XX = "rtl87xx"
 
@@ -31,6 +32,7 @@ class Framework(StrEnum):
     ARDUINO = "arduino"
     ESP_IDF = "esp-idf"
     NATIVE = "host"
+    ZEPHYR = "zephyr"
 
 
 class PlatformFramework(Enum):
@@ -47,6 +49,9 @@ class PlatformFramework(Enum):
     RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
     LN882X_ARDUINO = (Platform.LN882X, Framework.ARDUINO)
 
+    # Zephyr framework platforms
+    NRF52_ZEPHYR = (Platform.NRF52, Framework.ZEPHYR)
+
     # Host platform (native)
     HOST_NATIVE = (Platform.HOST, Framework.NATIVE)
 
@@ -58,6 +63,7 @@ PLATFORM_ESP8266 = Platform.ESP8266
 PLATFORM_HOST = Platform.HOST
 PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
 PLATFORM_LN882X = Platform.LN882X
+PLATFORM_NRF52 = Platform.NRF52
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
