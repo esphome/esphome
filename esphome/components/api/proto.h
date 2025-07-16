@@ -135,6 +135,7 @@ class ProtoVarInt {
 
 // Forward declaration for decode_to_message and encode_to_writer
 class ProtoMessage;
+class ProtoDecodableMessage;
 
 class ProtoLengthDelimited {
  public:
@@ -142,15 +143,15 @@ class ProtoLengthDelimited {
   std::string as_string() const { return std::string(reinterpret_cast<const char *>(this->value_), this->length_); }
 
   /**
-   * Decode the length-delimited data into an existing ProtoMessage instance.
+   * Decode the length-delimited data into an existing ProtoDecodableMessage instance.
    *
    * This method allows decoding without templates, enabling use in contexts
-   * where the message type is not known at compile time. The ProtoMessage's
+   * where the message type is not known at compile time. The ProtoDecodableMessage's
    * decode() method will be called with the raw data and length.
    *
-   * @param msg The ProtoMessage instance to decode into
+   * @param msg The ProtoDecodableMessage instance to decode into
    */
-  void decode_to_message(ProtoMessage &msg) const;
+  void decode_to_message(ProtoDecodableMessage &msg) const;
 
  protected:
   const uint8_t *const value_;
@@ -298,7 +299,6 @@ class ProtoMessage {
   virtual ~ProtoMessage() = default;
   // Default implementation for messages with no fields
   virtual void encode(ProtoWriteBuffer buffer) const {}
-  void decode(const uint8_t *buffer, size_t length);
   // Default implementation for messages with no fields
   virtual void calculate_size(uint32_t &total_size) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -306,6 +306,12 @@ class ProtoMessage {
   virtual void dump_to(std::string &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
 #endif
+};
+
+// Base class for messages that support decoding
+class ProtoDecodableMessage : public ProtoMessage {
+ public:
+  void decode(const uint8_t *buffer, size_t length);
 
  protected:
   virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }
@@ -808,8 +814,8 @@ inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessa
   assert(this->buffer_->size() == begin + varint_length_bytes + msg_length_bytes);
 }
 
-// Implementation of decode_to_message - must be after ProtoMessage is defined
-inline void ProtoLengthDelimited::decode_to_message(ProtoMessage &msg) const {
+// Implementation of decode_to_message - must be after ProtoDecodableMessage is defined
+inline void ProtoLengthDelimited::decode_to_message(ProtoDecodableMessage &msg) const {
   msg.decode(this->value_, this->length_);
 }
 

@@ -56,26 +56,6 @@ void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool
 void ConnectResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->invalid_password);
 }
-bool AreaInfo::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->area_id = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool AreaInfo::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2:
-      this->name = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->area_id);
   buffer.encode_string(2, this->name);
@@ -83,29 +63,6 @@ void AreaInfo::encode(ProtoWriteBuffer buffer) const {
 void AreaInfo::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_uint32_field(total_size, 1, this->area_id);
   ProtoSize::add_string_field(total_size, 1, this->name);
-}
-bool DeviceInfo::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->device_id = value.as_uint32();
-      break;
-    case 3:
-      this->area_id = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool DeviceInfo::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2:
-      this->name = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 void DeviceInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->device_id);
@@ -918,19 +875,6 @@ void NoiseEncryptionSetKeyResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->success);
 }
 #endif
-bool HomeassistantServiceMap::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_string();
-      break;
-    case 2:
-      this->value = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
 void HomeassistantServiceMap::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->key);
   buffer.encode_string(2, this->value);
@@ -1000,26 +944,6 @@ void GetTimeResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_fixed32_field(total_size, 1, this->epoch_seconds);
 }
 #ifdef USE_API_SERVICES
-bool ListEntitiesServicesArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2:
-      this->type = static_cast<enums::ServiceArgType>(value.as_uint32());
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool ListEntitiesServicesArgument::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->name = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name);
   buffer.encode_uint32(2, static_cast<uint32_t>(this->type));
@@ -1087,50 +1011,6 @@ bool ExecuteServiceArgument::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
   return true;
-}
-void ExecuteServiceArgument::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_bool(1, this->bool_);
-  buffer.encode_int32(2, this->legacy_int);
-  buffer.encode_float(3, this->float_);
-  buffer.encode_string(4, this->string_);
-  buffer.encode_sint32(5, this->int_);
-  for (auto it : this->bool_array) {
-    buffer.encode_bool(6, it, true);
-  }
-  for (auto &it : this->int_array) {
-    buffer.encode_sint32(7, it, true);
-  }
-  for (auto &it : this->float_array) {
-    buffer.encode_float(8, it, true);
-  }
-  for (auto &it : this->string_array) {
-    buffer.encode_string(9, it, true);
-  }
-}
-void ExecuteServiceArgument::calculate_size(uint32_t &total_size) const {
-  ProtoSize::add_bool_field(total_size, 1, this->bool_);
-  ProtoSize::add_int32_field(total_size, 1, this->legacy_int);
-  ProtoSize::add_float_field(total_size, 1, this->float_);
-  ProtoSize::add_string_field(total_size, 1, this->string_);
-  ProtoSize::add_sint32_field(total_size, 1, this->int_);
-  if (!this->bool_array.empty()) {
-    for (const auto it : this->bool_array) {
-      ProtoSize::add_bool_field_repeated(total_size, 1, it);
-    }
-  }
-  if (!this->int_array.empty()) {
-    for (const auto &it : this->int_array) {
-      ProtoSize::add_sint32_field_repeated(total_size, 1, it);
-    }
-  }
-  if (!this->float_array.empty()) {
-    total_size += this->float_array.size() * 5;
-  }
-  if (!this->string_array.empty()) {
-    for (const auto &it : this->string_array) {
-      ProtoSize::add_string_field_repeated(total_size, 1, it);
-    }
-  }
 }
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
@@ -1859,35 +1739,6 @@ bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 #endif
 #ifdef USE_MEDIA_PLAYER
-bool MediaPlayerSupportedFormat::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2:
-      this->sample_rate = value.as_uint32();
-      break;
-    case 3:
-      this->num_channels = value.as_uint32();
-      break;
-    case 4:
-      this->purpose = static_cast<enums::MediaPlayerFormatPurpose>(value.as_uint32());
-      break;
-    case 5:
-      this->sample_bytes = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool MediaPlayerSupportedFormat::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->format = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
 void MediaPlayerSupportedFormat::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->format);
   buffer.encode_uint32(2, this->sample_rate);
@@ -2017,29 +1868,6 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   }
   return true;
 }
-bool BluetoothServiceData::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2:
-      this->legacy_data.push_back(value.as_uint32());
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool BluetoothServiceData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->uuid = value.as_string();
-      break;
-    case 3:
-      this->data = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
 void BluetoothServiceData::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->uuid);
   for (auto &it : this->legacy_data) {
@@ -2083,32 +1911,6 @@ void BluetoothLEAdvertisementResponse::calculate_size(uint32_t &total_size) cons
   ProtoSize::add_repeated_message(total_size, 1, this->service_data);
   ProtoSize::add_repeated_message(total_size, 1, this->manufacturer_data);
   ProtoSize::add_uint32_field(total_size, 1, this->address_type);
-}
-bool BluetoothLERawAdvertisement::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->address = value.as_uint64();
-      break;
-    case 2:
-      this->rssi = value.as_sint32();
-      break;
-    case 3:
-      this->address_type = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool BluetoothLERawAdvertisement::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 4:
-      this->data = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
@@ -2171,19 +1973,6 @@ bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, ProtoVarI
   }
   return true;
 }
-bool BluetoothGATTDescriptor::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->uuid.push_back(value.as_uint64());
-      break;
-    case 2:
-      this->handle = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
 void BluetoothGATTDescriptor::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->uuid) {
     buffer.encode_uint64(1, it, true);
@@ -2197,33 +1986,6 @@ void BluetoothGATTDescriptor::calculate_size(uint32_t &total_size) const {
     }
   }
   ProtoSize::add_uint32_field(total_size, 1, this->handle);
-}
-bool BluetoothGATTCharacteristic::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->uuid.push_back(value.as_uint64());
-      break;
-    case 2:
-      this->handle = value.as_uint32();
-      break;
-    case 3:
-      this->properties = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool BluetoothGATTCharacteristic::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 4:
-      this->descriptors.emplace_back();
-      value.decode_to_message(this->descriptors.back());
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 void BluetoothGATTCharacteristic::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->uuid) {
@@ -2244,30 +2006,6 @@ void BluetoothGATTCharacteristic::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_uint32_field(total_size, 1, this->handle);
   ProtoSize::add_uint32_field(total_size, 1, this->properties);
   ProtoSize::add_repeated_message(total_size, 1, this->descriptors);
-}
-bool BluetoothGATTService::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->uuid.push_back(value.as_uint64());
-      break;
-    case 2:
-      this->handle = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool BluetoothGATTService::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 3:
-      this->characteristics.emplace_back();
-      value.decode_to_message(this->characteristics.back());
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 void BluetoothGATTService::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->uuid) {
@@ -2519,29 +2257,6 @@ bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarIn
   }
   return true;
 }
-bool VoiceAssistantAudioSettings::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->noise_suppression_level = value.as_uint32();
-      break;
-    case 2:
-      this->auto_gain = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool VoiceAssistantAudioSettings::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 3:
-      this->volume_multiplier = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
 void VoiceAssistantAudioSettings::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->noise_suppression_level);
   buffer.encode_uint32(2, this->auto_gain);
@@ -2591,14 +2306,6 @@ bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimi
       return false;
   }
   return true;
-}
-void VoiceAssistantEventData::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_string(1, this->name);
-  buffer.encode_string(2, this->value);
-}
-void VoiceAssistantEventData::calculate_size(uint32_t &total_size) const {
-  ProtoSize::add_string_field(total_size, 1, this->name);
-  ProtoSize::add_string_field(total_size, 1, this->value);
 }
 bool VoiceAssistantEventResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -2710,22 +2417,6 @@ bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLength
 void VoiceAssistantAnnounceFinished::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->success); }
 void VoiceAssistantAnnounceFinished::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->success);
-}
-bool VoiceAssistantWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->id = value.as_string();
-      break;
-    case 2:
-      this->wake_word = value.as_string();
-      break;
-    case 3:
-      this->trained_languages.push_back(value.as_string());
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 void VoiceAssistantWakeWord::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->id);
