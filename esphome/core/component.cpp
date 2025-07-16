@@ -9,6 +9,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_RUNTIME_STATS
+#include "esphome/components/runtime_stats/runtime_stats.h"
+#endif
 
 namespace esphome {
 
@@ -396,6 +399,13 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   uint32_t curr_time = millis();
 
   uint32_t blocking_time = curr_time - this->started_;
+
+#ifdef USE_RUNTIME_STATS
+  // Record component runtime stats
+  if (global_runtime_stats != nullptr) {
+    global_runtime_stats->record_component_time(this->component_, blocking_time, curr_time);
+  }
+#endif
   bool should_warn;
   if (this->component_ != nullptr) {
     should_warn = this->component_->should_warn_of_blocking(blocking_time);
