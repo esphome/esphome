@@ -1620,7 +1620,9 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 
-static std::string get_event_type(event::Event *event) { return event->last_event_type ? *event->last_event_type : ""; }
+static std::string get_event_type(event::Event *event) {
+  return (event && event->last_event_type) ? *event->last_event_type : "";
+}
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
