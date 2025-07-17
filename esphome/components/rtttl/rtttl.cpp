@@ -72,8 +72,9 @@ void Rtttl::play(std::string rtttl) {
   }
   this->position_ += 2;
   num = this->get_integer_();
-  if (num > 0)
+  if (num > 0) {
     this->default_duration_ = num;
+  }
 
   // get default octave
   this->position_ = this->rtttl_.find("o=", this->position_);
@@ -83,8 +84,9 @@ void Rtttl::play(std::string rtttl) {
   }
   this->position_ += 2;
   num = get_integer_();
-  if (num >= 3 && num <= 7)
+  if (num >= 3 && num <= 7) {
     this->default_octave_ = num;
+  }
 
   // get BPM
   this->position_ = this->rtttl_.find("b=", this->position_);
@@ -94,8 +96,9 @@ void Rtttl::play(std::string rtttl) {
   }
   this->position_ += 2;
   num = get_integer_();
-  if (num != 0)
+  if (num != 0) {
     bpm = num;
+  }
 
   this->position_ = this->rtttl_.find(':', this->position_);
   if (this->position_ == std::string::npos) {
@@ -234,8 +237,9 @@ void Rtttl::loop() {
   }
 #endif
 #ifdef USE_OUTPUT
-  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_)
+  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_) {
     return;
+  }
 #endif
   if (this->position_ >= this->rtttl_.length()) {
     this->finish_();
@@ -243,8 +247,9 @@ void Rtttl::loop() {
   }
 
   // align to note: most rtttl's out there does not add and space after the ',' separator but just in case...
-  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ')
+  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ') {
     this->position_++;
+  }
 
   // first, get note duration, if available
   uint8_t num = this->get_integer_();
@@ -301,8 +306,9 @@ void Rtttl::loop() {
 
   // now, get scale
   uint8_t scale = get_integer_();
-  if (scale == 0)
+  if (scale == 0) {
     scale = this->default_octave_;
+  }
 
   if (scale < 4 || scale > 7) {
     ESP_LOGE(TAG, "Octave must be between 4 and 7 (it is %d)", scale);
