@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read       #  Needed to fetch PR details
   issues: write        #  Needed to create and update comments (PR comments are managed via the issues REST API)
+  pull-requests: write  # also needed?
 
 jobs:
   external-comment:
