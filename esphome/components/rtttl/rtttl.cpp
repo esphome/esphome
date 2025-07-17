@@ -14,6 +14,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  523,  554,  587,  622,  659,  698,  740,  784,  831,  880,  932,  988,  1047,
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
+static const uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));  // 1+4*12=49
 
 #ifdef USE_SPEAKER
 static const uint16_t SAMPLE_BUFFER_SIZE = 2048;
@@ -314,9 +315,9 @@ void Rtttl::loop() {
   // Now play the note
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
-    if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
+    if (note_index < 0 || note_index >= NOTES_COUNT) {
       ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
-               (int) sizeof(NOTES));
+               NOTES_COUNT);
       this->finish_();
       return;
     }
