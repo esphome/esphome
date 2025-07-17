@@ -639,7 +639,11 @@ class DownloadListRequestHandler(BaseHandler):
 
         if platform.upper() in ESP32_VARIANTS:
             platform = "esp32"
-        elif platform in (const.PLATFORM_RTL87XX, const.PLATFORM_BK72XX):
+        elif platform in (
+            const.PLATFORM_RTL87XX,
+            const.PLATFORM_BK72XX,
+            const.PLATFORM_LN882X,
+        ):
             platform = "libretiny"
 
         try:
@@ -837,6 +841,10 @@ class BoardsRequestHandler(BaseHandler):
             from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
 
             boards = BK72XX_BOARDS
+        elif platform == const.PLATFORM_LN882X:
+            from esphome.components.ln882x.boards import BOARDS as LN882X_BOARDS
+
+            boards = LN882X_BOARDS
         elif platform == const.PLATFORM_RTL87XX:
             from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 

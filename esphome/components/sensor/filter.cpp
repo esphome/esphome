@@ -50,6 +50,7 @@ optional<float> MedianFilter::new_value(float value) {
     if (!this->queue_.empty()) {
       // Copy queue without NaN values
       std::vector<float> median_queue;
+      median_queue.reserve(this->queue_.size());
       for (auto v : this->queue_) {
         if (!std::isnan(v)) {
           median_queue.push_back(v);
@@ -118,7 +119,7 @@ optional<float> QuantileFilter::new_value(float value) {
       size_t queue_size = quantile_queue.size();
       if (queue_size) {
         size_t position = ceilf(queue_size * this->quantile_) - 1;
-        ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %d/%d", this, position + 1, queue_size);
+        ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, queue_size);
         result = quantile_queue[position];
       }
     }

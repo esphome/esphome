@@ -16,12 +16,13 @@ bool SPIDelegate::is_ready() { return true; }
 GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
-                                           GPIOPin *cs_pin) {
+                                           GPIOPin *cs_pin, bool release_device, bool write_only) {
   if (this->devices_.count(device) != 0) {
     ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
   }
-  SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin);  // NOLINT
+  SPIDelegate *delegate =
+      this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin, release_device, write_only);  // NOLINT
   this->devices_[device] = delegate;
   return delegate;
 }

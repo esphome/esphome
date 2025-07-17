@@ -13,7 +13,19 @@ from aioesphomeapi import APIClient
 ConfigWriter = Callable[[str, str | None], Awaitable[Path]]
 CompileFunction = Callable[[Path], Awaitable[Path]]
 RunFunction = Callable[[Path], Awaitable[asyncio.subprocess.Process]]
-RunCompiledFunction = Callable[[str, str | None], AbstractAsyncContextManager[None]]
+
+
+class RunCompiledFunction(Protocol):
+    """Protocol for run_compiled function with optional line callback."""
+
+    def __call__(  # noqa: E704
+        self,
+        yaml_content: str,
+        filename: str | None = None,
+        line_callback: Callable[[str], None] | None = None,
+    ) -> AbstractAsyncContextManager[None]: ...
+
+
 WaitFunction = Callable[[APIClient, float], Awaitable[bool]]
 
 

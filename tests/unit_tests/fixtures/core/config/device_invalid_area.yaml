@@ -1,0 +1,12 @@
+esphome:
+  name: test
+  areas:
+    - id: valid_area
+      name: "Valid Area"
+  devices:
+    - id: test_device
+      name: "Test Device"
+      area_id: nonexistent_area
+
+esp32:
+  board: esp32dev

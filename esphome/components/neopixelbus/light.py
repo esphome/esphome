@@ -215,4 +215,7 @@ async def to_code(config):
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
     # Version Listed Here: https://registry.platformio.org/libraries/makuna/NeoPixelBus/versions
-    cg.add_library("makuna/NeoPixelBus", "2.7.3")
+    if CORE.is_esp32:
+        cg.add_library("makuna/NeoPixelBus", "2.8.0")
+    else:
+        cg.add_library("makuna/NeoPixelBus", "2.7.3")

@@ -11,7 +11,6 @@ class CopyLock : public lock::Lock, public Component {
   void set_source(lock::Lock *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void control(const lock::LockCall &call) override;

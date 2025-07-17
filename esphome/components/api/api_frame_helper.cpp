@@ -1,11 +1,10 @@
 #include "api_frame_helper.h"
 #ifdef USE_API
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include "proto.h"
-#include "api_pb2_size.h"
 #include <cstring>
 #include <cinttypes>
 
@@ -64,6 +63,17 @@ const char *api_error_to_str(APIError err) {
     return "CONNECTION_CLOSED";
   }
   return "UNKNOWN";
+}
+
+// Default implementation for loop - handles sending buffered data
+APIError APIFrameHelper::loop() {
+  if (!this->tx_buf_.empty()) {
+    APIError err = try_send_tx_buf_();
+    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
+      return err;
+    }
+  }
+  return APIError::OK;  // Convert WOULD_BLOCK to OK to avoid connection termination
 }
 
 // Helper method to buffer data from IOVs
@@ -214,6 +224,22 @@ APIError APIFrameHelper::init_common_() {
 }
 
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->info_.c_str(), ##__VA_ARGS__)
+
+APIError APIFrameHelper::handle_socket_read_result_(ssize_t received) {
+  if (received == -1) {
+    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+      return APIError::WOULD_BLOCK;
+    }
+    state_ = State::FAILED;
+    HELPER_LOG("Socket read failed with errno %d", errno);
+    return APIError::SOCKET_READ_FAILED;
+  } else if (received == 0) {
+    state_ = State::FAILED;
+    HELPER_LOG("Connection closed");
+    return APIError::CONNECTION_CLOSED;
+  }
+  return APIError::OK;
+}
 // uncomment to log raw packets
 //#define HELPER_LOG_PACKETS
 
@@ -274,17 +300,21 @@ APIError APINoiseFrameHelper::init() {
 }
 /// Run through handshake messages (if in that phase)
 APIError APINoiseFrameHelper::loop() {
-  APIError err = state_action_();
-  if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    return err;
-  }
-  if (!this->tx_buf_.empty()) {
-    err = try_send_tx_buf_();
+  // During handshake phase, process as many actions as possible until we can't progress
+  // socket_->ready() stays true until next main loop, but state_action() will return
+  // WOULD_BLOCK when no more data is available to read
+  while (state_ != State::DATA && this->socket_->ready()) {
+    APIError err = state_action_();
     if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
       return err;
     }
+    if (err == APIError::WOULD_BLOCK) {
+      break;
+    }
   }
-  return APIError::OK;  // Convert WOULD_BLOCK to OK to avoid connection termination
+
+  // Use base class implementation for buffer sending
+  return APIFrameHelper::loop();
 }
 
 /** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
@@ -312,17 +342,9 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // no header information yet
     uint8_t to_read = 3 - rx_header_buf_len_;
     ssize_t received = this->socket_->read(&rx_header_buf_[rx_header_buf_len_], to_read);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
     rx_header_buf_len_ += static_cast<uint8_t>(received);
     if (static_cast<uint8_t>(received) != to_read) {
@@ -330,17 +352,15 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::WOULD_BLOCK;
     }
 
+    if (rx_header_buf_[0] != 0x01) {
+      state_ = State::FAILED;
+      HELPER_LOG("Bad indicator byte %u", rx_header_buf_[0]);
+      return APIError::BAD_INDICATOR;
+    }
     // header reading done
   }
 
   // read body
-  uint8_t indicator = rx_header_buf_[0];
-  if (indicator != 0x01) {
-    state_ = State::FAILED;
-    HELPER_LOG("Bad indicator byte %u", indicator);
-    return APIError::BAD_INDICATOR;
-  }
-
   uint16_t msg_size = (((uint16_t) rx_header_buf_[1]) << 8) | rx_header_buf_[2];
 
   if (state_ != State::DATA && msg_size > 128) {
@@ -359,17 +379,9 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // more data to read
     uint16_t to_read = msg_size - rx_buf_len_;
     ssize_t received = this->socket_->read(&rx_buf_[rx_buf_len_], to_read);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
     rx_buf_len_ += static_cast<uint16_t>(received);
     if (static_cast<uint16_t>(received) != to_read) {
@@ -586,10 +598,6 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return APIError::BAD_DATA_PACKET;
   }
 
-  // uint16_t type;
-  // uint16_t data_len;
-  // uint8_t *data;
-  // uint8_t *padding;  zero or more bytes to fill up the rest of the packet
   uint16_t type = (((uint16_t) msg_data[0]) << 8) | msg_data[1];
   uint16_t data_len = (((uint16_t) msg_data[2]) << 8) | msg_data[3];
   if (data_len > msg_size - 4) {
@@ -604,10 +612,16 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = type;
   return APIError::OK;
 }
-APIError APINoiseFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
-  int err;
-  APIError aerr;
-  aerr = state_action_();
+APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+  // Resize to include MAC space (required for Noise encryption)
+  buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
+  PacketInfo packet{type, 0,
+                    static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+  return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
+}
+
+APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) {
+  APIError aerr = state_action_();
   if (aerr != APIError::OK) {
     return aerr;
   }
@@ -616,56 +630,62 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuf
     return APIError::WOULD_BLOCK;
   }
 
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  // Message data starts after padding
-  uint16_t payload_len = raw_buffer->size() - frame_header_padding_;
-  uint16_t padding = 0;
-  uint16_t msg_len = 4 + payload_len + padding;
-
-  // We need to resize to include MAC space, but we already reserved it in create_buffer
-  raw_buffer->resize(raw_buffer->size() + frame_footer_size_);
-
-  // Write the noise header in the padded area
-  // Buffer layout:
-  // [0]    - 0x01 indicator byte
-  // [1-2]  - Size of encrypted payload (filled after encryption)
-  // [3-4]  - Message type (encrypted)
-  // [5-6]  - Payload length (encrypted)
-  // [7...] - Actual payload data (encrypted)
-  uint8_t *buf_start = raw_buffer->data();
-  buf_start[0] = 0x01;  // indicator
-  // buf_start[1], buf_start[2] to be set later after encryption
-  const uint8_t msg_offset = 3;
-  buf_start[msg_offset + 0] = (uint8_t) (type >> 8);         // type high byte
-  buf_start[msg_offset + 1] = (uint8_t) type;                // type low byte
-  buf_start[msg_offset + 2] = (uint8_t) (payload_len >> 8);  // data_len high byte
-  buf_start[msg_offset + 3] = (uint8_t) payload_len;         // data_len low byte
-  // payload data is already in the buffer starting at position 7
-
-  NoiseBuffer mbuf;
-  noise_buffer_init(mbuf);
-  // The capacity parameter should be msg_len + frame_footer_size_ (MAC length) to allow space for encryption
-  noise_buffer_set_inout(mbuf, buf_start + msg_offset, msg_len, msg_len + frame_footer_size_);
-  err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
-  if (err != 0) {
-    state_ = State::FAILED;
-    HELPER_LOG("noise_cipherstate_encrypt failed: %s", noise_err_to_str(err).c_str());
-    return APIError::CIPHERSTATE_ENCRYPT_FAILED;
+  if (packets.empty()) {
+    return APIError::OK;
   }
 
-  uint16_t total_len = 3 + mbuf.size;
-  buf_start[1] = (uint8_t) (mbuf.size >> 8);
-  buf_start[2] = (uint8_t) mbuf.size;
+  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
+  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
 
-  struct iovec iov;
-  // Point iov_base to the beginning of the buffer (no unused padding in Noise)
-  // We send the entire frame: indicator + size + encrypted(type + data_len + payload + MAC)
-  iov.iov_base = buf_start;
-  iov.iov_len = total_len;
+  this->reusable_iovs_.clear();
+  this->reusable_iovs_.reserve(packets.size());
 
-  // write raw to not have two packets sent if NAGLE disabled
-  return this->write_raw_(&iov, 1);
+  // We need to encrypt each packet in place
+  for (const auto &packet : packets) {
+    // The buffer already has padding at offset
+    uint8_t *buf_start = buffer_data + packet.offset;
+
+    // Write noise header
+    buf_start[0] = 0x01;  // indicator
+    // buf_start[1], buf_start[2] to be set after encryption
+
+    // Write message header (to be encrypted)
+    const uint8_t msg_offset = 3;
+    buf_start[msg_offset] = static_cast<uint8_t>(packet.message_type >> 8);      // type high byte
+    buf_start[msg_offset + 1] = static_cast<uint8_t>(packet.message_type);       // type low byte
+    buf_start[msg_offset + 2] = static_cast<uint8_t>(packet.payload_size >> 8);  // data_len high byte
+    buf_start[msg_offset + 3] = static_cast<uint8_t>(packet.payload_size);       // data_len low byte
+    // payload data is already in the buffer starting at offset + 7
+
+    // Make sure we have space for MAC
+    // The buffer should already have been sized appropriately
+
+    // Encrypt the message in place
+    NoiseBuffer mbuf;
+    noise_buffer_init(mbuf);
+    noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + packet.payload_size,
+                           4 + packet.payload_size + frame_footer_size_);
+
+    int err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
+    if (err != 0) {
+      state_ = State::FAILED;
+      HELPER_LOG("noise_cipherstate_encrypt failed: %s", noise_err_to_str(err).c_str());
+      return APIError::CIPHERSTATE_ENCRYPT_FAILED;
+    }
+
+    // Fill in the encrypted size
+    buf_start[1] = static_cast<uint8_t>(mbuf.size >> 8);
+    buf_start[2] = static_cast<uint8_t>(mbuf.size);
+
+    // Add iovec for this encrypted packet
+    this->reusable_iovs_.push_back(
+        {buf_start, static_cast<size_t>(3 + mbuf.size)});  // indicator + size + encrypted data
+  }
+
+  // Send all encrypted packets in one writev call
+  return this->write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size());
 }
+
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   uint8_t header[3];
   header[0] = 0x01;  // indicator
@@ -800,18 +820,12 @@ APIError APIPlaintextFrameHelper::init() {
   state_ = State::DATA;
   return APIError::OK;
 }
-/// Not used for plaintext
 APIError APIPlaintextFrameHelper::loop() {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
-  if (!this->tx_buf_.empty()) {
-    APIError err = try_send_tx_buf_();
-    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-      return err;
-    }
-  }
-  return APIError::OK;  // Convert WOULD_BLOCK to OK to avoid connection termination
+  // Use base class implementation for buffer sending
+  return APIFrameHelper::loop();
 }
 
 /** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
@@ -840,17 +854,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // Try to get to at least 3 bytes total (indicator + 2 varint bytes), then read one byte at a time
     ssize_t received =
         this->socket_->read(&rx_header_buf_[rx_header_buf_pos_], rx_header_buf_pos_ < 3 ? 3 - rx_header_buf_pos_ : 1);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
 
     // If this was the first read, validate the indicator byte
@@ -934,17 +940,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // more data to read
     uint16_t to_read = rx_header_parsed_len_ - rx_buf_len_;
     ssize_t received = this->socket_->read(&rx_buf_[rx_buf_len_], to_read);
-    if (received == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return APIError::WOULD_BLOCK;
-      }
-      state_ = State::FAILED;
-      HELPER_LOG("Socket read failed with errno %d", errno);
-      return APIError::SOCKET_READ_FAILED;
-    } else if (received == 0) {
-      state_ = State::FAILED;
-      HELPER_LOG("Connection closed");
-      return APIError::CONNECTION_CLOSED;
+    APIError err = handle_socket_read_result_(received);
+    if (err != APIError::OK) {
+      return err;
     }
     rx_buf_len_ += static_cast<uint16_t>(received);
     if (static_cast<uint16_t>(received) != to_read) {
@@ -1003,66 +1001,75 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = rx_header_parsed_type_;
   return APIError::OK;
 }
-APIError APIPlaintextFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
+APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+  PacketInfo packet{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
+  return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
+}
+
+APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
 
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  // Message data starts after padding (frame_header_padding_ = 6)
-  uint16_t payload_len = static_cast<uint16_t>(raw_buffer->size() - frame_header_padding_);
-
-  // Calculate varint sizes for header components
-  uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(payload_len));
-  uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(type));
-  uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
-
-  if (total_header_len > frame_header_padding_) {
-    // Header is too large to fit in the padding
-    return APIError::BAD_ARG;
+  if (packets.empty()) {
+    return APIError::OK;
   }
 
-  // Calculate where to start writing the header
-  // The header starts at the latest possible position to minimize unused padding
-  //
-  // Example 1 (small values): total_header_len = 3, header_offset = 6 - 3 = 3
-  // [0-2]  - Unused padding
-  // [3]    - 0x00 indicator byte
-  // [4]    - Payload size varint (1 byte, for sizes 0-127)
-  // [5]    - Message type varint (1 byte, for types 0-127)
-  // [6...] - Actual payload data
-  //
-  // Example 2 (medium values): total_header_len = 4, header_offset = 6 - 4 = 2
-  // [0-1]  - Unused padding
-  // [2]    - 0x00 indicator byte
-  // [3-4]  - Payload size varint (2 bytes, for sizes 128-16383)
-  // [5]    - Message type varint (1 byte, for types 0-127)
-  // [6...] - Actual payload data
-  //
-  // Example 3 (large values): total_header_len = 6, header_offset = 6 - 6 = 0
-  // [0]    - 0x00 indicator byte
-  // [1-3]  - Payload size varint (3 bytes, for sizes 16384-2097151)
-  // [4-5]  - Message type varint (2 bytes, for types 128-32767)
-  // [6...] - Actual payload data
-  uint8_t *buf_start = raw_buffer->data();
-  uint8_t header_offset = frame_header_padding_ - total_header_len;
+  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
+  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
 
-  // Write the plaintext header
-  buf_start[header_offset] = 0x00;  // indicator
+  this->reusable_iovs_.clear();
+  this->reusable_iovs_.reserve(packets.size());
 
-  // Encode size varint directly into buffer
-  ProtoVarInt(payload_len).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
+  for (const auto &packet : packets) {
+    // Calculate varint sizes for header layout
+    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.payload_size));
+    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.message_type));
+    uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
-  // Encode type varint directly into buffer
-  ProtoVarInt(type).encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
+    // Calculate where to start writing the header
+    // The header starts at the latest possible position to minimize unused padding
+    //
+    // Example 1 (small values): total_header_len = 3, header_offset = 6 - 3 = 3
+    // [0-2]  - Unused padding
+    // [3]    - 0x00 indicator byte
+    // [4]    - Payload size varint (1 byte, for sizes 0-127)
+    // [5]    - Message type varint (1 byte, for types 0-127)
+    // [6...] - Actual payload data
+    //
+    // Example 2 (medium values): total_header_len = 4, header_offset = 6 - 4 = 2
+    // [0-1]  - Unused padding
+    // [2]    - 0x00 indicator byte
+    // [3-4]  - Payload size varint (2 bytes, for sizes 128-16383)
+    // [5]    - Message type varint (1 byte, for types 0-127)
+    // [6...] - Actual payload data
+    //
+    // Example 3 (large values): total_header_len = 6, header_offset = 6 - 6 = 0
+    // [0]    - 0x00 indicator byte
+    // [1-3]  - Payload size varint (3 bytes, for sizes 16384-2097151)
+    // [4-5]  - Message type varint (2 bytes, for types 128-32767)
+    // [6...] - Actual payload data
+    //
+    // The message starts at offset + frame_header_padding_
+    // So we write the header starting at offset + frame_header_padding_ - total_header_len
+    uint8_t *buf_start = buffer_data + packet.offset;
+    uint32_t header_offset = frame_header_padding_ - total_header_len;
 
-  struct iovec iov;
-  // Point iov_base to the beginning of our header (skip unused padding)
-  // This ensures we only send the actual header and payload, not the empty padding bytes
-  iov.iov_base = buf_start + header_offset;
-  iov.iov_len = total_header_len + payload_len;
+    // Write the plaintext header
+    buf_start[header_offset] = 0x00;  // indicator
 
-  return write_raw_(&iov, 1);
+    // Encode varints directly into buffer
+    ProtoVarInt(packet.payload_size).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
+    ProtoVarInt(packet.message_type)
+        .encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
+
+    // Add iovec for this packet (header + payload)
+    this->reusable_iovs_.push_back(
+        {buf_start + header_offset, static_cast<size_t>(total_header_len + packet.payload_size)});
+  }
+
+  // Send all packets in one writev call
+  return write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size());
 }
 
 #endif  // USE_API_PLAINTEXT

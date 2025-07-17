@@ -1,6 +1,6 @@
 #include "duty_cycle_sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace duty_cycle {

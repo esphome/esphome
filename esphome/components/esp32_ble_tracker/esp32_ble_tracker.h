@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 
 #include <array>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -38,6 +39,7 @@ struct ServiceData {
   adv_data_t data;
 };
 
+#ifdef USE_ESP32_BLE_DEVICE
 class ESPBLEiBeacon {
  public:
   ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
@@ -62,7 +64,7 @@ class ESPBLEiBeacon {
 
 class ESPBTDevice {
  public:
-  void parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
+  void parse_scan_rst(const BLEScanResult &scan_result);
 
   std::string address_str() const;
 
@@ -84,7 +86,8 @@ class ESPBTDevice {
 
   const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
 
-  const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &get_scan_result() const { return scan_result_; }
+  // Exposed through a function for use in lambdas
+  const BLEScanResult &get_scan_result() const { return *scan_result_; }
 
   bool resolve_irk(const uint8_t *irk) const;
 
@@ -98,7 +101,7 @@ class ESPBTDevice {
   }
 
  protected:
-  void parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
+  void parse_adv_(const uint8_t *payload, uint8_t len);
 
   esp_bd_addr_t address_{
       0,
@@ -112,18 +115,19 @@ class ESPBTDevice {
   std::vector<ESPBTUUID> service_uuids_{};
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};
-  esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_result_{};
+  const BLEScanResult *scan_result_{nullptr};
 };
+#endif  // USE_ESP32_BLE_DEVICE
 
 class ESP32BLETracker;
 
 class ESPBTDeviceListener {
  public:
   virtual void on_scan_end() {}
+#ifdef USE_ESP32_BLE_DEVICE
   virtual bool parse_device(const ESPBTDevice &device) = 0;
-  virtual bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
-    return false;
-  };
+#endif
+  virtual bool parse_devices(const BLEScanResult *scan_results, size_t count) { return false; };
   virtual AdvertisementParserType get_advertisement_parser_type() {
     return AdvertisementParserType::PARSED_ADVERTISEMENTS;
   };
@@ -133,7 +137,7 @@ class ESPBTDeviceListener {
   ESP32BLETracker *parent_{nullptr};
 };
 
-enum class ClientState {
+enum class ClientState : uint8_t {
   // Connection is allocated
   INIT,
   // Client is disconnecting
@@ -169,7 +173,7 @@ enum class ScannerState {
   STOPPED,
 };
 
-enum class ConnectionType {
+enum class ConnectionType : uint8_t {
   // The default connection type, we hold all the services in ram
   // for the duration of the connection.
   V1,
@@ -197,19 +201,24 @@ class ESPBTClient : public ESPBTDeviceListener {
     }
   }
   ClientState state() const { return state_; }
-  int app_id;
+
+  // Memory optimized layout
+  uint8_t app_id;  // App IDs are small integers assigned sequentially
 
  protected:
+  // Group 1: 1-byte types
   ClientState state_{ClientState::INIT};
   // want_disconnect_ is set to true when a disconnect is requested
   // while the client is connecting. This is used to disconnect the
   // client as soon as we get the connection id (conn_id_) from the
   // ESP_GATTC_OPEN_EVT event.
   bool want_disconnect_{false};
+  // 2 bytes used, 2 bytes padding
 };
 
 class ESP32BLETracker : public Component,
                         public GAPEventHandler,
+                        public GAPScanEventHandler,
                         public GATTcEventHandler,
                         public BLEStatusEventHandler,
                         public Parented<ESP32BLE> {
@@ -232,7 +241,9 @@ class ESP32BLETracker : public Component,
   void register_client(ESPBTClient *client);
   void recalculate_advertisement_parser_types();
 
+#ifdef USE_ESP32_BLE_DEVICE
   void print_bt_device_info(const ESPBTDevice &device);
+#endif
 
   void start_scan();
   void stop_scan();
@@ -240,6 +251,7 @@ class ESP32BLETracker : public Component,
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+  void gap_scan_event_handler(const BLEScanResult &scan_result) override;
   void ble_before_disabled_event_handler() override;
 
   void add_scanner_state_callback(std::function<void(ScannerState)> &&callback) {
@@ -264,7 +276,7 @@ class ESP32BLETracker : public Component,
   /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
   void set_scanner_state_(ScannerState state);
 
-  int app_id_{0};
+  uint8_t app_id_{0};
 
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
@@ -285,14 +297,16 @@ class ESP32BLETracker : public Component,
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
-  SemaphoreHandle_t scan_result_lock_;
-  size_t scan_result_index_{0};
-#ifdef USE_PSRAM
-  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
-#else
-  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 20;
-#endif  // USE_PSRAM
-  esp_ble_gap_cb_param_t::ble_scan_result_evt_param *scan_result_buffer_;
+
+  // Lock-free Single-Producer Single-Consumer (SPSC) ring buffer for scan results
+  // Producer: ESP-IDF Bluetooth stack callback (gap_scan_event_handler)
+  // Consumer: ESPHome main loop (loop() method)
+  // This design ensures zero blocking in the BT callback and prevents scan result loss
+  BLEScanResult *scan_ring_buffer_;
+  std::atomic<uint8_t> ring_write_index_{0};       // Written only by BT callback (producer)
+  std::atomic<uint8_t> ring_read_index_{0};        // Written only by main loop (consumer)
+  std::atomic<uint16_t> scan_results_dropped_{0};  // Tracks buffer overflow events
+
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
   int connecting_{0};

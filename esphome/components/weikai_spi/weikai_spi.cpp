@@ -173,11 +173,16 @@ void WeikaiComponentSPI::setup() {
 }
 
 void WeikaiComponentSPI::dump_config() {
-  ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
-  ESP_LOGCONFIG(TAG, "  Crystal: %" PRIu32 "", this->crystal_);
-  if (test_mode_)
-    ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
-  ESP_LOGCONFIG(TAG, "  Transfer buffer size: %d", XFER_MAX_SIZE);
+  ESP_LOGCONFIG(TAG,
+                "Initialization of %s with %d UARTs completed\n"
+                "  Crystal: %" PRIu32,
+                this->get_name(), this->children_.size(), this->crystal_);
+  if (test_mode_) {
+    ESP_LOGCONFIG(TAG,
+                  "  Test mode: %d\n"
+                  "  Transfer buffer size: %d",
+                  test_mode_, XFER_MAX_SIZE);
+  }
   LOG_PIN("  CS Pin: ", this->cs_);
 
   for (auto *child : this->children_) {

@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "api_pb2.h"
 
+#ifdef USE_API_SERVICES
 namespace esphome {
 namespace api {
 
@@ -15,6 +16,8 @@ class UserServiceDescriptor {
   virtual ListEntitiesServicesResponse encode_list_service_response() = 0;
 
   virtual bool execute_service(const ExecuteServiceRequest &req) = 0;
+
+  bool is_internal() { return false; }
 };
 
 template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
@@ -73,3 +76,4 @@ template<typename... Ts> class UserServiceTrigger : public UserServiceBase<Ts...
 
 }  // namespace api
 }  // namespace esphome
+#endif  // USE_API_SERVICES

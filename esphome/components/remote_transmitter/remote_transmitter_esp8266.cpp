@@ -15,8 +15,10 @@ void RemoteTransmitterComponent::setup() {
 }
 
 void RemoteTransmitterComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Remote Transmitter:");
-  ESP_LOGCONFIG(TAG, "  Carrier Duty: %u%%", this->carrier_duty_percent_);
+  ESP_LOGCONFIG(TAG,
+                "Remote Transmitter:\n"
+                "  Carrier Duty: %u%%",
+                this->carrier_duty_percent_);
   LOG_PIN("  Pin: ", this->pin_);
 }
 

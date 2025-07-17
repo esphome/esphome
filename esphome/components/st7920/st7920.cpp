@@ -95,8 +95,10 @@ void ST7920::fill(Color color) { memset(this->buffer_, color.is_on() ? 0xFF : 0x
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Height: %d", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %d", this->width_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %d\n"
+                "  Width: %d",
+                this->height_, this->width_);
 }
 
 float ST7920::get_setup_priority() const { return setup_priority::PROCESSOR; }

@@ -50,15 +50,17 @@ void HttpRequestUpdate::update_task(void *params) {
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
     std::string msg = str_sprintf("Failed to fetch manifest from %s", this_update->source_url_.c_str());
-    this_update->status_set_error(msg.c_str());
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
     UPDATE_RETURN;
   }
 
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   uint8_t *data = allocator.allocate(container->content_length);
   if (data == nullptr) {
-    std::string msg = str_sprintf("Failed to allocate %d bytes for manifest", container->content_length);
-    this_update->status_set_error(msg.c_str());
+    std::string msg = str_sprintf("Failed to allocate %zu bytes for manifest", container->content_length);
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
     container->end();
     UPDATE_RETURN;
   }
@@ -81,7 +83,7 @@ void HttpRequestUpdate::update_task(void *params) {
     container.reset();  // Release ownership of the container's shared_ptr
 
     valid = json::parse_json(response, [this_update](JsonObject root) -> bool {
-      if (!root.containsKey("name") || !root.containsKey("version") || !root.containsKey("builds")) {
+      if (!root["name"].is<const char *>() || !root["version"].is<const char *>() || !root["builds"].is<JsonArray>()) {
         ESP_LOGE(TAG, "Manifest does not contain required fields");
         return false;
       }
@@ -89,26 +91,26 @@ void HttpRequestUpdate::update_task(void *params) {
       this_update->update_info_.latest_version = root["version"].as<std::string>();
 
       for (auto build : root["builds"].as<JsonArray>()) {
-        if (!build.containsKey("chipFamily")) {
+        if (!build["chipFamily"].is<const char *>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
           return false;
         }
         if (build["chipFamily"] == ESPHOME_VARIANT) {
-          if (!build.containsKey("ota")) {
+          if (!build["ota"].is<JsonObject>()) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
-          auto ota = build["ota"];
-          if (!ota.containsKey("path") || !ota.containsKey("md5")) {
+          JsonObject ota = build["ota"].as<JsonObject>();
+          if (!ota["path"].is<const char *>() || !ota["md5"].is<const char *>()) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
           this_update->update_info_.firmware_url = ota["path"].as<std::string>();
           this_update->update_info_.md5 = ota["md5"].as<std::string>();
 
-          if (ota.containsKey("summary"))
+          if (ota["summary"].is<const char *>())
             this_update->update_info_.summary = ota["summary"].as<std::string>();
-          if (ota.containsKey("release_url"))
+          if (ota["release_url"].is<const char *>())
             this_update->update_info_.release_url = ota["release_url"].as<std::string>();
 
           return true;
@@ -120,7 +122,8 @@ void HttpRequestUpdate::update_task(void *params) {
 
   if (!valid) {
     std::string msg = str_sprintf("Failed to parse JSON from %s", this_update->source_url_.c_str());
-    this_update->status_set_error(msg.c_str());
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
     UPDATE_RETURN;
   }
 
@@ -147,18 +150,34 @@ void HttpRequestUpdate::update_task(void *params) {
     this_update->update_info_.current_version = current_version;
   }
 
+  bool trigger_update_available = false;
+
   if (this_update->update_info_.latest_version.empty() ||
       this_update->update_info_.latest_version == this_update->update_info_.current_version) {
     this_update->state_ = update::UPDATE_STATE_NO_UPDATE;
   } else {
+    if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
+      trigger_update_available = true;
+    }
     this_update->state_ = update::UPDATE_STATE_AVAILABLE;
   }
 
-  this_update->update_info_.has_progress = false;
-  this_update->update_info_.progress = 0.0f;
+  // Defer to main loop to ensure thread-safe execution of:
+  // - status_clear_error() performs non-atomic read-modify-write on component_state_
+  // - publish_state() triggers API callbacks that write to the shared protobuf buffer
+  //   which can be corrupted if accessed concurrently from task and main loop threads
+  // - update_available trigger to ensure consistent state when the trigger fires
+  this_update->defer([this_update, trigger_update_available]() {
+    this_update->update_info_.has_progress = false;
+    this_update->update_info_.progress = 0.0f;
 
-  this_update->status_clear_error();
-  this_update->publish_state();
+    this_update->status_clear_error();
+    this_update->publish_state();
+
+    if (trigger_update_available) {
+      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
+    }
+  });
 
   UPDATE_RETURN;
 }

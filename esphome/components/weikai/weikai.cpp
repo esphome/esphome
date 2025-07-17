@@ -102,7 +102,7 @@ WeikaiRegister &WeikaiRegister::operator|=(uint8_t value) {
 // The WeikaiComponent methods
 ///////////////////////////////////////////////////////////////////////////////
 void WeikaiComponent::loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP)
+  if (!this->is_in_loop_state())
     return;
 
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers
@@ -267,11 +267,13 @@ void WeikaiChannel::setup_channel() {
 }
 
 void WeikaiChannel::dump_channel() {
-  ESP_LOGCONFIG(TAG, "  UART %s", this->get_channel_name());
-  ESP_LOGCONFIG(TAG, "    Baud rate: %" PRIu32 " Bd", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "    Data bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "    Stop bits: %u", this->stop_bits_);
-  ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
+  ESP_LOGCONFIG(TAG,
+                "  UART %s\n"
+                "    Baud rate: %" PRIu32 " Bd\n"
+                "    Data bits: %u\n"
+                "    Stop bits: %u\n"
+                "    Parity: %s",
+                this->get_channel_name(), this->baud_rate_, this->data_bits_, this->stop_bits_, p2s(this->parity_));
 }
 
 void WeikaiChannel::reset_fifo_() {

@@ -41,7 +41,6 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_flow_sensor(sensor::Sensor *sensor) { this->flow_sensor_ = sensor; }
   void set_head_sensor(sensor::Sensor *sensor) { this->head_sensor_ = sensor; }
   void set_power_sensor(sensor::Sensor *sensor) { this->power_sensor_ = sensor; }

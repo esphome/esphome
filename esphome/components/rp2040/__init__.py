@@ -165,8 +165,10 @@ async def to_code(config):
     # Allow LDF to properly discover dependency including those in preprocessor
     # conditionals
     cg.add_platformio_option("lib_ldf_mode", "chain+")
+    cg.add_platformio_option("lib_compat_mode", "strict")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
+    cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")
 

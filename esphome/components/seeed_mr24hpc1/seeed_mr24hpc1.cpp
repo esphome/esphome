@@ -1,5 +1,6 @@
 #include "seeed_mr24hpc1.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <utility>

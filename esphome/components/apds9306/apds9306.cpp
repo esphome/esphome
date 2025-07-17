@@ -108,9 +108,12 @@ void APDS9306::dump_config() {
     }
   }
 
-  ESP_LOGCONFIG(TAG, "  Gain: %u", AMBIENT_LIGHT_GAIN_VALUES[this->gain_]);
-  ESP_LOGCONFIG(TAG, "  Measurement rate: %u", MEASUREMENT_RATE_VALUES[this->measurement_rate_]);
-  ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", MEASUREMENT_BIT_WIDTH_VALUES[this->bit_width_]);
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %u\n"
+                "  Measurement rate: %u\n"
+                "  Measurement Resolution/Bit width: %d",
+                AMBIENT_LIGHT_GAIN_VALUES[this->gain_], MEASUREMENT_RATE_VALUES[this->measurement_rate_],
+                MEASUREMENT_BIT_WIDTH_VALUES[this->bit_width_]);
 
   LOG_UPDATE_INTERVAL(this);
 }

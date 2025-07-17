@@ -168,6 +168,8 @@ void ESP32ImprovComponent::loop() {
     case improv::STATE_PROVISIONED: {
       this->incoming_data_.clear();
       this->set_status_indicator_state_(false);
+      // Provisioning complete, no further loop execution needed
+      this->disable_loop();
       break;
     }
   }
@@ -254,6 +256,7 @@ void ESP32ImprovComponent::start() {
 
   ESP_LOGD(TAG, "Setting Improv to start");
   this->should_start_ = true;
+  this->enable_loop();
 }
 
 void ESP32ImprovComponent::stop() {

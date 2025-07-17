@@ -1,8 +1,8 @@
 #ifdef USE_LIBRETINY
 
-#include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include <flashdb.h>
 #include <cstring>
 #include <vector>

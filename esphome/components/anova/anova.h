@@ -26,7 +26,6 @@ class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   climate::ClimateTraits traits() override {
     auto traits = climate::ClimateTraits();
     traits.set_supports_current_temperature(true);

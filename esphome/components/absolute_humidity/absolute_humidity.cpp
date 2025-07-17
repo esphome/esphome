@@ -40,9 +40,11 @@ void AbsoluteHumidityComponent::dump_config() {
       break;
   }
 
-  ESP_LOGCONFIG(TAG, "Sources");
-  ESP_LOGCONFIG(TAG, "  Temperature: '%s'", this->temperature_sensor_->get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Relative Humidity: '%s'", this->humidity_sensor_->get_name().c_str());
+  ESP_LOGCONFIG(TAG,
+                "Sources\n"
+                "  Temperature: '%s'\n"
+                "  Relative Humidity: '%s'",
+                this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
 }
 
 float AbsoluteHumidityComponent::get_setup_priority() const { return setup_priority::DATA; }

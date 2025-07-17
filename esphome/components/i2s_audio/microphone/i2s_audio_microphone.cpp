@@ -45,7 +45,7 @@ void I2SAudioMicrophone::setup() {
 #if SOC_I2S_SUPPORTS_ADC
   if (this->adc_) {
     if (this->parent_->get_port() != I2S_NUM_0) {
-      ESP_LOGE(TAG, "Internal ADC only works on I2S0!");
+      ESP_LOGE(TAG, "Internal ADC only works on I2S0");
       this->mark_failed();
       return;
     }
@@ -55,7 +55,7 @@ void I2SAudioMicrophone::setup() {
   {
     if (this->pdm_) {
       if (this->parent_->get_port() != I2S_NUM_0) {
-        ESP_LOGE(TAG, "PDM only works on I2S0!");
+        ESP_LOGE(TAG, "PDM only works on I2S0");
         this->mark_failed();
         return;
       }
@@ -64,19 +64,28 @@ void I2SAudioMicrophone::setup() {
 
   this->active_listeners_semaphore_ = xSemaphoreCreateCounting(MAX_LISTENERS, MAX_LISTENERS);
   if (this->active_listeners_semaphore_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create semaphore");
+    ESP_LOGE(TAG, "Creating semaphore failed");
     this->mark_failed();
     return;
   }
 
   this->event_group_ = xEventGroupCreate();
   if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event group");
+    ESP_LOGE(TAG, "Creating event group failed");
     this->mark_failed();
     return;
   }
 
   this->configure_stream_settings_();
+}
+
+void I2SAudioMicrophone::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Microphone:\n"
+                "  Pin: %d\n"
+                "  PDM: %s\n"
+                "  DC offset correction: %s",
+                static_cast<int8_t>(this->din_pin_), YESNO(this->pdm_), YESNO(this->correct_dc_offset_));
 }
 
 void I2SAudioMicrophone::configure_stream_settings_() {
@@ -127,6 +136,7 @@ bool I2SAudioMicrophone::start_driver_() {
   if (!this->parent_->try_lock()) {
     return false;  // Waiting for another i2s to return lock
   }
+  this->locked_driver_ = true;
   esp_err_t err;
 
 #ifdef USE_I2S_LEGACY
@@ -151,7 +161,7 @@ bool I2SAudioMicrophone::start_driver_() {
     config.mode = (i2s_mode_t) (config.mode | I2S_MODE_ADC_BUILT_IN);
     err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error installing driver: %s", esp_err_to_name(err));
       return false;
     }
 
@@ -174,7 +184,7 @@ bool I2SAudioMicrophone::start_driver_() {
 
     err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error installing driver: %s", esp_err_to_name(err));
       return false;
     }
 
@@ -183,7 +193,7 @@ bool I2SAudioMicrophone::start_driver_() {
 
     err = i2s_set_pin(this->parent_->get_port(), &pin_config);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error setting I2S pin: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error setting pin: %s", esp_err_to_name(err));
       return false;
     }
   }
@@ -198,7 +208,7 @@ bool I2SAudioMicrophone::start_driver_() {
   /* Allocate a new RX channel and get the handle of this channel */
   err = i2s_new_channel(&chan_cfg, NULL, &this->rx_handle_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error creating new I2S channel: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Error creating channel: %s", esp_err_to_name(err));
     return false;
   }
 
@@ -270,14 +280,14 @@ bool I2SAudioMicrophone::start_driver_() {
     err = i2s_channel_init_std_mode(this->rx_handle_, &std_cfg);
   }
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error initializing I2S channel: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Error initializing channel: %s", esp_err_to_name(err));
     return false;
   }
 
   /* Before reading data, start the RX channel first */
   i2s_channel_enable(this->rx_handle_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error enabling I2S Microphone: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Enabling failed: %s", esp_err_to_name(err));
     return false;
   }
 #endif
@@ -304,31 +314,37 @@ void I2SAudioMicrophone::stop_driver_() {
   if (this->adc_) {
     err = i2s_adc_disable(this->parent_->get_port());
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Error disabling ADC - it may not have started: %s", esp_err_to_name(err));
+      ESP_LOGW(TAG, "Error disabling ADC: %s", esp_err_to_name(err));
     }
   }
 #endif
   err = i2s_stop(this->parent_->get_port());
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error stopping I2S microphone - it may not have started: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "Error stopping: %s", esp_err_to_name(err));
   }
   err = i2s_driver_uninstall(this->parent_->get_port());
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error uninstalling I2S driver - it may not have started: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "Error uninstalling driver: %s", esp_err_to_name(err));
   }
 #else
-  /* Have to stop the channel before deleting it */
-  err = i2s_channel_disable(this->rx_handle_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error stopping I2S microphone - it may not have started: %s", esp_err_to_name(err));
-  }
-  /* If the handle is not needed any more, delete it to release the channel resources */
-  err = i2s_del_channel(this->rx_handle_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error deleting I2S channel - it may not have started: %s", esp_err_to_name(err));
+  if (this->rx_handle_ != nullptr) {
+    /* Have to stop the channel before deleting it */
+    err = i2s_channel_disable(this->rx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error stopping: %s", esp_err_to_name(err));
+    }
+    /* If the handle is not needed any more, delete it to release the channel resources */
+    err = i2s_del_channel(this->rx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error deleting channel: %s", esp_err_to_name(err));
+    }
+    this->rx_handle_ = nullptr;
   }
 #endif
-  this->parent_->unlock();
+  if (this->locked_driver_) {
+    this->parent_->unlock();
+    this->locked_driver_ = false;
+  }
 }
 
 void I2SAudioMicrophone::mic_task(void *params) {
@@ -400,7 +416,7 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
     // Ignore ESP_ERR_TIMEOUT if ticks_to_wait = 0, as it will read the data on the next call
     if (!this->status_has_warning()) {
       // Avoid spamming the logs with the error message if its repeated
-      ESP_LOGW(TAG, "Error reading from I2S microphone: %s", esp_err_to_name(err));
+      ESP_LOGW(TAG, "Read error: %s", esp_err_to_name(err));
     }
     this->status_set_warning();
     return 0;
@@ -428,19 +444,19 @@ void I2SAudioMicrophone::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_group_bits & MicrophoneEventGroupBits::TASK_STARTING) {
-    ESP_LOGD(TAG, "Task started, attempting to allocate buffer");
+    ESP_LOGV(TAG, "Task started, attempting to allocate buffer");
     xEventGroupClearBits(this->event_group_, MicrophoneEventGroupBits::TASK_STARTING);
   }
 
   if (event_group_bits & MicrophoneEventGroupBits::TASK_RUNNING) {
-    ESP_LOGD(TAG, "Task is running and reading data");
+    ESP_LOGV(TAG, "Task is running and reading data");
 
     xEventGroupClearBits(this->event_group_, MicrophoneEventGroupBits::TASK_RUNNING);
     this->state_ = microphone::STATE_RUNNING;
   }
 
   if ((event_group_bits & MicrophoneEventGroupBits::TASK_STOPPED)) {
-    ESP_LOGD(TAG, "Task finished, freeing resources and uninstalling I2S driver");
+    ESP_LOGV(TAG, "Task finished, freeing resources and uninstalling driver");
 
     vTaskDelete(this->task_handle_);
     this->task_handle_ = nullptr;
@@ -470,7 +486,8 @@ void I2SAudioMicrophone::loop() {
       }
 
       if (!this->start_driver_()) {
-        this->status_momentary_error("I2S driver failed to start, unloading it and attempting again in 1 second", 1000);
+        ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
+        this->status_momentary_error("driver_fail", 1000);
         this->stop_driver_();  // Stop/frees whatever possibly started
         break;
       }
@@ -480,7 +497,8 @@ void I2SAudioMicrophone::loop() {
                     &this->task_handle_);
 
         if (this->task_handle_ == nullptr) {
-          this->status_momentary_error("Task failed to start, attempting again in 1 second", 1000);
+          ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
+          this->status_momentary_error("task_fail", 1000);
           this->stop_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
         }
       }

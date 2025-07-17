@@ -1,8 +1,8 @@
 #include "tcs34725.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
-#include <algorithm>
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <algorithm>
 
 namespace esphome {
 namespace tcs34725 {

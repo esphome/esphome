@@ -1712,15 +1712,18 @@ void Sprinkler::dump_config() {
     if (this->valve_overlap_) {
       ESP_LOGCONFIG(TAG, "  Valve Overlap: %" PRIu32 " seconds", this->switching_delay_.value_or(0));
     } else {
-      ESP_LOGCONFIG(TAG, "  Valve Open Delay: %" PRIu32 " seconds", this->switching_delay_.value_or(0));
-      ESP_LOGCONFIG(TAG, "  Pump Switch Off During Valve Open Delay: %s",
-                    YESNO(this->pump_switch_off_during_valve_open_delay_));
+      ESP_LOGCONFIG(TAG,
+                    "  Valve Open Delay: %" PRIu32 " seconds\n"
+                    "  Pump Switch Off During Valve Open Delay: %s",
+                    this->switching_delay_.value_or(0), YESNO(this->pump_switch_off_during_valve_open_delay_));
     }
   }
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
-    ESP_LOGCONFIG(TAG, "  Valve %zu:", valve_number);
-    ESP_LOGCONFIG(TAG, "    Name: %s", this->valve_name(valve_number));
-    ESP_LOGCONFIG(TAG, "    Run Duration: %" PRIu32 " seconds", this->valve_run_duration(valve_number));
+    ESP_LOGCONFIG(TAG,
+                  "  Valve %zu:\n"
+                  "    Name: %s\n"
+                  "    Run Duration: %" PRIu32 " seconds",
+                  valve_number, this->valve_name(valve_number), this->valve_run_duration(valve_number));
     if (this->valve_[valve_number].valve_switch.pulse_duration()) {
       ESP_LOGCONFIG(TAG, "    Pulse Duration: %" PRIu32 " milliseconds",
                     this->valve_[valve_number].valve_switch.pulse_duration());

@@ -10,13 +10,11 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_RAW,
-    CONF_WIFI,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
 from esphome.core import CORE
-import esphome.final_validate as fv
 
 from . import (
     ATTENUATION_MODES,
@@ -24,6 +22,7 @@ from . import (
     ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
     SAMPLING_MODES,
     adc_ns,
+    adc_unit_t,
     validate_adc_pin,
 )
 
@@ -57,21 +56,6 @@ def validate_config(config):
     return config
 
 
-def final_validate_config(config):
-    if CORE.is_esp32:
-        variant = get_esp32_variant()
-        if (
-            CONF_WIFI in fv.full_config.get()
-            and config[CONF_PIN][CONF_NUMBER]
-            in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
-        ):
-            raise cv.Invalid(
-                f"{variant} doesn't support ADC on this pin when Wi-Fi is configured"
-            )
-
-    return config
-
-
 ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
@@ -99,8 +83,6 @@ CONFIG_SCHEMA = cv.All(
     validate_config,
 )
 
-FINAL_VALIDATE_SCHEMA = final_validate_config
-
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -119,13 +101,13 @@ async def to_code(config):
     cg.add(var.set_sample_count(config[CONF_SAMPLES]))
     cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
 
-    if attenuation := config.get(CONF_ATTENUATION):
-        if attenuation == "auto":
-            cg.add(var.set_autorange(cg.global_ns.true))
-        else:
-            cg.add(var.set_attenuation(attenuation))
-
     if CORE.is_esp32:
+        if attenuation := config.get(CONF_ATTENUATION):
+            if attenuation == "auto":
+                cg.add(var.set_autorange(cg.global_ns.true))
+            else:
+                cg.add(var.set_attenuation(attenuation))
+
         variant = get_esp32_variant()
         pin_num = config[CONF_PIN][CONF_NUMBER]
         if (
@@ -133,10 +115,10 @@ async def to_code(config):
             and pin_num in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
         ):
             chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel1(chan))
+            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_1, chan))
         elif (
             variant in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL
             and pin_num in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
         ):
             chan = ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel2(chan))
+            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_2, chan))

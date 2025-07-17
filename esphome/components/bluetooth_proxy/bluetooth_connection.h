@@ -26,10 +26,17 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
 
  protected:
   friend class BluetoothProxy;
-  bool seen_mtu_or_services_{false};
 
-  int16_t send_service_{-2};
+  // Memory optimized layout for 32-bit systems
+  // Group 1: Pointers (4 bytes each, naturally aligned)
   BluetoothProxy *proxy_;
+
+  // Group 2: 2-byte types
+  int16_t send_service_{-2};  // Needs to handle negative values and service count
+
+  // Group 3: 1-byte types
+  bool seen_mtu_or_services_{false};
+  // 1 byte used, 1 byte padding
 };
 
 }  // namespace bluetooth_proxy

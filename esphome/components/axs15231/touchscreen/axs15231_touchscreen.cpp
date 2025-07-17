@@ -60,8 +60,10 @@ void AXS15231Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Width: %d", this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Height: %d", this->y_raw_max_);
+  ESP_LOGCONFIG(TAG,
+                "  Width: %d\n"
+                "  Height: %d",
+                this->x_raw_max_, this->y_raw_max_);
 }
 
 }  // namespace axs15231

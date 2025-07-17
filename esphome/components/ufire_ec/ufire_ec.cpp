@@ -110,8 +110,10 @@ void UFireECComponent::dump_config() {
   LOG_SENSOR("  ", "EC Sensor", this->ec_sensor_)
   LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_)
   LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_)
-  ESP_LOGCONFIG(TAG, "  Temperature Compensation: %f", this->temperature_compensation_);
-  ESP_LOGCONFIG(TAG, "  Temperature Coefficient: %f", this->temperature_coefficient_);
+  ESP_LOGCONFIG(TAG,
+                "  Temperature Compensation: %f\n"
+                "  Temperature Coefficient: %f",
+                this->temperature_compensation_, this->temperature_coefficient_);
 }
 
 }  // namespace ufire_ec

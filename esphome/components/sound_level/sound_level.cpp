@@ -19,8 +19,10 @@ static const uint32_t RING_BUFFER_DURATION_MS = 120;
 static const double MAX_SAMPLE_SQUARED_DENOMINATOR = INT16_MIN * INT16_MIN;
 
 void SoundLevelComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Sound Level Component:");
-  ESP_LOGCONFIG(TAG, "  Measurement Duration: %" PRIu32 " ms", measurement_duration_ms_);
+  ESP_LOGCONFIG(TAG,
+                "Sound Level Component:\n"
+                "  Measurement Duration: %" PRIu32 " ms",
+                measurement_duration_ms_);
   LOG_SENSOR("  ", "Peak:", this->peak_sensor_);
 
   LOG_SENSOR("  ", "RMS:", this->rms_sensor_);

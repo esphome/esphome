@@ -1,6 +1,7 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_client, esp32_ble_tracker
+from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_ID
 
@@ -77,17 +78,20 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Register the loggers this component needs
+    esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.L2CAP, BTLoggers.SMP)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await esp32_ble_tracker.register_raw_ble_device(var, config)
 
     for connection_conf in config.get(CONF_CONNECTIONS, []):
         connection_var = cg.new_Pvariable(connection_conf[CONF_ID])
         await cg.register_component(connection_var, connection_conf)
         cg.add(var.register_connection(connection_var))
-        await esp32_ble_tracker.register_client(connection_var, connection_conf)
+        await esp32_ble_tracker.register_raw_client(connection_var, connection_conf)
 
     if config.get(CONF_CACHE_SERVICES):
         add_idf_sdkconfig_option("CONFIG_BT_GATTC_CACHE_NVS_FLASH", True)

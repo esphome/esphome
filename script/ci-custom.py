@@ -270,7 +270,7 @@ def lint_newline(fname):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
-@lint_content_check(exclude=["*.svg"])
+@lint_content_check(exclude=["*.svg", ".clang-tidy.hash"])
 def lint_end_newline(fname, content):
     if content and not content.endswith("\n"):
         return "File does not end with a newline, please add an empty line at the end of the file."
@@ -559,6 +559,12 @@ def lint_relative_py_import(fname):
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
         "esphome/components/zephyr/core.cpp",
+        "esphome/components/esp32/helpers.cpp",
+        "esphome/components/esp8266/helpers.cpp",
+        "esphome/components/rp2040/helpers.cpp",
+        "esphome/components/libretiny/helpers.cpp",
+        "esphome/components/host/helpers.cpp",
+        "esphome/components/zephyr/helpers.cpp",
         "esphome/components/http_request/httplib.h",
     ],
 )

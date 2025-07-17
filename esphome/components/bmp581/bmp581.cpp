@@ -98,14 +98,20 @@ void BMP581Component::dump_config() {
 
   if (this->temperature_sensor_) {
     LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-    ESP_LOGCONFIG(TAG, "    IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_temperature_level_)));
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
+    ESP_LOGCONFIG(TAG,
+                  "    IIR Filter: %s\n"
+                  "    Oversampling: %s",
+                  LOG_STR_ARG(iir_filter_to_str(this->iir_temperature_level_)),
+                  LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   }
 
   if (this->pressure_sensor_) {
     LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-    ESP_LOGCONFIG(TAG, "    IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_pressure_level_)));
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
+    ESP_LOGCONFIG(TAG,
+                  "    IIR Filter: %s\n"
+                  "    Oversampling: %s",
+                  LOG_STR_ARG(iir_filter_to_str(this->iir_pressure_level_)),
+                  LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
   }
 }
 

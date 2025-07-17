@@ -151,8 +151,10 @@ void Lc709203f::dump_config() {
   LOG_I2C_DEVICE(this);
 
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Pack Size: %d mAH", this->pack_size_);
-  ESP_LOGCONFIG(TAG, "  Pack APA: 0x%02X", this->apa_);
+  ESP_LOGCONFIG(TAG,
+                "  Pack Size: %d mAH\n"
+                "  Pack APA: 0x%02X",
+                this->pack_size_, this->apa_);
 
   // This is only true if the pack_voltage_ is either 0x0000 or 0x0001. The config validator
   //  should have already verified this.

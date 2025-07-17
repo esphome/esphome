@@ -226,11 +226,11 @@ int32_t ESPTime::timezone_offset() {
   return offset;
 }
 
-bool ESPTime::operator<(ESPTime other) { return this->timestamp < other.timestamp; }
-bool ESPTime::operator<=(ESPTime other) { return this->timestamp <= other.timestamp; }
-bool ESPTime::operator==(ESPTime other) { return this->timestamp == other.timestamp; }
-bool ESPTime::operator>=(ESPTime other) { return this->timestamp >= other.timestamp; }
-bool ESPTime::operator>(ESPTime other) { return this->timestamp > other.timestamp; }
+bool ESPTime::operator<(const ESPTime &other) const { return this->timestamp < other.timestamp; }
+bool ESPTime::operator<=(const ESPTime &other) const { return this->timestamp <= other.timestamp; }
+bool ESPTime::operator==(const ESPTime &other) const { return this->timestamp == other.timestamp; }
+bool ESPTime::operator>=(const ESPTime &other) const { return this->timestamp >= other.timestamp; }
+bool ESPTime::operator>(const ESPTime &other) const { return this->timestamp > other.timestamp; }
 
 template<typename T> bool increment_time_value(T &current, uint16_t begin, uint16_t end) {
   current++;

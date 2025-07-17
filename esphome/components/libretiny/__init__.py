@@ -173,9 +173,9 @@ def _notify_old_style(config):
 
 # The dev and latest branches will be at *least* this version, which is what matters.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 7, 0), "https://github.com/libretiny-eu/libretiny.git"),
-    "latest": (cv.Version(1, 7, 0), "libretiny"),
-    "recommended": (cv.Version(1, 7, 0), None),
+    "dev": (cv.Version(1, 9, 1), "https://github.com/libretiny-eu/libretiny.git"),
+    "latest": (cv.Version(1, 9, 1), "libretiny"),
+    "recommended": (cv.Version(1, 9, 1), None),
 }
 
 
@@ -264,9 +264,11 @@ async def component_to_code(config):
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
+    cg.set_cpp_standard("gnu++20")
 
     # disable library compatibility checks
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "soft")
     # include <Arduino.h> in every file
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
     # dummy version code

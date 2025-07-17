@@ -13,7 +13,7 @@
 namespace esphome {
 namespace thermostat {
 
-enum ThermostatClimateTimerIndex : size_t {
+enum ThermostatClimateTimerIndex : uint8_t {
   TIMER_COOLING_MAX_RUN_TIME = 0,
   TIMER_COOLING_OFF = 1,
   TIMER_COOLING_ON = 2,
@@ -26,7 +26,11 @@ enum ThermostatClimateTimerIndex : size_t {
   TIMER_IDLE_ON = 9,
 };
 
-enum OnBootRestoreFrom : size_t { MEMORY = 0, DEFAULT_PRESET = 1 };
+enum OnBootRestoreFrom : uint8_t {
+  MEMORY = 0,
+  DEFAULT_PRESET = 1,
+};
+
 struct ThermostatClimateTimer {
   bool active;
   uint32_t time;
@@ -65,7 +69,7 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   void set_default_preset(const std::string &custom_preset);
   void set_default_preset(climate::ClimatePreset preset);
-  void set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from);
+  void set_on_boot_restore_from(OnBootRestoreFrom on_boot_restore_from);
   void set_set_point_minimum_differential(float differential);
   void set_cool_deadband(float deadband);
   void set_cool_overrun(float overrun);
@@ -240,10 +244,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config,
                            bool is_default_preset);
 
-  /// The sensor used for getting the current temperature
-  sensor::Sensor *sensor_{nullptr};
-  /// The sensor used for getting the current humidity
-  sensor::Sensor *humidity_sensor_{nullptr};
+  /// Minimum allowable duration in seconds for action timers
+  const uint8_t min_timer_duration_{1};
 
   /// Whether the controller supports auto/cooling/drying/fanning/heating.
   ///
@@ -309,6 +311,31 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// setup_complete_ blocks modifying/resetting the temps immediately after boot
   bool setup_complete_{false};
+
+  /// Store previously-known temperatures
+  ///
+  /// These are used to determine when the temperature change trigger/action needs to be called
+  float prev_target_temperature_{NAN};
+  float prev_target_temperature_low_{NAN};
+  float prev_target_temperature_high_{NAN};
+
+  /// Minimum differential required between set points
+  float set_point_minimum_differential_{0};
+
+  /// Hysteresis values used for computing climate actions
+  float cooling_deadband_{0};
+  float cooling_overrun_{0};
+  float heating_deadband_{0};
+  float heating_overrun_{0};
+
+  /// Maximum allowable temperature deltas before engaging supplemental cooling/heating actions
+  float supplemental_cool_delta_{0};
+  float supplemental_heat_delta_{0};
+
+  /// The sensor used for getting the current temperature
+  sensor::Sensor *sensor_{nullptr};
+  /// The sensor used for getting the current humidity
+  sensor::Sensor *humidity_sensor_{nullptr};
 
   /// The trigger to call when the controller should switch to cooling action/mode.
   ///
@@ -399,7 +426,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The trigger to call when the target temperature(s) change(es).
   Trigger<> *temperature_change_trigger_{nullptr};
 
-  /// The triggr to call when the preset mode changes
+  /// The trigger to call when the preset mode changes
   Trigger<> *preset_change_trigger_{nullptr};
 
   /// A reference to the trigger that was previously active.
@@ -411,6 +438,10 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
 
+  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
+  /// state will attempt to be restored if possible
+  OnBootRestoreFrom on_boot_restore_from_{OnBootRestoreFrom::MEMORY};
+
   /// Store previously-known states
   ///
   /// These are used to determine when a trigger/action needs to be called
@@ -419,28 +450,10 @@ class ThermostatClimate : public climate::Climate, public Component {
   climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
 
-  /// Store previously-known temperatures
-  ///
-  /// These are used to determine when the temperature change trigger/action needs to be called
-  float prev_target_temperature_{NAN};
-  float prev_target_temperature_low_{NAN};
-  float prev_target_temperature_high_{NAN};
-
-  /// Minimum differential required between set points
-  float set_point_minimum_differential_{0};
-
-  /// Hysteresis values used for computing climate actions
-  float cooling_deadband_{0};
-  float cooling_overrun_{0};
-  float heating_deadband_{0};
-  float heating_overrun_{0};
-
-  /// Maximum allowable temperature deltas before engauging supplemental cooling/heating actions
-  float supplemental_cool_delta_{0};
-  float supplemental_heat_delta_{0};
-
-  /// Minimum allowable duration in seconds for action timers
-  const uint8_t min_timer_duration_{1};
+  /// Default standard preset to use on start up
+  climate::ClimatePreset default_preset_{};
+  /// Default custom preset to use on start up
+  std::string default_custom_preset_{};
 
   /// Climate action timers
   std::vector<ThermostatClimateTimer> timer_{
@@ -460,15 +473,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
   std::map<std::string, ThermostatClimateTargetTempConfig> custom_preset_config_{};
-
-  /// Default standard preset to use on start up
-  climate::ClimatePreset default_preset_{};
-  /// Default custom preset to use on start up
-  std::string default_custom_preset_{};
-
-  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
-  /// state will attempt to be restored if possible
-  thermostat::OnBootRestoreFrom on_boot_restore_from_{thermostat::OnBootRestoreFrom::MEMORY};
 };
 
 }  // namespace thermostat

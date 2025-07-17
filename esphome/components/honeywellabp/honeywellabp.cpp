@@ -85,8 +85,10 @@ float HONEYWELLABPSensor::get_setup_priority() const { return setup_priority::LA
 void HONEYWELLABPSensor::dump_config() {
   //  LOG_SENSOR("", "HONEYWELLABP", this);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Min Pressure Range: %0.1f", honeywellabp_min_pressure_);
-  ESP_LOGCONFIG(TAG, "  Max Pressure Range: %0.1f", honeywellabp_max_pressure_);
+  ESP_LOGCONFIG(TAG,
+                "  Min Pressure Range: %0.1f\n"
+                "  Max Pressure Range: %0.1f",
+                honeywellabp_min_pressure_, honeywellabp_max_pressure_);
   LOG_UPDATE_INTERVAL(this);
 }
 

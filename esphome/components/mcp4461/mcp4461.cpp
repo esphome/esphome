@@ -1,7 +1,7 @@
 #include "mcp4461.h"
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mcp4461 {

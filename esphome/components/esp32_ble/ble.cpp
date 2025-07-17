@@ -3,6 +3,7 @@
 #include "ble.h"
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <esp_bt.h>
@@ -22,9 +23,6 @@ namespace esphome {
 namespace esp32_ble {
 
 static const char *const TAG = "esp32_ble";
-
-static RAMAllocator<BLEEvent> EVENT_ALLOCATOR(  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    RAMAllocator<BLEEvent>::ALLOW_FAILURE | RAMAllocator<BLEEvent>::ALLOC_INTERNAL);
 
 void ESP32BLE::setup() {
   global_ble = this;
@@ -304,82 +302,191 @@ void ESP32BLE::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     switch (ble_event->type_) {
-      case BLEEvent::GATTS:
-        this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
-                                        &ble_event->event_.gatts.gatts_param);
+      case BLEEvent::GATTS: {
+        esp_gatts_cb_event_t event = ble_event->event_.gatts.gatts_event;
+        esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
+        esp_ble_gatts_cb_param_t *param = ble_event->event_.gatts.gatts_param;
+        ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
+        for (auto *gatts_handler : this->gatts_event_handlers_) {
+          gatts_handler->gatts_event_handler(event, gatts_if, param);
+        }
         break;
-      case BLEEvent::GATTC:
-        this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
-                                        &ble_event->event_.gattc.gattc_param);
+      }
+      case BLEEvent::GATTC: {
+        esp_gattc_cb_event_t event = ble_event->event_.gattc.gattc_event;
+        esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
+        esp_ble_gattc_cb_param_t *param = ble_event->event_.gattc.gattc_param;
+        ESP_LOGV(TAG, "gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
+        for (auto *gattc_handler : this->gattc_event_handlers_) {
+          gattc_handler->gattc_event_handler(event, gattc_if, param);
+        }
         break;
-      case BLEEvent::GAP:
-        this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+      }
+      case BLEEvent::GAP: {
+        esp_gap_ble_cb_event_t gap_event = ble_event->event_.gap.gap_event;
+        switch (gap_event) {
+          case ESP_GAP_BLE_SCAN_RESULT_EVT:
+            // Use the new scan event handler - no memcpy!
+            for (auto *scan_handler : this->gap_scan_event_handlers_) {
+              scan_handler->gap_scan_event_handler(ble_event->scan_result());
+            }
+            break;
+
+          // Scan complete events
+          case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
+          case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+            // All three scan complete events have the same structure with just status
+            // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
+            // This is verified at compile-time by static_assert checks in ble_event.h
+            // The struct already contains our copy of the status (copied in BLEEvent constructor)
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
+            }
+            break;
+
+          // Advertising complete events
+          case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
+          case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+          case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+            // All advertising complete events have the same structure with just status
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete));
+            }
+            break;
+
+          // RSSI complete event
+          case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete));
+            }
+            break;
+
+          // Security events
+          case ESP_GAP_BLE_AUTH_CMPL_EVT:
+          case ESP_GAP_BLE_SEC_REQ_EVT:
+          case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+          case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+          case ESP_GAP_BLE_NC_REQ_EVT:
+            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+            for (auto *gap_handler : this->gap_event_handlers_) {
+              gap_handler->gap_event_handler(
+                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security));
+            }
+            break;
+
+          default:
+            // Unknown/unhandled event
+            ESP_LOGW(TAG, "Unhandled GAP event type in loop: %d", gap_event);
+            break;
+        }
         break;
+      }
       default:
         break;
     }
-    ble_event->~BLEEvent();
-    EVENT_ALLOCATOR.deallocate(ble_event, 1);
+    // Return the event to the pool
+    this->ble_event_pool_.release(ble_event);
     ble_event = this->ble_events_.pop();
   }
   if (this->advertising_ != nullptr) {
     this->advertising_->loop();
   }
+
+  // Log dropped events periodically
+  uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
+  }
 }
 
-void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  BLEEvent *new_event = EVENT_ALLOCATOR.allocate(1);
-  if (new_event == nullptr) {
-    // Memory too fragmented to allocate new event. Can only drop it until memory comes back
+// Helper function to load new event data based on type
+void load_ble_event(BLEEvent *event, esp_gap_ble_cb_event_t e, esp_ble_gap_cb_param_t *p) {
+  event->load_gap_event(e, p);
+}
+
+void load_ble_event(BLEEvent *event, esp_gattc_cb_event_t e, esp_gatt_if_t i, esp_ble_gattc_cb_param_t *p) {
+  event->load_gattc_event(e, i, p);
+}
+
+void load_ble_event(BLEEvent *event, esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
+  event->load_gatts_event(e, i, p);
+}
+
+template<typename... Args> void enqueue_ble_event(Args... args) {
+  // Allocate an event from the pool
+  BLEEvent *event = global_ble->ble_event_pool_.allocate();
+  if (event == nullptr) {
+    // No events available - queue is full or we're out of memory
+    global_ble->ble_events_.increment_dropped_count();
     return;
   }
-  new (new_event) BLEEvent(event, param);
-  global_ble->ble_events_.push(new_event);
-}  // NOLINT(clang-analyzer-unix.Malloc)
 
-void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  ESP_LOGV(TAG, "(BLE) gap_event_handler - %d", event);
-  for (auto *gap_handler : this->gap_event_handlers_) {
-    gap_handler->gap_event_handler(event, param);
+  // Load new event data (replaces previous event)
+  load_ble_event(event, args...);
+
+  // Push the event to the queue
+  global_ble->ble_events_.push(event);
+  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
+}
+
+// Explicit template instantiations for the friend function
+template void enqueue_ble_event(esp_gap_ble_cb_event_t, esp_ble_gap_cb_param_t *);
+template void enqueue_ble_event(esp_gatts_cb_event_t, esp_gatt_if_t, esp_ble_gatts_cb_param_t *);
+template void enqueue_ble_event(esp_gattc_cb_event_t, esp_gatt_if_t, esp_ble_gattc_cb_param_t *);
+
+void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  switch (event) {
+    // Queue GAP events that components need to handle
+    // Scanning events - used by esp32_ble_tracker
+    case ESP_GAP_BLE_SCAN_RESULT_EVT:
+    case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
+    case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+    // Advertising events - used by esp32_ble_beacon and esp32_ble server
+    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+    // Connection events - used by ble_client
+    case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+    // Security events - used by ble_client and bluetooth_proxy
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+    case ESP_GAP_BLE_SEC_REQ_EVT:
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+    case ESP_GAP_BLE_NC_REQ_EVT:
+      enqueue_ble_event(event, param);
+      return;
+
+    // Ignore these GAP events as they are not relevant for our use case
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
+    case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
+      return;
+
+    default:
+      break;
   }
+  ESP_LOGW(TAG, "Ignoring unexpected GAP event type: %d", event);
 }
 
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
-  BLEEvent *new_event = EVENT_ALLOCATOR.allocate(1);
-  if (new_event == nullptr) {
-    // Memory too fragmented to allocate new event. Can only drop it until memory comes back
-    return;
-  }
-  new (new_event) BLEEvent(event, gatts_if, param);
-  global_ble->ble_events_.push(new_event);
-}  // NOLINT(clang-analyzer-unix.Malloc)
-
-void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
-                                         esp_ble_gatts_cb_param_t *param) {
-  ESP_LOGV(TAG, "(BLE) gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
-  for (auto *gatts_handler : this->gatts_event_handlers_) {
-    gatts_handler->gatts_event_handler(event, gatts_if, param);
-  }
+  enqueue_ble_event(event, gatts_if, param);
 }
 
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
-  BLEEvent *new_event = EVENT_ALLOCATOR.allocate(1);
-  if (new_event == nullptr) {
-    // Memory too fragmented to allocate new event. Can only drop it until memory comes back
-    return;
-  }
-  new (new_event) BLEEvent(event, gattc_if, param);
-  global_ble->ble_events_.push(new_event);
-}  // NOLINT(clang-analyzer-unix.Malloc)
-
-void ESP32BLE::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                         esp_ble_gattc_cb_param_t *param) {
-  ESP_LOGV(TAG, "(BLE) gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
-  for (auto *gattc_handler : this->gattc_event_handlers_) {
-    gattc_handler->gattc_event_handler(event, gattc_if, param);
-  }
+  enqueue_ble_event(event, gattc_if, param);
 }
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
@@ -408,12 +515,13 @@ void ESP32BLE::dump_config() {
         io_capability_s = "invalid";
         break;
     }
-    ESP_LOGCONFIG(TAG, "ESP32 BLE:");
-    ESP_LOGCONFIG(TAG, "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X", mac_address[0], mac_address[1], mac_address[2],
-                  mac_address[3], mac_address[4], mac_address[5]);
-    ESP_LOGCONFIG(TAG, "  IO Capability: %s", io_capability_s);
+    ESP_LOGCONFIG(TAG,
+                  "BLE:\n"
+                  "  MAC address: %s\n"
+                  "  IO Capability: %s",
+                  format_mac_address_pretty(mac_address).c_str(), io_capability_s);
   } else {
-    ESP_LOGCONFIG(TAG, "ESP32 BLE: bluetooth stack is not enabled");
+    ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
 }
 

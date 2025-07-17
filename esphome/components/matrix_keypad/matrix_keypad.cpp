@@ -97,8 +97,8 @@ void MatrixKeypad::loop() {
 }
 
 void MatrixKeypad::dump_config() {
-  ESP_LOGCONFIG(TAG, "Matrix Keypad:");
-  ESP_LOGCONFIG(TAG, " Rows:");
+  ESP_LOGCONFIG(TAG, "Matrix Keypad:\n"
+                     " Rows:");
   for (auto &pin : this->rows_) {
     LOG_PIN("  Pin: ", pin);
   }

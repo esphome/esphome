@@ -1,0 +1,136 @@
+esphome:
+  name: large-message-test
+host:
+api:
+logger:
+
+# Create a select entity with many options to exceed 1390 bytes
+select:
+  - platform: template
+    name: "Large Select"
+    id: large_select
+    optimistic: true
+    options:
+      - "Option 000 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 001 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 002 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 003 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 004 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 005 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 006 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 007 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 008 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 009 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 010 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 011 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 012 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 013 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 014 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 015 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 016 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 017 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 018 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 019 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 020 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 021 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 022 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 023 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 024 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 025 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 026 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 027 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 028 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 029 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 030 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 031 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 032 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 033 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 034 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 035 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 036 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 037 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 038 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 039 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 040 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 041 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 042 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 043 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 044 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 045 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 046 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 047 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 048 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 049 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 050 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 051 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 052 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 053 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 054 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 055 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 056 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 057 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 058 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 059 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 060 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 061 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 062 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 063 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 064 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 065 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 066 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 067 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 068 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 069 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 070 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 071 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 072 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 073 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 074 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 075 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 076 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 077 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 078 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 079 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 080 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 081 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 082 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 083 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 084 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 085 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 086 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 087 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 088 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 089 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 090 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 091 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 092 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 093 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 094 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 095 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 096 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 097 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 098 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+      - "Option 099 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+    initial_option: "Option 000 - This is a very long option name to make the message larger than the typical batch size of 1390 bytes"
+
+# Add some other entities to test batching with the large select
+sensor:
+  - platform: template
+    name: "Test Sensor"
+    id: test_sensor
+    lambda: |-
+      return 42.0;
+    update_interval: 1s
+
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor"
+    id: test_binary_sensor
+    lambda: |-
+      return true;
+
+switch:
+  - platform: template
+    name: "Test Switch"
+    id: test_switch
+    optimistic: true

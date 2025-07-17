@@ -30,8 +30,10 @@ void ADCSensor::dump_config() {
 #else
   LOG_PIN("  Pin: ", this->pin_);
 #endif  // USE_ADC_SENSOR_VCC
-  ESP_LOGCONFIG(TAG, "  Samples: %i", this->sample_count_);
-  ESP_LOGCONFIG(TAG, "  Sampling mode: %s", LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
+  ESP_LOGCONFIG(TAG,
+                "  Samples: %i\n"
+                "  Sampling mode: %s",
+                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -53,8 +55,6 @@ float ADCSensor::sample() {
   }
   return aggr.aggregate() / 1024.0f;
 }
-
-std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
 
 }  // namespace adc
 }  // namespace esphome

@@ -1,0 +1,1 @@
+"""ESPHome tests package."""

@@ -5,8 +5,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-
 namespace esphome {
 namespace inkplate6 {
 
@@ -254,5 +252,3 @@ class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
 
 }  // namespace inkplate6
 }  // namespace esphome
-
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO

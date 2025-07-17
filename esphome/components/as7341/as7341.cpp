@@ -41,9 +41,11 @@ void AS7341Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Gain: %u", get_gain());
-  ESP_LOGCONFIG(TAG, "  ATIME: %u", get_atime());
-  ESP_LOGCONFIG(TAG, "  ASTEP: %u", get_astep());
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %u\n"
+                "  ATIME: %u\n"
+                "  ASTEP: %u",
+                get_gain(), get_atime(), get_astep());
 
   LOG_SENSOR("  ", "F1", this->f1_);
   LOG_SENSOR("  ", "F2", this->f2_);

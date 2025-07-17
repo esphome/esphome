@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import math
 import os
@@ -19,6 +20,8 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
@@ -506,14 +509,24 @@ class EsphomeCore:
         self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A set of build unflags to set in the platformio project
+        self.build_unflags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: set[Define] = set()
         # A map of all platformio options to apply
         self.platformio_options: dict[str, str | list[str]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
+        # A set of strings for platform/integration combos
+        self.loaded_platforms: set[str] = set()
         # A set of component IDs to track what Component subclasses are declared
         self.component_ids = set()
+        # Dict to track platform entity counts for pre-allocation
+        # Key: platform name (e.g. "sensor", "binary_sensor"), Value: count
+        self.platform_counts: defaultdict[str, int] = defaultdict(int)
+        # Track entity unique IDs to handle duplicates
+        # Set of (device_id, platform, sanitized_name) tuples
+        self.unique_ids: set[tuple[str, str, str]] = set()
         # Whether ESPHome was started in verbose mode
         self.verbose = False
         # Whether ESPHome was started in quiet mode
@@ -539,10 +552,13 @@ class EsphomeCore:
         self.global_statements = []
         self.libraries = []
         self.build_flags = set()
+        self.build_unflags = set()
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
+        self.platform_counts = defaultdict(int)
+        self.unique_ids = set()
         PIN_SCHEMA_REGISTRY.reset()
 
     @property
@@ -648,8 +664,16 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_RTL87XX
 
     @property
+    def is_ln882x(self):
+        return self.target_platform == PLATFORM_LN882X
+
+    @property
     def is_libretiny(self):
-        return self.is_bk72xx or self.is_rtl87xx
+        return self.is_bk72xx or self.is_rtl87xx or self.is_ln882x
+
+    @property
+    def is_nrf52(self):
+        return self.target_platform == PLATFORM_NRF52
 
     @property
     def is_host(self):
@@ -667,16 +691,21 @@ class EsphomeCore:
     def using_esp_idf(self):
         return self.target_framework == "esp-idf"
 
-    def add_job(self, func, *args, **kwargs):
+    @property
+    def using_zephyr(self):
+        return self.target_framework == "zephyr"
+
+    def add_job(self, func, *args, **kwargs) -> None:
         self.event_loop.add_job(func, *args, **kwargs)
 
-    def flush_tasks(self):
+    def flush_tasks(self) -> None:
         try:
             self.event_loop.flush_tasks()
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression):
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -686,11 +715,14 @@ class EsphomeCore:
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
 
-        self.main_statements.append(expression)
+        if prepend:
+            self.main_statements.insert(0, expression)
+        else:
+            self.main_statements.append(expression)
         _LOGGER.debug("Adding: %s", expression)
         return expression
 
-    def add_global(self, expression, prepend=False):
+    def add_global(self, expression, prepend=False) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -755,10 +787,14 @@ class EsphomeCore:
             self.libraries.append(library)
         return library
 
-    def add_build_flag(self, build_flag):
+    def add_build_flag(self, build_flag: str) -> str:
         self.build_flags.add(build_flag)
         _LOGGER.debug("Adding build flag: %s", build_flag)
         return build_flag
+
+    def add_build_unflag(self, build_unflag: str) -> None:
+        self.build_unflags.add(build_unflag)
+        _LOGGER.debug("Adding build unflag: %s", build_unflag)
 
     def add_define(self, define):
         if isinstance(define, str):
@@ -819,6 +855,14 @@ class EsphomeCore:
 
     def has_id(self, id):
         return id in self.variables
+
+    def register_platform_component(self, platform_name: str, var) -> None:
+        """Register a component for a platform and track its count.
+
+        :param platform_name: The name of the platform (e.g., 'sensor', 'binary_sensor')
+        :param var: The variable (component) being registered (currently unused but kept for future use)
+        """
+        self.platform_counts[platform_name] += 1
 
     @property
     def cpp_main_section(self):

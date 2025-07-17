@@ -40,7 +40,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
    */
   void add_label_name(EntityBase *obj, const std::string &value) { relabel_map_name_.insert({obj, value}); }
 
-  bool canHandle(AsyncWebServerRequest *request) override {
+  bool canHandle(AsyncWebServerRequest *request) const override {
     if (request->method() == HTTP_GET) {
       if (request->url() == "/metrics")
         return true;

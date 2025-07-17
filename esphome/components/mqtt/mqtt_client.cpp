@@ -57,14 +57,15 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
-      if (level <= this->log_level_ && this->is_connected()) {
-        this->publish({.topic = this->log_message_.topic,
-                       .payload = message,
-                       .qos = this->log_message_.qos,
-                       .retain = this->log_message_.retain});
-      }
-    });
+    logger::global_logger->add_on_log_callback(
+        [this](int level, const char *tag, const char *message, size_t message_len) {
+          if (level <= this->log_level_ && this->is_connected()) {
+            this->publish({.topic = this->log_message_.topic,
+                           .payload = std::string(message, message_len),
+                           .qos = this->log_message_.qos,
+                           .retain = this->log_message_.retain});
+          }
+        });
   }
 #endif
 
@@ -91,6 +92,7 @@ void MQTTClientComponent::send_device_info_() {
   std::string topic = "esphome/discover/";
   topic.append(App.get_name());
 
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
       topic,
       [](JsonObject root) {
@@ -146,21 +148,27 @@ void MQTTClientComponent::send_device_info_() {
 #endif
       },
       2, this->discovery_info_.retain);
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 void MQTTClientComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT:");
-  ESP_LOGCONFIG(TAG, "  Server Address: %s:%u (%s)", this->credentials_.address.c_str(), this->credentials_.port,
-                this->ip_.str().c_str());
-  ESP_LOGCONFIG(TAG, "  Username: " LOG_SECRET("'%s'"), this->credentials_.username.c_str());
-  ESP_LOGCONFIG(TAG, "  Client ID: " LOG_SECRET("'%s'"), this->credentials_.client_id.c_str());
-  ESP_LOGCONFIG(TAG, "  Clean Session: %s", YESNO(this->credentials_.clean_session));
+  ESP_LOGCONFIG(TAG,
+                "MQTT:\n"
+                "  Server Address: %s:%u (%s)\n"
+                "  Username: " LOG_SECRET("'%s'") "\n"
+                                                  "  Client ID: " LOG_SECRET("'%s'") "\n"
+                                                                                     "  Clean Session: %s",
+                this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str().c_str(),
+                this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
+                YESNO(this->credentials_.clean_session));
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
   if (!this->discovery_info_.prefix.empty()) {
-    ESP_LOGCONFIG(TAG, "  Discovery prefix: '%s'", this->discovery_info_.prefix.c_str());
-    ESP_LOGCONFIG(TAG, "  Discovery retain: %s", YESNO(this->discovery_info_.retain));
+    ESP_LOGCONFIG(TAG,
+                  "  Discovery prefix: '%s'\n"
+                  "  Discovery retain: %s",
+                  this->discovery_info_.prefix.c_str(), YESNO(this->discovery_info_.retain));
   }
   ESP_LOGCONFIG(TAG, "  Topic Prefix: '%s'", this->topic_prefix_.c_str());
   if (!this->log_message_.topic.empty()) {
@@ -171,7 +179,8 @@ void MQTTClientComponent::dump_config() {
   }
 }
 bool MQTTClientComponent::can_proceed() {
-  return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected();
+  return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected() ||
+         !this->wait_for_connection_;
 }
 
 void MQTTClientComponent::start_dnslookup_() {
@@ -184,13 +193,17 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
+  err_t err;
+  {
+    LwIPLock lock;
 #if USE_NETWORK_IPV6
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
 #else
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif /* USE_NETWORK_IPV6 */
+  }
   switch (err) {
     case ERR_OK: {
       // Got IP immediately
@@ -223,6 +236,8 @@ void MQTTClientComponent::check_dnslookup_() {
   if (this->dns_resolve_error_) {
     ESP_LOGW(TAG, "Couldn't resolve IP address for '%s'", this->credentials_.address.c_str());
     this->state_ = MQTT_CLIENT_DISCONNECTED;
+    this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+    this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
     return;
   }
 
@@ -692,7 +707,9 @@ void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) 
 }
 
 void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
+  auto callback_copy = callback;
   this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
+  this->on_disconnect_.add(std::move(callback_copy));
 }
 
 #if ASYNC_TCP_SSL_ENABLED
@@ -721,9 +738,11 @@ void MQTTMessageTrigger::setup() {
       this->qos_);
 }
 void MQTTMessageTrigger::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Message Trigger:");
-  ESP_LOGCONFIG(TAG, "  Topic: '%s'", this->topic_.c_str());
-  ESP_LOGCONFIG(TAG, "  QoS: %u", this->qos_);
+  ESP_LOGCONFIG(TAG,
+                "MQTT Message Trigger:\n"
+                "  Topic: '%s'\n"
+                "  QoS: %u",
+                this->topic_.c_str(), this->qos_);
 }
 float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 

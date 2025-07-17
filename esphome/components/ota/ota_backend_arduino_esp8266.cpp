@@ -17,6 +17,11 @@ static const char *const TAG = "ota.arduino_esp8266";
 std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoESP8266OTABackend>(); }
 
 OTAResponseTypes ArduinoESP8266OTABackend::begin(size_t image_size) {
+  // Handle UPDATE_SIZE_UNKNOWN (0) by calculating available space
+  if (image_size == 0) {
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+    image_size = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+  }
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
     esp8266::preferences_prevent_write(true);
@@ -38,7 +43,10 @@ OTAResponseTypes ArduinoESP8266OTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
-void ArduinoESP8266OTABackend::set_update_md5(const char *md5) { Update.setMD5(md5); }
+void ArduinoESP8266OTABackend::set_update_md5(const char *md5) {
+  Update.setMD5(md5);
+  this->md5_set_ = true;
+}
 
 OTAResponseTypes ArduinoESP8266OTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
@@ -53,13 +61,19 @@ OTAResponseTypes ArduinoESP8266OTABackend::write(uint8_t *data, size_t len) {
 }
 
 OTAResponseTypes ArduinoESP8266OTABackend::end() {
-  if (Update.end()) {
+  // Use strict validation (false) when MD5 is set, lenient validation (true) when no MD5
+  // This matches the behavior of the old web_server OTA implementation
+  bool success = Update.end(!this->md5_set_);
+
+  // On ESP8266, Update.end() might return false even with error code 0
+  // Check the actual error code to determine success
+  uint8_t error = Update.getError();
+
+  if (success || error == UPDATE_ERROR_OK) {
     return OTA_RESPONSE_OK;
   }
 
-  uint8_t error = Update.getError();
   ESP_LOGE(TAG, "End error: %d", error);
-
   return OTA_RESPONSE_ERROR_UPDATE_END;
 }
 

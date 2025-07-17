@@ -8,8 +8,8 @@ sensor:
   - platform: smt100
     counts:
       name: Counts
-    dielectric_constant:
-      name: Dielectric Constant
+    permittivity:
+      name: Permittivity
     temperature:
       name: Temperature
     moisture:

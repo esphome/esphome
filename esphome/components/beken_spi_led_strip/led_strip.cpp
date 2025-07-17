@@ -7,11 +7,13 @@
 
 extern "C" {
 #include "rtos_pub.h"
-#include "spi.h"
+// rtos_pub.h must be included before the rest of the includes
+
 #include "arm_arch.h"
 #include "general_dma_pub.h"
 #include "gpio_pub.h"
 #include "icu_pub.h"
+#include "spi.h"
 #undef SPI_DAT
 #undef SPI_BASE
 };
@@ -124,7 +126,7 @@ void BekenSPILEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
   size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
 
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buf_ = allocator.allocate(buffer_size);
   if (this->buf_ == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate LED buffer!");
@@ -345,8 +347,10 @@ light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index
 }
 
 void BekenSPILEDStripLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Beken SPI LED Strip:");
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  ESP_LOGCONFIG(TAG,
+                "Beken SPI LED Strip:\n"
+                "  Pin: %u",
+                this->pin_);
   const char *rgb_order;
   switch (this->rgb_order_) {
     case ORDER_RGB:
@@ -371,9 +375,11 @@ void BekenSPILEDStripLightOutput::dump_config() {
       rgb_order = "UNKNOWN";
       break;
   }
-  ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
-  ESP_LOGCONFIG(TAG, "  Max refresh rate: %" PRIu32, *this->max_refresh_rate_);
-  ESP_LOGCONFIG(TAG, "  Number of LEDs: %u", this->num_leds_);
+  ESP_LOGCONFIG(TAG,
+                "  RGB Order: %s\n"
+                "  Max refresh rate: %" PRIu32 "\n"
+                "  Number of LEDs: %u",
+                rgb_order, *this->max_refresh_rate_, this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

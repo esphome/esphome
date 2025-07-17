@@ -1,0 +1,40 @@
+spi:
+  clk_pin: ${clk_pin}
+  mosi_pin: ${mosi_pin}
+  miso_pin: ${miso_pin}
+
+sx126x:
+  dio1_pin: ${dio1_pin}
+  cs_pin: ${cs_pin}
+  busy_pin: ${busy_pin}
+  rst_pin: ${rst_pin}
+  pa_power: 3
+  bandwidth: 125_0kHz
+  crc_enable: true
+  frequency: 433920000
+  modulation: LORA
+  rx_start: true
+  hw_version: sx1262
+  rf_switch: true
+  sync_value: [0x14, 0x24]
+  preamble_size: 8
+  spreading_factor: 7
+  coding_rate: CR_4_6
+  tcxo_voltage: 1_8V
+  tcxo_delay: 5ms
+  on_packet:
+    then:
+      - lambda: |-
+          ESP_LOGD("lambda", "packet %.2f %.2f %s", rssi, snr, format_hex(x).c_str());
+
+button:
+  - platform: template
+    name: "SX126x Button"
+    on_press:
+      then:
+        - sx126x.set_mode_standby
+        - sx126x.run_image_cal
+        - sx126x.set_mode_sleep
+        - sx126x.set_mode_rx
+        - sx126x.send_packet:
+            data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]

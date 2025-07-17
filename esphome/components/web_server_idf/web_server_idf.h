@@ -1,8 +1,10 @@
 #pragma once
 #ifdef USE_ESP_IDF
 
+#include "esphome/core/defines.h"
 #include <esp_http_server.h>
 
+#include <atomic>
 #include <functional>
 #include <list>
 #include <map>
@@ -12,10 +14,12 @@
 #include <vector>
 
 namespace esphome {
+#ifdef USE_WEBSERVER
 namespace web_server {
 class WebServer;
 class ListEntitiesIterator;
 };  // namespace web_server
+#endif
 namespace web_server_idf {
 
 #define F(string_literal) (string_literal)
@@ -132,8 +136,8 @@ class AsyncWebServerRequest {
     return res;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
-  AsyncWebServerResponse *beginResponse_P(int code, const char *content_type, const uint8_t *data,
-                                          const size_t data_size) {
+  AsyncWebServerResponse *beginResponse(int code, const char *content_type, const uint8_t *data,
+                                        const size_t data_size) {
     auto *res = new AsyncWebServerResponseProgmem(this, data, data_size);  // NOLINT(cppcoreguidelines-owning-memory)
     this->init_response_(res, code, content_type);
     return res;
@@ -200,6 +204,9 @@ class AsyncWebServer {
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+#ifdef USE_WEBSERVER_OTA
+  esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
+#endif
   std::vector<AsyncWebHandler *> handlers_;
   std::function<void(AsyncWebServerRequest *request)> on_not_found_{};
 };
@@ -208,7 +215,7 @@ class AsyncWebHandler {
  public:
   virtual ~AsyncWebHandler() {}
   // NOLINTNEXTLINE(readability-identifier-naming)
-  virtual bool canHandle(AsyncWebServerRequest *request) { return false; }
+  virtual bool canHandle(AsyncWebServerRequest *request) const { return false; }
   // NOLINTNEXTLINE(readability-identifier-naming)
   virtual void handleRequest(AsyncWebServerRequest *request) {}
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -217,9 +224,10 @@ class AsyncWebHandler {
   // NOLINTNEXTLINE(readability-identifier-naming)
   virtual void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {}
   // NOLINTNEXTLINE(readability-identifier-naming)
-  virtual bool isRequestHandlerTrivial() { return true; }
+  virtual bool isRequestHandlerTrivial() const { return true; }
 };
 
+#ifdef USE_WEBSERVER
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
@@ -267,7 +275,7 @@ class AsyncEventSourceResponse {
   static void destroy(void *p);
   AsyncEventSource *server_;
   httpd_handle_t hd_{};
-  int fd_{};
+  std::atomic<int> fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
@@ -286,7 +294,7 @@ class AsyncEventSource : public AsyncWebHandler {
   ~AsyncEventSource() override;
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool canHandle(AsyncWebServerRequest *request) override {
+  bool canHandle(AsyncWebServerRequest *request) const override {
     return request->method() == HTTP_GET && request->url() == this->url_;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -307,20 +315,20 @@ class AsyncEventSource : public AsyncWebHandler {
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
 };
+#endif  // USE_WEBSERVER
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
+#ifdef USE_WEBSERVER
   friend class AsyncEventSourceResponse;
+#endif
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
   void addHeader(const char *name, const char *value) { this->headers_.emplace_back(name, value); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  static DefaultHeaders &Instance() {
-    static DefaultHeaders instance;
-    return instance;
-  }
+  static DefaultHeaders &Instance();
 
  protected:
   std::vector<std::pair<std::string, std::string>> headers_;

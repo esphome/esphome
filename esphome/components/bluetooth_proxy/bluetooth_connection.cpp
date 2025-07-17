@@ -75,7 +75,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       resp.data.reserve(param->read.value_len);
       // Use bulk insert instead of individual push_backs
       resp.data.insert(resp.data.end(), param->read.value, param->read.value + param->read.value_len);
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_read_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
@@ -89,7 +89,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTWriteResponse resp;
       resp.address = this->address_;
       resp.handle = param->write.handle;
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_write_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
@@ -103,7 +103,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->unreg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_notify_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -116,7 +116,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->reg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_notify_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -128,7 +128,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       resp.data.reserve(param->notify.value_len);
       // Use bulk insert instead of individual push_backs
       resp.data.insert(resp.data.end(), param->notify.value, param->notify.value + param->notify.value_len);
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_notify_data_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     default:
