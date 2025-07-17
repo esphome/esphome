@@ -420,6 +420,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
 }
 
 network::IPAddress EthernetComponent::get_dns_address(uint8_t num) {
+  LwIPLock lock;
   const ip_addr_t *dns_ip = dns_getserver(num);
   return dns_ip;
 }
@@ -527,6 +528,7 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
   if (this->manual_ip_.has_value()) {
+    LwIPLock lock;
     if (this->manual_ip_->dns1.is_set()) {
       ip_addr_t d;
       d = this->manual_ip_->dns1;
@@ -559,8 +561,13 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  const ip_addr_t *dns_ip1 = dns_getserver(0);
-  const ip_addr_t *dns_ip2 = dns_getserver(1);
+  const ip_addr_t *dns_ip1;
+  const ip_addr_t *dns_ip2;
+  {
+    LwIPLock lock;
+    dns_ip1 = dns_getserver(0);
+    dns_ip2 = dns_getserver(1);
+  }
 
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"

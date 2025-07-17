@@ -268,10 +268,10 @@ std::string WebServer::get_config_json() {
   return json::build_json([this](JsonObject root) {
     root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
     root["comment"] = App.get_comment();
-#ifdef USE_WEBSERVER_OTA
-    root["ota"] = true;  // web_server OTA platform is configured
+#if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
+    root["ota"] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else
-    root["ota"] = false;
+    root["ota"] = true;
 #endif
     root["log"] = this->expose_log_;
     root["lang"] = "en";

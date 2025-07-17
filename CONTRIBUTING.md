@@ -7,7 +7,7 @@ project and be sure to join us on [Discord](https://discord.gg/KhAMKrd).
 
 **See also:**
 
-[Documentation](https://esphome.io) -- [Issues](https://github.com/esphome/issues/issues) -- [Feature requests](https://github.com/esphome/feature-requests/issues)
+[Documentation](https://esphome.io) -- [Issues](https://github.com/esphome/esphome/issues) -- [Feature requests](https://github.com/orgs/esphome/discussions)
 
 ---
 

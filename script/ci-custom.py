@@ -241,6 +241,9 @@ def lint_ext_check(fname):
         "docker/ha-addon-rootfs/**",
         "docker/*.py",
         "script/*",
+        "CLAUDE.md",
+        "GEMINI.md",
+        ".github/copilot-instructions.md",
     ]
 )
 def lint_executable_bit(fname):

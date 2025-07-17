@@ -5,6 +5,10 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
+#endif
+
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
 #include <Updater.h>
@@ -25,7 +29,22 @@ class OTARequestHandler : public AsyncWebHandler {
   void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
                     bool final) override;
   bool canHandle(AsyncWebServerRequest *request) const override {
-    return request->url() == "/update" && request->method() == HTTP_POST;
+    // Check if this is an OTA update request
+    bool is_ota_request = request->url() == "/update" && request->method() == HTTP_POST;
+
+#if defined(USE_WEBSERVER_OTA_DISABLED) && defined(USE_CAPTIVE_PORTAL)
+    // IMPORTANT: USE_WEBSERVER_OTA_DISABLED only disables OTA for the web_server component
+    // Captive portal can still perform OTA updates - check if request is from active captive portal
+    // Note: global_captive_portal is the standard way components communicate in ESPHome
+    return is_ota_request && captive_portal::global_captive_portal != nullptr &&
+           captive_portal::global_captive_portal->is_active();
+#elif defined(USE_WEBSERVER_OTA_DISABLED)
+    // OTA disabled for web_server and no captive portal compiled in
+    return false;
+#else
+    // OTA enabled for web_server
+    return is_ota_request;
+#endif
   }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -152,7 +171,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
 
   // Finalize
   if (final) {
-    ESP_LOGD(TAG, "OTA final chunk: index=%u, len=%u, total_read=%u, contentLength=%u", index, len,
+    ESP_LOGD(TAG, "OTA final chunk: index=%zu, len=%zu, total_read=%u, contentLength=%zu", index, len,
              this->ota_read_length_, request->contentLength());
 
     // For Arduino framework, the Update library tracks expected size from firmware header
