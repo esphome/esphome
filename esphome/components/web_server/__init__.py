@@ -317,3 +317,15 @@ async def to_code(config):
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
         cg.add_define("USE_WEBSERVER_SORTING")
         add_sorting_groups(var, sorting_group_config)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Filter out web_server_v1.cpp when version is not 1."""
+    files_to_filter: list[str] = []
+
+    # web_server_v1.cpp is only needed when version is 1
+    config = CORE.config.get("web_server", {})
+    if config.get(CONF_VERSION, 2) != 1:
+        files_to_filter.append("web_server_v1.cpp")
+
+    return files_to_filter
