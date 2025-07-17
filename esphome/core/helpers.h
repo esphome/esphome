@@ -684,6 +684,23 @@ class InterruptLock {
 #endif
 };
 
+/** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
+ *
+ * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled.
+ * It ensures thread-safe access to lwIP APIs.
+ *
+ * @note This follows the same pattern as InterruptLock - platform-specific implementations in helpers.cpp
+ */
+class LwIPLock {
+ public:
+  LwIPLock();
+  ~LwIPLock();
+
+  // Delete copy constructor and copy assignment operator to prevent accidental copying
+  LwIPLock(const LwIPLock &) = delete;
+  LwIPLock &operator=(const LwIPLock &) = delete;
+};
+
 /** Helper class to request `loop()` to be called as fast as possible.
  *
  * Usually the ESPHome main loop runs at 60 Hz, sleeping in between invocations of `loop()` if necessary. When a higher

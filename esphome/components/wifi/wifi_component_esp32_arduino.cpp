@@ -20,10 +20,6 @@
 #include "lwip/dns.h"
 #include "lwip/err.h"
 
-#ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
-#include "lwip/priv/tcpip_priv.h"
-#endif
-
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -295,25 +291,16 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   if (!manual_ip.has_value()) {
-// sntp_servermode_dhcp lwip/sntp.c (Required to lock TCPIP core functionality!)
-// https://github.com/esphome/issues/issues/6591
-// https://github.com/espressif/arduino-esp32/issues/10526
-#ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
-    if (!sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
-      LOCK_TCPIP_CORE();
+    // sntp_servermode_dhcp lwip/sntp.c (Required to lock TCPIP core functionality!)
+    // https://github.com/esphome/issues/issues/6591
+    // https://github.com/espressif/arduino-esp32/issues/10526
+    {
+      LwIPLock lock;
+      // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
+      // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
+      // https://github.com/esphome/issues/issues/2299
+      sntp_servermode_dhcp(false);
     }
-#endif
-
-    // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
-    // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
-    // https://github.com/esphome/issues/issues/2299
-    sntp_servermode_dhcp(false);
-
-#ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
-    if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
-      UNLOCK_TCPIP_CORE();
-    }
-#endif
 
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
