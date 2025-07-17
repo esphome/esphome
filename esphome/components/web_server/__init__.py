@@ -74,13 +74,14 @@ def validate_local(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_ota_removed(config: ConfigType) -> ConfigType:
-    # Only raise error if OTA is explicitly enabled (True)
-    # If it's False or not specified, we can safely ignore it
-    if config.get(CONF_OTA):
+def validate_ota(config: ConfigType) -> ConfigType:
+    # The OTA option only accepts False to explicitly disable OTA for web_server
+    # IMPORTANT: Setting ota: false ONLY affects the web_server component
+    # The captive_portal component will still be able to perform OTA updates
+    if CONF_OTA in config and config[CONF_OTA] is not False:
         raise cv.Invalid(
-            f"The '{CONF_OTA}' option has been removed from 'web_server'. "
-            f"Please use the new OTA platform structure instead:\n\n"
+            f"The '{CONF_OTA}' option in 'web_server' only accepts 'false' to disable OTA. "
+            f"To enable OTA, please use the new OTA platform structure instead:\n\n"
             f"ota:\n"
             f"  - platform: web_server\n\n"
             f"See https://esphome.io/components/ota for more information."
@@ -185,7 +186,7 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-            cv.Optional(CONF_OTA, default=False): cv.boolean,
+            cv.Optional(CONF_OTA): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
@@ -203,7 +204,7 @@ CONFIG_SCHEMA = cv.All(
     default_url,
     validate_local,
     validate_sorting_groups,
-    validate_ota_removed,
+    validate_ota,
 )
 
 
@@ -288,7 +289,11 @@ async def to_code(config):
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
     # OTA is now handled by the web_server OTA platform
-    # The CONF_OTA option is kept only for backwards compatibility validation
+    # The CONF_OTA option is kept to allow explicitly disabling OTA for web_server
+    # IMPORTANT: This ONLY affects the web_server component, NOT captive_portal
+    # Captive portal will still be able to perform OTA updates even when this is set
+    if config.get(CONF_OTA) is False:
+        cg.add_define("USE_WEBSERVER_OTA_DISABLED")
     cg.add(var.set_expose_log(config[CONF_LOG]))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
