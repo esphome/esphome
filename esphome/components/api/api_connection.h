@@ -111,7 +111,7 @@ class APIConnection : public APIServerConnection {
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
     if (!this->flags_.service_call_subscription)
       return;
-    this->send_message(call);
+    this->send_message(call, HomeassistantServiceResponse::MESSAGE_TYPE);
   }
 #ifdef USE_BLUETOOTH_PROXY
   void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
@@ -133,7 +133,7 @@ class APIConnection : public APIServerConnection {
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
     GetTimeRequest req;
-    this->send_message(req);
+    this->send_message(req, GetTimeRequest::MESSAGE_TYPE);
   }
 #endif
 

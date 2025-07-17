@@ -18,11 +18,11 @@ class APIServerConnectionBase : public ProtoService {
  public:
 #endif
 
-  template<typename T> bool send_message(const T &msg) {
+  bool send_message(const ProtoMessage &msg, uint8_t message_type) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
     this->log_send_message_(msg.message_name(), msg.dump());
 #endif
-    return this->send_message_(msg, T::MESSAGE_TYPE);
+    return this->send_message_(msg, message_type);
   }
 
   virtual void on_hello_request(const HelloRequest &value){};

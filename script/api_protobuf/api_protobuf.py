@@ -1713,13 +1713,12 @@ static const char *const TAG = "api.service";
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
-    # Add generic send_message method
-    hpp += "  template<typename T>\n"
-    hpp += "  bool send_message(const T &msg) {\n"
+    # Add non-template send_message method
+    hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += "    this->log_send_message_(msg.message_name(), msg.dump());\n"
     hpp += "#endif\n"
-    hpp += "    return this->send_message_(msg, T::MESSAGE_TYPE);\n"
+    hpp += "    return this->send_message_(msg, message_type);\n"
     hpp += "  }\n\n"
 
     # Add logging helper method implementation to cpp
@@ -1805,7 +1804,9 @@ static const char *const TAG = "api.service";
                 handler_body = f"this->{func}(msg);\n"
             else:
                 handler_body = f"{ret} ret = this->{func}(msg);\n"
-                handler_body += "if (!this->send_message(ret)) {\n"
+                handler_body += (
+                    f"if (!this->send_message(ret, {ret}::MESSAGE_TYPE)) {{\n"
+                )
                 handler_body += "  this->on_fatal_error();\n"
                 handler_body += "}\n"
 
@@ -1818,7 +1819,7 @@ static const char *const TAG = "api.service";
                 body += f"this->{func}(msg);\n"
             else:
                 body += f"{ret} ret = this->{func}(msg);\n"
-                body += "if (!this->send_message(ret)) {\n"
+                body += f"if (!this->send_message(ret, {ret}::MESSAGE_TYPE)) {{\n"
                 body += "  this->on_fatal_error();\n"
                 body += "}\n"
 

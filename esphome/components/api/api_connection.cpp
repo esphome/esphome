@@ -202,7 +202,8 @@ void APIConnection::loop() {
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
     // Only send ping if we're not disconnecting
     ESP_LOGVV(TAG, "Sending keepalive PING");
-    this->flags_.sent_ping = this->send_message(PingRequest());
+    PingRequest req;
+    this->flags_.sent_ping = this->send_message(req, PingRequest::MESSAGE_TYPE);
     if (!this->flags_.sent_ping) {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
@@ -251,7 +252,7 @@ void APIConnection::loop() {
       resp.entity_id = it.entity_id;
       resp.attribute = it.attribute.value();
       resp.once = it.once;
-      if (this->send_message(resp)) {
+      if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
         state_subs_at_++;
       }
     } else {
@@ -1123,9 +1124,9 @@ bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertiseme
       manufacturer_data.legacy_data.assign(manufacturer_data.data.begin(), manufacturer_data.data.end());
       manufacturer_data.data.clear();
     }
-    return this->send_message(resp);
+    return this->send_message(resp, BluetoothLEAdvertisementResponse::MESSAGE_TYPE);
   }
-  return this->send_message(msg);
+  return this->send_message(msg, BluetoothLEAdvertisementResponse::MESSAGE_TYPE);
 }
 void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
