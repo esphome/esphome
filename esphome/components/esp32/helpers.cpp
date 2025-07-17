@@ -1,4 +1,5 @@
 #include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
 
