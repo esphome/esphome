@@ -4,6 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+permissions:
+  contents: read       # Needed to checkout code
+  pull-requests: write # Needed to comment on or modify PRs
+  issues: write        # Needed to comment on issues (if applicable)
+
 jobs:
   external-comment:
     name: External component comment
@@ -59,7 +64,7 @@ jobs:
             }
 
              async function createComment(octokit, pr, esphomeChanges, componentChanges) {
-                const commentMarker = "<!-- This comment was generated automatically by a personal bot. -->";
+                const commentMarker = "<!-- This comment was generated automatically by a GitHub workflow. -->";
                 const [owner, repo] = pr.base.repo.full_name.split('/');
                 const prNumber = pr.number;
                 let commentBody;
