@@ -9,6 +9,6 @@ pytest==8.4.1
 pytest-cov==6.2.1
 pytest-mock==3.14.1
 pytest-asyncio==1.1.0
-pytest-xdist==3.7.0
+pytest-xdist==3.8.0
 asyncmock==0.4.2
 hypothesis==6.92.1
