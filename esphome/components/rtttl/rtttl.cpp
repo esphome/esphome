@@ -380,15 +380,15 @@ void Rtttl::loop() {
 static const LogString *state_to_string(State state) {
   switch (state) {
     case State::STOPPED:
-      return LOG_STR("STATE_STOPPED");
+      return LOG_STR("State::STOPPED");
     case State::STARTING:
-      return LOG_STR("STATE_STARTING");
+      return LOG_STR("State::STARTING");
     case State::RUNNING:
-      return LOG_STR("STATE_RUNNING");
+      return LOG_STR("State::RUNNING");
     case State::STOPPING:
-      return LOG_STR("STATE_STOPPING");
+      return LOG_STR("State::STOPPING");
     case State::INIT:
-      return LOG_STR("STATE_INIT");
+      return LOG_STR("State::INIT");
     default:
       return LOG_STR("UNKNOWN");
   }
