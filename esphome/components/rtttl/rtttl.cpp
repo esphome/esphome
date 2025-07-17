@@ -235,8 +235,9 @@ void Rtttl::loop() {
   }
 #endif
 #ifdef USE_OUTPUT
-  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_)
+  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_) {
     return;
+  }
 #endif
   if (this->position_ >= this->rtttl_.length()) {
     this->finish_();
@@ -302,8 +303,9 @@ void Rtttl::loop() {
 
   // now, get scale
   uint8_t scale = get_integer_();
-  if (scale == 0)
+  if (scale == 0) {
     scale = this->default_octave_;
+  }
 
   if (scale < 4 || scale > 7) {
     ESP_LOGE(TAG, "Octave must be between 4 and 7 (it is %d)", scale);
