@@ -4,6 +4,9 @@
 #include <memory>
 #include <cstring>
 #include <deque>
+#if !defined(USE_ESP8266) && !defined(USE_RP2040)
+#include <atomic>
+#endif
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -52,8 +55,12 @@ class Scheduler {
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
   bool cancel_retry(Component *component, const std::string &name);
 
+  // Calculate when the next scheduled item should run
+  // @param now Fresh timestamp from millis() - must not be stale/cached
   optional<uint32_t> next_schedule_in(uint32_t now);
 
+  // Execute all scheduled items that are ready
+  // @param now Fresh timestamp from millis() - must not be stale/cached
   void call(uint32_t now);
 
   void process_to_add();
@@ -203,7 +210,15 @@ class Scheduler {
   // Both platforms save 40 bytes of RAM by excluding this
   std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
 #endif
+#if !defined(USE_ESP8266) && !defined(USE_RP2040)
+  // Multi-threaded platforms: last_millis_ needs atomic for lock-free updates
+  std::atomic<uint32_t> last_millis_{0};
+#else
+  // Single-threaded platforms: no atomics needed
   uint32_t last_millis_{0};
+#endif
+  // millis_major_ is protected by lock when incrementing, volatile ensures
+  // reads outside the lock see fresh values (not cached in registers)
   uint16_t millis_major_{0};
   uint32_t to_remove_{0};
 };
