@@ -121,6 +121,7 @@ jobs:
                 'small-pr',
                 'dashboard',
                 'github-actions',
+                'by-code-owner',
                 'has-tests',
                 'needs-tests',
                 'too-big',
@@ -295,6 +296,71 @@ jobs:
 
             if (githubActionsFiles.length > 0) {
               labels.add('github-actions');
+            }
+
+            // Strategy: Code Owner detection
+            try {
+              // Fetch CODEOWNERS file from the repository (in case it was changed in this PR)
+              const { data: codeownersFile } = await github.rest.repos.getContent({
+                owner,
+                repo,
+                path: '.github/CODEOWNERS',
+                ref: context.payload.pull_request.head.sha
+              });
+
+              const codeownersContent = Buffer.from(codeownersFile.content, 'base64').toString('utf8');
+              const prAuthor = context.payload.pull_request.user.login;
+
+              // Parse CODEOWNERS file
+              const codeownersLines = codeownersContent.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'));
+
+              let isCodeOwner = false;
+
+              // Precompile CODEOWNERS patterns into regex objects
+              const codeownersRegexes = codeownersLines.map(line => {
+                const parts = line.split(/\s+/);
+                const pattern = parts[0];
+                const owners = parts.slice(1);
+
+                let regex;
+                if (pattern.endsWith('*')) {
+                  // Directory pattern like "esphome/components/api/*"
+                  const dir = pattern.slice(0, -1);
+                  regex = new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+                } else if (pattern.includes('*')) {
+                  // Glob pattern
+                  const regexPattern = pattern
+                    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                    .replace(/\\*/g, '.*');
+                  regex = new RegExp(`^${regexPattern}$`);
+                } else {
+                  // Exact match
+                  regex = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+                }
+
+                return { regex, owners };
+              });
+
+              for (const file of changedFiles) {
+                for (const { regex, owners } of codeownersRegexes) {
+                  if (regex.test(file)) {
+                    // Check if PR author is in the owners list
+                    if (owners.some(owner => owner === `@${prAuthor}`)) {
+                      isCodeOwner = true;
+                      break;
+                    }
+                  }
+                }
+                if (isCodeOwner) break;
+              }
+
+              if (isCodeOwner) {
+                labels.add('by-code-owner');
+              }
+            } catch (error) {
+              console.log('Failed to read or parse CODEOWNERS file:', error.message);
             }
 
             // Strategy: Test detection
