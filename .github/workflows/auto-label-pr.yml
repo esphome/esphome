@@ -1,0 +1,363 @@
+name: Auto Label PR
+
+on:
+  # Runs only on pull_request_target due to having access to a App token.
+  # This means PRs from forks will not be able to alter this workflow to get the tokens
+  pull_request_target:
+    types: [labeled, opened, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+env:
+  TARGET_PLATFORMS: |
+    esp32
+    esp8266
+    rp2040
+    libretiny
+    bk72xx
+    rtl87xx
+    ln882x
+    nrf52
+    host
+  PLATFORM_COMPONENTS: |
+    alarm_control_panel
+    audio_adc
+    audio_dac
+    binary_sensor
+    button
+    canbus
+    climate
+    cover
+    datetime
+    display
+    event
+    fan
+    light
+    lock
+    media_player
+    microphone
+    number
+    one_wire
+    ota
+    output
+    packet_transport
+    select
+    sensor
+    speaker
+    stepper
+    switch
+    text
+    text_sensor
+    time
+    touchscreen
+    update
+    valve
+  SMALL_PR_THRESHOLD: 30
+  MAX_LABELS: 15
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    if: github.event.action != 'labeled' || github.event.sender.type != 'Bot'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Get changes
+        id: changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get PR number
+          pr_number="${{ github.event.pull_request.number }}"
+
+          # Get list of changed files using gh CLI
+          files=$(gh pr diff $pr_number --name-only)
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$files" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Get file stats (additions + deletions) using gh CLI
+          stats=$(gh pr view $pr_number --json files --jq '.files | map(.additions + .deletions) | add')
+          echo "total_changes=${stats:-0}" >> $GITHUB_OUTPUT
+
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ESPHOME_GITHUB_APP_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Auto Label PR
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const fs = require('fs');
+
+            const { owner, repo } = context.repo;
+            const pr_number = context.issue.number;
+
+            // Get current labels
+            const { data: currentLabelsData } = await github.rest.issues.listLabelsOnIssue({
+              owner,
+              repo,
+              issue_number: pr_number
+            });
+            const currentLabels = currentLabelsData.map(label => label.name);
+
+            // Define managed labels that this workflow controls
+            const managedLabels = currentLabels.filter(label =>
+              label.startsWith('component: ') ||
+              [
+                'new-component',
+                'new-platform',
+                'new-target-platform',
+                'merging-to-release',
+                'merging-to-beta',
+                'core',
+                'small-pr',
+                'dashboard',
+                'github-actions',
+                'has-tests',
+                'needs-tests',
+                'too-big',
+                'labeller-recheck'
+              ].includes(label)
+            );
+
+            console.log('Current labels:', currentLabels.join(', '));
+            console.log('Managed labels:', managedLabels.join(', '));
+
+            // Get changed files
+            const changedFiles = `${{ steps.changes.outputs.files }}`.split('\n').filter(f => f.length > 0);
+            const totalChanges = parseInt('${{ steps.changes.outputs.total_changes }}') || 0;
+
+            console.log('Changed files:', changedFiles.length);
+            console.log('Total changes:', totalChanges);
+
+            const labels = new Set();
+
+            // Get environment variables
+            const targetPlatforms = `${{ env.TARGET_PLATFORMS }}`.split('\n').filter(p => p.trim().length > 0).map(p => p.trim());
+            const platformComponents = `${{ env.PLATFORM_COMPONENTS }}`.split('\n').filter(p => p.trim().length > 0).map(p => p.trim());
+            const smallPrThreshold = parseInt('${{ env.SMALL_PR_THRESHOLD }}');
+            const maxLabels = parseInt('${{ env.MAX_LABELS }}');
+
+            // Strategy: Merge to release or beta branch
+            const baseRef = context.payload.pull_request.base.ref;
+            if (baseRef !== 'dev') {
+              if (baseRef === 'release') {
+                labels.add('merging-to-release');
+              } else if (baseRef === 'beta') {
+                labels.add('merging-to-beta');
+              }
+
+              // When targeting non-dev branches, only use merge warning labels
+              const finalLabels = Array.from(labels);
+              console.log('Computed labels (merge branch only):', finalLabels.join(', '));
+
+              // Add new labels
+              if (finalLabels.length > 0) {
+                console.log(`Adding labels: ${finalLabels.join(', ')}`);
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: pr_number,
+                  labels: finalLabels
+                });
+              }
+
+              // Remove old managed labels that are no longer needed
+              const labelsToRemove = managedLabels.filter(label =>
+                !finalLabels.includes(label)
+              );
+
+              for (const label of labelsToRemove) {
+                console.log(`Removing label: ${label}`);
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner,
+                    repo,
+                    issue_number: pr_number,
+                    name: label
+                  });
+                } catch (error) {
+                  console.log(`Failed to remove label ${label}:`, error.message);
+                }
+              }
+
+              return; // Exit early, don't process other strategies
+            }
+
+            // Strategy: Component and Platform labeling
+            const componentRegex = /^esphome\/components\/([^\/]+)\//;
+            const targetPlatformRegex = new RegExp(`^esphome\/components\/(${targetPlatforms.join('|')})/`);
+
+            for (const file of changedFiles) {
+              // Check for component changes
+              const componentMatch = file.match(componentRegex);
+              if (componentMatch) {
+                const component = componentMatch[1];
+                labels.add(`component: ${component}`);
+              }
+
+              // Check for target platform changes
+              const platformMatch = file.match(targetPlatformRegex);
+              if (platformMatch) {
+                const targetPlatform = platformMatch[1];
+                labels.add(`platform: ${targetPlatform}`);
+              }
+            }
+
+            // Get PR files for new component/platform detection
+            const { data: prFiles } = await github.rest.pulls.listFiles({
+              owner,
+              repo,
+              pull_number: pr_number
+            });
+
+            const addedFiles = prFiles.filter(file => file.status === 'added').map(file => file.filename);
+
+            // Strategy: New Component detection
+            for (const file of addedFiles) {
+              // Check for new component files: esphome/components/{component}/__init__.py
+              const componentMatch = file.match(/^esphome\/components\/([^\/]+)\/__init__\.py$/);
+              if (componentMatch) {
+                try {
+                  // Read the content directly from the filesystem since we have it checked out
+                  const content = fs.readFileSync(file, 'utf8');
+
+                  // Strategy: New Target Platform detection
+                  if (content.includes('IS_TARGET_PLATFORM = True')) {
+                    labels.add('new-target-platform');
+                  }
+                  labels.add('new-component');
+                } catch (error) {
+                  console.log(`Failed to read content of ${file}:`, error.message);
+                  // Fallback: assume it's a new component if we can't read the content
+                  labels.add('new-component');
+                }
+              }
+            }
+
+            // Strategy: New Platform detection
+            for (const file of addedFiles) {
+              // Check for new platform files: esphome/components/{component}/{platform}.py
+              const platformFileMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\.py$/);
+              if (platformFileMatch) {
+                const [, component, platform] = platformFileMatch;
+                if (platformComponents.includes(platform)) {
+                  labels.add('new-platform');
+                }
+              }
+
+              // Check for new platform files: esphome/components/{component}/{platform}/__init__.py
+              const platformDirMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\/__init__\.py$/);
+              if (platformDirMatch) {
+                const [, component, platform] = platformDirMatch;
+                if (platformComponents.includes(platform)) {
+                  labels.add('new-platform');
+                }
+              }
+            }
+
+            const coreFiles = changedFiles.filter(file =>
+              file.startsWith('esphome/core/') ||
+              (file.startsWith('esphome/') && file.split('/').length === 2)
+            );
+
+            if (coreFiles.length > 0) {
+              labels.add('core');
+            }
+
+            // Strategy: Small PR detection
+            if (totalChanges <= smallPrThreshold) {
+              labels.add('small-pr');
+            }
+
+            // Strategy: Dashboard changes
+            const dashboardFiles = changedFiles.filter(file =>
+              file.startsWith('esphome/dashboard/') ||
+              file.startsWith('esphome/components/dashboard_import/')
+            );
+
+            if (dashboardFiles.length > 0) {
+              labels.add('dashboard');
+            }
+
+            // Strategy: GitHub Actions changes
+            const githubActionsFiles = changedFiles.filter(file =>
+              file.startsWith('.github/workflows/')
+            );
+
+            if (githubActionsFiles.length > 0) {
+              labels.add('github-actions');
+            }
+
+            // Strategy: Test detection
+            const testFiles = changedFiles.filter(file =>
+              file.startsWith('tests/')
+            );
+
+            if (testFiles.length > 0) {
+              labels.add('has-tests');
+            } else {
+              // Only check for needs-tests if this is a new component or new platform
+              if (labels.has('new-component') || labels.has('new-platform')) {
+                labels.add('needs-tests');
+              }
+            }
+
+            // Convert Set to Array
+            let finalLabels = Array.from(labels);
+
+            console.log('Computed labels:', finalLabels.join(', '));
+
+            // Don't set more than max labels
+            if (finalLabels.length > maxLabels) {
+              const originalLength = finalLabels.length;
+              console.log(`Not setting ${originalLength} labels because out of range`);
+              finalLabels = ['too-big'];
+
+              // Request changes on the PR
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number: pr_number,
+                body: `This PR is too large and affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.`,
+                event: 'REQUEST_CHANGES'
+              });
+            }
+
+            // Add new labels
+            if (finalLabels.length > 0) {
+              console.log(`Adding labels: ${finalLabels.join(', ')}`);
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr_number,
+                labels: finalLabels
+              });
+            }
+
+            // Remove old managed labels that are no longer needed
+            const labelsToRemove = managedLabels.filter(label =>
+              !finalLabels.includes(label)
+            );
+
+            for (const label of labelsToRemove) {
+              console.log(`Removing label: ${label}`);
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr_number,
+                  name: label
+                });
+              } catch (error) {
+                console.log(`Failed to remove label ${label}:`, error.message);
+              }
+            }
