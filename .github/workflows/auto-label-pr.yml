@@ -4,7 +4,7 @@ on:
   # Runs only on pull_request_target due to having access to a App token.
   # This means PRs from forks will not be able to alter this workflow to get the tokens
   pull_request_target:
-    types: [labeled, opened, reopened, synchronize]
+    types: [labeled, opened, reopened, synchronize, edited]
 
 permissions:
   pull-requests: write
@@ -124,6 +124,7 @@ jobs:
                 'by-code-owner',
                 'has-tests',
                 'needs-tests',
+                'needs-docs',
                 'too-big',
                 'labeller-recheck'
               ].includes(label)
@@ -374,6 +375,26 @@ jobs:
               // Only check for needs-tests if this is a new component or new platform
               if (labels.has('new-component') || labels.has('new-platform')) {
                 labels.add('needs-tests');
+              }
+            }
+
+            // Strategy: Documentation check for new components/platforms
+            if (labels.has('new-component') || labels.has('new-platform')) {
+              const prBody = context.payload.pull_request.body || '';
+
+              // Look for documentation PR links
+              // Patterns to match:
+              // - https://github.com/esphome/esphome-docs/pull/1234
+              // - esphome/esphome-docs#1234
+              const docsPrPatterns = [
+                /https:\/\/github\.com\/esphome\/esphome-docs\/pull\/\d+/,
+                /esphome\/esphome-docs#\d+/
+              ];
+
+              const hasDocsLink = docsPrPatterns.some(pattern => pattern.test(prBody));
+
+              if (!hasDocsLink) {
+                labels.add('needs-docs');
               }
             }
 
