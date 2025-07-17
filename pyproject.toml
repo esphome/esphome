@@ -27,8 +27,8 @@ dynamic = ["dependencies", "optional-dependencies", "version"]
 [project.urls]
 "Documentation"           = "https://esphome.io"
 "Source Code"             = "https://github.com/esphome/esphome"
-"Bug Tracker"             = "https://github.com/esphome/issues/issues"
-"Feature Request Tracker" = "https://github.com/esphome/feature-requests/issues"
+"Bug Tracker"             = "https://github.com/esphome/esphome/issues"
+"Feature Request Tracker" = "https://github.com/orgs/esphome/discussions"
 "Discord"                 = "https://discord.gg/KhAMKrd"
 "Forum"                   = "https://community.home-assistant.io/c/esphome"
 "Twitter"                 = "https://twitter.com/esphome_"
