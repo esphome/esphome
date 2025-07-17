@@ -147,6 +147,13 @@ class RedirectText:
                     continue
 
                 self._write_color_replace(line)
+                # Check for flash size error and provide helpful guidance
+                if (
+                    "Error: The program size" in line
+                    and "is greater than maximum allowed" in line
+                    and (help_msg := get_esp32_arduino_flash_error_help())
+                ):
+                    self._write_color_replace(help_msg)
         else:
             self._write_color_replace(s)
 
@@ -309,3 +316,34 @@ def get_serial_ports() -> list[SerialPort]:
 
     result.sort(key=lambda x: x.path)
     return result
+
+
+def get_esp32_arduino_flash_error_help() -> str | None:
+    """Returns helpful message when ESP32 with Arduino runs out of flash space."""
+    from esphome.core import CORE
+
+    if not (CORE.is_esp32 and CORE.using_arduino):
+        return None
+
+    from esphome.log import AnsiFore, color
+
+    return (
+        "\n"
+        + color(
+            AnsiFore.YELLOW,
+            "💡 TIP: Your ESP32 with Arduino framework has run out of flash space.\n",
+        )
+        + "\n"
+        + "To fix this, switch to the ESP-IDF framework which is more memory efficient:\n"
+        + "\n"
+        + "1. In your YAML configuration, modify the framework section:\n"
+        + "\n"
+        + "   esp32:\n"
+        + "     framework:\n"
+        + "       type: esp-idf\n"
+        + "\n"
+        + "2. Clean build files and compile again\n"
+        + "\n"
+        + "Note: ESP-IDF uses less flash space and provides better performance.\n"
+        + "Some Arduino-specific libraries may need alternatives.\n\n"
+    )
