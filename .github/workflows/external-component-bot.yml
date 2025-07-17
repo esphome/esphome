@@ -1,13 +1,13 @@
 name: Add External Component Comment
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize]
 
 permissions:
-  contents: read       # Needed to checkout code
-  pull-requests: write # Needed to comment on or modify PRs
-  issues: write        # Needed to comment on issues (if applicable)
+  contents: read       #  Needed to fetch PR details
+  issues: write        #  Needed to create and update comments (PR comments are managed via the issues REST API)
+  pull-requests: write  # also needed?
 
 jobs:
   external-comment:
@@ -19,15 +19,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-
-           // Generate external component usage instructions
-           function generateExternalComponentInstructions(prNumber, componentNames, owner, repo) {
-            let source;
-            if (owner === 'esphome' && repo === 'esphome')
-            source = `github://pr#${prNumber}`;
-            else
-            source = `github://${owner}/${repo}@pull/${prNumber}/head`;
-            return `To use the changes from this PR as an external component, add the following to your ESPHome configuration YAML file:
+            // Generate external component usage instructions
+            function generateExternalComponentInstructions(prNumber, componentNames, owner, repo) {
+                let source;
+                if (owner === 'esphome' && repo === 'esphome')
+                    source = `github://pr#${prNumber}`;
+                else
+                    source = `github://${owner}/${repo}@pull/${prNumber}/head`;
+                return `To use the changes from this PR as an external component, add the following to your ESPHome configuration YAML file:
 
             \`\`\`yaml
             external_components:
@@ -35,129 +34,114 @@ jobs:
                 components: [${componentNames.join(', ')}]
                 refresh: 1h
             \`\`\``;
-           }
-
-           // Generate repo clone instructions
-           function generateRepoInstructions(prNumber, branch, url) {
-             const reponame = url.split('/').filter(Boolean).pop();
-               return
-               `To use the changes in this PR:
-
-               \`\`\`bash
-               # Clone the repository:
-                   git clone ${url}
-                   cd ${reponame}
-
-               # Checkout the PR branch:
-                 git fetch origin pull/${prNumber}/head:${branch}
-                 git checkout ${branch}
-
-               # Install the development version:
-                   script/setup
-
-               # Activate the development version:
-                   source venv/bin/activate
-               \`\`\`
-
-              Now you can run \`esphome\` as usual to test the changes in this PR.
-              `;
             }
 
-             async function createComment(octokit, pr, esphomeChanges, componentChanges) {
+            // Generate repo clone instructions
+            function generateRepoInstructions(prNumber, owner, repo, branch) {
+                return `To use the changes in this PR:
+
+            \`\`\`bash
+            # Clone the repository:
+            git clone https://github.com/${owner}/${repo}
+            cd ${repo}
+
+            # Checkout the PR branch:
+            git fetch origin pull/${prNumber}/head:${branch}
+            git checkout ${branch}
+
+            # Install the development version:
+            script/setup
+
+            # Activate the development version:
+            source venv/bin/activate
+            \`\`\`
+
+            Now you can run \`esphome\` as usual to test the changes in this PR.
+            `;
+            }
+
+            async function createComment(octokit, owner, repo, prNumber, esphomeChanges, componentChanges) {
                 const commentMarker = "<!-- This comment was generated automatically by a GitHub workflow. -->";
-                const [owner, repo] = pr.base.repo.full_name.split('/');
-                const prNumber = pr.number;
                 let commentBody;
                 if (esphomeChanges.length === 1) {
-                  commentBody = generateExternalComponentInstructions(prNumber, componentChanges, owner, repo);
+                    commentBody = generateExternalComponentInstructions(prNumber, componentChanges, owner, repo);
                 } else {
-                  commentBody = generateRepoInstructions(prNumber, pr.head.ref, pr.base.repo.html_url);
+                    commentBody = generateRepoInstructions(prNumber, owner, repo, context.payload.pull_request.head.ref);
                 }
                 commentBody += `\n\n---\n(Added by the PR bot)\n\n${commentMarker}`;
 
                 // Check for existing bot comment
                 const comments = await github.rest.issues.listComments({
-                          owner: owner,
-                          repo: repo,
-                          issue_number: prNumber,
-                 });
+                    owner: owner,
+                    repo: repo,
+                    issue_number: prNumber,
+                });
 
                 const botComment = comments.data.find(comment =>
-                 comment.body.includes(commentMarker)
+                    comment.body.includes(commentMarker)
                 );
 
                 if (botComment && botComment.body === commentBody) {
-                  // No changes in the comment, do nothing
-                  return;
+                    // No changes in the comment, do nothing
+                    return;
                 }
 
                 if (botComment) {
-                  // Update existing comment
-                  await github.rest.issues.updateComment({
+                    // Update existing comment
+                    await github.rest.issues.updateComment({
+                        owner: owner,
+                        repo: repo,
+                        comment_id: botComment.id,
+                        body: commentBody,
+                    });
+                } else {
+                    // Create new comment
+                    await github.rest.issues.createComment({
+                        owner: owner,
+                        repo: repo,
+                        issue_number: prNumber,
+                        body: commentBody,
+                    });
+                }
+            }
+
+            async function getEsphomeAndComponentChanges(github, owner, repo, prNumber) {
+                const changedFiles = await github.rest.pulls.listFiles({
                     owner: owner,
                     repo: repo,
-                    comment_id: botComment.id,
-                    body: commentBody,
-                  });
-                } else {
-                  // Create new comment
-                  await github.rest.issues.createComment({
-                   owner: owner,
-                   repo: repo,
-                   issue_number: prNumber,
-                   body: commentBody,
+                    pull_number: prNumber,
                 });
+
+                const esphomeChanges = changedFiles.data
+                    .filter(file => file.filename !== "esphome/core/defines.h" && file.filename.startsWith('esphome/'))
+                    .map(file => {
+                        const match = file.filename.match(/esphome\/([^/]+)/);
+                        return match ? match[1] : null;
+                    })
+                    .filter(it => it !== null);
+
+                if (esphomeChanges.length === 0) {
+                    return {esphomeChanges: [], componentChanges: []};
                 }
-              }
 
-             async function getEsphomeAndComponentChanges(github, owner, repo, prNumber) {
-              const changedFiles = await github.rest.pulls.listFiles({
-                 owner: owner,
-                 repo: repo,
-                 pull_number: prNumber,
-              });
+                const uniqueEsphomeChanges = [...new Set(esphomeChanges)];
+                const componentChanges = changedFiles.data
+                    .filter(file => file.filename.startsWith('esphome/components/'))
+                    .map(file => {
+                        const match = file.filename.match(/esphome\/components\/([^/]+)\//);
+                        return match ? match[1] : null;
+                    })
+                    .filter(it => it !== null);
 
-              console.log(owner, repo, prNumber);
-              console.log(changedFiles.data.map(file => { return file.filename; }));
+                return {esphomeChanges: uniqueEsphomeChanges, componentChanges: [...new Set(componentChanges)]};
+            }
 
-              const esphomeChanges = changedFiles.data
-                .filter(file => file.filename !== "esphome/core/defines.h" && file.filename.startsWith('esphome/'))
-                .map(file => {
-                 const match = file.filename.match(/esphome\/([^/]+)/);
-                 return match ? match[1] : null;
-               })
-              .filter(it => it !== null);
+            // Start of main code.
 
-              if (esphomeChanges.length === 0) {
-                 return { esphomeChanges: [], componentChanges: [] };
-               }
+            const prNumber = context.payload.pull_request.number;
+            const {owner, repo} = context.repo;
 
-              const uniqueEsphomeChanges = [...new Set(esphomeChanges)];
-              const componentChanges = changedFiles.data
-              .filter(file => file.filename.startsWith('esphome/components/'))
-              .map(file => {
-                 const match = file.filename.match(/esphome\/components\/([^/]+)\//);
-                 return match ? match[1] : null;
-               })
-              .filter(it => it !== null);
-
-              return { esphomeChanges: uniqueEsphomeChanges, componentChanges: [...new Set(componentChanges)] };
-             }
-
-             // Start of main code.
-
-             const prNumber = context.payload.pull_request.number;
-             const { owner, repo } = context.repo;
-             const prDetails = await github.rest.pulls.get({
-                owner: owner,
-                repo: repo,
-                pull_number: prNumber,
-              });
-
-             const {esphomeChanges, componentChanges} = await getEsphomeAndComponentChanges(github, owner, repo, prNumber);
-             console.log(esphomeChanges, componentChanges);
-             if (componentChanges.length === 0) {
-                return;
-             }
-
-             await createComment(github, prDetails.data, esphomeChanges, componentChanges);
+            const {esphomeChanges, componentChanges} = await getEsphomeAndComponentChanges(github, owner, repo, prNumber);
+            if (componentChanges.length !== 0) {
+                await createComment(github, owner, repo, prNumber, esphomeChanges, componentChanges);
+            }
