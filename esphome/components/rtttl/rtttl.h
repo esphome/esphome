@@ -90,8 +90,6 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   /// The speaker to write the sound to.
   speaker::Speaker *speaker_{nullptr};
-  /// The sample rate of the speaker.
-  int sample_rate_{16000};
   /// The number of samples for one full cycle of a note's waveform, in Q10 fixed-point format.
   int samples_per_wave_{0};
   /// The number of samples sent.
