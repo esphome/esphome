@@ -9,6 +9,7 @@
 pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
+.github/** @esphome/core
 
 # Integrations
 esphome/components/a01nyub/* @MrSuicideParrot
