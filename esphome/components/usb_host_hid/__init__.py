@@ -1,31 +1,45 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, key_provider
 from esphome.components.const import CONF_ENABLE_HUBS, CONF_PID, CONF_VID
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_component,
     add_idf_sdkconfig_option,
     only_on_variant,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICES, CONF_ID
-from esphome.cpp_types import Component
-from esphome.types import ConfigType
+from esphome.const import CONF_ID
 
-AUTO_LOAD = ["bytebuffer"]
-CODEOWNERS = ["@clydebarrow"]
+AUTO_LOAD = ["key_provider"]
+
+CODEOWNERS = ["@zopieux"]
+
+CONFLICTS_WITH = ["usb_host"]
+
 DEPENDENCIES = ["esp32"]
-usb_host_ns = cg.esphome_ns.namespace("usb_host")
-USBHost = usb_host_ns.class_("USBHost", Component)
-USBClient = usb_host_ns.class_("USBClient", Component)
 
-CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
+usb_host_hid_ns = cg.esphome_ns.namespace("usb_host_hid")
+USBHidHost = usb_host_hid_ns.class_("USBHidHost", cg.Component)
+USBHidKeyboard = usb_host_hid_ns.class_(
+    "USBHidKeyboard",
+    cg.Component,
+    binary_sensor.BinarySensorInitiallyOff,
+    key_provider.KeyProvider,
+)
+
+CONF_CHECK_CLASS = "check_class"
+CONF_KEYBOARDS = "keyboards"
 
 
-def usb_device_schema(cls=USBClient, vid: int = None, pid: [int] = None) -> cv.Schema:
+def usb_hid_device_schema(
+    cls=USBHidKeyboard, vid: int = None, pid: [int] = None, check_class: bool = True
+) -> cv.Schema:
     schema = cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(cls),
+            cv.Optional(CONF_CHECK_CLASS, default=True): cv.boolean,
         }
     )
     if vid:
@@ -42,12 +56,9 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: [int] = None) -> cv.S
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(USBHost),
+            cv.GenerateID(): cv.declare_id(USBHidHost),
             cv.Optional(CONF_ENABLE_HUBS, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
-                min=1, max=32
-            ),
-            cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
+            cv.Optional(CONF_KEYBOARDS): cv.ensure_list(usb_hid_device_schema()),
         }
     ),
     cv.only_with_esp_idf,
@@ -55,21 +66,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def register_usb_client(config):
+async def register_usb_hid_device(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
     return var
 
 
-async def to_code(config: ConfigType) -> None:
+async def to_code(config):
+    add_idf_component(name="espressif/usb_host_hid", ref="1.0.1")
     add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 1024)
     if config.get(CONF_ENABLE_HUBS):
         add_idf_sdkconfig_option("CONFIG_USB_HOST_HUBS_SUPPORTED", True)
-
-    max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
-    cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
-
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    for device in config.get(CONF_DEVICES) or ():
-        await register_usb_client(device)
+    host_var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(host_var, config)
+    for kbd in config.get(CONF_KEYBOARDS) or ():
+        dev_var = await register_usb_hid_device(kbd)
+        cg.add(host_var.register_keyboard(dev_var, kbd[CONF_CHECK_CLASS]))

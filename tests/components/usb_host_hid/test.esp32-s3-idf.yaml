@@ -1,0 +1,7 @@
+usb_host_hid:
+  enable_hubs: true
+  keyboards:
+    - id: kbd_1
+      check_class: false
+      vid: 0x1234
+      pid: 0x1234
