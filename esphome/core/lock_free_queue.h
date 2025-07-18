@@ -1,17 +1,12 @@
 #pragma once
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32)
 
 #include <atomic>
 #include <cstddef>
 
-#if defined(USE_ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#elif defined(USE_LIBRETINY)
-#include <FreeRTOS.h>
-#include <task.h>
-#endif
 
 /*
  * Lock-free queue for single-producer single-consumer scenarios.
@@ -148,4 +143,4 @@ template<class T, uint8_t SIZE> class NotifyingLockFreeQueue : public LockFreeQu
 
 }  // namespace esphome
 
-#endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)
+#endif  // defined(USE_ESP32)
