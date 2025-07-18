@@ -158,14 +158,14 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   void play_complex(Ts... x) override {
     auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
-    this->set_timeout(this->delay_.value(x...), f);
+    this->set_timeout("delay", this->delay_.value(x...), f);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout(""); }
+  void stop() override { this->cancel_timeout("delay"); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
