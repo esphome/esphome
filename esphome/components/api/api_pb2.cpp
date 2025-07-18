@@ -3,6 +3,7 @@
 #include "api_pb2.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include <cstring>
 
 namespace esphome {
 namespace api {
@@ -1916,13 +1917,15 @@ void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_sint32(2, this->rssi);
   buffer.encode_uint32(3, this->address_type);
-  buffer.encode_bytes(4, reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size());
+  buffer.encode_bytes(4, this->data, this->data_len);
 }
 void BluetoothLERawAdvertisement::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_uint64_field(total_size, 1, this->address);
   ProtoSize::add_sint32_field(total_size, 1, this->rssi);
   ProtoSize::add_uint32_field(total_size, 1, this->address_type);
-  ProtoSize::add_string_field(total_size, 1, this->data);
+  if (this->data_len != 0) {
+    total_size += 1 + ProtoSize::varint(static_cast<uint32_t>(this->data_len)) + this->data_len;
+  }
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->advertisements) {

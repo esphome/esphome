@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/application.h"
+#include <cstring>
 
 #ifdef USE_ESP32
 
@@ -24,9 +25,30 @@ std::vector<uint64_t> get_128bit_uuid_vec(esp_bt_uuid_t uuid_source) {
                                    ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0])};
 }
 
+// Batch size for BLE advertisements to maximize WiFi efficiency
+// Each advertisement is up to 80 bytes when packaged (including protocol overhead)
+// Most advertisements are 20-30 bytes, allowing even more to fit per packet
+// 16 advertisements × 80 bytes (worst case) = 1280 bytes out of ~1320 bytes usable payload
+// This achieves ~97% WiFi MTU utilization while staying under the limit
+static constexpr size_t FLUSH_BATCH_SIZE = 16;
+
+// Verify BLE advertisement data array size matches the BLE specification (31 bytes adv + 31 bytes scan response)
+static_assert(sizeof(((api::BluetoothLERawAdvertisement *) nullptr)->data) == 62,
+              "BLE advertisement data array size mismatch");
+
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 void BluetoothProxy::setup() {
+  // Pre-allocate response object
+  this->response_ = std::make_unique<api::BluetoothLERawAdvertisementsResponse>();
+
+  // Reserve capacity but start with size 0
+  // Reserve 50% since we'll grow naturally and flush at FLUSH_BATCH_SIZE
+  this->response_->advertisements.reserve(FLUSH_BATCH_SIZE / 2);
+
+  // Don't pre-allocate pool - let it grow only if needed in busy environments
+  // Many devices in quiet areas will never need the overflow pool
+
   this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
     if (this->api_connection_ != nullptr) {
       this->send_bluetooth_scanner_state_(state);
@@ -50,68 +72,72 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 }
 #endif
 
-// Batch size for BLE advertisements to maximize WiFi efficiency
-// Each advertisement is up to 80 bytes when packaged (including protocol overhead)
-// Most advertisements are 20-30 bytes, allowing even more to fit per packet
-// 16 advertisements × 80 bytes (worst case) = 1280 bytes out of ~1320 bytes usable payload
-// This achieves ~97% WiFi MTU utilization while staying under the limit
-static constexpr size_t FLUSH_BATCH_SIZE = 16;
-
-namespace {
-// Batch buffer in anonymous namespace to avoid guard variable (saves 8 bytes)
-// This is initialized at program startup before any threads
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::vector<api::BluetoothLERawAdvertisement> batch_buffer;
-}  // namespace
-
-static std::vector<api::BluetoothLERawAdvertisement> &get_batch_buffer() { return batch_buffer; }
-
 bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
     return false;
 
-  // Get the batch buffer reference
-  auto &batch_buffer = get_batch_buffer();
+  auto &advertisements = this->response_->advertisements;
 
-  // Reserve additional capacity if needed
-  size_t new_size = batch_buffer.size() + count;
-  if (batch_buffer.capacity() < new_size) {
-    batch_buffer.reserve(new_size);
-  }
-
-  // Add new advertisements to the batch buffer
   for (size_t i = 0; i < count; i++) {
     auto &result = scan_results[i];
     uint8_t length = result.adv_data_len + result.scan_rsp_len;
 
-    batch_buffer.emplace_back();
-    auto &adv = batch_buffer.back();
+    // Check if we need to expand the vector
+    if (this->advertisement_count_ >= advertisements.size()) {
+      if (this->advertisement_pool_.empty()) {
+        // No room in pool, need to allocate
+        advertisements.emplace_back();
+      } else {
+        // Pull from pool
+        advertisements.push_back(std::move(this->advertisement_pool_.back()));
+        this->advertisement_pool_.pop_back();
+      }
+    }
+
+    // Fill in the data directly at current position
+    auto &adv = advertisements[this->advertisement_count_];
     adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
     adv.rssi = result.rssi;
     adv.address_type = result.ble_addr_type;
-    adv.data.assign(&result.ble_adv[0], &result.ble_adv[length]);
+    adv.data_len = length;
+    std::memcpy(adv.data, result.ble_adv, length);
+
+    this->advertisement_count_++;
 
     ESP_LOGV(TAG, "Queuing raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", result.bda[0],
              result.bda[1], result.bda[2], result.bda[3], result.bda[4], result.bda[5], length, result.rssi);
-  }
 
-  // Only send if we've accumulated a good batch size to maximize batching efficiency
-  // https://github.com/esphome/backlog/issues/21
-  if (batch_buffer.size() >= FLUSH_BATCH_SIZE) {
-    this->flush_pending_advertisements();
+    // Flush if we have reached FLUSH_BATCH_SIZE
+    if (this->advertisement_count_ >= FLUSH_BATCH_SIZE) {
+      this->flush_pending_advertisements();
+    }
   }
 
   return true;
 }
 
 void BluetoothProxy::flush_pending_advertisements() {
-  auto &batch_buffer = get_batch_buffer();
-  if (batch_buffer.empty() || !api::global_api_server->is_connected() || this->api_connection_ == nullptr)
+  if (this->advertisement_count_ == 0 || !api::global_api_server->is_connected() || this->api_connection_ == nullptr)
     return;
 
-  api::BluetoothLERawAdvertisementsResponse resp;
-  resp.advertisements.swap(batch_buffer);
-  this->api_connection_->send_message(resp, api::BluetoothLERawAdvertisementsResponse::MESSAGE_TYPE);
+  auto &advertisements = this->response_->advertisements;
+
+  // Return any items beyond advertisement_count_ to the pool
+  if (advertisements.size() > this->advertisement_count_) {
+    // Move unused items back to pool
+    this->advertisement_pool_.insert(this->advertisement_pool_.end(),
+                                     std::make_move_iterator(advertisements.begin() + this->advertisement_count_),
+                                     std::make_move_iterator(advertisements.end()));
+
+    // Resize to actual count
+    advertisements.resize(this->advertisement_count_);
+  }
+
+  // Send the message
+  this->api_connection_->send_message(*this->response_, api::BluetoothLERawAdvertisementsResponse::MESSAGE_TYPE);
+
+  // Reset count - existing items will be overwritten in next batch
+  this->advertisement_count_ = 0;
 }
 
 #ifdef USE_ESP32_BLE_DEVICE

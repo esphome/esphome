@@ -1381,7 +1381,7 @@ message BluetoothLERawAdvertisement {
   sint32 rssi = 2;
   uint32 address_type = 3;
 
-  bytes data = 4;
+  bytes data = 4 [(fixed_array_size) = 62];
 }
 
 message BluetoothLERawAdvertisementsResponse {

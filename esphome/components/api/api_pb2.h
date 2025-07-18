@@ -1768,7 +1768,8 @@ class BluetoothLERawAdvertisement : public ProtoMessage {
   uint64_t address{0};
   int32_t rssi{0};
   uint32_t address_type{0};
-  std::string data{};
+  uint8_t data[62]{};
+  uint8_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

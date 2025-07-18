@@ -145,9 +145,14 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   // Group 2: Container types (typically 12 bytes on 32-bit)
   std::vector<BluetoothConnection *> connections_{};
 
+  // BLE advertisement batching
+  std::vector<api::BluetoothLERawAdvertisement> advertisement_pool_;
+  std::unique_ptr<api::BluetoothLERawAdvertisementsResponse> response_;
+
   // Group 3: 1-byte types grouped together
   bool active_;
-  // 1 byte used, 3 bytes padding
+  uint8_t advertisement_count_{0};
+  // 2 bytes used, 2 bytes padding
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
