@@ -255,10 +255,10 @@ void Component::defer(const char *name, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, 0, std::move(f));
 }
 void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // NOLINT
-  App.scheduler.set_timeout(this, "", timeout, std::move(f));
+  App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), timeout, std::move(f));
 }
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
-  App.scheduler.set_interval(this, "", interval, std::move(f));
+  App.scheduler.set_interval(this, static_cast<const char *>(nullptr), interval, std::move(f));
 }
 void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,
                           float backoff_increase_factor) {  // NOLINT

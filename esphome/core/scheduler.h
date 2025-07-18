@@ -121,16 +121,17 @@ class Scheduler {
         name_is_dynamic = false;
       }
 
-      if (!name || !name[0]) {
+      if (!name) {
+        // nullptr case - no name provided
         name_.static_name = nullptr;
       } else if (make_copy) {
-        // Make a copy for dynamic strings
+        // Make a copy for dynamic strings (including empty strings)
         size_t len = strlen(name);
         name_.dynamic_name = new char[len + 1];
         memcpy(name_.dynamic_name, name, len + 1);
         name_is_dynamic = true;
       } else {
-        // Use static string directly
+        // Use static string directly (including empty strings)
         name_.static_name = name;
       }
     }

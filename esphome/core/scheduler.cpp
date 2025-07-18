@@ -452,7 +452,7 @@ bool HOT Scheduler::cancel_item_(Component *component, bool is_static_string, co
 // Helper to cancel items by name - must be called with lock held
 bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_cstr, SchedulerItem::Type type) {
   // Early return if name is invalid - no items to cancel
-  if (name_cstr == nullptr || name_cstr[0] == '\0') {
+  if (name_cstr == nullptr) {
     return false;
   }
 
