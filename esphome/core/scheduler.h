@@ -218,8 +218,7 @@ class Scheduler {
   // Platforms without atomic support or single-threaded platforms
   uint32_t last_millis_{0};
 #endif
-  // millis_major_ is protected by lock when incrementing, volatile ensures
-  // reads outside the lock see fresh values (not cached in registers)
+  // millis_major_ is protected by lock when incrementing
   uint16_t millis_major_{0};
   uint32_t to_remove_{0};
 };
