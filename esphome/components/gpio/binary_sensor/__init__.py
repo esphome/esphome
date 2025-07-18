@@ -29,7 +29,21 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_USE_INTERRUPT, default=True): cv.boolean,
+            # Interrupts are disabled by default for bk72xx, ln882x, and rtl87xx platforms
+            # due to hardware limitations or lack of reliable interrupt support. This ensures
+            # stable operation on these platforms. Future maintainers should verify platform
+            # capabilities before changing this default behavior.
+            cv.SplitDefault(
+                CONF_USE_INTERRUPT,
+                bk72xx=False,
+                esp32=True,
+                esp8266=True,
+                host=True,
+                ln882x=False,
+                nrf52=True,
+                rp2040=True,
+                rtl87xx=False,
+            ): cv.boolean,
             cv.Optional(CONF_INTERRUPT_TYPE, default="ANY"): cv.enum(
                 INTERRUPT_TYPES, upper=True
             ),
