@@ -133,6 +133,7 @@ void ESP32Camera::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  JPEG Quality: %u\n"
                 "  Framebuffer Count: %u\n"
+                "  Framebuffer Location: %s\n"
                 "  Contrast: %d\n"
                 "  Brightness: %d\n"
                 "  Saturation: %d\n"
@@ -140,8 +141,9 @@ void ESP32Camera::dump_config() {
                 "  Horizontal Mirror: %s\n"
                 "  Special Effect: %u\n"
                 "  White Balance Mode: %u",
-                st.quality, conf.fb_count, st.contrast, st.brightness, st.saturation, ONOFF(st.vflip),
-                ONOFF(st.hmirror), st.special_effect, st.wb_mode);
+                st.quality, conf.fb_count, this->config_.fb_location == CAMERA_FB_IN_PSRAM ? "PSRAM" : "DRAM",
+                st.contrast, st.brightness, st.saturation, ONOFF(st.vflip), ONOFF(st.hmirror), st.special_effect,
+                st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
   ESP_LOGCONFIG(TAG,
@@ -349,6 +351,9 @@ void ESP32Camera::set_frame_buffer_mode(camera_grab_mode_t mode) { this->config_
 void ESP32Camera::set_frame_buffer_count(uint8_t fb_count) {
   this->config_.fb_count = fb_count;
   this->set_frame_buffer_mode(fb_count > 1 ? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY);
+}
+void ESP32Camera::set_frame_buffer_location(camera_fb_location_t fb_location) {
+  this->config_.fb_location = fb_location;
 }
 
 /* ---------------- public API (specific) ---------------- */
