@@ -119,6 +119,7 @@ class Purpose(StrEnum):
 
 class PortType(StrEnum):
     SERIAL = "SERIAL"
+    RFC2217 = "RFC2217"
     NETWORK = "NETWORK"
     MQTT = "MQTT"
     MQTTIP = "MQTTIP"
@@ -126,6 +127,9 @@ class PortType(StrEnum):
 
 # Magic MQTT port types that require special handling
 _MQTT_PORT_TYPES = frozenset({PortType.MQTT, PortType.MQTTIP})
+
+# Serial (local or remote) port types.
+_SERIAL_TYPES = frozenset({PortType.SERIAL, PortType.RFC2217})
 
 
 def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
@@ -340,11 +344,14 @@ def get_port_type(port: str) -> PortType:
     """Determine the type of port/device identifier.
 
     Returns:
-        PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
+        PortType.SERIAL for local serial ports (/dev/ttyUSB0, COM1, etc.)
+        PortType.RFC2217 for RFC2217 serial ports (rfc2217://hostname:4000)
         PortType.MQTT for MQTT logging
         PortType.MQTTIP for MQTT IP lookup
         PortType.NETWORK for IP addresses, hostnames, or mDNS names
     """
+    if port.startswith("rfc2217://"):
+        return PortType.RFC2217
     if port.startswith("/") or port.startswith("COM"):
         return PortType.SERIAL
     if port == "MQTT":
@@ -579,7 +586,7 @@ def upload_program(
     except AttributeError:
         pass
 
-    if get_port_type(host) == PortType.SERIAL:
+    if get_port_type(host) in _SERIAL_TYPES:
         check_permissions(host)
 
         exit_code = 1
@@ -632,7 +639,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     port = devices[0]
     port_type = get_port_type(port)
 
-    if port_type == PortType.SERIAL:
+    if port_type in _SERIAL_TYPES:
         check_permissions(port)
         return run_miniterm(config, port, args)
 
