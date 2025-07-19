@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -262,6 +262,8 @@ def test_should_run_integration_tests_component_dependency() -> None:
         (0, [], True),  # Hash changed - need full scan
         (1, ["esphome/core.cpp"], True),  # C++ file changed
         (1, ["README.md"], False),  # No C++ files changed
+        (1, [".clang-tidy.hash"], True),  # Hash file itself changed
+        (1, ["platformio.ini", ".clang-tidy.hash"], True),  # Config + hash changed
     ],
 )
 def test_should_run_clang_tidy(
@@ -277,11 +279,26 @@ def test_should_run_clang_tidy(
             result = determine_jobs.should_run_clang_tidy()
             assert result == expected_result
 
-        # Test with hash check failing (exception)
-        if check_returncode != 0:
-            with patch("subprocess.run", side_effect=Exception("Failed")):
-                result = determine_jobs.should_run_clang_tidy()
-            assert result is True  # Fail safe - run clang-tidy
+
+def test_should_run_clang_tidy_hash_check_exception() -> None:
+    """Test should_run_clang_tidy when hash check fails with exception."""
+    # When hash check fails, clang-tidy should run as a safety measure
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=["README.md"]),
+        patch("subprocess.run", side_effect=Exception("Hash check failed")),
+    ):
+        result = determine_jobs.should_run_clang_tidy()
+        assert result is True  # Fail safe - run clang-tidy
+
+    # Even with C++ files, exception should trigger clang-tidy
+    with (
+        patch.object(
+            determine_jobs, "changed_files", return_value=["esphome/core.cpp"]
+        ),
+        patch("subprocess.run", side_effect=Exception("Hash check failed")),
+    ):
+        result = determine_jobs.should_run_clang_tidy()
+        assert result is True
 
 
 def test_should_run_clang_tidy_with_branch() -> None:
@@ -291,7 +308,9 @@ def test_should_run_clang_tidy_with_branch() -> None:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=1)  # Hash unchanged
             determine_jobs.should_run_clang_tidy("release")
-            mock_changed.assert_called_once_with("release")
+            # Changed files is called twice now - once for hash check, once for .clang-tidy.hash check
+            assert mock_changed.call_count == 2
+            mock_changed.assert_has_calls([call("release"), call("release")])
 
 
 @pytest.mark.parametrize(
