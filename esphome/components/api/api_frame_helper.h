@@ -19,6 +19,9 @@
 namespace esphome {
 namespace api {
 
+// Forward declaration
+struct ClientInfo;
+
 class ProtoWriteBuffer;
 
 struct ReadPacketBuffer {
@@ -68,7 +71,8 @@ const char *api_error_to_str(APIError err);
 class APIFrameHelper {
  public:
   APIFrameHelper() = default;
-  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_owned_(std::move(socket)) {
+  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
+      : socket_owned_(std::move(socket)), client_info_(client_info) {
     socket_ = socket_owned_.get();
   }
   virtual ~APIFrameHelper() = default;
@@ -94,8 +98,6 @@ class APIFrameHelper {
     }
     return APIError::OK;
   }
-  // Give this helper a name for logging
-  void set_log_info(std::string info) { info_ = std::move(info); }
   virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
   // Write multiple protobuf packets in a single operation
   // packets contains (message_type, offset, length) for each message in the buffer
@@ -160,9 +162,12 @@ class APIFrameHelper {
 
   // Containers (size varies, but typically 12+ bytes on 32-bit)
   std::deque<SendBuffer> tx_buf_;
-  std::string info_;
   std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
+
+  // Pointer to client info (4 bytes on 32-bit)
+  // Note: The pointed-to ClientInfo object must outlive this APIFrameHelper instance.
+  const ClientInfo *client_info_{nullptr};
 
   // Group smaller types together
   uint16_t rx_buf_len_ = 0;
@@ -181,8 +186,9 @@ class APIFrameHelper {
 #ifdef USE_API_NOISE
 class APINoiseFrameHelper : public APIFrameHelper {
  public:
-  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx)
-      : APIFrameHelper(std::move(socket)), ctx_(std::move(ctx)) {
+  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx,
+                      const ClientInfo *client_info)
+      : APIFrameHelper(std::move(socket), client_info), ctx_(std::move(ctx)) {
     // Noise header structure:
     // Pos 0: indicator (0x01)
     // Pos 1-2: encrypted payload size (16-bit big-endian)
@@ -238,7 +244,8 @@ class APINoiseFrameHelper : public APIFrameHelper {
 #ifdef USE_API_PLAINTEXT
 class APIPlaintextFrameHelper : public APIFrameHelper {
  public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : APIFrameHelper(std::move(socket)) {
+  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
+      : APIFrameHelper(std::move(socket), client_info) {
     // Plaintext header structure (worst case):
     // Pos 0: indicator (0x00)
     // Pos 1-3: payload size varint (up to 3 bytes)
