@@ -92,10 +92,49 @@ jobs:
                 mention !== `@${issueAuthor}`
               );
 
-              const allMentions = [...filteredUserOwners, ...teamOwners];
+              // Check for previous comments from this workflow to avoid duplicate pings
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number: issue_number
+              });
+
+              const previouslyPingedUsers = new Set();
+              const previouslyPingedTeams = new Set();
+
+              // Look for comments from github-actions bot that contain codeowner pings for this component
+              const workflowComments = comments.filter(comment =>
+                comment.user.type === 'Bot' &&
+                comment.user.login === 'github-actions[bot]' &&
+                comment.body.includes(`component: ${componentName}`) &&
+                comment.body.includes("you've been identified as a codeowner")
+              );
+
+              // Extract previously mentioned users and teams from workflow comments
+              for (const comment of workflowComments) {
+                // Match @username patterns (not team mentions)
+                const userMentions = comment.body.match(/@([a-zA-Z0-9_.-]+)(?![/])/g) || [];
+                userMentions.forEach(mention => {
+                  previouslyPingedUsers.add(mention); // Keep @ prefix for easy comparison
+                });
+
+                // Match @org/team patterns
+                const teamMentions = comment.body.match(/@[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/g) || [];
+                teamMentions.forEach(mention => {
+                  previouslyPingedTeams.add(mention);
+                });
+              }
+
+              console.log(`Found ${previouslyPingedUsers.size} previously pinged users and ${previouslyPingedTeams.size} previously pinged teams for component ${componentName}`);
+
+              // Remove previously pinged users and teams
+              const newUserOwners = filteredUserOwners.filter(mention => !previouslyPingedUsers.has(mention));
+              const newTeamOwners = teamOwners.filter(mention => !previouslyPingedTeams.has(mention));
+
+              const allMentions = [...newUserOwners, ...newTeamOwners];
 
               if (allMentions.length === 0) {
-                console.log('No codeowners to notify (issue author is the only codeowner)');
+                console.log('No new codeowners to notify (all previously pinged or issue author is the only codeowner)');
                 return;
               }
 
@@ -111,7 +150,7 @@ jobs:
                 body: commentBody
               });
 
-              console.log(`Successfully notified codeowners: ${mentionString}`);
+              console.log(`Successfully notified new codeowners: ${mentionString}`);
 
             } catch (error) {
               console.log('Failed to process codeowner notifications:', error.message);
