@@ -127,46 +127,6 @@ void BluetoothProxy::flush_pending_advertisements() {
   this->advertisement_count_ = 0;
 }
 
-#ifdef USE_ESP32_BLE_DEVICE
-void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
-  api::BluetoothLEAdvertisementResponse resp;
-  resp.address = device.address_uint64();
-  resp.address_type = device.get_address_type();
-  if (!device.get_name().empty())
-    resp.name = device.get_name();
-  resp.rssi = device.get_rssi();
-
-  // Pre-allocate vectors based on known sizes
-  auto service_uuids = device.get_service_uuids();
-  resp.service_uuids.reserve(service_uuids.size());
-  for (auto &uuid : service_uuids) {
-    resp.service_uuids.emplace_back(uuid.to_string());
-  }
-
-  // Pre-allocate service data vector
-  auto service_datas = device.get_service_datas();
-  resp.service_data.reserve(service_datas.size());
-  for (auto &data : service_datas) {
-    resp.service_data.emplace_back();
-    auto &service_data = resp.service_data.back();
-    service_data.uuid = data.uuid.to_string();
-    service_data.data.assign(data.data.begin(), data.data.end());
-  }
-
-  // Pre-allocate manufacturer data vector
-  auto manufacturer_datas = device.get_manufacturer_datas();
-  resp.manufacturer_data.reserve(manufacturer_datas.size());
-  for (auto &data : manufacturer_datas) {
-    resp.manufacturer_data.emplace_back();
-    auto &manufacturer_data = resp.manufacturer_data.back();
-    manufacturer_data.uuid = data.uuid.to_string();
-    manufacturer_data.data.assign(data.data.begin(), data.data.end());
-  }
-
-  this->api_connection_->send_message(resp, api::BluetoothLEAdvertisementResponse::MESSAGE_TYPE);
-}
-#endif  // USE_ESP32_BLE_DEVICE
-
 void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "Bluetooth Proxy:");
   ESP_LOGCONFIG(TAG,

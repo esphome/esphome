@@ -971,11 +971,11 @@ class RepeatedTypeInfo(TypeInfo):
 
 def build_type_usage_map(
     file_desc: descriptor.FileDescriptorProto,
-) -> tuple[dict[str, str | None], dict[str, str | None], dict[str, int]]:
+) -> tuple[dict[str, str | None], dict[str, str | None], dict[str, int], set[str]]:
     """Build mappings for both enums and messages to their ifdefs based on usage.
 
     Returns:
-        tuple: (enum_ifdef_map, message_ifdef_map, message_source_map)
+        tuple: (enum_ifdef_map, message_ifdef_map, message_source_map, used_messages)
     """
     enum_ifdef_map: dict[str, str | None] = {}
     message_ifdef_map: dict[str, str | None] = {}
@@ -988,6 +988,7 @@ def build_type_usage_map(
     message_usage: dict[
         str, set[str]
     ] = {}  # message_name -> set of message names that use it
+    used_messages: set[str] = set()  # Track which messages are actually used
 
     # Build message name to ifdef mapping for quick lookup
     message_to_ifdef: dict[str, str | None] = {
@@ -996,17 +997,26 @@ def build_type_usage_map(
 
     # Analyze field usage
     for message in file_desc.message_type:
+        # Skip deprecated messages entirely
+        if message.options.deprecated:
+            continue
+
         for field in message.field:
+            # Skip deprecated fields when tracking enum usage
+            if field.options.deprecated:
+                continue
+
             type_name = field.type_name.split(".")[-1] if field.type_name else None
             if not type_name:
                 continue
 
-            # Track enum usage
+            # Track enum usage (only from non-deprecated fields)
             if field.type == 14:  # TYPE_ENUM
                 enum_usage.setdefault(type_name, set()).add(message.name)
             # Track message usage
             elif field.type == 11:  # TYPE_MESSAGE
                 message_usage.setdefault(type_name, set()).add(message.name)
+                used_messages.add(type_name)
 
     # Helper to get unique ifdef from a set of messages
     def get_unique_ifdef(message_names: set[str]) -> str | None:
@@ -1069,12 +1079,18 @@ def build_type_usage_map(
     # Build message source map
     # First pass: Get explicit sources for messages with source option or id
     for msg in file_desc.message_type:
+        # Skip deprecated messages
+        if msg.options.deprecated:
+            continue
+
         if msg.options.HasExtension(pb.source):
             # Explicit source option takes precedence
             message_source_map[msg.name] = get_opt(msg, pb.source, SOURCE_BOTH)
         elif msg.options.HasExtension(pb.id):
             # Service messages (with id) default to SOURCE_BOTH
             message_source_map[msg.name] = SOURCE_BOTH
+            # Service messages are always used
+            used_messages.add(msg.name)
 
     # Second pass: Determine sources for embedded messages based on their usage
     for msg in file_desc.message_type:
@@ -1103,7 +1119,12 @@ def build_type_usage_map(
             # Not used by any message and no explicit source - default to encode-only
             message_source_map[msg.name] = SOURCE_SERVER
 
-    return enum_ifdef_map, message_ifdef_map, message_source_map
+    return (
+        enum_ifdef_map,
+        message_ifdef_map,
+        message_source_map,
+        used_messages,
+    )
 
 
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
@@ -1145,6 +1166,10 @@ def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
     total_size = 0
 
     for field in desc.field:
+        # Skip deprecated fields
+        if field.options.deprecated:
+            continue
+
         ti = create_field_type_info(field)
 
         # Add estimated size for this field
@@ -1213,6 +1238,10 @@ def build_message_type(
         public_content.append("#endif")
 
     for field in desc.field:
+        # Skip deprecated fields completely
+        if field.options.deprecated:
+            continue
+
         ti = create_field_type_info(field)
 
         # Skip field declarations for fields that are in the base class
@@ -1459,8 +1488,10 @@ def find_common_fields(
     if not messages:
         return []
 
-    # Start with fields from the first message
-    first_msg_fields = {field.name: field for field in messages[0].field}
+    # Start with fields from the first message (excluding deprecated fields)
+    first_msg_fields = {
+        field.name: field for field in messages[0].field if not field.options.deprecated
+    }
     common_fields = []
 
     # Check each field to see if it exists in all messages with same type
@@ -1471,6 +1502,9 @@ def find_common_fields(
         for msg in messages[1:]:
             found = False
             for other_field in msg.field:
+                # Skip deprecated fields
+                if other_field.options.deprecated:
+                    continue
                 if (
                     other_field.name == field_name
                     and other_field.type == field.type
@@ -1599,6 +1633,10 @@ def build_service_message_type(
     message_source_map: dict[str, int],
 ) -> tuple[str, str] | None:
     """Builds the service message type."""
+    # Skip deprecated messages
+    if mt.options.deprecated:
+        return None
+
     snake = camel_to_snake(mt.name)
     id_: int | None = get_opt(mt, pb.id)
     if id_ is None:
@@ -1700,12 +1738,18 @@ namespace api {
     content += "namespace enums {\n\n"
 
     # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map, message_source_map = build_type_usage_map(file)
+    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
+        build_type_usage_map(file)
+    )
 
     # Simple grouping of enums by ifdef
     current_ifdef = None
 
     for enum in file.enum_type:
+        # Skip deprecated enums
+        if enum.options.deprecated:
+            continue
+
         s, c, dc = build_enum_type(enum, enum_ifdef_map)
         enum_ifdef = enum_ifdef_map.get(enum.name)
 
@@ -1756,6 +1800,14 @@ namespace api {
     current_ifdef = None
 
     for m in mt:
+        # Skip deprecated messages
+        if m.options.deprecated:
+            continue
+
+        # Skip messages that aren't used (unless they have an ID/service message)
+        if m.name not in used_messages and not m.options.HasExtension(pb.id):
+            continue
+
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
         msg_ifdef = message_ifdef_map.get(m.name)
 

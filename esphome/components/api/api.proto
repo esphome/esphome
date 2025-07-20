@@ -230,14 +230,16 @@ message DeviceInfoResponse {
 
   uint32 webserver_port = 10 [(field_ifdef) = "USE_WEBSERVER"];
 
-  uint32 legacy_bluetooth_proxy_version = 11 [(field_ifdef) = "USE_BLUETOOTH_PROXY"];
+  // Deprecated in API version 1.9
+  uint32 legacy_bluetooth_proxy_version = 11 [deprecated=true, (field_ifdef) = "USE_BLUETOOTH_PROXY"];
   uint32 bluetooth_proxy_feature_flags = 15 [(field_ifdef) = "USE_BLUETOOTH_PROXY"];
 
   string manufacturer = 12;
 
   string friendly_name = 13;
 
-  uint32 legacy_voice_assistant_version = 14 [(field_ifdef) = "USE_VOICE_ASSISTANT"];
+  // Deprecated in API version 1.10
+  uint32 legacy_voice_assistant_version = 14 [deprecated=true, (field_ifdef) = "USE_VOICE_ASSISTANT"];
   uint32 voice_assistant_feature_flags = 17 [(field_ifdef) = "USE_VOICE_ASSISTANT"];
 
   string suggested_area = 16 [(field_ifdef) = "USE_AREAS"];
@@ -337,7 +339,9 @@ message ListEntitiesCoverResponse {
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
 }
 
+// Deprecated in API version 1.1
 enum LegacyCoverState {
+  option deprecated = true;
   LEGACY_COVER_STATE_OPEN = 0;
   LEGACY_COVER_STATE_CLOSED = 1;
 }
@@ -356,7 +360,8 @@ message CoverStateResponse {
   fixed32 key = 1;
   // legacy: state has been removed in 1.13
   // clients/servers must still send/accept it until the next protocol change
-  LegacyCoverState legacy_state = 2;
+  // Deprecated in API version 1.1
+  LegacyCoverState legacy_state = 2 [deprecated=true];
 
   float position = 3;
   float tilt = 4;
@@ -364,7 +369,9 @@ message CoverStateResponse {
   uint32 device_id = 6 [(field_ifdef) = "USE_DEVICES"];
 }
 
+// Deprecated in API version 1.1
 enum LegacyCoverCommand {
+  option deprecated = true;
   LEGACY_COVER_COMMAND_OPEN = 0;
   LEGACY_COVER_COMMAND_CLOSE = 1;
   LEGACY_COVER_COMMAND_STOP = 2;
@@ -380,8 +387,10 @@ message CoverCommandRequest {
 
   // legacy: command has been removed in 1.13
   // clients/servers must still send/accept it until the next protocol change
-  bool has_legacy_command = 2;
-  LegacyCoverCommand legacy_command = 3;
+  // Deprecated in API version 1.1
+  bool has_legacy_command = 2 [deprecated=true];
+  // Deprecated in API version 1.1
+  LegacyCoverCommand legacy_command = 3 [deprecated=true];
 
   bool has_position = 4;
   float position = 5;
@@ -413,7 +422,9 @@ message ListEntitiesFanResponse {
   repeated string supported_preset_modes = 12;
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
 }
+// Deprecated in API version 1.6 - only used in deprecated fields
 enum FanSpeed {
+  option deprecated = true;
   FAN_SPEED_LOW = 0;
   FAN_SPEED_MEDIUM = 1;
   FAN_SPEED_HIGH = 2;
@@ -432,7 +443,8 @@ message FanStateResponse {
   fixed32 key = 1;
   bool state = 2;
   bool oscillating = 3;
-  FanSpeed speed = 4 [deprecated = true];
+  // Deprecated in API version 1.6
+  FanSpeed speed = 4 [deprecated=true];
   FanDirection direction = 5;
   int32 speed_level = 6;
   string preset_mode = 7;
@@ -448,8 +460,10 @@ message FanCommandRequest {
   fixed32 key = 1;
   bool has_state = 2;
   bool state = 3;
-  bool has_speed = 4 [deprecated = true];
-  FanSpeed speed = 5 [deprecated = true];
+  // Deprecated in API version 1.6
+  bool has_speed = 4 [deprecated=true];
+  // Deprecated in API version 1.6
+  FanSpeed speed = 5 [deprecated=true];
   bool has_oscillating = 6;
   bool oscillating = 7;
   bool has_direction = 8;
@@ -488,9 +502,13 @@ message ListEntitiesLightResponse {
 
   repeated ColorMode supported_color_modes = 12;
   // next four supports_* are for legacy clients, newer clients should use color modes
+  // Deprecated in API version 1.6
   bool legacy_supports_brightness = 5 [deprecated=true];
+  // Deprecated in API version 1.6
   bool legacy_supports_rgb = 6 [deprecated=true];
+  // Deprecated in API version 1.6
   bool legacy_supports_white_value = 7 [deprecated=true];
+  // Deprecated in API version 1.6
   bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
@@ -567,7 +585,9 @@ enum SensorStateClass {
   STATE_CLASS_TOTAL = 3;
 }
 
+// Deprecated in API version 1.5
 enum SensorLastResetType {
+  option deprecated = true;
   LAST_RESET_NONE = 0;
   LAST_RESET_NEVER = 1;
   LAST_RESET_AUTO = 2;
@@ -591,7 +611,8 @@ message ListEntitiesSensorResponse {
   string device_class = 9;
   SensorStateClass state_class = 10;
   // Last reset type removed in 2021.9.0
-  SensorLastResetType legacy_last_reset_type = 11;
+  // Deprecated in API version 1.5
+  SensorLastResetType legacy_last_reset_type = 11 [deprecated=true];
   bool disabled_by_default = 12;
   EntityCategory entity_category = 13;
   uint32 device_id = 14 [(field_ifdef) = "USE_DEVICES"];
@@ -947,7 +968,8 @@ message ListEntitiesClimateResponse {
   float visual_target_temperature_step = 10;
   // for older peer versions - in new system this
   // is if CLIMATE_PRESET_AWAY exists is supported_presets
-  bool legacy_supports_away = 11;
+  // Deprecated in API version 1.5
+  bool legacy_supports_away = 11 [deprecated=true];
   bool supports_action = 12;
   repeated ClimateFanMode supported_fan_modes = 13;
   repeated ClimateSwingMode supported_swing_modes = 14;
@@ -978,7 +1000,8 @@ message ClimateStateResponse {
   float target_temperature_low = 5;
   float target_temperature_high = 6;
   // For older peers, equal to preset == CLIMATE_PRESET_AWAY
-  bool unused_legacy_away = 7;
+  // Deprecated in API version 1.5
+  bool unused_legacy_away = 7 [deprecated=true];
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
   ClimateSwingMode swing_mode = 10;
@@ -1006,8 +1029,10 @@ message ClimateCommandRequest {
   bool has_target_temperature_high = 8;
   float target_temperature_high = 9;
   // legacy, for older peers, newer ones should use CLIMATE_PRESET_AWAY in preset
-  bool unused_has_legacy_away = 10;
-  bool unused_legacy_away = 11;
+  // Deprecated in API version 1.5
+  bool unused_has_legacy_away = 10 [deprecated=true];
+  // Deprecated in API version 1.5
+  bool unused_legacy_away = 11 [deprecated=true];
   bool has_fan_mode = 12;
   ClimateFanMode fan_mode = 13;
   bool has_swing_mode = 14;
@@ -1354,12 +1379,17 @@ message SubscribeBluetoothLEAdvertisementsRequest {
   uint32 flags = 1;
 }
 
+// Deprecated - only used by deprecated BluetoothLEAdvertisementResponse
 message BluetoothServiceData {
+  option deprecated = true;
   string uuid = 1;
-  repeated uint32 legacy_data = 2 [deprecated = true];  // Removed in api version 1.7
+  // Deprecated in API version 1.7
+  repeated uint32 legacy_data = 2 [deprecated=true];  // Removed in api version 1.7
   bytes data = 3;  // Added in api version 1.7
 }
+// Removed in ESPHome 2025.8.0 - use BluetoothLERawAdvertisementsResponse instead
 message BluetoothLEAdvertisementResponse {
+  option deprecated = true;
   option (id) = 67;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
