@@ -77,32 +77,45 @@ APIError APIFrameHelper::loop() {
 }
 
 // Helper method to buffer data from IOVs
-void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
+void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len,
+                                           uint16_t offset) {
   SendBuffer buffer;
-  buffer.data.reserve(total_write_len);
+  buffer.size = total_write_len - offset;
+  buffer.data = std::make_unique<uint8_t[]>(buffer.size);
+
+  uint16_t to_skip = offset;
+  uint16_t write_pos = 0;
+
   for (int i = 0; i < iovcnt; i++) {
-    const uint8_t *data = reinterpret_cast<uint8_t *>(iov[i].iov_base);
-    buffer.data.insert(buffer.data.end(), data, data + iov[i].iov_len);
+    if (to_skip >= iov[i].iov_len) {
+      // Skip this entire segment
+      to_skip -= static_cast<uint16_t>(iov[i].iov_len);
+    } else {
+      // Include this segment (partially or fully)
+      const uint8_t *src = reinterpret_cast<uint8_t *>(iov[i].iov_base) + to_skip;
+      uint16_t len = static_cast<uint16_t>(iov[i].iov_len) - to_skip;
+      std::memcpy(buffer.data.get() + write_pos, src, len);
+      write_pos += len;
+      to_skip = 0;
+    }
   }
   this->tx_buf_.push_back(std::move(buffer));
 }
 
 // This method writes data to socket or buffers it
-APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
+APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
   // Returns APIError::OK if successful (or would block, but data has been buffered)
   // Returns APIError::SOCKET_WRITE_FAILED if socket write failed, and sets state to FAILED
 
   if (iovcnt == 0)
     return APIError::OK;  // Nothing to do, success
 
-  uint16_t total_write_len = 0;
-  for (int i = 0; i < iovcnt; i++) {
 #ifdef HELPER_LOG_PACKETS
+  for (int i = 0; i < iovcnt; i++) {
     ESP_LOGVV(TAG, "Sending raw: %s",
               format_hex_pretty(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
-#endif
-    total_write_len += static_cast<uint16_t>(iov[i].iov_len);
   }
+#endif
 
   // Try to send any existing buffered data first if there is any
   if (!this->tx_buf_.empty()) {
@@ -115,7 +128,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
     // If there is still data in the buffer, we can't send, buffer
     // the new data and return
     if (!this->tx_buf_.empty()) {
-      this->buffer_data_from_iov_(iov, iovcnt, total_write_len);
+      this->buffer_data_from_iov_(iov, iovcnt, total_write_len, 0);
       return APIError::OK;  // Success, data buffered
     }
   }
@@ -126,7 +139,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
   if (sent == -1) {
     if (errno == EWOULDBLOCK || errno == EAGAIN) {
       // Socket would block, buffer the data
-      this->buffer_data_from_iov_(iov, iovcnt, total_write_len);
+      this->buffer_data_from_iov_(iov, iovcnt, total_write_len, 0);
       return APIError::OK;  // Success, data buffered
     }
     // Socket error
@@ -135,26 +148,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
     return APIError::SOCKET_WRITE_FAILED;  // Socket write failed
   } else if (static_cast<uint16_t>(sent) < total_write_len) {
     // Partially sent, buffer the remaining data
-    SendBuffer buffer;
-    uint16_t to_consume = static_cast<uint16_t>(sent);
-    uint16_t remaining = total_write_len - static_cast<uint16_t>(sent);
-
-    buffer.data.reserve(remaining);
-
-    for (int i = 0; i < iovcnt; i++) {
-      if (to_consume >= iov[i].iov_len) {
-        // This segment was fully sent
-        to_consume -= static_cast<uint16_t>(iov[i].iov_len);
-      } else {
-        // This segment was partially sent or not sent at all
-        const uint8_t *data = reinterpret_cast<uint8_t *>(iov[i].iov_base) + to_consume;
-        uint16_t len = static_cast<uint16_t>(iov[i].iov_len) - to_consume;
-        buffer.data.insert(buffer.data.end(), data, data + len);
-        to_consume = 0;
-      }
-    }
-
-    this->tx_buf_.push_back(std::move(buffer));
+    this->buffer_data_from_iov_(iov, iovcnt, total_write_len, static_cast<uint16_t>(sent));
   }
 
   return APIError::OK;  // Success, all data sent or buffered
@@ -639,6 +633,7 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
 
   this->reusable_iovs_.clear();
   this->reusable_iovs_.reserve(packets.size());
+  uint16_t total_write_len = 0;
 
   // We need to encrypt each packet in place
   for (const auto &packet : packets) {
@@ -678,12 +673,13 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
     buf_start[2] = static_cast<uint8_t>(mbuf.size);
 
     // Add iovec for this encrypted packet
-    this->reusable_iovs_.push_back(
-        {buf_start, static_cast<size_t>(3 + mbuf.size)});  // indicator + size + encrypted data
+    size_t packet_len = static_cast<size_t>(3 + mbuf.size);  // indicator + size + encrypted data
+    this->reusable_iovs_.push_back({buf_start, packet_len});
+    total_write_len += packet_len;
   }
 
   // Send all encrypted packets in one writev call
-  return this->write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size());
+  return this->write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size(), total_write_len);
 }
 
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
@@ -696,12 +692,12 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
   if (len == 0) {
-    return this->write_raw_(iov, 1);
+    return this->write_raw_(iov, 1, 3);  // Just header
   }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
-  return this->write_raw_(iov, 2);
+  return this->write_raw_(iov, 2, 3 + len);  // Header + data
 }
 
 /** Initiate the data structures for the handshake.
@@ -990,7 +986,7 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
                          "Bad indicator byte";
       iov[0].iov_base = (void *) msg;
       iov[0].iov_len = 19;
-      this->write_raw_(iov, 1);
+      this->write_raw_(iov, 1, 19);
     }
     return aerr;
   }
@@ -1020,6 +1016,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
 
   this->reusable_iovs_.clear();
   this->reusable_iovs_.reserve(packets.size());
+  uint16_t total_write_len = 0;
 
   for (const auto &packet : packets) {
     // Calculate varint sizes for header layout
@@ -1064,12 +1061,13 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
         .encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
 
     // Add iovec for this packet (header + payload)
-    this->reusable_iovs_.push_back(
-        {buf_start + header_offset, static_cast<size_t>(total_header_len + packet.payload_size)});
+    size_t packet_len = static_cast<size_t>(total_header_len + packet.payload_size);
+    this->reusable_iovs_.push_back({buf_start + header_offset, packet_len});
+    total_write_len += packet_len;
   }
 
   // Send all packets in one writev call
-  return write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size());
+  return write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size(), total_write_len);
 }
 
 #endif  // USE_API_PLAINTEXT

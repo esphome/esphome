@@ -116,22 +116,23 @@ class APIFrameHelper {
 
   // Buffer containing data to be sent
   struct SendBuffer {
-    std::vector<uint8_t> data;
-    uint16_t offset{0};  // Current offset within the buffer (uint16_t to reduce memory usage)
+    std::unique_ptr<uint8_t[]> data;
+    uint16_t size{0};    // Total size of the buffer
+    uint16_t offset{0};  // Current offset within the buffer
 
     // Using uint16_t reduces memory usage since ESPHome API messages are limited to UINT16_MAX (65535) bytes
-    uint16_t remaining() const { return static_cast<uint16_t>(data.size()) - offset; }
-    const uint8_t *current_data() const { return data.data() + offset; }
+    uint16_t remaining() const { return size - offset; }
+    const uint8_t *current_data() const { return data.get() + offset; }
   };
 
   // Common implementation for writing raw data to socket
-  APIError write_raw_(const struct iovec *iov, int iovcnt);
+  APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
 
   // Try to send data from the tx buffer
   APIError try_send_tx_buf_();
 
   // Helper method to buffer data from IOVs
-  void buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
+  void buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, uint16_t offset);
   template<typename StateEnum>
   APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
                       const std::string &info, StateEnum &state, StateEnum failed_state);
