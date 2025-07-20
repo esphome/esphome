@@ -996,6 +996,11 @@ def build_type_usage_map(
     }
 
     # Analyze field usage
+    # Also track field_ifdef for message types
+    message_field_ifdefs: dict[
+        str, set[str | None]
+    ] = {}  # message_name -> set of field_ifdefs that use it
+
     for message in file_desc.message_type:
         # Skip deprecated messages entirely
         if message.options.deprecated:
@@ -1016,6 +1021,9 @@ def build_type_usage_map(
             # Track message usage
             elif field.type == 11:  # TYPE_MESSAGE
                 message_usage.setdefault(type_name, set()).add(message.name)
+                # Also track the field_ifdef if present
+                field_ifdef = get_field_opt(field, pb.field_ifdef)
+                message_field_ifdefs.setdefault(type_name, set()).add(field_ifdef)
                 used_messages.add(type_name)
 
     # Helper to get unique ifdef from a set of messages
@@ -1042,9 +1050,16 @@ def build_type_usage_map(
             message_ifdef_map[message.name] = explicit_ifdef
         elif message.name in message_usage:
             # Inherit ifdef if all parent messages have the same one
-            message_ifdef_map[message.name] = get_unique_ifdef(
-                message_usage[message.name]
-            )
+            if parent_ifdef := get_unique_ifdef(message_usage[message.name]):
+                message_ifdef_map[message.name] = parent_ifdef
+            elif message.name in message_field_ifdefs:
+                # If no parent message ifdef, check if all fields using this message have the same field_ifdef
+                field_ifdefs = message_field_ifdefs[message.name] - {None}
+                message_ifdef_map[message.name] = (
+                    field_ifdefs.pop() if len(field_ifdefs) == 1 else None
+                )
+            else:
+                message_ifdef_map[message.name] = None
         else:
             message_ifdef_map[message.name] = None
 

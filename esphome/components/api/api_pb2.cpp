@@ -57,6 +57,7 @@ void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool
 void ConnectResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->invalid_password);
 }
+#ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->area_id);
   buffer.encode_string(2, this->name);
@@ -65,6 +66,8 @@ void AreaInfo::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_uint32_field(total_size, 1, this->area_id);
   ProtoSize::add_string_field(total_size, 1, this->name);
 }
+#endif
+#ifdef USE_DEVICES
 void DeviceInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->device_id);
   buffer.encode_string(2, this->name);
@@ -75,6 +78,7 @@ void DeviceInfo::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_string_field(total_size, 1, this->name);
   ProtoSize::add_uint32_field(total_size, 1, this->area_id);
 }
+#endif
 void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(1, this->uses_password);
   buffer.encode_string(2, this->name);
