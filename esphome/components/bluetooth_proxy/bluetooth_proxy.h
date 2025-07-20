@@ -22,6 +22,7 @@ namespace esphome {
 namespace bluetooth_proxy {
 
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
+static const int DONE_SENDING_SERVICES = -2;
 
 using namespace esp32_ble_client;
 
@@ -149,7 +150,10 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   std::vector<api::BluetoothLERawAdvertisement> advertisement_pool_;
   std::unique_ptr<api::BluetoothLERawAdvertisementsResponse> response_;
 
-  // Group 3: 1-byte types grouped together
+  // Group 3: 4-byte types
+  uint32_t last_advertisement_flush_time_{0};
+
+  // Group 4: 1-byte types grouped together
   bool active_;
   uint8_t advertisement_count_{0};
   // 2 bytes used, 2 bytes padding

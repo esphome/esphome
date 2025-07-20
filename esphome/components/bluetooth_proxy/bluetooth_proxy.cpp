@@ -11,19 +11,6 @@ namespace esphome {
 namespace bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy";
-static const int DONE_SENDING_SERVICES = -2;
-
-std::vector<uint64_t> get_128bit_uuid_vec(esp_bt_uuid_t uuid_source) {
-  esp_bt_uuid_t uuid = espbt::ESPBTUUID::from_uuid(uuid_source).as_128bit().get_uuid();
-  return std::vector<uint64_t>{((uint64_t) uuid.uuid.uuid128[15] << 56) | ((uint64_t) uuid.uuid.uuid128[14] << 48) |
-                                   ((uint64_t) uuid.uuid.uuid128[13] << 40) | ((uint64_t) uuid.uuid.uuid128[12] << 32) |
-                                   ((uint64_t) uuid.uuid.uuid128[11] << 24) | ((uint64_t) uuid.uuid.uuid128[10] << 16) |
-                                   ((uint64_t) uuid.uuid.uuid128[9] << 8) | ((uint64_t) uuid.uuid.uuid128[8]),
-                               ((uint64_t) uuid.uuid.uuid128[7] << 56) | ((uint64_t) uuid.uuid.uuid128[6] << 48) |
-                                   ((uint64_t) uuid.uuid.uuid128[5] << 40) | ((uint64_t) uuid.uuid.uuid128[4] << 32) |
-                                   ((uint64_t) uuid.uuid.uuid128[3] << 24) | ((uint64_t) uuid.uuid.uuid128[2] << 16) |
-                                   ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0])};
-}
 
 // Batch size for BLE advertisements to maximize WiFi efficiency
 // Each advertisement is up to 80 bytes when packaged (including protocol overhead)
@@ -213,130 +200,12 @@ void BluetoothProxy::loop() {
   }
 
   // Flush any pending BLE advertisements that have been accumulated but not yet sent
-  static uint32_t last_flush_time = 0;
   uint32_t now = App.get_loop_component_start_time();
 
   // Flush accumulated advertisements every 100ms
-  if (now - last_flush_time >= 100) {
+  if (now - this->last_advertisement_flush_time_ >= 100) {
     this->flush_pending_advertisements();
-    last_flush_time = now;
-  }
-  for (auto *connection : this->connections_) {
-    if (connection->send_service_ == connection->service_count_) {
-      connection->send_service_ = DONE_SENDING_SERVICES;
-      this->send_gatt_services_done(connection->get_address());
-      if (connection->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-          connection->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-        connection->release_services();
-      }
-    } else if (connection->send_service_ >= 0) {
-      esp_gattc_service_elem_t service_result;
-      uint16_t service_count = 1;
-      esp_gatt_status_t service_status =
-          esp_ble_gattc_get_service(connection->get_gattc_if(), connection->get_conn_id(), nullptr, &service_result,
-                                    &service_count, connection->send_service_);
-      connection->send_service_++;
-      if (service_status != ESP_GATT_OK) {
-        ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service error at offset=%d, status=%d",
-                 connection->get_connection_index(), connection->address_str().c_str(), connection->send_service_ - 1,
-                 service_status);
-        continue;
-      }
-      if (service_count == 0) {
-        ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service missing, service_count=%d",
-                 connection->get_connection_index(), connection->address_str().c_str(), service_count);
-        continue;
-      }
-      api::BluetoothGATTGetServicesResponse resp;
-      resp.address = connection->get_address();
-      resp.services.reserve(1);  // Always one service per response in this implementation
-      api::BluetoothGATTService service_resp;
-      service_resp.uuid = get_128bit_uuid_vec(service_result.uuid);
-      service_resp.handle = service_result.start_handle;
-      uint16_t char_offset = 0;
-      esp_gattc_char_elem_t char_result;
-      // Get the number of characteristics directly with one call
-      uint16_t total_char_count = 0;
-      esp_gatt_status_t char_count_status = esp_ble_gattc_get_attr_count(
-          connection->get_gattc_if(), connection->get_conn_id(), ESP_GATT_DB_CHARACTERISTIC,
-          service_result.start_handle, service_result.end_handle, 0, &total_char_count);
-
-      if (char_count_status == ESP_GATT_OK && total_char_count > 0) {
-        // Only reserve if we successfully got a count
-        service_resp.characteristics.reserve(total_char_count);
-      } else if (char_count_status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "[%d] [%s] Error getting characteristic count, status=%d", connection->get_connection_index(),
-                 connection->address_str().c_str(), char_count_status);
-      }
-
-      // Now process characteristics
-      while (true) {  // characteristics
-        uint16_t char_count = 1;
-        esp_gatt_status_t char_status = esp_ble_gattc_get_all_char(
-            connection->get_gattc_if(), connection->get_conn_id(), service_result.start_handle,
-            service_result.end_handle, &char_result, &char_count, char_offset);
-        if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
-          break;
-        }
-        if (char_status != ESP_GATT_OK) {
-          ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", connection->get_connection_index(),
-                   connection->address_str().c_str(), char_status);
-          break;
-        }
-        if (char_count == 0) {
-          break;
-        }
-        api::BluetoothGATTCharacteristic characteristic_resp;
-        characteristic_resp.uuid = get_128bit_uuid_vec(char_result.uuid);
-        characteristic_resp.handle = char_result.char_handle;
-        characteristic_resp.properties = char_result.properties;
-        char_offset++;
-
-        // Get the number of descriptors directly with one call
-        uint16_t total_desc_count = 0;
-        esp_gatt_status_t desc_count_status =
-            esp_ble_gattc_get_attr_count(connection->get_gattc_if(), connection->get_conn_id(), ESP_GATT_DB_DESCRIPTOR,
-                                         char_result.char_handle, service_result.end_handle, 0, &total_desc_count);
-
-        if (desc_count_status == ESP_GATT_OK && total_desc_count > 0) {
-          // Only reserve if we successfully got a count
-          characteristic_resp.descriptors.reserve(total_desc_count);
-        } else if (desc_count_status != ESP_GATT_OK) {
-          ESP_LOGW(TAG, "[%d] [%s] Error getting descriptor count for char handle %d, status=%d",
-                   connection->get_connection_index(), connection->address_str().c_str(), char_result.char_handle,
-                   desc_count_status);
-        }
-
-        // Now process descriptors
-        uint16_t desc_offset = 0;
-        esp_gattc_descr_elem_t desc_result;
-        while (true) {  // descriptors
-          uint16_t desc_count = 1;
-          esp_gatt_status_t desc_status =
-              esp_ble_gattc_get_all_descr(connection->get_gattc_if(), connection->get_conn_id(),
-                                          char_result.char_handle, &desc_result, &desc_count, desc_offset);
-          if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
-            break;
-          }
-          if (desc_status != ESP_GATT_OK) {
-            ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", connection->get_connection_index(),
-                     connection->address_str().c_str(), desc_status);
-            break;
-          }
-          if (desc_count == 0) {
-            break;
-          }
-          api::BluetoothGATTDescriptor descriptor_resp;
-          descriptor_resp.uuid = get_128bit_uuid_vec(desc_result.uuid);
-          descriptor_resp.handle = desc_result.handle;
-          characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
-          desc_offset++;
-        }
-        service_resp.characteristics.push_back(std::move(characteristic_resp));
-      }
-      resp.services.push_back(std::move(service_resp));
-      this->api_connection_->send_message(resp, api::BluetoothGATTGetServicesResponse::MESSAGE_TYPE);
-    }
+    this->last_advertisement_flush_time_ = now;
   }
 }
 
