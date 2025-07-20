@@ -1491,6 +1491,28 @@ def find_common_fields(
     return common_fields
 
 
+def get_common_field_ifdef(
+    field_name: str, messages: list[descriptor.DescriptorProto]
+) -> str | None:
+    """Get the field_ifdef option if it's consistent across all messages.
+
+    Args:
+        field_name: Name of the field to check
+        messages: List of messages that contain this field
+
+    Returns:
+        The field_ifdef string if all messages have the same value, None otherwise
+    """
+    field_ifdefs = {
+        get_field_opt(field, pb.field_ifdef)
+        for msg in messages
+        if (field := next((f for f in msg.field if f.name == field_name), None))
+    }
+
+    # Return the ifdef only if all messages agree on the same value
+    return field_ifdefs.pop() if len(field_ifdefs) == 1 else None
+
+
 def build_base_class(
     base_class_name: str,
     common_fields: list[descriptor.FieldDescriptorProto],
@@ -1506,9 +1528,14 @@ def build_base_class(
     for field in common_fields:
         ti = create_field_type_info(field)
 
+        # Get field_ifdef if it's consistent across all messages
+        field_ifdef = get_common_field_ifdef(field.name, messages)
+
         # Only add field declarations, not encode/decode logic
-        protected_content.extend(ti.protected_content)
-        public_content.extend(ti.public_content)
+        if ti.protected_content:
+            protected_content.extend(wrap_with_ifdef(ti.protected_content, field_ifdef))
+        if ti.public_content:
+            public_content.extend(wrap_with_ifdef(ti.public_content, field_ifdef))
 
     # Determine if any message using this base class needs decoding
     needs_decode = any(

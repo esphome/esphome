@@ -292,9 +292,13 @@ class InfoResponseProtoMessage : public ProtoMessage {
   uint32_t key{0};
   std::string name{};
   bool disabled_by_default{false};
+#ifdef USE_ENTITY_ICON
   std::string icon{};
+#endif
   enums::EntityCategory entity_category{};
+#ifdef USE_DEVICES
   uint32_t device_id{0};
+#endif
 
  protected:
 };
@@ -303,7 +307,9 @@ class StateResponseProtoMessage : public ProtoMessage {
  public:
   ~StateResponseProtoMessage() override = default;
   uint32_t key{0};
+#ifdef USE_DEVICES
   uint32_t device_id{0};
+#endif
 
  protected:
 };
@@ -312,7 +318,9 @@ class CommandProtoMessage : public ProtoDecodableMessage {
  public:
   ~CommandProtoMessage() override = default;
   uint32_t key{0};
+#ifdef USE_DEVICES
   uint32_t device_id{0};
+#endif
 
  protected:
 };

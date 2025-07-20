@@ -301,8 +301,10 @@ class APIConnection : public APIServerConnection {
     if (entity->has_own_name())
       msg.name = entity->get_name();
 
-    // Set common EntityBase properties
+      // Set common EntityBase properties
+#ifdef USE_ENTITY_ICON
     msg.icon = entity->get_icon();
+#endif
     msg.disabled_by_default = entity->is_disabled_by_default();
     msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
 #ifdef USE_DEVICES
