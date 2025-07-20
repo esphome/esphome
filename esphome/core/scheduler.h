@@ -58,6 +58,9 @@ class Scheduler {
 
   // Calculate when the next scheduled item should run
   // @param now Fresh timestamp from millis() - must not be stale/cached
+  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
+  // This method performs cleanup of removed items before checking the schedule
+  // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint32_t now);
 
   // Execute all scheduled items that are ready
@@ -147,7 +150,10 @@ class Scheduler {
                          uint32_t delay, std::function<void()> func);
 
   uint64_t millis_64_(uint32_t now);
-  void cleanup_();
+  // Cleanup logically deleted items from the scheduler
+  // Returns the number of items remaining after cleanup
+  // IMPORTANT: This method should only be called from the main thread (loop task).
+  size_t cleanup_();
   void pop_raw_();
 
  private:
@@ -189,17 +195,6 @@ class Scheduler {
   // Helper to check if item should be skipped
   bool should_skip_item_(const SchedulerItem *item) const {
     return item->remove || (item->component != nullptr && item->component->is_failed());
-  }
-
-  // Check if the scheduler has no items.
-  // IMPORTANT: This method should only be called from the main thread (loop task).
-  // It performs cleanup of removed items and checks if the queue is empty.
-  // The items_.empty() check at the end is done without a lock for performance,
-  // which is safe because this is only called from the main thread while other
-  // threads only add items (never remove them).
-  bool empty_() {
-    this->cleanup_();
-    return this->items_.empty();
   }
 
   Mutex lock_;
