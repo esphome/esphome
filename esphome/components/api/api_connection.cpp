@@ -1,5 +1,11 @@
 #include "api_connection.h"
 #ifdef USE_API
+#ifdef USE_API_NOISE
+#include "api_frame_helper_noise.h"
+#endif
+#ifdef USE_API_PLAINTEXT
+#include "api_frame_helper_plaintext.h"
+#endif
 #include <cerrno>
 #include <cinttypes>
 #include <utility>

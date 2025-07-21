@@ -8,16 +8,15 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
-#ifdef USE_API_NOISE
-#include "noise/protocol.h"
-#endif
-
-#include "api_noise_context.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace api {
+
+// uncomment to log raw packets
+//#define HELPER_LOG_PACKETS
 
 // Forward declaration
 struct ClientInfo;
@@ -43,7 +42,6 @@ struct PacketInfo {
 enum class APIError : uint16_t {
   OK = 0,
   WOULD_BLOCK = 1001,
-  BAD_HANDSHAKE_PACKET_LEN = 1002,
   BAD_INDICATOR = 1003,
   BAD_DATA_PACKET = 1004,
   TCP_NODELAY_FAILED = 1005,
@@ -54,16 +52,19 @@ enum class APIError : uint16_t {
   BAD_ARG = 1010,
   SOCKET_READ_FAILED = 1011,
   SOCKET_WRITE_FAILED = 1012,
+  OUT_OF_MEMORY = 1018,
+  CONNECTION_CLOSED = 1022,
+#ifdef USE_API_NOISE
+  BAD_HANDSHAKE_PACKET_LEN = 1002,
   HANDSHAKESTATE_READ_FAILED = 1013,
   HANDSHAKESTATE_WRITE_FAILED = 1014,
   HANDSHAKESTATE_BAD_STATE = 1015,
   CIPHERSTATE_DECRYPT_FAILED = 1016,
   CIPHERSTATE_ENCRYPT_FAILED = 1017,
-  OUT_OF_MEMORY = 1018,
   HANDSHAKESTATE_SETUP_FAILED = 1019,
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
   BAD_HANDSHAKE_ERROR_BYTE = 1021,
-  CONNECTION_CLOSED = 1022,
+#endif
 };
 
 const char *api_error_to_str(APIError err);
@@ -183,109 +184,7 @@ class APIFrameHelper {
   APIError handle_socket_read_result_(ssize_t received);
 };
 
-#ifdef USE_API_NOISE
-class APINoiseFrameHelper : public APIFrameHelper {
- public:
-  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx,
-                      const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info), ctx_(std::move(ctx)) {
-    // Noise header structure:
-    // Pos 0: indicator (0x01)
-    // Pos 1-2: encrypted payload size (16-bit big-endian)
-    // Pos 3-6: encrypted type (16-bit) + data_len (16-bit)
-    // Pos 7+: actual payload data
-    frame_header_padding_ = 7;
-  }
-  ~APINoiseFrameHelper() override;
-  APIError init() override;
-  APIError loop() override;
-  APIError read_packet(ReadPacketBuffer *buffer) override;
-  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
-  // Get the frame header padding required by this protocol
-  uint8_t frame_header_padding() override { return frame_header_padding_; }
-  // Get the frame footer size required by this protocol
-  uint8_t frame_footer_size() override { return frame_footer_size_; }
-
- protected:
-  APIError state_action_();
-  APIError try_read_frame_(std::vector<uint8_t> *frame);
-  APIError write_frame_(const uint8_t *data, uint16_t len);
-  APIError init_handshake_();
-  APIError check_handshake_finished_();
-  void send_explicit_handshake_reject_(const std::string &reason);
-  APIError handle_handshake_frame_error_(APIError aerr);
-  APIError handle_noise_error_(int err, const char *func_name, APIError api_err);
-
-  // Pointers first (4 bytes each)
-  NoiseHandshakeState *handshake_{nullptr};
-  NoiseCipherState *send_cipher_{nullptr};
-  NoiseCipherState *recv_cipher_{nullptr};
-
-  // Shared pointer (8 bytes on 32-bit = 4 bytes control block pointer + 4 bytes object pointer)
-  std::shared_ptr<APINoiseContext> ctx_;
-
-  // Vector (12 bytes on 32-bit)
-  std::vector<uint8_t> prologue_;
-
-  // NoiseProtocolId (size depends on implementation)
-  NoiseProtocolId nid_;
-
-  // Group small types together
-  // Fixed-size header buffer for noise protocol:
-  // 1 byte for indicator + 2 bytes for message size (16-bit value, not varint)
-  // Note: Maximum message size is UINT16_MAX (65535), with a limit of 128 bytes during handshake phase
-  uint8_t rx_header_buf_[3];
-  uint8_t rx_header_buf_len_ = 0;
-  // 4 bytes total, no padding
-};
-#endif  // USE_API_NOISE
-
-#ifdef USE_API_PLAINTEXT
-class APIPlaintextFrameHelper : public APIFrameHelper {
- public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info) {
-    // Plaintext header structure (worst case):
-    // Pos 0: indicator (0x00)
-    // Pos 1-3: payload size varint (up to 3 bytes)
-    // Pos 4-5: message type varint (up to 2 bytes)
-    // Pos 6+: actual payload data
-    frame_header_padding_ = 6;
-  }
-  ~APIPlaintextFrameHelper() override = default;
-  APIError init() override;
-  APIError loop() override;
-  APIError read_packet(ReadPacketBuffer *buffer) override;
-  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
-  uint8_t frame_header_padding() override { return frame_header_padding_; }
-  // Get the frame footer size required by this protocol
-  uint8_t frame_footer_size() override { return frame_footer_size_; }
-
- protected:
-  APIError try_read_frame_(std::vector<uint8_t> *frame);
-
-  // Group 2-byte aligned types
-  uint16_t rx_header_parsed_type_ = 0;
-  uint16_t rx_header_parsed_len_ = 0;
-
-  // Group 1-byte types together
-  // Fixed-size header buffer for plaintext protocol:
-  // We now store the indicator byte + the two varints.
-  // To match noise protocol's maximum message size (UINT16_MAX = 65535), we need:
-  // 1 byte for indicator + 3 bytes for message size varint (supports up to 2097151) + 2 bytes for message type varint
-  //
-  // While varints could theoretically be up to 10 bytes each for 64-bit values,
-  // attempting to process messages with headers that large would likely crash the
-  // ESP32 due to memory constraints.
-  uint8_t rx_header_buf_[6];  // 1 byte indicator + 5 bytes for varints (3 for size + 2 for type)
-  uint8_t rx_header_buf_pos_ = 0;
-  bool rx_header_parsed_ = false;
-  // 8 bytes total, no padding needed
-};
-#endif
-
 }  // namespace api
 }  // namespace esphome
-#endif
+
+#endif  // USE_API
