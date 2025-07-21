@@ -11,49 +11,6 @@ permissions:
   contents: read
 
 env:
-  TARGET_PLATFORMS: |
-    esp32
-    esp8266
-    rp2040
-    libretiny
-    bk72xx
-    rtl87xx
-    ln882x
-    nrf52
-    host
-  PLATFORM_COMPONENTS: |
-    alarm_control_panel
-    audio_adc
-    audio_dac
-    binary_sensor
-    button
-    canbus
-    climate
-    cover
-    datetime
-    display
-    event
-    fan
-    light
-    lock
-    media_player
-    microphone
-    number
-    one_wire
-    ota
-    output
-    packet_transport
-    select
-    sensor
-    speaker
-    stepper
-    switch
-    text
-    text_sensor
-    time
-    touchscreen
-    update
-    valve
   SMALL_PR_THRESHOLD: 30
   MAX_LABELS: 15
   TOO_BIG_THRESHOLD: 1000
@@ -143,9 +100,25 @@ jobs:
 
             const labels = new Set();
 
+            // Fetch TARGET_PLATFORMS and PLATFORM_COMPONENTS from API
+            let targetPlatforms = [];
+            let platformComponents = [];
+
+            try {
+              const response = await fetch('https://data.esphome.io/components.json');
+              const componentsData = await response.json();
+
+              // Extract target platforms and platform components directly from API
+              targetPlatforms = componentsData.target_platforms || [];
+              platformComponents = componentsData.platform_components || [];
+
+              console.log('Target platforms from API:', targetPlatforms.length, targetPlatforms);
+              console.log('Platform components from API:', platformComponents.length, platformComponents);
+            } catch (error) {
+              console.log('Failed to fetch components data from API:', error.message);
+            }
+
             // Get environment variables
-            const targetPlatforms = `${{ env.TARGET_PLATFORMS }}`.split('\n').filter(p => p.trim().length > 0).map(p => p.trim());
-            const platformComponents = `${{ env.PLATFORM_COMPONENTS }}`.split('\n').filter(p => p.trim().length > 0).map(p => p.trim());
             const smallPrThreshold = parseInt('${{ env.SMALL_PR_THRESHOLD }}');
             const maxLabels = parseInt('${{ env.MAX_LABELS }}');
             const tooBigThreshold = parseInt('${{ env.TOO_BIG_THRESHOLD }}');
