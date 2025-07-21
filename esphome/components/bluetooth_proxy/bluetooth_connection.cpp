@@ -95,8 +95,8 @@ void BluetoothConnection::send_service_for_discovery_() {
 
   api::BluetoothGATTGetServicesResponse resp;
   resp.address = this->address_;
-  resp.services.reserve(1);  // Always one service per response in this implementation
-  api::BluetoothGATTService service_resp;
+  resp.services.emplace_back();
+  auto &service_resp = resp.services.back();
   service_resp.uuid = get_128bit_uuid_vec(service_result.uuid);
   service_resp.handle = service_result.start_handle;
 
@@ -134,7 +134,8 @@ void BluetoothConnection::send_service_for_discovery_() {
       break;
     }
 
-    api::BluetoothGATTCharacteristic characteristic_resp;
+    service_resp.characteristics.emplace_back();
+    auto &characteristic_resp = service_resp.characteristics.back();
     characteristic_resp.uuid = get_128bit_uuid_vec(char_result.uuid);
     characteristic_resp.handle = char_result.char_handle;
     characteristic_resp.properties = char_result.properties;
@@ -173,15 +174,13 @@ void BluetoothConnection::send_service_for_discovery_() {
         break;
       }
 
-      api::BluetoothGATTDescriptor descriptor_resp;
+      characteristic_resp.descriptors.emplace_back();
+      auto &descriptor_resp = characteristic_resp.descriptors.back();
       descriptor_resp.uuid = get_128bit_uuid_vec(desc_result.uuid);
       descriptor_resp.handle = desc_result.handle;
-      characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
       desc_offset++;
     }
-    service_resp.characteristics.push_back(std::move(characteristic_resp));
   }
-  resp.services.push_back(std::move(service_resp));
 
   // Send the message (we already checked api_conn is not null at the beginning)
   api_conn->send_message(resp, api::BluetoothGATTGetServicesResponse::MESSAGE_TYPE);
