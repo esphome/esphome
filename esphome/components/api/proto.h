@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 
 #include <cassert>
+#include <cstring>
 #include <vector>
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
@@ -206,8 +207,13 @@ class ProtoWriteBuffer {
 
     this->encode_field_raw(field_id, 2);  // type 2: Length-delimited string
     this->encode_varint_raw(len);
-    auto *data = reinterpret_cast<const uint8_t *>(string);
-    this->buffer_->insert(this->buffer_->end(), data, data + len);
+
+    // Using resize + memcpy instead of insert provides significant performance improvement:
+    // ~10-11x faster for 16-32 byte strings, ~3x faster for 64-byte strings
+    // as it avoids iterator checks and potential element moves that insert performs
+    size_t old_size = this->buffer_->size();
+    this->buffer_->resize(old_size + len);
+    std::memcpy(this->buffer_->data() + old_size, string, len);
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
     this->encode_string(field_id, value.data(), value.size(), force);
