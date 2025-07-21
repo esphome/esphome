@@ -29,7 +29,7 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
-  float get_gain() { return gain_; }
+  float get_gain() { return this->gain_; }
   void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
   void play(std::string rtttl);
   void stop();
@@ -65,18 +65,17 @@ class Rtttl : public Component {
   /// The current position in the RTTTL string.
   size_t position_{0};
   /// The duration of a whole note in milliseconds.
-  uint16_t wholenote_;
-  /// The default duration of a note (e.g. 4 for a quarter note).
-  uint16_t default_duration_;
+  uint8_t default_note_dominator_{DEFAULT_NOTE_DOMINATOR};
   /// The default octave for a note.
-  uint16_t default_octave_;
+  uint8_t default_octave_{DEFAULT_OCTAVE};
+  /// The duration of the current note in milliseconds.
+  uint16_t note_duration_{0};
+  /// The default duration of a note (e.g. 4 for a quarter note).
+  uint16_t wholenote_duration_;
   /// The time the last note was started.
   uint32_t last_note_;
-  /// The duration of the current note in milliseconds.
-  uint16_t note_duration_;
-
   /// The frequency of the current note in Hz.
-  uint32_t output_freq_;
+  uint32_t output_freq_{0};
   /// The gain of the output.
   float gain_{0.6f};
   /// The current state of the RTTTL player.

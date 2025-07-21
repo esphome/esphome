@@ -14,9 +14,9 @@ static const uint8_t SEMITONES_IN_OCTAVE = 12;
 static const uint8_t MIN_OCTAVE = 4;
 static const uint8_t MAX_OCTAVE = 7;
 
-static const uint8_t DEFAULT_DURATION = 4;  // Default duration for a note (quarter note) (see: VALID_DURATIONS)
-static const uint8_t DEFAULT_OCTAVE = 6;    // Default octave for a note (see: MIN_OCTAVE, MAX_OCTAVE)
-static const uint8_t DEFAULT_BPM = 63;      // Default beats per minute
+static const uint8_t DEFAULT_NOTE_DOMINATOR = 4;  // Default note-dominator (quarter note)
+static const uint8_t DEFAULT_OCTAVE = 6;          // Default octave for a note (see: MIN_OCTAVE, MAX_OCTAVE)
+static const uint8_t DEFAULT_BPM = 63;            // Default beats per minute
 
 static const uint8_t DOUBLE_NOTE_GAP_MS = 10;
 
@@ -65,16 +65,21 @@ static uint8_t note_from_char(char note) {
   switch (note) {
     case 'c':
       return 1;
+    // 'c#': 2
     case 'd':
       return 3;
+    // 'd#': 4
     case 'e':
       return 5;
     case 'f':
       return 6;
+    // 'f#': 7
     case 'g':
       return 8;
+    // 'g#': 9
     case 'a':
       return 10;
+    // 'a#': 11
     case 'h':
     case 'b':
       return 12;
@@ -101,12 +106,12 @@ void Rtttl::play(std::string rtttl) {
 
   this->rtttl_ = std::move(rtttl);
 
-  this->default_duration_ = DEFAULT_DURATION;
+  this->default_note_dominator_ = DEFAULT_NOTE_DOMINATOR;
   this->default_octave_ = DEFAULT_OCTAVE;
   this->note_duration_ = 0;
 
   uint8_t bpm = DEFAULT_BPM;
-  uint8_t num;
+  uint8_t num;  // used for: default note-dominator, default octave, BPM
 
   // Get name
   this->position_ = this->rtttl_.find(':');
@@ -133,7 +138,7 @@ void Rtttl::play(std::string rtttl) {
   this->position_ += 2;
   num = this->get_integer_();
   if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
-    this->default_duration_ = num;
+    this->default_note_dominator_ = num;
   } else {
     ESP_LOGE(TAG, "Invalid default duration: %d", num);
     return;
@@ -162,7 +167,7 @@ void Rtttl::play(std::string rtttl) {
   }
   this->position_ += 2;
   num = get_integer_();
-  if (num != 0) {
+  if (num >= 4) {  // below 4 is not realistic and would cause a integer overflow
     bpm = num;
   } else {
     ESP_LOGE(TAG, "Invalid BPM: %d", num);
@@ -177,7 +182,7 @@ void Rtttl::play(std::string rtttl) {
   this->position_++;
 
   // BPM usually expresses the number of quarter notes per minute
-  this->wholenote_ = 60 * 1000L * 4 / bpm;  // this is the time for whole note (in milliseconds)
+  this->wholenote_duration_ = 60 * 1000L * 4 / bpm;  // this is the time for whole note (in milliseconds)
 
   this->output_freq_ = 0;
   this->last_note_ = millis();
@@ -270,35 +275,33 @@ void Rtttl::loop() {
     }
     if (this->samples_sent_ != this->samples_count_) {
       SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
-      int x = 0;
+      uint16_t sample_index = 0;
       double rem = 0.0;
 
       while (true) {
         // Try and send out the remainder of the existing note, one per loop()
-
-        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
+        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = (127 * this->gain_) * sin(deg2rad(rem));  // 16bit = 49152
+          int8_t val = (127 * this->gain_) * sin(deg2rad(rem));
 
-          sample[x].left = val;
-          sample[x].right = val;
-
+          sample[sample_index].left = val;
+          sample[sample_index].right = val;
         } else {
-          sample[x].left = 0;
-          sample[x].right = 0;
+          sample[sample_index].left = 0;
+          sample[sample_index].right = 0;
         }
 
-        if (static_cast<size_t>(x) >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
+        if (sample_index >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
           break;
         }
         this->samples_sent_++;
-        x++;
+        sample_index++;
       }
-      if (x > 0) {
-        int send = this->speaker_->play((uint8_t *) (&sample), x * 2);
-        if (send != x * 4) {
-          this->samples_sent_ -= (x - (send / 2));
+      if (sample_index > 0) {
+        size_t send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
+        if (send != sample_index * 4) {
+          this->samples_sent_ -= (sample_index - (send / 2));
         }
         return;
       }
@@ -315,18 +318,19 @@ void Rtttl::loop() {
     return;
   }
 
-  // align to note: most rtttl's out there does not add and space after the ',' separator but just in case...
-  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ')
+  // align to note: most rtttl's out there does not add any space after the ',' separator but just in case...
+  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ') {
     this->position_++;
+  }
 
   // first, get note duration, if available
-  uint8_t num = this->get_integer_();
+  uint8_t note_dominator = this->get_integer_();
 
-  if (num) {
-    this->note_duration_ = this->wholenote_ / num;
+  if (note_dominator) {
+    this->note_duration_ = this->wholenote_duration_ / note_dominator;
   } else {
     // we will need to check if we are a dotted note after
-    this->note_duration_ = this->wholenote_ / this->default_duration_;
+    this->note_duration_ = this->wholenote_duration_ / this->default_note_dominator_;
   }
 
   uint8_t note = note_from_char(this->rtttl_[this->position_]);
@@ -355,6 +359,7 @@ void Rtttl::loop() {
     this->finish_();
     return;
   }
+
   bool need_note_gap = false;
 
   // Now play the note
@@ -428,7 +433,7 @@ void Rtttl::set_state_(State state) {
   ESP_LOGV(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
            LOG_STR_ARG(state_to_string(state)));
 
-  // Clear loop_done when transitioning from STOPPED to any other state
+  // Clear loop_done when transitioning from `State::STOPPED` to any other state
   if (state == State::STOPPED) {
     this->disable_loop();
     this->on_finished_playback_callback_.call();
