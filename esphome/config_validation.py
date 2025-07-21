@@ -73,6 +73,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
+    Framework,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
@@ -280,6 +281,38 @@ class Required(vol.Required):
 
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
+
+
+@dataclass(frozen=True, order=True)
+class Version:
+    major: int
+    minor: int
+    patch: int
+    extra: str = ""
+
+    def __str__(self):
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    @classmethod
+    def parse(cls, value: str) -> Version:
+        match = re.match(r"^(\d+).(\d+).(\d+)-?(\w*)$", value)
+        if match is None:
+            raise ValueError(f"Not a valid version number {value}")
+        major = int(match[1])
+        minor = int(match[2])
+        patch = int(match[3])
+        extra = match[4] or ""
+        return Version(major=major, minor=minor, patch=patch, extra=extra)
+
+    @property
+    def is_beta(self) -> bool:
+        """Check if this version is a beta version."""
+        return self.extra.startswith("b")
+
+    @property
+    def is_dev(self) -> bool:
+        """Check if this version is a development version."""
+        return self.extra.startswith("dev")
 
 
 def check_not_templatable(value):
@@ -619,16 +652,35 @@ def only_on(platforms):
     return validator_
 
 
-def only_with_framework(frameworks):
+def only_with_framework(
+    frameworks: Framework | str | list[Framework | str], suggestions=None
+):
     """Validate that this option can only be specified on the given frameworks."""
     if not isinstance(frameworks, list):
         frameworks = [frameworks]
 
+    frameworks = [Framework(framework) for framework in frameworks]
+
+    if suggestions is None:
+        suggestions = {}
+
+    version = Version.parse(ESPHOME_VERSION)
+    if version.is_beta:
+        docs_format = "https://beta.esphome.io/components/{path}"
+    elif version.is_dev:
+        docs_format = "https://next.esphome.io/components/{path}"
+    else:
+        docs_format = "https://esphome.io/components/{path}"
+
     def validator_(obj):
         if CORE.target_framework not in frameworks:
-            raise Invalid(
-                f"This feature is only available with frameworks {frameworks}"
-            )
+            err_str = f"This feature is only available with framework(s) {', '.join([framework.value for framework in frameworks])}"
+            if suggestion := suggestions.get(CORE.target_framework, None):
+                (component, docs_path) = suggestion
+                err_str += f"\nPlease use '{component}'"
+                if docs_path:
+                    err_str += f": {docs_format.format(path=docs_path)}"
+            raise Invalid(err_str)
         return obj
 
     return validator_
@@ -637,8 +689,8 @@ def only_with_framework(frameworks):
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
-only_with_arduino = only_with_framework("arduino")
-only_with_esp_idf = only_with_framework("esp-idf")
+only_with_arduino = only_with_framework(Framework.ARDUINO)
+only_with_esp_idf = only_with_framework(Framework.ESP_IDF)
 
 
 # Adapted from:
@@ -1964,26 +2016,6 @@ def source_refresh(value: str):
     if value.lower() == "never":
         return source_refresh("365250d")
     return positive_time_period_seconds(value)
-
-
-@dataclass(frozen=True, order=True)
-class Version:
-    major: int
-    minor: int
-    patch: int
-
-    def __str__(self):
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    @classmethod
-    def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
-        if match is None:
-            raise ValueError(f"Not a valid version number {value}")
-        major = int(match[1])
-        minor = int(match[2])
-        patch = int(match[3])
-        return Version(major=major, minor=minor, patch=patch)
 
 
 def version_number(value):

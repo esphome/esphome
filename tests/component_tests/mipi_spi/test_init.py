@@ -266,7 +266,7 @@ def test_framework_specific_errors(
 
     with pytest.raises(
         cv.Invalid,
-        match=r"This feature is only available with frameworks \['esp-idf'\]",
+        match=r"This feature is only available with framework\(s\) esp-idf",
     ):
         run_schema_validation({"model": "wt32-sc01-plus"})
 
