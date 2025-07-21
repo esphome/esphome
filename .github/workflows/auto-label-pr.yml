@@ -56,6 +56,7 @@ env:
     valve
   SMALL_PR_THRESHOLD: 30
   MAX_LABELS: 15
+  TOO_BIG_THRESHOLD: 1000
 
 jobs:
   label:
@@ -147,6 +148,7 @@ jobs:
             const platformComponents = `${{ env.PLATFORM_COMPONENTS }}`.split('\n').filter(p => p.trim().length > 0).map(p => p.trim());
             const smallPrThreshold = parseInt('${{ env.SMALL_PR_THRESHOLD }}');
             const maxLabels = parseInt('${{ env.MAX_LABELS }}');
+            const tooBigThreshold = parseInt('${{ env.TOO_BIG_THRESHOLD }}');
 
             // Strategy: Merge to release or beta branch
             const baseRef = context.payload.pull_request.base.ref;
@@ -402,18 +404,34 @@ jobs:
 
             console.log('Computed labels:', finalLabels.join(', '));
 
-            // Don't set more than max labels
-            if (finalLabels.length > maxLabels) {
+            // Check if PR is allowed to be too big
+            const allowedTooBig = currentLabels.includes('mega-pr');
+
+            // Check if PR is too big (either too many labels or too many line changes)
+            const tooManyLabels = finalLabels.length > maxLabels;
+            const tooManyChanges = totalChanges > tooBigThreshold;
+
+            if ((tooManyLabels || tooManyChanges) && !allowedTooBig) {
               const originalLength = finalLabels.length;
-              console.log(`Not setting ${originalLength} labels because out of range`);
+              console.log(`PR is too big - Labels: ${originalLength}, Changes: ${totalChanges}`);
               finalLabels = ['too-big'];
+
+              // Create appropriate review message
+              let reviewBody;
+              if (tooManyLabels && tooManyChanges) {
+                reviewBody = `This PR is too large with ${totalChanges} line changes and affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.`;
+              } else if (tooManyLabels) {
+                reviewBody = `This PR affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.`;
+              } else {
+                reviewBody = `This PR is too large with ${totalChanges} line changes. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.`;
+              }
 
               // Request changes on the PR
               await github.rest.pulls.createReview({
                 owner,
                 repo,
                 pull_number: pr_number,
-                body: `This PR is too large and affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.`,
+                body: reviewBody,
                 event: 'REQUEST_CHANGES'
               });
             }
