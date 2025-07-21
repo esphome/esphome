@@ -225,24 +225,16 @@ void APIConnection::loop() {
   if (this->image_reader_ && this->image_reader_->available() && this->helper_->can_write_without_blocking()) {
     uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
     bool done = this->image_reader_->available() == to_send;
-    uint32_t msg_size = 0;
-    ProtoSize::add_fixed_field<4>(msg_size, 1, true);
-    // partial message size calculated manually since its a special case
-    // 1 for the data field, varint for the data size, and the data itself
-    msg_size += 1 + ProtoSize::varint(to_send) + to_send;
-    ProtoSize::add_bool_field(msg_size, 1, done);
 
-    auto buffer = this->create_buffer(msg_size);
-    // fixed32 key = 1;
-    buffer.encode_fixed32(1, camera::Camera::instance()->get_object_id_hash());
-    // bytes data = 2;
-    buffer.encode_bytes(2, this->image_reader_->peek_data_buffer(), to_send);
-    // bool done = 3;
-    buffer.encode_bool(3, done);
+    CameraImageResponse msg;
+    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
+    msg.done = done;
+#ifdef USE_DEVICES
+    msg.device_id = camera::Camera::instance()->get_device_id();
+#endif
 
-    bool success = this->send_buffer(buffer, CameraImageResponse::MESSAGE_TYPE);
-
-    if (success) {
+    if (this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
       this->image_reader_->consume_data(to_send);
       if (done) {
         this->image_reader_->return_image();
@@ -1350,26 +1342,10 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
 #endif
 
 bool APIConnection::try_send_log_message(int level, const char *tag, const char *line, size_t message_len) {
-  // Pre-calculate message size to avoid reallocations
-  uint32_t msg_size = 0;
-
-  // Add size for level field (field ID 1, varint type)
-  // 1 byte for field tag + size of the level varint
-  msg_size += 1 + api::ProtoSize::varint(static_cast<uint32_t>(level));
-
-  // Add size for string field (field ID 3, string type)
-  // 1 byte for field tag + size of length varint + string length
-  msg_size += 1 + api::ProtoSize::varint(static_cast<uint32_t>(message_len)) + message_len;
-
-  // Create a pre-sized buffer
-  auto buffer = this->create_buffer(msg_size);
-
-  // Encode the message (SubscribeLogsResponse)
-  buffer.encode_uint32(1, static_cast<uint32_t>(level));  // LogLevel level = 1
-  buffer.encode_string(3, line, message_len);             // string message = 3
-
-  // SubscribeLogsResponse - 29
-  return this->send_buffer(buffer, SubscribeLogsResponse::MESSAGE_TYPE);
+  SubscribeLogsResponse msg;
+  msg.level = static_cast<enums::LogLevel>(level);
+  msg.set_message(reinterpret_cast<const uint8_t *>(line), message_len);
+  return this->send_message_(msg, SubscribeLogsResponse::MESSAGE_TYPE);
 }
 
 void APIConnection::complete_authentication_() {

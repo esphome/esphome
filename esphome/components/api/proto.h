@@ -528,25 +528,6 @@ class ProtoSize {
   }
 
   /**
-   * @brief Calculates and adds the size of a fixed field to the total message size
-   *
-   * Fixed fields always take exactly N bytes (4 for fixed32/float, 8 for fixed64/double).
-   *
-   * @tparam NumBytes The number of bytes for this fixed field (4 or 8)
-   * @param is_nonzero Whether the value is non-zero
-   */
-  template<uint32_t NumBytes>
-  static inline void add_fixed_field(uint32_t &total_size, uint32_t field_id_size, bool is_nonzero) {
-    // Skip calculation if value is zero
-    if (!is_nonzero) {
-      return;  // No need to update total_size
-    }
-
-    // Fixed fields always take exactly NumBytes
-    total_size += field_id_size + NumBytes;
-  }
-
-  /**
    * @brief Calculates and adds the size of a float field to the total message size
    */
   static inline void add_float_field(uint32_t &total_size, uint32_t field_id_size, float value) {
@@ -702,6 +683,19 @@ class ProtoSize {
     // Always calculate size for repeated fields
     const uint32_t str_size = static_cast<uint32_t>(str.size());
     total_size += field_id_size + varint(str_size) + str_size;
+  }
+
+  /**
+   * @brief Calculates and adds the size of a bytes field to the total message size
+   */
+  static inline void add_bytes_field(uint32_t &total_size, uint32_t field_id_size, size_t len) {
+    // Skip calculation if bytes is empty
+    if (len == 0) {
+      return;  // No need to update total_size
+    }
+
+    // Field ID + length varint + data bytes
+    total_size += field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
 
   /**

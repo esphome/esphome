@@ -234,9 +234,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTReadResponse resp;
       resp.address = this->address_;
       resp.handle = param->read.handle;
-      resp.data.reserve(param->read.value_len);
-      // Use bulk insert instead of individual push_backs
-      resp.data.insert(resp.data.end(), param->read.value, param->read.value + param->read.value_len);
+      resp.set_data(param->read.value, param->read.value_len);
       this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTReadResponse::MESSAGE_TYPE);
       break;
     }
@@ -287,9 +285,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyDataResponse resp;
       resp.address = this->address_;
       resp.handle = param->notify.handle;
-      resp.data.reserve(param->notify.value_len);
-      // Use bulk insert instead of individual push_backs
-      resp.data.insert(resp.data.end(), param->notify.value, param->notify.value + param->notify.value_len);
+      resp.set_data(param->notify.value, param->notify.value_len);
       this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyDataResponse::MESSAGE_TYPE);
       break;
     }

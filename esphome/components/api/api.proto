@@ -732,7 +732,6 @@ message SubscribeLogsResponse {
 
   LogLevel level = 1;
   bytes message = 3;
-  bool send_failed = 4;
 }
 
 // ==================== NOISE ENCRYPTION ====================
