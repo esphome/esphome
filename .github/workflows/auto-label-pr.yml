@@ -414,7 +414,14 @@ jobs:
             if ((tooManyLabels || tooManyChanges) && !allowedTooBig) {
               const originalLength = finalLabels.length;
               console.log(`PR is too big - Labels: ${originalLength}, Changes: ${totalChanges}`);
-              finalLabels = ['too-big'];
+
+              // If too big due to line changes only, keep original labels and add too-big
+              // If too big due to too many labels, replace with just too-big
+              if (tooManyChanges && !tooManyLabels) {
+                finalLabels.push('too-big');
+              } else {
+                finalLabels = ['too-big'];
+              }
 
               // Create appropriate review message
               let reviewBody;
