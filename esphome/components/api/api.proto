@@ -203,7 +203,7 @@ message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
 
-  bool uses_password = 1;
+  bool uses_password = 1 [(field_ifdef) = "USE_API_PASSWORD"];
 
   // The name of the node, given by "App.set_name()"
   string name = 2;

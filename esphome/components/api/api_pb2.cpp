@@ -80,7 +80,9 @@ void DeviceInfo::calculate_size(uint32_t &total_size) const {
 }
 #endif
 void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
+#ifdef USE_API_PASSWORD
   buffer.encode_bool(1, this->uses_password);
+#endif
   buffer.encode_string(2, this->name);
   buffer.encode_string(3, this->mac_address);
   buffer.encode_string(4, this->esphome_version);
@@ -130,7 +132,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #endif
 }
 void DeviceInfoResponse::calculate_size(uint32_t &total_size) const {
+#ifdef USE_API_PASSWORD
   ProtoSize::add_bool_field(total_size, 1, this->uses_password);
+#endif
   ProtoSize::add_string_field(total_size, 1, this->name);
   ProtoSize::add_string_field(total_size, 1, this->mac_address);
   ProtoSize::add_string_field(total_size, 1, this->esphome_version);

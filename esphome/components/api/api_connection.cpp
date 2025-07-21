@@ -1432,8 +1432,6 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
 #ifdef USE_API_PASSWORD
   resp.uses_password = true;
-#else
-  resp.uses_password = false;
 #endif
   resp.name = App.get_name();
   resp.friendly_name = App.get_friendly_name();

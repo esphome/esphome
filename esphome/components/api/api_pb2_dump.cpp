@@ -647,10 +647,12 @@ void DeviceInfo::dump_to(std::string &out) const {
 void DeviceInfoResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("DeviceInfoResponse {\n");
+#ifdef USE_API_PASSWORD
   out.append("  uses_password: ");
   out.append(YESNO(this->uses_password));
   out.append("\n");
 
+#endif
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");

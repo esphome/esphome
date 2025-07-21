@@ -474,7 +474,9 @@ class DeviceInfoResponse : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
+#ifdef USE_API_PASSWORD
   bool uses_password{false};
+#endif
   std::string name{};
   std::string mac_address{};
   std::string esphome_version{};
