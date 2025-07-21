@@ -200,7 +200,7 @@ AudioPipelineState AudioPipeline::process_state() {
       if ((this->read_task_handle_ != nullptr) || (this->decode_task_handle_ != nullptr)) {
         this->delete_tasks_();
         if (this->hard_stop_) {
-          // Stop command was sent, so immediately end of the playback
+          // Stop command was sent, so immediately end the playback
           this->speaker_->stop();
           this->hard_stop_ = false;
         } else {
@@ -210,11 +210,23 @@ AudioPipelineState AudioPipeline::process_state() {
       }
     }
     this->is_playing_ = false;
-    return AudioPipelineState::STOPPED;
+    if (!this->speaker_->is_running()) {
+      return AudioPipelineState::STOPPED;
+    } else {
+      this->is_finishing_ = true;
+    }
   }
 
   if (this->pause_state_) {
     return AudioPipelineState::PAUSED;
+  }
+
+  if (this->is_finishing_) {
+    if (!this->speaker_->is_running()) {
+      this->is_finishing_ = false;
+    } else {
+      return AudioPipelineState::PLAYING;
+    }
   }
 
   if ((this->read_task_handle_ == nullptr) && (this->decode_task_handle_ == nullptr)) {

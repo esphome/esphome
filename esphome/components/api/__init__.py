@@ -323,9 +323,10 @@ async def api_connected_to_code(config, condition_id, template_arg, args):
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled
-    and user_services.cpp when no services are defined."""
-    files_to_filter = []
+    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled,
+    user_services.cpp when no services are defined, and protocol-specific
+    implementations based on encryption configuration."""
+    files_to_filter: list[str] = []
 
     # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
     # This is a particularly large file that still needs to be opened and read
@@ -340,5 +341,17 @@ def FILTER_SOURCE_FILES() -> list[str]:
     config = CORE.config.get(DOMAIN, {})
     if config and not config.get(CONF_ACTIONS) and not config[CONF_CUSTOM_SERVICES]:
         files_to_filter.append("user_services.cpp")
+
+    # Filter protocol-specific implementations based on encryption configuration
+    encryption_config = config.get(CONF_ENCRYPTION) if config else None
+
+    # If encryption is not configured at all, we only need plaintext
+    if encryption_config is None:
+        files_to_filter.append("api_frame_helper_noise.cpp")
+    # If encryption is configured with a key, we only need noise
+    elif encryption_config.get(CONF_KEY):
+        files_to_filter.append("api_frame_helper_plaintext.cpp")
+    # If encryption is configured but no key is provided, we need both
+    # (this allows a plaintext client to provide a noise key)
 
     return files_to_filter

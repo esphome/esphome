@@ -31,6 +31,7 @@ BASE = """
 pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
+.github/** @esphome/core
 
 # Integrations
 """.strip()

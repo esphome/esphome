@@ -113,8 +113,15 @@ def force_str(force: bool) -> str:
 class TypeInfo(ABC):
     """Base class for all type information."""
 
-    def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
+    def __init__(
+        self,
+        field: descriptor.FieldDescriptorProto,
+        needs_decode: bool = True,
+        needs_encode: bool = True,
+    ) -> None:
         self._field = field
+        self._needs_decode = needs_decode
+        self._needs_encode = needs_encode
 
     @property
     def default_value(self) -> str:
@@ -313,13 +320,26 @@ def validate_field_type(field_type: int, field_name: str = "") -> None:
         )
 
 
-def get_type_info_for_field(field: descriptor.FieldDescriptorProto) -> TypeInfo:
-    """Get the appropriate TypeInfo for a field, handling repeated fields.
-
-    Also validates that the field type is supported.
-    """
+def create_field_type_info(
+    field: descriptor.FieldDescriptorProto,
+    needs_decode: bool = True,
+    needs_encode: bool = True,
+) -> TypeInfo:
+    """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
     if field.label == 3:  # repeated
         return RepeatedTypeInfo(field)
+
+    # Check for fixed_array_size option on bytes fields
+    if (
+        field.type == 12
+        and (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None
+    ):
+        return FixedArrayBytesType(field, fixed_size)
+
+    # Special handling for bytes fields
+    if field.type == 12:
+        return BytesType(field, needs_decode, needs_encode)
+
     validate_field_type(field.type, field.name)
     return TYPE_INFO[field.type](field)
 
@@ -584,23 +604,141 @@ class BytesType(TypeInfo):
     default_value = ""
     reference_type = "std::string &"
     const_reference_type = "const std::string &"
-    decode_length = "value.as_string()"
     encode_func = "encode_bytes"
+    decode_length = "value.as_string()"
     wire_type = WireType.LENGTH_DELIMITED  # Uses wire type 2
 
     @property
+    def public_content(self) -> list[str]:
+        content: list[str] = []
+        # Add std::string storage if message needs decoding
+        if self._needs_decode:
+            content.append(f"std::string {self.field_name}{{}};")
+
+        if self._needs_encode:
+            content.extend(
+                [
+                    # Add pointer/length fields if message needs encoding
+                    f"const uint8_t* {self.field_name}_ptr_{{nullptr}};",
+                    f"size_t {self.field_name}_len_{{0}};",
+                    # Add setter method if message needs encoding
+                    f"void set_{self.field_name}(const uint8_t* data, size_t len) {{",
+                    f"  this->{self.field_name}_ptr_ = data;",
+                    f"  this->{self.field_name}_len_ = len;",
+                    "}",
+                ]
+            )
+        return content
+
+    @property
     def encode_content(self) -> str:
-        return f"buffer.encode_bytes({self.number}, reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), this->{self.field_name}.size());"
+        return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
 
     def dump(self, name: str) -> str:
-        o = f"out.append(format_hex_pretty({name}));"
-        return o
+        ptr_dump = f"format_hex_pretty(this->{self.field_name}_ptr_, this->{self.field_name}_len_)"
+        str_dump = f"format_hex_pretty(reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), this->{self.field_name}.size())"
+
+        # For SOURCE_CLIENT only, always use std::string
+        if not self._needs_encode:
+            return f"out.append({str_dump});"
+
+        # For SOURCE_SERVER, always use pointer/length
+        if not self._needs_decode:
+            return f"out.append({ptr_dump});"
+
+        # For SOURCE_BOTH, check if pointer is set (sending) or use string (received)
+        return (
+            f"if (this->{self.field_name}_ptr_ != nullptr) {{\n"
+            f"    out.append({ptr_dump});\n"
+            f"  }} else {{\n"
+            f"    out.append({str_dump});\n"
+            f"  }}"
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_string_field")
+        return f"ProtoSize::add_bytes_field(total_size, {self.calculate_field_id_size()}, this->{self.field_name}_len_);"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
+
+
+class FixedArrayBytesType(TypeInfo):
+    """Special type for fixed-size byte arrays."""
+
+    def __init__(self, field: descriptor.FieldDescriptorProto, size: int) -> None:
+        super().__init__(field)
+        self.array_size = size
+
+    @property
+    def cpp_type(self) -> str:
+        return "uint8_t"
+
+    @property
+    def default_value(self) -> str:
+        return "{}"
+
+    @property
+    def reference_type(self) -> str:
+        return f"uint8_t (&)[{self.array_size}]"
+
+    @property
+    def const_reference_type(self) -> str:
+        return f"const uint8_t (&)[{self.array_size}]"
+
+    @property
+    def public_content(self) -> list[str]:
+        # Add both the array and length fields
+        return [
+            f"uint8_t {self.field_name}[{self.array_size}]{{}};",
+            f"uint8_t {self.field_name}_len{{0}};",
+        ]
+
+    @property
+    def decode_length_content(self) -> str:
+        o = f"case {self.number}: {{\n"
+        o += "  const std::string &data_str = value.as_string();\n"
+        o += f"  this->{self.field_name}_len = data_str.size();\n"
+        o += f"  if (this->{self.field_name}_len > {self.array_size}) {{\n"
+        o += f"    this->{self.field_name}_len = {self.array_size};\n"
+        o += "  }\n"
+        o += f"  memcpy(this->{self.field_name}, data_str.data(), this->{self.field_name}_len);\n"
+        o += "  break;\n"
+        o += "}"
+        return o
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+
+    def dump(self, name: str) -> str:
+        o = f"out.append(format_hex_pretty({name}, {name}_len));"
+        return o
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        # Use the actual length stored in the _len field
+        length_field = f"this->{self.field_name}_len"
+        field_id_size = self.calculate_field_id_size()
+
+        if force:
+            # For repeated fields, always calculate size
+            return f"total_size += {field_id_size} + ProtoSize::varint(static_cast<uint32_t>({length_field})) + {length_field};"
+        else:
+            # For non-repeated fields, skip if length is 0 (matching encode_string behavior)
+            return (
+                f"if ({length_field} != 0) {{\n"
+                f"  total_size += {field_id_size} + ProtoSize::varint(static_cast<uint32_t>({length_field})) + {length_field};\n"
+                f"}}"
+            )
+
+    def get_estimated_size(self) -> int:
+        # Estimate based on typical BLE advertisement size
+        return (
+            self.calculate_field_id_size() + 1 + 31
+        )  # field ID + length byte + typical 31 bytes
+
+    @property
+    def wire_type(self) -> WireType:
+        return WireType.LENGTH_DELIMITED
 
 
 @register_type(13)
@@ -748,6 +886,16 @@ class SInt64Type(TypeInfo):
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
         super().__init__(field)
+        # For repeated fields, we need to get the base type info
+        # but we can't call create_field_type_info as it would cause recursion
+        # So we extract just the type creation logic
+        if (
+            field.type == 12
+            and (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None
+        ):
+            self._ti: TypeInfo = FixedArrayBytesType(field, fixed_size)
+            return
+
         validate_field_type(field.type, field.name)
         self._ti: TypeInfo = TYPE_INFO[field.type](field)
 
@@ -877,11 +1025,11 @@ class RepeatedTypeInfo(TypeInfo):
 
 def build_type_usage_map(
     file_desc: descriptor.FileDescriptorProto,
-) -> tuple[dict[str, str | None], dict[str, str | None], dict[str, int]]:
+) -> tuple[dict[str, str | None], dict[str, str | None], dict[str, int], set[str]]:
     """Build mappings for both enums and messages to their ifdefs based on usage.
 
     Returns:
-        tuple: (enum_ifdef_map, message_ifdef_map, message_source_map)
+        tuple: (enum_ifdef_map, message_ifdef_map, message_source_map, used_messages)
     """
     enum_ifdef_map: dict[str, str | None] = {}
     message_ifdef_map: dict[str, str | None] = {}
@@ -894,6 +1042,7 @@ def build_type_usage_map(
     message_usage: dict[
         str, set[str]
     ] = {}  # message_name -> set of message names that use it
+    used_messages: set[str] = set()  # Track which messages are actually used
 
     # Build message name to ifdef mapping for quick lookup
     message_to_ifdef: dict[str, str | None] = {
@@ -901,18 +1050,35 @@ def build_type_usage_map(
     }
 
     # Analyze field usage
+    # Also track field_ifdef for message types
+    message_field_ifdefs: dict[
+        str, set[str | None]
+    ] = {}  # message_name -> set of field_ifdefs that use it
+
     for message in file_desc.message_type:
+        # Skip deprecated messages entirely
+        if message.options.deprecated:
+            continue
+
         for field in message.field:
+            # Skip deprecated fields when tracking enum usage
+            if field.options.deprecated:
+                continue
+
             type_name = field.type_name.split(".")[-1] if field.type_name else None
             if not type_name:
                 continue
 
-            # Track enum usage
+            # Track enum usage (only from non-deprecated fields)
             if field.type == 14:  # TYPE_ENUM
                 enum_usage.setdefault(type_name, set()).add(message.name)
             # Track message usage
             elif field.type == 11:  # TYPE_MESSAGE
                 message_usage.setdefault(type_name, set()).add(message.name)
+                # Also track the field_ifdef if present
+                field_ifdef = get_field_opt(field, pb.field_ifdef)
+                message_field_ifdefs.setdefault(type_name, set()).add(field_ifdef)
+                used_messages.add(type_name)
 
     # Helper to get unique ifdef from a set of messages
     def get_unique_ifdef(message_names: set[str]) -> str | None:
@@ -938,9 +1104,16 @@ def build_type_usage_map(
             message_ifdef_map[message.name] = explicit_ifdef
         elif message.name in message_usage:
             # Inherit ifdef if all parent messages have the same one
-            message_ifdef_map[message.name] = get_unique_ifdef(
-                message_usage[message.name]
-            )
+            if parent_ifdef := get_unique_ifdef(message_usage[message.name]):
+                message_ifdef_map[message.name] = parent_ifdef
+            elif message.name in message_field_ifdefs:
+                # If no parent message ifdef, check if all fields using this message have the same field_ifdef
+                field_ifdefs = message_field_ifdefs[message.name] - {None}
+                message_ifdef_map[message.name] = (
+                    field_ifdefs.pop() if len(field_ifdefs) == 1 else None
+                )
+            else:
+                message_ifdef_map[message.name] = None
         else:
             message_ifdef_map[message.name] = None
 
@@ -975,12 +1148,18 @@ def build_type_usage_map(
     # Build message source map
     # First pass: Get explicit sources for messages with source option or id
     for msg in file_desc.message_type:
+        # Skip deprecated messages
+        if msg.options.deprecated:
+            continue
+
         if msg.options.HasExtension(pb.source):
             # Explicit source option takes precedence
             message_source_map[msg.name] = get_opt(msg, pb.source, SOURCE_BOTH)
         elif msg.options.HasExtension(pb.id):
             # Service messages (with id) default to SOURCE_BOTH
             message_source_map[msg.name] = SOURCE_BOTH
+            # Service messages are always used
+            used_messages.add(msg.name)
 
     # Second pass: Determine sources for embedded messages based on their usage
     for msg in file_desc.message_type:
@@ -1009,7 +1188,12 @@ def build_type_usage_map(
             # Not used by any message and no explicit source - default to encode-only
             message_source_map[msg.name] = SOURCE_SERVER
 
-    return enum_ifdef_map, message_ifdef_map, message_source_map
+    return (
+        enum_ifdef_map,
+        message_ifdef_map,
+        message_source_map,
+        used_messages,
+    )
 
 
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
@@ -1051,7 +1235,11 @@ def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
     total_size = 0
 
     for field in desc.field:
-        ti = get_type_info_for_field(field)
+        # Skip deprecated fields
+        if field.options.deprecated:
+            continue
+
+        ti = create_field_type_info(field)
 
         # Add estimated size for this field
         total_size += ti.get_estimated_size()
@@ -1119,10 +1307,11 @@ def build_message_type(
         public_content.append("#endif")
 
     for field in desc.field:
-        if field.label == 3:
-            ti = RepeatedTypeInfo(field)
-        else:
-            ti = TYPE_INFO[field.type](field)
+        # Skip deprecated fields completely
+        if field.options.deprecated:
+            continue
+
+        ti = create_field_type_info(field, needs_decode, needs_encode)
 
         # Skip field declarations for fields that are in the base class
         # but include their encode/decode logic
@@ -1327,6 +1516,17 @@ def get_opt(
     return desc.options.Extensions[opt]
 
 
+def get_field_opt(
+    field: descriptor.FieldDescriptorProto,
+    opt: descriptor.FieldOptions,
+    default: Any = None,
+) -> Any:
+    """Get the option from a field descriptor."""
+    if not field.options.HasExtension(opt):
+        return default
+    return field.options.Extensions[opt]
+
+
 def get_base_class(desc: descriptor.DescriptorProto) -> str | None:
     """Get the base_class option from a message descriptor."""
     if not desc.options.HasExtension(pb.base_class):
@@ -1357,8 +1557,10 @@ def find_common_fields(
     if not messages:
         return []
 
-    # Start with fields from the first message
-    first_msg_fields = {field.name: field for field in messages[0].field}
+    # Start with fields from the first message (excluding deprecated fields)
+    first_msg_fields = {
+        field.name: field for field in messages[0].field if not field.options.deprecated
+    }
     common_fields = []
 
     # Check each field to see if it exists in all messages with same type
@@ -1369,6 +1571,9 @@ def find_common_fields(
         for msg in messages[1:]:
             found = False
             for other_field in msg.field:
+                # Skip deprecated fields
+                if other_field.options.deprecated:
+                    continue
                 if (
                     other_field.name == field_name
                     and other_field.type == field.type
@@ -1389,29 +1594,61 @@ def find_common_fields(
     return common_fields
 
 
+def get_common_field_ifdef(
+    field_name: str, messages: list[descriptor.DescriptorProto]
+) -> str | None:
+    """Get the field_ifdef option if it's consistent across all messages.
+
+    Args:
+        field_name: Name of the field to check
+        messages: List of messages that contain this field
+
+    Returns:
+        The field_ifdef string if all messages have the same value, None otherwise
+    """
+    field_ifdefs = {
+        get_field_opt(field, pb.field_ifdef)
+        for msg in messages
+        if (field := next((f for f in msg.field if f.name == field_name), None))
+    }
+
+    # Return the ifdef only if all messages agree on the same value
+    return field_ifdefs.pop() if len(field_ifdefs) == 1 else None
+
+
 def build_base_class(
     base_class_name: str,
     common_fields: list[descriptor.FieldDescriptorProto],
     messages: list[descriptor.DescriptorProto],
+    message_source_map: dict[str, int],
 ) -> tuple[str, str, str]:
     """Build the base class definition and implementation."""
     public_content = []
     protected_content = []
 
+    # Determine if any message using this base class needs decoding/encoding
+    needs_decode = any(
+        message_source_map.get(msg.name, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_CLIENT)
+        for msg in messages
+    )
+    needs_encode = any(
+        message_source_map.get(msg.name, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_SERVER)
+        for msg in messages
+    )
+
     # For base classes, we only declare the fields but don't handle encode/decode
     # The derived classes will handle encoding/decoding with their specific field numbers
     for field in common_fields:
-        ti = get_type_info_for_field(field)
+        ti = create_field_type_info(field, needs_decode, needs_encode)
+
+        # Get field_ifdef if it's consistent across all messages
+        field_ifdef = get_common_field_ifdef(field.name, messages)
 
         # Only add field declarations, not encode/decode logic
-        protected_content.extend(ti.protected_content)
-        public_content.extend(ti.public_content)
-
-    # Determine if any message using this base class needs decoding
-    needs_decode = any(
-        get_opt(msg, pb.source, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_CLIENT)
-        for msg in messages
-    )
+        if ti.protected_content:
+            protected_content.extend(wrap_with_ifdef(ti.protected_content, field_ifdef))
+        if ti.public_content:
+            public_content.extend(wrap_with_ifdef(ti.public_content, field_ifdef))
 
     # Build header
     parent_class = "ProtoDecodableMessage" if needs_decode else "ProtoMessage"
@@ -1441,6 +1678,7 @@ def build_base_class(
 
 def generate_base_classes(
     base_class_groups: dict[str, list[descriptor.DescriptorProto]],
+    message_source_map: dict[str, int],
 ) -> tuple[str, str, str]:
     """Generate all base classes."""
     all_headers = []
@@ -1454,7 +1692,7 @@ def generate_base_classes(
         if common_fields:
             # Generate base class
             header, cpp, dump_cpp = build_base_class(
-                base_class_name, common_fields, messages
+                base_class_name, common_fields, messages, message_source_map
             )
             all_headers.append(header)
             all_cpp.append(cpp)
@@ -1465,14 +1703,19 @@ def generate_base_classes(
 
 def build_service_message_type(
     mt: descriptor.DescriptorProto,
+    message_source_map: dict[str, int],
 ) -> tuple[str, str] | None:
     """Builds the service message type."""
+    # Skip deprecated messages
+    if mt.options.deprecated:
+        return None
+
     snake = camel_to_snake(mt.name)
     id_: int | None = get_opt(mt, pb.id)
     if id_ is None:
         return None
 
-    source: int = get_opt(mt, pb.source, 0)
+    source: int = message_source_map.get(mt.name, SOURCE_BOTH)
 
     ifdef: str | None = get_opt(mt, pb.ifdef)
     log: bool = get_opt(mt, pb.log, True)
@@ -1543,6 +1786,7 @@ namespace api {
     #include "api_pb2.h"
     #include "esphome/core/log.h"
     #include "esphome/core/helpers.h"
+    #include <cstring>
 
 namespace esphome {
 namespace api {
@@ -1567,12 +1811,18 @@ namespace api {
     content += "namespace enums {\n\n"
 
     # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map, message_source_map = build_type_usage_map(file)
+    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
+        build_type_usage_map(file)
+    )
 
     # Simple grouping of enums by ifdef
     current_ifdef = None
 
     for enum in file.enum_type:
+        # Skip deprecated enums
+        if enum.options.deprecated:
+            continue
+
         s, c, dc = build_enum_type(enum, enum_ifdef_map)
         enum_ifdef = enum_ifdef_map.get(enum.name)
 
@@ -1611,7 +1861,9 @@ namespace api {
 
     # Generate base classes
     if base_class_fields:
-        base_headers, base_cpp, base_dump_cpp = generate_base_classes(base_class_groups)
+        base_headers, base_cpp, base_dump_cpp = generate_base_classes(
+            base_class_groups, message_source_map
+        )
         content += base_headers
         cpp += base_cpp
         dump_cpp += base_dump_cpp
@@ -1621,6 +1873,14 @@ namespace api {
     current_ifdef = None
 
     for m in mt:
+        # Skip deprecated messages
+        if m.options.deprecated:
+            continue
+
+        # Skip messages that aren't used (unless they have an ID/service message)
+        if m.name not in used_messages and not m.options.HasExtension(pb.id):
+            continue
+
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
         msg_ifdef = message_ifdef_map.get(m.name)
 
@@ -1713,13 +1973,12 @@ static const char *const TAG = "api.service";
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
-    # Add generic send_message method
-    hpp += "  template<typename T>\n"
-    hpp += "  bool send_message(const T &msg) {\n"
+    # Add non-template send_message method
+    hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += "    this->log_send_message_(msg.message_name(), msg.dump());\n"
     hpp += "#endif\n"
-    hpp += "    return this->send_message_(msg, T::MESSAGE_TYPE);\n"
+    hpp += "    return this->send_message_(msg, message_type);\n"
     hpp += "  }\n\n"
 
     # Add logging helper method implementation to cpp
@@ -1730,7 +1989,7 @@ static const char *const TAG = "api.service";
     cpp += "#endif\n\n"
 
     for mt in file.message_type:
-        obj = build_service_message_type(mt)
+        obj = build_service_message_type(mt, message_source_map)
         if obj is None:
             continue
         hout, cout = obj
@@ -1805,7 +2064,9 @@ static const char *const TAG = "api.service";
                 handler_body = f"this->{func}(msg);\n"
             else:
                 handler_body = f"{ret} ret = this->{func}(msg);\n"
-                handler_body += "if (!this->send_message(ret)) {\n"
+                handler_body += (
+                    f"if (!this->send_message(ret, {ret}::MESSAGE_TYPE)) {{\n"
+                )
                 handler_body += "  this->on_fatal_error();\n"
                 handler_body += "}\n"
 
@@ -1818,7 +2079,7 @@ static const char *const TAG = "api.service";
                 body += f"this->{func}(msg);\n"
             else:
                 body += f"{ret} ret = this->{func}(msg);\n"
-                body += "if (!this->send_message(ret)) {\n"
+                body += f"if (!this->send_message(ret, {ret}::MESSAGE_TYPE)) {{\n"
                 body += "  this->on_fatal_error();\n"
                 body += "}\n"
 

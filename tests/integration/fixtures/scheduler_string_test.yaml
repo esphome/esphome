@@ -4,9 +4,7 @@ esphome:
     priority: -100
     then:
       - logger.log: "Starting scheduler string tests"
-  platformio_options:
-    build_flags:
-      - "-DESPHOME_DEBUG_SCHEDULER"  # Enable scheduler debug logging
+  debug_scheduler: true  # Enable scheduler debug logging
 
 host:
 api:
@@ -30,6 +28,12 @@ globals:
     type: bool
     initial_value: 'false'
   - id: results_reported
+    type: bool
+    initial_value: 'false'
+  - id: edge_tests_done
+    type: bool
+    initial_value: 'false'
+  - id: empty_cancel_failed
     type: bool
     initial_value: 'false'
 
@@ -147,11 +151,105 @@ script:
           static TestDynamicDeferComponent test_dynamic_defer_component;
           test_dynamic_defer_component.test_dynamic_defer();
 
+  - id: test_cancellation_edge_cases
+    then:
+      - logger.log: "Testing cancellation edge cases"
+      - lambda: |-
+          auto *component1 = id(test_sensor1);
+          // Use a different component for empty string tests to avoid interference
+          auto *component2 = id(test_sensor2);
+
+          // Test 12: Cancel with empty string - regression test for issue #9599
+          // First create a timeout with empty name on component2 to avoid interference
+          App.scheduler.set_timeout(component2, "", 500, []() {
+            ESP_LOGE("test", "ERROR: Empty name timeout fired - it should have been cancelled!");
+            id(empty_cancel_failed) = true;
+          });
+
+          // Now cancel it - this should work after our fix
+          bool cancelled_empty = App.scheduler.cancel_timeout(component2, "");
+          ESP_LOGI("test", "Cancel empty string result: %s (should be true)", cancelled_empty ? "true" : "false");
+          if (!cancelled_empty) {
+            ESP_LOGE("test", "ERROR: Failed to cancel empty string timeout!");
+            id(empty_cancel_failed) = true;
+          }
+
+          // Test 13: Cancel non-existent timeout
+          bool cancelled_nonexistent = App.scheduler.cancel_timeout(component1, "does_not_exist");
+          ESP_LOGI("test", "Cancel non-existent timeout result: %s",
+                   cancelled_nonexistent ? "true (unexpected!)" : "false (expected)");
+
+          // Test 14: Multiple timeouts with same name - only last should execute
+          for (int i = 0; i < 5; i++) {
+            App.scheduler.set_timeout(component1, "duplicate_timeout", 200 + i*10, [i]() {
+              ESP_LOGI("test", "Duplicate timeout %d fired", i);
+              id(timeout_counter) += 1;
+            });
+          }
+          ESP_LOGI("test", "Created 5 timeouts with same name 'duplicate_timeout'");
+
+          // Test 15: Multiple intervals with same name - only last should run
+          for (int i = 0; i < 3; i++) {
+            App.scheduler.set_interval(component1, "duplicate_interval", 300, [i]() {
+              ESP_LOGI("test", "Duplicate interval %d fired", i);
+              id(interval_counter) += 10; // Large increment to detect multiple
+              // Cancel after first execution
+              App.scheduler.cancel_interval(id(test_sensor1), "duplicate_interval");
+            });
+          }
+          ESP_LOGI("test", "Created 3 intervals with same name 'duplicate_interval'");
+
+          // Test 16: Cancel with nullptr protection (via empty const char*)
+          const char* null_name = "";
+          App.scheduler.set_timeout(component2, null_name, 600, []() {
+            ESP_LOGE("test", "ERROR: Const char* empty timeout fired - should have been cancelled!");
+            id(empty_cancel_failed) = true;
+          });
+          bool cancelled_const_empty = App.scheduler.cancel_timeout(component2, null_name);
+          ESP_LOGI("test", "Cancel const char* empty result: %s (should be true)",
+                   cancelled_const_empty ? "true" : "false");
+          if (!cancelled_const_empty) {
+            ESP_LOGE("test", "ERROR: Failed to cancel const char* empty timeout!");
+            id(empty_cancel_failed) = true;
+          }
+
+          // Test 17: Rapid create/cancel/create with same name
+          App.scheduler.set_timeout(component1, "rapid_test", 5000, []() {
+            ESP_LOGI("test", "First rapid timeout - should not fire");
+            id(timeout_counter) += 100;
+          });
+          App.scheduler.cancel_timeout(component1, "rapid_test");
+          App.scheduler.set_timeout(component1, "rapid_test", 250, []() {
+            ESP_LOGI("test", "Second rapid timeout - should fire");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 18: Cancel all with a specific name (multiple instances)
+          // Create multiple with same name
+          App.scheduler.set_timeout(component1, "multi_cancel", 300, []() {
+            ESP_LOGI("test", "Multi-cancel timeout 1");
+          });
+          App.scheduler.set_timeout(component1, "multi_cancel", 350, []() {
+            ESP_LOGI("test", "Multi-cancel timeout 2");
+          });
+          App.scheduler.set_timeout(component1, "multi_cancel", 400, []() {
+            ESP_LOGI("test", "Multi-cancel timeout 3 - only this should fire");
+            id(timeout_counter) += 1;
+          });
+          // Note: Each set_timeout with same name cancels the previous one automatically
+
   - id: report_results
     then:
       - lambda: |-
           ESP_LOGI("test", "Final results - Timeouts: %d, Intervals: %d",
                    id(timeout_counter), id(interval_counter));
+
+          // Check if empty string cancellation test passed
+          if (id(empty_cancel_failed)) {
+            ESP_LOGE("test", "ERROR: Empty string cancellation test FAILED!");
+          } else {
+            ESP_LOGI("test", "Empty string cancellation test PASSED");
+          }
 
 sensor:
   - platform: template
@@ -189,12 +287,23 @@ interval:
             - delay: 0.2s
             - script.execute: test_dynamic_strings
 
+  # Run cancellation edge case tests after dynamic tests
+  - interval: 0.2s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(dynamic_tests_done) && !id(edge_tests_done);'
+          then:
+            - lambda: 'id(edge_tests_done) = true;'
+            - delay: 0.5s
+            - script.execute: test_cancellation_edge_cases
+
   # Report results after all tests
   - interval: 0.2s
     then:
       - if:
           condition:
-            lambda: 'return id(dynamic_tests_done) && !id(results_reported);'
+            lambda: 'return id(edge_tests_done) && !id(results_reported);'
           then:
             - lambda: 'id(results_reported) = true;'
             - delay: 1s

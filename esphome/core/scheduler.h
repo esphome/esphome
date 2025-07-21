@@ -1,9 +1,13 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include <vector>
 #include <memory>
 #include <cstring>
 #include <deque>
+#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#include <atomic>
+#endif
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -52,8 +56,15 @@ class Scheduler {
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
   bool cancel_retry(Component *component, const std::string &name);
 
+  // Calculate when the next scheduled item should run
+  // @param now Fresh timestamp from millis() - must not be stale/cached
+  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
+  // This method performs cleanup of removed items before checking the schedule
+  // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint32_t now);
 
+  // Execute all scheduled items that are ready
+  // @param now Fresh timestamp from millis() - must not be stale/cached
   void call(uint32_t now);
 
   void process_to_add();
@@ -114,16 +125,17 @@ class Scheduler {
         name_is_dynamic = false;
       }
 
-      if (!name || !name[0]) {
+      if (!name) {
+        // nullptr case - no name provided
         name_.static_name = nullptr;
       } else if (make_copy) {
-        // Make a copy for dynamic strings
+        // Make a copy for dynamic strings (including empty strings)
         size_t len = strlen(name);
         name_.dynamic_name = new char[len + 1];
         memcpy(name_.dynamic_name, name, len + 1);
         name_is_dynamic = true;
       } else {
-        // Use static string directly
+        // Use static string directly (including empty strings)
         name_.static_name = name;
       }
     }
@@ -138,7 +150,10 @@ class Scheduler {
                          uint32_t delay, std::function<void()> func);
 
   uint64_t millis_64_(uint32_t now);
-  void cleanup_();
+  // Cleanup logically deleted items from the scheduler
+  // Returns the number of items remaining after cleanup
+  // IMPORTANT: This method should only be called from the main thread (loop task).
+  size_t cleanup_();
   void pop_raw_();
 
  private:
@@ -182,30 +197,43 @@ class Scheduler {
     return item->remove || (item->component != nullptr && item->component->is_failed());
   }
 
-  // Check if the scheduler has no items.
-  // IMPORTANT: This method should only be called from the main thread (loop task).
-  // It performs cleanup of removed items and checks if the queue is empty.
-  // The items_.empty() check at the end is done without a lock for performance,
-  // which is safe because this is only called from the main thread while other
-  // threads only add items (never remove them).
-  bool empty_() {
-    this->cleanup_();
-    return this->items_.empty();
-  }
-
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
-#if !defined(USE_ESP8266) && !defined(USE_RP2040)
-  // ESP8266 and RP2040 don't need the defer queue because:
-  // ESP8266: Single-core with no preemptive multitasking
-  // RP2040: Currently has empty mutex implementation in ESPHome
-  // Both platforms save 40 bytes of RAM by excluding this
+#ifndef ESPHOME_CORES_SINGLE
+  // Single-core platforms don't need the defer queue and save 40 bytes of RAM
   std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-#endif
-  uint32_t last_millis_{0};
-  uint16_t millis_major_{0};
+#endif                                                      /* ESPHOME_CORES_SINGLE */
   uint32_t to_remove_{0};
+
+#ifdef ESPHOME_CORES_MULTI_ATOMICS
+  /*
+   * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
+   *
+   * MEMORY-ORDERING NOTE
+   * --------------------
+   * `last_millis_` and `millis_major_` form a single 64-bit timestamp split in half.
+   * Writers publish `last_millis_` with memory_order_release and readers use
+   * memory_order_acquire. This ensures that once a reader sees the new low word,
+   * it also observes the corresponding increment of `millis_major_`.
+   */
+  std::atomic<uint32_t> last_millis_{0};
+#else  /* not ESPHOME_CORES_MULTI_ATOMICS */
+  // Platforms without atomic support or single-threaded platforms
+  uint32_t last_millis_{0};
+#endif /* else ESPHOME_CORES_MULTI_ATOMICS */
+
+  /*
+   * Upper 16 bits of the 64-bit millis counter. Incremented only while holding
+   * `lock_`; read concurrently. Atomic (relaxed) avoids a formal data race.
+   * Ordering relative to `last_millis_` is provided by its release store and the
+   * corresponding acquire loads.
+   */
+#ifdef ESPHOME_CORES_MULTI_ATOMICS
+  std::atomic<uint16_t> millis_major_{0};
+#else  /* not ESPHOME_CORES_MULTI_ATOMICS */
+  uint16_t millis_major_{0};
+#endif /* else ESPHOME_CORES_MULTI_ATOMICS */
 };
 
 }  // namespace esphome

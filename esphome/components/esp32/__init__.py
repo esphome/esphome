@@ -31,6 +31,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
+    CoreModel,
     __version__,
 )
 from esphome.core import CORE, HexInt, TimePeriod
@@ -39,7 +40,7 @@ import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
 from esphome.types import ConfigType
 
-from .boards import BOARDS
+from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
     KEY_BOARD,
     KEY_COMPONENTS,
@@ -487,25 +488,32 @@ def _platform_is_platformio(value):
 
 
 def _detect_variant(value):
-    board = value[CONF_BOARD]
-    if board in BOARDS:
-        variant = BOARDS[board][KEY_VARIANT]
-        if CONF_VARIANT in value and variant != value[CONF_VARIANT]:
+    board = value.get(CONF_BOARD)
+    variant = value.get(CONF_VARIANT)
+    if variant and board is None:
+        # If variant is set, we can derive the board from it
+        # variant has already been validated against the known set
+        value = value.copy()
+        value[CONF_BOARD] = STANDARD_BOARDS[variant]
+    elif board in BOARDS:
+        variant = variant or BOARDS[board][KEY_VARIANT]
+        if variant != BOARDS[board][KEY_VARIANT]:
             raise cv.Invalid(
                 f"Option '{CONF_VARIANT}' does not match selected board.",
                 path=[CONF_VARIANT],
             )
         value = value.copy()
         value[CONF_VARIANT] = variant
+    elif not variant:
+        raise cv.Invalid(
+            "This board is unknown, if you are sure you want to compile with this board selection, "
+            f"override with option '{CONF_VARIANT}'",
+            path=[CONF_BOARD],
+        )
     else:
-        if CONF_VARIANT not in value:
-            raise cv.Invalid(
-                "This board is unknown, if you are sure you want to compile with this board selection, "
-                f"override with option '{CONF_VARIANT}'",
-                path=[CONF_BOARD],
-            )
         _LOGGER.warning(
-            "This board is unknown. Make sure the chosen chip component is correct.",
+            "This board is unknown; the specified variant '%s' will be used but this may not work as expected.",
+            variant,
         )
     return value
 
@@ -676,7 +684,7 @@ CONF_PARTITIONS = "partitions"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_BOARD): cv.string_strict,
+            cv.Optional(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
                 *FULL_CPU_FREQUENCIES, upper=True
             ),
@@ -691,6 +699,7 @@ CONFIG_SCHEMA = cv.All(
     _detect_variant,
     _set_default_framework,
     set_core_data,
+    cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
 
 
@@ -705,6 +714,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
+    cg.add_define(CoreModel.MULTI_ATOMICS)
 
     cg.add_platformio_option("lib_ldf_mode", "off")
     cg.add_platformio_option("lib_compat_mode", "strict")

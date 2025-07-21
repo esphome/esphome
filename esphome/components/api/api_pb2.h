@@ -17,27 +17,13 @@ enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
 };
 #ifdef USE_COVER
-enum LegacyCoverState : uint32_t {
-  LEGACY_COVER_STATE_OPEN = 0,
-  LEGACY_COVER_STATE_CLOSED = 1,
-};
 enum CoverOperation : uint32_t {
   COVER_OPERATION_IDLE = 0,
   COVER_OPERATION_IS_OPENING = 1,
   COVER_OPERATION_IS_CLOSING = 2,
 };
-enum LegacyCoverCommand : uint32_t {
-  LEGACY_COVER_COMMAND_OPEN = 0,
-  LEGACY_COVER_COMMAND_CLOSE = 1,
-  LEGACY_COVER_COMMAND_STOP = 2,
-};
 #endif
 #ifdef USE_FAN
-enum FanSpeed : uint32_t {
-  FAN_SPEED_LOW = 0,
-  FAN_SPEED_MEDIUM = 1,
-  FAN_SPEED_HIGH = 2,
-};
 enum FanDirection : uint32_t {
   FAN_DIRECTION_FORWARD = 0,
   FAN_DIRECTION_REVERSE = 1,
@@ -64,11 +50,6 @@ enum SensorStateClass : uint32_t {
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
   STATE_CLASS_TOTAL = 3,
-};
-enum SensorLastResetType : uint32_t {
-  LAST_RESET_NONE = 0,
-  LAST_RESET_NEVER = 1,
-  LAST_RESET_AUTO = 2,
 };
 #endif
 enum LogLevel : uint32_t {
@@ -292,9 +273,13 @@ class InfoResponseProtoMessage : public ProtoMessage {
   uint32_t key{0};
   std::string name{};
   bool disabled_by_default{false};
+#ifdef USE_ENTITY_ICON
   std::string icon{};
+#endif
   enums::EntityCategory entity_category{};
+#ifdef USE_DEVICES
   uint32_t device_id{0};
+#endif
 
  protected:
 };
@@ -303,7 +288,9 @@ class StateResponseProtoMessage : public ProtoMessage {
  public:
   ~StateResponseProtoMessage() override = default;
   uint32_t key{0};
+#ifdef USE_DEVICES
   uint32_t device_id{0};
+#endif
 
  protected:
 };
@@ -312,7 +299,9 @@ class CommandProtoMessage : public ProtoDecodableMessage {
  public:
   ~CommandProtoMessage() override = default;
   uint32_t key{0};
+#ifdef USE_DEVICES
   uint32_t device_id{0};
+#endif
 
  protected:
 };
@@ -449,6 +438,7 @@ class DeviceInfoRequest : public ProtoDecodableMessage {
 
  protected:
 };
+#ifdef USE_AREAS
 class AreaInfo : public ProtoMessage {
  public:
   uint32_t area_id{0};
@@ -461,6 +451,8 @@ class AreaInfo : public ProtoMessage {
 
  protected:
 };
+#endif
+#ifdef USE_DEVICES
 class DeviceInfo : public ProtoMessage {
  public:
   uint32_t device_id{0};
@@ -474,14 +466,17 @@ class DeviceInfo : public ProtoMessage {
 
  protected:
 };
+#endif
 class DeviceInfoResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint8_t ESTIMATED_SIZE = 219;
+  static constexpr uint8_t ESTIMATED_SIZE = 211;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
+#ifdef USE_API_PASSWORD
   bool uses_password{false};
+#endif
   std::string name{};
   std::string mac_address{};
   std::string esphome_version{};
@@ -500,16 +495,10 @@ class DeviceInfoResponse : public ProtoMessage {
   uint32_t webserver_port{0};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  uint32_t legacy_bluetooth_proxy_version{0};
-#endif
-#ifdef USE_BLUETOOTH_PROXY
   uint32_t bluetooth_proxy_feature_flags{0};
 #endif
   std::string manufacturer{};
   std::string friendly_name{};
-#ifdef USE_VOICE_ASSISTANT
-  uint32_t legacy_voice_assistant_version{0};
-#endif
 #ifdef USE_VOICE_ASSISTANT
   uint32_t voice_assistant_feature_flags{0};
 #endif
@@ -638,11 +627,10 @@ class ListEntitiesCoverResponse : public InfoResponseProtoMessage {
 class CoverStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 22;
-  static constexpr uint8_t ESTIMATED_SIZE = 23;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "cover_state_response"; }
 #endif
-  enums::LegacyCoverState legacy_state{};
   float position{0.0f};
   float tilt{0.0f};
   enums::CoverOperation current_operation{};
@@ -657,12 +645,10 @@ class CoverStateResponse : public StateResponseProtoMessage {
 class CoverCommandRequest : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 30;
-  static constexpr uint8_t ESTIMATED_SIZE = 29;
+  static constexpr uint8_t ESTIMATED_SIZE = 25;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "cover_command_request"; }
 #endif
-  bool has_legacy_command{false};
-  enums::LegacyCoverCommand legacy_command{};
   bool has_position{false};
   float position{0.0f};
   bool has_tilt{false};
@@ -701,13 +687,12 @@ class ListEntitiesFanResponse : public InfoResponseProtoMessage {
 class FanStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 23;
-  static constexpr uint8_t ESTIMATED_SIZE = 30;
+  static constexpr uint8_t ESTIMATED_SIZE = 28;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "fan_state_response"; }
 #endif
   bool state{false};
   bool oscillating{false};
-  enums::FanSpeed speed{};
   enums::FanDirection direction{};
   int32_t speed_level{0};
   std::string preset_mode{};
@@ -722,14 +707,12 @@ class FanStateResponse : public StateResponseProtoMessage {
 class FanCommandRequest : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 31;
-  static constexpr uint8_t ESTIMATED_SIZE = 42;
+  static constexpr uint8_t ESTIMATED_SIZE = 38;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "fan_command_request"; }
 #endif
   bool has_state{false};
   bool state{false};
-  bool has_speed{false};
-  enums::FanSpeed speed{};
   bool has_oscillating{false};
   bool oscillating{false};
   bool has_direction{false};
@@ -752,15 +735,11 @@ class FanCommandRequest : public CommandProtoMessage {
 class ListEntitiesLightResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 15;
-  static constexpr uint8_t ESTIMATED_SIZE = 81;
+  static constexpr uint8_t ESTIMATED_SIZE = 73;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_light_response"; }
 #endif
   std::vector<enums::ColorMode> supported_color_modes{};
-  bool legacy_supports_brightness{false};
-  bool legacy_supports_rgb{false};
-  bool legacy_supports_white_value{false};
-  bool legacy_supports_color_temperature{false};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
@@ -846,7 +825,7 @@ class LightCommandRequest : public CommandProtoMessage {
 class ListEntitiesSensorResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 16;
-  static constexpr uint8_t ESTIMATED_SIZE = 68;
+  static constexpr uint8_t ESTIMATED_SIZE = 66;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_sensor_response"; }
 #endif
@@ -855,7 +834,6 @@ class ListEntitiesSensorResponse : public InfoResponseProtoMessage {
   bool force_update{false};
   std::string device_class{};
   enums::SensorStateClass state_class{};
-  enums::SensorLastResetType legacy_last_reset_type{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -987,13 +965,17 @@ class SubscribeLogsRequest : public ProtoDecodableMessage {
 class SubscribeLogsResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 29;
-  static constexpr uint8_t ESTIMATED_SIZE = 13;
+  static constexpr uint8_t ESTIMATED_SIZE = 11;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "subscribe_logs_response"; }
 #endif
   enums::LogLevel level{};
-  std::string message{};
-  bool send_failed{false};
+  const uint8_t *message_ptr_{nullptr};
+  size_t message_len_{0};
+  void set_message(const uint8_t *data, size_t len) {
+    this->message_ptr_ = data;
+    this->message_len_ = len;
+  }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1250,7 +1232,12 @@ class CameraImageResponse : public StateResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "camera_image_response"; }
 #endif
-  std::string data{};
+  const uint8_t *data_ptr_{nullptr};
+  size_t data_len_{0};
+  void set_data(const uint8_t *data, size_t len) {
+    this->data_ptr_ = data;
+    this->data_len_ = len;
+  }
   bool done{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1281,7 +1268,7 @@ class CameraImageRequest : public ProtoDecodableMessage {
 class ListEntitiesClimateResponse : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 46;
-  static constexpr uint8_t ESTIMATED_SIZE = 147;
+  static constexpr uint8_t ESTIMATED_SIZE = 145;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_climate_response"; }
 #endif
@@ -1291,7 +1278,6 @@ class ListEntitiesClimateResponse : public InfoResponseProtoMessage {
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
-  bool legacy_supports_away{false};
   bool supports_action{false};
   std::vector<enums::ClimateFanMode> supported_fan_modes{};
   std::vector<enums::ClimateSwingMode> supported_swing_modes{};
@@ -1314,7 +1300,7 @@ class ListEntitiesClimateResponse : public InfoResponseProtoMessage {
 class ClimateStateResponse : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 47;
-  static constexpr uint8_t ESTIMATED_SIZE = 70;
+  static constexpr uint8_t ESTIMATED_SIZE = 68;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "climate_state_response"; }
 #endif
@@ -1323,7 +1309,6 @@ class ClimateStateResponse : public StateResponseProtoMessage {
   float target_temperature{0.0f};
   float target_temperature_low{0.0f};
   float target_temperature_high{0.0f};
-  bool unused_legacy_away{false};
   enums::ClimateAction action{};
   enums::ClimateFanMode fan_mode{};
   enums::ClimateSwingMode swing_mode{};
@@ -1343,7 +1328,7 @@ class ClimateStateResponse : public StateResponseProtoMessage {
 class ClimateCommandRequest : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 48;
-  static constexpr uint8_t ESTIMATED_SIZE = 88;
+  static constexpr uint8_t ESTIMATED_SIZE = 84;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "climate_command_request"; }
 #endif
@@ -1355,8 +1340,6 @@ class ClimateCommandRequest : public CommandProtoMessage {
   float target_temperature_low{0.0f};
   bool has_target_temperature_high{false};
   float target_temperature_high{0.0f};
-  bool unused_has_legacy_away{false};
-  bool unused_legacy_away{false};
   bool has_fan_mode{false};
   enums::ClimateFanMode fan_mode{};
   bool has_swing_mode{false};
@@ -1728,47 +1711,13 @@ class SubscribeBluetoothLEAdvertisementsRequest : public ProtoDecodableMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class BluetoothServiceData : public ProtoMessage {
- public:
-  std::string uuid{};
-  std::vector<uint32_t> legacy_data{};
-  std::string data{};
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-};
-class BluetoothLEAdvertisementResponse : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 67;
-  static constexpr uint8_t ESTIMATED_SIZE = 107;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "bluetooth_le_advertisement_response"; }
-#endif
-  uint64_t address{0};
-  std::string name{};
-  int32_t rssi{0};
-  std::vector<std::string> service_uuids{};
-  std::vector<BluetoothServiceData> service_data{};
-  std::vector<BluetoothServiceData> manufacturer_data{};
-  uint32_t address_type{0};
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(uint32_t &total_size) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-};
 class BluetoothLERawAdvertisement : public ProtoMessage {
  public:
   uint64_t address{0};
   int32_t rssi{0};
   uint32_t address_type{0};
-  std::string data{};
+  uint8_t data[62]{};
+  uint8_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1942,7 +1891,12 @@ class BluetoothGATTReadResponse : public ProtoMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  std::string data{};
+  const uint8_t *data_ptr_{nullptr};
+  size_t data_len_{0};
+  void set_data(const uint8_t *data, size_t len) {
+    this->data_ptr_ = data;
+    this->data_len_ = len;
+  }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2030,7 +1984,12 @@ class BluetoothGATTNotifyDataResponse : public ProtoMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  std::string data{};
+  const uint8_t *data_ptr_{nullptr};
+  size_t data_len_{0};
+  void set_data(const uint8_t *data, size_t len) {
+    this->data_ptr_ = data;
+    this->data_len_ = len;
+  }
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2324,6 +2283,12 @@ class VoiceAssistantAudio : public ProtoDecodableMessage {
   const char *message_name() const override { return "voice_assistant_audio"; }
 #endif
   std::string data{};
+  const uint8_t *data_ptr_{nullptr};
+  size_t data_len_{0};
+  void set_data(const uint8_t *data, size_t len) {
+    this->data_ptr_ = data;
+    this->data_len_ = len;
+  }
   bool end{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;

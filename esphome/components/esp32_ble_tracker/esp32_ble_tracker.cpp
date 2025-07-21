@@ -128,46 +128,53 @@ void ESP32BLETracker::loop() {
     uint8_t write_idx = this->ring_write_index_.load(std::memory_order_acquire);
 
     while (read_idx != write_idx) {
-      // Process one result at a time directly from ring buffer
-      BLEScanResult &scan_result = this->scan_ring_buffer_[read_idx];
+      // Calculate how many contiguous results we can process in one batch
+      // If write > read: process all results from read to write
+      // If write <= read (wraparound): process from read to end of buffer first
+      size_t batch_size = (write_idx > read_idx) ? (write_idx - read_idx) : (SCAN_RESULT_BUFFER_SIZE - read_idx);
 
+      // Process the batch for raw advertisements
       if (this->raw_advertisements_) {
         for (auto *listener : this->listeners_) {
-          listener->parse_devices(&scan_result, 1);
+          listener->parse_devices(&this->scan_ring_buffer_[read_idx], batch_size);
         }
         for (auto *client : this->clients_) {
-          client->parse_devices(&scan_result, 1);
+          client->parse_devices(&this->scan_ring_buffer_[read_idx], batch_size);
         }
       }
 
+      // Process individual results for parsed advertisements
       if (this->parse_advertisements_) {
 #ifdef USE_ESP32_BLE_DEVICE
-        ESPBTDevice device;
-        device.parse_scan_rst(scan_result);
+        for (size_t i = 0; i < batch_size; i++) {
+          BLEScanResult &scan_result = this->scan_ring_buffer_[read_idx + i];
+          ESPBTDevice device;
+          device.parse_scan_rst(scan_result);
 
-        bool found = false;
-        for (auto *listener : this->listeners_) {
-          if (listener->parse_device(device))
-            found = true;
-        }
+          bool found = false;
+          for (auto *listener : this->listeners_) {
+            if (listener->parse_device(device))
+              found = true;
+          }
 
-        for (auto *client : this->clients_) {
-          if (client->parse_device(device)) {
-            found = true;
-            if (!connecting && client->state() == ClientState::DISCOVERED) {
-              promote_to_connecting = true;
+          for (auto *client : this->clients_) {
+            if (client->parse_device(device)) {
+              found = true;
+              if (!connecting && client->state() == ClientState::DISCOVERED) {
+                promote_to_connecting = true;
+              }
             }
           }
-        }
 
-        if (!found && !this->scan_continuous_) {
-          this->print_bt_device_info(device);
+          if (!found && !this->scan_continuous_) {
+            this->print_bt_device_info(device);
+          }
         }
 #endif  // USE_ESP32_BLE_DEVICE
       }
 
-      // Move to next entry in ring buffer
-      read_idx = (read_idx + 1) % SCAN_RESULT_BUFFER_SIZE;
+      // Update read index for entire batch
+      read_idx = (read_idx + batch_size) % SCAN_RESULT_BUFFER_SIZE;
 
       // Store with release to ensure reads complete before index update
       this->ring_read_index_.store(read_idx, std::memory_order_release);

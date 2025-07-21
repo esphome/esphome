@@ -137,6 +137,10 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
        - This ensures all C++ code is checked, including tests, examples, etc.
        - Examples: esphome/core/component.cpp, tests/custom/my_component.h
 
+    3. The .clang-tidy.hash file itself changed
+       - This indicates the configuration has been updated and clang-tidy should run
+       - Ensures that PRs updating the clang-tidy configuration are properly validated
+
     If the hash check fails for any reason, clang-tidy runs as a safety measure to ensure
     code quality is maintained.
 
@@ -158,6 +162,12 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
             return True
     except Exception:
         # If hash check fails, run clang-tidy to be safe
+        return True
+
+    # Check if .clang-tidy.hash file itself was changed
+    # This handles the case where the hash was properly updated in the PR
+    files = changed_files(branch)
+    if ".clang-tidy.hash" in files:
         return True
 
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)

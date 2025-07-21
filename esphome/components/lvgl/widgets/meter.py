@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WIDTH,
 )
+from esphome.cpp_generator import IntLiteral
 
 from ..automation import action_to_code
 from ..defines import (
@@ -188,6 +189,8 @@ class MeterType(WidgetType):
             rotation = 90 + (360 - scale_conf[CONF_ANGLE_RANGE]) / 2
             if CONF_ROTATION in scale_conf:
                 rotation = await lv_angle.process(scale_conf[CONF_ROTATION])
+                if isinstance(rotation, IntLiteral):
+                    rotation = int(str(rotation)) // 10
             with LocalVariable(
                 "meter_var", "lv_meter_scale_t", lv_expr.meter_add_scale(var)
             ) as meter_var:

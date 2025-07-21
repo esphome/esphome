@@ -16,6 +16,8 @@ namespace esp32_touch {
 
 static const char *const TAG = "esp32_touch";
 
+static const uint32_t SETUP_MODE_THRESHOLD = 0xFFFF;
+
 void ESP32TouchComponent::setup() {
   // Create queue for touch events
   // Queue size calculation: children * 4 allows for burst scenarios where ISR
@@ -44,7 +46,11 @@ void ESP32TouchComponent::setup() {
 
   // Configure each touch pad
   for (auto *child : this->children_) {
-    touch_pad_config(child->get_touch_pad(), child->get_threshold());
+    if (this->setup_mode_) {
+      touch_pad_config(child->get_touch_pad(), SETUP_MODE_THRESHOLD);
+    } else {
+      touch_pad_config(child->get_touch_pad(), child->get_threshold());
+    }
   }
 
   // Register ISR handler
@@ -114,8 +120,8 @@ void ESP32TouchComponent::loop() {
         child->publish_state(new_state);
         // Original ESP32: ISR only fires when touched, release is detected by timeout
         // Note: ESP32 v1 uses inverted logic - touched when value < threshold
-        ESP_LOGV(TAG, "Touch Pad '%s' state: ON (value: %" PRIu32 " < threshold: %" PRIu32 ")",
-                 child->get_name().c_str(), event.value, child->get_threshold());
+        ESP_LOGV(TAG, "Touch Pad '%s' state: %s (value: %" PRIu32 " < threshold: %" PRIu32 ")",
+                 child->get_name().c_str(), ONOFF(new_state), event.value, child->get_threshold());
       }
       break;  // Exit inner loop after processing matching pad
     }
@@ -188,11 +194,6 @@ void IRAM_ATTR ESP32TouchComponent::touch_isr_handler(void *arg) {
   // as any pad remains touched. This allows us to detect both new touches and
   // continued touches, but releases must be detected by timeout in the main loop.
 
-  // IMPORTANT: ESP32 v1 touch detection logic - INVERTED compared to v2!
-  // ESP32 v1: Touch is detected when capacitance INCREASES, causing the measured value to DECREASE
-  // Therefore: touched = (value < threshold)
-  // This is opposite to ESP32-S2/S3 v2 where touched = (value > threshold)
-
   // Process all configured pads to check their current state
   // Note: ESP32 v1 doesn't tell us which specific pad triggered the interrupt,
   // so we must scan all configured pads to find which ones were touched
@@ -211,10 +212,15 @@ void IRAM_ATTR ESP32TouchComponent::touch_isr_handler(void *arg) {
     }
 
     // Skip pads that aren’t in the trigger mask
-    bool is_touched = (mask >> pad) & 1;
-    if (!is_touched) {
+    if (((mask >> pad) & 1) == 0) {
       continue;
     }
+
+    // IMPORTANT: ESP32 v1 touch detection logic - INVERTED compared to v2!
+    // ESP32 v1: Touch is detected when capacitance INCREASES, causing the measured value to DECREASE
+    // Therefore: touched = (value < threshold)
+    // This is opposite to ESP32-S2/S3 v2 where touched = (value > threshold)
+    bool is_touched = value < child->get_threshold();
 
     // Always send the current state - the main loop will filter for changes
     // We send both touched and untouched states because the ISR doesn't

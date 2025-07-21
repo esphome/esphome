@@ -184,9 +184,9 @@ void APIServer::loop() {
 
     // Rare case: handle disconnection
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    this->client_disconnected_trigger_->trigger(client->client_info_, client->client_peername_);
+    this->client_disconnected_trigger_->trigger(client->client_info_.name, client->client_info_.peername);
 #endif
-    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.c_str());
+    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name.c_str());
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
@@ -428,7 +428,8 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       this->set_noise_psk(psk);
       for (auto &c : this->clients_) {
-        c->send_message(DisconnectRequest());
+        DisconnectRequest req;
+        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
       }
     });
   }
@@ -461,7 +462,8 @@ void APIServer::on_shutdown() {
 
   // Send disconnect requests to all connected clients
   for (auto &c : this->clients_) {
-    if (!c->send_message(DisconnectRequest())) {
+    DisconnectRequest req;
+    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,

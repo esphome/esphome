@@ -1,5 +1,11 @@
 #include "api_connection.h"
 #ifdef USE_API
+#ifdef USE_API_NOISE
+#include "api_frame_helper_noise.h"
+#endif
+#ifdef USE_API_PLAINTEXT
+#include "api_frame_helper_plaintext.h"
+#endif
 #include <cerrno>
 #include <cinttypes>
 #include <utility>
@@ -81,14 +87,16 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto noise_ctx = parent->get_noise_ctx();
   if (noise_ctx->has_psk()) {
-    this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx)};
+    this->helper_ =
+        std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
   } else {
-    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
   }
 #elif defined(USE_API_PLAINTEXT)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
 #elif defined(USE_API_NOISE)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{
+      new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx(), &this->client_info_)};
 #else
 #error "No frame helper defined"
 #endif
@@ -111,9 +119,8 @@ void APIConnection::start() {
              errno);
     return;
   }
-  this->client_info_ = helper_->getpeername();
-  this->client_peername_ = this->client_info_;
-  this->helper_->set_log_info(this->client_info_);
+  this->client_info_.peername = helper_->getpeername();
+  this->client_info_.name = this->client_info_.peername;
 }
 
 APIConnection::~APIConnection() {
@@ -204,7 +211,8 @@ void APIConnection::loop() {
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
     // Only send ping if we're not disconnecting
     ESP_LOGVV(TAG, "Sending keepalive PING");
-    this->flags_.sent_ping = this->send_message(PingRequest());
+    PingRequest req;
+    this->flags_.sent_ping = this->send_message(req, PingRequest::MESSAGE_TYPE);
     if (!this->flags_.sent_ping) {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
@@ -219,24 +227,16 @@ void APIConnection::loop() {
   if (this->image_reader_ && this->image_reader_->available() && this->helper_->can_write_without_blocking()) {
     uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
     bool done = this->image_reader_->available() == to_send;
-    uint32_t msg_size = 0;
-    ProtoSize::add_fixed_field<4>(msg_size, 1, true);
-    // partial message size calculated manually since its a special case
-    // 1 for the data field, varint for the data size, and the data itself
-    msg_size += 1 + ProtoSize::varint(to_send) + to_send;
-    ProtoSize::add_bool_field(msg_size, 1, done);
 
-    auto buffer = this->create_buffer(msg_size);
-    // fixed32 key = 1;
-    buffer.encode_fixed32(1, camera::Camera::instance()->get_object_id_hash());
-    // bytes data = 2;
-    buffer.encode_bytes(2, this->image_reader_->peek_data_buffer(), to_send);
-    // bool done = 3;
-    buffer.encode_bool(3, done);
+    CameraImageResponse msg;
+    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
+    msg.done = done;
+#ifdef USE_DEVICES
+    msg.device_id = camera::Camera::instance()->get_device_id();
+#endif
 
-    bool success = this->send_buffer(buffer, CameraImageResponse::MESSAGE_TYPE);
-
-    if (success) {
+    if (this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
       this->image_reader_->consume_data(to_send);
       if (done) {
         this->image_reader_->return_image();
@@ -253,7 +253,7 @@ void APIConnection::loop() {
       resp.entity_id = it.entity_id;
       resp.attribute = it.attribute.value();
       resp.once = it.once;
-      if (this->send_message(resp)) {
+      if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
         state_subs_at_++;
       }
     } else {
@@ -363,8 +363,6 @@ uint16_t APIConnection::try_send_cover_state(EntityBase *entity, APIConnection *
   auto *cover = static_cast<cover::Cover *>(entity);
   CoverStateResponse msg;
   auto traits = cover->get_traits();
-  msg.legacy_state =
-      (cover->position == cover::COVER_OPEN) ? enums::LEGACY_COVER_STATE_OPEN : enums::LEGACY_COVER_STATE_CLOSED;
   msg.position = cover->position;
   if (traits.get_supports_tilt())
     msg.tilt = cover->tilt;
@@ -386,19 +384,6 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
 }
 void APIConnection::cover_command(const CoverCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(cover::Cover, cover, cover)
-  if (msg.has_legacy_command) {
-    switch (msg.legacy_command) {
-      case enums::LEGACY_COVER_COMMAND_OPEN:
-        call.set_command_open();
-        break;
-      case enums::LEGACY_COVER_COMMAND_CLOSE:
-        call.set_command_close();
-        break;
-      case enums::LEGACY_COVER_COMMAND_STOP:
-        call.set_command_stop();
-        break;
-    }
-  }
   if (msg.has_position)
     call.set_position(msg.position);
   if (msg.has_tilt)
@@ -496,14 +481,8 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto traits = light->get_traits();
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
-  msg.legacy_supports_brightness = traits.supports_color_capability(light::ColorCapability::BRIGHTNESS);
-  msg.legacy_supports_rgb = traits.supports_color_capability(light::ColorCapability::RGB);
-  msg.legacy_supports_white_value =
-      msg.legacy_supports_rgb && (traits.supports_color_capability(light::ColorCapability::WHITE) ||
-                                  traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE));
-  msg.legacy_supports_color_temperature = traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
-                                          traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE);
-  if (msg.legacy_supports_color_temperature) {
+  if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
+      traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
@@ -693,7 +672,6 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
   msg.visual_min_humidity = traits.get_visual_min_humidity();
   msg.visual_max_humidity = traits.get_visual_max_humidity();
-  msg.legacy_supports_away = traits.supports_preset(climate::CLIMATE_PRESET_AWAY);
   msg.supports_action = traits.get_supports_action();
   for (auto fan_mode : traits.get_supported_fan_modes())
     msg.supported_fan_modes.push_back(static_cast<enums::ClimateFanMode>(fan_mode));
@@ -1114,21 +1092,6 @@ void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoo
 void APIConnection::unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
 }
-bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg) {
-  if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
-    BluetoothLEAdvertisementResponse resp = msg;
-    for (auto &service : resp.service_data) {
-      service.legacy_data.assign(service.data.begin(), service.data.end());
-      service.data.clear();
-    }
-    for (auto &manufacturer_data : resp.manufacturer_data) {
-      manufacturer_data.legacy_data.assign(manufacturer_data.data.begin(), manufacturer_data.data.end());
-      manufacturer_data.data.clear();
-    }
-    return this->send_message(resp);
-  }
-  return this->send_message(msg);
-}
 void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
 }
@@ -1381,26 +1344,10 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
 #endif
 
 bool APIConnection::try_send_log_message(int level, const char *tag, const char *line, size_t message_len) {
-  // Pre-calculate message size to avoid reallocations
-  uint32_t msg_size = 0;
-
-  // Add size for level field (field ID 1, varint type)
-  // 1 byte for field tag + size of the level varint
-  msg_size += 1 + api::ProtoSize::varint(static_cast<uint32_t>(level));
-
-  // Add size for string field (field ID 3, string type)
-  // 1 byte for field tag + size of length varint + string length
-  msg_size += 1 + api::ProtoSize::varint(static_cast<uint32_t>(message_len)) + message_len;
-
-  // Create a pre-sized buffer
-  auto buffer = this->create_buffer(msg_size);
-
-  // Encode the message (SubscribeLogsResponse)
-  buffer.encode_uint32(1, static_cast<uint32_t>(level));  // LogLevel level = 1
-  buffer.encode_string(3, line, message_len);             // string message = 3
-
-  // SubscribeLogsResponse - 29
-  return this->send_buffer(buffer, SubscribeLogsResponse::MESSAGE_TYPE);
+  SubscribeLogsResponse msg;
+  msg.level = static_cast<enums::LogLevel>(level);
+  msg.set_message(reinterpret_cast<const uint8_t *>(line), message_len);
+  return this->send_message_(msg, SubscribeLogsResponse::MESSAGE_TYPE);
 }
 
 void APIConnection::complete_authentication_() {
@@ -1412,7 +1359,7 @@ void APIConnection::complete_authentication_() {
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
   ESP_LOGD(TAG, "%s connected", this->get_client_combined_info().c_str());
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  this->parent_->get_client_connected_trigger()->trigger(this->client_info_, this->client_peername_);
+  this->parent_->get_client_connected_trigger()->trigger(this->client_info_.name, this->client_info_.peername);
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1422,13 +1369,12 @@ void APIConnection::complete_authentication_() {
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
-  this->client_info_ = msg.client_info;
-  this->client_peername_ = this->helper_->getpeername();
-  this->helper_->set_log_info(this->get_client_combined_info());
+  this->client_info_.name = msg.client_info;
+  this->client_info_.peername = this->helper_->getpeername();
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.c_str(),
-           this->client_peername_.c_str(), this->client_api_version_major_, this->client_api_version_minor_);
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.name.c_str(),
+           this->client_info_.peername.c_str(), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -1464,8 +1410,6 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
 #ifdef USE_API_PASSWORD
   resp.uses_password = true;
-#else
-  resp.uses_password = false;
 #endif
   resp.name = App.get_name();
   resp.friendly_name = App.get_friendly_name();
@@ -1500,12 +1444,10 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  resp.legacy_bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->get_legacy_version();
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
   resp.bluetooth_mac_address = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty();
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.legacy_voice_assistant_version = voice_assistant::global_voice_assistant->get_legacy_version();
   resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
 #endif
 #ifdef USE_API_NOISE
@@ -1672,6 +1614,10 @@ ProtoWriteBuffer APIConnection::allocate_batch_message_buffer(uint16_t size) {
 }
 
 void APIConnection::process_batch_() {
+  // Ensure PacketInfo remains trivially destructible for our placement new approach
+  static_assert(std::is_trivially_destructible<PacketInfo>::value,
+                "PacketInfo must remain trivially destructible with this placement-new approach");
+
   if (this->deferred_batch_.empty()) {
     this->flags_.batch_scheduled = false;
     return;
@@ -1709,9 +1655,12 @@ void APIConnection::process_batch_() {
     return;
   }
 
-  // Pre-allocate storage for packet info
-  std::vector<PacketInfo> packet_info;
-  packet_info.reserve(num_items);
+  size_t packets_to_process = std::min(num_items, MAX_PACKETS_PER_BATCH);
+
+  // Stack-allocated array for packet info
+  alignas(PacketInfo) char packet_info_storage[MAX_PACKETS_PER_BATCH * sizeof(PacketInfo)];
+  PacketInfo *packet_info = reinterpret_cast<PacketInfo *>(packet_info_storage);
+  size_t packet_count = 0;
 
   // Cache these values to avoid repeated virtual calls
   const uint8_t header_padding = this->helper_->frame_header_padding();
@@ -1743,8 +1692,8 @@ void APIConnection::process_batch_() {
   // The actual message data follows after the header padding
   uint32_t current_offset = 0;
 
-  // Process items and encode directly to buffer
-  for (size_t i = 0; i < this->deferred_batch_.size(); i++) {
+  // Process items and encode directly to buffer (up to our limit)
+  for (size_t i = 0; i < packets_to_process; i++) {
     const auto &item = this->deferred_batch_[i];
     // Try to encode message
     // The creator will calculate overhead to determine if the message fits
@@ -1758,7 +1707,11 @@ void APIConnection::process_batch_() {
     // Message was encoded successfully
     // payload_size is header_padding + actual payload size + footer_size
     uint16_t proto_payload_size = payload_size - header_padding - footer_size;
-    packet_info.emplace_back(item.message_type, current_offset, proto_payload_size);
+    // Use placement new to construct PacketInfo in pre-allocated stack array
+    // This avoids default-constructing all MAX_PACKETS_PER_BATCH elements
+    // Explicit destruction is not needed because PacketInfo is trivially destructible,
+    // as ensured by the static_assert in its definition.
+    new (&packet_info[packet_count++]) PacketInfo(item.message_type, current_offset, proto_payload_size);
 
     // Update tracking variables
     items_processed++;
@@ -1784,8 +1737,8 @@ void APIConnection::process_batch_() {
   }
 
   // Send all collected packets
-  APIError err =
-      this->helper_->write_protobuf_packets(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, packet_info);
+  APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()},
+                                                       std::span<const PacketInfo>(packet_info, packet_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     on_fatal_error();
     ESP_LOGW(TAG, "%s: Batch write failed %s errno=%d", this->get_client_combined_info().c_str(), api_error_to_str(err),

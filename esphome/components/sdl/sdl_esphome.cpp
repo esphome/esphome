@@ -48,6 +48,9 @@ void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *
 }
 
 void Sdl::draw_pixel_at(int x, int y, Color color) {
+  if (!this->get_clipping().inside(x, y))
+    return;
+
   SDL_Rect rect{x, y, 1, 1};
   auto data = (display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB));
   SDL_UpdateTexture(this->texture_, &rect, &data, 2);
