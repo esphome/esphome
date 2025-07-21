@@ -14,7 +14,6 @@ env:
   SMALL_PR_THRESHOLD: 30
   MAX_LABELS: 15
   TOO_BIG_THRESHOLD: 1000
-  BOT_NAME: "esphome[bot]"
 
 jobs:
   label:
@@ -58,6 +57,9 @@ jobs:
 
             const { owner, repo } = context.repo;
             const pr_number = context.issue.number;
+
+            // Hidden marker to identify bot comments from this workflow
+            const BOT_COMMENT_MARKER = '<!-- auto-label-pr-bot -->';
 
             // Get current labels
             const { data: currentLabelsData } = await github.rest.issues.listLabelsOnIssue({
@@ -123,7 +125,6 @@ jobs:
             const smallPrThreshold = parseInt('${{ env.SMALL_PR_THRESHOLD }}');
             const maxLabels = parseInt('${{ env.MAX_LABELS }}');
             const tooBigThreshold = parseInt('${{ env.TOO_BIG_THRESHOLD }}');
-            const botName = process.env.BOT_NAME;
 
             // Strategy: Merge to release or beta branch
             const baseRef = context.payload.pull_request.base.ref;
@@ -401,11 +402,11 @@ jobs:
               // Create appropriate review message
               let reviewBody;
               if (tooManyLabels && tooManyChanges) {
-                reviewBody = `This PR is too large with ${totalChanges} line changes and affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\nFor guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#but-howwww-looonnnggg`;
+                reviewBody = `${BOT_COMMENT_MARKER}\nThis PR is too large with ${totalChanges} line changes and affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\nFor guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#but-howwww-looonnnggg`;
               } else if (tooManyLabels) {
-                reviewBody = `This PR affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\nFor guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#but-howwww-looonnnggg`;
+                reviewBody = `${BOT_COMMENT_MARKER}\nThis PR affects ${originalLength} different components/areas. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\nFor guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#but-howwww-looonnnggg`;
               } else {
-                reviewBody = `This PR is too large with ${totalChanges} line changes. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\nFor guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#but-howwww-looonnnggg`;
+                reviewBody = `${BOT_COMMENT_MARKER}\nThis PR is too large with ${totalChanges} line changes. Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\nFor guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#but-howwww-looonnnggg`;
               }
 
               // Request changes on the PR
@@ -432,13 +433,9 @@ jobs:
 
                 // Find bot reviews that requested changes
                 const botReviews = reviews.filter(review =>
-                  review.user.login === botName &&
+                  review.user.type === 'Bot' &&
                   review.state === 'CHANGES_REQUESTED' &&
-                  review.body && (
-                    review.body.includes('This PR is too large') ||
-                    review.body.includes('This PR affects') ||
-                    review.body.includes('different components/areas')
-                  )
+                  review.body && review.body.includes(BOT_COMMENT_MARKER)
                 );
 
                 // Dismiss bot reviews
