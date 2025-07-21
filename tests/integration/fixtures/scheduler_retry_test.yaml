@@ -130,15 +130,15 @@ script:
       - logger.log: "=== Test 5: Empty name retry ==="
       - lambda: |-
           auto *component = id(test_sensor);
-          App.scheduler.set_retry(component, "", 50, 5,
+          App.scheduler.set_retry(component, "", 100, 5,
             [](uint8_t retry_countdown) {
               id(empty_name_retry_counter)++;
               ESP_LOGI("test", "Empty name retry attempt %d", id(empty_name_retry_counter));
               return RetryResult::RETRY;
             });
 
-          // Try to cancel after 75ms
-          App.scheduler.set_timeout(component, "empty_cancel_timer", 75, []() {
+          // Try to cancel after 150ms
+          App.scheduler.set_timeout(component, "empty_cancel_timer", 150, []() {
             bool cancelled = App.scheduler.cancel_retry(id(test_sensor), "");
             ESP_LOGI("test", "Empty name retry cancel result: %s",
                      cancelled ? "true" : "false");
