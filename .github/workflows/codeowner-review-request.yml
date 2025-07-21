@@ -34,6 +34,9 @@ jobs:
 
             console.log(`Processing PR #${pr_number} for codeowner review requests`);
 
+            // Hidden marker to identify bot comments from this workflow
+            const BOT_COMMENT_MARKER = '<!-- codeowner-review-request-bot -->';
+
             try {
               // Get the list of changed files in this PR
               const { data: files } = await github.rest.pulls.listFiles({
@@ -84,9 +87,9 @@ jobs:
                 const allMentions = [...reviewerMentions, ...teamMentions].join(', ');
 
                 if (isSuccessful) {
-                  return `👋 Hi there! I've automatically requested reviews from codeowners based on the files changed in this PR.\n\n${allMentions} - You've been requested to review this PR as codeowner(s) of ${matchedFileCount} file(s) that were modified. Thanks for your time! 🙏`;
+                  return `${BOT_COMMENT_MARKER}\n👋 Hi there! I've automatically requested reviews from codeowners based on the files changed in this PR.\n\n${allMentions} - You've been requested to review this PR as codeowner(s) of ${matchedFileCount} file(s) that were modified. Thanks for your time! 🙏`;
                 } else {
-                  return `👋 Hi there! This PR modifies ${matchedFileCount} file(s) with codeowners.\n\n${allMentions} - As codeowner(s) of the affected files, your review would be appreciated! 🙏\n\n_Note: Automatic review request may have failed, but you're still welcome to review._`;
+                  return `${BOT_COMMENT_MARKER}\n👋 Hi there! This PR modifies ${matchedFileCount} file(s) with codeowners.\n\n${allMentions} - As codeowner(s) of the affected files, your review would be appreciated! 🙏\n\n_Note: Automatic review request may have failed, but you're still welcome to review._`;
                 }
               }
 
@@ -188,11 +191,11 @@ jobs:
               const previouslyPingedUsers = new Set();
               const previouslyPingedTeams = new Set();
 
-              // Look for comments from github-actions bot that contain codeowner pings
+              // Look for comments from github-actions bot that contain our bot marker
               const workflowComments = comments.filter(comment =>
                 comment.user.type === 'Bot' &&
                 comment.user.login === 'github-actions[bot]' &&
-                comment.body.includes("I've automatically requested reviews from codeowners")
+                comment.body.includes(BOT_COMMENT_MARKER)
               );
 
               // Extract previously mentioned users and teams from workflow comments
