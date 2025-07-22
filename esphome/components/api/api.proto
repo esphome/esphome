@@ -1463,19 +1463,19 @@ message BluetoothGATTGetServicesRequest {
 }
 
 message BluetoothGATTDescriptor {
-  repeated uint64 uuid = 1;
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
   uint32 handle = 2;
 }
 
 message BluetoothGATTCharacteristic {
-  repeated uint64 uuid = 1;
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
   uint32 handle = 2;
   uint32 properties = 3;
   repeated BluetoothGATTDescriptor descriptors = 4;
 }
 
 message BluetoothGATTService {
-  repeated uint64 uuid = 1;
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
   uint32 handle = 2;
   repeated BluetoothGATTCharacteristic characteristics = 3;
 }
@@ -1486,7 +1486,7 @@ message BluetoothGATTGetServicesResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
-  repeated BluetoothGATTService services = 2;
+  repeated BluetoothGATTService services = 2 [(fixed_array_size) = 1];
 }
 
 message BluetoothGATTGetServicesDoneResponse {

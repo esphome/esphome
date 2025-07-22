@@ -1796,7 +1796,7 @@ class BluetoothGATTGetServicesRequest : public ProtoDecodableMessage {
 };
 class BluetoothGATTDescriptor : public ProtoMessage {
  public:
-  std::vector<uint64_t> uuid{};
+  std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
@@ -1808,7 +1808,7 @@ class BluetoothGATTDescriptor : public ProtoMessage {
 };
 class BluetoothGATTCharacteristic : public ProtoMessage {
  public:
-  std::vector<uint64_t> uuid{};
+  std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   uint32_t properties{0};
   std::vector<BluetoothGATTDescriptor> descriptors{};
@@ -1822,7 +1822,7 @@ class BluetoothGATTCharacteristic : public ProtoMessage {
 };
 class BluetoothGATTService : public ProtoMessage {
  public:
-  std::vector<uint64_t> uuid{};
+  std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   std::vector<BluetoothGATTCharacteristic> characteristics{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1836,12 +1836,12 @@ class BluetoothGATTService : public ProtoMessage {
 class BluetoothGATTGetServicesResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 71;
-  static constexpr uint8_t ESTIMATED_SIZE = 38;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_get_services_response"; }
 #endif
   uint64_t address{0};
-  std::vector<BluetoothGATTService> services{};
+  std::array<BluetoothGATTService, 1> services{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
