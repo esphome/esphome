@@ -411,11 +411,16 @@ def add_referenced_recursive(referenced_schemas, config_var, path, eat_schema=Fa
 
             s1 = get_str_path_schema(k)
             p = k.split(".")
-            if len(p) == 3 and path[0] == f"{p[0]}.{p[1]}":
-                # special case for schema inside platforms
-                add_referenced_recursive(
-                    referenced_schemas, s1, [path[0], "schemas", p[2]]
-                )
+            if len(p) == 3:
+                if path[0] == f"{p[0]}.{p[1]}":
+                    # special case for schema inside platforms
+                    add_referenced_recursive(
+                        referenced_schemas, s1, [path[0], "schemas", p[2]]
+                    )
+                else:
+                    add_referenced_recursive(
+                        referenced_schemas, s1, [f"{p[0]}.{p[1]}", "schemas", p[2]]
+                    )
             else:
                 add_referenced_recursive(
                     referenced_schemas, s1, [p[0], "schemas", p[1]]
