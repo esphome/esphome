@@ -59,25 +59,29 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
   void play(Ts... x) override {
     HomeassistantServiceResponse resp;
-    resp.service = this->service_.value(x...);
+    std::string service_value = this->service_.value(x...);
+    resp.set_service(StringRef(service_value));
     resp.is_event = this->is_event_;
     for (auto &it : this->data_) {
-      HomeassistantServiceMap kv;
-      kv.key = it.key;
-      kv.value = it.value.value(x...);
-      resp.data.push_back(kv);
+      resp.data.emplace_back();
+      auto &kv = resp.data.back();
+      kv.set_key(StringRef(it.key));
+      std::string value = it.value.value(x...);
+      kv.set_value(StringRef(value));
     }
     for (auto &it : this->data_template_) {
-      HomeassistantServiceMap kv;
-      kv.key = it.key;
-      kv.value = it.value.value(x...);
-      resp.data_template.push_back(kv);
+      resp.data_template.emplace_back();
+      auto &kv = resp.data_template.back();
+      kv.set_key(StringRef(it.key));
+      std::string value = it.value.value(x...);
+      kv.set_value(StringRef(value));
     }
     for (auto &it : this->variables_) {
-      HomeassistantServiceMap kv;
-      kv.key = it.key;
-      kv.value = it.value.value(x...);
-      resp.variables.push_back(kv);
+      resp.variables.emplace_back();
+      auto &kv = resp.variables.back();
+      kv.set_key(StringRef(it.key));
+      std::string value = it.value.value(x...);
+      kv.set_value(StringRef(value));
     }
     this->parent_->send_homeassistant_service_call(resp);
   }
