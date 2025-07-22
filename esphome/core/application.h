@@ -512,6 +512,8 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
+  void before_loop_tasks_(uint32_t loop_start_time);
+  void after_loop_tasks_();
 
   void feed_wdt_arch_();
 
