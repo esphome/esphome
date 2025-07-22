@@ -5,11 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name        = "espjhome"
 license     = {text = "MIT"}
-description = "ESPJHome is fork of ESPHome which is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems. Extended by JetHome"
+description = "ESPJHome is JetHome fork of ESPHome which is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems."
 readme      = "README.md"
 authors     = [
-  {name = "The ESPHome Authors", email = "esphome@openhomefoundation.org"},
-  {name = "The JetHome Authors", email = "dev@jethome.com"}
+  {name = "The JetHome Authors", email = "dev@jethome.com"},
 ]
 keywords    = ["home", "automation"]
 classifiers = [
@@ -131,7 +130,7 @@ ignore = [
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
 known-first-party = [
-  "esphome",
+  "esphome", "espjhome"
 ]
 combine-as-imports = true
 split-on-trailing-comma = false

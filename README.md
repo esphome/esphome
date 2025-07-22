@@ -1,16 +1,8 @@
-# ESPHome [![Discord Chat](https://img.shields.io/discord/429907082951524364.svg)](https://discord.gg/KhAMKrd) [![GitHub release](https://img.shields.io/github/release/esphome/esphome.svg)](https://GitHub.com/esphome/esphome/releases/)
+# JetHome ESPHome [![GitHub release](https://img.shields.io/github/release/jethome-iot/esphome.svg)](https://GitHub.com/jethome-iot/esphome/releases/)
 
-<a href="https://esphome.io/">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://esphome.io/_static/logo-text-on-dark.svg", alt="ESPHome Logo">
-    <img src="https://esphome.io/_static/logo-text-on-light.svg" alt="ESPHome Logo">
-  </picture>
-</a>
+This is the JetHome fork of [ESPHome](http://esphome.io). It provides custom components for JetHome devices and additional features, including support for dynamically generated entities.
 
 ---
 
-[Documentation](https://esphome.io) -- [Issues](https://github.com/esphome/issues/issues) -- [Feature requests](https://github.com/esphome/feature-requests/issues)
+[ESPHome Documentation](https://esphome.io) -- [Issues](https://github.com/jethome-iot/esphome/issues) -- [Feature requests](https://github.com/jethome-iot/esphome/issues)
 
----
-
-[![ESPHome - A project from the Open Home Foundation](https://www.openhomefoundation.org/badges/esphome.png)](https://www.openhomefoundation.org/)
