@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 #include <cassert>
 #include <cstring>
@@ -14,6 +15,37 @@
 
 namespace esphome {
 namespace api {
+
+/*
+ * StringRef Ownership Model for API Protocol Messages
+ * ===================================================
+ *
+ * StringRef is used for zero-copy string handling in outgoing (SOURCE_SERVER) messages.
+ * It holds a pointer and length to existing string data without copying.
+ *
+ * CRITICAL: The referenced string data MUST remain valid until message encoding completes.
+ *
+ * Safe StringRef Patterns:
+ * 1. String literals: StringRef("literal") - Always safe (static storage duration)
+ * 2. Member variables: StringRef(this->member_string_) - Safe if object outlives encoding
+ * 3. Global/static strings: StringRef(GLOBAL_CONSTANT) - Always safe
+ * 4. Local variables: Safe ONLY if encoding happens before function returns:
+ *    std::string temp = compute_value();
+ *    msg.set_field(StringRef(temp));
+ *    return this->send_message(msg);  // temp is valid during encoding
+ *
+ * Unsafe Patterns (WILL cause crashes/corruption):
+ * 1. Temporaries: msg.set_field(StringRef(obj.get_string())) // get_string() returns by value
+ * 2. Optional values: msg.set_field(StringRef(optional.value())) // value() returns a copy
+ * 3. Concatenation: msg.set_field(StringRef(str1 + str2)) // Result is temporary
+ *
+ * For unsafe patterns, store in a local variable first:
+ *    std::string temp = optional.value();  // or get_string() or str1 + str2
+ *    msg.set_field(StringRef(temp));
+ *
+ * The send_*_response pattern ensures proper lifetime management by encoding
+ * within the same function scope where temporaries are created.
+ */
 
 /// Representation of a VarInt - in ProtoBuf should be 64bit but we only use 32bit
 class ProtoVarInt {
@@ -217,6 +249,9 @@ class ProtoWriteBuffer {
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
     this->encode_string(field_id, value.data(), value.size(), force);
+  }
+  void encode_string(uint32_t field_id, const StringRef &ref, bool force = false) {
+    this->encode_string(field_id, ref.c_str(), ref.size(), force);
   }
   void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
     this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
@@ -669,17 +704,16 @@ class ProtoSize {
   // sint64 type is not supported by ESPHome API to reduce overhead on embedded systems
 
   /**
-   * @brief Calculates and adds the size of a string/bytes field to the total message size
+   * @brief Calculates and adds the size of a string field using length
    */
-  static inline void add_string_field(uint32_t &total_size, uint32_t field_id_size, const std::string &str) {
+  static inline void add_string_field(uint32_t &total_size, uint32_t field_id_size, size_t len) {
     // Skip calculation if string is empty
-    if (str.empty()) {
+    if (len == 0) {
       return;  // No need to update total_size
     }
 
-    // Calculate and directly add to total_size
-    const uint32_t str_size = static_cast<uint32_t>(str.size());
-    total_size += field_id_size + varint(str_size) + str_size;
+    // Field ID + length varint + string bytes
+    total_size += field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
 
   /**

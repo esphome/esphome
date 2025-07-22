@@ -15,7 +15,7 @@ class AudioStreamInfo {
    *  - An audio sample represents a unit of audio for one channel.
    *  - A frame represents a unit of audio with a sample for every channel.
    *
-   * In gneneral, converting between bytes, samples, and frames shouldn't result in rounding errors so long as frames
+   * In general, converting between bytes, samples, and frames shouldn't result in rounding errors so long as frames
    * are used as the main unit when transferring audio data. Durations may result in rounding for certain sample rates;
    * e.g., 44.1 KHz. The ``frames_to_milliseconds_with_remainder`` function should be used for accuracy, as it takes
    * into account the remainder rather than just ignoring any rounding.
@@ -76,7 +76,7 @@ class AudioStreamInfo {
 
   /// @brief Computes the duration, in microseconds, the given amount of frames represents.
   /// @param frames Number of audio frames
-  /// @return Duration in microseconds `frames` respresents. May be slightly inaccurate due to integer divison rounding
+  /// @return Duration in microseconds `frames` represents. May be slightly inaccurate due to integer division rounding
   ///         for certain sample rates.
   uint32_t frames_to_microseconds(uint32_t frames) const;
 

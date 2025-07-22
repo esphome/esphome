@@ -157,8 +157,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::str
   container->status_code = esp_http_client_get_status_code(client);
   container->feed_wdt();
   container->set_response_headers(user_data.response_headers);
+  container->duration_ms = millis() - start;
   if (is_success(container->status_code)) {
-    container->duration_ms = millis() - start;
     return container;
   }
 
@@ -191,8 +191,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::str
       container->feed_wdt();
       container->status_code = esp_http_client_get_status_code(client);
       container->feed_wdt();
+      container->duration_ms = millis() - start;
       if (is_success(container->status_code)) {
-        container->duration_ms = millis() - start;
         return container;
       }
 

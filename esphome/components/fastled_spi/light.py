@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_NUM_LEDS,
     CONF_RGB_ORDER,
+    Framework,
 )
 
 AUTO_LOAD = ["fastled_base"]
@@ -32,6 +33,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_CLOCK_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_DATA_RATE): cv.frequency,
         }
+    ),
+    cv.only_with_framework(
+        frameworks=Framework.ARDUINO,
+        suggestions={
+            Framework.ESP_IDF: (
+                "spi_led_strip",
+                "light/spi_led_strip",
+            )
+        },
     ),
     cv.require_framework_version(
         esp8266_arduino=cv.Version(2, 7, 4),

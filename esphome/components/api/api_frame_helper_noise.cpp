@@ -15,6 +15,7 @@ namespace api {
 
 static const char *const TAG = "api.noise";
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
+static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->client_info_->get_combined_info().c_str(), ##__VA_ARGS__)
 
@@ -73,7 +74,9 @@ APIError APINoiseFrameHelper::init() {
   }
 
   // init prologue
-  prologue_.insert(prologue_.end(), PROLOGUE_INIT, PROLOGUE_INIT + strlen(PROLOGUE_INIT));
+  size_t old_size = prologue_.size();
+  prologue_.resize(old_size + PROLOGUE_INIT_LEN);
+  std::memcpy(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
 
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
@@ -223,11 +226,12 @@ APIError APINoiseFrameHelper::state_action_() {
       return handle_handshake_frame_error_(aerr);
     }
     // ignore contents, may be used in future for flags
-    // Reserve space for: existing prologue + 2 size bytes + frame data
-    prologue_.reserve(prologue_.size() + 2 + frame.size());
-    prologue_.push_back((uint8_t) (frame.size() >> 8));
-    prologue_.push_back((uint8_t) frame.size());
-    prologue_.insert(prologue_.end(), frame.begin(), frame.end());
+    // Resize for: existing prologue + 2 size bytes + frame data
+    size_t old_size = prologue_.size();
+    prologue_.resize(old_size + 2 + frame.size());
+    prologue_[old_size] = (uint8_t) (frame.size() >> 8);
+    prologue_[old_size + 1] = (uint8_t) frame.size();
+    std::memcpy(prologue_.data() + old_size + 2, frame.data(), frame.size());
 
     state_ = State::SERVER_HELLO;
   }
@@ -237,18 +241,22 @@ APIError APINoiseFrameHelper::state_action_() {
     const std::string &mac = get_mac_address();
 
     std::vector<uint8_t> msg;
-    // Reserve space for: 1 byte proto + name + null + mac + null
-    msg.reserve(1 + name.size() + 1 + mac.size() + 1);
+    // Calculate positions and sizes
+    size_t name_len = name.size() + 1;  // including null terminator
+    size_t mac_len = mac.size() + 1;    // including null terminator
+    size_t name_offset = 1;
+    size_t mac_offset = name_offset + name_len;
+    size_t total_size = 1 + name_len + mac_len;
+
+    msg.resize(total_size);
 
     // chosen proto
-    msg.push_back(0x01);
+    msg[0] = 0x01;
 
     // node name, terminated by null byte
-    const uint8_t *name_ptr = reinterpret_cast<const uint8_t *>(name.c_str());
-    msg.insert(msg.end(), name_ptr, name_ptr + name.size() + 1);
+    std::memcpy(msg.data() + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    const uint8_t *mac_ptr = reinterpret_cast<const uint8_t *>(mac.c_str());
-    msg.insert(msg.end(), mac_ptr, mac_ptr + mac.size() + 1);
+    std::memcpy(msg.data() + mac_offset, mac.c_str(), mac_len);
 
     aerr = write_frame_(msg.data(), msg.size());
     if (aerr != APIError::OK)

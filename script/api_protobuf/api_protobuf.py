@@ -327,6 +327,9 @@ def create_field_type_info(
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
     if field.label == 3:  # repeated
+        # Check if this repeated field has fixed_array_size option
+        if (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None:
+            return FixedArrayRepeatedType(field, fixed_size)
         return RepeatedTypeInfo(field)
 
     # Check for fixed_array_size option on bytes fields
@@ -339,6 +342,10 @@ def create_field_type_info(
     # Special handling for bytes fields
     if field.type == 12:
         return BytesType(field, needs_decode, needs_encode)
+
+    # Special handling for string fields
+    if field.type == 9:
+        return StringType(field, needs_decode, needs_encode)
 
     validate_field_type(field.type, field.name)
     return TYPE_INFO[field.type](field)
@@ -540,12 +547,67 @@ class StringType(TypeInfo):
     encode_func = "encode_string"
     wire_type = WireType.LENGTH_DELIMITED  # Uses wire type 2
 
+    @property
+    def public_content(self) -> list[str]:
+        content: list[str] = []
+        # Add std::string storage if message needs decoding
+        if self._needs_decode:
+            content.append(f"std::string {self.field_name}{{}};")
+
+        if self._needs_encode:
+            content.extend(
+                [
+                    # Add StringRef field if message needs encoding
+                    f"StringRef {self.field_name}_ref_{{}};",
+                    # Add setter method if message needs encoding
+                    f"void set_{self.field_name}(const StringRef &ref) {{",
+                    f"  this->{self.field_name}_ref_ = ref;",
+                    "}",
+                ]
+            )
+        return content
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
+
     def dump(self, name):
-        o = f'out.append("\'").append({name}).append("\'");'
-        return o
+        # If name is 'it', this is a repeated field element - always use string
+        if name == "it":
+            return "append_quoted_string(out, StringRef(it));"
+
+        # For SOURCE_CLIENT only, always use std::string
+        if not self._needs_encode:
+            return f'out.append("\'").append(this->{self.field_name}).append("\'");'
+
+        # For SOURCE_SERVER, always use StringRef
+        if not self._needs_decode:
+            return f"append_quoted_string(out, this->{self.field_name}_ref_);"
+
+        # For SOURCE_BOTH, check if StringRef is set (sending) or use string (received)
+        return (
+            f"if (!this->{self.field_name}_ref_.empty()) {{"
+            f'  out.append("\'").append(this->{self.field_name}_ref_.c_str()).append("\'");'
+            f"}} else {{"
+            f'  out.append("\'").append(this->{self.field_name}).append("\'");'
+            f"}}"
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_string_field")
+        # For SOURCE_CLIENT only messages, use the string field directly
+        if not self._needs_encode:
+            return self._get_simple_size_calculation(name, force, "add_string_field")
+
+        # Check if this is being called from a repeated field context
+        # In that case, 'name' will be 'it' and we need to use the repeated version
+        if name == "it":
+            # For repeated fields, we need to use add_string_field_repeated which includes field ID
+            field_id_size = self.calculate_field_id_size()
+            return f"ProtoSize::add_string_field_repeated(total_size, {field_id_size}, it);"
+
+        # For messages that need encoding, use the StringRef size
+        field_id_size = self.calculate_field_id_size()
+        return f"ProtoSize::add_string_field(total_size, {field_id_size}, this->{self.field_name}_ref_.size());"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
@@ -593,6 +655,8 @@ class MessageType(TypeInfo):
         return self._get_simple_size_calculation(name, force, "add_message_object")
 
     def get_estimated_size(self) -> int:
+        # For message types, we can't easily estimate the submessage size without
+        # access to the actual message definition. This is just a rough estimate.
         return (
             self.calculate_field_id_size() + 16
         )  # field ID + 16 bytes estimated submessage
@@ -881,6 +945,111 @@ class SInt64Type(TypeInfo):
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
+
+
+class FixedArrayRepeatedType(TypeInfo):
+    """Special type for fixed-size repeated fields using std::array.
+
+    Fixed arrays are only supported for encoding (SOURCE_SERVER) since we cannot
+    control how many items we receive when decoding.
+    """
+
+    def __init__(self, field: descriptor.FieldDescriptorProto, size: int) -> None:
+        super().__init__(field)
+        self.array_size = size
+        # Create the element type info
+        validate_field_type(field.type, field.name)
+        self._ti: TypeInfo = TYPE_INFO[field.type](field)
+
+    @property
+    def cpp_type(self) -> str:
+        return f"std::array<{self._ti.cpp_type}, {self.array_size}>"
+
+    @property
+    def reference_type(self) -> str:
+        return f"{self.cpp_type} &"
+
+    @property
+    def const_reference_type(self) -> str:
+        return f"const {self.cpp_type} &"
+
+    @property
+    def wire_type(self) -> WireType:
+        """Get the wire type for this fixed array field."""
+        return self._ti.wire_type
+
+    @property
+    def public_content(self) -> list[str]:
+        # Just the array member, no index needed since we don't decode
+        return [f"{self.cpp_type} {self.field_name}{{}};"]
+
+    # No decode methods needed - fixed arrays don't support decoding
+    # The base class TypeInfo already returns None for all decode properties
+
+    @property
+    def encode_content(self) -> str:
+        # Helper to generate encode statement for a single element
+        def encode_element(element: str) -> str:
+            if isinstance(self._ti, EnumType):
+                return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+            else:
+                return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+
+        # Unroll small arrays for efficiency
+        if self.array_size == 1:
+            return encode_element(f"this->{self.field_name}[0]")
+        elif self.array_size == 2:
+            return (
+                encode_element(f"this->{self.field_name}[0]")
+                + "\n  "
+                + encode_element(f"this->{self.field_name}[1]")
+            )
+
+        # Use loops for larger arrays
+        o = f"for (const auto &it : this->{self.field_name}) {{\n"
+        o += f"  {encode_element('it')}\n"
+        o += "}"
+        return o
+
+    @property
+    def dump_content(self) -> str:
+        o = f"for (const auto &it : this->{self.field_name}) {{\n"
+        o += f'  out.append("  {self.name}: ");\n'
+        o += indent(self._ti.dump("it")) + "\n"
+        o += '  out.append("\\n");\n'
+        o += "}\n"
+        return o
+
+    def dump(self, name: str) -> str:
+        # This is used when dumping the array itself (not its elements)
+        # Since dump_content handles the iteration, this is not used directly
+        return ""
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        # For fixed arrays, we always encode all elements
+
+        # Special case for single-element arrays - no loop needed
+        if self.array_size == 1:
+            return self._ti.get_size_calculation(f"{name}[0]", True)
+
+        # Special case for 2-element arrays - unroll the calculation
+        if self.array_size == 2:
+            return (
+                self._ti.get_size_calculation(f"{name}[0]", True)
+                + "\n  "
+                + self._ti.get_size_calculation(f"{name}[1]", True)
+            )
+
+        # Use loops for larger arrays
+        o = f"for (const auto &it : {name}) {{\n"
+        o += f"  {self._ti.get_size_calculation('it', True)}\n"
+        o += "}"
+        return o
+
+    def get_estimated_size(self) -> int:
+        # For fixed arrays, estimate underlying type size * array size
+        underlying_size = self._ti.get_estimated_size()
+        return underlying_size * self.array_size
 
 
 class RepeatedTypeInfo(TypeInfo):
@@ -1311,6 +1480,19 @@ def build_message_type(
         if field.options.deprecated:
             continue
 
+        # Validate that fixed_array_size is only used in encode-only messages
+        if (
+            needs_decode
+            and field.label == 3
+            and get_field_opt(field, pb.fixed_array_size) is not None
+        ):
+            raise ValueError(
+                f"Message '{desc.name}' uses fixed_array_size on field '{field.name}' "
+                f"but has source={SOURCE_NAMES[source]}. "
+                f"Fixed arrays are only supported for SOURCE_SERVER (encode-only) messages "
+                f"since we cannot trust or control the number of items received from clients."
+            )
+
         ti = create_field_type_info(field, needs_decode, needs_encode)
 
         # Skip field declarations for fields that are in the base class
@@ -1499,6 +1681,12 @@ def build_message_type(
 SOURCE_BOTH = 0
 SOURCE_SERVER = 1
 SOURCE_CLIENT = 2
+
+SOURCE_NAMES = {
+    SOURCE_BOTH: "SOURCE_BOTH",
+    SOURCE_SERVER: "SOURCE_SERVER",
+    SOURCE_CLIENT: "SOURCE_CLIENT",
+}
 
 RECEIVE_CASES: dict[int, tuple[str, str | None]] = {}
 
@@ -1773,6 +1961,7 @@ def main() -> None:
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/string_ref.h"
 
 #include "proto.h"
 
@@ -1805,6 +1994,15 @@ namespace api {
 
 namespace esphome {
 namespace api {
+
+// Helper function to append a quoted string, handling empty StringRef
+static inline void append_quoted_string(std::string &out, const StringRef &ref) {
+  out.append("'");
+  if (!ref.empty()) {
+    out.append(ref.c_str());
+  }
+  out.append("'");
+}
 
 """
 
@@ -2045,7 +2243,13 @@ static const char *const TAG = "api.service";
             cpp += f"#ifdef {ifdef}\n"
 
         hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
-        hpp += f"  virtual {ret} {func}(const {inp} &msg) = 0;\n"
+
+        # For non-void methods, generate a send_ method instead of return-by-value
+        if is_void:
+            hpp += f"  virtual void {func}(const {inp} &msg) = 0;\n"
+        else:
+            hpp += f"  virtual bool send_{func}_response(const {inp} &msg) = 0;\n"
+
         cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
 
         # Start with authentication/connection check if needed
@@ -2063,10 +2267,7 @@ static const char *const TAG = "api.service";
             if is_void:
                 handler_body = f"this->{func}(msg);\n"
             else:
-                handler_body = f"{ret} ret = this->{func}(msg);\n"
-                handler_body += (
-                    f"if (!this->send_message(ret, {ret}::MESSAGE_TYPE)) {{\n"
-                )
+                handler_body = f"if (!this->send_{func}_response(msg)) {{\n"
                 handler_body += "  this->on_fatal_error();\n"
                 handler_body += "}\n"
 
@@ -2078,8 +2279,7 @@ static const char *const TAG = "api.service";
             if is_void:
                 body += f"this->{func}(msg);\n"
             else:
-                body += f"{ret} ret = this->{func}(msg);\n"
-                body += f"if (!this->send_message(ret, {ret}::MESSAGE_TYPE)) {{\n"
+                body += f"if (!this->send_{func}_response(msg)) {{\n"
                 body += "  this->on_fatal_error();\n"
                 body += "}\n"
 

@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_PIN,
     CONF_TYPE,
     CONF_VARIANT,
+    Framework,
 )
 from esphome.core import CORE
 
@@ -162,7 +163,15 @@ def _validate_method(value):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.only_with_arduino,
+    cv.only_with_framework(
+        frameworks=Framework.ARDUINO,
+        suggestions={
+            Framework.ESP_IDF: (
+                "esp32_rmt_led_strip",
+                "light/esp32_rmt_led_strip",
+            )
+        },
+    ),
     cv.require_framework_version(
         esp8266_arduino=cv.Version(2, 4, 0),
         esp32_arduino=cv.Version(0, 0, 0),

@@ -207,22 +207,22 @@ class APIServerConnectionBase : public ProtoService {
 
 class APIServerConnection : public APIServerConnectionBase {
  public:
-  virtual HelloResponse hello(const HelloRequest &msg) = 0;
-  virtual ConnectResponse connect(const ConnectRequest &msg) = 0;
-  virtual DisconnectResponse disconnect(const DisconnectRequest &msg) = 0;
-  virtual PingResponse ping(const PingRequest &msg) = 0;
-  virtual DeviceInfoResponse device_info(const DeviceInfoRequest &msg) = 0;
+  virtual bool send_hello_response(const HelloRequest &msg) = 0;
+  virtual bool send_connect_response(const ConnectRequest &msg) = 0;
+  virtual bool send_disconnect_response(const DisconnectRequest &msg) = 0;
+  virtual bool send_ping_response(const PingRequest &msg) = 0;
+  virtual bool send_device_info_response(const DeviceInfoRequest &msg) = 0;
   virtual void list_entities(const ListEntitiesRequest &msg) = 0;
   virtual void subscribe_states(const SubscribeStatesRequest &msg) = 0;
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
-  virtual GetTimeResponse get_time(const GetTimeRequest &msg) = 0;
+  virtual bool send_get_time_response(const GetTimeRequest &msg) = 0;
 #ifdef USE_API_SERVICES
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
 #endif
 #ifdef USE_API_NOISE
-  virtual NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) = 0;
+  virtual bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) = 0;
 #endif
 #ifdef USE_BUTTON
   virtual void button_command(const ButtonCommandRequest &msg) = 0;
@@ -303,7 +303,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
+  virtual bool send_subscribe_bluetooth_connections_free_response(
       const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -316,8 +316,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) = 0;
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  virtual VoiceAssistantConfigurationResponse voice_assistant_get_configuration(
-      const VoiceAssistantConfigurationRequest &msg) = 0;
+  virtual bool send_voice_assistant_get_configuration_response(const VoiceAssistantConfigurationRequest &msg) = 0;
 #endif
 #ifdef USE_VOICE_ASSISTANT
   virtual void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) = 0;
