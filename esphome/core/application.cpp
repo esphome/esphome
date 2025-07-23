@@ -55,6 +55,9 @@ void Application::setup() {
     return a->get_actual_setup_priority() > b->get_actual_setup_priority();
   });
 
+  // Initialize looping_components_ early so enable_pending_loops_() works during setup
+  this->calculate_looping_components_();
+
   for (uint32_t i = 0; i < this->components_.size(); i++) {
     Component *component = this->components_[i];
 
@@ -97,7 +100,6 @@ void Application::setup() {
   clear_setup_priority_overrides();
 
   this->schedule_dump_config();
-  this->calculate_looping_components_();
 }
 void Application::loop() {
   uint8_t new_app_state = 0;
@@ -269,24 +271,16 @@ void Application::calculate_looping_components_() {
   // Pre-reserve vector to avoid reallocations
   this->looping_components_.reserve(total_looping);
 
-  // First add all active components
+  // Add all components with loop override
+  // When called at start of setup, all components are in CONSTRUCTION state
+  // so none will be LOOP_DONE yet - they'll all go in the active section
   for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
+    if (obj->has_overridden_loop()) {
       this->looping_components_.push_back(obj);
     }
   }
 
   this->looping_components_active_end_ = this->looping_components_.size();
-
-  // Then add all inactive (LOOP_DONE) components
-  // This handles components that called disable_loop() during setup, before this method runs
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-      this->looping_components_.push_back(obj);
-    }
-  }
 }
 
 void Application::disable_component_loop_(Component *component) {
