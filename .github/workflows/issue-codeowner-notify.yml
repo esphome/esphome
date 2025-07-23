@@ -29,6 +29,9 @@ jobs:
 
             console.log(`Processing issue #${issue_number} with label: ${labelName}`);
 
+            // Hidden marker to identify bot comments from this workflow
+            const BOT_COMMENT_MARKER = '<!-- issue-codeowner-notify-bot -->';
+
             // Extract component name from label
             const componentName = labelName.replace('component: ', '');
             console.log(`Component: ${componentName}`);
@@ -93,11 +96,14 @@ jobs:
               );
 
               // Check for previous comments from this workflow to avoid duplicate pings
-              const { data: comments } = await github.rest.issues.listComments({
-                owner,
-                repo,
-                issue_number: issue_number
-              });
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {
+                  owner,
+                  repo,
+                  issue_number: issue_number
+                }
+              );
 
               const previouslyPingedUsers = new Set();
               const previouslyPingedTeams = new Set();
@@ -105,9 +111,8 @@ jobs:
               // Look for comments from github-actions bot that contain codeowner pings for this component
               const workflowComments = comments.filter(comment =>
                 comment.user.type === 'Bot' &&
-                comment.user.login === 'github-actions[bot]' &&
-                comment.body.includes(`component: ${componentName}`) &&
-                comment.body.includes("you've been identified as a codeowner")
+                comment.body.includes(BOT_COMMENT_MARKER) &&
+                comment.body.includes(`component: ${componentName}`)
               );
 
               // Extract previously mentioned users and teams from workflow comments
@@ -140,7 +145,7 @@ jobs:
 
               // Create comment body
               const mentionString = allMentions.join(', ');
-              const commentBody = `👋 Hey ${mentionString}!\n\nThis issue has been labeled with \`component: ${componentName}\` and you've been identified as a codeowner of this component. Please take a look when you have a chance!\n\nThanks for maintaining this component! 🙏`;
+              const commentBody = `${BOT_COMMENT_MARKER}\n👋 Hey ${mentionString}!\n\nThis issue has been labeled with \`component: ${componentName}\` and you've been identified as a codeowner of this component. Please take a look when you have a chance!\n\nThanks for maintaining this component! 🙏`;
 
               // Post comment
               await github.rest.issues.createComment({
