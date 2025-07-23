@@ -477,10 +477,11 @@ void LD2450Component::handle_periodic_data_() {
     // X
     start = TARGET_X + index * 8;
     is_moving = false;
+    // tx is used for further calculations, so always needs to be populated
+    val = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    tx = val;
     sensor::Sensor *sx = this->move_x_sensors_[index];
     if (sx != nullptr) {
-      val = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-      tx = val;
       if (this->cached_target_data_[index].x != val) {
         sx->publish_state(val);
         this->cached_target_data_[index].x = val;
@@ -488,10 +489,11 @@ void LD2450Component::handle_periodic_data_() {
     }
     // Y
     start = TARGET_Y + index * 8;
+    // ty is used for further calculations, so always needs to be populated
+    val = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    ty = val;
     sensor::Sensor *sy = this->move_y_sensors_[index];
     if (sy != nullptr) {
-      val = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-      ty = val;
       if (this->cached_target_data_[index].y != val) {
         sy->publish_state(val);
         this->cached_target_data_[index].y = val;
