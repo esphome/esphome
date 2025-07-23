@@ -17,6 +17,8 @@ static const char *const TAG = "scheduler";
 static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
+// max delay to start an interval sequence
+static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
 
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
@@ -100,9 +102,11 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Type-specific setup
   if (type == SchedulerItem::INTERVAL) {
     item->interval = delay;
-    // Calculate random offset (0 to interval/2)
-    uint32_t offset = (delay != 0) ? (random_uint32() % delay) / 2 : 0;
+    // first execution happens immediately after a random smallish offset
+    // Calculate random offset (0 to min(interval/2, 5s))
+    uint32_t offset = (uint32_t) (std::min(delay / 2, MAX_INTERVAL_DELAY) * random_float());
     item->next_execution_ = now + offset;
+    ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms", name_cstr, delay, offset);
   } else {
     item->interval = 0;
     item->next_execution_ = now + delay;

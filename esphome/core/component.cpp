@@ -373,11 +373,10 @@ bool Component::has_overridden_loop() const {
 PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
 
 void PollingComponent::call_setup() {
+  // init the poller before calling setup, allowing setup to cancel it if desired
+  this->start_poller();
   // Let the polling component subclass setup their HW.
   this->setup();
-
-  // init the poller
-  this->start_poller();
 }
 
 void PollingComponent::start_poller() {
