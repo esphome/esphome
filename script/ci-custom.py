@@ -575,13 +575,15 @@ def lint_namespace(fname, content):
     expected_name = re.match(
         r"^esphome/components/([^/]+)/.*", fname.replace(os.path.sep, "/")
     ).group(1)
-    search = f"namespace {expected_name}"
-    if search in content:
+    # Check for both old style and C++17 nested namespace syntax
+    search_old = f"namespace {expected_name}"
+    search_new = f"namespace esphome::{expected_name}"
+    if search_old in content or search_new in content:
         return None
     return (
         "Invalid namespace found in C++ file. All integration C++ files should put all "
         "functions in a separate namespace that matches the integration's name. "
-        f"Please make sure the file contains {highlight(search)}"
+        f"Please make sure the file contains {highlight(search_old)} or {highlight(search_new)}"
     )
 
 
