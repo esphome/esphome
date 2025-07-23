@@ -86,10 +86,9 @@ void RemoteReceiverComponent::setup() {
 
   uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
   uint32_t max_filter_ns = 255u * 1000 / (RMT_CLK_FREQ / 1000000);
-  uint32_t max_idle_ns = 65535u * 1000;
   memset(&this->store_.config, 0, sizeof(this->store_.config));
   this->store_.config.signal_range_min_ns = std::min(this->filter_us_ * 1000, max_filter_ns);
-  this->store_.config.signal_range_max_ns = std::min(this->idle_us_ * 1000, max_idle_ns);
+  this->store_.config.signal_range_max_ns = this->idle_us_ * 1000;
   this->store_.filter_symbols = this->filter_symbols_;
   this->store_.receive_size = this->receive_symbols_ * sizeof(rmt_symbol_word_t);
   this->store_.buffer_size = std::max((event_size + this->store_.receive_size) * 2, this->buffer_size_);
