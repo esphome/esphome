@@ -2261,19 +2261,16 @@ static const char *const TAG = "api.service";
             else:
                 check_func = "this->check_connection_setup_()"
 
-            body = f"if ({check_func}) {{\n"
-
-            # Add the actual handler code, indented
-            handler_body = ""
             if is_void:
-                handler_body = f"this->{func}(msg);\n"
+                # For void methods, just wrap with auth check
+                body = f"if ({check_func}) {{\n"
+                body += f"  this->{func}(msg);\n"
+                body += "}\n"
             else:
-                handler_body = f"if (!this->send_{func}_response(msg)) {{\n"
-                handler_body += "  this->on_fatal_error();\n"
-                handler_body += "}\n"
-
-            body += indent(handler_body) + "\n"
-            body += "}\n"
+                # For non-void methods, combine auth check and send response check
+                body = f"if ({check_func} && !this->send_{func}_response(msg)) {{\n"
+                body += "  this->on_fatal_error();\n"
+                body += "}\n"
         else:
             # No auth check needed, just call the handler
             body = ""

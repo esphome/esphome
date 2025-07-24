@@ -617,10 +617,8 @@ void APIServerConnection::on_ping_request(const PingRequest &msg) {
   }
 }
 void APIServerConnection::on_device_info_request(const DeviceInfoRequest &msg) {
-  if (this->check_connection_setup_()) {
-    if (!this->send_device_info_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_connection_setup_() && !this->send_device_info_response(msg)) {
+    this->on_fatal_error();
   }
 }
 void APIServerConnection::on_list_entities_request(const ListEntitiesRequest &msg) {
@@ -650,10 +648,8 @@ void APIServerConnection::on_subscribe_home_assistant_states_request(const Subsc
   }
 }
 void APIServerConnection::on_get_time_request(const GetTimeRequest &msg) {
-  if (this->check_connection_setup_()) {
-    if (!this->send_get_time_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_connection_setup_() && !this->send_get_time_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #ifdef USE_API_SERVICES
@@ -665,10 +661,8 @@ void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest
 #endif
 #ifdef USE_API_NOISE
 void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) {
-  if (this->check_authenticated_()) {
-    if (!this->send_noise_encryption_set_key_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_authenticated_() && !this->send_noise_encryption_set_key_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #endif
@@ -858,10 +852,8 @@ void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNo
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
     const SubscribeBluetoothConnectionsFreeRequest &msg) {
-  if (this->check_authenticated_()) {
-    if (!this->send_subscribe_bluetooth_connections_free_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_authenticated_() && !this->send_subscribe_bluetooth_connections_free_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #endif
@@ -889,10 +881,8 @@ void APIServerConnection::on_subscribe_voice_assistant_request(const SubscribeVo
 #endif
 #ifdef USE_VOICE_ASSISTANT
 void APIServerConnection::on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg) {
-  if (this->check_authenticated_()) {
-    if (!this->send_voice_assistant_get_configuration_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_authenticated_() && !this->send_voice_assistant_get_configuration_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #endif
