@@ -18,8 +18,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
@@ -196,6 +195,5 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   bool check(Ts... x) override { return global_api_server->is_connected(); }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

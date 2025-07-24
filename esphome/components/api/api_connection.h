@@ -13,8 +13,7 @@
 #include <vector>
 #include <functional>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Client information structure
 struct ClientInfo {
@@ -723,6 +722,5 @@ class APIConnection : public APIServerConnection {
   }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

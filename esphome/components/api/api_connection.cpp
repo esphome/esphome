@@ -31,8 +31,7 @@
 #include "esphome/components/voice_assistant/voice_assistant.h"
 #endif
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Read a maximum of 5 messages per loop iteration to prevent starving other components.
 // This is a balance between API responsiveness and allowing other components to run.
@@ -1837,6 +1836,5 @@ uint16_t APIConnection::try_send_ping_request(EntityBase *entity, APIConnection 
   return encode_message_to_buffer(req, PingRequest::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

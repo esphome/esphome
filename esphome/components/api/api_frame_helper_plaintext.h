@@ -3,8 +3,7 @@
 #ifdef USE_API
 #ifdef USE_API_PLAINTEXT
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class APIPlaintextFrameHelper : public APIFrameHelper {
  public:
@@ -49,7 +48,6 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   // 8 bytes total, no padding needed
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif  // USE_API_PLAINTEXT
 #endif  // USE_API

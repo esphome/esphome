@@ -6,8 +6,7 @@
 
 #include "api_pb2.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class APIServerConnectionBase : public ProtoService {
  public:
@@ -444,5 +443,4 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

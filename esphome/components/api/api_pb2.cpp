@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include <cstring>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -2981,5 +2980,4 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

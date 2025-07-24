@@ -16,8 +16,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api";
 
@@ -483,6 +482,5 @@ bool APIServer::teardown() {
   return this->clients_.empty();
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

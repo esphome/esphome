@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
@@ -89,5 +88,4 @@ std::string ProtoMessage::dump() const {
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

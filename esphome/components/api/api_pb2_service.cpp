@@ -3,8 +3,7 @@
 #include "api_pb2_service.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.service";
 
@@ -901,5 +900,4 @@ void APIServerConnection::on_alarm_control_panel_command_request(const AlarmCont
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

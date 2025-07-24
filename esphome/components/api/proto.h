@@ -13,8 +13,7 @@
 #define HAS_PROTO_MESSAGE_DUMP
 #endif
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 /*
  * StringRef Ownership Model for API Protocol Messages
@@ -910,5 +909,4 @@ class ProtoService {
   }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

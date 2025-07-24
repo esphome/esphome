@@ -7,8 +7,7 @@
 
 #include "proto.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 namespace enums {
 
@@ -2891,5 +2890,4 @@ class UpdateCommandRequest : public CommandProtoMessage {
 };
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

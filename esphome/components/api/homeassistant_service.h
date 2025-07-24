@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include <vector>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
  private:
@@ -99,6 +98,5 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   std::vector<TemplatableKeyValuePair<Ts...>> variables_;
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

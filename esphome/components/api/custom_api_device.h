@@ -6,8 +6,7 @@
 #ifdef USE_API_SERVICES
 #include "user_services.h"
 #endif
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 #ifdef USE_API_SERVICES
 template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceBase<Ts...> {
@@ -222,6 +221,5 @@ class CustomAPIDevice {
   }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

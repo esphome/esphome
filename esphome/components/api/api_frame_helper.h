@@ -12,8 +12,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // uncomment to log raw packets
 //#define HELPER_LOG_PACKETS
@@ -184,7 +183,6 @@ class APIFrameHelper {
   APIError handle_socket_read_result_(ssize_t received);
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 
 #endif  // USE_API

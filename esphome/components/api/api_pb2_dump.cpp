@@ -7,8 +7,7 @@
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Helper function to append a quoted string, handling empty StringRef
 static inline void append_quoted_string(std::string &out, const StringRef &ref) {
@@ -2067,7 +2066,6 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 
 #endif  // HAS_PROTO_MESSAGE_DUMP

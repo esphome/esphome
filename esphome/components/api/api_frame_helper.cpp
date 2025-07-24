@@ -9,8 +9,7 @@
 #include <cstring>
 #include <cinttypes>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.frame_helper";
 
@@ -247,6 +246,5 @@ APIError APIFrameHelper::handle_socket_read_result_(ssize_t received) {
   return APIError::OK;
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif
