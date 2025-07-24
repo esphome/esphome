@@ -11,8 +11,7 @@
 
 #include "ble_scan_result.h"
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 // Compile-time verification that ESP-IDF scan complete events only contain a status field
 // This ensures our reinterpret_cast in ble.cpp is safe
@@ -395,7 +394,6 @@ static_assert(sizeof(esp_ble_sec_t) <= 73, "esp_ble_sec_t is larger than BLEScan
 
 // BLEEvent total size: 84 bytes (80 byte union + 1 byte type + 3 bytes padding)
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

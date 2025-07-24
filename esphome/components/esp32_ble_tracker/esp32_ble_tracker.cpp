@@ -35,8 +35,7 @@
 // bt_trace.h
 #undef TAG
 
-namespace esphome {
-namespace esp32_ble_tracker {
+namespace esphome::esp32_ble_tracker {
 
 static const char *const TAG = "esp32_ble_tracker";
 
@@ -882,7 +881,6 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
 }
 #endif  // USE_ESP32_BLE_DEVICE
 
-}  // namespace esp32_ble_tracker
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_tracker
 
 #endif  // USE_ESP32

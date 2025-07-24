@@ -22,8 +22,7 @@
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 
-namespace esphome {
-namespace esp32_ble_tracker {
+namespace esphome::esp32_ble_tracker {
 
 using namespace esp32_ble;
 
@@ -321,7 +320,6 @@ class ESP32BLETracker : public Component,
 // NOLINTNEXTLINE
 extern ESP32BLETracker *global_esp32_ble_tracker;
 
-}  // namespace esp32_ble_tracker
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_tracker
 
 #endif

@@ -10,8 +10,7 @@
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 using raw_adv_data_t = struct {
   uint8_t *data;
@@ -55,7 +54,6 @@ class BLEAdvertising {
   int8_t current_adv_index_{-1};  // -1 means standard scan response
 };
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

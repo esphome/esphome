@@ -8,8 +8,7 @@
 
 #include "bluetooth_proxy.h"
 
-namespace esphome {
-namespace bluetooth_proxy {
+namespace esphome::bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy.connection";
 
@@ -422,7 +421,6 @@ esp32_ble_tracker::AdvertisementParserType BluetoothConnection::get_advertisemen
   return this->proxy_->get_advertisement_parser_type();
 }
 
-}  // namespace bluetooth_proxy
-}  // namespace esphome
+}  // namespace esphome::bluetooth_proxy
 
 #endif  // USE_ESP32
