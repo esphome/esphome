@@ -578,21 +578,28 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 /// Helper class to deduplicate items in a series of values.
 template<typename T> class Deduplicator {
  public:
-  /// Feeds the next item in the series to the deduplicator and returns whether this is a duplicate.
+  /// Feeds the next item in the series to the deduplicator and returns false if this is a duplicate.
   bool next(T value) {
-    if (this->has_value_) {
-      if (this->last_value_ == value)
-        return false;
+    if (this->has_value_ && !this->value_unknown_ && this->last_value_ == value) {
+      return false;
     }
     this->has_value_ = true;
+    this->value_unknown_ = false;
     this->last_value_ = value;
     return true;
   }
-  /// Returns whether this deduplicator has processed any items so far.
+  /// Returns true if the deduplicator's value was previously known.
+  bool next_unknown() {
+    bool ret = !this->value_unknown_;
+    this->value_unknown_ = true;
+    return ret;
+  }
+  /// Returns true if this deduplicator has processed any items.
   bool has_value() const { return this->has_value_; }
 
  protected:
   bool has_value_{false};
+  bool value_unknown_{false};
   T last_value_{};
 };
 
