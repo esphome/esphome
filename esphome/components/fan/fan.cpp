@@ -68,7 +68,7 @@ void FanCall::validate_() {
   auto traits = this->parent_.get_traits();
 
   if (this->speed_.has_value()) {
-    this->speed_ = clamp(*this->speed_, 1, traits.supported_speed_count());
+    this->speed_ = clamp(*this->speed_, 0, traits.supported_speed_count());
 
     // https://developers.home-assistant.io/docs/core/entity/fan/#preset-modes
     // "Manually setting a speed must disable any set preset mode"
