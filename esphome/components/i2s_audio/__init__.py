@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
@@ -257,6 +257,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     if use_legacy():
         cg.add_define("USE_I2S_LEGACY")
+
+    # Helps avoid callbacks being skipped due to processor load
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_I2S_ISR_IRAM_SAFE", True)
 
     cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
     if CONF_I2S_BCLK_PIN in config:
