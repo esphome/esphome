@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rtttl {
+namespace esphome::rtttl {
 
 static const char *const TAG = "rtttl";
 
@@ -408,5 +407,4 @@ void Rtttl::set_state_(State state) {
   }
 }
 
-}  // namespace rtttl
-}  // namespace esphome
+}  // namespace esphome::rtttl
