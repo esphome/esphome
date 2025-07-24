@@ -36,6 +36,9 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
 
 template<typename... Ts> class TemplatableKeyValuePair {
  public:
+  // Keys are always string literals from YAML dictionary keys (e.g., "code", "event")
+  // and never templatable values or lambdas. Only the value parameter can be a lambda/template.
+  // Using pass-by-value with std::move allows optimal performance for both lvalues and rvalues.
   template<typename T> TemplatableKeyValuePair(std::string key, T value) : key(std::move(key)), value(value) {}
   std::string key;
   TemplatableStringValue<Ts...> value;
@@ -47,14 +50,15 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
   template<typename T> void set_service(T service) { this->service_ = service; }
 
-  template<typename T> void add_data(std::string key, T value) {
-    this->data_.push_back(TemplatableKeyValuePair<Ts...>(key, value));
-  }
+  // Keys are always string literals from the Python code generation (e.g., cg.add(var.add_data("tag_id", templ))).
+  // The value parameter can be a lambda/template, but keys are never templatable.
+  // Using pass-by-value allows the compiler to optimize for both lvalues and rvalues.
+  template<typename T> void add_data(std::string key, T value) { this->data_.emplace_back(std::move(key), value); }
   template<typename T> void add_data_template(std::string key, T value) {
-    this->data_template_.push_back(TemplatableKeyValuePair<Ts...>(key, value));
+    this->data_template_.emplace_back(std::move(key), value);
   }
   template<typename T> void add_variable(std::string key, T value) {
-    this->variables_.push_back(TemplatableKeyValuePair<Ts...>(key, value));
+    this->variables_.emplace_back(std::move(key), value);
   }
 
   void play(Ts... x) override {
