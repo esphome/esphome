@@ -98,6 +98,16 @@ ARDUINO_ALLOWED_VARIANTS = [
     VARIANT_ESP32S3,
 ]
 
+# Single-core ESP32 variants
+SINGLE_CORE_VARIANTS = frozenset(
+    [
+        VARIANT_ESP32S2,
+        VARIANT_ESP32C3,
+        VARIANT_ESP32C6,
+        VARIANT_ESP32H2,
+    ]
+)
+
 
 def get_cpu_frequencies(*frequencies):
     return [str(x) + "MHZ" for x in frequencies]
@@ -714,7 +724,11 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
-    cg.add_define(CoreModel.MULTI_ATOMICS)
+    # Set threading model based on core count
+    if config[CONF_VARIANT] in SINGLE_CORE_VARIANTS:
+        cg.add_define(CoreModel.SINGLE)
+    else:
+        cg.add_define(CoreModel.MULTI_ATOMICS)
 
     cg.add_platformio_option("lib_ldf_mode", "off")
     cg.add_platformio_option("lib_compat_mode", "strict")
