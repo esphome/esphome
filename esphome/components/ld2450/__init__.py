@@ -3,6 +3,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_THROTTLE
 
+AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@hareeshmu"]
 MULTI_CONF = True

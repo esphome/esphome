@@ -1,6 +1,5 @@
 #include "ld2450.h"
-#include <utility>
-#include <cmath>
+
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -11,8 +10,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-#define highbyte(val) (uint8_t)((val) >> 8)
-#define lowbyte(val) (uint8_t)((val) &0xff)
+#include <cmath>
+#include <numbers>
 
 namespace esphome {
 namespace ld2450 {
@@ -170,21 +169,16 @@ static inline int16_t hex_to_signed_int(const uint8_t *buffer, uint8_t offset) {
 }
 
 static inline float calculate_angle(float base, float hypotenuse) {
-  if (base < 0.0 || hypotenuse <= 0.0) {
-    return 0.0;
+  if (base < 0.0f || hypotenuse <= 0.0f) {
+    return 0.0f;
   }
-  float angle_radians = std::acos(base / hypotenuse);
-  float angle_degrees = angle_radians * (180.0 / M_PI);
+  float angle_radians = acosf(base / hypotenuse);
+  float angle_degrees = angle_radians * (180.0f / std::numbers::pi_v<float>);
   return angle_degrees;
 }
 
-static bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  for (uint8_t i = 0; i < HEADER_FOOTER_SIZE; i++) {
-    if (header_footer[i] != buffer[i]) {
-      return false;  // Mismatch in header/footer
-    }
-  }
-  return true;  // Valid header/footer
+static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
+  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
 void LD2450Component::setup() {
@@ -217,41 +211,41 @@ void LD2450Component::dump_config() {
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
-  LOG_SENSOR("  ", "MovingTargetCount", this->moving_target_count_sensor_);
-  LOG_SENSOR("  ", "StillTargetCount", this->still_target_count_sensor_);
-  LOG_SENSOR("  ", "TargetCount", this->target_count_sensor_);
-  for (sensor::Sensor *s : this->move_x_sensors_) {
-    LOG_SENSOR("  ", "TargetX", s);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetCount", this->moving_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetCount", this->still_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
+  for (auto &s : this->move_x_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetX", s);
   }
-  for (sensor::Sensor *s : this->move_y_sensors_) {
-    LOG_SENSOR("  ", "TargetY", s);
+  for (auto &s : this->move_y_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetY", s);
   }
-  for (sensor::Sensor *s : this->move_angle_sensors_) {
-    LOG_SENSOR("  ", "TargetAngle", s);
+  for (auto &s : this->move_angle_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetAngle", s);
   }
-  for (sensor::Sensor *s : this->move_distance_sensors_) {
-    LOG_SENSOR("  ", "TargetDistance", s);
+  for (auto &s : this->move_distance_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetDistance", s);
   }
-  for (sensor::Sensor *s : this->move_resolution_sensors_) {
-    LOG_SENSOR("  ", "TargetResolution", s);
+  for (auto &s : this->move_resolution_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetResolution", s);
   }
-  for (sensor::Sensor *s : this->move_speed_sensors_) {
-    LOG_SENSOR("  ", "TargetSpeed", s);
+  for (auto &s : this->move_speed_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetSpeed", s);
   }
-  for (sensor::Sensor *s : this->zone_target_count_sensors_) {
-    LOG_SENSOR("  ", "ZoneTargetCount", s);
+  for (auto &s : this->zone_target_count_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneTargetCount", s);
   }
-  for (sensor::Sensor *s : this->zone_moving_target_count_sensors_) {
-    LOG_SENSOR("  ", "ZoneMovingTargetCount", s);
+  for (auto &s : this->zone_moving_target_count_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneMovingTargetCount", s);
   }
-  for (sensor::Sensor *s : this->zone_still_target_count_sensors_) {
-    LOG_SENSOR("  ", "ZoneStillTargetCount", s);
+  for (auto &s : this->zone_still_target_count_sensors_) {
+    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneStillTargetCount", s);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
   ESP_LOGCONFIG(TAG, "Text Sensors:");
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
-  LOG_TEXT_SENSOR("  ", "Mac", this->mac_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "MAC address", this->mac_text_sensor_);
   for (text_sensor::TextSensor *s : this->direction_text_sensors_) {
     LOG_TEXT_SENSOR("  ", "Direction", s);
   }
@@ -419,19 +413,19 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
   if (command_value != nullptr) {
     len += command_value_len;
   }
-  uint8_t len_cmd[] = {lowbyte(len), highbyte(len), command, 0x00};
+  // 2 length bytes (low, high) + 2 command bytes (low, high)
+  uint8_t len_cmd[] = {len, 0x00, command, 0x00};
   this->write_array(len_cmd, sizeof(len_cmd));
-
   // command value bytes
   if (command_value != nullptr) {
-    for (uint8_t i = 0; i < command_value_len; i++) {
-      this->write_byte(command_value[i]);
-    }
+    this->write_array(command_value, command_value_len);
   }
   // frame footer bytes
   this->write_array(CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
-  // FIXME to remove
-  delay(50);  // NOLINT
+
+  if (command != CMD_ENABLE_CONF && command != CMD_DISABLE_CONF) {
+    delay(50);  // NOLINT
+  }
 }
 
 // LD2450 Radar data message:
@@ -459,8 +453,8 @@ void LD2450Component::handle_periodic_data_() {
   int16_t target_count = 0;
   int16_t still_target_count = 0;
   int16_t moving_target_count = 0;
+  int16_t res = 0;
   int16_t start = 0;
-  int16_t val = 0;
   int16_t tx = 0;
   int16_t ty = 0;
   int16_t td = 0;
@@ -478,85 +472,43 @@ void LD2450Component::handle_periodic_data_() {
     start = TARGET_X + index * 8;
     is_moving = false;
     // tx is used for further calculations, so always needs to be populated
-    val = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-    tx = val;
-    sensor::Sensor *sx = this->move_x_sensors_[index];
-    if (sx != nullptr) {
-      if (this->cached_target_data_[index].x != val) {
-        sx->publish_state(val);
-        this->cached_target_data_[index].x = val;
-      }
-    }
+    tx = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], tx);
     // Y
     start = TARGET_Y + index * 8;
-    // ty is used for further calculations, so always needs to be populated
-    val = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-    ty = val;
-    sensor::Sensor *sy = this->move_y_sensors_[index];
-    if (sy != nullptr) {
-      if (this->cached_target_data_[index].y != val) {
-        sy->publish_state(val);
-        this->cached_target_data_[index].y = val;
-      }
-    }
+    ty = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], ty);
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
-    sensor::Sensor *sr = this->move_resolution_sensors_[index];
-    if (sr != nullptr) {
-      val = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
-      if (this->cached_target_data_[index].resolution != val) {
-        sr->publish_state(val);
-        this->cached_target_data_[index].resolution = val;
-      }
-    }
+    res = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
+    SAFE_PUBLISH_SENSOR(this->move_resolution_sensors_[index], res);
 #endif
     // SPEED
     start = TARGET_SPEED + index * 8;
-    val = ld2450::decode_speed(this->buffer_data_[start], this->buffer_data_[start + 1]);
-    ts = val;
-    if (val) {
+    ts = ld2450::decode_speed(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    if (ts) {
       is_moving = true;
       moving_target_count++;
     }
 #ifdef USE_SENSOR
-    sensor::Sensor *ss = this->move_speed_sensors_[index];
-    if (ss != nullptr) {
-      if (this->cached_target_data_[index].speed != val) {
-        ss->publish_state(val);
-        this->cached_target_data_[index].speed = val;
-      }
-    }
+    SAFE_PUBLISH_SENSOR(this->move_speed_sensors_[index], ts);
 #endif
     // DISTANCE
     // Optimized: use already decoded tx and ty values, replace pow() with multiplication
     int32_t x_squared = (int32_t) tx * tx;
     int32_t y_squared = (int32_t) ty * ty;
-    val = (uint16_t) sqrt(x_squared + y_squared);
-    td = val;
-    if (val > 0) {
+    td = (uint16_t) sqrtf(x_squared + y_squared);
+    if (td > 0) {
       target_count++;
     }
 #ifdef USE_SENSOR
-    sensor::Sensor *sd = this->move_distance_sensors_[index];
-    if (sd != nullptr) {
-      if (this->cached_target_data_[index].distance != val) {
-        sd->publish_state(val);
-        this->cached_target_data_[index].distance = val;
-      }
-    }
+    SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], td);
     // ANGLE
     angle = ld2450::calculate_angle(static_cast<float>(ty), static_cast<float>(td));
     if (tx > 0) {
       angle = angle * -1;
     }
-    sensor::Sensor *sa = this->move_angle_sensors_[index];
-    if (sa != nullptr) {
-      if (std::isnan(this->cached_target_data_[index].angle) ||
-          std::abs(this->cached_target_data_[index].angle - angle) > 0.1f) {
-        sa->publish_state(angle);
-        this->cached_target_data_[index].angle = angle;
-      }
-    }
+    SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
 #endif
 #ifdef USE_TEXT_SENSOR
     // DIRECTION
@@ -570,11 +522,9 @@ void LD2450Component::handle_periodic_data_() {
       direction = DIRECTION_STATIONARY;
     }
     text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
-    if (tsd != nullptr) {
-      if (this->cached_target_data_[index].direction != direction) {
-        tsd->publish_state(find_str(ld2450::DIRECTION_BY_UINT, direction));
-        this->cached_target_data_[index].direction = direction;
-      }
+    const auto *dir_str = find_str(ld2450::DIRECTION_BY_UINT, direction);
+    if (tsd != nullptr && (!tsd->has_state() || tsd->get_state() != dir_str)) {
+      tsd->publish_state(dir_str);
     }
 #endif
 
@@ -599,53 +549,19 @@ void LD2450Component::handle_periodic_data_() {
     zone_all_targets = zone_still_targets + zone_moving_targets;
 
     // Publish Still Target Count in Zones
-    sensor::Sensor *szstc = this->zone_still_target_count_sensors_[index];
-    if (szstc != nullptr) {
-      if (this->cached_zone_data_[index].still_count != zone_still_targets) {
-        szstc->publish_state(zone_still_targets);
-        this->cached_zone_data_[index].still_count = zone_still_targets;
-      }
-    }
+    SAFE_PUBLISH_SENSOR(this->zone_still_target_count_sensors_[index], zone_still_targets);
     // Publish Moving Target Count in Zones
-    sensor::Sensor *szmtc = this->zone_moving_target_count_sensors_[index];
-    if (szmtc != nullptr) {
-      if (this->cached_zone_data_[index].moving_count != zone_moving_targets) {
-        szmtc->publish_state(zone_moving_targets);
-        this->cached_zone_data_[index].moving_count = zone_moving_targets;
-      }
-    }
+    SAFE_PUBLISH_SENSOR(this->zone_moving_target_count_sensors_[index], zone_moving_targets);
     // Publish All Target Count in Zones
-    sensor::Sensor *sztc = this->zone_target_count_sensors_[index];
-    if (sztc != nullptr) {
-      if (this->cached_zone_data_[index].total_count != zone_all_targets) {
-        sztc->publish_state(zone_all_targets);
-        this->cached_zone_data_[index].total_count = zone_all_targets;
-      }
-    }
-
+    SAFE_PUBLISH_SENSOR(this->zone_target_count_sensors_[index], zone_all_targets);
   }  // End loop thru zones
 
   // Target Count
-  if (this->target_count_sensor_ != nullptr) {
-    if (this->cached_global_data_.target_count != target_count) {
-      this->target_count_sensor_->publish_state(target_count);
-      this->cached_global_data_.target_count = target_count;
-    }
-  }
+  SAFE_PUBLISH_SENSOR(this->target_count_sensor_, target_count);
   // Still Target Count
-  if (this->still_target_count_sensor_ != nullptr) {
-    if (this->cached_global_data_.still_count != still_target_count) {
-      this->still_target_count_sensor_->publish_state(still_target_count);
-      this->cached_global_data_.still_count = still_target_count;
-    }
-  }
+  SAFE_PUBLISH_SENSOR(this->still_target_count_sensor_, still_target_count);
   // Moving Target Count
-  if (this->moving_target_count_sensor_ != nullptr) {
-    if (this->cached_global_data_.moving_count != moving_target_count) {
-      this->moving_target_count_sensor_->publish_state(moving_target_count);
-      this->cached_global_data_.moving_count = moving_target_count;
-    }
-  }
+  SAFE_PUBLISH_SENSOR(this->moving_target_count_sensor_, moving_target_count);
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -942,28 +858,33 @@ void LD2450Component::query_target_tracking_mode_() { this->send_command_(CMD_QU
 void LD2450Component::query_zone_() { this->send_command_(CMD_QUERY_ZONE, nullptr, 0); }
 
 #ifdef USE_SENSOR
-void LD2450Component::set_move_x_sensor(uint8_t target, sensor::Sensor *s) { this->move_x_sensors_[target] = s; }
-void LD2450Component::set_move_y_sensor(uint8_t target, sensor::Sensor *s) { this->move_y_sensors_[target] = s; }
+// These could leak memory, but they are only set once prior to 'setup()' and should never be used again.
+void LD2450Component::set_move_x_sensor(uint8_t target, sensor::Sensor *s) {
+  this->move_x_sensors_[target] = new SensorWithDedup<int16_t>(s);
+}
+void LD2450Component::set_move_y_sensor(uint8_t target, sensor::Sensor *s) {
+  this->move_y_sensors_[target] = new SensorWithDedup<int16_t>(s);
+}
 void LD2450Component::set_move_speed_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_speed_sensors_[target] = s;
+  this->move_speed_sensors_[target] = new SensorWithDedup<int16_t>(s);
 }
 void LD2450Component::set_move_angle_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_angle_sensors_[target] = s;
+  this->move_angle_sensors_[target] = new SensorWithDedup<float>(s);
 }
 void LD2450Component::set_move_distance_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_distance_sensors_[target] = s;
+  this->move_distance_sensors_[target] = new SensorWithDedup<uint16_t>(s);
 }
 void LD2450Component::set_move_resolution_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_resolution_sensors_[target] = s;
+  this->move_resolution_sensors_[target] = new SensorWithDedup<uint16_t>(s);
 }
 void LD2450Component::set_zone_target_count_sensor(uint8_t zone, sensor::Sensor *s) {
-  this->zone_target_count_sensors_[zone] = s;
+  this->zone_target_count_sensors_[zone] = new SensorWithDedup<uint8_t>(s);
 }
 void LD2450Component::set_zone_still_target_count_sensor(uint8_t zone, sensor::Sensor *s) {
-  this->zone_still_target_count_sensors_[zone] = s;
+  this->zone_still_target_count_sensors_[zone] = new SensorWithDedup<uint8_t>(s);
 }
 void LD2450Component::set_zone_moving_target_count_sensor(uint8_t zone, sensor::Sensor *s) {
-  this->zone_moving_target_count_sensors_[zone] = s;
+  this->zone_moving_target_count_sensors_[zone] = new SensorWithDedup<uint8_t>(s);
 }
 #endif
 #ifdef USE_TEXT_SENSOR
