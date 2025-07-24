@@ -224,12 +224,26 @@ class TypeInfo(ABC):
 
     encode_func = None
 
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        """Whether this type can use the dump_field helper functions.
+
+        Returns True for simple types that have dump_field overloads.
+        Complex types like messages and bytes should return False.
+        """
+        return True
+
+    def dump_field_value(self, value: str) -> str:
+        """Get the value expression to pass to dump_field.
+
+        Most types just pass the value directly, but some (like enums) need a cast.
+        """
+        return value
+
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
-        o += self.dump(f"this->{self.field_name}") + "\n"
-        o += 'out.append("\\n");\n'
-        return o
+        # Default implementation - subclasses can override if they need special handling
+        return f'dump_field(out, "{self.name}", {self.dump_field_value(f"this->{self.field_name}")});'
 
     @abstractmethod
     def dump(self, name: str) -> str:
@@ -593,6 +607,22 @@ class StringType(TypeInfo):
             f"}}"
         )
 
+    @property
+    def dump_content(self) -> str:
+        # For SOURCE_CLIENT only, use std::string
+        if not self._needs_encode:
+            return f'dump_field(out, "{self.name}", this->{self.field_name});'
+
+        # For SOURCE_SERVER, use StringRef with _ref_ suffix
+        if not self._needs_decode:
+            return f'dump_field(out, "{self.name}", this->{self.field_name}_ref_);'
+
+        # For SOURCE_BOTH, we need custom logic
+        o = f'out.append("  {self.name}: ");\n'
+        o += self.dump(f"this->{self.field_name}") + "\n"
+        o += 'out.append("\\n");'
+        return o
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # For SOURCE_CLIENT only messages, use the string field directly
         if not self._needs_encode:
@@ -615,6 +645,10 @@ class StringType(TypeInfo):
 
 @register_type(11)
 class MessageType(TypeInfo):
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
+
     @property
     def cpp_type(self) -> str:
         return self._field.type_name[1:]
@@ -651,6 +685,13 @@ class MessageType(TypeInfo):
         o = f"{name}.dump_to(out);"
         return o
 
+    @property
+    def dump_content(self) -> str:
+        o = f'out.append("  {self.name}: ");\n'
+        o += f"this->{self.field_name}.dump_to(out);\n"
+        o += 'out.append("\\n");'
+        return o
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return self._get_simple_size_calculation(name, force, "add_message_object")
 
@@ -664,6 +705,10 @@ class MessageType(TypeInfo):
 
 @register_type(12)
 class BytesType(TypeInfo):
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
+
     cpp_type = "std::string"
     default_value = ""
     reference_type = "std::string &"
@@ -719,6 +764,13 @@ class BytesType(TypeInfo):
             f"  }}"
         )
 
+    @property
+    def dump_content(self) -> str:
+        o = f'out.append("  {self.name}: ");\n'
+        o += self.dump(f"this->{self.field_name}") + "\n"
+        o += 'out.append("\\n");'
+        return o
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"ProtoSize::add_bytes_field(total_size, {self.calculate_field_id_size()}, this->{self.field_name}_len_);"
 
@@ -728,6 +780,10 @@ class BytesType(TypeInfo):
 
 class FixedArrayBytesType(TypeInfo):
     """Special type for fixed-size byte arrays."""
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
 
     def __init__(self, field: descriptor.FieldDescriptorProto, size: int) -> None:
         super().__init__(field)
@@ -776,6 +832,13 @@ class FixedArrayBytesType(TypeInfo):
 
     def dump(self, name: str) -> str:
         o = f"out.append(format_hex_pretty({name}, {name}_len));"
+        return o
+
+    @property
+    def dump_content(self) -> str:
+        o = f'out.append("  {self.name}: ");\n'
+        o += f"out.append(format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len));\n"
+        o += 'out.append("\\n");'
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -849,6 +912,10 @@ class EnumType(TypeInfo):
     def dump(self, name: str) -> str:
         o = f"out.append(proto_enum_to_string<{self.cpp_type}>({name}));"
         return o
+
+    def dump_field_value(self, value: str) -> str:
+        # Enums need explicit cast for the template
+        return f"static_cast<{self.cpp_type}>({value})"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return self._get_simple_size_calculation(
@@ -947,6 +1014,27 @@ class SInt64Type(TypeInfo):
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
 
 
+def _generate_array_dump_content(
+    ti, field_name: str, name: str, is_bool: bool = False
+) -> str:
+    """Generate dump content for array types (repeated or fixed array).
+
+    Shared helper to avoid code duplication between RepeatedTypeInfo and FixedArrayRepeatedType.
+    """
+    o = f"for (const auto {'' if is_bool else '&'}it : {field_name}) {{\n"
+    # Check if underlying type can use dump_field
+    if type(ti).can_use_dump_field():
+        # For types that have dump_field overloads, use them with extra indent
+        o += f'  dump_field(out, "{name}", {ti.dump_field_value("it")}, 4);\n'
+    else:
+        # For complex types (messages, bytes), use the old pattern
+        o += f'  out.append("  {name}: ");\n'
+        o += indent(ti.dump("it")) + "\n"
+        o += '  out.append("\\n");\n'
+    o += "}"
+    return o
+
+
 class FixedArrayRepeatedType(TypeInfo):
     """Special type for fixed-size repeated fields using std::array.
 
@@ -1013,12 +1101,9 @@ class FixedArrayRepeatedType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f"for (const auto &it : this->{self.field_name}) {{\n"
-        o += f'  out.append("  {self.name}: ");\n'
-        o += indent(self._ti.dump("it")) + "\n"
-        o += '  out.append("\\n");\n'
-        o += "}\n"
-        return o
+        return _generate_array_dump_content(
+            self._ti, f"this->{self.field_name}", self.name, is_bool=False
+        )
 
     def dump(self, name: str) -> str:
         # This is used when dumping the array itself (not its elements)
@@ -1144,12 +1229,9 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f"for (const auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-        o += f'  out.append("  {self.name}: ");\n'
-        o += indent(self._ti.dump("it")) + "\n"
-        o += '  out.append("\\n");\n'
-        o += "}\n"
-        return o
+        return _generate_array_dump_content(
+            self._ti, f"this->{self.field_name}", self.name, is_bool=self._ti_is_bool
+        )
 
     def dump(self, _: str):
         pass
@@ -1644,10 +1726,8 @@ def build_message_type(
             dump_impl += f" {dump[0]} "
         else:
             dump_impl += "\n"
-            dump_impl += "  __attribute__((unused)) char buffer[64];\n"
-            dump_impl += f'  out.append("{desc.name} {{\\n");\n'
+            dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
             dump_impl += indent("\n".join(dump)) + "\n"
-            dump_impl += '  out.append("}");\n'
     else:
         o2 = f'out.append("{desc.name} {{}}");'
         if len(dump_impl) + len(o2) + 3 < 120:
@@ -2002,6 +2082,83 @@ static inline void append_quoted_string(std::string &out, const StringRef &ref) 
     out.append(ref.c_str());
   }
   out.append("'");
+}
+
+// Common helpers for dump_field functions
+static inline void append_field_prefix(std::string &out, const char *field_name, int indent) {
+  out.append(indent, ' ').append(field_name).append(": ");
+}
+
+static inline void append_with_newline(std::string &out, const char *str) {
+  out.append(str);
+  out.append("\\n");
+}
+
+// RAII helper for message dump formatting
+class MessageDumpHelper {
+ public:
+  MessageDumpHelper(std::string &out, const char *message_name) : out_(out) {
+    out_.append(message_name);
+    out_.append(" {\\n");
+  }
+  ~MessageDumpHelper() { out_.append(" }"); }
+
+ private:
+  std::string &out_;
+};
+
+// Helper functions to reduce code duplication in dump methods
+static void dump_field(std::string &out, const char *field_name, int32_t value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%" PRId32, value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, uint32_t value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%" PRIu32, value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, float value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%g", value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%llu", value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, bool value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append(YESNO(value));
+  out.append("\\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, const std::string &value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
+  out.append("\\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  append_quoted_string(out, value);
+  out.append("\\n");
+}
+
+template<typename T>
+static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append(proto_enum_to_string<T>(value));
+  out.append("\\n");
 }
 
 """
