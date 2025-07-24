@@ -11,8 +11,7 @@
 #include "esphome/components/speaker/speaker.h"
 #endif
 
-namespace esphome {
-namespace rtttl {
+namespace esphome::rtttl {
 
 enum State : uint8_t {
   STATE_STOPPED = 0,
@@ -145,5 +144,4 @@ class FinishedPlaybackTrigger : public Trigger<> {
   }
 };
 
-}  // namespace rtttl
-}  // namespace esphome
+}  // namespace esphome::rtttl
