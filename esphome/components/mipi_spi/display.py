@@ -9,6 +9,20 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD, DISPLAY_ROTATIONS
+from esphome.components.mipi import (
+    CONF_PIXEL_MODE,
+    CONF_USE_AXIS_FLIPS,
+    MADCTL,
+    MODE_BGR,
+    MODE_RGB,
+    PIXFMT,
+    DriverChip,
+    dimension_schema,
+    get_color_depth,
+    map_sequence,
+    power_of_two,
+    requires_buffer,
+)
 from esphome.components.spi import TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
 import esphome.config_validation as cv
 from esphome.config_validation import ALLOW_EXTRA
@@ -21,7 +35,6 @@ from esphome.const import (
     CONF_DC_PIN,
     CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
-    CONF_HEIGHT,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
@@ -29,49 +42,18 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
-    CONF_OFFSET_HEIGHT,
-    CONF_OFFSET_WIDTH,
-    CONF_PAGES,
     CONF_RESET_PIN,
     CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments
 from esphome.final_validate import full_config
 
-from . import (
-    CONF_BUS_MODE,
-    CONF_NATIVE_HEIGHT,
-    CONF_NATIVE_WIDTH,
-    CONF_PIXEL_MODE,
-    CONF_SPI_16,
-    CONF_USE_AXIS_FLIPS,
-    DOMAIN,
-    MODE_BGR,
-    MODE_RGB,
-)
-from .models import (
-    DELAY_FLAG,
-    MADCTL_BGR,
-    MADCTL_MV,
-    MADCTL_MX,
-    MADCTL_MY,
-    MADCTL_XFLIP,
-    MADCTL_YFLIP,
-    DriverChip,
-    adafruit,
-    amoled,
-    cyd,
-    ili,
-    jc,
-    lanbon,
-    lilygo,
-    waveshare,
-)
-from .models.commands import BRIGHTNESS, DISPON, INVOFF, INVON, MADCTL, PIXFMT, SLPOUT
+from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN
+from .models import adafruit, amoled, cyd, ili, jc, lanbon, lilygo, waveshare
 
 DEPENDENCIES = ["spi"]
 
@@ -124,45 +106,6 @@ DISPLAY_PIXEL_MODES = {
 }
 
 
-def get_dimensions(config):
-    if CONF_DIMENSIONS in config:
-        # Explicit dimensions, just use as is
-        dimensions = config[CONF_DIMENSIONS]
-        if isinstance(dimensions, dict):
-            width = dimensions[CONF_WIDTH]
-            height = dimensions[CONF_HEIGHT]
-            offset_width = dimensions[CONF_OFFSET_WIDTH]
-            offset_height = dimensions[CONF_OFFSET_HEIGHT]
-            return width, height, offset_width, offset_height
-        (width, height) = dimensions
-        return width, height, 0, 0
-
-    # Default dimensions, use model defaults
-    transform = get_transform(config)
-
-    model = MODELS[config[CONF_MODEL]]
-    width = model.get_default(CONF_WIDTH)
-    height = model.get_default(CONF_HEIGHT)
-    offset_width = model.get_default(CONF_OFFSET_WIDTH, 0)
-    offset_height = model.get_default(CONF_OFFSET_HEIGHT, 0)
-
-    # if mirroring axes and there are offsets, also mirror the offsets to cater for situations where
-    # the offset is asymmetric
-    if transform[CONF_MIRROR_X]:
-        native_width = model.get_default(CONF_NATIVE_WIDTH, width + offset_width * 2)
-        offset_width = native_width - width - offset_width
-    if transform[CONF_MIRROR_Y]:
-        native_height = model.get_default(
-            CONF_NATIVE_HEIGHT, height + offset_height * 2
-        )
-        offset_height = native_height - height - offset_height
-    # Swap default dimensions if swap_xy is set
-    if transform[CONF_SWAP_XY] is True:
-        width, height = height, width
-        offset_height, offset_width = offset_width, offset_height
-    return width, height, offset_width, offset_height
-
-
 def denominator(config):
     """
     Calculate the best denominator for a buffer size fraction.
@@ -171,68 +114,17 @@ def denominator(config):
     :config: The configuration dictionary containing the buffer size fraction and display dimensions
     :return: The denominator to use for the buffer size fraction
     """
+    model = MODELS[config[CONF_MODEL]]
     frac = config.get(CONF_BUFFER_SIZE)
     if frac is None or frac > 0.75:
         return 1
-    height, _width, _offset_width, _offset_height = get_dimensions(config)
+    height, _width, _offset_width, _offset_height = model.get_dimensions(config)
     try:
         return next(x for x in range(2, 17) if frac >= 1 / x and height % x == 0)
     except StopIteration:
         raise cv.Invalid(
             f"Buffer size fraction {frac} is not compatible with display height {height}"
         ) from StopIteration
-
-
-def validate_dimension(rounding):
-    def validator(value):
-        value = cv.positive_int(value)
-        if value % rounding != 0:
-            raise cv.Invalid(f"Dimensions and offsets must be divisible by {rounding}")
-        return value
-
-    return validator
-
-
-def map_sequence(value):
-    """
-    The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
-    from the length of the sequence and should not be explicit.
-    A delay can be inserted by specifying "- delay N" where N is in ms
-    """
-    if isinstance(value, str) and value.lower().startswith("delay "):
-        value = value.lower()[6:]
-        delay = cv.All(
-            cv.positive_time_period_milliseconds,
-            cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
-        )(value)
-        return DELAY_FLAG, delay.total_milliseconds
-    if isinstance(value, int):
-        return (value,)
-    value = cv.All(cv.ensure_list(cv.int_range(0, 255)), cv.Length(1, 254))(value)
-    return tuple(value)
-
-
-def power_of_two(value):
-    value = cv.int_range(1, 128)(value)
-    if value & (value - 1) != 0:
-        raise cv.Invalid("value must be a power of two")
-    return value
-
-
-def dimension_schema(rounding):
-    return cv.Any(
-        cv.dimensions,
-        cv.Schema(
-            {
-                cv.Required(CONF_WIDTH): validate_dimension(rounding),
-                cv.Required(CONF_HEIGHT): validate_dimension(rounding),
-                cv.Optional(CONF_OFFSET_HEIGHT, default=0): validate_dimension(
-                    rounding
-                ),
-                cv.Optional(CONF_OFFSET_WIDTH, default=0): validate_dimension(rounding),
-            }
-        ),
-    )
 
 
 def swap_xy_schema(model):
@@ -250,7 +142,7 @@ def swap_xy_schema(model):
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
-    bus_mode = config.get(CONF_BUS_MODE, model.modes[0])
+    bus_mode = config[CONF_BUS_MODE]
     transform = cv.Schema(
         {
             cv.Required(CONF_MIRROR_X): cv.boolean,
@@ -340,18 +232,6 @@ def model_schema(config):
     return schema
 
 
-def is_rotation_transformable(config):
-    """
-    Check if a rotation can be implemented in hardware using the MADCTL register.
-    A rotation of 180 is always possible, 90 and 270 are possible if the model supports swapping X and Y.
-    """
-    model = MODELS[config[CONF_MODEL]]
-    rotation = config.get(CONF_ROTATION, 0)
-    return rotation and (
-        model.get_default(CONF_SWAP_XY) != cv.UNDEFINED or rotation == 180
-    )
-
-
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
@@ -367,7 +247,7 @@ def customise_schema(config):
         extra=ALLOW_EXTRA,
     )(config)
     model = MODELS[config[CONF_MODEL]]
-    bus_modes = model.modes
+    bus_modes = (TYPE_SINGLE, TYPE_QUAD, TYPE_OCTAL)
     config = cv.Schema(
         {
             model.option(CONF_BUS_MODE, TYPE_SINGLE): cv.one_of(*bus_modes, lower=True),
@@ -375,7 +255,7 @@ def customise_schema(config):
         },
         extra=ALLOW_EXTRA,
     )(config)
-    bus_mode = config.get(CONF_BUS_MODE, model.modes[0])
+    bus_mode = config[CONF_BUS_MODE]
     config = model_schema(config)(config)
     # Check for invalid combinations of MADCTL config
     if init_sequence := config.get(CONF_INIT_SEQUENCE):
@@ -400,23 +280,9 @@ def customise_schema(config):
 CONFIG_SCHEMA = customise_schema
 
 
-def requires_buffer(config):
-    """
-    Check if the display configuration requires a buffer. It will do so if any drawing methods are configured.
-    :param config:
-    :return:  True if a buffer is required, False otherwise
-    """
-    return any(
-        config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
-    )
-
-
-def get_color_depth(config):
-    return int(config[CONF_COLOR_DEPTH].removesuffix("bit"))
-
-
 def _final_validate(config):
     global_config = full_config.get()
+    model = MODELS[config[CONF_MODEL]]
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
 
@@ -433,7 +299,7 @@ def _final_validate(config):
             return config
         color_depth = get_color_depth(config)
         frac = denominator(config)
-        height, width, _offset_width, _offset_height = get_dimensions(config)
+        height, width, _offset_width, _offset_height = model.get_dimensions(config)
 
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB
@@ -463,7 +329,7 @@ def get_transform(config):
     :return:
     """
     model = MODELS[config[CONF_MODEL]]
-    can_transform = is_rotation_transformable(config)
+    can_transform = model.rotation_as_transform(config)
     transform = config.get(
         CONF_TRANSFORM,
         {
@@ -489,63 +355,6 @@ def get_transform(config):
     return transform
 
 
-def get_sequence(model, config):
-    """
-    Create the init sequence for the display.
-    Use the default sequence from the model, if any, and append any custom sequence provided in the config.
-    Append SLPOUT (if not already in the sequence) and DISPON to the end of the sequence
-    Pixel format, color order, and orientation will be set.
-    """
-    sequence = list(model.initsequence)
-    custom_sequence = config.get(CONF_INIT_SEQUENCE, [])
-    sequence.extend(custom_sequence)
-    # Ensure each command is a tuple
-    sequence = [x if isinstance(x, tuple) else (x,) for x in sequence]
-    commands = [x[0] for x in sequence]
-    # Set pixel format if not already in the custom sequence
-    pixel_mode = DISPLAY_PIXEL_MODES[config[CONF_PIXEL_MODE]]
-    sequence.append((PIXFMT, pixel_mode[0]))
-    # Does the chip use the flipping bits for mirroring rather than the reverse order bits?
-    use_flip = config[CONF_USE_AXIS_FLIPS]
-    if MADCTL not in commands:
-        madctl = 0
-        transform = get_transform(config)
-        if transform.get(CONF_TRANSFORM):
-            LOGGER.info("Using hardware transform to implement rotation")
-        if transform.get(CONF_MIRROR_X):
-            madctl |= MADCTL_XFLIP if use_flip else MADCTL_MX
-        if transform.get(CONF_MIRROR_Y):
-            madctl |= MADCTL_YFLIP if use_flip else MADCTL_MY
-        if transform.get(CONF_SWAP_XY) is True:  # Exclude Undefined
-            madctl |= MADCTL_MV
-        if config[CONF_COLOR_ORDER] == MODE_BGR:
-            madctl |= MADCTL_BGR
-        sequence.append((MADCTL, madctl))
-    if INVON not in commands and INVOFF not in commands:
-        if config[CONF_INVERT_COLORS]:
-            sequence.append((INVON,))
-        else:
-            sequence.append((INVOFF,))
-    if BRIGHTNESS not in commands:
-        if brightness := config.get(
-            CONF_BRIGHTNESS, model.get_default(CONF_BRIGHTNESS)
-        ):
-            sequence.append((BRIGHTNESS, brightness))
-    if SLPOUT not in commands:
-        sequence.append((SLPOUT,))
-    sequence.append((DISPON,))
-
-    # Flatten the sequence into a list of bytes, with the length of each command
-    # or the delay flag inserted where needed
-    return sum(
-        tuple(
-            (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
-            for x in sequence
-        ),
-        (),
-    )
-
-
 def get_instance(config):
     """
     Get the type of MipiSpi instance to create based on the configuration,
@@ -553,7 +362,8 @@ def get_instance(config):
     :param config:
     :return: type, template arguments
     """
-    width, height, offset_width, offset_height = get_dimensions(config)
+    model = MODELS[config[CONF_MODEL]]
+    width, height, offset_width, offset_height = model.get_dimensions(config)
 
     color_depth = int(config[CONF_COLOR_DEPTH].removesuffix("bit"))
     bufferpixels = COLOR_DEPTHS[color_depth]
@@ -568,7 +378,7 @@ def get_instance(config):
     buffer_type = cg.uint8 if color_depth == 8 else cg.uint16
     frac = denominator(config)
     rotation = DISPLAY_ROTATIONS[
-        0 if is_rotation_transformable(config) else config.get(CONF_ROTATION, 0)
+        0 if model.rotation_as_transform(config) else config.get(CONF_ROTATION, 0)
     ]
     templateargs = [
         buffer_type,
@@ -594,8 +404,9 @@ async def to_code(config):
     var_id = config[CONF_ID]
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
-    cg.add(var.set_init_sequence(get_sequence(model, config)))
-    if is_rotation_transformable(config):
+    init_sequence, _madctl = model.get_sequence(config)
+    cg.add(var.set_init_sequence(init_sequence))
+    if model.rotation_as_transform(config):
         if CONF_TRANSFORM in config:
             LOGGER.warning("Use of 'transform' with 'rotation' is not recommended")
         else:
