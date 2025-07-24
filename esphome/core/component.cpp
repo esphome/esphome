@@ -151,26 +151,22 @@ void Component::call() {
   switch (state) {
     case COMPONENT_STATE_CONSTRUCTION:
       // State Construction: Call setup and set state to setup
-      this->component_state_ &= ~COMPONENT_STATE_MASK;
-      this->component_state_ |= COMPONENT_STATE_SETUP;
+      this->set_component_state_(COMPONENT_STATE_SETUP);
       this->call_setup();
       break;
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
-      this->component_state_ &= ~COMPONENT_STATE_MASK;
-      this->component_state_ |= COMPONENT_STATE_LOOP;
+      this->set_component_state_(COMPONENT_STATE_LOOP);
       this->call_loop();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
       this->call_loop();
       break;
-    case COMPONENT_STATE_FAILED:  // NOLINT(bugprone-branch-clone)
+    case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
-      break;
-    case COMPONENT_STATE_LOOP_DONE:  // NOLINT(bugprone-branch-clone)
+    case COMPONENT_STATE_LOOP_DONE:
       // State loop done: Do nothing, component has finished its work
-      break;
     default:
       break;
   }
@@ -195,25 +191,26 @@ bool Component::should_warn_of_blocking(uint32_t blocking_time) {
 }
 void Component::mark_failed() {
   ESP_LOGE(TAG, "%s was marked as failed", this->get_component_source());
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= COMPONENT_STATE_FAILED;
+  this->set_component_state_(COMPONENT_STATE_FAILED);
   this->status_set_error();
   // Also remove from loop since failed components shouldn't loop
   App.disable_component_loop_(this);
 }
+void Component::set_component_state_(uint8_t state) {
+  this->component_state_ &= ~COMPONENT_STATE_MASK;
+  this->component_state_ |= state;
+}
 void Component::disable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
     ESP_LOGVV(TAG, "%s loop disabled", this->get_component_source());
-    this->component_state_ &= ~COMPONENT_STATE_MASK;
-    this->component_state_ |= COMPONENT_STATE_LOOP_DONE;
+    this->set_component_state_(COMPONENT_STATE_LOOP_DONE);
     App.disable_component_loop_(this);
   }
 }
 void Component::enable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
     ESP_LOGVV(TAG, "%s loop enabled", this->get_component_source());
-    this->component_state_ &= ~COMPONENT_STATE_MASK;
-    this->component_state_ |= COMPONENT_STATE_LOOP;
+    this->set_component_state_(COMPONENT_STATE_LOOP);
     App.enable_component_loop_(this);
   }
 }
@@ -233,8 +230,7 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
     ESP_LOGI(TAG, "%s is being reset to construction state", this->get_component_source());
-    this->component_state_ &= ~COMPONENT_STATE_MASK;
-    this->component_state_ |= COMPONENT_STATE_CONSTRUCTION;
+    this->set_component_state_(COMPONENT_STATE_CONSTRUCTION);
     // Clear error status when resetting
     this->status_clear_error();
   }
