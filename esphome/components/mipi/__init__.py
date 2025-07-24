@@ -234,6 +234,15 @@ class DriverChip:
         self.defaults = defaults
         DriverChip.models[name] = self
 
+    @classmethod
+    def get_models(cls):
+        """
+        Return the current set of models and reset the models dictionary.
+        """
+        models = cls.models
+        cls.models = {}
+        return models
+
     def extend(self, name, **kwargs) -> "DriverChip":
         defaults = self.defaults.copy()
         if (

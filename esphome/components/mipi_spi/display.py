@@ -1,4 +1,6 @@
+import importlib
 import logging
+import pkgutil
 
 from esphome import pins
 import esphome.codegen as cg
@@ -52,8 +54,7 @@ from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments
 from esphome.final_validate import full_config
 
-from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN
-from .models import adafruit, amoled, cyd, ili, jc, lanbon, lilygo, waveshare
+from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN, models
 
 DEPENDENCIES = ["spi"]
 
@@ -91,10 +92,11 @@ BusTypes = {
 
 DriverChip("CUSTOM")
 
-MODELS = DriverChip.models
-# This loop is a noop, but suppresses linting of side-effect-only imports
-for _ in (ili, jc, amoled, lilygo, lanbon, cyd, waveshare, adafruit):
-    pass
+# Import all models dynamically from the models package
+for module_info in pkgutil.iter_modules(models.__path__):
+    importlib.import_module(f".models.{module_info.name}", package=__package__)
+
+MODELS = DriverChip.get_models()
 
 
 DISPLAY_18BIT = "18bit"
