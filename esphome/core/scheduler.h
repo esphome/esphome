@@ -5,7 +5,7 @@
 #include <memory>
 #include <cstring>
 #include <deque>
-#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
 
@@ -200,13 +200,13 @@ class Scheduler {
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
-#ifndef ESPHOME_CORES_SINGLE
+#ifndef ESPHOME_THREAD_SINGLE
   // Single-core platforms don't need the defer queue and save 40 bytes of RAM
   std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-#endif                                                      /* ESPHOME_CORES_SINGLE */
+#endif                                                      /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
-#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
    * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
    *
@@ -218,10 +218,10 @@ class Scheduler {
    * it also observes the corresponding increment of `millis_major_`.
    */
   std::atomic<uint32_t> last_millis_{0};
-#else  /* not ESPHOME_CORES_MULTI_ATOMICS */
+#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   // Platforms without atomic support or single-threaded platforms
   uint32_t last_millis_{0};
-#endif /* else ESPHOME_CORES_MULTI_ATOMICS */
+#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
 
   /*
    * Upper 16 bits of the 64-bit millis counter. Incremented only while holding
@@ -229,11 +229,11 @@ class Scheduler {
    * Ordering relative to `last_millis_` is provided by its release store and the
    * corresponding acquire loads.
    */
-#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint16_t> millis_major_{0};
-#else  /* not ESPHOME_CORES_MULTI_ATOMICS */
+#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   uint16_t millis_major_{0};
-#endif /* else ESPHOME_CORES_MULTI_ATOMICS */
+#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
 };
 
 }  // namespace esphome

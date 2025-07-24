@@ -15,8 +15,8 @@
 #define ESPHOME_VARIANT "ESP32"
 #define ESPHOME_DEBUG_SCHEDULER
 
-// Default threading model for static analysis (ESP32 is multi-core with atomics)
-#define ESPHOME_CORES_MULTI_ATOMICS
+// Default threading model for static analysis (ESP32 is multi-threaded with atomics)
+#define ESPHOME_THREAD_MULTI_ATOMICS
 
 // logger
 #define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_VERY_VERBOSE
