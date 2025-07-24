@@ -1934,8 +1934,8 @@ def build_service_message_type(
             case += "#endif\n"
         case += f"this->{func}(msg);\n"
         case += "break;"
-        # Store the ifdef with the case for later use
-        RECEIVE_CASES[id_] = (case, ifdef)
+        # Store the message name and ifdef with the case for later use
+        RECEIVE_CASES[id_] = (case, ifdef, mt.name)
 
         # Only close ifdef if we opened it
         if ifdef is not None:
@@ -2200,10 +2200,11 @@ static const char *const TAG = "api.service";
     hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
     out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef) in cases:
+    for i, (case, ifdef, message_name) in cases:
         if ifdef is not None:
             out += f"#ifdef {ifdef}\n"
-        c = f"    case {i}: {{\n"
+
+        c = f"    case {message_name}::MESSAGE_TYPE: {{\n"
         c += indent(case, "      ") + "\n"
         c += "    }"
         out += c + "\n"
