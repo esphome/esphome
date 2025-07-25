@@ -14,6 +14,7 @@ env:
   SMALL_PR_THRESHOLD: 30
   MAX_LABELS: 15
   TOO_BIG_THRESHOLD: 1000
+  COMPONENT_LABEL_THRESHOLD: 10
 
 jobs:
   label:
@@ -41,6 +42,7 @@ jobs:
             const SMALL_PR_THRESHOLD = parseInt('${{ env.SMALL_PR_THRESHOLD }}');
             const MAX_LABELS = parseInt('${{ env.MAX_LABELS }}');
             const TOO_BIG_THRESHOLD = parseInt('${{ env.TOO_BIG_THRESHOLD }}');
+            const COMPONENT_LABEL_THRESHOLD = parseInt('${{ env.COMPONENT_LABEL_THRESHOLD }}');
             const BOT_COMMENT_MARKER = '<!-- auto-label-pr-bot -->';
             const CODEOWNERS_MARKER = '<!-- codeowners-request -->';
             const TOO_BIG_MARKER = '<!-- too-big-request -->';
@@ -84,6 +86,9 @@ jobs:
               label.startsWith('component: ') || MANAGED_LABELS.includes(label)
             );
 
+            // Check for mega-PR early - if present, skip most automatic labeling
+            const isMegaPR = currentLabels.includes('mega-pr');
+
             const { data: prFiles } = await github.rest.pulls.listFiles({
               owner,
               repo,
@@ -97,6 +102,9 @@ jobs:
             console.log('Current labels:', currentLabels.join(', '));
             console.log('Changed files:', changedFiles.length);
             console.log('Total changes:', totalChanges);
+            if (isMegaPR) {
+              console.log('Mega-PR detected - applying limited labeling logic');
+            }
 
             // Fetch API data
             async function fetchApiData() {
@@ -225,7 +233,8 @@ jobs:
                 labels.add('small-pr');
               }
 
-              if (nonTestChanges > TOO_BIG_THRESHOLD) {
+              // Don't add too-big if mega-pr label is already present
+              if (nonTestChanges > TOO_BIG_THRESHOLD && !isMegaPR) {
                 labels.add('too-big');
               }
 
@@ -557,8 +566,16 @@ jobs:
 
             let finalLabels = Array.from(allLabels);
 
-            // Handle too many labels
-            const isMegaPR = currentLabels.includes('mega-pr');
+            // For mega-PRs, exclude component labels if there are too many
+            if (isMegaPR) {
+              const componentLabels = finalLabels.filter(label => label.startsWith('component: '));
+              if (componentLabels.length > COMPONENT_LABEL_THRESHOLD) {
+                finalLabels = finalLabels.filter(label => !label.startsWith('component: '));
+                console.log(`Mega-PR detected - excluding ${componentLabels.length} component labels (threshold: ${COMPONENT_LABEL_THRESHOLD})`);
+              }
+            }
+
+            // Handle too many labels (only for non-mega PRs)
             const tooManyLabels = finalLabels.length > MAX_LABELS;
 
             if (tooManyLabels && !isMegaPR && !finalLabels.includes('too-big')) {
