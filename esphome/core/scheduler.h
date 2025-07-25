@@ -15,8 +15,15 @@
 namespace esphome {
 
 class Component;
+struct RetryArgs;
+
+// Forward declaration of retry_handler - needs to be non-static for friend declaration
+void retry_handler(const std::shared_ptr<RetryArgs> &args);
 
 class Scheduler {
+  // Allow retry_handler to access protected members
+  friend void ::esphome::retry_handler(const std::shared_ptr<RetryArgs> &args);
+
  public:
   // Public API - accepts std::string for backward compatibility
   void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
@@ -147,7 +154,7 @@ class Scheduler {
 
   // Common implementation for both timeout and interval
   void set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string, const void *name_ptr,
-                         uint32_t delay, std::function<void()> func);
+                         uint32_t delay, std::function<void()> func, bool is_retry = false);
 
   uint64_t millis_64_(uint32_t now);
   // Cleanup logically deleted items from the scheduler
@@ -170,8 +177,8 @@ class Scheduler {
 
   // Helper function to check if item matches criteria for cancellation
   inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
-                                SchedulerItem::Type type) {
-    if (item->component != component || item->type != type || item->remove) {
+                                SchedulerItem::Type type, bool skip_removed = true) const {
+    if (item->component != component || item->type != type || (skip_removed && item->remove)) {
       return false;
     }
     const char *item_name = item->get_name();
@@ -195,6 +202,18 @@ class Scheduler {
   // Helper to check if item should be skipped
   bool should_skip_item_(const SchedulerItem *item) const {
     return item->remove || (item->component != nullptr && item->component->is_failed());
+  }
+
+  // Template helper to check if any item in a container matches our criteria
+  template<typename Container>
+  bool has_cancelled_timeout_in_container_(const Container &container, Component *component,
+                                           const char *name_cstr) const {
+    for (const auto &item : container) {
+      if (item->remove && this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, false)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Mutex lock_;

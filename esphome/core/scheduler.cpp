@@ -65,7 +65,7 @@ static void validate_static_string(const char *name) {
 
 // Common implementation for both timeout and interval
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string,
-                                      const void *name_ptr, uint32_t delay, std::function<void()> func) {
+                                      const void *name_ptr, uint32_t delay, std::function<void()> func, bool is_retry) {
   // Get the name as const char*
   const char *name_cstr = this->get_name_cstr_(is_static_string, name_ptr);
 
@@ -130,6 +130,18 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
   LockGuard guard{this->lock_};
+
+  // For retries, check if there's a cancelled timeout first
+  if (is_retry && name_cstr != nullptr && type == SchedulerItem::TIMEOUT &&
+      (has_cancelled_timeout_in_container_(this->items_, component, name_cstr) ||
+       has_cancelled_timeout_in_container_(this->to_add_, component, name_cstr))) {
+    // Skip scheduling - the retry was cancelled
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Skipping retry '%s' - found cancelled item", name_cstr);
+#endif
+    return;
+  }
+
   // If name is provided, do atomic cancel-and-add
   // Cancel existing items
   this->cancel_item_locked_(component, name_cstr, type);
@@ -178,12 +190,14 @@ struct RetryArgs {
   Scheduler *scheduler;
 };
 
-static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
+void retry_handler(const std::shared_ptr<RetryArgs> &args) {
   RetryResult const retry_result = args->func(--args->retry_countdown);
   if (retry_result == RetryResult::DONE || args->retry_countdown <= 0)
     return;
   // second execution of `func` happens after `initial_wait_time`
-  args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
+  args->scheduler->set_timer_common_(
+      args->component, Scheduler::SchedulerItem::TIMEOUT, false, &args->name, args->current_interval,
+      [args]() { retry_handler(args); }, true);
   // backoff_increase_factor applied to third & later executions
   args->current_interval *= args->backoff_increase_factor;
 }
