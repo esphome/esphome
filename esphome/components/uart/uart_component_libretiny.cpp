@@ -46,8 +46,6 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();

@@ -9,7 +9,6 @@ namespace adc {
 static const char *const TAG = "adc.libretiny";
 
 void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
 #ifndef USE_ADC_SENSOR_VCC
   this->pin_->setup();
 #endif  // !USE_ADC_SENSOR_VCC

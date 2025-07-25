@@ -7,7 +7,6 @@ namespace st7567_i2c {
 static const char *const TAG = "st7567_i2c";
 
 void I2CST7567::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);

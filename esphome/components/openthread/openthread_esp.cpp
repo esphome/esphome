@@ -28,7 +28,6 @@ namespace esphome {
 namespace openthread {
 
 void OpenThreadComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Used eventfds:
   // * netif
   // * ot task queue

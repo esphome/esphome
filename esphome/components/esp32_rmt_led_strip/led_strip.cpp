@@ -59,8 +59,6 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
 #endif
 
 void ESP32RMTLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator(this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL);

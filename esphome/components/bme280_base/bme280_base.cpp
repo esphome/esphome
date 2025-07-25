@@ -88,7 +88,6 @@ const char *oversampling_to_str(BME280Oversampling oversampling) {  // NOLINT
 }
 
 void BME280Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t chip_id = 0;
 
   // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries

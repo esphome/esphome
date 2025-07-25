@@ -14,7 +14,6 @@ namespace adc {
 static const char *const TAG = "adc.rp2040";
 
 void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
   static bool initialized = false;
   if (!initialized) {
     adc_init();

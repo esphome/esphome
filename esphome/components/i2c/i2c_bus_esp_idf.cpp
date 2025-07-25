@@ -19,7 +19,6 @@ namespace i2c {
 static const char *const TAG = "i2c.idf";
 
 void IDFI2CBus::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   static i2c_port_t next_port = I2C_NUM_0;
   this->port_ = next_port;
   if (this->port_ == I2C_NUM_MAX) {

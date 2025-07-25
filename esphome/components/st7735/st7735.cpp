@@ -233,7 +233,6 @@ ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowst
       height_(height) {}
 
 void ST7735::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
 
   this->dc_pin_->setup();  // OUTPUT

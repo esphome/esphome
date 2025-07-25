@@ -182,7 +182,6 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 }
 
 void LD2450Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
     this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_object_id_hash());

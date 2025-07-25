@@ -450,7 +450,6 @@ void Nextion::process_nextion_commands_() {
         this->remove_from_q_();
         if (!this->is_setup_) {
           if (this->nextion_queue_.empty()) {
-            ESP_LOGD(TAG, "Setup complete");
             this->is_setup_ = true;
             this->setup_callback_.call();
           }

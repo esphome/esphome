@@ -10,7 +10,6 @@ static const char *const TAG = "mcp4461";
 constexpr uint8_t EEPROM_WRITE_TIMEOUT_MS = 10;
 
 void Mcp4461Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;

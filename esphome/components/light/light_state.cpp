@@ -18,8 +18,6 @@ LightCall LightState::toggle() { return this->make_call().set_state(!this->remot
 LightCall LightState::make_call() { return LightCall(this); }
 
 void LightState::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
-
   this->output_->setup_state(this);
   for (auto *effect : this->effects_) {
     effect->init_internal(this);

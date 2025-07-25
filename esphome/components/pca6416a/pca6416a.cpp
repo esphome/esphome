@@ -24,7 +24,6 @@ enum PCA6416AGPIORegisters {
 static const char *const TAG = "pca6416a";
 
 void PCA6416AComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Test to see if device exists
   uint8_t value;
   if (!this->read_register_(PCA6416A_INPUT0, &value)) {

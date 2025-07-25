@@ -251,10 +251,7 @@ void LD2410Component::dump_config() {
 #endif
 }
 
-void LD2410Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  this->read_all_info();
-}
+void LD2410Component::setup() { this->read_all_info(); }
 
 void LD2410Component::read_all_info() {
   this->set_config_mode_(true);

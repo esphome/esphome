@@ -25,8 +25,6 @@ static const char *const TAG = "esp32_ble";
 
 void ESP32BLE::setup() {
   global_ble = this;
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!ble_pre_setup_()) {
     ESP_LOGE(TAG, "BLE could not be prepared for configuration");
     this->mark_failed();

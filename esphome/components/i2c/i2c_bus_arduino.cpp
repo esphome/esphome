@@ -13,7 +13,6 @@ namespace i2c {
 static const char *const TAG = "i2c.arduino";
 
 void ArduinoI2CBus::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   recover_();
 
 #if defined(USE_ESP32)

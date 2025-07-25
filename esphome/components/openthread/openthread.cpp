@@ -189,7 +189,6 @@ void OpenThreadSrpComponent::setup() {
   }
 
   otSrpClientEnableAutoStartMode(instance, srp_start_callback, nullptr);
-  ESP_LOGD(TAG, "Finished SRP setup");
 }
 
 void *OpenThreadSrpComponent::pool_alloc_(size_t size) {

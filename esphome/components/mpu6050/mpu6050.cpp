@@ -21,7 +21,6 @@ const uint8_t MPU6050_BIT_TEMPERATURE_DISABLED = 3;
 const float GRAVITY_EARTH = 9.80665f;
 
 void MPU6050Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t who_am_i;
   if (!this->read_byte(MPU6050_REGISTER_WHO_AM_I, &who_am_i) ||
       (who_am_i != 0x68 && who_am_i != 0x70 && who_am_i != 0x98)) {
