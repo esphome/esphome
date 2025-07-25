@@ -189,7 +189,6 @@ async def to_code(config):
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
     cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
-    index = 0
     dpins = []
     if CONF_RED in config[CONF_DATA_PINS]:
         red_pins = config[CONF_DATA_PINS][CONF_RED]
@@ -207,10 +206,9 @@ async def to_code(config):
         dpins = dpins[8:16] + dpins[0:8]
     else:
         dpins = config[CONF_DATA_PINS]
-    for pin in dpins:
+    for index, pin in enumerate(dpins):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
-        index += 1
 
     if dc_pin := config.get(CONF_DC_PIN):
         dc = await cg.gpio_pin_expression(dc_pin)

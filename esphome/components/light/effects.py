@@ -526,7 +526,7 @@ def validate_effects(allowed_effects):
         errors = []
         names = set()
         for i, x in enumerate(value):
-            key = next(it for it in x.keys())
+            key = next(it for it in x)
             if key not in allowed_effects:
                 errors.append(
                     cv.Invalid(

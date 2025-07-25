@@ -61,9 +61,7 @@ def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
     for line in text.splitlines():
-        if line == "":
-            p = ""
-        elif line.startswith("#ifdef") or line.startswith("#endif"):
+        if line == "" or line.startswith("#ifdef") or line.startswith("#endif"):
             p = ""
         else:
             p = padding
@@ -2385,7 +2383,7 @@ static const char *const TAG = "api.service";
         needs_conn = get_opt(m, pb.needs_setup_connection, True)
         needs_auth = get_opt(m, pb.needs_authentication, True)
 
-        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp, None))
+        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
 
         if ifdef is not None:
             hpp += f"#ifdef {ifdef}\n"

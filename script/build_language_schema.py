@@ -71,11 +71,13 @@ def get_component_names():
     skip_components = []
 
     for d in os.listdir(CORE_COMPONENTS_PATH):
-        if not d.startswith("__") and os.path.isdir(
-            os.path.join(CORE_COMPONENTS_PATH, d)
+        if (
+            not d.startswith("__")
+            and os.path.isdir(os.path.join(CORE_COMPONENTS_PATH, d))
+            and d not in component_names
+            and d not in skip_components
         ):
-            if d not in component_names and d not in skip_components:
-                component_names.append(d)
+            component_names.append(d)
 
     return sorted(component_names)
 
@@ -139,11 +141,10 @@ def register_module_schemas(key, module, manifest=None):
     for name, schema in module_schemas(module):
         register_known_schema(key, name, schema)
 
-    if manifest:
+    if manifest and manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]:
         # Multi conf should allow list of components
         # not sure about 2nd part of the if, might be useless config (e.g. as3935)
-        if manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]:
-            output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
+        output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
 
 
 def register_known_schema(module, name, schema):
@@ -230,7 +231,7 @@ def add_module_registries(domain, module):
                 reg_type = attr_name.partition("_")[0].lower()
                 found_registries[repr(attr_obj)] = f"{domain}.{reg_type}"
 
-            for name in attr_obj.keys():
+            for name in attr_obj:
                 if "." not in name:
                     reg_entry_name = name
                 else:
@@ -700,7 +701,7 @@ def is_convertible_schema(schema):
     if repr(schema) in ejs.registry_schemas:
         return True
     if isinstance(schema, dict):
-        for k in schema.keys():
+        for k in schema:
             if isinstance(k, (cv.Required, cv.Optional)):
                 return True
     return False
@@ -818,7 +819,7 @@ def convert(schema, config_var, path):
         elif schema_type == "automation":
             extra_schema = None
             config_var[S_TYPE] = "trigger"
-            if automation.AUTOMATION_SCHEMA == ejs.extended_schemas[repr(data)][0]:
+            if ejs.extended_schemas[repr(data)][0] == automation.AUTOMATION_SCHEMA:
                 extra_schema = ejs.extended_schemas[repr(data)][1]
             if (
                 extra_schema is not None and len(extra_schema) > 1
@@ -926,9 +927,8 @@ def convert(schema, config_var, path):
             config = convert_config(schema_type, path + "/type_" + schema_key)
             types[schema_key] = config["schema"]
 
-    elif DUMP_UNKNOWN:
-        if S_TYPE not in config_var:
-            config_var["unknown"] = repr_schema
+    elif DUMP_UNKNOWN and S_TYPE not in config_var:
+        config_var["unknown"] = repr_schema
 
     if DUMP_PATH:
         config_var["path"] = path

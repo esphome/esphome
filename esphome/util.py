@@ -59,7 +59,7 @@ def safe_print(message="", end="\n"):
     from esphome.core import CORE
 
     if CORE.dashboard:
-        try:
+        try:  # noqa: SIM105
             message = message.replace("\033", "\\033")
         except UnicodeEncodeError:
             pass

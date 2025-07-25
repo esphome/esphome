@@ -442,9 +442,7 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-    elif CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("WiFi", None)
-    elif CORE.is_rp2040:
+    elif (CORE.is_esp32 and CORE.using_arduino) or CORE.is_rp2040:
         cg.add_library("WiFi", None)
 
     if CORE.is_esp32 and CORE.using_esp_idf:

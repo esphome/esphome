@@ -96,9 +96,7 @@ def cpp_string_escape(string, encoding="utf-8"):
     def _should_escape(byte: int) -> bool:
         if not 32 <= byte < 127:
             return True
-        if byte in (ord("\\"), ord('"')):
-            return True
-        return False
+        return byte in (ord("\\"), ord('"'))
 
     if isinstance(string, str):
         string = string.encode(encoding)

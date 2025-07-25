@@ -119,9 +119,7 @@ def mqtt_logging_enabled(mqtt_config):
         return False
     if CONF_TOPIC not in log_topic:
         return False
-    if log_topic.get(CONF_LEVEL, None) == "NONE":
-        return False
-    return True
+    return log_topic.get(CONF_LEVEL, None) != "NONE"
 
 
 def get_port_type(port):

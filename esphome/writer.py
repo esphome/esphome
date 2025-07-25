@@ -86,21 +86,17 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
 
     if old.src_version != new.src_version:
         return True
-    if old.build_path != new.build_path:
-        return True
-
-    return False
+    return old.build_path != new.build_path
 
 
 def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
     if (
         old.loaded_integrations != new.loaded_integrations
         or old.loaded_platforms != new.loaded_platforms
-    ):
-        if new.core_platform == PLATFORM_ESP32:
-            from esphome.components.esp32 import FRAMEWORK_ESP_IDF
+    ) and new.core_platform == PLATFORM_ESP32:
+        from esphome.components.esp32 import FRAMEWORK_ESP_IDF
 
-            return new.framework == FRAMEWORK_ESP_IDF
+        return new.framework == FRAMEWORK_ESP_IDF
     return False
 
 

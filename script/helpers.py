@@ -365,9 +365,11 @@ def load_idedata(environment: str) -> dict[str, Any]:
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if "idf" in environment:

@@ -1037,10 +1037,7 @@ class MockObjClass(MockObj):
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):
             return True
-        for parent in self._parents:
-            if str(parent) == str(other):
-                return True
-        return False
+        return any(str(parent) == str(other) for parent in self._parents)
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):

@@ -201,9 +201,8 @@ def final_validation(configs):
         multi_conf_validate(configs)
     global_config = full_config.get()
     for config in configs:
-        if pages := config.get(CONF_PAGES):
-            if all(p[df.CONF_SKIP] for p in pages):
-                raise cv.Invalid("At least one page must not be skipped")
+        if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
+            raise cv.Invalid("At least one page must not be skipped")
         for display_id in config[df.CONF_DISPLAYS]:
             path = global_config.get_path_for_id(display_id)[:-1]
             display = global_config.get_config_for_path(path)

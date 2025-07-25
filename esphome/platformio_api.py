@@ -131,9 +131,11 @@ def _load_idedata(config):
     temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
 
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if not changed:

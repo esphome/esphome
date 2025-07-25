@@ -183,19 +183,17 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
         content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
 
     # Add debug build flags for integration tests to enable assertions
-    if "esphome:" in content:
-        # Check if platformio_options already exists
-        if "platformio_options:" not in content:
-            # Add platformio_options with debug flags after esphome:
-            content = content.replace(
-                "esphome:",
-                "esphome:\n"
-                "  # Enable assertions for integration tests\n"
-                "  platformio_options:\n"
-                "    build_flags:\n"
-                '      - "-DDEBUG"  # Enable assert() statements\n'
-                '      - "-g"       # Add debug symbols',
-            )
+    if "esphome:" in content and "platformio_options:" not in content:
+        # Add platformio_options with debug flags after esphome:
+        content = content.replace(
+            "esphome:",
+            "esphome:\n"
+            "  # Enable assertions for integration tests\n"
+            "  platformio_options:\n"
+            "    build_flags:\n"
+            '      - "-DDEBUG"  # Enable assert() statements\n'
+            '      - "-g"       # Add debug symbols',
+        )
 
     return content
 

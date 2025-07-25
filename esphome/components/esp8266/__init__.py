@@ -245,7 +245,7 @@ async def to_code(config):
         if ver <= cv.Version(2, 3, 0):
             # No ld script support
             ld_script = None
-        if ver <= cv.Version(2, 4, 2):
+        elif ver <= cv.Version(2, 4, 2):
             # Old ld script path
             ld_script = ld_scripts[0]
         else:

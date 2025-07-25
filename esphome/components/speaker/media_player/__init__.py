@@ -204,13 +204,14 @@ def _validate_pipeline(config):
 
 
 def _validate_repeated_speaker(config):
-    if (announcement_config := config.get(CONF_ANNOUNCEMENT_PIPELINE)) and (
-        media_config := config.get(CONF_MEDIA_PIPELINE)
+    if (
+        (announcement_config := config.get(CONF_ANNOUNCEMENT_PIPELINE))
+        and (media_config := config.get(CONF_MEDIA_PIPELINE))
+        and announcement_config[CONF_SPEAKER] == media_config[CONF_SPEAKER]
     ):
-        if announcement_config[CONF_SPEAKER] == media_config[CONF_SPEAKER]:
-            raise cv.Invalid(
-                "The announcement and media pipelines cannot use the same speaker. Use the `mixer` speaker component to create two source speakers."
-            )
+        raise cv.Invalid(
+            "The announcement and media pipelines cannot use the same speaker. Use the `mixer` speaker component to create two source speakers."
+        )
 
     return config
 

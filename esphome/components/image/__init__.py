@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import logging
@@ -174,9 +175,8 @@ class ImageGrayscale(ImageEncoder):
                 b = 1
         if self.invert_alpha:
             b ^= 0xFF
-        if self.transparency == CONF_ALPHA_CHANNEL:
-            if a != 0xFF:
-                b = a
+        if self.transparency == CONF_ALPHA_CHANNEL and a != 0xFF:
+            b = a
         self.data[self.index] = b
         self.index += 1
 
@@ -672,10 +672,8 @@ async def write_image(config, all_frames=False):
     invert_alpha = config[CONF_INVERT_ALPHA]
     frame_count = 1
     if all_frames:
-        try:
+        with contextlib.suppress(AttributeError):
             frame_count = image.n_frames
-        except AttributeError:
-            pass
         if frame_count <= 1:
             _LOGGER.warning("Image file %s has no animation frames", path)
 
