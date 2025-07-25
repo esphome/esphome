@@ -89,11 +89,15 @@ jobs:
             // Check for mega-PR early - if present, skip most automatic labeling
             const isMegaPR = currentLabels.includes('mega-pr');
 
-            const { data: prFiles } = await github.rest.pulls.listFiles({
-              owner,
-              repo,
-              pull_number: pr_number
-            });
+            // Get all PR files with automatic pagination
+            const prFiles = await github.paginate(
+              github.rest.pulls.listFiles,
+              {
+                owner,
+                repo,
+                pull_number: pr_number
+              }
+            );
 
             // Calculate data from PR files
             const changedFiles = prFiles.map(file => file.filename);
@@ -298,9 +302,10 @@ jobs:
                     const dir = pattern.slice(0, -1);
                     regex = new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
                   } else if (pattern.includes('*')) {
+                    // First escape all regex special chars except *, then replace * with .*
                     const regexPattern = pattern
-                      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                      .replace(/\\*/g, '.*');
+                      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                      .replace(/\*/g, '.*');
                     regex = new RegExp(`^${regexPattern}$`);
                   } else {
                     regex = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
