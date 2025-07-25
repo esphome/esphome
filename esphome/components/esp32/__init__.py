@@ -982,7 +982,7 @@ def copy_files():
             __version__,
         )
 
-    for _, file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].items():
+    for file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].values():
         if file[KEY_PATH].startswith("http"):
             import requests
 

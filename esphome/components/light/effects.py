@@ -291,31 +291,30 @@ async def random_effect_to_code(config, effect_id):
 )
 async def strobe_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
-    colors = []
-    for color in config.get(CONF_COLORS, []):
-        colors.append(
-            cg.StructInitializer(
-                StrobeLightEffectColor,
-                (
-                    "color",
-                    LightColorValues(
-                        color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
-                        color[CONF_STATE],
-                        color[CONF_BRIGHTNESS],
-                        color[CONF_COLOR_BRIGHTNESS],
-                        color[CONF_RED],
-                        color[CONF_GREEN],
-                        color[CONF_BLUE],
-                        color[CONF_WHITE],
-                        color.get(CONF_COLOR_TEMPERATURE, 0.0),
-                        color[CONF_COLD_WHITE],
-                        color[CONF_WARM_WHITE],
-                    ),
+    colors = [
+        cg.StructInitializer(
+            StrobeLightEffectColor,
+            (
+                "color",
+                LightColorValues(
+                    color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
+                    color[CONF_STATE],
+                    color[CONF_BRIGHTNESS],
+                    color[CONF_COLOR_BRIGHTNESS],
+                    color[CONF_RED],
+                    color[CONF_GREEN],
+                    color[CONF_BLUE],
+                    color[CONF_WHITE],
+                    color.get(CONF_COLOR_TEMPERATURE, 0.0),
+                    color[CONF_COLD_WHITE],
+                    color[CONF_WARM_WHITE],
                 ),
-                ("duration", color[CONF_DURATION]),
-                ("transition_length", color[CONF_TRANSITION_LENGTH]),
-            )
+            ),
+            ("duration", color[CONF_DURATION]),
+            ("transition_length", color[CONF_TRANSITION_LENGTH]),
         )
+        for color in config.get(CONF_COLORS, [])
+    ]
     cg.add(var.set_colors(colors))
     return var
 
@@ -404,20 +403,19 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
     cg.add(var.set_reverse(config[CONF_REVERSE]))
-    colors = []
-    for color in config.get(CONF_COLORS, []):
-        colors.append(
-            cg.StructInitializer(
-                AddressableColorWipeEffectColor,
-                ("r", int(round(color[CONF_RED] * 255))),
-                ("g", int(round(color[CONF_GREEN] * 255))),
-                ("b", int(round(color[CONF_BLUE] * 255))),
-                ("w", int(round(color[CONF_WHITE] * 255))),
-                ("random", color[CONF_RANDOM]),
-                ("num_leds", color[CONF_NUM_LEDS]),
-                ("gradient", color[CONF_GRADIENT]),
-            )
+    colors = [
+        cg.StructInitializer(
+            AddressableColorWipeEffectColor,
+            ("r", int(round(color[CONF_RED] * 255))),
+            ("g", int(round(color[CONF_GREEN] * 255))),
+            ("b", int(round(color[CONF_BLUE] * 255))),
+            ("w", int(round(color[CONF_WHITE] * 255))),
+            ("random", color[CONF_RANDOM]),
+            ("num_leds", color[CONF_NUM_LEDS]),
+            ("gradient", color[CONF_GRADIENT]),
         )
+        for color in config.get(CONF_COLORS, [])
+    ]
     cg.add(var.set_colors(colors))
     return var
 

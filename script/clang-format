@@ -66,9 +66,10 @@ def main():
     )
     args = parser.parse_args()
 
-    files = []
-    for path in git_ls_files(["*.cpp", "*.h", "*.tcc"]):
-        files.append(os.path.relpath(path, os.getcwd()))
+    cwd = os.getcwd()
+    files = [
+        os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp", "*.h", "*.tcc"])
+    ]
 
     if args.files:
         # Match against files specified on command-line

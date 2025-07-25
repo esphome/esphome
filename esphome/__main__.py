@@ -89,9 +89,9 @@ def choose_prompt(options, purpose: str = None):
 def choose_upload_log_host(
     default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
 ):
-    options = []
-    for port in get_serial_ports():
-        options.append((f"{port.path} ({port.description})", port.path))
+    options = [
+        (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
+    ]
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):

@@ -111,12 +111,13 @@ exclude = ['generated']
 
 [tool.ruff.lint]
 select = [
-  "E",   # pycodestyle
-  "F",   # pyflakes/autoflake
-  "I",   # isort
-  "PL",  # pylint
-  "SIM", # flake8-simplify
-  "UP",  # pyupgrade
+  "E",    # pycodestyle
+  "F",    # pyflakes/autoflake
+  "I",    # isort
+  "PERF", # performance
+  "PL",   # pylint
+  "SIM",  # flake8-simplify
+  "UP",   # pyupgrade
 ]
 
 ignore = [

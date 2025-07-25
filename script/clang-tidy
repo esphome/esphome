@@ -219,9 +219,8 @@ def main():
     )
     args = parser.parse_args()
 
-    files = []
-    for path in git_ls_files(["*.cpp"]):
-        files.append(os.path.relpath(path, os.getcwd()))
+    cwd = os.getcwd()
+    files = [os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp"])]
 
     # Print initial file count if it's large
     if len(files) > 50:
