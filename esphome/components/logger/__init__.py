@@ -421,6 +421,7 @@ CONF_LOGGER_LOG = "logger.log"
 LOGGER_LOG_ACTION_SCHEMA = cv.All(
     cv.maybe_simple_value(
         {
+            cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
             cv.Required(CONF_FORMAT): cv.string,
             cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
             cv.Optional(CONF_LEVEL, default="DEBUG"): cv.one_of(
