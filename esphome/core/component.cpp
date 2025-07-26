@@ -159,7 +159,7 @@ void Component::call() {
       this->call_setup();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       uint32_t setup_time = millis() - start_time;
-      ESP_LOGD(TAG, "Setup %s took %ums", this->get_component_source(), setup_time);
+      ESP_LOGD(TAG, "Setup %s took %ums", this->get_component_source(), (unsigned) setup_time);
 #endif
       break;
     }
