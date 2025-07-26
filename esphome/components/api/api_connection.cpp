@@ -1590,10 +1590,12 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   // Do not set last_traffic_ on send
   return true;
 }
+#ifdef USE_API_PASSWORD
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
   ESP_LOGD(TAG, "%s access without authentication", this->get_client_combined_info().c_str());
 }
+#endif
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
   ESP_LOGD(TAG, "%s access without full connection", this->get_client_combined_info().c_str());
