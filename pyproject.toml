@@ -113,6 +113,7 @@ exclude = ['generated']
 select = [
   "E",    # pycodestyle
   "F",    # pyflakes/autoflake
+  "FURB", # refurb
   "I",    # isort
   "PERF", # performance
   "PL",   # pylint

@@ -76,7 +76,7 @@ def get_include_text():
 
 
 def replace_file_content(text, pattern, repl):
-    content_new, count = re.subn(pattern, repl, text, flags=re.M)
+    content_new, count = re.subn(pattern, repl, text, flags=re.MULTILINE)
     return content_new, count
 
 

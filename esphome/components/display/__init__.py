@@ -51,8 +51,7 @@ DISPLAY_ROTATIONS = {
 
 def validate_rotation(value):
     value = cv.string(value)
-    if value.endswith("°"):
-        value = value[:-1]
+    value = value.removesuffix("°")
     return cv.enum(DISPLAY_ROTATIONS, int=True)(value)
 
 

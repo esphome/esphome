@@ -155,8 +155,7 @@ def _read_audio_file_and_type(file_config):
     import puremagic
 
     file_type: str = puremagic.from_string(data)
-    if file_type.startswith("."):
-        file_type = file_type[1:]
+    file_type = file_type.removeprefix(".")
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type in ("wav"):
