@@ -781,11 +781,13 @@ message HomeassistantServiceResponse {
 message SubscribeHomeAssistantStatesRequest {
   option (id) = 38;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
 }
 
 message SubscribeHomeAssistantStateResponse {
   option (id) = 39;
   option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
   string entity_id = 1;
   string attribute = 2;
   bool once = 3;
@@ -795,6 +797,7 @@ message HomeAssistantStateResponse {
   option (id) = 40;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
 
   string entity_id = 1;
   string state = 2;

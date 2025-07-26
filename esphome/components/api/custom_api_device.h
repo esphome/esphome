@@ -83,6 +83,7 @@ class CustomAPIDevice {
   }
 #endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
    *
    * Usage:
@@ -134,6 +135,7 @@ class CustomAPIDevice {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
+#endif
 
   /** Call a Home Assistant service from ESPHome.
    *

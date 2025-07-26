@@ -126,6 +126,7 @@ class APIServer : public Component, public Controller {
 
   bool is_connected() const;
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
     std::string entity_id;
     optional<std::string> attribute;
@@ -138,6 +139,7 @@ class APIServer : public Component, public Controller {
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+#endif
 #ifdef USE_API_SERVICES
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
@@ -171,7 +173,9 @@ class APIServer : public Component, public Controller {
   std::string password_;
 #endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+#ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
+#endif
 #ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
 #endif

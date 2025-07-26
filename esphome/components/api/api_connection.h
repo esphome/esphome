@@ -188,7 +188,9 @@ class APIConnection : public APIServerConnection {
     // we initiated ping
     this->flags_.sent_ping = false;
   }
+#ifdef USE_API_HOMEASSISTANT_STATES
   void on_home_assistant_state_response(const HomeAssistantStateResponse &msg) override;
+#endif
 #ifdef USE_HOMEASSISTANT_TIME
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
@@ -210,7 +212,9 @@ class APIConnection : public APIServerConnection {
   void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) override {
     this->flags_.service_call_subscription = true;
   }
+#ifdef USE_API_HOMEASSISTANT_STATES
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
+#endif
   bool send_get_time_response(const GetTimeRequest &msg) override;
 #ifdef USE_API_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
@@ -494,7 +498,9 @@ class APIConnection : public APIServerConnection {
 
   // Group 4: 4-byte types
   uint32_t last_traffic_;
+#ifdef USE_API_HOMEASSISTANT_STATES
   int state_subs_at_ = -1;
+#endif
 
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size, bool is_single);

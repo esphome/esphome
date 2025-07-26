@@ -1092,6 +1092,7 @@ class HomeassistantServiceResponse : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_API_HOMEASSISTANT_STATES
 class SubscribeHomeAssistantStatesRequest : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 38;
@@ -1142,6 +1143,7 @@ class HomeAssistantStateResponse : public ProtoDecodableMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
+#endif
 class GetTimeRequest : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 36;

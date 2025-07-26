@@ -53,6 +53,7 @@ SERVICE_ARG_NATIVE_TYPES = {
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
+CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 
 
 def validate_encryption_key(value):
@@ -118,6 +119,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
             cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),
@@ -145,6 +147,9 @@ async def to_code(config):
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_STATES]:
+        cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
         for conf in actions:

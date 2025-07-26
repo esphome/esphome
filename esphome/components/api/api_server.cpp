@@ -375,6 +375,7 @@ void APIServer::send_homeassistant_service_call(const HomeassistantServiceRespon
   }
 }
 
+#ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
@@ -398,6 +399,7 @@ void APIServer::get_home_assistant_state(std::string entity_id, optional<std::st
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
 }
+#endif
 
 uint16_t APIServer::get_port() const { return this->port_; }
 

@@ -62,9 +62,13 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_home_assistant_state_response(const HomeAssistantStateResponse &value){};
+#endif
   virtual void on_get_time_request(const GetTimeRequest &value){};
   virtual void on_get_time_response(const GetTimeResponse &value){};
 
@@ -215,7 +219,9 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void subscribe_states(const SubscribeStatesRequest &msg) = 0;
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
+#ifdef USE_API_HOMEASSISTANT_STATES
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
+#endif
   virtual bool send_get_time_response(const GetTimeRequest &msg) = 0;
 #ifdef USE_API_SERVICES
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
@@ -333,7 +339,9 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_subscribe_states_request(const SubscribeStatesRequest &msg) override;
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override;
   void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
+#ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
+#endif
   void on_get_time_request(const GetTimeRequest &msg) override;
 #ifdef USE_API_SERVICES
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
