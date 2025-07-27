@@ -9,6 +9,11 @@ namespace light {
 
 static const char *const TAG = "light";
 
+// Helper function to reduce code size for validation warnings
+static void log_validation_warning(const char *name, const char *param_name, float val, float min, float max) {
+  ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, param_name, val, min, max);
+}
+
 // Macro to reduce repetitive setter code
 #define IMPLEMENT_LIGHT_CALL_SETTER(name, type, flag) \
   LightCall &LightCall::set_##name(optional<type>(name)) { \
@@ -223,8 +228,7 @@ LightColorValues LightCall::validate_() {
   if (this->has_##name_()) { \
     auto val = this->name_##_; \
     if (val < (min) || val > (max)) { \
-      ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_LITERAL(upper_name), val, \
-               (min), (max)); \
+      log_validation_warning(name, LOG_STR_LITERAL(upper_name), val, (min), (max)); \
       this->name_##_ = clamp(val, (min), (max)); \
     } \
   }
@@ -442,41 +446,39 @@ std::set<ColorMode> LightCall::get_suitable_color_modes_() {
   bool has_rgb = (this->has_color_brightness() && this->color_brightness_ > 0.0f) ||
                  (this->has_red() || this->has_green() || this->has_blue());
 
+// Build key from flags: [rgb][cwww][ct][white]
 #define KEY(white, ct, cwww, rgb) ((white) << 0 | (ct) << 1 | (cwww) << 2 | (rgb) << 3)
-#define ENTRY(white, ct, cwww, rgb, ...) \
-  std::make_tuple<uint8_t, std::set<ColorMode>>(KEY(white, ct, cwww, rgb), __VA_ARGS__)
 
-  // Flag order: white, color temperature, cwww, rgb
-  std::array<std::tuple<uint8_t, std::set<ColorMode>>, 10> lookup_table{
-      ENTRY(true, false, false, false,
-            {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-             ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(false, true, false, false,
-            {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-             ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(true, true, false, false,
-            {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(false, false, true, false, {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(false, false, false, false,
-            {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB,
-             ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE}),
-      ENTRY(true, false, false, true,
-            {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(false, true, false, true, {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(true, true, false, true, {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(false, false, true, true, {ColorMode::RGB_COLD_WARM_WHITE}),
-      ENTRY(false, false, false, true,
-            {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
-  };
+  uint8_t key = KEY(has_white, has_ct, has_cwww, has_rgb);
 
-  auto key = KEY(has_white, has_ct, has_cwww, has_rgb);
-  for (auto &item : lookup_table) {
-    if (std::get<0>(item) == key)
-      return std::get<1>(item);
+  switch (key) {
+    case KEY(true, false, false, false):  // white only
+      return {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+              ColorMode::RGB_COLD_WARM_WHITE};
+    case KEY(false, true, false, false):  // ct only
+      return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+              ColorMode::RGB_COLD_WARM_WHITE};
+    case KEY(true, true, false, false):  // white + ct
+      return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+    case KEY(false, false, true, false):  // cwww only
+      return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE};
+    case KEY(false, false, false, false):  // none
+      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB,
+              ColorMode::WHITE,     ColorMode::COLOR_TEMPERATURE,     ColorMode::COLD_WARM_WHITE};
+    case KEY(true, false, false, true):  // rgb + white
+      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+    case KEY(false, true, false, true):  // rgb + ct
+    case KEY(true, true, false, true):   // rgb + white + ct
+      return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+    case KEY(false, false, true, true):  // rgb + cwww
+      return {ColorMode::RGB_COLD_WARM_WHITE};
+    case KEY(false, false, false, true):  // rgb only
+      return {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+    default:
+      return {};  // conflicting flags
   }
 
-  // This happens if there are conflicting flags given.
-  return {};
+#undef KEY
 }
 
 LightCall &LightCall::set_effect(const std::string &effect) {
