@@ -197,7 +197,7 @@ def lint_content_find_check(find, only_first=False, **kwargs):
                 find_ = find(fname, content)
             errs = []
             for line, col in find_all(content, find_):
-                err = func(fname)
+                err = func(fname, line, col, content)
                 errs.append((line + 1, col + 1, err))
                 if only_first:
                     break
@@ -264,12 +264,12 @@ def lint_executable_bit(fname):
         "esphome/dashboard/static/ext-searchbox.js",
     ],
 )
-def lint_tabs(fname):
+def lint_tabs(fname, line, col, content):
     return "File contains tab character. Please convert tabs to spaces."
 
 
 @lint_content_find_check("\r", only_first=True)
-def lint_newline(fname):
+def lint_newline(fname, line, col, content):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
@@ -512,7 +512,7 @@ def relative_cpp_search_text(fname, content):
 
 
 @lint_content_find_check(relative_cpp_search_text, include=["esphome/components/*.cpp"])
-def lint_relative_cpp_import(fname):
+def lint_relative_cpp_import(fname, line, col, content):
     return (
         "Component contains absolute import - Components must always use "
         "relative imports.\n"
@@ -529,6 +529,20 @@ def relative_py_search_text(fname, content):
     return f"esphome.components.{integration}"
 
 
+def convert_path_to_relative(abspath, current):
+    """Convert an absolute path to a relative import path."""
+    if abspath == current:
+        return "."
+    absparts = abspath.split(".")
+    curparts = current.split(".")
+    uplen = len(curparts)
+    while absparts and curparts and absparts[0] == curparts[0]:
+        absparts.pop(0)
+        curparts.pop(0)
+        uplen -= 1
+    return "." * uplen + ".".join(absparts)
+
+
 @lint_content_find_check(
     relative_py_search_text,
     include=["esphome/components/*.py"],
@@ -537,14 +551,19 @@ def relative_py_search_text(fname, content):
         "esphome/components/web_server/__init__.py",
     ],
 )
-def lint_relative_py_import(fname):
+def lint_relative_py_import(fname, line, col, content):
+    import_line = content.splitlines()[line]
+    abspath = import_line[col:].split(" ")[0]
+    current = fname.removesuffix(".py").replace(os.path.sep, ".")
+    replacement = convert_path_to_relative(abspath, current)
+    newline = import_line.replace(abspath, replacement)
     return (
         "Component contains absolute import - Components must always use "
         "relative imports within the integration.\n"
         "Change:\n"
-        '  from esphome.components.abc import abc_ns"\n'
+        f"    {import_line}\n"
         "to:\n"
-        "  from . import abc_ns\n\n"
+        f"    {newline}\n"
     )
 
 
@@ -588,7 +607,7 @@ def lint_namespace(fname, content):
 
 
 @lint_content_find_check('"esphome.h"', include=cpp_include, exclude=["tests/custom.h"])
-def lint_esphome_h(fname):
+def lint_esphome_h(fname, line, col, content):
     return (
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
@@ -679,7 +698,7 @@ def lint_trailing_whitespace(fname, match):
         "tests/custom.h",
     ],
 )
-def lint_log_in_header(fname):
+def lint_log_in_header(fname, line, col, content):
     return (
         "Found reference to ESP_LOG in header file. Using ESP_LOG* in header files "
         "is currently not possible - please move the definition to a source file (.cpp)"
