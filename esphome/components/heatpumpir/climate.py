@@ -126,6 +126,6 @@ async def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.35")
+    cg.add_library("tonia/HeatpumpIR", "1.0.37")
     if CORE.is_libretiny:
         CORE.add_platformio_option("lib_ignore", "IRremoteESP8266")
