@@ -9,7 +9,6 @@ namespace fastled_base {
 static const char *const TAG = "fastled";
 
 void FastLEDLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->controller_->init();
   this->controller_->setLeds(this->leds_, this->num_leds_);
   this->effect_data_ = new uint8_t[this->num_leds_];  // NOLINT

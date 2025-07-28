@@ -9,10 +9,7 @@ static const char *const TAG = "honeywellabp";
 const float MIN_COUNT = 1638.4;   // 1638 counts (10% of 2^14 counts or 0x0666)
 const float MAX_COUNT = 14745.6;  // 14745 counts (90% of 2^14 counts or 0x3999)
 
-void HONEYWELLABPSensor::setup() {
-  ESP_LOGD(TAG, "Setting up Honeywell ABP Sensor ");
-  this->spi_setup();
-}
+void HONEYWELLABPSensor::setup() { this->spi_setup(); }
 
 uint8_t HONEYWELLABPSensor::readsensor_() {
   // Polls the sensor for new data.

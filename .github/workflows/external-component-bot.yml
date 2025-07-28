@@ -61,7 +61,8 @@ jobs:
             }
 
             async function createComment(octokit, owner, repo, prNumber, esphomeChanges, componentChanges) {
-                const commentMarker = "<!-- This comment was generated automatically by a GitHub workflow. -->";
+                const commentMarker = "<!-- This comment was generated automatically by the external-component-bot workflow. -->";
+                const legacyCommentMarker = "<!-- This comment was generated automatically by a GitHub workflow. -->";
                 let commentBody;
                 if (esphomeChanges.length === 1) {
                     commentBody = generateExternalComponentInstructions(prNumber, componentChanges, owner, repo);
@@ -71,14 +72,23 @@ jobs:
                 commentBody += `\n\n---\n(Added by the PR bot)\n\n${commentMarker}`;
 
                 // Check for existing bot comment
-                const comments = await github.rest.issues.listComments({
-                    owner: owner,
-                    repo: repo,
-                    issue_number: prNumber,
-                });
+                const comments = await github.paginate(
+                    github.rest.issues.listComments,
+                    {
+                        owner: owner,
+                        repo: repo,
+                        issue_number: prNumber,
+                        per_page: 100,
+                    }
+                );
 
-                const botComment = comments.data.find(comment =>
-                    comment.body.includes(commentMarker)
+                const sorted = comments.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+                const botComment = sorted.find(comment =>
+                    (
+                      comment.body.includes(commentMarker) ||
+                      comment.body.includes(legacyCommentMarker)
+                    ) && comment.user.type === "Bot"
                 );
 
                 if (botComment && botComment.body === commentBody) {

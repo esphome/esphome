@@ -94,7 +94,7 @@ class I2CBus {
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
   /// that contains the address and the corresponding bool presence flag.
-  void i2c_scan_() {
+  virtual void i2c_scan() {
     for (uint8_t address = 8; address < 120; address++) {
       auto err = writev(address, nullptr, 0);
       if (err == ERROR_OK) {

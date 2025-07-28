@@ -173,7 +173,6 @@ void USBClient::setup() {
     usb_host_transfer_alloc(64, 0, &trq->transfer);
     trq->client = this;
   }
-  ESP_LOGCONFIG(TAG, "client setup complete");
 }
 
 void USBClient::loop() {

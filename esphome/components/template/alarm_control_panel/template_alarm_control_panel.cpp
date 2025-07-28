@@ -80,7 +80,6 @@ void TemplateAlarmControlPanel::dump_config() {
 }
 
 void TemplateAlarmControlPanel::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   switch (this->restore_mode_) {
     case ALARM_CONTROL_PANEL_ALWAYS_DISARMED:
       this->current_state_ = ACP_STATE_DISARMED;

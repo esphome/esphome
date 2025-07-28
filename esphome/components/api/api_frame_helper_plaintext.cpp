@@ -10,8 +10,7 @@
 #include <cstring>
 #include <cinttypes>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.plaintext";
 
@@ -286,7 +285,6 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
   return write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size(), total_write_len);
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif  // USE_API_PLAINTEXT
 #endif  // USE_API

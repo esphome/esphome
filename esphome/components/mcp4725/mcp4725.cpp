@@ -7,7 +7,6 @@ namespace mcp4725 {
 static const char *const TAG = "mcp4725";
 
 void MCP4725::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;

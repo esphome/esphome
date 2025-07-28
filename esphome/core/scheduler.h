@@ -5,7 +5,7 @@
 #include <memory>
 #include <cstring>
 #include <deque>
-#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
 
@@ -15,8 +15,15 @@
 namespace esphome {
 
 class Component;
+struct RetryArgs;
+
+// Forward declaration of retry_handler - needs to be non-static for friend declaration
+void retry_handler(const std::shared_ptr<RetryArgs> &args);
 
 class Scheduler {
+  // Allow retry_handler to access protected members
+  friend void ::esphome::retry_handler(const std::shared_ptr<RetryArgs> &args);
+
  public:
   // Public API - accepts std::string for backward compatibility
   void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
@@ -147,7 +154,7 @@ class Scheduler {
 
   // Common implementation for both timeout and interval
   void set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string, const void *name_ptr,
-                         uint32_t delay, std::function<void()> func);
+                         uint32_t delay, std::function<void()> func, bool is_retry = false);
 
   uint64_t millis_64_(uint32_t now);
   // Cleanup logically deleted items from the scheduler
@@ -170,8 +177,8 @@ class Scheduler {
 
   // Helper function to check if item matches criteria for cancellation
   inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
-                                SchedulerItem::Type type) {
-    if (item->component != component || item->type != type || item->remove) {
+                                SchedulerItem::Type type, bool skip_removed = true) const {
+    if (item->component != component || item->type != type || (skip_removed && item->remove)) {
       return false;
     }
     const char *item_name = item->get_name();
@@ -197,16 +204,28 @@ class Scheduler {
     return item->remove || (item->component != nullptr && item->component->is_failed());
   }
 
+  // Template helper to check if any item in a container matches our criteria
+  template<typename Container>
+  bool has_cancelled_timeout_in_container_(const Container &container, Component *component,
+                                           const char *name_cstr) const {
+    for (const auto &item : container) {
+      if (item->remove && this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, false)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
-#ifndef ESPHOME_CORES_SINGLE
+#ifndef ESPHOME_THREAD_SINGLE
   // Single-core platforms don't need the defer queue and save 40 bytes of RAM
   std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-#endif                                                      /* ESPHOME_CORES_SINGLE */
+#endif                                                      /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
-#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
    * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
    *
@@ -218,10 +237,10 @@ class Scheduler {
    * it also observes the corresponding increment of `millis_major_`.
    */
   std::atomic<uint32_t> last_millis_{0};
-#else  /* not ESPHOME_CORES_MULTI_ATOMICS */
+#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   // Platforms without atomic support or single-threaded platforms
   uint32_t last_millis_{0};
-#endif /* else ESPHOME_CORES_MULTI_ATOMICS */
+#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
 
   /*
    * Upper 16 bits of the 64-bit millis counter. Incremented only while holding
@@ -229,11 +248,11 @@ class Scheduler {
    * Ordering relative to `last_millis_` is provided by its release store and the
    * corresponding acquire loads.
    */
-#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint16_t> millis_major_{0};
-#else  /* not ESPHOME_CORES_MULTI_ATOMICS */
+#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   uint16_t millis_major_{0};
-#endif /* else ESPHOME_CORES_MULTI_ATOMICS */
+#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
 };
 
 }  // namespace esphome

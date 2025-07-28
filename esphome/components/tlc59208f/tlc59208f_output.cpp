@@ -71,8 +71,6 @@ static const uint8_t LDR_PWM = 0x02;
 static const uint8_t LDR_GRPPWM = 0x03;
 
 void TLC59208FOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   ESP_LOGV(TAG, "  Resetting all devices on the bus");
 
   // Reset all devices on the bus

@@ -3,8 +3,7 @@
 #include "api_connection.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Generate entity handler implementations using macros
 #ifdef USE_BINARY_SENSOR
@@ -69,6 +68,5 @@ INITIAL_STATE_HANDLER(update, update::UpdateEntity)
 
 InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(client) {}
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

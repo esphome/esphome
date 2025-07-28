@@ -5,8 +5,7 @@
 #include "noise/protocol.h"
 #include "api_noise_context.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class APINoiseFrameHelper : public APIFrameHelper {
  public:
@@ -64,7 +63,6 @@ class APINoiseFrameHelper : public APIFrameHelper {
   // 4 bytes total, no padding
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif  // USE_API_NOISE
 #endif  // USE_API

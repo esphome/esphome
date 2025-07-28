@@ -16,7 +16,6 @@ namespace tca9555 {
 static const char *const TAG = "tca9555";
 
 void TCA9555Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_gpio_modes_()) {
     this->mark_failed();
     return;

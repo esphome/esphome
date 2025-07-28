@@ -13,7 +13,6 @@ namespace i2c {
 static const char *const TAG = "i2c.arduino";
 
 void ArduinoI2CBus::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   recover_();
 
 #if defined(USE_ESP32)
@@ -42,7 +41,7 @@ void ArduinoI2CBus::setup() {
   this->initialized_ = true;
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning bus for active devices");
-    this->i2c_scan_();
+    this->i2c_scan();
   }
 }
 

@@ -124,11 +124,10 @@ async def to_code(config):
 
     if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(task_stack_in_psram))
-        if task_stack_in_psram:
-            if config[CONF_TASK_STACK_IN_PSRAM]:
-                esp32.add_idf_sdkconfig_option(
-                    "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-                )
+        if task_stack_in_psram and config[CONF_TASK_STACK_IN_PSRAM]:
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
+            )
 
     for speaker_config in config[CONF_SOURCE_SPEAKERS]:
         source_speaker = cg.new_Pvariable(speaker_config[CONF_ID])

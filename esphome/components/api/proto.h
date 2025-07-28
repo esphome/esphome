@@ -13,8 +13,7 @@
 #define HAS_PROTO_MESSAGE_DUMP
 #endif
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 /*
  * StringRef Ownership Model for API Protocol Messages
@@ -861,7 +860,9 @@ class ProtoService {
   virtual bool is_authenticated() = 0;
   virtual bool is_connection_setup() = 0;
   virtual void on_fatal_error() = 0;
+#ifdef USE_API_PASSWORD
   virtual void on_unauthenticated_access() = 0;
+#endif
   virtual void on_no_setup_connection() = 0;
   /**
    * Create a buffer with a reserved size.
@@ -899,6 +900,7 @@ class ProtoService {
   }
 
   bool check_authenticated_() {
+#ifdef USE_API_PASSWORD
     if (!this->check_connection_setup_()) {
       return false;
     }
@@ -907,8 +909,10 @@ class ProtoService {
       return false;
     }
     return true;
+#else
+    return this->check_connection_setup_();
+#endif
   }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

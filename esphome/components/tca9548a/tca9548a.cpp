@@ -24,7 +24,6 @@ i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffer
 }
 
 void TCA9548AComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "TCA9548A failed");

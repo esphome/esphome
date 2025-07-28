@@ -78,11 +78,8 @@ def validate_model_config(config):
     model = config[CONF_MODEL]
 
     for key in config:
-        if key in SENSOR_MODEL_OPTIONS:
-            if model not in SENSOR_MODEL_OPTIONS[key]:
-                raise cv.Invalid(
-                    f"Device model '{model}' does not support '{key}' sensor"
-                )
+        if key in SENSOR_MODEL_OPTIONS and model not in SENSOR_MODEL_OPTIONS[key]:
+            raise cv.Invalid(f"Device model '{model}' does not support '{key}' sensor")
 
     tempco = config[CONF_TEMPERATURE_COEFFICIENT]
     if tempco > 0 and model not in ["INA228", "INA229"]:

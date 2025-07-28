@@ -198,10 +198,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         self.output_paths.remove((path, domain))
 
     def is_in_error_path(self, path: ConfigPath) -> bool:
-        for err in self.errors:
-            if _path_begins_with(err.path, path):
-                return True
-        return False
+        return any(_path_begins_with(err.path, path) for err in self.errors)
 
     def set_by_path(self, path, value):
         conf = self
@@ -224,7 +221,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         for index, path_item in enumerate(path):
             try:
                 if path_item in data:
-                    key_data = [x for x in data.keys() if x == path_item][0]
+                    key_data = [x for x in data if x == path_item][0]
                     if isinstance(key_data, ESPHomeDataBase):
                         doc_range = key_data.esp_range
                         if get_key and index == len(path) - 1:
@@ -1081,7 +1078,7 @@ def dump_dict(
             ret += "{}"
             multiline = False
 
-        for k in conf.keys():
+        for k in conf:
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
@@ -1097,10 +1094,7 @@ def dump_dict(
                 msg = f"\n{indent(msg)}"
 
             if inf is not None:
-                if m:
-                    msg = f" {inf}{msg}"
-                else:
-                    msg = f"{msg} {inf}"
+                msg = f" {inf}{msg}" if m else f"{msg} {inf}"
             ret += f"{st + msg}\n"
     elif isinstance(conf, str):
         if is_secret(conf):

@@ -16,8 +16,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api";
 
@@ -370,12 +369,15 @@ void APIServer::set_password(const std::string &password) { this->password_ = pa
 
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
   for (auto &client : this->clients_) {
     client->send_homeassistant_service_call(call);
   }
 }
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
@@ -399,6 +401,7 @@ void APIServer::get_home_assistant_state(std::string entity_id, optional<std::st
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
 }
+#endif
 
 uint16_t APIServer::get_port() const { return this->port_; }
 
@@ -483,6 +486,5 @@ bool APIServer::teardown() {
   return this->clients_.empty();
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

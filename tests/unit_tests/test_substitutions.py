@@ -31,10 +31,8 @@ def dict_diff(a, b, path=""):
     if isinstance(a, dict) and isinstance(b, dict):
         a_keys = set(a)
         b_keys = set(b)
-        for key in a_keys - b_keys:
-            diffs.append(f"{path}/{key} only in actual")
-        for key in b_keys - a_keys:
-            diffs.append(f"{path}/{key} only in expected")
+        diffs.extend(f"{path}/{key} only in actual" for key in a_keys - b_keys)
+        diffs.extend(f"{path}/{key} only in expected" for key in b_keys - a_keys)
         for key in a_keys & b_keys:
             diffs.extend(dict_diff(a[key], b[key], f"{path}/{key}"))
     elif isinstance(a, list) and isinstance(b, list):
@@ -42,11 +40,14 @@ def dict_diff(a, b, path=""):
         for i in range(min_len):
             diffs.extend(dict_diff(a[i], b[i], f"{path}[{i}]"))
         if len(a) > len(b):
-            for i in range(min_len, len(a)):
-                diffs.append(f"{path}[{i}] only in actual: {a[i]!r}")
+            diffs.extend(
+                f"{path}[{i}] only in actual: {a[i]!r}" for i in range(min_len, len(a))
+            )
         elif len(b) > len(a):
-            for i in range(min_len, len(b)):
-                diffs.append(f"{path}[{i}] only in expected: {b[i]!r}")
+            diffs.extend(
+                f"{path}[{i}] only in expected: {b[i]!r}"
+                for i in range(min_len, len(b))
+            )
     elif a != b:
         diffs.append(f"\t{path}: actual={a!r} expected={b!r}")
     return diffs

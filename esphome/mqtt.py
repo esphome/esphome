@@ -1,3 +1,4 @@
+import contextlib
 from datetime import datetime
 import hashlib
 import json
@@ -52,10 +53,8 @@ def initialize(
     client = prepare(
         config, subscriptions, on_message, on_connect, username, password, client_id
     )
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         client.loop_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 

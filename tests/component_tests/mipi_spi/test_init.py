@@ -16,9 +16,9 @@ from esphome.components.esp32 import (
     VARIANTS,
 )
 from esphome.components.esp32.gpio import validate_gpio_pin
+from esphome.components.mipi import CONF_NATIVE_HEIGHT
 from esphome.components.mipi_spi.display import (
     CONF_BUS_MODE,
-    CONF_NATIVE_HEIGHT,
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     MODELS,

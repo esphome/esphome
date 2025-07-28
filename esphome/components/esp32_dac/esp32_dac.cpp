@@ -20,7 +20,6 @@ static constexpr uint8_t DAC0_PIN = 25;
 static const char *const TAG = "esp32_dac";
 
 void ESP32DAC::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
   this->turn_off();
 

@@ -1,8 +1,18 @@
+from esphome.components.mipi import (
+    MIPI,
+    MODE_RGB,
+    NORON,
+    PAGESEL,
+    PIXFMT,
+    SLPOUT,
+    SWIRE1,
+    SWIRE2,
+    TEON,
+    WRAM,
+    DriverChip,
+    delay,
+)
 from esphome.components.spi import TYPE_QUAD
-
-from .. import MODE_RGB
-from . import DriverChip, delay
-from .commands import MIPI, NORON, PAGESEL, PIXFMT, SLPOUT, SWIRE1, SWIRE2, TEON, WRAM
 
 DriverChip(
     "T-DISPLAY-S3-AMOLED",

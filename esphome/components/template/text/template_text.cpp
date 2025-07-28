@@ -11,8 +11,6 @@ void TemplateText::setup() {
     if (this->f_.has_value())
       return;
   }
-
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   std::string value = this->initial_value_;
   if (!this->pref_) {
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());

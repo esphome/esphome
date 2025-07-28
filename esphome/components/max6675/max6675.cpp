@@ -17,10 +17,7 @@ void MAX6675Sensor::update() {
   this->set_timeout("value", 250, f);
 }
 
-void MAX6675Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
-  this->spi_setup();
-}
+void MAX6675Sensor::setup() { this->spi_setup(); }
 void MAX6675Sensor::dump_config() {
   LOG_SENSOR("", "MAX6675", this);
   LOG_PIN("  CS Pin: ", this->cs_);

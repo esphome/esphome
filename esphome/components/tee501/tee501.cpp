@@ -8,7 +8,6 @@ namespace tee501 {
 static const char *const TAG = "tee501";
 
 void TEE501Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t address[] = {0x70, 0x29};
   this->write(address, 2, false);
   uint8_t identification[9];

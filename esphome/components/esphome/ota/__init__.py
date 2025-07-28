@@ -73,8 +73,7 @@ def ota_esphome_final_validate(config):
         else:
             new_ota_conf.append(ota_conf)
 
-    for port_conf in merged_ota_esphome_configs_by_port.values():
-        new_ota_conf.append(port_conf)
+    new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
     full_conf[CONF_OTA] = new_ota_conf
     fv.full_config.set(full_conf)

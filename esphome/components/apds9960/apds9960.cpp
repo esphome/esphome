@@ -15,7 +15,6 @@ static const char *const TAG = "apds9960";
 #define APDS9960_WRITE_BYTE(reg, value) APDS9960_ERROR_CHECK(this->write_byte(reg, value));
 
 void APDS9960::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id;
   if (!this->read_byte(0x92, &id)) {  // ID register
     this->error_code_ = COMMUNICATION_FAILED;

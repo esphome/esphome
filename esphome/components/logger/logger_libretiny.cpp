@@ -1,8 +1,7 @@
 #ifdef USE_LIBRETINY
 #include "logger.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -56,7 +55,6 @@ const char *const UART_SELECTIONS[] = {"DEFAULT", "UART0", "UART1", "UART2"};
 
 const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 
 #endif  // USE_LIBRETINY

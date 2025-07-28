@@ -25,7 +25,6 @@ static const uint16_t SHT3XD_COMMAND_POLLING_H = 0x2400;
 static const uint16_t SHT3XD_COMMAND_FETCH_DATA = 0xE000;
 
 void SHT3XDComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint16_t raw_serial_number[2];
   if (!this->get_register(SHT3XD_COMMAND_READ_SERIAL_NUMBER_CLOCK_STRETCHING, raw_serial_number, 2)) {
     this->error_code_ = READ_SERIAL_STRETCHED_FAILED;
@@ -61,7 +60,6 @@ void SHT3XDComponent::dump_config() {
     ESP_LOGE(TAG, "  Communication with SHT3xD failed!");
     return;
   }
-  ESP_LOGD(TAG, "  Setup successful");
   ESP_LOGD(TAG, "  Serial Number: 0x%08" PRIX32, this->serial_number_);
   ESP_LOGD(TAG, "  Heater Enabled: %s", this->heater_enabled_ ? "true" : "false");
 

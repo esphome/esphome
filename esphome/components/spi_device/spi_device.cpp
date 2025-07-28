@@ -8,10 +8,7 @@ namespace spi_device {
 
 static const char *const TAG = "spi_device";
 
-void SPIDeviceComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  this->spi_setup();
-}
+void SPIDeviceComponent::setup() { this->spi_setup(); }
 
 void SPIDeviceComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SPIDevice");

@@ -71,7 +71,6 @@ static const char *iir_filter_to_str(BME680IIRFilter filter) {
 }
 
 void BME680Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t chip_id;
   if (!this->read_byte(BME680_REGISTER_CHIPID, &chip_id) || chip_id != 0x61) {
     this->mark_failed();

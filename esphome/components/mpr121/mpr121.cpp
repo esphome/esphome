@@ -11,7 +11,6 @@ namespace mpr121 {
 static const char *const TAG = "mpr121";
 
 void MPR121Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // soft reset device
   this->write_byte(MPR121_SOFTRESET, 0x63);
   delay(100);  // NOLINT

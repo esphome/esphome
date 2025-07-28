@@ -38,8 +38,6 @@ static const uint8_t AHT10_STATUS_BUSY = 0x80;
 static const float AHT10_DIVISOR = 1048576.0f;  // 2^20, used for temperature and humidity calculations
 
 void AHT10Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (this->write(AHT10_SOFTRESET_CMD, sizeof(AHT10_SOFTRESET_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Reset failed");
   }
@@ -80,8 +78,6 @@ void AHT10Component::setup() {
     this->mark_failed();
     return;
   }
-
-  ESP_LOGV(TAG, "Initialization complete");
 }
 
 void AHT10Component::restart_read_() {

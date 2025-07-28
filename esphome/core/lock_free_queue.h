@@ -29,7 +29,7 @@ namespace esphome {
 // Base lock-free queue without task notification
 template<class T, uint8_t SIZE> class LockFreeQueue {
  public:
-  LockFreeQueue() : head_(0), tail_(0), dropped_count_(0) {}
+  LockFreeQueue() : dropped_count_(0), head_(0), tail_(0) {}
 
   bool push(T *element) {
     bool was_empty;

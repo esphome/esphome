@@ -101,8 +101,6 @@ void ShellyDimmer::setup() {
   this->pin_nrst_->setup();
   this->pin_boot0_->setup();
 
-  ESP_LOGI(TAG, "Initializing");
-
   this->handle_firmware();
 
   this->send_settings_();

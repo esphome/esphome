@@ -10,8 +10,7 @@
 #include <cstring>
 #include <cinttypes>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.noise";
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
@@ -579,7 +578,6 @@ void noise_rand_bytes(void *output, size_t len) {
 }
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif  // USE_API_NOISE
 #endif  // USE_API

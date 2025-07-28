@@ -30,8 +30,6 @@ static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     //
 static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
 void SEN5XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
     // Check if measurement is ready before reading the value

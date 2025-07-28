@@ -60,6 +60,20 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 )
 
 
+def validate_config(config):
+    if CORE.is_esp32:
+        variant = esp32.get_esp32_variant()
+        if variant in (esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S2):
+            max_idle = 65535
+        else:
+            max_idle = 32767
+        if CONF_CLOCK_RESOLUTION in config:
+            max_idle = int(max_idle * 1000000 / config[CONF_CLOCK_RESOLUTION])
+        if config[CONF_IDLE].total_microseconds > max_idle:
+            raise cv.Invalid(f"config 'idle' exceeds the maximum value of {max_idle}us")
+    return config
+
+
 def validate_tolerance(value):
     if isinstance(value, dict):
         return TOLERANCE_SCHEMA(value)
@@ -136,7 +150,9 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 cv.boolean,
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA)
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .add_extra(validate_config)
 )
 
 

@@ -14,6 +14,8 @@ with warnings.catch_warnings():
     from aioesphomeapi import APIClient, parse_log_message
     from aioesphomeapi.log_runner import async_run
 
+import contextlib
+
 from esphome.const import CONF_KEY, CONF_PASSWORD, CONF_PORT, __version__
 from esphome.core import CORE
 
@@ -66,7 +68,5 @@ async def async_run_logs(config: dict[str, Any], address: str) -> None:
 
 def run_logs(config: dict[str, Any], address: str) -> None:
     """Run the logs command."""
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(async_run_logs(config, address))
-    except KeyboardInterrupt:
-        pass

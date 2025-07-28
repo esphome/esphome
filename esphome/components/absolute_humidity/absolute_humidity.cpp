@@ -7,8 +7,6 @@ namespace absolute_humidity {
 static const char *const TAG = "absolute_humidity.sensor";
 
 void AbsoluteHumidityComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
-
   ESP_LOGD(TAG, "  Added callback for temperature '%s'", this->temperature_sensor_->get_name().c_str());
   this->temperature_sensor_->add_on_state_callback([this](float state) { this->temperature_callback_(state); });
   if (this->temperature_sensor_->has_state()) {

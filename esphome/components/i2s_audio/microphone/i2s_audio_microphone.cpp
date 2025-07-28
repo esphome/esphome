@@ -40,7 +40,6 @@ enum MicrophoneEventGroupBits : uint32_t {
 };
 
 void I2SAudioMicrophone::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
 #ifdef USE_I2S_LEGACY
 #if SOC_I2S_SUPPORTS_ADC
   if (this->adc_) {

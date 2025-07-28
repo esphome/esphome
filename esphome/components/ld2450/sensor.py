@@ -43,12 +43,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
         cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
             icon=ICON_ACCOUNT_GROUP,
+            accuracy_decimals=0,
         ),
         cv.Optional(CONF_STILL_TARGET_COUNT): sensor.sensor_schema(
             icon=ICON_HUMAN_GREETING_PROXIMITY,
+            accuracy_decimals=0,
         ),
         cv.Optional(CONF_MOVING_TARGET_COUNT): sensor.sensor_schema(
             icon=ICON_ACCOUNT_SWITCH,
+            accuracy_decimals=0,
         ),
     }
 )
@@ -95,12 +98,15 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
             {
                 cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
                     icon=ICON_MAP_MARKER_ACCOUNT,
+                    accuracy_decimals=0,
                 ),
                 cv.Optional(CONF_STILL_TARGET_COUNT): sensor.sensor_schema(
                     icon=ICON_MAP_MARKER_ACCOUNT,
+                    accuracy_decimals=0,
                 ),
                 cv.Optional(CONF_MOVING_TARGET_COUNT): sensor.sensor_schema(
                     icon=ICON_MAP_MARKER_ACCOUNT,
+                    accuracy_decimals=0,
                 ),
             }
         )

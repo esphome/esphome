@@ -8,8 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble.advertising";
 
@@ -160,7 +159,6 @@ void BLEAdvertising::register_raw_advertisement_callback(std::function<void(bool
   this->raw_advertisements_callbacks_.push_back(std::move(callback));
 }
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

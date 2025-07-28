@@ -115,9 +115,7 @@ def get_target_platform():
 
 
 def get_target_variant():
-    return (
-        CORE.data[KEY_ESP32][KEY_VARIANT] if KEY_VARIANT in CORE.data[KEY_ESP32] else ""
-    )
+    return CORE.data[KEY_ESP32].get(KEY_VARIANT, "")
 
 
 # Get a list of available hardware interfaces based on target and variant.
@@ -213,9 +211,7 @@ def validate_hw_pins(spi, index=-1):
             return False
         if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:
             return False
-        if sdi_pin_no not in pin_set[CONF_MISO_PIN]:
-            return False
-        return True
+        return sdi_pin_no in pin_set[CONF_MISO_PIN]
     return False
 
 

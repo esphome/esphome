@@ -8,8 +8,7 @@
 #include <string>
 #include <esp_bt_defs.h>
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 class ESPBTUUID {
  public:
@@ -41,7 +40,6 @@ class ESPBTUUID {
   esp_bt_uuid_t uuid_;
 };
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

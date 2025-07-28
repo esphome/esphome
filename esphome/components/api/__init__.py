@@ -53,6 +53,8 @@ SERVICE_ARG_NATIVE_TYPES = {
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
+CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
+CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 
 
 def validate_encryption_key(value):
@@ -118,6 +120,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
             cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),
@@ -145,6 +149,12 @@ async def to_code(config):
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_SERVICES]:
+        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_STATES]:
+        cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
         for conf in actions:
@@ -235,6 +245,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
 )
 async def homeassistant_service_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
     templ = await cg.templatable(config[CONF_ACTION], args, None)
@@ -278,6 +289,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     templ = await cg.templatable(config[CONF_EVENT], args, None)

@@ -8,6 +8,32 @@ namespace light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
+// Lookup table for color mode strings
+static constexpr const char *get_color_mode_json_str(ColorMode mode) {
+  switch (mode) {
+    case ColorMode::ON_OFF:
+      return "onoff";
+    case ColorMode::BRIGHTNESS:
+      return "brightness";
+    case ColorMode::WHITE:
+      return "white";  // not supported by HA in MQTT
+    case ColorMode::COLOR_TEMPERATURE:
+      return "color_temp";
+    case ColorMode::COLD_WARM_WHITE:
+      return "cwww";  // not supported by HA
+    case ColorMode::RGB:
+      return "rgb";
+    case ColorMode::RGB_WHITE:
+      return "rgbw";
+    case ColorMode::RGB_COLOR_TEMPERATURE:
+      return "rgbct";  // not supported by HA
+    case ColorMode::RGB_COLD_WARM_WHITE:
+      return "rgbww";
+    default:
+      return nullptr;
+  }
+}
+
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   if (state.supports_effects())
@@ -16,60 +42,36 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   auto values = state.remote_values;
   auto traits = state.get_output()->get_traits();
 
-  switch (values.get_color_mode()) {
-    case ColorMode::UNKNOWN:  // don't need to set color mode if we don't know it
-      break;
-    case ColorMode::ON_OFF:
-      root["color_mode"] = "onoff";
-      break;
-    case ColorMode::BRIGHTNESS:
-      root["color_mode"] = "brightness";
-      break;
-    case ColorMode::WHITE:  // not supported by HA in MQTT
-      root["color_mode"] = "white";
-      break;
-    case ColorMode::COLOR_TEMPERATURE:
-      root["color_mode"] = "color_temp";
-      break;
-    case ColorMode::COLD_WARM_WHITE:  // not supported by HA
-      root["color_mode"] = "cwww";
-      break;
-    case ColorMode::RGB:
-      root["color_mode"] = "rgb";
-      break;
-    case ColorMode::RGB_WHITE:
-      root["color_mode"] = "rgbw";
-      break;
-    case ColorMode::RGB_COLOR_TEMPERATURE:  // not supported by HA
-      root["color_mode"] = "rgbct";
-      break;
-    case ColorMode::RGB_COLD_WARM_WHITE:
-      root["color_mode"] = "rgbww";
-      break;
+  const auto color_mode = values.get_color_mode();
+  const char *mode_str = get_color_mode_json_str(color_mode);
+  if (mode_str != nullptr) {
+    root["color_mode"] = mode_str;
   }
 
-  if (values.get_color_mode() & ColorCapability::ON_OFF)
+  if (color_mode & ColorCapability::ON_OFF)
     root["state"] = (values.get_state() != 0.0f) ? "ON" : "OFF";
-  if (values.get_color_mode() & ColorCapability::BRIGHTNESS)
-    root["brightness"] = uint8_t(values.get_brightness() * 255);
+  if (color_mode & ColorCapability::BRIGHTNESS)
+    root["brightness"] = to_uint8_scale(values.get_brightness());
 
   JsonObject color = root["color"].to<JsonObject>();
-  if (values.get_color_mode() & ColorCapability::RGB) {
-    color["r"] = uint8_t(values.get_color_brightness() * values.get_red() * 255);
-    color["g"] = uint8_t(values.get_color_brightness() * values.get_green() * 255);
-    color["b"] = uint8_t(values.get_color_brightness() * values.get_blue() * 255);
+  if (color_mode & ColorCapability::RGB) {
+    float color_brightness = values.get_color_brightness();
+    color["r"] = to_uint8_scale(color_brightness * values.get_red());
+    color["g"] = to_uint8_scale(color_brightness * values.get_green());
+    color["b"] = to_uint8_scale(color_brightness * values.get_blue());
   }
-  if (values.get_color_mode() & ColorCapability::WHITE) {
-    color["w"] = uint8_t(values.get_white() * 255);
-    root["white_value"] = uint8_t(values.get_white() * 255);  // legacy API
+  if (color_mode & ColorCapability::WHITE) {
+    uint8_t white_val = to_uint8_scale(values.get_white());
+    color["w"] = white_val;
+    root["white_value"] = white_val;  // legacy API
   }
-  if (values.get_color_mode() & ColorCapability::COLOR_TEMPERATURE) {
+  if (color_mode & ColorCapability::COLOR_TEMPERATURE) {
     // this one isn't under the color subkey for some reason
     root["color_temp"] = uint32_t(values.get_color_temperature());
   }
-  if (values.get_color_mode() & ColorCapability::COLD_WARM_WHITE) {
-    color["c"] = uint8_t(values.get_cold_white() * 255);
-    color["w"] = uint8_t(values.get_warm_white() * 255);
+  if (color_mode & ColorCapability::COLD_WARM_WHITE) {
+    color["c"] = to_uint8_scale(values.get_cold_white());
+    color["w"] = to_uint8_scale(values.get_warm_white());
   }
 }
 

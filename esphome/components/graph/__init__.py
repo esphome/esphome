@@ -116,7 +116,7 @@ GRAPH_SCHEMA = cv.Schema(
 
 
 def _relocate_fields_to_subfolder(config, subfolder, subschema):
-    fields = [k.schema for k in subschema.schema.keys()]
+    fields = [k.schema for k in subschema.schema]
     fields.remove(CONF_ID)
     if subfolder in config:
         # Ensure no ambiguous fields in base of config

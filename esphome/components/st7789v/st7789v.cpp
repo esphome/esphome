@@ -8,7 +8,6 @@ static const char *const TAG = "st7789v";
 static const size_t TEMP_BUFFER_SIZE = 128;
 
 void ST7789V::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
 #ifdef USE_POWER_SUPPLY
   this->power_.request();
   // the PowerSupply component takes care of post turn-on delay

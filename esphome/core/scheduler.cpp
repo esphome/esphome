@@ -17,6 +17,8 @@ static const char *const TAG = "scheduler";
 static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
+// max delay to start an interval sequence
+static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
 
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
@@ -63,7 +65,7 @@ static void validate_static_string(const char *name) {
 
 // Common implementation for both timeout and interval
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string,
-                                      const void *name_ptr, uint32_t delay, std::function<void()> func) {
+                                      const void *name_ptr, uint32_t delay, std::function<void()> func, bool is_retry) {
   // Get the name as const char*
   const char *name_cstr = this->get_name_cstr_(is_static_string, name_ptr);
 
@@ -82,7 +84,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   item->callback = std::move(func);
   item->remove = false;
 
-#ifndef ESPHOME_CORES_SINGLE
+#ifndef ESPHOME_THREAD_SINGLE
   // Special handling for defer() (delay = 0, type = TIMEOUT)
   // Single-core platforms don't need thread-safe defer handling
   if (delay == 0 && type == SchedulerItem::TIMEOUT) {
@@ -92,7 +94,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     this->defer_queue_.push_back(std::move(item));
     return;
   }
-#endif /* not ESPHOME_CORES_SINGLE */
+#endif /* not ESPHOME_THREAD_SINGLE */
 
   // Get fresh timestamp for new timer/interval - ensures accurate scheduling
   const auto now = this->millis_64_(millis());  // Fresh millis() call
@@ -100,9 +102,12 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Type-specific setup
   if (type == SchedulerItem::INTERVAL) {
     item->interval = delay;
-    // Calculate random offset (0 to interval/2)
-    uint32_t offset = (delay != 0) ? (random_uint32() % delay) / 2 : 0;
+    // first execution happens immediately after a random smallish offset
+    // Calculate random offset (0 to min(interval/2, 5s))
+    uint32_t offset = (uint32_t) (std::min(delay / 2, MAX_INTERVAL_DELAY) * random_float());
     item->next_execution_ = now + offset;
+    ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms", name_cstr ? name_cstr : "", delay,
+             offset);
   } else {
     item->interval = 0;
     item->next_execution_ = now + delay;
@@ -126,6 +131,18 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
   LockGuard guard{this->lock_};
+
+  // For retries, check if there's a cancelled timeout first
+  if (is_retry && name_cstr != nullptr && type == SchedulerItem::TIMEOUT &&
+      (has_cancelled_timeout_in_container_(this->items_, component, name_cstr) ||
+       has_cancelled_timeout_in_container_(this->to_add_, component, name_cstr))) {
+    // Skip scheduling - the retry was cancelled
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Skipping retry '%s' - found cancelled item", name_cstr);
+#endif
+    return;
+  }
+
   // If name is provided, do atomic cancel-and-add
   // Cancel existing items
   this->cancel_item_locked_(component, name_cstr, type);
@@ -174,12 +191,14 @@ struct RetryArgs {
   Scheduler *scheduler;
 };
 
-static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
+void retry_handler(const std::shared_ptr<RetryArgs> &args) {
   RetryResult const retry_result = args->func(--args->retry_countdown);
   if (retry_result == RetryResult::DONE || args->retry_countdown <= 0)
     return;
   // second execution of `func` happens after `initial_wait_time`
-  args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
+  args->scheduler->set_timer_common_(
+      args->component, Scheduler::SchedulerItem::TIMEOUT, false, &args->name, args->current_interval,
+      [args]() { retry_handler(args); }, true);
   // backoff_increase_factor applied to third & later executions
   args->current_interval *= args->backoff_increase_factor;
 }
@@ -234,7 +253,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   return item->next_execution_ - now_64;
 }
 void HOT Scheduler::call(uint32_t now) {
-#ifndef ESPHOME_CORES_SINGLE
+#ifndef ESPHOME_THREAD_SINGLE
   // Process defer queue first to guarantee FIFO execution order for deferred items.
   // Previously, defer() used the heap which gave undefined order for equal timestamps,
   // causing race conditions on multi-core systems (ESP32, BK7200).
@@ -264,7 +283,7 @@ void HOT Scheduler::call(uint32_t now) {
       this->execute_item_(item.get(), now);
     }
   }
-#endif /* not ESPHOME_CORES_SINGLE */
+#endif /* not ESPHOME_THREAD_SINGLE */
 
   // Convert the fresh timestamp from main loop to 64-bit for scheduler operations
   const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from Application::loop()
@@ -276,15 +295,15 @@ void HOT Scheduler::call(uint32_t now) {
   if (now_64 - last_print > 2000) {
     last_print = now_64;
     std::vector<std::unique_ptr<SchedulerItem>> old_items;
-#ifdef ESPHOME_CORES_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
     const auto last_dbg = this->last_millis_.load(std::memory_order_relaxed);
     const auto major_dbg = this->millis_major_.load(std::memory_order_relaxed);
     ESP_LOGD(TAG, "Items: count=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(), now_64,
              major_dbg, last_dbg);
-#else  /* not ESPHOME_CORES_MULTI_ATOMICS */
+#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
     ESP_LOGD(TAG, "Items: count=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(), now_64,
              this->millis_major_, this->last_millis_);
-#endif /* else ESPHOME_CORES_MULTI_ATOMICS */
+#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
     // Cleanup before debug output
     this->cleanup_();
     while (!this->items_.empty()) {
@@ -469,7 +488,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   size_t total_cancelled = 0;
 
   // Check all containers for matching items
-#ifndef ESPHOME_CORES_SINGLE
+#ifndef ESPHOME_THREAD_SINGLE
   // Only check defer queue for timeouts (intervals never go there)
   if (type == SchedulerItem::TIMEOUT) {
     for (auto &item : this->defer_queue_) {
@@ -479,7 +498,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
       }
     }
   }
-#endif /* not ESPHOME_CORES_SINGLE */
+#endif /* not ESPHOME_THREAD_SINGLE */
 
   // Cancel items in the main heap
   for (auto &item : this->items_) {
@@ -505,9 +524,9 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
 uint64_t Scheduler::millis_64_(uint32_t now) {
   // THREAD SAFETY NOTE:
   // This function has three implementations, based on the precompiler flags
-  // - ESPHOME_CORES_SINGLE - Runs on single-core platforms (ESP8266, RP2040, etc.)
-  // - ESPHOME_CORES_MULTI_NO_ATOMICS - Runs on multi-core platforms without atomics (LibreTiny)
-  // - ESPHOME_CORES_MULTI_ATOMICS - Runs on multi-core platforms with atomics (ESP32, HOST, etc.)
+  // - ESPHOME_THREAD_SINGLE - Runs on single-threaded platforms (ESP8266, RP2040, etc.)
+  // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny)
+  // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (ESP32, HOST, etc.)
   //
   // Make sure all changes are synchronized if you edit this function.
   //
@@ -516,7 +535,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
   // helps maintain accuracy.
   //
 
-#ifdef ESPHOME_CORES_SINGLE
+#ifdef ESPHOME_THREAD_SINGLE
   // This is the single core implementation.
   //
   // Single-core platforms have no concurrency, so this is a simple implementation
@@ -542,7 +561,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
   // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time
   return now + (static_cast<uint64_t>(major) << 32);
 
-#elif defined(ESPHOME_CORES_MULTI_NO_ATOMICS)
+#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
   // This is the multi core no atomics implementation.
   //
   // Without atomics, this implementation uses locks more aggressively:
@@ -591,7 +610,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
   // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time
   return now + (static_cast<uint64_t>(major) << 32);
 
-#elif defined(ESPHOME_CORES_MULTI_ATOMICS)
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
   // This is the multi core with atomics implementation.
   //
   // Uses atomic operations with acquire/release semantics to ensure coherent
@@ -656,7 +675,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
 
 #else
 #error \
-    "No platform threading model defined. One of ESPHOME_CORES_SINGLE, ESPHOME_CORES_MULTI_NO_ATOMICS, or ESPHOME_CORES_MULTI_ATOMICS must be defined."
+    "No platform threading model defined. One of ESPHOME_THREAD_SINGLE, ESPHOME_THREAD_MULTI_NO_ATOMICS, or ESPHOME_THREAD_MULTI_ATOMICS must be defined."
 #endif
 }
 

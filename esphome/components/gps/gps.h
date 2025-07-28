@@ -1,10 +1,8 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
-#include "esphome/core/component.h"
-#include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
 #include <TinyGPSPlus.h>
 
 #include <vector>
@@ -53,8 +51,9 @@ class GPS : public PollingComponent, public uart::UARTDevice {
   float speed_{NAN};
   float course_{NAN};
   float altitude_{NAN};
-  uint16_t satellites_{0};
   float hdop_{NAN};
+  uint16_t satellites_{0};
+  bool has_time_{false};
 
   sensor::Sensor *latitude_sensor_{nullptr};
   sensor::Sensor *longitude_sensor_{nullptr};
@@ -64,12 +63,9 @@ class GPS : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *satellites_sensor_{nullptr};
   sensor::Sensor *hdop_sensor_{nullptr};
 
-  bool has_time_{false};
   TinyGPSPlus tiny_gps_;
   std::vector<GPSListener *> listeners_{};
 };
 
 }  // namespace gps
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

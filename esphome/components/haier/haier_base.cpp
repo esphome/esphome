@@ -242,7 +242,6 @@ haier_protocol::HandlerError HaierClimateBase::timeout_default_handler_(haier_pr
 }
 
 void HaierClimateBase::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Set timestamp here to give AC time to boot
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
   this->set_phase(ProtocolPhases::SENDING_INIT_1);

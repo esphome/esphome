@@ -8,8 +8,7 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/usb/usb_device.h>
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -82,7 +81,6 @@ const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
 
 const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 
 #endif

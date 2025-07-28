@@ -7,7 +7,6 @@ namespace ttp229_lsf {
 static const char *const TAG = "ttp229_lsf";
 
 void TTP229LSFComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[2];
   if (this->read(data, 2) != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;

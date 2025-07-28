@@ -7,9 +7,7 @@ namespace as3935_spi {
 static const char *const TAG = "as3935_spi";
 
 void SPIAS3935Component::setup() {
-  ESP_LOGI(TAG, "SPIAS3935Component setup started!");
   this->spi_setup();
-  ESP_LOGI(TAG, "SPI setup finished!");
   AS3935Component::setup();
 }
 

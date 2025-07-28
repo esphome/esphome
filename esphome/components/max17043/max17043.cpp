@@ -41,8 +41,6 @@ void MAX17043Component::update() {
 }
 
 void MAX17043Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   uint16_t config_reg;
   if (this->write(&MAX17043_CONFIG, 1) != i2c::ERROR_OK) {
     this->status_set_warning();

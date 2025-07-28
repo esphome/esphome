@@ -18,15 +18,14 @@ LightCall LightState::toggle() { return this->make_call().set_state(!this->remot
 LightCall LightState::make_call() { return LightCall(this); }
 
 void LightState::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
-
   this->output_->setup_state(this);
   for (auto *effect : this->effects_) {
     effect->init_internal(this);
   }
 
   // When supported color temperature range is known, initialize color temperature setting within bounds.
-  float min_mireds = this->get_traits().get_min_mireds();
+  auto traits = this->get_traits();
+  float min_mireds = traits.get_min_mireds();
   if (min_mireds > 0) {
     this->remote_values.set_color_temperature(min_mireds);
     this->current_values.set_color_temperature(min_mireds);
@@ -45,11 +44,8 @@ void LightState::setup() {
       this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
-        recovered.state = false;
-        if (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
-            this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
-          recovered.state = true;
-        }
+        recovered.state = (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
+                           this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON);
       } else if (this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_OFF ||
                  this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
         // Inverted restore state
@@ -90,17 +86,18 @@ void LightState::setup() {
 }
 void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
-  if (this->get_traits().supports_color_capability(ColorCapability::BRIGHTNESS)) {
+  auto traits = this->get_traits();
+  if (traits.supports_color_capability(ColorCapability::BRIGHTNESS)) {
     ESP_LOGCONFIG(TAG,
                   "  Default Transition Length: %.1fs\n"
                   "  Gamma Correct: %.2f",
                   this->default_transition_length_ / 1e3f, this->gamma_correct_);
   }
-  if (this->get_traits().supports_color_capability(ColorCapability::COLOR_TEMPERATURE)) {
+  if (traits.supports_color_capability(ColorCapability::COLOR_TEMPERATURE)) {
     ESP_LOGCONFIG(TAG,
                   "  Min Mireds: %.1f\n"
                   "  Max Mireds: %.1f",
-                  this->get_traits().get_min_mireds(), this->get_traits().get_max_mireds());
+                  traits.get_min_mireds(), traits.get_max_mireds());
   }
 }
 void LightState::loop() {

@@ -279,7 +279,6 @@ std::string WebServer::get_config_json() {
 }
 
 void WebServer::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->setup_controller(this->include_internal_);
   this->base_->init();
 

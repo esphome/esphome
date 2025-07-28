@@ -18,8 +18,6 @@ static const uint8_t HTU21D_READHEATER_REG_CMD = 0x11;  /**< Read Heater Control
 static const uint8_t HTU21D_REG_HTRE_BIT = 0x02;        /**< Control Register Heater Bit */
 
 void HTU21DComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)) {
     this->mark_failed();
     return;

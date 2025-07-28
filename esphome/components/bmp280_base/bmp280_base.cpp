@@ -57,7 +57,6 @@ static const char *iir_filter_to_str(BMP280IIRFilter filter) {
 }
 
 void BMP280Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t chip_id = 0;
 
   // Read the chip id twice, to work around a bug where the first read is 0.

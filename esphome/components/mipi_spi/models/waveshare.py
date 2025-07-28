@@ -1,6 +1,6 @@
+from esphome.components.mipi import DriverChip
 import esphome.config_validation as cv
 
-from . import DriverChip
 from .ili import ILI9488_A
 
 DriverChip(

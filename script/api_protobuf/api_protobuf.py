@@ -61,9 +61,7 @@ def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
     for line in text.splitlines():
-        if line == "":
-            p = ""
-        elif line.startswith("#ifdef") or line.startswith("#endif"):
+        if line == "" or line.startswith("#ifdef") or line.startswith("#endif"):
             p = ""
         else:
             p = padding
@@ -224,12 +222,26 @@ class TypeInfo(ABC):
 
     encode_func = None
 
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        """Whether this type can use the dump_field helper functions.
+
+        Returns True for simple types that have dump_field overloads.
+        Complex types like messages and bytes should return False.
+        """
+        return True
+
+    def dump_field_value(self, value: str) -> str:
+        """Get the value expression to pass to dump_field.
+
+        Most types just pass the value directly, but some (like enums) need a cast.
+        """
+        return value
+
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
-        o += self.dump(f"this->{self.field_name}") + "\n"
-        o += 'out.append("\\n");\n'
-        return o
+        # Default implementation - subclasses can override if they need special handling
+        return f'dump_field(out, "{self.name}", {self.dump_field_value(f"this->{self.field_name}")});'
 
     @abstractmethod
     def dump(self, name: str) -> str:
@@ -550,11 +562,16 @@ class StringType(TypeInfo):
     @property
     def public_content(self) -> list[str]:
         content: list[str] = []
-        # Add std::string storage if message needs decoding
-        if self._needs_decode:
+
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        # Add std::string storage if message needs decoding OR if no_zero_copy is set
+        if self._needs_decode or no_zero_copy:
             content.append(f"std::string {self.field_name}{{}};")
 
-        if self._needs_encode:
+        # Only add StringRef if encoding is needed AND no_zero_copy is not set
+        if self._needs_encode and not no_zero_copy:
             content.extend(
                 [
                     # Add StringRef field if message needs encoding
@@ -569,12 +586,27 @@ class StringType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        if no_zero_copy:
+            # Use the std::string directly
+            return f"buffer.encode_string({self.number}, this->{self.field_name});"
+        else:
+            # Use the StringRef
+            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
         # If name is 'it', this is a repeated field element - always use string
         if name == "it":
             return "append_quoted_string(out, StringRef(it));"
+
+        # If no_zero_copy is set, always use std::string
+        if no_zero_copy:
+            return f'out.append("\'").append(this->{self.field_name}).append("\'");'
 
         # For SOURCE_CLIENT only, always use std::string
         if not self._needs_encode:
@@ -593,9 +625,39 @@ class StringType(TypeInfo):
             f"}}"
         )
 
-    def get_size_calculation(self, name: str, force: bool = False) -> str:
-        # For SOURCE_CLIENT only messages, use the string field directly
+    @property
+    def dump_content(self) -> str:
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        # If no_zero_copy is set, always use std::string
+        if no_zero_copy:
+            return f'dump_field(out, "{self.name}", this->{self.field_name});'
+
+        # For SOURCE_CLIENT only, use std::string
         if not self._needs_encode:
+            return f'dump_field(out, "{self.name}", this->{self.field_name});'
+
+        # For SOURCE_SERVER, use StringRef with _ref_ suffix
+        if not self._needs_decode:
+            return f'dump_field(out, "{self.name}", this->{self.field_name}_ref_);'
+
+        # For SOURCE_BOTH, we need custom logic
+        o = f'out.append("  {self.name}: ");\n'
+        o += self.dump(f"this->{self.field_name}") + "\n"
+        o += 'out.append("\\n");'
+        return o
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        # For SOURCE_CLIENT only messages or no_zero_copy, use the string field directly
+        if not self._needs_encode or no_zero_copy:
+            # For no_zero_copy, we need to use .size() on the string
+            if no_zero_copy and name != "it":
+                field_id_size = self.calculate_field_id_size()
+                return f"ProtoSize::add_string_field(total_size, {field_id_size}, this->{self.field_name}.size());"
             return self._get_simple_size_calculation(name, force, "add_string_field")
 
         # Check if this is being called from a repeated field context
@@ -615,6 +677,10 @@ class StringType(TypeInfo):
 
 @register_type(11)
 class MessageType(TypeInfo):
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
+
     @property
     def cpp_type(self) -> str:
         return self._field.type_name[1:]
@@ -651,6 +717,13 @@ class MessageType(TypeInfo):
         o = f"{name}.dump_to(out);"
         return o
 
+    @property
+    def dump_content(self) -> str:
+        o = f'out.append("  {self.name}: ");\n'
+        o += f"this->{self.field_name}.dump_to(out);\n"
+        o += 'out.append("\\n");'
+        return o
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return self._get_simple_size_calculation(name, force, "add_message_object")
 
@@ -664,6 +737,10 @@ class MessageType(TypeInfo):
 
 @register_type(12)
 class BytesType(TypeInfo):
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
+
     cpp_type = "std::string"
     default_value = ""
     reference_type = "std::string &"
@@ -719,6 +796,13 @@ class BytesType(TypeInfo):
             f"  }}"
         )
 
+    @property
+    def dump_content(self) -> str:
+        o = f'out.append("  {self.name}: ");\n'
+        o += self.dump(f"this->{self.field_name}") + "\n"
+        o += 'out.append("\\n");'
+        return o
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"ProtoSize::add_bytes_field(total_size, {self.calculate_field_id_size()}, this->{self.field_name}_len_);"
 
@@ -728,6 +812,10 @@ class BytesType(TypeInfo):
 
 class FixedArrayBytesType(TypeInfo):
     """Special type for fixed-size byte arrays."""
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
 
     def __init__(self, field: descriptor.FieldDescriptorProto, size: int) -> None:
         super().__init__(field)
@@ -776,6 +864,13 @@ class FixedArrayBytesType(TypeInfo):
 
     def dump(self, name: str) -> str:
         o = f"out.append(format_hex_pretty({name}, {name}_len));"
+        return o
+
+    @property
+    def dump_content(self) -> str:
+        o = f'out.append("  {self.name}: ");\n'
+        o += f"out.append(format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len));\n"
+        o += 'out.append("\\n");'
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -849,6 +944,10 @@ class EnumType(TypeInfo):
     def dump(self, name: str) -> str:
         o = f"out.append(proto_enum_to_string<{self.cpp_type}>({name}));"
         return o
+
+    def dump_field_value(self, value: str) -> str:
+        # Enums need explicit cast for the template
+        return f"static_cast<{self.cpp_type}>({value})"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return self._get_simple_size_calculation(
@@ -947,6 +1046,27 @@ class SInt64Type(TypeInfo):
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
 
 
+def _generate_array_dump_content(
+    ti, field_name: str, name: str, is_bool: bool = False
+) -> str:
+    """Generate dump content for array types (repeated or fixed array).
+
+    Shared helper to avoid code duplication between RepeatedTypeInfo and FixedArrayRepeatedType.
+    """
+    o = f"for (const auto {'' if is_bool else '&'}it : {field_name}) {{\n"
+    # Check if underlying type can use dump_field
+    if type(ti).can_use_dump_field():
+        # For types that have dump_field overloads, use them with extra indent
+        o += f'  dump_field(out, "{name}", {ti.dump_field_value("it")}, 4);\n'
+    else:
+        # For complex types (messages, bytes), use the old pattern
+        o += f'  out.append("  {name}: ");\n'
+        o += indent(ti.dump("it")) + "\n"
+        o += '  out.append("\\n");\n'
+    o += "}"
+    return o
+
+
 class FixedArrayRepeatedType(TypeInfo):
     """Special type for fixed-size repeated fields using std::array.
 
@@ -1013,12 +1133,9 @@ class FixedArrayRepeatedType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f"for (const auto &it : this->{self.field_name}) {{\n"
-        o += f'  out.append("  {self.name}: ");\n'
-        o += indent(self._ti.dump("it")) + "\n"
-        o += '  out.append("\\n");\n'
-        o += "}\n"
-        return o
+        return _generate_array_dump_content(
+            self._ti, f"this->{self.field_name}", self.name, is_bool=False
+        )
 
     def dump(self, name: str) -> str:
         # This is used when dumping the array itself (not its elements)
@@ -1144,12 +1261,9 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f"for (const auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-        o += f'  out.append("  {self.name}: ");\n'
-        o += indent(self._ti.dump("it")) + "\n"
-        o += '  out.append("\\n");\n'
-        o += "}\n"
-        return o
+        return _generate_array_dump_content(
+            self._ti, f"this->{self.field_name}", self.name, is_bool=self._ti_is_bool
+        )
 
     def dump(self, _: str):
         pass
@@ -1644,10 +1758,8 @@ def build_message_type(
             dump_impl += f" {dump[0]} "
         else:
             dump_impl += "\n"
-            dump_impl += "  __attribute__((unused)) char buffer[64];\n"
-            dump_impl += f'  out.append("{desc.name} {{\\n");\n'
+            dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
             dump_impl += indent("\n".join(dump)) + "\n"
-            dump_impl += '  out.append("}");\n'
     else:
         o2 = f'out.append("{desc.name} {{}}");'
         if len(dump_impl) + len(o2) + 3 < 120:
@@ -1934,8 +2046,8 @@ def build_service_message_type(
             case += "#endif\n"
         case += f"this->{func}(msg);\n"
         case += "break;"
-        # Store the ifdef with the case for later use
-        RECEIVE_CASES[id_] = (case, ifdef)
+        # Store the message name and ifdef with the case for later use
+        RECEIVE_CASES[id_] = (case, ifdef, mt.name)
 
         # Only close ifdef if we opened it
         if ifdef is not None:
@@ -1965,8 +2077,7 @@ def main() -> None:
 
 #include "proto.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 """
 
@@ -1977,8 +2088,7 @@ namespace api {
     #include "esphome/core/helpers.h"
     #include <cstring>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 """
 
@@ -1992,8 +2102,7 @@ namespace api {
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Helper function to append a quoted string, handling empty StringRef
 static inline void append_quoted_string(std::string &out, const StringRef &ref) {
@@ -2002,6 +2111,83 @@ static inline void append_quoted_string(std::string &out, const StringRef &ref) 
     out.append(ref.c_str());
   }
   out.append("'");
+}
+
+// Common helpers for dump_field functions
+static inline void append_field_prefix(std::string &out, const char *field_name, int indent) {
+  out.append(indent, ' ').append(field_name).append(": ");
+}
+
+static inline void append_with_newline(std::string &out, const char *str) {
+  out.append(str);
+  out.append("\\n");
+}
+
+// RAII helper for message dump formatting
+class MessageDumpHelper {
+ public:
+  MessageDumpHelper(std::string &out, const char *message_name) : out_(out) {
+    out_.append(message_name);
+    out_.append(" {\\n");
+  }
+  ~MessageDumpHelper() { out_.append(" }"); }
+
+ private:
+  std::string &out_;
+};
+
+// Helper functions to reduce code duplication in dump methods
+static void dump_field(std::string &out, const char *field_name, int32_t value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%" PRId32, value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, uint32_t value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%" PRIu32, value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, float value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%g", value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
+  char buffer[64];
+  append_field_prefix(out, field_name, indent);
+  snprintf(buffer, 64, "%llu", value);
+  append_with_newline(out, buffer);
+}
+
+static void dump_field(std::string &out, const char *field_name, bool value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append(YESNO(value));
+  out.append("\\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, const std::string &value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
+  out.append("\\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  append_quoted_string(out, value);
+  out.append("\\n");
+}
+
+template<typename T>
+static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append(proto_enum_to_string<T>(value));
+  out.append("\\n");
 }
 
 """
@@ -2108,19 +2294,16 @@ static inline void append_quoted_string(std::string &out, const StringRef &ref) 
 
     content += """\
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 """
     cpp += """\
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 """
 
     dump_cpp += """\
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 
 #endif  // HAS_PROTO_MESSAGE_DUMP
 """
@@ -2142,8 +2325,7 @@ static inline void append_quoted_string(std::string &out, const StringRef &ref) 
 
 #include "api_pb2.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 """
 
@@ -2152,8 +2334,7 @@ namespace api {
 #include "api_pb2_service.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.service";
 
@@ -2200,10 +2381,11 @@ static const char *const TAG = "api.service";
     hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
     out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef) in cases:
+    for i, (case, ifdef, message_name) in cases:
         if ifdef is not None:
             out += f"#ifdef {ifdef}\n"
-        c = f"    case {i}: {{\n"
+
+        c = f"    case {message_name}::MESSAGE_TYPE: {{\n"
         c += indent(case, "      ") + "\n"
         c += "    }"
         out += c + "\n"
@@ -2235,7 +2417,7 @@ static const char *const TAG = "api.service";
         needs_conn = get_opt(m, pb.needs_setup_connection, True)
         needs_auth = get_opt(m, pb.needs_authentication, True)
 
-        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp, None))
+        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
 
         if ifdef is not None:
             hpp += f"#ifdef {ifdef}\n"
@@ -2260,19 +2442,16 @@ static const char *const TAG = "api.service";
             else:
                 check_func = "this->check_connection_setup_()"
 
-            body = f"if ({check_func}) {{\n"
-
-            # Add the actual handler code, indented
-            handler_body = ""
             if is_void:
-                handler_body = f"this->{func}(msg);\n"
+                # For void methods, just wrap with auth check
+                body = f"if ({check_func}) {{\n"
+                body += f"  this->{func}(msg);\n"
+                body += "}\n"
             else:
-                handler_body = f"if (!this->send_{func}_response(msg)) {{\n"
-                handler_body += "  this->on_fatal_error();\n"
-                handler_body += "}\n"
-
-            body += indent(handler_body) + "\n"
-            body += "}\n"
+                # For non-void methods, combine auth check and send response check
+                body = f"if ({check_func} && !this->send_{func}_response(msg)) {{\n"
+                body += "  this->on_fatal_error();\n"
+                body += "}\n"
         else:
             # No auth check needed, just call the handler
             body = ""
@@ -2296,13 +2475,11 @@ static const char *const TAG = "api.service";
 
     hpp += """\
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 """
     cpp += """\
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 """
 
     with open(root / "api_pb2_service.h", "w", encoding="utf-8") as f:

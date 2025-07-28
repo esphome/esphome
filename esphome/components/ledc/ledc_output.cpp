@@ -116,7 +116,6 @@ void LEDCOutput::write_state(float state) {
 }
 
 void LEDCOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   auto speed_mode = get_speed_mode(this->channel_);
   auto timer_num = static_cast<ledc_timer_t>((this->channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);

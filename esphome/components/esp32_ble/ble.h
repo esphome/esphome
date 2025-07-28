@@ -21,8 +21,7 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 // Maximum number of BLE scan results to buffer
 // Sized to handle bursts of advertisements while allowing for processing delays
@@ -191,7 +190,6 @@ template<typename... Ts> class BLEDisableAction : public Action<Ts...> {
   void play(Ts... x) override { global_ble->disable(); }
 };
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

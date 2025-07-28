@@ -32,8 +32,6 @@ void VL53L0XSensor::dump_config() {
 }
 
 void VL53L0XSensor::setup() {
-  ESP_LOGD(TAG, "'%s' - setup BEGIN", this->name_.c_str());
-
   if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
     for (auto &vl53_sensor : vl53_sensors) {
       if (vl53_sensor->enable_pin_ != nullptr) {
@@ -258,8 +256,6 @@ void VL53L0XSensor::setup() {
   // I2C_SXXXX__DEVICE_ADDRESS = 0x0001 for VL53L1X
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
-
-  ESP_LOGD(TAG, "'%s' - setup END", this->name_.c_str());
 }
 
 void VL53L0XSensor::update() {

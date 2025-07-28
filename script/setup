@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 if [ ! -n "$VIRTUAL_ENV" ]; then
   if [ -x "$(command -v uv)" ]; then
-    uv venv venv
+    uv venv --seed venv
   else
     python3 -m venv venv
   fi

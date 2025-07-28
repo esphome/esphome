@@ -140,20 +140,22 @@ VALUE_TYPES = {
 
 
 def validate_char_on_write(char_config):
-    if CONF_ON_WRITE in char_config:
-        if not char_config[CONF_WRITE] and not char_config[CONF_WRITE_NO_RESPONSE]:
-            raise cv.Invalid(
-                f"{CONF_ON_WRITE} requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property to be set"
-            )
+    if (
+        CONF_ON_WRITE in char_config
+        and not char_config[CONF_WRITE]
+        and not char_config[CONF_WRITE_NO_RESPONSE]
+    ):
+        raise cv.Invalid(
+            f"{CONF_ON_WRITE} requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property to be set"
+        )
     return char_config
 
 
 def validate_descriptor(desc_config):
-    if CONF_ON_WRITE in desc_config:
-        if not desc_config[CONF_WRITE]:
-            raise cv.Invalid(
-                f"{CONF_ON_WRITE} requires the {CONF_WRITE} property to be set"
-            )
+    if CONF_ON_WRITE in desc_config and not desc_config[CONF_WRITE]:
+        raise cv.Invalid(
+            f"{CONF_ON_WRITE} requires the {CONF_WRITE} property to be set"
+        )
     if CONF_MAX_LENGTH not in desc_config:
         value = desc_config[CONF_VALUE][CONF_DATA]
         if cg.is_template(value):

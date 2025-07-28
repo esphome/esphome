@@ -7,8 +7,7 @@
 
 #include "proto.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 namespace enums {
 
@@ -1045,6 +1044,7 @@ class NoiseEncryptionSetKeyResponse : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 class SubscribeHomeassistantServicesRequest : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 34;
@@ -1062,8 +1062,7 @@ class HomeassistantServiceMap : public ProtoMessage {
  public:
   StringRef key_ref_{};
   void set_key(const StringRef &ref) { this->key_ref_ = ref; }
-  StringRef value_ref_{};
-  void set_value(const StringRef &ref) { this->value_ref_ = ref; }
+  std::string value{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1093,6 +1092,8 @@ class HomeassistantServiceResponse : public ProtoMessage {
 
  protected:
 };
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
 class SubscribeHomeAssistantStatesRequest : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 38;
@@ -1143,6 +1144,7 @@ class HomeAssistantStateResponse : public ProtoDecodableMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
+#endif
 class GetTimeRequest : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 36;
@@ -2891,5 +2893,4 @@ class UpdateCommandRequest : public CommandProtoMessage {
 };
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

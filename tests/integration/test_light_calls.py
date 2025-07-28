@@ -180,6 +180,69 @@ async def test_light_calls(
         state = await wait_for_state_change(rgb_light.key)
         assert state.state is False
 
+        # Test color mode combinations to verify get_suitable_color_modes optimization
+
+        # Test 22: White only mode
+        client.light_command(key=rgbcw_light.key, state=True, white=0.5)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 23: Color temperature only mode
+        client.light_command(key=rgbcw_light.key, state=True, color_temperature=300)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.color_temperature == pytest.approx(300)
+
+        # Test 24: Cold/warm white only mode
+        client.light_command(
+            key=rgbcw_light.key, state=True, cold_white=0.6, warm_white=0.4
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.cold_white == pytest.approx(0.6)
+        assert state.warm_white == pytest.approx(0.4)
+
+        # Test 25: RGB only mode
+        client.light_command(key=rgb_light.key, state=True, rgb=(0.5, 0.5, 0.5))
+        state = await wait_for_state_change(rgb_light.key)
+        assert state.state is True
+
+        # Test 26: RGB + white combination
+        client.light_command(
+            key=rgbcw_light.key, state=True, rgb=(0.3, 0.3, 0.3), white=0.5
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 27: RGB + color temperature combination
+        client.light_command(
+            key=rgbcw_light.key, state=True, rgb=(0.4, 0.4, 0.4), color_temperature=280
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 28: RGB + cold/warm white combination
+        client.light_command(
+            key=rgbcw_light.key,
+            state=True,
+            rgb=(0.2, 0.2, 0.2),
+            cold_white=0.5,
+            warm_white=0.5,
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 29: White + color temperature combination
+        client.light_command(
+            key=rgbcw_light.key, state=True, white=0.6, color_temperature=320
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 30: No specific color parameters (tests default mode selection)
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.75)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.75)
+
         # Final cleanup - turn all lights off
         for light in lights:
             client.light_command(

@@ -17,7 +17,6 @@ constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 
   }
 
 void AXS15231Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
@@ -36,7 +35,6 @@ void AXS15231Touchscreen::setup() {
   if (this->y_raw_max_ == 0) {
     this->y_raw_max_ = this->display_->get_native_height();
   }
-  ESP_LOGCONFIG(TAG, "AXS15231 Touchscreen setup complete");
 }
 
 void AXS15231Touchscreen::update_touches() {

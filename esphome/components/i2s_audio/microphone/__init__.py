@@ -44,9 +44,8 @@ PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
 def _validate_esp32_variant(config):
     variant = esp32.get_esp32_variant()
     if config[CONF_ADC_TYPE] == "external":
-        if config[CONF_PDM]:
-            if variant not in PDM_VARIANTS:
-                raise cv.Invalid(f"{variant} does not support PDM")
+        if config[CONF_PDM] and variant not in PDM_VARIANTS:
+            raise cv.Invalid(f"{variant} does not support PDM")
         return config
     if config[CONF_ADC_TYPE] == "internal":
         if variant not in INTERNAL_ADC_VARIANTS:
@@ -122,9 +121,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    if not use_legacy():
-        if config[CONF_ADC_TYPE] == "internal":
-            raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver.")
+    if not use_legacy() and config[CONF_ADC_TYPE] == "internal":
+        raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver.")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

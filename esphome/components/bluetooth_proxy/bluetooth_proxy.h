@@ -18,8 +18,7 @@
 #include <esp_bt.h>
 #include <esp_bt_device.h>
 
-namespace esphome {
-namespace bluetooth_proxy {
+namespace esphome::bluetooth_proxy {
 
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 static const int DONE_SENDING_SERVICES = -2;
@@ -158,7 +157,6 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace bluetooth_proxy
-}  // namespace esphome
+}  // namespace esphome::bluetooth_proxy
 
 #endif  // USE_ESP32

@@ -1062,12 +1062,11 @@ def validate_raw_alternating(value):
     last_negative = None
     for i, val in enumerate(value):
         this_negative = val < 0
-        if i != 0:
-            if this_negative == last_negative:
-                raise cv.Invalid(
-                    f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
-                    [i],
-                )
+        if i != 0 and this_negative == last_negative:
+            raise cv.Invalid(
+                f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
+                [i],
+            )
         last_negative = this_negative
     return value
 

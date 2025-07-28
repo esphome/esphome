@@ -16,7 +16,6 @@ static const uint8_t GET_Y_RES[4] = {0x53, 0x63, 0x00, 0x00};
 static const uint8_t GET_POWER_STATE_CMD[4] = {0x53, 0x50, 0x00, 0x01};
 
 void EKTF2232Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
 

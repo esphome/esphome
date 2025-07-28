@@ -7,7 +7,6 @@ namespace sn74hc165 {
 static const char *const TAG = "sn74hc165";
 
 void SN74HC165Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // initialize pins
   this->clock_pin_->setup();
   this->data_pin_->setup();

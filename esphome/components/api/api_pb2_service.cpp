@@ -3,8 +3,7 @@
 #include "api_pb2_service.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.service";
 
@@ -16,7 +15,7 @@ void APIServerConnectionBase::log_send_message_(const char *name, const std::str
 
 void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
-    case 1: {
+    case HelloRequest::MESSAGE_TYPE: {
       HelloRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -25,7 +24,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_hello_request(msg);
       break;
     }
-    case 3: {
+    case ConnectRequest::MESSAGE_TYPE: {
       ConnectRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -34,7 +33,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_connect_request(msg);
       break;
     }
-    case 5: {
+    case DisconnectRequest::MESSAGE_TYPE: {
       DisconnectRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -43,7 +42,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_disconnect_request(msg);
       break;
     }
-    case 6: {
+    case DisconnectResponse::MESSAGE_TYPE: {
       DisconnectResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -52,7 +51,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_disconnect_response(msg);
       break;
     }
-    case 7: {
+    case PingRequest::MESSAGE_TYPE: {
       PingRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -61,7 +60,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_ping_request(msg);
       break;
     }
-    case 8: {
+    case PingResponse::MESSAGE_TYPE: {
       PingResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -70,7 +69,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_ping_response(msg);
       break;
     }
-    case 9: {
+    case DeviceInfoRequest::MESSAGE_TYPE: {
       DeviceInfoRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -79,7 +78,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_device_info_request(msg);
       break;
     }
-    case 11: {
+    case ListEntitiesRequest::MESSAGE_TYPE: {
       ListEntitiesRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -88,7 +87,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_list_entities_request(msg);
       break;
     }
-    case 20: {
+    case SubscribeStatesRequest::MESSAGE_TYPE: {
       SubscribeStatesRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -97,7 +96,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_subscribe_states_request(msg);
       break;
     }
-    case 28: {
+    case SubscribeLogsRequest::MESSAGE_TYPE: {
       SubscribeLogsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -107,7 +106,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #ifdef USE_COVER
-    case 30: {
+    case CoverCommandRequest::MESSAGE_TYPE: {
       CoverCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -118,7 +117,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_FAN
-    case 31: {
+    case FanCommandRequest::MESSAGE_TYPE: {
       FanCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -129,7 +128,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_LIGHT
-    case 32: {
+    case LightCommandRequest::MESSAGE_TYPE: {
       LightCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -140,7 +139,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_SWITCH
-    case 33: {
+    case SwitchCommandRequest::MESSAGE_TYPE: {
       SwitchCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -150,7 +149,8 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-    case 34: {
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+    case SubscribeHomeassistantServicesRequest::MESSAGE_TYPE: {
       SubscribeHomeassistantServicesRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -159,7 +159,8 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_subscribe_homeassistant_services_request(msg);
       break;
     }
-    case 36: {
+#endif
+    case GetTimeRequest::MESSAGE_TYPE: {
       GetTimeRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -168,7 +169,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_get_time_request(msg);
       break;
     }
-    case 37: {
+    case GetTimeResponse::MESSAGE_TYPE: {
       GetTimeResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -177,7 +178,8 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_get_time_response(msg);
       break;
     }
-    case 38: {
+#ifdef USE_API_HOMEASSISTANT_STATES
+    case SubscribeHomeAssistantStatesRequest::MESSAGE_TYPE: {
       SubscribeHomeAssistantStatesRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -186,7 +188,9 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_subscribe_home_assistant_states_request(msg);
       break;
     }
-    case 40: {
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
+    case HomeAssistantStateResponse::MESSAGE_TYPE: {
       HomeAssistantStateResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -195,8 +199,9 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_home_assistant_state_response(msg);
       break;
     }
+#endif
 #ifdef USE_API_SERVICES
-    case 42: {
+    case ExecuteServiceRequest::MESSAGE_TYPE: {
       ExecuteServiceRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -207,7 +212,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_CAMERA
-    case 45: {
+    case CameraImageRequest::MESSAGE_TYPE: {
       CameraImageRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -218,7 +223,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_CLIMATE
-    case 48: {
+    case ClimateCommandRequest::MESSAGE_TYPE: {
       ClimateCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -229,7 +234,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_NUMBER
-    case 51: {
+    case NumberCommandRequest::MESSAGE_TYPE: {
       NumberCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -240,7 +245,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_SELECT
-    case 54: {
+    case SelectCommandRequest::MESSAGE_TYPE: {
       SelectCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -251,7 +256,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_SIREN
-    case 57: {
+    case SirenCommandRequest::MESSAGE_TYPE: {
       SirenCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -262,7 +267,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_LOCK
-    case 60: {
+    case LockCommandRequest::MESSAGE_TYPE: {
       LockCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -273,7 +278,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BUTTON
-    case 62: {
+    case ButtonCommandRequest::MESSAGE_TYPE: {
       ButtonCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -284,7 +289,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_MEDIA_PLAYER
-    case 65: {
+    case MediaPlayerCommandRequest::MESSAGE_TYPE: {
       MediaPlayerCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -295,7 +300,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 66: {
+    case SubscribeBluetoothLEAdvertisementsRequest::MESSAGE_TYPE: {
       SubscribeBluetoothLEAdvertisementsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -306,7 +311,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 68: {
+    case BluetoothDeviceRequest::MESSAGE_TYPE: {
       BluetoothDeviceRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -317,7 +322,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 70: {
+    case BluetoothGATTGetServicesRequest::MESSAGE_TYPE: {
       BluetoothGATTGetServicesRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -328,7 +333,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 73: {
+    case BluetoothGATTReadRequest::MESSAGE_TYPE: {
       BluetoothGATTReadRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -339,7 +344,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 75: {
+    case BluetoothGATTWriteRequest::MESSAGE_TYPE: {
       BluetoothGATTWriteRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -350,7 +355,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 76: {
+    case BluetoothGATTReadDescriptorRequest::MESSAGE_TYPE: {
       BluetoothGATTReadDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -361,7 +366,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 77: {
+    case BluetoothGATTWriteDescriptorRequest::MESSAGE_TYPE: {
       BluetoothGATTWriteDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -372,7 +377,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 78: {
+    case BluetoothGATTNotifyRequest::MESSAGE_TYPE: {
       BluetoothGATTNotifyRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -383,7 +388,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 80: {
+    case SubscribeBluetoothConnectionsFreeRequest::MESSAGE_TYPE: {
       SubscribeBluetoothConnectionsFreeRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -394,7 +399,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 87: {
+    case UnsubscribeBluetoothLEAdvertisementsRequest::MESSAGE_TYPE: {
       UnsubscribeBluetoothLEAdvertisementsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -405,7 +410,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 89: {
+    case SubscribeVoiceAssistantRequest::MESSAGE_TYPE: {
       SubscribeVoiceAssistantRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -416,7 +421,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 91: {
+    case VoiceAssistantResponse::MESSAGE_TYPE: {
       VoiceAssistantResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -427,7 +432,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 92: {
+    case VoiceAssistantEventResponse::MESSAGE_TYPE: {
       VoiceAssistantEventResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -438,7 +443,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-    case 96: {
+    case AlarmControlPanelCommandRequest::MESSAGE_TYPE: {
       AlarmControlPanelCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -449,7 +454,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_TEXT
-    case 99: {
+    case TextCommandRequest::MESSAGE_TYPE: {
       TextCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -460,7 +465,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_DATETIME_DATE
-    case 102: {
+    case DateCommandRequest::MESSAGE_TYPE: {
       DateCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -471,7 +476,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_DATETIME_TIME
-    case 105: {
+    case TimeCommandRequest::MESSAGE_TYPE: {
       TimeCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -482,7 +487,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 106: {
+    case VoiceAssistantAudio::MESSAGE_TYPE: {
       VoiceAssistantAudio msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -493,7 +498,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VALVE
-    case 111: {
+    case ValveCommandRequest::MESSAGE_TYPE: {
       ValveCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -504,7 +509,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_DATETIME_DATETIME
-    case 114: {
+    case DateTimeCommandRequest::MESSAGE_TYPE: {
       DateTimeCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -515,7 +520,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 115: {
+    case VoiceAssistantTimerEventResponse::MESSAGE_TYPE: {
       VoiceAssistantTimerEventResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -526,7 +531,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_UPDATE
-    case 118: {
+    case UpdateCommandRequest::MESSAGE_TYPE: {
       UpdateCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -537,7 +542,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 119: {
+    case VoiceAssistantAnnounceRequest::MESSAGE_TYPE: {
       VoiceAssistantAnnounceRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -548,7 +553,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 121: {
+    case VoiceAssistantConfigurationRequest::MESSAGE_TYPE: {
       VoiceAssistantConfigurationRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -559,7 +564,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-    case 123: {
+    case VoiceAssistantSetConfiguration::MESSAGE_TYPE: {
       VoiceAssistantSetConfiguration msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -570,7 +575,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_API_NOISE
-    case 124: {
+    case NoiseEncryptionSetKeyRequest::MESSAGE_TYPE: {
       NoiseEncryptionSetKeyRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -581,7 +586,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case 127: {
+    case BluetoothScannerSetModeRequest::MESSAGE_TYPE: {
       BluetoothScannerSetModeRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -617,10 +622,8 @@ void APIServerConnection::on_ping_request(const PingRequest &msg) {
   }
 }
 void APIServerConnection::on_device_info_request(const DeviceInfoRequest &msg) {
-  if (this->check_connection_setup_()) {
-    if (!this->send_device_info_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_connection_setup_() && !this->send_device_info_response(msg)) {
+    this->on_fatal_error();
   }
 }
 void APIServerConnection::on_list_entities_request(const ListEntitiesRequest &msg) {
@@ -638,22 +641,24 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
     this->subscribe_logs(msg);
   }
 }
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServerConnection::on_subscribe_homeassistant_services_request(
     const SubscribeHomeassistantServicesRequest &msg) {
   if (this->check_authenticated_()) {
     this->subscribe_homeassistant_services(msg);
   }
 }
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
 void APIServerConnection::on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) {
   if (this->check_authenticated_()) {
     this->subscribe_home_assistant_states(msg);
   }
 }
+#endif
 void APIServerConnection::on_get_time_request(const GetTimeRequest &msg) {
-  if (this->check_connection_setup_()) {
-    if (!this->send_get_time_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_connection_setup_() && !this->send_get_time_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #ifdef USE_API_SERVICES
@@ -665,10 +670,8 @@ void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest
 #endif
 #ifdef USE_API_NOISE
 void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) {
-  if (this->check_authenticated_()) {
-    if (!this->send_noise_encryption_set_key_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_authenticated_() && !this->send_noise_encryption_set_key_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #endif
@@ -858,10 +861,8 @@ void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNo
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
     const SubscribeBluetoothConnectionsFreeRequest &msg) {
-  if (this->check_authenticated_()) {
-    if (!this->send_subscribe_bluetooth_connections_free_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_authenticated_() && !this->send_subscribe_bluetooth_connections_free_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #endif
@@ -889,10 +890,8 @@ void APIServerConnection::on_subscribe_voice_assistant_request(const SubscribeVo
 #endif
 #ifdef USE_VOICE_ASSISTANT
 void APIServerConnection::on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg) {
-  if (this->check_authenticated_()) {
-    if (!this->send_voice_assistant_get_configuration_response(msg)) {
-      this->on_fatal_error();
-    }
+  if (this->check_authenticated_() && !this->send_voice_assistant_get_configuration_response(msg)) {
+    this->on_fatal_error();
   }
 }
 #endif
@@ -911,5 +910,4 @@ void APIServerConnection::on_alarm_control_panel_command_request(const AlarmCont
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

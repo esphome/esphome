@@ -13,8 +13,7 @@
 #include <vector>
 #include <functional>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Client information structure
 struct ClientInfo {
@@ -132,11 +131,13 @@ class APIConnection : public APIServerConnection {
   void media_player_command(const MediaPlayerCommandRequest &msg) override;
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
     if (!this->flags_.service_call_subscription)
       return;
     this->send_message(call, HomeassistantServiceResponse::MESSAGE_TYPE);
   }
+#endif
 #ifdef USE_BLUETOOTH_PROXY
   void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
   void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
@@ -189,7 +190,9 @@ class APIConnection : public APIServerConnection {
     // we initiated ping
     this->flags_.sent_ping = false;
   }
+#ifdef USE_API_HOMEASSISTANT_STATES
   void on_home_assistant_state_response(const HomeAssistantStateResponse &msg) override;
+#endif
 #ifdef USE_HOMEASSISTANT_TIME
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
@@ -208,10 +211,14 @@ class APIConnection : public APIServerConnection {
     if (msg.dump_config)
       App.schedule_dump_config();
   }
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) override {
     this->flags_.service_call_subscription = true;
   }
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
+#endif
   bool send_get_time_response(const GetTimeRequest &msg) override;
 #ifdef USE_API_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
@@ -229,7 +236,9 @@ class APIConnection : public APIServerConnection {
   }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
   void on_fatal_error() override;
+#ifdef USE_API_PASSWORD
   void on_unauthenticated_access() override;
+#endif
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
     // FIXME: ensure no recursive writes can happen
@@ -493,7 +502,9 @@ class APIConnection : public APIServerConnection {
 
   // Group 4: 4-byte types
   uint32_t last_traffic_;
+#ifdef USE_API_HOMEASSISTANT_STATES
   int state_subs_at_ = -1;
+#endif
 
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size, bool is_single);
@@ -723,6 +734,5 @@ class APIConnection : public APIServerConnection {
   }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

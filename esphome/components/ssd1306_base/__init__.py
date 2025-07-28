@@ -42,14 +42,15 @@ SSD1306_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 def _validate(value):
     model = value[CONF_MODEL]
-    if model not in ("SSD1305_128X32", "SSD1305_128X64"):
-        # Contrast is default value (1.0) while brightness is not
-        # Indicates user is using old `brightness` option
-        if value[CONF_BRIGHTNESS] != 1.0 and value[CONF_CONTRAST] == 1.0:
-            raise cv.Invalid(
-                "SSD1306/SH1106 no longer accepts brightness option, "
-                'please use "contrast" instead.'
-            )
+    if (
+        model not in ("SSD1305_128X32", "SSD1305_128X64")
+        and value[CONF_BRIGHTNESS] != 1.0
+        and value[CONF_CONTRAST] == 1.0
+    ):
+        raise cv.Invalid(
+            "SSD1306/SH1106 no longer accepts brightness option, "
+            'please use "contrast" instead.'
+        )
 
     return value
 

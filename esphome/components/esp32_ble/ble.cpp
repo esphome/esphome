@@ -19,15 +19,12 @@
 #include <esp32-hal-bt.h>
 #endif
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
 void ESP32BLE::setup() {
   global_ble = this;
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!ble_pre_setup_()) {
     ESP_LOGE(TAG, "BLE could not be prepared for configuration");
     this->mark_failed();
@@ -538,7 +535,6 @@ uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
 
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

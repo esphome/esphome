@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_tracker {
+namespace esphome::esp32_ble_tracker {
 #ifdef USE_ESP32_BLE_DEVICE
 class ESPBTAdvertiseTrigger : public Trigger<const ESPBTDevice &>, public ESPBTDeviceListener {
  public:
@@ -108,7 +107,6 @@ template<typename... Ts> class ESP32BLEStopScanAction : public Action<Ts...>, pu
   void play(Ts... x) override { this->parent_->stop_scan(); }
 };
 
-}  // namespace esp32_ble_tracker
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_tracker
 
 #endif

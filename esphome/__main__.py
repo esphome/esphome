@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime
 import functools
+import getpass
 import importlib
 import logging
 import os
@@ -89,9 +90,9 @@ def choose_prompt(options, purpose: str = None):
 def choose_upload_log_host(
     default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
 ):
-    options = []
-    for port in get_serial_ports():
-        options.append((f"{port.path} ({port.description})", port.path))
+    options = [
+        (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
+    ]
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
@@ -119,9 +120,7 @@ def mqtt_logging_enabled(mqtt_config):
         return False
     if CONF_TOPIC not in log_topic:
         return False
-    if log_topic.get(CONF_LEVEL, None) == "NONE":
-        return False
-    return True
+    return log_topic.get(CONF_LEVEL, None) != "NONE"
 
 
 def get_port_type(port):
@@ -337,7 +336,7 @@ def check_permissions(port):
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
-                f"by running the following command: sudo usermod -a -G dialout {os.getlogin()}. "
+                f"by running the following command: sudo usermod -a -G dialout {getpass.getuser()}. "
                 "You will need to log out & back in or reboot to activate the new group access."
             )
 

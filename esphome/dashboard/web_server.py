@@ -144,7 +144,7 @@ def websocket_class(cls):
     if not hasattr(cls, "_message_handlers"):
         cls._message_handlers = {}
 
-    for _, method in cls.__dict__.items():
+    for method in cls.__dict__.values():
         if hasattr(method, "_message_handler"):
             cls._message_handlers[method._message_handler] = method
 

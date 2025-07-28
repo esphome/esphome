@@ -8,7 +8,6 @@ namespace mcp23016 {
 static const char *const TAG = "mcp23016";
 
 void MCP23016::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t iocon;
   if (!this->read_reg_(MCP23016_IOCON0, &iocon)) {
     this->mark_failed();
