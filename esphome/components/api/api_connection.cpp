@@ -276,8 +276,9 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
 #endif
 
   // Calculate size
-  uint32_t calculated_size = 0;
-  msg.calculate_size(calculated_size);
+  ProtoSize size_calc;
+  msg.calculate_size(size_calc);
+  uint32_t calculated_size = size_calc.get_size();
 
   // Cache frame sizes to avoid repeated virtual calls
   const uint8_t header_padding = conn->helper_->frame_header_padding();
