@@ -516,6 +516,7 @@ def binary_sensor_schema(
     icon: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
     device_class: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
@@ -527,6 +528,7 @@ def binary_sensor_schema(
         (CONF_ICON, icon, cv.icon),
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
