@@ -332,6 +332,7 @@ def sensor_schema(
     device_class: str = cv.UNDEFINED,
     state_class: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
@@ -346,6 +347,7 @@ def sensor_schema(
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_STATE_CLASS, state_class, validate_state_class),
         (CONF_ENTITY_CATEGORY, entity_category, sensor_entity_category),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
