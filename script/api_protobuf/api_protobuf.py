@@ -1772,8 +1772,13 @@ def build_message_type(
     if base_class:
         out = f"class {desc.name} : public {base_class} {{\n"
     else:
-        # Determine inheritance based on whether the message needs decoding
-        base_class = "ProtoDecodableMessage" if needs_decode else "ProtoMessage"
+        # Check if message has any non-deprecated fields
+        has_fields = any(not field.options.deprecated for field in desc.field)
+        # Determine inheritance based on whether the message needs decoding and has fields
+        if needs_decode and has_fields:
+            base_class = "ProtoDecodableMessage"
+        else:
+            base_class = "ProtoMessage"
         out = f"class {desc.name} : public {base_class} {{\n"
     out += " public:\n"
     out += indent("\n".join(public_content)) + "\n"
@@ -2039,7 +2044,14 @@ def build_service_message_type(
         hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
         case = ""
         case += f"{mt.name} msg;\n"
-        case += "msg.decode(msg_data, msg_size);\n"
+        # Check if this message has any fields (excluding deprecated ones)
+        has_fields = any(not field.options.deprecated for field in mt.field)
+        if has_fields:
+            # Normal case: decode the message
+            case += "msg.decode(msg_data, msg_size);\n"
+        else:
+            # Empty message optimization: skip decode since there are no fields
+            case += "// Empty message: no decode needed\n"
         if log:
             case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'

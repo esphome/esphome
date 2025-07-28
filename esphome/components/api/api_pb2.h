@@ -378,7 +378,7 @@ class ConnectResponse : public ProtoMessage {
 
  protected:
 };
-class DisconnectRequest : public ProtoDecodableMessage {
+class DisconnectRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -391,7 +391,7 @@ class DisconnectRequest : public ProtoDecodableMessage {
 
  protected:
 };
-class DisconnectResponse : public ProtoDecodableMessage {
+class DisconnectResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 6;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -404,7 +404,7 @@ class DisconnectResponse : public ProtoDecodableMessage {
 
  protected:
 };
-class PingRequest : public ProtoDecodableMessage {
+class PingRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 7;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -417,7 +417,7 @@ class PingRequest : public ProtoDecodableMessage {
 
  protected:
 };
-class PingResponse : public ProtoDecodableMessage {
+class PingResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 8;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -430,7 +430,7 @@ class PingResponse : public ProtoDecodableMessage {
 
  protected:
 };
-class DeviceInfoRequest : public ProtoDecodableMessage {
+class DeviceInfoRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 9;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -546,7 +546,7 @@ class DeviceInfoResponse : public ProtoMessage {
 
  protected:
 };
-class ListEntitiesRequest : public ProtoDecodableMessage {
+class ListEntitiesRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 11;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -572,7 +572,7 @@ class ListEntitiesDoneResponse : public ProtoMessage {
 
  protected:
 };
-class SubscribeStatesRequest : public ProtoDecodableMessage {
+class SubscribeStatesRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 20;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -1045,7 +1045,7 @@ class NoiseEncryptionSetKeyResponse : public ProtoMessage {
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-class SubscribeHomeassistantServicesRequest : public ProtoDecodableMessage {
+class SubscribeHomeassistantServicesRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 34;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -1094,7 +1094,7 @@ class HomeassistantServiceResponse : public ProtoMessage {
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-class SubscribeHomeAssistantStatesRequest : public ProtoDecodableMessage {
+class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 38;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -1145,7 +1145,7 @@ class HomeAssistantStateResponse : public ProtoDecodableMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 #endif
-class GetTimeRequest : public ProtoDecodableMessage {
+class GetTimeRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 36;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -2043,7 +2043,7 @@ class BluetoothGATTNotifyDataResponse : public ProtoMessage {
 
  protected:
 };
-class SubscribeBluetoothConnectionsFreeRequest : public ProtoDecodableMessage {
+class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 80;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -2162,7 +2162,7 @@ class BluetoothDeviceUnpairingResponse : public ProtoMessage {
 
  protected:
 };
-class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoDecodableMessage {
+class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 87;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
@@ -2418,7 +2418,7 @@ class VoiceAssistantWakeWord : public ProtoMessage {
 
  protected:
 };
-class VoiceAssistantConfigurationRequest : public ProtoDecodableMessage {
+class VoiceAssistantConfigurationRequest : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 121;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
