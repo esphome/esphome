@@ -1538,19 +1538,18 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
 #endif
 #ifdef USE_API_NOISE
 bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) {
-  psk_t psk{};
   NoiseEncryptionSetKeyResponse resp;
+  resp.success = false;
+
+  psk_t psk{};
   if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
-    resp.success = false;
-    return this->send_message(resp, NoiseEncryptionSetKeyResponse::MESSAGE_TYPE);
-  }
-  if (!this->parent_->save_noise_psk(psk, true)) {
+  } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");
-    resp.success = false;
-    return this->send_message(resp, NoiseEncryptionSetKeyResponse::MESSAGE_TYPE);
+  } else {
+    resp.success = true;
   }
-  resp.success = true;
+
   return this->send_message(resp, NoiseEncryptionSetKeyResponse::MESSAGE_TYPE);
 }
 #endif
