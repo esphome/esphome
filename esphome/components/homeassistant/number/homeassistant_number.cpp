@@ -93,14 +93,12 @@ void HomeassistantNumber::control(float value) {
   resp.data.emplace_back();
   auto &entity_id = resp.data.back();
   entity_id.set_key(ENTITY_ID_KEY);
-  entity_id.set_value(StringRef(this->entity_id_));
+  entity_id.value = this->entity_id_;
 
   resp.data.emplace_back();
   auto &entity_value = resp.data.back();
   entity_value.set_key(VALUE_KEY);
-  // to_string() returns a temporary - must store it to avoid dangling reference
-  std::string value_str = to_string(value);
-  entity_value.set_value(StringRef(value_str));
+  entity_value.value = to_string(value);
 
   api::global_api_server->send_homeassistant_service_call(resp);
 }

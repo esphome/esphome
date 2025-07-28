@@ -70,22 +70,19 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
       resp.data.emplace_back();
       auto &kv = resp.data.back();
       kv.set_key(StringRef(it.key));
-      std::string value = it.value.value(x...);
-      kv.set_value(StringRef(value));
+      kv.value = it.value.value(x...);
     }
     for (auto &it : this->data_template_) {
       resp.data_template.emplace_back();
       auto &kv = resp.data_template.back();
       kv.set_key(StringRef(it.key));
-      std::string value = it.value.value(x...);
-      kv.set_value(StringRef(value));
+      kv.value = it.value.value(x...);
     }
     for (auto &it : this->variables_) {
       resp.variables.emplace_back();
       auto &kv = resp.variables.back();
       kv.set_key(StringRef(it.key));
-      std::string value = it.value.value(x...);
-      kv.set_value(StringRef(value));
+      kv.value = it.value.value(x...);
     }
     this->parent_->send_homeassistant_service_call(resp);
   }

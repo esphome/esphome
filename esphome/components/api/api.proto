@@ -760,7 +760,7 @@ message SubscribeHomeassistantServicesRequest {
 
 message HomeassistantServiceMap {
   string key = 1;
-  string value = 2;
+  string value = 2 [(no_zero_copy) = true];
 }
 
 message HomeassistantServiceResponse {

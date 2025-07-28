@@ -1045,7 +1045,7 @@ void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
 void HomeassistantServiceMap::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeassistantServiceMap");
   dump_field(out, "key", this->key_ref_);
-  dump_field(out, "value", this->value_ref_);
+  dump_field(out, "value", this->value);
 }
 void HomeassistantServiceResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeassistantServiceResponse");

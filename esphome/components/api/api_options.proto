@@ -27,4 +27,5 @@ extend google.protobuf.MessageOptions {
 extend google.protobuf.FieldOptions {
     optional string field_ifdef = 1042;
     optional uint32 fixed_array_size = 50007;
+    optional bool no_zero_copy = 50008 [default=false];
 }

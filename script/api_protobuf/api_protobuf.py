@@ -562,11 +562,16 @@ class StringType(TypeInfo):
     @property
     def public_content(self) -> list[str]:
         content: list[str] = []
-        # Add std::string storage if message needs decoding
-        if self._needs_decode:
+
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        # Add std::string storage if message needs decoding OR if no_zero_copy is set
+        if self._needs_decode or no_zero_copy:
             content.append(f"std::string {self.field_name}{{}};")
 
-        if self._needs_encode:
+        # Only add StringRef if encoding is needed AND no_zero_copy is not set
+        if self._needs_encode and not no_zero_copy:
             content.extend(
                 [
                     # Add StringRef field if message needs encoding
@@ -581,12 +586,27 @@ class StringType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        if no_zero_copy:
+            # Use the std::string directly
+            return f"buffer.encode_string({self.number}, this->{self.field_name});"
+        else:
+            # Use the StringRef
+            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
         # If name is 'it', this is a repeated field element - always use string
         if name == "it":
             return "append_quoted_string(out, StringRef(it));"
+
+        # If no_zero_copy is set, always use std::string
+        if no_zero_copy:
+            return f'out.append("\'").append(this->{self.field_name}).append("\'");'
 
         # For SOURCE_CLIENT only, always use std::string
         if not self._needs_encode:
@@ -607,6 +627,13 @@ class StringType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        # If no_zero_copy is set, always use std::string
+        if no_zero_copy:
+            return f'dump_field(out, "{self.name}", this->{self.field_name});'
+
         # For SOURCE_CLIENT only, use std::string
         if not self._needs_encode:
             return f'dump_field(out, "{self.name}", this->{self.field_name});'
@@ -622,8 +649,15 @@ class StringType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        # For SOURCE_CLIENT only messages, use the string field directly
-        if not self._needs_encode:
+        # Check if no_zero_copy option is set
+        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
+
+        # For SOURCE_CLIENT only messages or no_zero_copy, use the string field directly
+        if not self._needs_encode or no_zero_copy:
+            # For no_zero_copy, we need to use .size() on the string
+            if no_zero_copy and name != "it":
+                field_id_size = self.calculate_field_id_size()
+                return f"ProtoSize::add_string_field(total_size, {field_id_size}, this->{self.field_name}.size());"
             return self._get_simple_size_calculation(name, force, "add_string_field")
 
         # Check if this is being called from a repeated field context

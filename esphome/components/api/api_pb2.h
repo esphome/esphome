@@ -1062,8 +1062,7 @@ class HomeassistantServiceMap : public ProtoMessage {
  public:
   StringRef key_ref_{};
   void set_key(const StringRef &ref) { this->key_ref_ = ref; }
-  StringRef value_ref_{};
-  void set_value(const StringRef &ref) { this->value_ref_ = ref; }
+  std::string value{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(uint32_t &total_size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

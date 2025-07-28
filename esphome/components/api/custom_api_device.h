@@ -175,7 +175,7 @@ class CustomAPIDevice {
       resp.data.emplace_back();
       auto &kv = resp.data.back();
       kv.set_key(StringRef(it.first));
-      kv.set_value(StringRef(it.second));
+      kv.value = it.second;
     }
     global_api_server->send_homeassistant_service_call(resp);
   }
@@ -218,7 +218,7 @@ class CustomAPIDevice {
       resp.data.emplace_back();
       auto &kv = resp.data.back();
       kv.set_key(StringRef(it.first));
-      kv.set_value(StringRef(it.second));
+      kv.value = it.second;
     }
     global_api_server->send_homeassistant_service_call(resp);
   }
