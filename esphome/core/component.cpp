@@ -16,6 +16,7 @@
 namespace esphome {
 
 static const char *const TAG = "component";
+static const char *const UNSPECIFIED_MESSAGE = "unspecified";
 
 // Global vectors for component data that doesn't belong in every instance.
 // Using vector instead of unordered_map for both because:
@@ -132,7 +133,7 @@ void Component::call_dump_config() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
-    const char *error_msg = "unspecified";
+    const char *error_msg = nullptr;
     if (component_error_messages) {
       for (const auto &pair : *component_error_messages) {
         if (pair.first == this) {
@@ -141,7 +142,8 @@ void Component::call_dump_config() {
         }
       }
     }
-    ESP_LOGE(TAG, "  %s is marked FAILED: %s", this->get_component_source(), error_msg);
+    ESP_LOGE(TAG, "  %s is marked FAILED: %s", this->get_component_source(),
+             error_msg ? error_msg : UNSPECIFIED_MESSAGE);
   }
 }
 
@@ -284,15 +286,15 @@ void Component::status_set_warning(const char *message) {
     return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(), message);
+  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(), message ? message : UNSPECIFIED_MESSAGE);
 }
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
-  ESP_LOGE(TAG, "%s set Error flag: %s", this->get_component_source(), message);
-  if (strcmp(message, "unspecified") != 0) {
+  ESP_LOGE(TAG, "%s set Error flag: %s", this->get_component_source(), message ? message : UNSPECIFIED_MESSAGE);
+  if (message != nullptr) {
     // Lazy allocate the error messages vector if needed
     if (!component_error_messages) {
       component_error_messages = std::make_unique<std::vector<std::pair<const Component *, const char *>>>();
