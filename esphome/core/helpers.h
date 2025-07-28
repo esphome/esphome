@@ -68,7 +68,10 @@ To bit_cast(const From &src) {
   return dst;
 }
 #endif
-using std::lerp;
+
+// clang-format off
+inline float lerp(float completion, float start, float end) = delete;  // Please use std::lerp. Notice that it has different order on arguments!
+// clang-format on
 
 // std::byteswap from C++23
 template<typename T> constexpr T byteswap(T n) {
