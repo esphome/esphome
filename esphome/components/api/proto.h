@@ -35,11 +35,10 @@ namespace esphome::api {
  *
  * Unsafe Patterns (WILL cause crashes/corruption):
  * 1. Temporaries: msg.set_field(StringRef(obj.get_string())) // get_string() returns by value
- * 2. Optional values: msg.set_field(StringRef(optional.value())) // value() returns a copy
- * 3. Concatenation: msg.set_field(StringRef(str1 + str2)) // Result is temporary
+ * 2. Concatenation: msg.set_field(StringRef(str1 + str2)) // Result is temporary
  *
  * For unsafe patterns, store in a local variable first:
- *    std::string temp = optional.value();  // or get_string() or str1 + str2
+ *    std::string temp = get_string();  // or str1 + str2
  *    msg.set_field(StringRef(temp));
  *
  * The send_*_response pattern ensures proper lifetime management by encoding

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from aioesphomeapi import EntityState, SensorState
+from aioesphomeapi import ClimateInfo, EntityState, SensorState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -70,3 +70,22 @@ async def test_host_mode_many_entities(
         assert len(sensor_states) >= 50, (
             f"Expected at least 50 sensor states, got {len(sensor_states)}"
         )
+
+        # Get entity info to verify climate entity details
+        entities = await client.list_entities_services()
+        climate_infos = [e for e in entities[0] if isinstance(e, ClimateInfo)]
+        assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
+
+        climate_info = climate_infos[0]
+        # Verify the thermostat has presets
+        assert len(climate_info.supported_presets) > 0, (
+            "Expected climate to have presets"
+        )
+        # The thermostat platform uses standard presets (Home, Away, Sleep)
+        # which should be transmitted properly without string copies
+
+        # Verify specific presets exist
+        preset_names = [p.name for p in climate_info.supported_presets]
+        assert "HOME" in preset_names, f"Expected 'HOME' preset, got {preset_names}"
+        assert "AWAY" in preset_names, f"Expected 'AWAY' preset, got {preset_names}"
+        assert "SLEEP" in preset_names, f"Expected 'SLEEP' preset, got {preset_names}"

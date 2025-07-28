@@ -244,21 +244,7 @@ void APIConnection::loop() {
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   if (state_subs_at_ >= 0) {
-    const auto &subs = this->parent_->get_state_subs();
-    if (state_subs_at_ < static_cast<int>(subs.size())) {
-      auto &it = subs[state_subs_at_];
-      SubscribeHomeAssistantStateResponse resp;
-      resp.set_entity_id(StringRef(it.entity_id));
-      // attribute.value() returns temporary - must store it
-      std::string attribute_value = it.attribute.value();
-      resp.set_attribute(StringRef(attribute_value));
-      resp.once = it.once;
-      if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
-        state_subs_at_++;
-      }
-    } else {
-      state_subs_at_ = -1;
-    }
+    this->process_state_subscriptions_();
   }
 #endif
 }
@@ -644,17 +630,13 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
   if (!traits.get_supported_custom_fan_modes().empty() && climate->custom_fan_mode.has_value()) {
-    // custom_fan_mode.value() returns temporary - must store it
-    std::string custom_fan_mode = climate->custom_fan_mode.value();
-    resp.set_custom_fan_mode(StringRef(custom_fan_mode));
+    resp.set_custom_fan_mode(StringRef(climate->custom_fan_mode.value()));
   }
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
   }
   if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value()) {
-    // custom_preset.value() returns temporary - must store it
-    std::string custom_preset = climate->custom_preset.value();
-    resp.set_custom_preset(StringRef(custom_preset));
+    resp.set_custom_preset(StringRef(climate->custom_preset.value()));
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
@@ -1842,6 +1824,28 @@ uint16_t APIConnection::try_send_ping_request(EntityBase *entity, APIConnection 
   PingRequest req;
   return encode_message_to_buffer(req, PingRequest::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
+
+#ifdef USE_API_HOMEASSISTANT_STATES
+void APIConnection::process_state_subscriptions_() {
+  const auto &subs = this->parent_->get_state_subs();
+  if (this->state_subs_at_ >= static_cast<int>(subs.size())) {
+    this->state_subs_at_ = -1;
+    return;
+  }
+
+  const auto &it = subs[this->state_subs_at_];
+  SubscribeHomeAssistantStateResponse resp;
+  resp.set_entity_id(StringRef(it.entity_id));
+
+  // Avoid string copy by directly using the optional's value if it exists
+  resp.set_attribute(it.attribute.has_value() ? StringRef(it.attribute.value()) : StringRef(""));
+
+  resp.once = it.once;
+  if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {
+    this->state_subs_at_++;
+  }
+}
+#endif  // USE_API_HOMEASSISTANT_STATES
 
 }  // namespace esphome::api
 #endif
