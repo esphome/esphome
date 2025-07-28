@@ -571,6 +571,8 @@ CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
 CONF_ENABLE_LWIP_DHCP_SERVER = "enable_lwip_dhcp_server"
 CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
 CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
+CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
+CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -618,6 +620,12 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(
                         CONF_ENABLE_LWIP_BRIDGE_INTERFACE, default=False
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, default=True
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
                     ): cv.boolean,
                 }
             ),
@@ -784,6 +792,18 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
         if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
             add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+
+        # Apply LWIP core locking for better socket performance
+        # This is already enabled by default in Arduino framework, where it provides
+        # significant performance benefits. Our benchmarks show socket operations are
+        # 24-200% faster with core locking enabled:
+        # - select() on 4 sockets: ~190μs (Arduino/core locking) vs ~235μs (ESP-IDF default)
+        # - Up to 200% slower under load when all operations queue through tcpip_thread
+        # Enabling this makes ESP-IDF socket performance match Arduino framework.
+        if advanced.get(CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING, True):
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", True)
+        if advanced.get(CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, True):
+            add_idf_sdkconfig_option("CONFIG_LWIP_CHECK_THREAD_SAFETY", True)
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
         if CONF_PARTITIONS in config:
