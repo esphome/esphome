@@ -1044,6 +1044,7 @@ class NoiseEncryptionSetKeyResponse : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 class SubscribeHomeassistantServicesRequest : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 34;
@@ -1092,6 +1093,7 @@ class HomeassistantServiceResponse : public ProtoMessage {
 
  protected:
 };
+#endif
 #ifdef USE_API_HOMEASSISTANT_STATES
 class SubscribeHomeAssistantStatesRequest : public ProtoDecodableMessage {
  public:

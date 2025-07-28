@@ -755,6 +755,7 @@ message NoiseEncryptionSetKeyResponse {
 message SubscribeHomeassistantServicesRequest {
   option (id) = 34;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 }
 
 message HomeassistantServiceMap {
@@ -766,6 +767,7 @@ message HomeassistantServiceResponse {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
   string service = 1;
   repeated HomeassistantServiceMap data = 2;

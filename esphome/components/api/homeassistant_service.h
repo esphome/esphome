@@ -2,6 +2,7 @@
 
 #include "api_server.h"
 #ifdef USE_API
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 #include "api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -99,4 +100,5 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 };
 
 }  // namespace esphome::api
+#endif
 #endif

@@ -843,6 +843,7 @@ void NoiseEncryptionSetKeyResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_bool_field(total_size, 1, this->success);
 }
 #endif
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 void HomeassistantServiceMap::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->key_ref_);
   buffer.encode_string(2, this->value_ref_);
@@ -871,6 +872,7 @@ void HomeassistantServiceResponse::calculate_size(uint32_t &total_size) const {
   ProtoSize::add_repeated_message(total_size, 1, this->variables);
   ProtoSize::add_bool_field(total_size, 1, this->is_event);
 }
+#endif
 #ifdef USE_API_HOMEASSISTANT_STATES
 void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->entity_id_ref_);
