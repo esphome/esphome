@@ -61,7 +61,10 @@ class Scheduler {
   bool cancel_interval(Component *component, const char *name);
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
+  void set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
+                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
   bool cancel_retry(Component *component, const std::string &name);
+  bool cancel_retry(Component *component, const char *name);
 
   // Calculate when the next scheduled item should run
   // @param now Fresh timestamp from millis() - must not be stale/cached
@@ -98,11 +101,18 @@ class Scheduler {
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     bool remove : 1;
     bool name_is_dynamic : 1;  // True if name was dynamically allocated (needs delete[])
-    // 5 bits padding
+    bool is_retry : 1;         // True if this is a retry timeout
+    // 4 bits padding
 
     // Constructor
     SchedulerItem()
-        : component(nullptr), interval(0), next_execution_(0), type(TIMEOUT), remove(false), name_is_dynamic(false) {
+        : component(nullptr),
+          interval(0),
+          next_execution_(0),
+          type(TIMEOUT),
+          remove(false),
+          name_is_dynamic(false),
+          is_retry(false) {
       name_.static_name = nullptr;
     }
 
@@ -156,6 +166,10 @@ class Scheduler {
   void set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string, const void *name_ptr,
                          uint32_t delay, std::function<void()> func, bool is_retry = false);
 
+  // Common implementation for retry
+  void set_retry_common_(Component *component, bool is_static_string, const void *name_ptr, uint32_t initial_wait_time,
+                         uint8_t max_attempts, std::function<RetryResult(uint8_t)> func, float backoff_increase_factor);
+
   uint64_t millis_64_(uint32_t now);
   // Cleanup logically deleted items from the scheduler
   // Returns the number of items remaining after cleanup
@@ -165,7 +179,7 @@ class Scheduler {
 
  private:
   // Helper to cancel items by name - must be called with lock held
-  bool cancel_item_locked_(Component *component, const char *name, SchedulerItem::Type type);
+  bool cancel_item_locked_(Component *component, const char *name, SchedulerItem::Type type, bool match_retry = false);
 
   // Helper to extract name as const char* from either static string or std::string
   inline const char *get_name_cstr_(bool is_static_string, const void *name_ptr) {
@@ -177,8 +191,9 @@ class Scheduler {
 
   // Helper function to check if item matches criteria for cancellation
   inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
-                                SchedulerItem::Type type, bool skip_removed = true) const {
-    if (item->component != component || item->type != type || (skip_removed && item->remove)) {
+                                SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
+    if (item->component != component || item->type != type || (skip_removed && item->remove) ||
+        (match_retry && !item->is_retry)) {
       return false;
     }
     const char *item_name = item->get_name();
@@ -206,10 +221,11 @@ class Scheduler {
 
   // Template helper to check if any item in a container matches our criteria
   template<typename Container>
-  bool has_cancelled_timeout_in_container_(const Container &container, Component *component,
-                                           const char *name_cstr) const {
+  bool has_cancelled_timeout_in_container_(const Container &container, Component *component, const char *name_cstr,
+                                           bool match_retry) const {
     for (const auto &item : container) {
-      if (item->remove && this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, false)) {
+      if (item->remove && this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, match_retry,
+                                              /* skip_removed= */ false)) {
         return true;
       }
     }
