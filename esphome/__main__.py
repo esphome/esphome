@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime
 import functools
+import getpass
 import importlib
 import logging
 import os
@@ -335,7 +336,7 @@ def check_permissions(port):
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
-                f"by running the following command: sudo usermod -a -G dialout {os.getlogin()}. "
+                f"by running the following command: sudo usermod -a -G dialout {getpass.getuser()}. "
                 "You will need to log out & back in or reboot to activate the new group access."
             )
 
