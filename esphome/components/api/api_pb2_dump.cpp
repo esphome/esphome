@@ -383,6 +383,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::Medi
       return "MEDIA_PLAYER_STATE_PLAYING";
     case enums::MEDIA_PLAYER_STATE_PAUSED:
       return "MEDIA_PLAYER_STATE_PAUSED";
+    case enums::MEDIA_PLAYER_STATE_ANNOUNCING:
+      return "MEDIA_PLAYER_STATE_ANNOUNCING";
     default:
       return "UNKNOWN";
   }
@@ -399,6 +401,20 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "MEDIA_PLAYER_COMMAND_MUTE";
     case enums::MEDIA_PLAYER_COMMAND_UNMUTE:
       return "MEDIA_PLAYER_COMMAND_UNMUTE";
+    case enums::MEDIA_PLAYER_COMMAND_TOGGLE:
+      return "MEDIA_PLAYER_COMMAND_TOGGLE";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_UP";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_DOWN";
+    case enums::MEDIA_PLAYER_COMMAND_ENQUEUE:
+      return "MEDIA_PLAYER_COMMAND_ENQUEUE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_ONE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_OFF";
+    case enums::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+      return "MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST";
     default:
       return "UNKNOWN";
   }
@@ -1466,6 +1482,7 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "feature_flags", this->feature_flags);
 }
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "MediaPlayerStateResponse");

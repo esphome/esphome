@@ -1725,6 +1725,7 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
 #endif
+  buffer.encode_uint32(11, this->feature_flags);
 }
 void ListEntitiesMediaPlayerResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
@@ -1740,6 +1741,7 @@ void ListEntitiesMediaPlayerResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_DEVICES
   size.add_uint32(1, this->device_id);
 #endif
+  size.add_uint32(1, this->feature_flags);
 }
 void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
