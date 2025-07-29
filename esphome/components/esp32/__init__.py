@@ -313,7 +313,7 @@ def _format_framework_espidf_version(
 RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 2, 1)
 # The platform-espressif32 version to use for arduino frameworks
 #  - https://github.com/pioarduino/platform-espressif32/releases
-ARDUINO_PLATFORM_VERSION = cv.Version(54, 3, 21)
+ARDUINO_PLATFORM_VERSION = cv.Version(54, 3, 21, "1")
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
@@ -322,7 +322,7 @@ RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(5, 4, 2)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(54, 3, 21)
+ESP_IDF_PLATFORM_VERSION = cv.Version(54, 3, 21, "1")
 
 # List based on https://registry.platformio.org/tools/platformio/framework-espidf/versions
 SUPPORTED_PLATFORMIO_ESP_IDF_5X = [
@@ -468,10 +468,10 @@ def _parse_platform_version(value):
     try:
         ver = cv.Version.parse(cv.version_number(value))
         if ver.major >= 50:  # a pioarduino version
-            if "-" in value:
-                # maybe a release candidate?...definitely not our default, just use it as-is...
-                return f"https://github.com/pioarduino/platform-espressif32/releases/download/{value}/platform-espressif32.zip"
-            return f"https://github.com/pioarduino/platform-espressif32/releases/download/{ver.major}.{ver.minor:02d}.{ver.patch:02d}/platform-espressif32.zip"
+            release = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
+            if ver.extra:
+                release += f"-{ver.extra}"
+            return f"https://github.com/pioarduino/platform-espressif32/releases/download/{release}/platform-espressif32.zip"
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
         return f"platformio/espressif32@{value}"

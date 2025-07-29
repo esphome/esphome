@@ -291,6 +291,8 @@ class Version:
     extra: str = ""
 
     def __str__(self):
+        if self.extra:
+            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
         return f"{self.major}.{self.minor}.{self.patch}"
 
     @classmethod
