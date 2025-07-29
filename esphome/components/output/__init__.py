@@ -43,6 +43,8 @@ FloatOutputPtr = FloatOutput.operator("ptr")
 TurnOffAction = output_ns.class_("TurnOffAction", automation.Action)
 TurnOnAction = output_ns.class_("TurnOnAction", automation.Action)
 SetLevelAction = output_ns.class_("SetLevelAction", automation.Action)
+SetMinPowerAction = output_ns.class_("SetMinPowerAction", automation.Action)
+SetMaxPowerAction = output_ns.class_("SetMaxPowerAction", automation.Action)
 
 
 async def setup_output_platform_(obj, config):
@@ -101,6 +103,42 @@ async def output_set_level_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_LEVEL], args, float)
     cg.add(var.set_level(template_))
+    return var
+
+
+@automation.register_action(
+    "output.set_min_power",
+    SetMinPowerAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(FloatOutput),
+            cv.Required(CONF_MIN_POWER): cv.templatable(cv.percentage),
+        }
+    ),
+)
+async def output_set_min_power_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_MIN_POWER], args, float)
+    cg.add(var.set_min_power(template_))
+    return var
+
+
+@automation.register_action(
+    "output.set_max_power",
+    SetMaxPowerAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(FloatOutput),
+            cv.Required(CONF_MAX_POWER): cv.templatable(cv.percentage),
+        }
+    ),
+)
+async def output_set_max_power_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_MAX_POWER], args, float)
+    cg.add(var.set_max_power(template_))
     return var
 
 

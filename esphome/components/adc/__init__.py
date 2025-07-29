@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -140,6 +140,16 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         9: adc_channel_t.ADC_CHANNEL_8,
         10: adc_channel_t.ADC_CHANNEL_9,
     },
+    VARIANT_ESP32P4: {
+        16: adc_channel_t.ADC_CHANNEL_0,
+        17: adc_channel_t.ADC_CHANNEL_1,
+        18: adc_channel_t.ADC_CHANNEL_2,
+        19: adc_channel_t.ADC_CHANNEL_3,
+        20: adc_channel_t.ADC_CHANNEL_4,
+        21: adc_channel_t.ADC_CHANNEL_5,
+        22: adc_channel_t.ADC_CHANNEL_6,
+        23: adc_channel_t.ADC_CHANNEL_7,
+    },
 }
 
 # pin to adc2 channel mapping
@@ -197,6 +207,14 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
         18: adc_channel_t.ADC_CHANNEL_7,
         19: adc_channel_t.ADC_CHANNEL_8,
         20: adc_channel_t.ADC_CHANNEL_9,
+    },
+    VARIANT_ESP32P4: {
+        49: adc_channel_t.ADC_CHANNEL_0,
+        50: adc_channel_t.ADC_CHANNEL_1,
+        51: adc_channel_t.ADC_CHANNEL_2,
+        52: adc_channel_t.ADC_CHANNEL_3,
+        53: adc_channel_t.ADC_CHANNEL_4,
+        54: adc_channel_t.ADC_CHANNEL_5,
     },
 }
 

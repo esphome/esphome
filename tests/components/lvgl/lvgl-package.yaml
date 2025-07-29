@@ -738,7 +738,7 @@ lvgl:
                     id: bar_id
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
                     start_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
-                    mode: symmetrical
+                    mode: range
                 - logger.log:
                     format: "bar value %f"
                     args: [x]

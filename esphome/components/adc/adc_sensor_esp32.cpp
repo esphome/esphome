@@ -72,10 +72,9 @@ void ADCSensor::setup() {
   // Initialize ADC calibration
   if (this->calibration_handle_ == nullptr) {
     adc_cali_handle_t handle = nullptr;
-    esp_err_t err;
 
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
     // RISC-V variants and S3 use curve fitting calibration
     adc_cali_curve_fitting_config_t cali_config = {};  // Zero initialize first
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
@@ -187,7 +186,7 @@ float ADCSensor::sample_fixed_attenuation_() {
       ESP_LOGW(TAG, "ADC calibration conversion failed with error %d, disabling calibration", err);
       if (this->calibration_handle_ != nullptr) {
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
         adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
 #else   // Other ESP32 variants use line fitting calibration
         adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
@@ -220,7 +219,7 @@ float ADCSensor::sample_autorange_() {
     if (this->calibration_handle_ != nullptr) {
       // Delete old calibration handle
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
       adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
 #else
       adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
@@ -232,7 +231,7 @@ float ADCSensor::sample_autorange_() {
     adc_cali_handle_t handle = nullptr;
 
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
     adc_cali_curve_fitting_config_t cali_config = {};
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
     cali_config.chan = this->channel_;
@@ -261,7 +260,7 @@ float ADCSensor::sample_autorange_() {
       ESP_LOGW(TAG, "ADC read failed in autorange with error %d", err);
       if (handle != nullptr) {
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
         adc_cali_delete_scheme_curve_fitting(handle);
 #else
         adc_cali_delete_scheme_line_fitting(handle);
@@ -281,7 +280,7 @@ float ADCSensor::sample_autorange_() {
       }
       // Clean up calibration handle
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
       adc_cali_delete_scheme_curve_fitting(handle);
 #else
       adc_cali_delete_scheme_line_fitting(handle);

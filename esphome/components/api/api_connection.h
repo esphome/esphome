@@ -298,6 +298,10 @@ class APIConnection : public APIServerConnection {
   // Helper function to handle authentication completion
   void complete_authentication_();
 
+#ifdef USE_API_HOMEASSISTANT_STATES
+  void process_state_subscriptions_();
+#endif
+
   // Non-template helper to encode any ProtoMessage
   static uint16_t encode_message_to_buffer(ProtoMessage &msg, uint8_t message_type, APIConnection *conn,
                                            uint32_t remaining_size, bool is_single);

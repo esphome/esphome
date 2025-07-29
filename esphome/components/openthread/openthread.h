@@ -21,6 +21,7 @@ class OpenThreadComponent : public Component {
   OpenThreadComponent();
   ~OpenThreadComponent();
   void setup() override;
+  bool teardown() override;
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
   bool is_connected();
@@ -30,6 +31,8 @@ class OpenThreadComponent : public Component {
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
+  bool teardown_started_{false};
+  bool teardown_complete_{false};
 };
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

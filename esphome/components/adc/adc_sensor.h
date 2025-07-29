@@ -136,8 +136,8 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   adc_oneshot_unit_handle_t adc_handle_{nullptr};
   adc_cali_handle_t calibration_handle_{nullptr};
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};
-  adc_channel_t channel_;
-  adc_unit_t adc_unit_;
+  adc_channel_t channel_{};
+  adc_unit_t adc_unit_{};
   struct SetupFlags {
     uint8_t init_complete : 1;
     uint8_t config_complete : 1;
