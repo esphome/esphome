@@ -1,10 +1,11 @@
-Import("env")
+Import("env")  # noqa: F821
 
-import os
-import json
-import shutil
-import pathlib
-import itertools
+import itertools  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+import pathlib  # noqa: E402
+import shutil  # noqa: E402
+
 
 def merge_factory_bin(source, target, env):
     """
@@ -25,7 +26,9 @@ def merge_factory_bin(source, target, env):
         try:
             with flasher_args_path.open() as f:
                 flash_data = json.load(f)
-            for addr, fname in sorted(flash_data["flash_files"].items(), key=lambda kv: int(kv[0], 16)):
+            for addr, fname in sorted(
+                flash_data["flash_files"].items(), key=lambda kv: int(kv[0], 16)
+            ):
                 file_path = pathlib.Path(fname)
                 if file_path.exists():
                     sections.append((addr, str(file_path)))
@@ -40,20 +43,27 @@ def merge_factory_bin(source, target, env):
         if flash_images:
             print("Using FLASH_EXTRA_IMAGES from PlatformIO environment")
             # flatten any nested lists
-            flat = list(itertools.chain.from_iterable(
-                x if isinstance(x, (list, tuple)) else [x] for x in flash_images
-            ))
+            flat = list(
+                itertools.chain.from_iterable(
+                    x if isinstance(x, (list, tuple)) else [x] for x in flash_images
+                )
+            )
             entries = [env.subst(x) for x in flat]
             for i in range(0, len(entries) - 1, 2):
                 addr, fname = entries[i], entries[i + 1]
                 if isinstance(fname, (list, tuple)):
-                    print(f"Warning: Skipping malformed FLASH_EXTRA_IMAGES entry: {fname}")
+                    print(
+                        f"Warning: Skipping malformed FLASH_EXTRA_IMAGES entry: {fname}"
+                    )
                     continue
                 file_path = pathlib.Path(str(fname))
                 if file_path.exists():
-                    sections.append((addr, str(file_path)))
+                    sections.append((addr, file_path))
                 else:
                     print(f"Info: {file_path.name} not found — skipping")
+        if sections:
+            # Append main firmware to sections
+            sections.append(("0x10000", firmware_path))
 
     # 3. Final fallback: guess standard image locations
     if not sections:
@@ -62,11 +72,11 @@ def merge_factory_bin(source, target, env):
             ("0x0", build_dir / "bootloader" / "bootloader.bin"),
             ("0x8000", build_dir / "partition_table" / "partition-table.bin"),
             ("0xe000", build_dir / "ota_data_initial.bin"),
-            ("0x10000", firmware_path)
+            ("0x10000", firmware_path),
         ]
         for addr, file_path in guesses:
             if file_path.exists():
-                sections.append((addr, str(file_path)))
+                sections.append((addr, file_path))
             else:
                 print(f"Info: {file_path.name} not found — skipping")
 
@@ -76,27 +86,32 @@ def merge_factory_bin(source, target, env):
         return
 
     output_path = firmware_path.with_suffix(".factory.bin")
+    python_exe = f'"{env.subst("$PYTHONEXE")}"'
     cmd = [
-        "--chip", chip,
+        python_exe,
+        "-m",
+        "esptool",
+        "--chip",
+        chip,
         "merge_bin",
-        "--flash_size", flash_size,
-        "--output", str(output_path)
+        "--flash_size",
+        flash_size,
+        "--output",
+        str(output_path),
     ]
     for addr, file_path in sections:
-        cmd += [addr, file_path]
+        cmd += [addr, str(file_path)]
 
     print(f"Merging binaries into {output_path}")
     result = env.Execute(
-        env.VerboseAction(
-            f"{env.subst('$PYTHONEXE')} -m esptool " + " ".join(cmd),
-            "Merging binaries with esptool"
-        )
+        env.VerboseAction(" ".join(cmd), "Merging binaries with esptool")
     )
 
     if result == 0:
         print(f"Successfully created {output_path}")
     else:
         print(f"Error: esptool merge_bin failed with code {result}")
+
 
 def esp32_copy_ota_bin(source, target, env):
     """
@@ -107,6 +122,7 @@ def esp32_copy_ota_bin(source, target, env):
     shutil.copyfile(firmware_name, new_file_name)
     print(f"Copied firmware to {new_file_name}")
 
+
 # Run merge first, then ota copy second
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", merge_factory_bin)
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", esp32_copy_ota_bin)
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", merge_factory_bin)  # noqa: F821
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", esp32_copy_ota_bin)  # noqa: F821
