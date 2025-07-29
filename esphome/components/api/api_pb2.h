@@ -6,6 +6,7 @@
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
+#include "api_pb2_includes.h"
 
 namespace esphome::api {
 
@@ -703,7 +704,7 @@ class ListEntitiesFanResponse : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  std::vector<std::string> supported_preset_modes{};
+  const std::set<std::string> *supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -768,7 +769,7 @@ class ListEntitiesLightResponse : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_light_response"; }
 #endif
-  std::vector<enums::ColorMode> supported_color_modes{};
+  const std::set<light::ColorMode> *supported_color_modes{};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
@@ -1319,16 +1320,16 @@ class ListEntitiesClimateResponse : public InfoResponseProtoMessage {
 #endif
   bool supports_current_temperature{false};
   bool supports_two_point_target_temperature{false};
-  std::vector<enums::ClimateMode> supported_modes{};
+  const std::set<climate::ClimateMode> *supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
   bool supports_action{false};
-  std::vector<enums::ClimateFanMode> supported_fan_modes{};
-  std::vector<enums::ClimateSwingMode> supported_swing_modes{};
-  std::vector<std::string> supported_custom_fan_modes{};
-  std::vector<enums::ClimatePreset> supported_presets{};
-  std::vector<std::string> supported_custom_presets{};
+  const std::set<climate::ClimateFanMode> *supported_fan_modes{};
+  const std::set<climate::ClimateSwingMode> *supported_swing_modes{};
+  const std::set<std::string> *supported_custom_fan_modes{};
+  const std::set<climate::ClimatePreset> *supported_presets{};
+  const std::set<std::string> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
@@ -1475,7 +1476,7 @@ class ListEntitiesSelectResponse : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_select_response"; }
 #endif
-  std::vector<std::string> options{};
+  const std::vector<std::string> *options{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2448,7 +2449,7 @@ class VoiceAssistantConfigurationResponse : public ProtoMessage {
   const char *message_name() const override { return "voice_assistant_configuration_response"; }
 #endif
   std::vector<VoiceAssistantWakeWord> available_wake_words{};
-  std::vector<std::string> active_wake_words{};
+  const std::vector<std::string> *active_wake_words{};
   uint32_t max_active_wake_words{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;

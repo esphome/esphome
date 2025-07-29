@@ -830,7 +830,7 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   dump_field(out, "icon", this->icon_ref_);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  for (const auto &it : this->supported_preset_modes) {
+  for (const auto &it : *this->supported_preset_modes) {
     dump_field(out, "supported_preset_modes", it, 4);
   }
 #ifdef USE_DEVICES
@@ -873,7 +873,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   dump_field(out, "object_id", this->object_id_ref_);
   dump_field(out, "key", this->key);
   dump_field(out, "name", this->name_ref_);
-  for (const auto &it : this->supported_color_modes) {
+  for (const auto &it : *this->supported_color_modes) {
     dump_field(out, "supported_color_modes", static_cast<enums::ColorMode>(it), 4);
   }
   dump_field(out, "min_mireds", this->min_mireds);
@@ -1189,26 +1189,26 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   dump_field(out, "name", this->name_ref_);
   dump_field(out, "supports_current_temperature", this->supports_current_temperature);
   dump_field(out, "supports_two_point_target_temperature", this->supports_two_point_target_temperature);
-  for (const auto &it : this->supported_modes) {
+  for (const auto &it : *this->supported_modes) {
     dump_field(out, "supported_modes", static_cast<enums::ClimateMode>(it), 4);
   }
   dump_field(out, "visual_min_temperature", this->visual_min_temperature);
   dump_field(out, "visual_max_temperature", this->visual_max_temperature);
   dump_field(out, "visual_target_temperature_step", this->visual_target_temperature_step);
   dump_field(out, "supports_action", this->supports_action);
-  for (const auto &it : this->supported_fan_modes) {
+  for (const auto &it : *this->supported_fan_modes) {
     dump_field(out, "supported_fan_modes", static_cast<enums::ClimateFanMode>(it), 4);
   }
-  for (const auto &it : this->supported_swing_modes) {
+  for (const auto &it : *this->supported_swing_modes) {
     dump_field(out, "supported_swing_modes", static_cast<enums::ClimateSwingMode>(it), 4);
   }
-  for (const auto &it : this->supported_custom_fan_modes) {
+  for (const auto &it : *this->supported_custom_fan_modes) {
     dump_field(out, "supported_custom_fan_modes", it, 4);
   }
-  for (const auto &it : this->supported_presets) {
+  for (const auto &it : *this->supported_presets) {
     dump_field(out, "supported_presets", static_cast<enums::ClimatePreset>(it), 4);
   }
-  for (const auto &it : this->supported_custom_presets) {
+  for (const auto &it : *this->supported_custom_presets) {
     dump_field(out, "supported_custom_presets", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
@@ -1321,7 +1321,7 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
 #ifdef USE_ENTITY_ICON
   dump_field(out, "icon", this->icon_ref_);
 #endif
-  for (const auto &it : this->options) {
+  for (const auto &it : *this->options) {
     dump_field(out, "options", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
@@ -1786,7 +1786,7 @@ void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
-  for (const auto &it : this->active_wake_words) {
+  for (const auto &it : *this->active_wake_words) {
     dump_field(out, "active_wake_words", it, 4);
   }
   dump_field(out, "max_active_wake_words", this->max_active_wake_words);

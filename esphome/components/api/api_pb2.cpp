@@ -331,7 +331,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(10, this->icon_ref_);
 #endif
   buffer.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
-  for (auto &it : this->supported_preset_modes) {
+  for (const auto &it : *this->supported_preset_modes) {
     buffer.encode_string(12, it, true);
   }
 #ifdef USE_DEVICES
@@ -351,8 +351,8 @@ void ListEntitiesFanResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
-  if (!this->supported_preset_modes.empty()) {
-    for (const auto &it : this->supported_preset_modes) {
+  if (!this->supported_preset_modes->empty()) {
+    for (const auto &it : *this->supported_preset_modes) {
       size.add_length_force(1, it.size());
     }
   }
@@ -447,7 +447,7 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id_ref_);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name_ref_);
-  for (auto &it : this->supported_color_modes) {
+  for (const auto &it : *this->supported_color_modes) {
     buffer.encode_uint32(12, static_cast<uint32_t>(it), true);
   }
   buffer.encode_float(9, this->min_mireds);
@@ -468,8 +468,8 @@ void ListEntitiesLightResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
   size.add_fixed32(1, this->key);
   size.add_length(1, this->name_ref_.size());
-  if (!this->supported_color_modes.empty()) {
-    for (const auto &it : this->supported_color_modes) {
+  if (!this->supported_color_modes->empty()) {
+    for (const auto &it : *this->supported_color_modes) {
       size.add_uint32_force(1, static_cast<uint32_t>(it));
     }
   }
@@ -1064,26 +1064,26 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name_ref_);
   buffer.encode_bool(5, this->supports_current_temperature);
   buffer.encode_bool(6, this->supports_two_point_target_temperature);
-  for (auto &it : this->supported_modes) {
+  for (const auto &it : *this->supported_modes) {
     buffer.encode_uint32(7, static_cast<uint32_t>(it), true);
   }
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
   buffer.encode_float(10, this->visual_target_temperature_step);
   buffer.encode_bool(12, this->supports_action);
-  for (auto &it : this->supported_fan_modes) {
+  for (const auto &it : *this->supported_fan_modes) {
     buffer.encode_uint32(13, static_cast<uint32_t>(it), true);
   }
-  for (auto &it : this->supported_swing_modes) {
+  for (const auto &it : *this->supported_swing_modes) {
     buffer.encode_uint32(14, static_cast<uint32_t>(it), true);
   }
-  for (auto &it : this->supported_custom_fan_modes) {
+  for (const auto &it : *this->supported_custom_fan_modes) {
     buffer.encode_string(15, it, true);
   }
-  for (auto &it : this->supported_presets) {
+  for (const auto &it : *this->supported_presets) {
     buffer.encode_uint32(16, static_cast<uint32_t>(it), true);
   }
-  for (auto &it : this->supported_custom_presets) {
+  for (const auto &it : *this->supported_custom_presets) {
     buffer.encode_string(17, it, true);
   }
   buffer.encode_bool(18, this->disabled_by_default);
@@ -1106,8 +1106,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name_ref_.size());
   size.add_bool(1, this->supports_current_temperature);
   size.add_bool(1, this->supports_two_point_target_temperature);
-  if (!this->supported_modes.empty()) {
-    for (const auto &it : this->supported_modes) {
+  if (!this->supported_modes->empty()) {
+    for (const auto &it : *this->supported_modes) {
       size.add_uint32_force(1, static_cast<uint32_t>(it));
     }
   }
@@ -1115,28 +1115,28 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
   size.add_float(1, this->visual_max_temperature);
   size.add_float(1, this->visual_target_temperature_step);
   size.add_bool(1, this->supports_action);
-  if (!this->supported_fan_modes.empty()) {
-    for (const auto &it : this->supported_fan_modes) {
+  if (!this->supported_fan_modes->empty()) {
+    for (const auto &it : *this->supported_fan_modes) {
       size.add_uint32_force(1, static_cast<uint32_t>(it));
     }
   }
-  if (!this->supported_swing_modes.empty()) {
-    for (const auto &it : this->supported_swing_modes) {
+  if (!this->supported_swing_modes->empty()) {
+    for (const auto &it : *this->supported_swing_modes) {
       size.add_uint32_force(1, static_cast<uint32_t>(it));
     }
   }
-  if (!this->supported_custom_fan_modes.empty()) {
-    for (const auto &it : this->supported_custom_fan_modes) {
+  if (!this->supported_custom_fan_modes->empty()) {
+    for (const auto &it : *this->supported_custom_fan_modes) {
       size.add_length_force(1, it.size());
     }
   }
-  if (!this->supported_presets.empty()) {
-    for (const auto &it : this->supported_presets) {
+  if (!this->supported_presets->empty()) {
+    for (const auto &it : *this->supported_presets) {
       size.add_uint32_force(2, static_cast<uint32_t>(it));
     }
   }
-  if (!this->supported_custom_presets.empty()) {
-    for (const auto &it : this->supported_custom_presets) {
+  if (!this->supported_custom_presets->empty()) {
+    for (const auto &it : *this->supported_custom_presets) {
       size.add_length_force(2, it.size());
     }
   }
@@ -1371,7 +1371,7 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon_ref_);
 #endif
-  for (auto &it : this->options) {
+  for (const auto &it : *this->options) {
     buffer.encode_string(6, it, true);
   }
   buffer.encode_bool(7, this->disabled_by_default);
@@ -1387,8 +1387,8 @@ void ListEntitiesSelectResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_ENTITY_ICON
   size.add_length(1, this->icon_ref_.size());
 #endif
-  if (!this->options.empty()) {
-    for (const auto &it : this->options) {
+  if (!this->options->empty()) {
+    for (const auto &it : *this->options) {
       size.add_length_force(1, it.size());
     }
   }
@@ -2334,15 +2334,15 @@ void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer buffer) const 
   for (auto &it : this->available_wake_words) {
     buffer.encode_message(1, it, true);
   }
-  for (auto &it : this->active_wake_words) {
+  for (const auto &it : *this->active_wake_words) {
     buffer.encode_string(2, it, true);
   }
   buffer.encode_uint32(3, this->max_active_wake_words);
 }
 void VoiceAssistantConfigurationResponse::calculate_size(ProtoSize &size) const {
   size.add_repeated_message(1, this->available_wake_words);
-  if (!this->active_wake_words.empty()) {
-    for (const auto &it : this->active_wake_words) {
+  if (!this->active_wake_words->empty()) {
+    for (const auto &it : *this->active_wake_words) {
       size.add_length_force(1, it.size());
     }
   }
