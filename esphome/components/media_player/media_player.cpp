@@ -9,6 +9,10 @@ static const char *const TAG = "media_player";
 
 const char *media_player_state_to_string(MediaPlayerState state) {
   switch (state) {
+    case MEDIA_PLAYER_STATE_ON:
+      return "ON";
+    case MEDIA_PLAYER_STATE_OFF:
+      return "OFF";
     case MEDIA_PLAYER_STATE_IDLE:
       return "IDLE";
     case MEDIA_PLAYER_STATE_PLAYING:
@@ -18,6 +22,7 @@ const char *media_player_state_to_string(MediaPlayerState state) {
     case MEDIA_PLAYER_STATE_ANNOUNCING:
       return "ANNOUNCING";
     case MEDIA_PLAYER_STATE_NONE:
+      return "NONE";
     default:
       return "UNKNOWN";
   }
@@ -49,6 +54,10 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "REPEAT_OFF";
     case MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
       return "CLEAR_PLAYLIST";
+    case MEDIA_PLAYER_COMMAND_TURN_ON:
+      return "TURN_ON";
+    case MEDIA_PLAYER_COMMAND_TURN_OFF:
+      return "TURN_OFF";
     default:
       return "UNKNOWN";
   }
@@ -110,6 +119,10 @@ MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
     this->set_command(MEDIA_PLAYER_COMMAND_UNMUTE);
   } else if (str_equals_case_insensitive(command, "TOGGLE")) {
     this->set_command(MEDIA_PLAYER_COMMAND_TOGGLE);
+  } else if (str_equals_case_insensitive(command, "TURN_ON")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_TURN_ON);
+  } else if (str_equals_case_insensitive(command, "TURN_OFF")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_TURN_OFF);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command.c_str());
   }

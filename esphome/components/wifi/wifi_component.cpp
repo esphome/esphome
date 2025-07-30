@@ -533,9 +533,17 @@ void WiFiComponent::check_scanning_finished() {
                        return false;
 
                      if (a.get_matches() && b.get_matches()) {
-                       // if both match, check priority
+                       // For APs with the same SSID, always prefer stronger signal
+                       // This helps with mesh networks and multiple APs
+                       if (a.get_ssid() == b.get_ssid()) {
+                         return a.get_rssi() > b.get_rssi();
+                       }
+
+                       // For different SSIDs, check priority first
                        if (a.get_priority() != b.get_priority())
                          return a.get_priority() > b.get_priority();
+                       // If priorities are equal, prefer stronger signal
+                       return a.get_rssi() > b.get_rssi();
                      }
 
                      return a.get_rssi() > b.get_rssi();

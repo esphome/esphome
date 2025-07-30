@@ -256,6 +256,7 @@ OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
+ThrottleWithPriorityFilter = sensor_ns.class_("ThrottleWithPriorityFilter", Filter)
 TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
@@ -593,6 +594,25 @@ async def or_filter_to_code(config, filter_id):
 )
 async def throttle_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
+
+
+TIMEOUT_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default="nan"): cv.ensure_list(cv.float_),
+    },
+    key=CONF_TIMEOUT,
+)
+
+
+@FILTER_REGISTRY.register(
+    "throttle_with_priority",
+    ThrottleWithPriorityFilter,
+    TIMEOUT_WITH_PRIORITY_SCHEMA,
+)
+async def throttle_with_priority_filter_to_code(config, filter_id):
+    template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
 
 
 @FILTER_REGISTRY.register(

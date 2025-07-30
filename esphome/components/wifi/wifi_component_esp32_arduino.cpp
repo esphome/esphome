@@ -474,8 +474,20 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Handshake Failed";
     case WIFI_REASON_CONNECTION_FAIL:
       return "Connection Failed";
+    case WIFI_REASON_AP_TSF_RESET:
+      return "AP TSF reset";
     case WIFI_REASON_ROAMING:
       return "Station Roaming";
+    case WIFI_REASON_ASSOC_COMEBACK_TIME_TOO_LONG:
+      return "Association comeback time too long";
+    case WIFI_REASON_SA_QUERY_TIMEOUT:
+      return "SA query timeout";
+    case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:
+      return "No AP found with compatible security";
+    case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD:
+      return "No AP found in auth mode threshold";
+    case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:
+      return "No AP found in RSSI threshold";
     case WIFI_REASON_UNSPECIFIED:
     default:
       return "Unspecified";

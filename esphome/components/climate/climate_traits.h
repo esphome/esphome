@@ -5,6 +5,13 @@
 #include <set>
 
 namespace esphome {
+
+#ifdef USE_API
+namespace api {
+class APIConnection;
+}  // namespace api
+#endif
+
 namespace climate {
 
 /** This class contains all static data for climate devices.
@@ -173,6 +180,23 @@ class ClimateTraits {
   void set_visual_max_humidity(float visual_max_humidity) { this->visual_max_humidity_ = visual_max_humidity; }
 
  protected:
+#ifdef USE_API
+  // The API connection is a friend class to access internal methods
+  friend class api::APIConnection;
+  // These methods return references to internal data structures.
+  // They are used by the API to avoid copying data when encoding messages.
+  // Warning: Do not use these methods outside of the API connection code.
+  // They return references to internal data that can be invalidated.
+  const std::set<ClimateMode> &get_supported_modes_for_api_() const { return this->supported_modes_; }
+  const std::set<ClimateFanMode> &get_supported_fan_modes_for_api_() const { return this->supported_fan_modes_; }
+  const std::set<std::string> &get_supported_custom_fan_modes_for_api_() const {
+    return this->supported_custom_fan_modes_;
+  }
+  const std::set<climate::ClimatePreset> &get_supported_presets_for_api_() const { return this->supported_presets_; }
+  const std::set<std::string> &get_supported_custom_presets_for_api_() const { return this->supported_custom_presets_; }
+  const std::set<ClimateSwingMode> &get_supported_swing_modes_for_api_() const { return this->supported_swing_modes_; }
+#endif
+
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
     if (supported) {
       this->supported_modes_.insert(mode);

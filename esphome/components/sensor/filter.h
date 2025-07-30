@@ -314,6 +314,20 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
+/// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
+class ThrottleWithPriorityFilter : public Filter {
+ public:
+  explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
+                                      std::vector<TemplatableValue<float>> prioritized_values);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+  std::vector<TemplatableValue<float>> prioritized_values_;
+};
+
 class TimeoutFilter : public Filter, public Component {
  public:
   explicit TimeoutFilter(uint32_t time_period, TemplatableValue<float> new_value);
