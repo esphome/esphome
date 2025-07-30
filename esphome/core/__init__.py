@@ -263,7 +263,7 @@ class TimePeriodMinutes(TimePeriod):
     pass
 
 
-LAMBDA_PROG = re.compile(r"id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
+LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 
 class Lambda:
