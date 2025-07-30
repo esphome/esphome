@@ -5,10 +5,23 @@
 
 #ifdef USE_ESP32
 
+#include <esp_gap_ble_api.h>
+#include <esp_gatt_defs.h>
+
 namespace esphome {
 namespace esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
+
+// Connection interval defaults matching ESP-IDF's BTM_BLE_CONN_INT_*_DEF
+static const uint16_t DEFAULT_MIN_CONN_INTERVAL = 0x0A;  // 10 * 1.25ms = 12.5ms
+static const uint16_t DEFAULT_MAX_CONN_INTERVAL = 0x0C;  // 12 * 1.25ms = 15ms
+static const uint16_t DEFAULT_CONN_TIMEOUT = 600;        // 600 * 10ms = 6s
+
+// Fastest connection parameters for devices with short discovery timeouts
+static const uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
+static const uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
+static const uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
 static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,
     .uuid =
@@ -129,6 +142,7 @@ void BLEClientBase::connect() {
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Attempting BLE connection", this->connection_index_, this->address_str_.c_str(),
            this->remote_addr_type_);
   this->paired_ = false;
+
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
   if (ret) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_open error, status=%d", this->connection_index_, this->address_str_.c_str(),
@@ -136,6 +150,22 @@ void BLEClientBase::connect() {
     this->set_state(espbt::ClientState::IDLE);
   } else {
     this->set_state(espbt::ClientState::CONNECTING);
+
+    // For connections without cache, set fast connection parameters after initiating connection
+    // This ensures service discovery completes within the 10-second timeout that
+    // some devices like HomeKit BLE sensors enforce
+    if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+      auto param_ret =
+          esp_ble_gap_set_prefer_conn_params(this->remote_bda_, FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL,
+                                             0,  // latency: 0
+                                             FAST_CONN_TIMEOUT);
+      if (param_ret != ESP_OK) {
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gap_set_prefer_conn_params failed: %d", this->connection_index_,
+                 this->address_str_.c_str(), param_ret);
+      } else {
+        ESP_LOGD(TAG, "[%d] [%s] Set fast conn params", this->connection_index_, this->address_str_.c_str());
+      }
+    }
   }
 }
 
@@ -278,12 +308,14 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->address_str_.c_str(), ret);
       }
       this->set_state(espbt::ClientState::CONNECTED);
+      ESP_LOGI(TAG, "[%d] [%s] Connection open", this->connection_index_, this->address_str_.c_str());
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
+        ESP_LOGI(TAG, "[%d] [%s] Using cached services", this->connection_index_, this->address_str_.c_str());
         // only set our state, subclients might have more stuff to do yet.
         this->state_ = espbt::ClientState::ESTABLISHED;
         break;
       }
+      ESP_LOGD(TAG, "[%d] [%s] Searching for services", this->connection_index_, this->address_str_.c_str());
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
@@ -296,8 +328,15 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_DISCONNECT_EVT: {
       if (!this->check_addr(param->disconnect.remote_bda))
         return false;
-      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
-               this->address_str_.c_str(), param->disconnect.reason);
+      // Check if we were disconnected while waiting for service discovery
+      if (param->disconnect.reason == ESP_GATT_CONN_TERMINATE_PEER_USER &&
+          this->state_ == espbt::ClientState::CONNECTED) {
+        ESP_LOGW(TAG, "[%d] [%s] Disconnected by remote during service discovery", this->connection_index_,
+                 this->address_str_.c_str());
+      } else {
+        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_,
+                 this->address_str_.c_str(), param->disconnect.reason);
+      }
       this->release_services();
       this->set_state(espbt::ClientState::IDLE);
       break;
@@ -353,7 +392,22 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
       }
-      ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
+      ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_.c_str());
+
+      // For non-cached connections, restore default connection parameters after service discovery
+      // Now that we've discovered all services, we can use more balanced parameters
+      // that save power and reduce interference
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+        esp_ble_conn_update_params_t conn_params = {{0}};
+        memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
+        conn_params.min_int = DEFAULT_MIN_CONN_INTERVAL;
+        conn_params.max_int = DEFAULT_MAX_CONN_INTERVAL;
+        conn_params.latency = 0;
+        conn_params.timeout = DEFAULT_CONN_TIMEOUT;
+        ESP_LOGD(TAG, "[%d] [%s] Restored default conn params", this->connection_index_, this->address_str_.c_str());
+        esp_ble_gap_update_conn_params(&conn_params);
+      }
+
       this->state_ = espbt::ClientState::ESTABLISHED;
       break;
     }
