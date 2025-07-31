@@ -1366,7 +1366,7 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 10;
+  resp.api_version_minor = 11;
   // Temporary string for concatenation - will be valid during send_message call
   std::string server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.set_server_info(StringRef(server_info));
