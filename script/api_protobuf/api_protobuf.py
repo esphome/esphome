@@ -1075,6 +1075,11 @@ class FixedArrayRepeatedType(TypeInfo):
     def __init__(self, field: descriptor.FieldDescriptorProto, size: int) -> None:
         super().__init__(field)
         self.array_size = size
+        # Check if we should skip encoding when all elements are zero
+        # Use getattr to handle older versions of api_options_pb2
+        self.skip_zero = get_field_opt(
+            field, getattr(pb, "fixed_array_skip_zero", None), False
+        )
         # Create the element type info
         validate_field_type(field.type, field.name)
         self._ti: TypeInfo = TYPE_INFO[field.type](field)
@@ -1113,6 +1118,18 @@ class FixedArrayRepeatedType(TypeInfo):
             else:
                 return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
+        # If skip_zero is enabled, wrap encoding in a zero check
+        if self.skip_zero:
+            # Build the condition to check if at least one element is non-zero
+            non_zero_checks = " || ".join(
+                [f"this->{self.field_name}[{i}] != 0" for i in range(self.array_size)]
+            )
+            encode_lines = [
+                f"  {encode_element(f'this->{self.field_name}[{i}]')}"
+                for i in range(self.array_size)
+            ]
+            return f"if ({non_zero_checks}) {{\n" + "\n".join(encode_lines) + "\n}"
+
         # Unroll small arrays for efficiency
         if self.array_size == 1:
             return encode_element(f"this->{self.field_name}[0]")
@@ -1141,6 +1158,18 @@ class FixedArrayRepeatedType(TypeInfo):
         return ""
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        # If skip_zero is enabled, wrap size calculation in a zero check
+        if self.skip_zero:
+            # Build the condition to check if at least one element is non-zero
+            non_zero_checks = " || ".join(
+                [f"{name}[{i}] != 0" for i in range(self.array_size)]
+            )
+            size_lines = [
+                f"  {self._ti.get_size_calculation(f'{name}[{i}]', True)}"
+                for i in range(self.array_size)
+            ]
+            return f"if ({non_zero_checks}) {{\n" + "\n".join(size_lines) + "\n}"
+
         # For fixed arrays, we always encode all elements
 
         # Special case for single-element arrays - no loop needed

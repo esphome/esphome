@@ -1482,21 +1482,39 @@ message BluetoothGATTGetServicesRequest {
 }
 
 message BluetoothGATTDescriptor {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 3;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTCharacteristic {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   uint32 properties = 3;
   repeated BluetoothGATTDescriptor descriptors = 4;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 5;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTService {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   repeated BluetoothGATTCharacteristic characteristics = 3;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 4;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTGetServicesResponse {
