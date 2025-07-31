@@ -1929,11 +1929,13 @@ void BluetoothGATTService::calculate_size(ProtoSize &size) const {
 }
 void BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
-  buffer.encode_message(2, this->services[0], true);
+  for (auto &it : this->services) {
+    buffer.encode_message(2, it, true);
+  }
 }
 void BluetoothGATTGetServicesResponse::calculate_size(ProtoSize &size) const {
   size.add_uint64(1, this->address);
-  size.add_message_object_force(1, this->services[0]);
+  size.add_repeated_message(1, this->services);
 }
 void BluetoothGATTGetServicesDoneResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);

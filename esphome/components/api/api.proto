@@ -1505,7 +1505,7 @@ message BluetoothGATTGetServicesResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
-  repeated BluetoothGATTService services = 2 [(fixed_array_size) = 1];
+  repeated BluetoothGATTService services = 2;
 }
 
 message BluetoothGATTGetServicesDoneResponse {

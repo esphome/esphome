@@ -22,6 +22,7 @@ namespace esphome::bluetooth_proxy {
 
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 static const int DONE_SENDING_SERVICES = -2;
+static const uint8_t MAX_SERVICES_PER_BATCH = 3;
 
 using namespace esp32_ble_client;
 

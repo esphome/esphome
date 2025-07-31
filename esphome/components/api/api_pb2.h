@@ -1895,12 +1895,12 @@ class BluetoothGATTService : public ProtoMessage {
 class BluetoothGATTGetServicesResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 71;
-  static constexpr uint8_t ESTIMATED_SIZE = 21;
+  static constexpr uint8_t ESTIMATED_SIZE = 38;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_get_services_response"; }
 #endif
   uint64_t address{0};
-  std::array<BluetoothGATTService, 1> services{};
+  std::vector<BluetoothGATTService> services{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
