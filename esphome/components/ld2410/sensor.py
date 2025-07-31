@@ -2,21 +2,22 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_DISTANCE,
-    UNIT_CENTIMETER,
-    UNIT_PERCENT,
     CONF_LIGHT,
+    CONF_MOVING_DISTANCE,
+    DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_SIGNAL,
     ICON_FLASH,
-    ICON_MOTION_SENSOR,
     ICON_LIGHTBULB,
+    ICON_MOTION_SENSOR,
+    ICON_SIGNAL,
+    UNIT_CENTIMETER,
+    UNIT_PERCENT,
 )
+
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
-CONF_MOVING_DISTANCE = "moving_distance"
 CONF_STILL_DISTANCE = "still_distance"
 CONF_MOVING_ENERGY = "moving_energy"
 CONF_STILL_ENERGY = "still_energy"

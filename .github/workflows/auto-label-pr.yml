@@ -1,0 +1,652 @@
+name: Auto Label PR
+
+on:
+  # Runs only on pull_request_target due to having access to a App token.
+  # This means PRs from forks will not be able to alter this workflow to get the tokens
+  pull_request_target:
+    types: [labeled, opened, reopened, synchronize, edited]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+env:
+  SMALL_PR_THRESHOLD: 30
+  MAX_LABELS: 15
+  TOO_BIG_THRESHOLD: 1000
+  COMPONENT_LABEL_THRESHOLD: 10
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    if: github.event.action != 'labeled' || github.event.sender.type != 'Bot'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ESPHOME_GITHUB_APP_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Auto Label PR
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const fs = require('fs');
+
+            // Constants
+            const SMALL_PR_THRESHOLD = parseInt('${{ env.SMALL_PR_THRESHOLD }}');
+            const MAX_LABELS = parseInt('${{ env.MAX_LABELS }}');
+            const TOO_BIG_THRESHOLD = parseInt('${{ env.TOO_BIG_THRESHOLD }}');
+            const COMPONENT_LABEL_THRESHOLD = parseInt('${{ env.COMPONENT_LABEL_THRESHOLD }}');
+            const BOT_COMMENT_MARKER = '<!-- auto-label-pr-bot -->';
+            const CODEOWNERS_MARKER = '<!-- codeowners-request -->';
+            const TOO_BIG_MARKER = '<!-- too-big-request -->';
+
+            const MANAGED_LABELS = [
+              'new-component',
+              'new-platform',
+              'new-target-platform',
+              'merging-to-release',
+              'merging-to-beta',
+              'core',
+              'small-pr',
+              'dashboard',
+              'github-actions',
+              'by-code-owner',
+              'has-tests',
+              'needs-tests',
+              'needs-docs',
+              'needs-codeowners',
+              'too-big',
+              'labeller-recheck',
+              'bugfix',
+              'new-feature',
+              'breaking-change',
+              'code-quality'
+            ];
+
+            const DOCS_PR_PATTERNS = [
+              /https:\/\/github\.com\/esphome\/esphome-docs\/pull\/\d+/,
+              /esphome\/esphome-docs#\d+/
+            ];
+
+            // Global state
+            const { owner, repo } = context.repo;
+            const pr_number = context.issue.number;
+
+            // Get current labels and PR data
+            const { data: currentLabelsData } = await github.rest.issues.listLabelsOnIssue({
+              owner,
+              repo,
+              issue_number: pr_number
+            });
+            const currentLabels = currentLabelsData.map(label => label.name);
+            const managedLabels = currentLabels.filter(label =>
+              label.startsWith('component: ') || MANAGED_LABELS.includes(label)
+            );
+
+            // Check for mega-PR early - if present, skip most automatic labeling
+            const isMegaPR = currentLabels.includes('mega-pr');
+
+            // Get all PR files with automatic pagination
+            const prFiles = await github.paginate(
+              github.rest.pulls.listFiles,
+              {
+                owner,
+                repo,
+                pull_number: pr_number
+              }
+            );
+
+            // Calculate data from PR files
+            const changedFiles = prFiles.map(file => file.filename);
+            const totalChanges = prFiles.reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
+
+            console.log('Current labels:', currentLabels.join(', '));
+            console.log('Changed files:', changedFiles.length);
+            console.log('Total changes:', totalChanges);
+            if (isMegaPR) {
+              console.log('Mega-PR detected - applying limited labeling logic');
+            }
+
+            // Fetch API data
+            async function fetchApiData() {
+              try {
+                const response = await fetch('https://data.esphome.io/components.json');
+                const componentsData = await response.json();
+                return {
+                  targetPlatforms: componentsData.target_platforms || [],
+                  platformComponents: componentsData.platform_components || []
+                };
+              } catch (error) {
+                console.log('Failed to fetch components data from API:', error.message);
+                return { targetPlatforms: [], platformComponents: [] };
+              }
+            }
+
+            // Strategy: Merge branch detection
+            async function detectMergeBranch() {
+              const labels = new Set();
+              const baseRef = context.payload.pull_request.base.ref;
+
+              if (baseRef === 'release') {
+                labels.add('merging-to-release');
+              } else if (baseRef === 'beta') {
+                labels.add('merging-to-beta');
+              }
+
+              return labels;
+            }
+
+            // Strategy: Component and platform labeling
+            async function detectComponentPlatforms(apiData) {
+              const labels = new Set();
+              const componentRegex = /^esphome\/components\/([^\/]+)\//;
+              const targetPlatformRegex = new RegExp(`^esphome\/components\/(${apiData.targetPlatforms.join('|')})/`);
+
+              for (const file of changedFiles) {
+                const componentMatch = file.match(componentRegex);
+                if (componentMatch) {
+                  labels.add(`component: ${componentMatch[1]}`);
+                }
+
+                const platformMatch = file.match(targetPlatformRegex);
+                if (platformMatch) {
+                  labels.add(`platform: ${platformMatch[1]}`);
+                }
+              }
+
+              return labels;
+            }
+
+            // Strategy: New component detection
+            async function detectNewComponents() {
+              const labels = new Set();
+              const addedFiles = prFiles.filter(file => file.status === 'added').map(file => file.filename);
+
+              for (const file of addedFiles) {
+                const componentMatch = file.match(/^esphome\/components\/([^\/]+)\/__init__\.py$/);
+                if (componentMatch) {
+                  try {
+                    const content = fs.readFileSync(file, 'utf8');
+                    if (content.includes('IS_TARGET_PLATFORM = True')) {
+                      labels.add('new-target-platform');
+                    }
+                  } catch (error) {
+                    console.log(`Failed to read content of ${file}:`, error.message);
+                  }
+                  labels.add('new-component');
+                }
+              }
+
+              return labels;
+            }
+
+            // Strategy: New platform detection
+            async function detectNewPlatforms(apiData) {
+              const labels = new Set();
+              const addedFiles = prFiles.filter(file => file.status === 'added').map(file => file.filename);
+
+              for (const file of addedFiles) {
+                const platformFileMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\.py$/);
+                if (platformFileMatch) {
+                  const [, component, platform] = platformFileMatch;
+                  if (apiData.platformComponents.includes(platform)) {
+                    labels.add('new-platform');
+                  }
+                }
+
+                const platformDirMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\/__init__\.py$/);
+                if (platformDirMatch) {
+                  const [, component, platform] = platformDirMatch;
+                  if (apiData.platformComponents.includes(platform)) {
+                    labels.add('new-platform');
+                  }
+                }
+              }
+
+              return labels;
+            }
+
+            // Strategy: Core files detection
+            async function detectCoreChanges() {
+              const labels = new Set();
+              const coreFiles = changedFiles.filter(file =>
+                file.startsWith('esphome/core/') ||
+                (file.startsWith('esphome/') && file.split('/').length === 2)
+              );
+
+              if (coreFiles.length > 0) {
+                labels.add('core');
+              }
+
+              return labels;
+            }
+
+            // Strategy: PR size detection
+            async function detectPRSize() {
+              const labels = new Set();
+              const testChanges = prFiles
+                .filter(file => file.filename.startsWith('tests/'))
+                .reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
+
+              const nonTestChanges = totalChanges - testChanges;
+
+              if (totalChanges <= SMALL_PR_THRESHOLD) {
+                labels.add('small-pr');
+              }
+
+              // Don't add too-big if mega-pr label is already present
+              if (nonTestChanges > TOO_BIG_THRESHOLD && !isMegaPR) {
+                labels.add('too-big');
+              }
+
+              return labels;
+            }
+
+            // Strategy: Dashboard changes
+            async function detectDashboardChanges() {
+              const labels = new Set();
+              const dashboardFiles = changedFiles.filter(file =>
+                file.startsWith('esphome/dashboard/') ||
+                file.startsWith('esphome/components/dashboard_import/')
+              );
+
+              if (dashboardFiles.length > 0) {
+                labels.add('dashboard');
+              }
+
+              return labels;
+            }
+
+            // Strategy: GitHub Actions changes
+            async function detectGitHubActionsChanges() {
+              const labels = new Set();
+              const githubActionsFiles = changedFiles.filter(file =>
+                file.startsWith('.github/workflows/')
+              );
+
+              if (githubActionsFiles.length > 0) {
+                labels.add('github-actions');
+              }
+
+              return labels;
+            }
+
+            // Strategy: Code owner detection
+            async function detectCodeOwner() {
+              const labels = new Set();
+
+              try {
+                const { data: codeownersFile } = await github.rest.repos.getContent({
+                  owner,
+                  repo,
+                  path: 'CODEOWNERS',
+                });
+
+                const codeownersContent = Buffer.from(codeownersFile.content, 'base64').toString('utf8');
+                const prAuthor = context.payload.pull_request.user.login;
+
+                const codeownersLines = codeownersContent.split('\n')
+                  .map(line => line.trim())
+                  .filter(line => line && !line.startsWith('#'));
+
+                const codeownersRegexes = codeownersLines.map(line => {
+                  const parts = line.split(/\s+/);
+                  const pattern = parts[0];
+                  const owners = parts.slice(1);
+
+                  let regex;
+                  if (pattern.endsWith('*')) {
+                    const dir = pattern.slice(0, -1);
+                    regex = new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+                  } else if (pattern.includes('*')) {
+                    // First escape all regex special chars except *, then replace * with .*
+                    const regexPattern = pattern
+                      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                      .replace(/\*/g, '.*');
+                    regex = new RegExp(`^${regexPattern}$`);
+                  } else {
+                    regex = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+                  }
+
+                  return { regex, owners };
+                });
+
+                for (const file of changedFiles) {
+                  for (const { regex, owners } of codeownersRegexes) {
+                    if (regex.test(file) && owners.some(owner => owner === `@${prAuthor}`)) {
+                      labels.add('by-code-owner');
+                      return labels;
+                    }
+                  }
+                }
+              } catch (error) {
+                console.log('Failed to read or parse CODEOWNERS file:', error.message);
+              }
+
+              return labels;
+            }
+
+            // Strategy: Test detection
+            async function detectTests() {
+              const labels = new Set();
+              const testFiles = changedFiles.filter(file => file.startsWith('tests/'));
+
+              if (testFiles.length > 0) {
+                labels.add('has-tests');
+              }
+
+              return labels;
+            }
+
+            // Strategy: PR Template Checkbox detection
+            async function detectPRTemplateCheckboxes() {
+              const labels = new Set();
+              const prBody = context.payload.pull_request.body || '';
+
+              console.log('Checking PR template checkboxes...');
+
+              // Check for checked checkboxes in the "Types of changes" section
+              const checkboxPatterns = [
+                { pattern: /- \[x\] Bugfix \(non-breaking change which fixes an issue\)/i, label: 'bugfix' },
+                { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
+                { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
+                { pattern: /- \[x\] Code quality improvements to existing code or addition of tests/i, label: 'code-quality' }
+              ];
+
+              for (const { pattern, label } of checkboxPatterns) {
+                if (pattern.test(prBody)) {
+                  console.log(`Found checked checkbox for: ${label}`);
+                  labels.add(label);
+                }
+              }
+
+              return labels;
+            }
+
+            // Strategy: Requirements detection
+            async function detectRequirements(allLabels) {
+              const labels = new Set();
+
+              // Check for missing tests
+              if ((allLabels.has('new-component') || allLabels.has('new-platform')) && !allLabels.has('has-tests')) {
+                labels.add('needs-tests');
+              }
+
+              // Check for missing docs
+              if (allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) {
+                const prBody = context.payload.pull_request.body || '';
+                const hasDocsLink = DOCS_PR_PATTERNS.some(pattern => pattern.test(prBody));
+
+                if (!hasDocsLink) {
+                  labels.add('needs-docs');
+                }
+              }
+
+              // Check for missing CODEOWNERS
+              if (allLabels.has('new-component')) {
+                const codeownersModified = prFiles.some(file =>
+                  file.filename === 'CODEOWNERS' &&
+                  (file.status === 'modified' || file.status === 'added') &&
+                  (file.additions || 0) > 0
+                );
+
+                if (!codeownersModified) {
+                  labels.add('needs-codeowners');
+                }
+              }
+
+              return labels;
+            }
+
+            // Generate review messages
+            function generateReviewMessages(finalLabels) {
+              const messages = [];
+              const prAuthor = context.payload.pull_request.user.login;
+
+              // Too big message
+              if (finalLabels.includes('too-big')) {
+                const testChanges = prFiles
+                  .filter(file => file.filename.startsWith('tests/'))
+                  .reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
+                const nonTestChanges = totalChanges - testChanges;
+
+                const tooManyLabels = finalLabels.length > MAX_LABELS;
+                const tooManyChanges = nonTestChanges > TOO_BIG_THRESHOLD;
+
+                let message = `${TOO_BIG_MARKER}\n### 📦 Pull Request Size\n\n`;
+
+                if (tooManyLabels && tooManyChanges) {
+                  message += `This PR is too large with ${nonTestChanges} line changes (excluding tests) and affects ${finalLabels.length} different components/areas.`;
+                } else if (tooManyLabels) {
+                  message += `This PR affects ${finalLabels.length} different components/areas.`;
+                } else {
+                  message += `This PR is too large with ${nonTestChanges} line changes (excluding tests).`;
+                }
+
+                message += ` Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\n`;
+                message += `For guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#how-to-approach-large-submissions`;
+
+                messages.push(message);
+              }
+
+              // CODEOWNERS message
+              if (finalLabels.includes('needs-codeowners')) {
+                const message = `${CODEOWNERS_MARKER}\n### 👥 Code Ownership\n\n` +
+                  `Hey there @${prAuthor},\n` +
+                  `Thanks for submitting this pull request! Can you add yourself as a codeowner for this integration? ` +
+                  `This way we can notify you if a bug report for this integration is reported.\n\n` +
+                  `In \`__init__.py\` of the integration, please add:\n\n` +
+                  `\`\`\`python\nCODEOWNERS = ["@${prAuthor}"]\n\`\`\`\n\n` +
+                  `And run \`script/build_codeowners.py\``;
+
+                messages.push(message);
+              }
+
+              return messages;
+            }
+
+            // Handle reviews
+            async function handleReviews(finalLabels) {
+              const reviewMessages = generateReviewMessages(finalLabels);
+              const hasReviewableLabels = finalLabels.some(label =>
+                ['too-big', 'needs-codeowners'].includes(label)
+              );
+
+              const { data: reviews } = await github.rest.pulls.listReviews({
+                owner,
+                repo,
+                pull_number: pr_number
+              });
+
+              const botReviews = reviews.filter(review =>
+                review.user.type === 'Bot' &&
+                review.state === 'CHANGES_REQUESTED' &&
+                review.body && review.body.includes(BOT_COMMENT_MARKER)
+              );
+
+              if (hasReviewableLabels) {
+                const reviewBody = `${BOT_COMMENT_MARKER}\n\n${reviewMessages.join('\n\n---\n\n')}`;
+
+                if (botReviews.length > 0) {
+                  // Update existing review
+                  await github.rest.pulls.updateReview({
+                    owner,
+                    repo,
+                    pull_number: pr_number,
+                    review_id: botReviews[0].id,
+                    body: reviewBody
+                  });
+                  console.log('Updated existing bot review');
+                } else {
+                  // Create new review
+                  await github.rest.pulls.createReview({
+                    owner,
+                    repo,
+                    pull_number: pr_number,
+                    body: reviewBody,
+                    event: 'REQUEST_CHANGES'
+                  });
+                  console.log('Created new bot review');
+                }
+              } else if (botReviews.length > 0) {
+                // Dismiss existing reviews
+                for (const review of botReviews) {
+                  try {
+                    await github.rest.pulls.dismissReview({
+                      owner,
+                      repo,
+                      pull_number: pr_number,
+                      review_id: review.id,
+                      message: 'Review dismissed: All requirements have been met'
+                    });
+                    console.log(`Dismissed bot review ${review.id}`);
+                  } catch (error) {
+                    console.log(`Failed to dismiss review ${review.id}:`, error.message);
+                  }
+                }
+              }
+            }
+
+            // Main execution
+            const apiData = await fetchApiData();
+            const baseRef = context.payload.pull_request.base.ref;
+
+            // Early exit for non-dev branches
+            if (baseRef !== 'dev') {
+              const branchLabels = await detectMergeBranch();
+              const finalLabels = Array.from(branchLabels);
+
+              console.log('Computed labels (merge branch only):', finalLabels.join(', '));
+
+              // Apply labels
+              if (finalLabels.length > 0) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: pr_number,
+                  labels: finalLabels
+                });
+              }
+
+              // Remove old managed labels
+              const labelsToRemove = managedLabels.filter(label => !finalLabels.includes(label));
+              for (const label of labelsToRemove) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner,
+                    repo,
+                    issue_number: pr_number,
+                    name: label
+                  });
+                } catch (error) {
+                  console.log(`Failed to remove label ${label}:`, error.message);
+                }
+              }
+
+              return;
+            }
+
+            // Run all strategies
+            const [
+              branchLabels,
+              componentLabels,
+              newComponentLabels,
+              newPlatformLabels,
+              coreLabels,
+              sizeLabels,
+              dashboardLabels,
+              actionsLabels,
+              codeOwnerLabels,
+              testLabels,
+              checkboxLabels
+            ] = await Promise.all([
+              detectMergeBranch(),
+              detectComponentPlatforms(apiData),
+              detectNewComponents(),
+              detectNewPlatforms(apiData),
+              detectCoreChanges(),
+              detectPRSize(),
+              detectDashboardChanges(),
+              detectGitHubActionsChanges(),
+              detectCodeOwner(),
+              detectTests(),
+              detectPRTemplateCheckboxes()
+            ]);
+
+            // Combine all labels
+            const allLabels = new Set([
+              ...branchLabels,
+              ...componentLabels,
+              ...newComponentLabels,
+              ...newPlatformLabels,
+              ...coreLabels,
+              ...sizeLabels,
+              ...dashboardLabels,
+              ...actionsLabels,
+              ...codeOwnerLabels,
+              ...testLabels,
+              ...checkboxLabels
+            ]);
+
+            // Detect requirements based on all other labels
+            const requirementLabels = await detectRequirements(allLabels);
+            for (const label of requirementLabels) {
+              allLabels.add(label);
+            }
+
+            let finalLabels = Array.from(allLabels);
+
+            // For mega-PRs, exclude component labels if there are too many
+            if (isMegaPR) {
+              const componentLabels = finalLabels.filter(label => label.startsWith('component: '));
+              if (componentLabels.length > COMPONENT_LABEL_THRESHOLD) {
+                finalLabels = finalLabels.filter(label => !label.startsWith('component: '));
+                console.log(`Mega-PR detected - excluding ${componentLabels.length} component labels (threshold: ${COMPONENT_LABEL_THRESHOLD})`);
+              }
+            }
+
+            // Handle too many labels (only for non-mega PRs)
+            const tooManyLabels = finalLabels.length > MAX_LABELS;
+
+            if (tooManyLabels && !isMegaPR && !finalLabels.includes('too-big')) {
+              finalLabels = ['too-big'];
+            }
+
+            console.log('Computed labels:', finalLabels.join(', '));
+
+            // Handle reviews
+            await handleReviews(finalLabels);
+
+            // Apply labels
+            if (finalLabels.length > 0) {
+              console.log(`Adding labels: ${finalLabels.join(', ')}`);
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr_number,
+                labels: finalLabels
+              });
+            }
+
+            // Remove old managed labels
+            const labelsToRemove = managedLabels.filter(label => !finalLabels.includes(label));
+            for (const label of labelsToRemove) {
+              console.log(`Removing label: ${label}`);
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr_number,
+                  name: label
+                });
+              } catch (error) {
+                console.log(`Failed to remove label ${label}:`, error.message);
+              }
+            }

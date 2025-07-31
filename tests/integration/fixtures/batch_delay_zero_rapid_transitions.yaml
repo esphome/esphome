@@ -1,0 +1,43 @@
+esphome:
+  name: rapid-transitions-test
+host:
+api:
+  batch_delay: 0ms  # Enable immediate sending for rapid transitions
+logger:
+  level: DEBUG
+
+# Add a sensor that updates frequently to trigger lambda evaluations
+sensor:
+  - platform: template
+    name: "Update Trigger"
+    id: update_trigger
+    lambda: |-
+      return 0;
+    update_interval: 10ms
+    internal: true
+
+# Simulate an IR remote binary sensor with rapid ON/OFF transitions
+binary_sensor:
+  - platform: template
+    name: "Simulated IR Remote Button"
+    id: ir_remote_button
+    lambda: |-
+      // Simulate rapid button presses every ~100ms
+      // Each "press" is ON for ~30ms then OFF
+      uint32_t now = millis();
+      uint32_t press_cycle = now % 100;  // 100ms cycle
+
+      // ON for first 30ms of each cycle
+      if (press_cycle < 30) {
+        // Only log state change
+        if (!id(ir_remote_button).state) {
+          ESP_LOGD("test", "Button ON at %u", now);
+        }
+        return true;
+      } else {
+        // Only log state change
+        if (id(ir_remote_button).state) {
+          ESP_LOGD("test", "Button OFF at %u", now);
+        }
+        return false;
+      }

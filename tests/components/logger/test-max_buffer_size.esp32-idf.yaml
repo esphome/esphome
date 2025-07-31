@@ -1,0 +1,5 @@
+<<: !include common-default_uart.yaml
+
+logger:
+  id: logger_id
+  task_log_buffer_size: 32768B  # Maximum buffer size

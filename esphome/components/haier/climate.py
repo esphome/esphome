@@ -1,9 +1,15 @@
-﻿import logging
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
-from esphome.components import uart, climate, logger
+import logging
+
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import climate, logger, uart
+from esphome.components.climate import (
+    CONF_CURRENT_TEMPERATURE,
+    ClimateMode,
+    ClimatePreset,
+    ClimateSwingMode,
+)
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BEEPER,
     CONF_DISPLAY,
@@ -24,12 +30,8 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WIFI,
 )
-from esphome.components.climate import (
-    ClimateMode,
-    ClimatePreset,
-    ClimateSwingMode,
-    CONF_CURRENT_TEMPERATURE,
-)
+from esphome.cpp_generator import MockObjClass
+import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,42 +186,46 @@ def validate_visual(config):
     return config
 
 
-BASE_CONFIG_SCHEMA = (
-    climate.CLIMATE_SCHEMA.extend(
-        {
-            cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
-                cv.enum(SUPPORTED_CLIMATE_MODES_OPTIONS, upper=True)
-            ),
-            cv.Optional(
-                CONF_SUPPORTED_SWING_MODES,
-                default=[
-                    "VERTICAL",
-                    "HORIZONTAL",
-                    "BOTH",
-                ],
-            ): cv.ensure_list(cv.enum(SUPPORTED_SWING_MODES_OPTIONS, upper=True)),
-            cv.Optional(CONF_WIFI_SIGNAL, default=False): cv.boolean,
-            cv.Optional(CONF_DISPLAY): cv.boolean,
-            cv.Optional(
-                CONF_ANSWER_TIMEOUT,
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StatusMessageTrigger),
-                }
-            ),
-        }
+def _base_config_schema(class_: MockObjClass) -> cv.Schema:
+    return (
+        climate.climate_schema(class_)
+        .extend(
+            {
+                cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
+                    cv.enum(SUPPORTED_CLIMATE_MODES_OPTIONS, upper=True)
+                ),
+                cv.Optional(
+                    CONF_SUPPORTED_SWING_MODES,
+                    default=[
+                        "VERTICAL",
+                        "HORIZONTAL",
+                        "BOTH",
+                    ],
+                ): cv.ensure_list(cv.enum(SUPPORTED_SWING_MODES_OPTIONS, upper=True)),
+                cv.Optional(CONF_WIFI_SIGNAL, default=False): cv.boolean,
+                cv.Optional(CONF_DISPLAY): cv.boolean,
+                cv.Optional(
+                    CONF_ANSWER_TIMEOUT,
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            StatusMessageTrigger
+                        ),
+                    }
+                ),
+            }
+        )
+        .extend(uart.UART_DEVICE_SCHEMA)
+        .extend(cv.COMPONENT_SCHEMA)
     )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
-)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            PROTOCOL_SMARTAIR2: BASE_CONFIG_SCHEMA.extend(
+            PROTOCOL_SMARTAIR2: _base_config_schema(Smartair2Climate).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(Smartair2Climate),
                     cv.Optional(
                         CONF_ALTERNATIVE_SWING_CONTROL, default=False
                     ): cv.boolean,
@@ -231,9 +237,8 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-            PROTOCOL_HON: BASE_CONFIG_SCHEMA.extend(
+            PROTOCOL_HON: _base_config_schema(HonClimate).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(HonClimate),
                     cv.Optional(
                         CONF_CONTROL_METHOD, default="SET_GROUP_PARAMETERS"
                     ): cv.ensure_list(
@@ -463,10 +468,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add(haier_ns.init_haier_protocol_logging())
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    await climate.register_climate(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     if CONF_CONTROL_METHOD in config:

@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import re
 import subprocess
-from typing import Union
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
@@ -53,7 +52,7 @@ FILTER_PLATFORMIO_LINES = [
     f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
     r"Scanning dependencies...",
     r"Found \d+ compatible libraries",
-    r"Memory Usage -> http://bit.ly/pio-memory-usage",
+    r"Memory Usage -> https://bit.ly/pio-memory-usage",
     r"Found: https://platformio.org/lib/show/.*",
     r"Using cache: .*",
     r"Installing dependencies",
@@ -73,12 +72,14 @@ FILTER_PLATFORMIO_LINES = [
 ]
 
 
-def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
+def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ.setdefault(
         "PLATFORMIO_LIBDEPS_DIR", os.path.abspath(CORE.relative_piolibdeps_path())
     )
+    # Suppress Python syntax warnings from third-party scripts during compilation
+    os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     cmd = ["platformio"] + list(args)
 
     if not CORE.verbose:
@@ -93,7 +94,7 @@ def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     return run_external_command(platformio.__main__.main, *cmd, **kwargs)
 
 
-def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
+def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
     command = ["run", "-d", CORE.build_path]
     if verbose:
         command += ["-v"]
@@ -130,9 +131,11 @@ def _load_idedata(config):
     temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
 
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if not changed:

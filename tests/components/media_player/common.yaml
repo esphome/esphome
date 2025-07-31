@@ -21,6 +21,8 @@ media_player:
       - media_player.pause:
     on_play:
       - media_player.stop:
+      - media_player.stop:
+          announcement: true
     on_pause:
       - media_player.toggle:
       - wait_until:

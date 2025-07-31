@@ -1,10 +1,5 @@
-i2c:
-  - id: i2c_fs3000
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-sensor:
-  - platform: fs3000
-    name: Air Velocity
-    model: 1005
-    update_interval: 60s
+<<: !include common.yaml

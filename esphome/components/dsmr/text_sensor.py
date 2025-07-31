@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_INTERNAL
-from . import Dsmr, CONF_DSMR_ID
+
+from . import CONF_DSMR_ID, Dsmr
 
 AUTO_LOAD = ["dsmr"]
 

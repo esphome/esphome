@@ -10,8 +10,7 @@
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 using raw_adv_data_t = struct {
   uint8_t *data;
@@ -32,6 +31,7 @@ class BLEAdvertising {
   void set_scan_response(bool scan_response) { this->scan_response_ = scan_response; }
   void set_min_preferred_interval(uint16_t interval) { this->advertising_data_.min_interval = interval; }
   void set_manufacturer_data(const std::vector<uint8_t> &data);
+  void set_appearance(uint16_t appearance) { this->advertising_data_.appearance = appearance; }
   void set_service_data(const std::vector<uint8_t> &data);
   void register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 
@@ -54,7 +54,6 @@ class BLEAdvertising {
   int8_t current_adv_index_{-1};  // -1 means standard scan response
 };
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

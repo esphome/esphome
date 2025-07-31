@@ -1,5 +1,6 @@
 #include "seeed_mr24hpc1.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <utility>
@@ -61,7 +62,6 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MR24HPC1...");
   this->check_uart_settings(115200);
 
   if (this->custom_mode_number_ != nullptr) {
@@ -90,7 +90,6 @@ void MR24HPC1Component::setup() {
   memset(this->sg_frame_buf_, 0, FRAME_BUF_MAX_SIZE);
 
   this->set_interval(8000, [this]() { this->update_(); });
-  ESP_LOGCONFIG(TAG, "Set up MR24HPC1 complete");
 }
 
 // Timed polling of radar data
@@ -533,7 +532,7 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       this->custom_mode_number_->publish_state(0);
     }
     if (this->custom_mode_end_text_sensor_ != nullptr) {
-      this->custom_mode_end_text_sensor_->publish_state("Setup in progress...");
+      this->custom_mode_end_text_sensor_->publish_state("Setup in progress");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x81) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);

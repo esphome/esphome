@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import mcp23x08_base, mcp23xxx_base, spi
 import esphome.config_validation as cv
-from esphome.components import spi, mcp23x08_base, mcp23xxx_base
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ["mcp23x08_base"]

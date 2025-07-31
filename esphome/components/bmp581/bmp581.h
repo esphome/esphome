@@ -61,8 +61,6 @@ enum IIRFilter {
 
 class BMP581Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void dump_config() override;
 
   void setup() override;

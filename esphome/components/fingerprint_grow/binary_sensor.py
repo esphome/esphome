@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_ICON, ICON_KEY_PLUS
+
 from . import CONF_FINGERPRINT_GROW_ID, FingerprintGrowComponent
 
 DEPENDENCIES = ["fingerprint_grow"]

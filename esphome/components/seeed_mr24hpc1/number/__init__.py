@@ -1,10 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_SENSITIVITY,
-    ENTITY_CATEGORY_CONFIG,
-)
+from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
+
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
 SensitivityNumber = mr24hpc1_ns.class_("SensitivityNumber", number.Number)

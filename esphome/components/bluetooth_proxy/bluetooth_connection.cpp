@@ -8,14 +8,196 @@
 
 #include "bluetooth_proxy.h"
 
-namespace esphome {
-namespace bluetooth_proxy {
+namespace esphome::bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy.connection";
+
+static void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, esp_bt_uuid_t uuid_source) {
+  esp_bt_uuid_t uuid = espbt::ESPBTUUID::from_uuid(uuid_source).as_128bit().get_uuid();
+  out[0] = ((uint64_t) uuid.uuid.uuid128[15] << 56) | ((uint64_t) uuid.uuid.uuid128[14] << 48) |
+           ((uint64_t) uuid.uuid.uuid128[13] << 40) | ((uint64_t) uuid.uuid.uuid128[12] << 32) |
+           ((uint64_t) uuid.uuid.uuid128[11] << 24) | ((uint64_t) uuid.uuid.uuid128[10] << 16) |
+           ((uint64_t) uuid.uuid.uuid128[9] << 8) | ((uint64_t) uuid.uuid.uuid128[8]);
+  out[1] = ((uint64_t) uuid.uuid.uuid128[7] << 56) | ((uint64_t) uuid.uuid.uuid128[6] << 48) |
+           ((uint64_t) uuid.uuid.uuid128[5] << 40) | ((uint64_t) uuid.uuid.uuid128[4] << 32) |
+           ((uint64_t) uuid.uuid.uuid128[3] << 24) | ((uint64_t) uuid.uuid.uuid128[2] << 16) |
+           ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0]);
+}
 
 void BluetoothConnection::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Connection:");
   BLEClientBase::dump_config();
+}
+
+void BluetoothConnection::loop() {
+  BLEClientBase::loop();
+
+  // Early return if no active connection or not in service discovery phase
+  if (this->address_ == 0 || this->send_service_ < 0 || this->send_service_ > this->service_count_) {
+    return;
+  }
+
+  // Handle service discovery
+  this->send_service_for_discovery_();
+}
+
+void BluetoothConnection::reset_connection_(esp_err_t reason) {
+  // Send disconnection notification
+  this->proxy_->send_device_connection(this->address_, false, 0, reason);
+
+  // Important: If we were in the middle of sending services, we do NOT send
+  // send_gatt_services_done() here. This ensures the client knows that
+  // the service discovery was interrupted and can retry. The client
+  // (aioesphomeapi) implements a 30-second timeout (DEFAULT_BLE_TIMEOUT)
+  // to detect incomplete service discovery rather than relying on us to
+  // tell them about a partial list.
+  this->set_address(0);
+  this->send_service_ = DONE_SENDING_SERVICES;
+  this->proxy_->send_connections_free();
+}
+
+void BluetoothConnection::send_service_for_discovery_() {
+  if (this->send_service_ >= this->service_count_) {
+    this->send_service_ = DONE_SENDING_SERVICES;
+    this->proxy_->send_gatt_services_done(this->address_);
+    if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
+        this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+      this->release_services();
+    }
+    return;
+  }
+
+  // Early return if no API connection
+  auto *api_conn = this->proxy_->get_api_connection();
+  if (api_conn == nullptr) {
+    this->send_service_ = DONE_SENDING_SERVICES;
+    return;
+  }
+
+  // Prepare response for up to 3 services
+  api::BluetoothGATTGetServicesResponse resp;
+  resp.address = this->address_;
+
+  // Process up to 3 services in this iteration
+  uint8_t services_to_process =
+      std::min(MAX_SERVICES_PER_BATCH, static_cast<uint8_t>(this->service_count_ - this->send_service_));
+  resp.services.reserve(services_to_process);
+
+  for (int service_idx = 0; service_idx < services_to_process; service_idx++) {
+    esp_gattc_service_elem_t service_result;
+    uint16_t service_count = 1;
+    esp_gatt_status_t service_status = esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr,
+                                                                 &service_result, &service_count, this->send_service_);
+
+    if (service_status != ESP_GATT_OK || service_count == 0) {
+      ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service %s, status=%d, service_count=%d, offset=%d",
+               this->connection_index_, this->address_str().c_str(),
+               service_status != ESP_GATT_OK ? "error" : "missing", service_status, service_count, this->send_service_);
+      this->send_service_ = DONE_SENDING_SERVICES;
+      return;
+    }
+
+    this->send_service_++;
+    resp.services.emplace_back();
+    auto &service_resp = resp.services.back();
+    fill_128bit_uuid_array(service_resp.uuid, service_result.uuid);
+    service_resp.handle = service_result.start_handle;
+
+    // Get the number of characteristics directly with one call
+    uint16_t total_char_count = 0;
+    esp_gatt_status_t char_count_status =
+        esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
+                                     service_result.start_handle, service_result.end_handle, 0, &total_char_count);
+
+    if (char_count_status != ESP_GATT_OK) {
+      ESP_LOGE(TAG, "[%d] [%s] Error getting characteristic count, status=%d", this->connection_index_,
+               this->address_str().c_str(), char_count_status);
+      this->send_service_ = DONE_SENDING_SERVICES;
+      return;
+    }
+
+    if (total_char_count == 0) {
+      // No characteristics, continue to next service
+      continue;
+    }
+
+    // Reserve space and process characteristics
+    service_resp.characteristics.reserve(total_char_count);
+    uint16_t char_offset = 0;
+    esp_gattc_char_elem_t char_result;
+    while (true) {  // characteristics
+      uint16_t char_count = 1;
+      esp_gatt_status_t char_status =
+          esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, service_result.start_handle,
+                                     service_result.end_handle, &char_result, &char_count, char_offset);
+      if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
+        break;
+      }
+      if (char_status != ESP_GATT_OK) {
+        ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", this->connection_index_,
+                 this->address_str().c_str(), char_status);
+        this->send_service_ = DONE_SENDING_SERVICES;
+        return;
+      }
+      if (char_count == 0) {
+        break;
+      }
+
+      service_resp.characteristics.emplace_back();
+      auto &characteristic_resp = service_resp.characteristics.back();
+      fill_128bit_uuid_array(characteristic_resp.uuid, char_result.uuid);
+      characteristic_resp.handle = char_result.char_handle;
+      characteristic_resp.properties = char_result.properties;
+      char_offset++;
+
+      // Get the number of descriptors directly with one call
+      uint16_t total_desc_count = 0;
+      esp_gatt_status_t desc_count_status = esp_ble_gattc_get_attr_count(
+          this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0, char_result.char_handle, &total_desc_count);
+
+      if (desc_count_status != ESP_GATT_OK) {
+        ESP_LOGE(TAG, "[%d] [%s] Error getting descriptor count for char handle %d, status=%d", this->connection_index_,
+                 this->address_str().c_str(), char_result.char_handle, desc_count_status);
+        this->send_service_ = DONE_SENDING_SERVICES;
+        return;
+      }
+      if (total_desc_count == 0) {
+        // No descriptors, continue to next characteristic
+        continue;
+      }
+
+      // Reserve space and process descriptors
+      characteristic_resp.descriptors.reserve(total_desc_count);
+      uint16_t desc_offset = 0;
+      esp_gattc_descr_elem_t desc_result;
+      while (true) {  // descriptors
+        uint16_t desc_count = 1;
+        esp_gatt_status_t desc_status = esp_ble_gattc_get_all_descr(
+            this->gattc_if_, this->conn_id_, char_result.char_handle, &desc_result, &desc_count, desc_offset);
+        if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+          break;
+        }
+        if (desc_status != ESP_GATT_OK) {
+          ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", this->connection_index_,
+                   this->address_str().c_str(), desc_status);
+          this->send_service_ = DONE_SENDING_SERVICES;
+          return;
+        }
+        if (desc_count == 0) {
+          break;  // No more descriptors
+        }
+
+        characteristic_resp.descriptors.emplace_back();
+        auto &descriptor_resp = characteristic_resp.descriptors.back();
+        fill_128bit_uuid_array(descriptor_resp.uuid, desc_result.uuid);
+        descriptor_resp.handle = desc_result.handle;
+        desc_offset++;
+      }
+    }
+  }
+
+  // Send the message with 1-3 services
+  api_conn->send_message(resp, api::BluetoothGATTGetServicesResponse::MESSAGE_TYPE);
 }
 
 bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -25,22 +207,16 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
-      this->set_address(0);
-      this->proxy_->send_connections_free();
+      this->reset_connection_(param->disconnect.reason);
       break;
     }
     case ESP_GATTC_CLOSE_EVT: {
-      this->proxy_->send_device_connection(this->address_, false, 0, param->close.reason);
-      this->set_address(0);
-      this->proxy_->send_connections_free();
+      this->reset_connection_(param->close.reason);
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
-        this->proxy_->send_device_connection(this->address_, false, 0, param->open.status);
-        this->set_address(0);
-        this->proxy_->send_connections_free();
+        this->reset_connection_(param->open.status);
       } else if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         this->proxy_->send_device_connection(this->address_, true, this->mtu_);
         this->proxy_->send_connections_free();
@@ -72,11 +248,8 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTReadResponse resp;
       resp.address = this->address_;
       resp.handle = param->read.handle;
-      resp.data.reserve(param->read.value_len);
-      for (uint16_t i = 0; i < param->read.value_len; i++) {
-        resp.data.push_back(param->read.value[i]);
-      }
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_read_response(resp);
+      resp.set_data(param->read.value, param->read.value_len);
+      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTReadResponse::MESSAGE_TYPE);
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
@@ -90,7 +263,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTWriteResponse resp;
       resp.address = this->address_;
       resp.handle = param->write.handle;
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_write_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTWriteResponse::MESSAGE_TYPE);
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
@@ -104,7 +277,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->unreg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_notify_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyResponse::MESSAGE_TYPE);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -117,7 +290,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->reg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_notify_response(resp);
+      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyResponse::MESSAGE_TYPE);
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -126,11 +299,8 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyDataResponse resp;
       resp.address = this->address_;
       resp.handle = param->notify.handle;
-      resp.data.reserve(param->notify.value_len);
-      for (uint16_t i = 0; i < param->notify.value_len; i++) {
-        resp.data.push_back(param->notify.value[i]);
-      }
-      this->proxy_->get_api_connection()->send_bluetooth_gatt_notify_data_response(resp);
+      resp.set_data(param->notify.value, param->notify.value_len);
+      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyDataResponse::MESSAGE_TYPE);
       break;
     }
     default:
@@ -267,7 +437,6 @@ esp32_ble_tracker::AdvertisementParserType BluetoothConnection::get_advertisemen
   return this->proxy_->get_advertisement_parser_type();
 }
 
-}  // namespace bluetooth_proxy
-}  // namespace esphome
+}  // namespace esphome::bluetooth_proxy
 
 #endif  // USE_ESP32

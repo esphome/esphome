@@ -1,11 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import ble_client, time
-from esphome.const import (
-    CONF_ID,
-    CONF_RECEIVE_TIMEOUT,
-    CONF_TIME_ID,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_TIME_ID
 
 CODEOWNERS = ["@jhansche"]
 DEPENDENCIES = ["ble_client"]

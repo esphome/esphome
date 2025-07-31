@@ -1,0 +1,157 @@
+name: Add External Component Comment
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read       #  Needed to fetch PR details
+  issues: write        #  Needed to create and update comments (PR comments are managed via the issues REST API)
+  pull-requests: write  # also needed?
+
+jobs:
+  external-comment:
+    name: External component comment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add external component comment
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Generate external component usage instructions
+            function generateExternalComponentInstructions(prNumber, componentNames, owner, repo) {
+                let source;
+                if (owner === 'esphome' && repo === 'esphome')
+                    source = `github://pr#${prNumber}`;
+                else
+                    source = `github://${owner}/${repo}@pull/${prNumber}/head`;
+                return `To use the changes from this PR as an external component, add the following to your ESPHome configuration YAML file:
+
+            \`\`\`yaml
+            external_components:
+              - source: ${source}
+                components: [${componentNames.join(', ')}]
+                refresh: 1h
+            \`\`\``;
+            }
+
+            // Generate repo clone instructions
+            function generateRepoInstructions(prNumber, owner, repo, branch) {
+                return `To use the changes in this PR:
+
+            \`\`\`bash
+            # Clone the repository:
+            git clone https://github.com/${owner}/${repo}
+            cd ${repo}
+
+            # Checkout the PR branch:
+            git fetch origin pull/${prNumber}/head:${branch}
+            git checkout ${branch}
+
+            # Install the development version:
+            script/setup
+
+            # Activate the development version:
+            source venv/bin/activate
+            \`\`\`
+
+            Now you can run \`esphome\` as usual to test the changes in this PR.
+            `;
+            }
+
+            async function createComment(octokit, owner, repo, prNumber, esphomeChanges, componentChanges) {
+                const commentMarker = "<!-- This comment was generated automatically by the external-component-bot workflow. -->";
+                const legacyCommentMarker = "<!-- This comment was generated automatically by a GitHub workflow. -->";
+                let commentBody;
+                if (esphomeChanges.length === 1) {
+                    commentBody = generateExternalComponentInstructions(prNumber, componentChanges, owner, repo);
+                } else {
+                    commentBody = generateRepoInstructions(prNumber, owner, repo, context.payload.pull_request.head.ref);
+                }
+                commentBody += `\n\n---\n(Added by the PR bot)\n\n${commentMarker}`;
+
+                // Check for existing bot comment
+                const comments = await github.paginate(
+                    github.rest.issues.listComments,
+                    {
+                        owner: owner,
+                        repo: repo,
+                        issue_number: prNumber,
+                        per_page: 100,
+                    }
+                );
+
+                const sorted = comments.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+                const botComment = sorted.find(comment =>
+                    (
+                      comment.body.includes(commentMarker) ||
+                      comment.body.includes(legacyCommentMarker)
+                    ) && comment.user.type === "Bot"
+                );
+
+                if (botComment && botComment.body === commentBody) {
+                    // No changes in the comment, do nothing
+                    return;
+                }
+
+                if (botComment) {
+                    // Update existing comment
+                    await github.rest.issues.updateComment({
+                        owner: owner,
+                        repo: repo,
+                        comment_id: botComment.id,
+                        body: commentBody,
+                    });
+                } else {
+                    // Create new comment
+                    await github.rest.issues.createComment({
+                        owner: owner,
+                        repo: repo,
+                        issue_number: prNumber,
+                        body: commentBody,
+                    });
+                }
+            }
+
+            async function getEsphomeAndComponentChanges(github, owner, repo, prNumber) {
+                const changedFiles = await github.rest.pulls.listFiles({
+                    owner: owner,
+                    repo: repo,
+                    pull_number: prNumber,
+                });
+
+                const esphomeChanges = changedFiles.data
+                    .filter(file => file.filename !== "esphome/core/defines.h" && file.filename.startsWith('esphome/'))
+                    .map(file => {
+                        const match = file.filename.match(/esphome\/([^/]+)/);
+                        return match ? match[1] : null;
+                    })
+                    .filter(it => it !== null);
+
+                if (esphomeChanges.length === 0) {
+                    return {esphomeChanges: [], componentChanges: []};
+                }
+
+                const uniqueEsphomeChanges = [...new Set(esphomeChanges)];
+                const componentChanges = changedFiles.data
+                    .filter(file => file.filename.startsWith('esphome/components/'))
+                    .map(file => {
+                        const match = file.filename.match(/esphome\/components\/([^/]+)\//);
+                        return match ? match[1] : null;
+                    })
+                    .filter(it => it !== null);
+
+                return {esphomeChanges: uniqueEsphomeChanges, componentChanges: [...new Set(componentChanges)]};
+            }
+
+            // Start of main code.
+
+            const prNumber = context.payload.pull_request.number;
+            const {owner, repo} = context.repo;
+
+            const {esphomeChanges, componentChanges} = await getEsphomeAndComponentChanges(github, owner, repo, prNumber);
+            if (componentChanges.length !== 0) {
+                await createComment(github, owner, repo, prNumber, esphomeChanges, componentChanges);
+            }

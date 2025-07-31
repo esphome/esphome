@@ -1,21 +1,7 @@
-psram:
-  mode: octal
-  speed: 80MHz
 spi:
-  - id: lcd_spi
-    clk_pin: 41
-    mosi_pin: 48
-
-i2c:
-  sda: 39
-  scl: 40
-  scan: false
-  id: bus_a
-
-pca9554:
-  - id: p_c_a
-    pin_count: 16
-    address: 0x20
+  - id: spi_st7701s
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
 
 display:
   - platform: st7701s
@@ -28,16 +14,12 @@ display:
     transform:
       mirror_x: true
       mirror_y: true
-    cs_pin:
-      pca9554: p_c_a
-      number: 4
-    reset_pin:
-      pca9554: p_c_a
-      number: 5
-    de_pin: 18
-    hsync_pin: 16
-    vsync_pin: 17
-    pclk_pin: 21
+    cs_pin: ${cs_pin}
+    reset_pin: ${reset_pin}
+    de_pin: ${de_pin}
+    hsync_pin: ${hsync_pin}
+    vsync_pin: ${vsync_pin}
+    pclk_pin: ${pclk_pin}
     init_sequence:
       - 1
       - [0x23, 0xA, 0xB]
@@ -45,13 +27,11 @@ display:
       - [0x23, 0xA, 0xB]
       - delay 0.2s
     data_pins:
-      - number: 0
-        ignore_strapping_warning: true
+      - 0
       - 1
       - 2
       - 3
-      - number: 4
-        ignore_strapping_warning: false
+      - 4
       - 5
       - 6
       - 7

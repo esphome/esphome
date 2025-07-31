@@ -1,27 +1,28 @@
 import logging
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
-from esphome.core import CORE
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import get_esp32_variant
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ATTENUATION,
     CONF_ID,
     CONF_NUMBER,
     CONF_PIN,
     CONF_RAW,
-    CONF_WIFI,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
+from esphome.core import CORE
+
 from . import (
     ATTENUATION_MODES,
     ESP32_VARIANT_ADC1_PIN_TO_CHANNEL,
     ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
+    SAMPLING_MODES,
     adc_ns,
+    adc_unit_t,
     validate_adc_pin,
 )
 
@@ -30,9 +31,11 @@ _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["voltage_sampler"]
 
 CONF_SAMPLES = "samples"
+CONF_SAMPLING_MODE = "sampling_mode"
 
 
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
+_sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
 
 
 def validate_config(config):
@@ -49,21 +52,6 @@ def validate_config(config):
         )
         # Alter value here so `config` command prints the recommended change
         config[CONF_ATTENUATION] = _attenuation("12db")
-
-    return config
-
-
-def final_validate_config(config):
-    if CORE.is_esp32:
-        variant = get_esp32_variant()
-        if (
-            CONF_WIFI in fv.full_config.get()
-            and config[CONF_PIN][CONF_NUMBER]
-            in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
-        ):
-            raise cv.Invalid(
-                f"{variant} doesn't support ADC on this pin when Wi-Fi is configured"
-            )
 
     return config
 
@@ -88,13 +76,12 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_on_esp32, _attenuation
             ),
             cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_SAMPLING_MODE, default="avg"): _sampling_mode,
         }
     )
     .extend(cv.polling_component_schema("60s")),
     validate_config,
 )
-
-FINAL_VALIDATE_SCHEMA = final_validate_config
 
 
 async def to_code(config):
@@ -112,14 +99,15 @@ async def to_code(config):
 
     cg.add(var.set_output_raw(config[CONF_RAW]))
     cg.add(var.set_sample_count(config[CONF_SAMPLES]))
-
-    if attenuation := config.get(CONF_ATTENUATION):
-        if attenuation == "auto":
-            cg.add(var.set_autorange(cg.global_ns.true))
-        else:
-            cg.add(var.set_attenuation(attenuation))
+    cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
 
     if CORE.is_esp32:
+        if attenuation := config.get(CONF_ATTENUATION):
+            if attenuation == "auto":
+                cg.add(var.set_autorange(cg.global_ns.true))
+            else:
+                cg.add(var.set_attenuation(attenuation))
+
         variant = get_esp32_variant()
         pin_num = config[CONF_PIN][CONF_NUMBER]
         if (
@@ -127,10 +115,10 @@ async def to_code(config):
             and pin_num in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
         ):
             chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel1(chan))
+            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_1, chan))
         elif (
             variant in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL
             and pin_num in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
         ):
             chan = ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel2(chan))
+            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_2, chan))

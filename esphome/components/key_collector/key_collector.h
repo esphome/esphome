@@ -25,6 +25,7 @@ class KeyCollector : public Component {
   Trigger<std::string, uint8_t, uint8_t> *get_result_trigger() const { return this->result_trigger_; };
   Trigger<std::string, uint8_t> *get_timeout_trigger() const { return this->timeout_trigger_; };
   void set_timeout(int timeout) { this->timeout_ = timeout; };
+  void set_enabled(bool enabled);
 
   void clear(bool progress_update = true);
   void send_key(uint8_t key);
@@ -47,6 +48,15 @@ class KeyCollector : public Component {
   Trigger<std::string, uint8_t> *timeout_trigger_;
   uint32_t last_key_time_;
   uint32_t timeout_{0};
+  bool enabled_;
+};
+
+template<typename... Ts> class EnableAction : public Action<Ts...>, public Parented<KeyCollector> {
+  void play(Ts... x) override { this->parent_->set_enabled(true); }
+};
+
+template<typename... Ts> class DisableAction : public Action<Ts...>, public Parented<KeyCollector> {
+  void play(Ts... x) override { this->parent_->set_enabled(false); }
 };
 
 }  // namespace key_collector

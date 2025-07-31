@@ -1,7 +1,6 @@
 from esphome import automation
-from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import audio_dac
+from esphome.components import audio, audio_dac
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_VOLUME
 from esphome.core import CORE
@@ -54,13 +53,15 @@ async def register_speaker(var, config):
     await setup_speaker_core_(var, config)
 
 
-SPEAKER_SCHEMA = cv.Schema(
+SPEAKER_SCHEMA = cv.Schema.extend(audio.AUDIO_COMPONENT_SCHEMA).extend(
     {
         cv.Optional(CONF_AUDIO_DAC): cv.use_id(audio_dac.AudioDac),
     }
 )
 
-SPEAKER_AUTOMATION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(Speaker)})
+SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(Speaker)}
+)
 
 
 async def speaker_action(config, action_id, template_arg, args):

@@ -1,0 +1,18 @@
+uart:
+  - id: uart_cse7761
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 38400
+
+sensor:
+  - platform: cse7761
+    voltage:
+      name: CSE7761 Voltage
+    current_1:
+      name: CSE7761 Current 1
+    current_2:
+      name: CSE7761 Current 2
+    active_power_1:
+      name: CSE7761 Active Power 1
+    active_power_2:
+      name: CSE7761 Active Power 2

@@ -1,0 +1,36 @@
+esphome:
+  on_boot:
+    then:
+      - speaker.mute_on:
+      - speaker.mute_off:
+      - if:
+          condition: speaker.is_stopped
+          then:
+            - speaker.play: [0, 1, 2, 3]
+      - speaker.volume_set: 0.9
+      - if:
+          condition: speaker.is_playing
+          then:
+            - speaker.finish:
+      - speaker.stop:
+
+i2c:
+  - id: i2c_audio_dac
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+i2s_audio:
+  i2s_lrclk_pin: ${i2s_bclk_pin}
+  i2s_bclk_pin: ${i2s_lrclk_pin}
+  i2s_mclk_pin: ${i2s_mclk_pin}
+
+audio_dac:
+  - platform: aic3204
+    id: internal_dac
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_with_audio_dac_id
+    audio_dac: internal_dac
+    dac_type: external
+    i2s_dout_pin: ${i2s_dout_pin}

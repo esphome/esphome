@@ -3,10 +3,12 @@
 #include <map>
 #include "api_server.h"
 #ifdef USE_API
+#ifdef USE_API_SERVICES
 #include "user_services.h"
-namespace esphome {
-namespace api {
+#endif
+namespace esphome::api {
 
+#ifdef USE_API_SERVICES
 template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceBase<Ts...> {
  public:
   CustomAPIDeviceService(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names, T *obj,
@@ -19,6 +21,7 @@ template<typename T, typename... Ts> class CustomAPIDeviceService : public UserS
   T *obj_;
   void (T::*callback_)(Ts...);
 };
+#endif  // USE_API_SERVICES
 
 class CustomAPIDevice {
  public:
@@ -46,12 +49,14 @@ class CustomAPIDevice {
    * @param name The name of the service to register.
    * @param arg_names The name of the arguments for the service, must match the arguments of the function.
    */
+#ifdef USE_API_SERVICES
   template<typename T, typename... Ts>
   void register_service(void (T::*callback)(Ts...), const std::string &name,
                         const std::array<std::string, sizeof...(Ts)> &arg_names) {
     auto *service = new CustomAPIDeviceService<T, Ts...>(name, arg_names, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
   }
+#endif
 
   /** Register a custom native API service that will show up in Home Assistant.
    *
@@ -71,11 +76,14 @@ class CustomAPIDevice {
    * @param callback The member function to call when the service is triggered.
    * @param name The name of the arguments for the service, must match the arguments of the function.
    */
+#ifdef USE_API_SERVICES
   template<typename T> void register_service(void (T::*callback)(), const std::string &name) {
     auto *service = new CustomAPIDeviceService<T>(name, {}, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
   }
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
    *
    * Usage:
@@ -127,7 +135,9 @@ class CustomAPIDevice {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   /** Call a Home Assistant service from ESPHome.
    *
    * Usage:
@@ -140,7 +150,7 @@ class CustomAPIDevice {
    */
   void call_homeassistant_service(const std::string &service_name) {
     HomeassistantServiceResponse resp;
-    resp.service = service_name;
+    resp.set_service(StringRef(service_name));
     global_api_server->send_homeassistant_service_call(resp);
   }
 
@@ -160,12 +170,12 @@ class CustomAPIDevice {
    */
   void call_homeassistant_service(const std::string &service_name, const std::map<std::string, std::string> &data) {
     HomeassistantServiceResponse resp;
-    resp.service = service_name;
+    resp.set_service(StringRef(service_name));
     for (auto &it : data) {
-      HomeassistantServiceMap kv;
-      kv.key = it.first;
+      resp.data.emplace_back();
+      auto &kv = resp.data.back();
+      kv.set_key(StringRef(it.first));
       kv.value = it.second;
-      resp.data.push_back(kv);
     }
     global_api_server->send_homeassistant_service_call(resp);
   }
@@ -182,7 +192,7 @@ class CustomAPIDevice {
    */
   void fire_homeassistant_event(const std::string &event_name) {
     HomeassistantServiceResponse resp;
-    resp.service = event_name;
+    resp.set_service(StringRef(event_name));
     resp.is_event = true;
     global_api_server->send_homeassistant_service_call(resp);
   }
@@ -202,18 +212,18 @@ class CustomAPIDevice {
    */
   void fire_homeassistant_event(const std::string &service_name, const std::map<std::string, std::string> &data) {
     HomeassistantServiceResponse resp;
-    resp.service = service_name;
+    resp.set_service(StringRef(service_name));
     resp.is_event = true;
     for (auto &it : data) {
-      HomeassistantServiceMap kv;
-      kv.key = it.first;
+      resp.data.emplace_back();
+      auto &kv = resp.data.back();
+      kv.set_key(StringRef(it.first));
       kv.value = it.second;
-      resp.data.push_back(kv);
     }
     global_api_server->send_homeassistant_service_call(resp);
   }
+#endif
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

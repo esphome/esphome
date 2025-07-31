@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_sgp30
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: sgp30
+    eco2:
+      name: Workshop eCO2
+      accuracy_decimals: 1
+    tvoc:
+      name: Workshop TVOC
+      accuracy_decimals: 1
+    address: 0x58
+    update_interval: 5s

@@ -1,16 +1,7 @@
-spi:
-  - id: spi_mcp3204
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO8
 
-mcp3204:
-  - id: mcp3204_hub
-    cs_pin: 8
-
-sensor:
-  - platform: mcp3204
-    id: mcp3204_sensor
-    mcp3204_id: mcp3204_hub
-    number: 0
-    update_interval: 5s
+<<: !include common.yaml

@@ -7,6 +7,10 @@
 #include "esphome/components/http_request/ota/ota_http_request.h"
 #include "esphome/components/update/update_entity.h"
 
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#endif
+
 namespace esphome {
 namespace http_request {
 
@@ -29,6 +33,11 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
   HttpRequestComponent *request_parent_;
   OtaHttpRequestComponent *ota_parent_;
   std::string source_url_;
+
+  static void update_task(void *params);
+#ifdef USE_ESP32
+  TaskHandle_t update_task_handle_{nullptr};
+#endif
 };
 
 }  // namespace http_request

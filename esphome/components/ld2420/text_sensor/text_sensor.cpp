@@ -5,10 +5,10 @@
 namespace esphome {
 namespace ld2420 {
 
-static const char *const TAG = "LD2420.text_sensor";
+static const char *const TAG = "ld2420.text_sensor";
 
 void LD2420TextSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "LD2420 TextSensor:");
+  ESP_LOGCONFIG(TAG, "Text Sensor:");
   LOG_TEXT_SENSOR("  ", "Firmware", this->fw_version_text_sensor_);
 }
 

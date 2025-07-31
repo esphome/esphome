@@ -1,18 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_VOLTAGE,
+    CONF_TEMPERATURE,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
     ICON_FLASH,
-    UNIT_VOLT,
     ICON_THERMOMETER,
-    UNIT_WATT,
     UNIT_CELSIUS,
-    CONF_TEMPERATURE,
+    UNIT_VOLT,
+    UNIT_WATT,
 )
-from . import SunGTIL2Component, CONF_SUN_GTIL2_ID
+
+from . import CONF_SUN_GTIL2_ID, SunGTIL2Component
 
 CONF_AC_VOLTAGE = "ac_voltage"
 CONF_DC_VOLTAGE = "dc_voltage"

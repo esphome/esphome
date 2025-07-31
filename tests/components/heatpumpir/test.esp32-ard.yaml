@@ -1,19 +1,4 @@
-remote_transmitter:
-  pin: 2
-  carrier_duty_percent: 50%
+substitutions:
+  pin: GPIO2
 
-climate:
-  - platform: heatpumpir
-    protocol: mitsubishi_heavy_zm
-    horizontal_default: left
-    vertical_default: up
-    name: HeatpumpIR Climate
-    min_temperature: 18
-    max_temperature: 30
-  - platform: heatpumpir
-    protocol: greeyt
-    horizontal_default: left
-    vertical_default: up
-    name: HeatpumpIR Climate
-    min_temperature: 18
-    max_temperature: 30
+<<: !include common.yaml

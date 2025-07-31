@@ -1,11 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import number
-from esphome.components import switch
+import esphome.codegen as cg
+from esphome.components import number, switch
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ENTITY_CATEGORY,
     CONF_ID,
     CONF_INITIAL_VALUE,
     CONF_MAX_VALUE,
@@ -14,12 +12,12 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_RESTORE_VALUE,
     CONF_RUN_DURATION,
+    CONF_SET_ACTION,
     CONF_STEP,
     CONF_UNIT_OF_MEASUREMENT,
     ENTITY_CATEGORY_CONFIG,
     UNIT_MINUTE,
     UNIT_SECOND,
-    CONF_SET_ACTION,
 )
 
 AUTO_LOAD = ["number", "switch"]
@@ -132,11 +130,11 @@ def validate_sprinkler(config):
         if (
             CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY in sprinkler_controller
             and CONF_VALVE_OPEN_DELAY not in sprinkler_controller
+            and sprinkler_controller[CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY]
         ):
-            if sprinkler_controller[CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY]:
-                raise cv.Invalid(
-                    f"{CONF_VALVE_OPEN_DELAY} must be defined when {CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY} is enabled"
-                )
+            raise cv.Invalid(
+                f"{CONF_VALVE_OPEN_DELAY} must be defined when {CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY} is enabled"
+            )
 
         if (
             CONF_REPEAT in sprinkler_controller
@@ -297,12 +295,11 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
         cv.Optional(CONF_PUMP_SWITCH_ID): cv.use_id(switch.Switch),
         cv.Optional(CONF_RUN_DURATION): cv.positive_time_period_seconds,
         cv.Optional(CONF_RUN_DURATION_NUMBER): cv.maybe_simple_value(
-            number.NUMBER_SCHEMA.extend(
+            number.number_schema(
+                SprinklerControllerNumber, entity_category=ENTITY_CATEGORY_CONFIG
+            )
+            .extend(
                 {
-                    cv.GenerateID(): cv.declare_id(SprinklerControllerNumber),
-                    cv.Optional(
-                        CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
-                    ): cv.entity_category,
                     cv.Optional(CONF_INITIAL_VALUE, default=900): cv.positive_int,
                     cv.Optional(CONF_MAX_VALUE, default=86400): cv.positive_int,
                     cv.Optional(CONF_MIN_VALUE, default=1): cv.positive_int,
@@ -315,7 +312,8 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
                         CONF_UNIT_OF_MEASUREMENT, default=UNIT_SECOND
                     ): cv.one_of(UNIT_MINUTE, UNIT_SECOND, lower="True"),
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
+            )
+            .extend(cv.COMPONENT_SCHEMA),
             validate_min_max,
             key=CONF_NAME,
         ),
@@ -372,12 +370,11 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         cv.Optional(CONF_NEXT_PREV_IGNORE_DISABLED, default=False): cv.boolean,
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
         cv.Optional(CONF_MULTIPLIER_NUMBER): cv.maybe_simple_value(
-            number.NUMBER_SCHEMA.extend(
+            number.number_schema(
+                SprinklerControllerNumber, entity_category=ENTITY_CATEGORY_CONFIG
+            )
+            .extend(
                 {
-                    cv.GenerateID(): cv.declare_id(SprinklerControllerNumber),
-                    cv.Optional(
-                        CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
-                    ): cv.entity_category,
                     cv.Optional(CONF_INITIAL_VALUE, default=1): cv.positive_float,
                     cv.Optional(CONF_MAX_VALUE, default=10): cv.positive_float,
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_float,
@@ -387,18 +384,18 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
                         single=True
                     ),
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
+            )
+            .extend(cv.COMPONENT_SCHEMA),
             validate_min_max,
             key=CONF_NAME,
         ),
         cv.Optional(CONF_REPEAT): cv.positive_int,
         cv.Optional(CONF_REPEAT_NUMBER): cv.maybe_simple_value(
-            number.NUMBER_SCHEMA.extend(
+            number.number_schema(
+                SprinklerControllerNumber, entity_category=ENTITY_CATEGORY_CONFIG
+            )
+            .extend(
                 {
-                    cv.GenerateID(): cv.declare_id(SprinklerControllerNumber),
-                    cv.Optional(
-                        CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
-                    ): cv.entity_category,
                     cv.Optional(CONF_INITIAL_VALUE, default=0): cv.positive_int,
                     cv.Optional(CONF_MAX_VALUE, default=10): cv.positive_int,
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_int,
@@ -408,7 +405,8 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
                         single=True
                     ),
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
+            )
+            .extend(cv.COMPONENT_SCHEMA),
             validate_min_max,
             key=CONF_NAME,
         ),

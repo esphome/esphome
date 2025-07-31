@@ -8,7 +8,7 @@ namespace m5stack_8angle {
 static const char *const TAG = "m5stack_8angle.light";
 
 void M5Stack8AngleLightOutput::setup() {
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buf_ = allocator.allocate(M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED);
   if (this->buf_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate buffer of size %u", M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED);

@@ -1,6 +1,6 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
     CONF_ENABLE_TIME,

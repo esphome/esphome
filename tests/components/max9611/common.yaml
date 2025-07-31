@@ -1,0 +1,18 @@
+i2c:
+  - id: i2c_max9611
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: max9611
+    shunt_resistance: 0.2 ohm
+    gain: 1X
+    voltage:
+      name: Max9611 Voltage
+    current:
+      name: Max9611 Current
+    power:
+      name: Max9611 Watts
+    temperature:
+      name: Max9611 Temperature
+    update_interval: 1s

@@ -1,14 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUTTON,
+    CONF_ID,
     CONF_LIGHT,
     CONF_MOTION,
     CONF_TIMEOUT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_MOTION,
-    CONF_ID,
-    CONF_BUTTON,
 )
 from esphome.core import TimePeriod
 

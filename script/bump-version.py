@@ -54,6 +54,12 @@ def write_version(version: Version):
         r"^__version__ = .*$",
         f'__version__ = "{version}"',
     )
+    # PROJECT_NUMBER         = 2025.5.0
+    sub(
+        "Doxyfile",
+        r"PROJECT_NUMBER         = .*",
+        f"PROJECT_NUMBER         = {version}",
+    )
 
 
 def main():

@@ -14,7 +14,7 @@ void FactoryResetSwitch::write_state(bool state) {
   this->publish_state(false);
 
   if (state) {
-    ESP_LOGI(TAG, "Resetting to factory defaults...");
+    ESP_LOGI(TAG, "Resetting");
     // Let MQTT settle a bit
     delay(100);  // NOLINT
     global_preferences->reset();

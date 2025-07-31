@@ -68,8 +68,7 @@ void binary_sensor::MultiClickTrigger::on_state_(bool state) {
   *this->at_index_ = *this->at_index_ + 1;
 }
 void binary_sensor::MultiClickTrigger::schedule_cooldown_() {
-  ESP_LOGV(TAG, "Multi Click: Invalid length of press, starting cooldown of %" PRIu32 " ms...",
-           this->invalid_cooldown_);
+  ESP_LOGV(TAG, "Multi Click: Invalid length of press, starting cooldown of %" PRIu32 " ms", this->invalid_cooldown_);
   this->is_in_cooldown_ = true;
   this->set_timeout("cooldown", this->invalid_cooldown_, [this]() {
     ESP_LOGV(TAG, "Multi Click: Cooldown ended, matching is now enabled again.");

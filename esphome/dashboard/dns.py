@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-import sys
+from contextlib import suppress
+from ipaddress import ip_address
 
 from icmplib import NameLookupError, async_resolve
 
-if sys.version_info >= (3, 11):
-    from asyncio import timeout as async_timeout
-else:
-    from async_timeout import timeout as async_timeout
+RESOLVE_TIMEOUT = 3.0
 
 
 async def _async_resolve_wrapper(hostname: str) -> list[str] | Exception:
     """Wrap the icmplib async_resolve function."""
+    with suppress(ValueError):
+        return [str(ip_address(hostname))]
     try:
-        async with async_timeout(2):
+        async with asyncio.timeout(RESOLVE_TIMEOUT):
             return await async_resolve(hostname)
-    except (asyncio.TimeoutError, NameLookupError, UnicodeError) as ex:
+    except (TimeoutError, NameLookupError, UnicodeError) as ex:
         return ex
 
 

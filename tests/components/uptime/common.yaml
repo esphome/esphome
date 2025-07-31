@@ -13,3 +13,17 @@ sensor:
   - platform: uptime
     name: Uptime Sensor Timestamp
     type: timestamp
+
+text_sensor:
+  - platform: uptime
+    name: Uptime Text
+  - platform: uptime
+    name: Uptime Text With Separator
+    format:
+      separator: "-"
+      expand: true
+      days: "Days"
+      hours: "H"
+      minutes: "M"
+      seconds: "S"
+    update_interval: 10s

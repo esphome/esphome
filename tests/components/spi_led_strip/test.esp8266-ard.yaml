@@ -1,13 +1,5 @@
-spi:
-  - id: spi_spi_led_strip
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
 
-light:
-  - platform: spi_led_strip
-    num_leds: 4
-    color_correct: [80%, 60%, 100%]
-    id: rgb_led
-    name: "RGB LED"
-    data_rate: 8MHz
+<<: !include common.yaml

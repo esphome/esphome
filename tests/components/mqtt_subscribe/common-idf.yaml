@@ -1,0 +1,37 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+  idf_send_async: false
+  log_topic:
+  on_message:
+    topic: testing/sensor/testing_sensor/state
+    qos: 0
+    then:
+      - logger.log: Mqtt Test
+
+sensor:
+  - platform: mqtt_subscribe
+    name: MQTT Subscribe Sensor
+    topic: mqtt/topic
+    id: the_sensor
+    qos: 2
+    on_value:
+      - mqtt.publish_json:
+          topic: the/topic
+          payload: |-
+            root["key"] = id(the_sensor).state;
+            root["greeting"] = "Hello World";
+
+text_sensor:
+  - platform: mqtt_subscribe
+    name: MQTT Subscribe Text
+    topic: "the/topic"
+    qos: 2
+    on_value:
+      - logger.log: "Text sensor got value"

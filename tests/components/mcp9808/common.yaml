@@ -1,0 +1,8 @@
+i2c:
+  - id: i2c_mcp9808
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: mcp9808
+    name: MCP9808 Temperature

@@ -37,8 +37,6 @@ static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
 
 void INA226Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up INA226...");
-
   ConfigurationRegister config;
 
   config.reset = 1;
@@ -88,14 +86,17 @@ void INA226Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with INA226 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   LOG_UPDATE_INTERVAL(this);
 
-  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Bus Voltage: %d", INA226_ADC_TIMES[this->adc_time_voltage_ & 0b111]);
-  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Shunt Voltage: %d", INA226_ADC_TIMES[this->adc_time_current_ & 0b111]);
-  ESP_LOGCONFIG(TAG, "  ADC Averaging Samples: %d", INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
+  ESP_LOGCONFIG(TAG,
+                "  ADC Conversion Time Bus Voltage: %d\n"
+                "  ADC Conversion Time Shunt Voltage: %d\n"
+                "  ADC Averaging Samples: %d",
+                INA226_ADC_TIMES[this->adc_time_voltage_ & 0b111], INA226_ADC_TIMES[this->adc_time_current_ & 0b111],
+                INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
 
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);

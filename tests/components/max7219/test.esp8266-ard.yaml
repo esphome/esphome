@@ -1,12 +1,7 @@
-spi:
-  - id: spi_max6675
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
+  cs_pin: GPIO15
 
-display:
-  - platform: max7219
-    cs_pin: 15
-    num_chips: 1
-    lambda: |-
-      it.print("01234567");
+<<: !include common.yaml

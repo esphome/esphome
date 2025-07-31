@@ -1,13 +1,14 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
 from esphome.const import (
     CONF_COMPENSATION,
+    CONF_GAIN_FACTOR,
     CONF_ID,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
-    ICON_RADIATOR,
     DEVICE_CLASS_AQI,
+    ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
 )
 
@@ -24,7 +25,6 @@ SGP4xComponent = sgp4x_ns.class_(
 )
 
 CONF_ALGORITHM_TUNING = "algorithm_tuning"
-CONF_GAIN_FACTOR = "gain_factor"
 CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
 CONF_HUMIDITY_SOURCE = "humidity_source"
 CONF_INDEX_OFFSET = "index_offset"
@@ -139,7 +139,7 @@ async def to_code(config):
                 )
             )
     cg.add_library(
-        None,
+        "Sensirion Gas Index Algorithm",
         None,
         "https://github.com/Sensirion/arduino-gas-index-algorithm.git#3.2.1",
     )

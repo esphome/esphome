@@ -6,7 +6,11 @@ namespace mcp23xxx_base {
 
 float MCP23XXXBase::get_setup_priority() const { return setup_priority::IO; }
 
-void MCP23XXXGPIOPin::setup() { pin_mode(flags_); }
+void MCP23XXXGPIOPin::setup() {
+  pin_mode(flags_);
+  this->parent_->pin_interrupt_mode(this->pin_, this->interrupt_mode_);
+}
+
 void MCP23XXXGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool MCP23XXXGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MCP23XXXGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }

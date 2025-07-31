@@ -1,0 +1,18 @@
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+
+spi:
+  - id: spi_single
+    clk_pin:
+      number: ${clk_pin}
+    mosi_pin:
+      number: ${mosi_pin}
+
+display:
+  - platform: mipi_spi
+    model: t-display-s3-pro
+
+lvgl:
+
+psram:

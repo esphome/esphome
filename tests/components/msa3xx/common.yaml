@@ -1,0 +1,48 @@
+msa3xx:
+  i2c_id: i2c_msa3xx
+  type: msa301
+  range: 4G
+  resolution: 14
+  update_interval: 10s
+  calibration:
+    offset_x: -0.250
+    offset_y: -0.400
+    offset_z: -0.800
+  transform:
+    mirror_x: false
+    mirror_y: true
+    mirror_z: true
+    swap_xy: false
+  on_tap:
+    - then:
+        - logger.log: "Tapped"
+  on_double_tap:
+    - then:
+        - logger.log: "Double tapped"
+  on_active:
+    - then:
+        - logger.log: "Activity detected"
+  on_orientation:
+    - then:
+        - logger.log: "Orientation changed"
+
+sensor:
+  - platform: msa3xx
+    acceleration_x: Accel X
+    acceleration_y: Accel Y
+    acceleration_z: Accel Z
+
+text_sensor:
+  - platform: msa3xx
+    orientation_xy: Orientation XY
+    orientation_z: Orientation Z
+
+binary_sensor:
+  - platform: msa3xx
+    tap: Single tap
+    double_tap:
+      name: Double tap
+    active:
+      name: Active
+      filters:
+        - delayed_off: 5000ms

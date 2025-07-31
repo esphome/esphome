@@ -24,7 +24,6 @@ void GroveMotorDriveTB6612FNG::dump_config() {
 }
 
 void GroveMotorDriveTB6612FNG::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Grove Motor Drive TB6612FNG ...");
   if (!this->standby()) {
     this->mark_failed();
     return;

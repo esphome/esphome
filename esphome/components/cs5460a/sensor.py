@@ -1,21 +1,21 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
+from esphome.components import sensor, spi
 import esphome.config_validation as cv
-from esphome.components import spi, sensor
 from esphome.const import (
     CONF_CURRENT,
     CONF_ID,
     CONF_POWER,
     CONF_VOLTAGE,
     CONF_VOLTAGE_GAIN,
-    UNIT_VOLT,
-    UNIT_AMPERE,
-    UNIT_WATT,
-    DEVICE_CLASS_POWER,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    UNIT_AMPERE,
+    UNIT_VOLT,
+    UNIT_WATT,
 )
-from esphome import automation
-from esphome.automation import maybe_simple_id
 
 CODEOWNERS = ["@balrog-kun"]
 DEPENDENCIES = ["spi"]

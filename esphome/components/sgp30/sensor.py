@@ -37,14 +37,14 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SGP30Component),
-            cv.Required(CONF_ECO2): sensor.sensor_schema(
+            cv.Optional(CONF_ECO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_TVOC): sensor.sensor_schema(
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
@@ -86,32 +86,30 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_ECO2 in config:
-        sens = await sensor.new_sensor(config[CONF_ECO2])
+    if eco2_config := config.get(CONF_ECO2):
+        sens = await sensor.new_sensor(eco2_config)
         cg.add(var.set_eco2_sensor(sens))
 
-    if CONF_TVOC in config:
-        sens = await sensor.new_sensor(config[CONF_TVOC])
+    if tvoc_config := config.get(CONF_TVOC):
+        sens = await sensor.new_sensor(tvoc_config)
         cg.add(var.set_tvoc_sensor(sens))
 
-    if CONF_ECO2_BASELINE in config:
-        sens = await sensor.new_sensor(config[CONF_ECO2_BASELINE])
+    if eco2_baseline_config := config.get(CONF_ECO2_BASELINE):
+        sens = await sensor.new_sensor(eco2_baseline_config)
         cg.add(var.set_eco2_baseline_sensor(sens))
 
-    if CONF_TVOC_BASELINE in config:
-        sens = await sensor.new_sensor(config[CONF_TVOC_BASELINE])
+    if tvoc_baseline_config := config.get(CONF_TVOC_BASELINE):
+        sens = await sensor.new_sensor(tvoc_baseline_config)
         cg.add(var.set_tvoc_baseline_sensor(sens))
 
-    if CONF_STORE_BASELINE in config:
-        cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
+    if (store_baseline := config.get(CONF_STORE_BASELINE)) is not None:
+        cg.add(var.set_store_baseline(store_baseline))
 
-    if CONF_BASELINE in config:
-        baseline_config = config[CONF_BASELINE]
+    if baseline_config := config.get(CONF_BASELINE):
         cg.add(var.set_eco2_baseline(baseline_config[CONF_ECO2_BASELINE]))
         cg.add(var.set_tvoc_baseline(baseline_config[CONF_TVOC_BASELINE]))
 
-    if CONF_COMPENSATION in config:
-        compensation_config = config[CONF_COMPENSATION]
+    if compensation_config := config.get(CONF_COMPENSATION):
         sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
         cg.add(var.set_humidity_sensor(sens))
         sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])

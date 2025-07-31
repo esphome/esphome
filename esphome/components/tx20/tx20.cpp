@@ -1,6 +1,6 @@
 #include "tx20.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include <vector>
 
@@ -15,7 +15,6 @@ static const char *const DIRECTIONS[] = {"N", "NNE", "NE", "ENE", "E", "ESE", "S
                                          "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
 
 void Tx20Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Tx20");
   this->pin_->setup();
 
   this->store_.buffer = new uint16_t[MAX_BUFFER_SIZE];
@@ -44,7 +43,7 @@ float Tx20Component::get_setup_priority() const { return setup_priority::DATA; }
 std::string Tx20Component::get_wind_cardinal_direction() const { return this->wind_cardinal_direction_; }
 
 void Tx20Component::decode_and_publish_() {
-  ESP_LOGVV(TAG, "Decode Tx20...");
+  ESP_LOGVV(TAG, "Decode Tx20");
 
   std::string string_buffer;
   std::string string_buffer_2;
@@ -152,7 +151,7 @@ void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
     }
     arg->buffer[arg->buffer_index] = 1;
     arg->start_time = now;
-    arg->buffer_index++;
+    arg->buffer_index++;  // NOLINT(clang-diagnostic-deprecated-volatile)
     return;
   }
   const uint32_t delay = now - arg->start_time;
@@ -183,7 +182,7 @@ void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
   }
   arg->spent_time += delay;
   arg->start_time = now;
-  arg->buffer_index++;
+  arg->buffer_index++;  // NOLINT(clang-diagnostic-deprecated-volatile)
 }
 void IRAM_ATTR Tx20ComponentStore::reset() {
   tx20_available = false;

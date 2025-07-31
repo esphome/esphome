@@ -1,10 +1,5 @@
-sensor:
-  - platform: zyaura
-    clock_pin: 16
-    data_pin: 17
-    co2:
-      name: ZyAura CO2
-    temperature:
-      name: ZyAura Temperature
-    humidity:
-      name: ZyAura Humidity
+substitutions:
+  clock_pin: GPIO16
+  data_pin: GPIO17
+
+<<: !include common.yaml

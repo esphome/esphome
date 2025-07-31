@@ -1,25 +1,9 @@
-spi:
-  - id: spi_main_lcd
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO8
+  dc_pin: GPIO9
+  reset_pin: GPIO10
 
-display:
-  - platform: ili9xxx
-    id: main_lcd
-    model: ili9342
-    cs_pin: 8
-    dc_pin: 9
-    reset_pin: 10
-    invert_colors: false
-    lambda: |-
-      // Draw a QR code in the center of the screen
-      auto scale = 2;
-      auto size = id(homepage_qr).get_size() * scale;
-      auto x = (it.get_width() / 2) - (size / 2);
-      auto y = (it.get_height() / 2) - (size / 2);
-      it.qr_code(x, y, id(homepage_qr), Color(255,255,255), scale);
-
-qr_code:
-  - id: homepage_qr
-    value: https://esphome.io/index.html
+<<: !include common.yaml

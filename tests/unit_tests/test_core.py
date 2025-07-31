@@ -1,10 +1,8 @@
-import pytest
-
 from hypothesis import given
-from hypothesis.strategies import ip_addresses
+import pytest
 from strategies import mac_addr_strings
 
-from esphome import core, const
+from esphome import const, core
 
 
 class TestHexInt:
@@ -24,25 +22,6 @@ class TestHexInt:
         actual = str(target)
 
         assert actual == expected
-
-
-class TestIPAddress:
-    @given(value=ip_addresses(v=4).map(str))
-    def test_init__valid(self, value):
-        core.IPAddress(*value.split("."))
-
-    @pytest.mark.parametrize("value", ("127.0.0", "localhost", ""))
-    def test_init__invalid(self, value):
-        with pytest.raises(ValueError, match="IPAddress must consist of 4 items"):
-            core.IPAddress(*value.split("."))
-
-    @given(value=ip_addresses(v=4).map(str))
-    def test_str(self, value):
-        target = core.IPAddress(*value.split("."))
-
-        actual = str(target)
-
-        assert actual == value
 
 
 class TestMACAddress:
@@ -493,6 +472,61 @@ class TestLibrary:
         actual = getattr(target, comparison)(other)
 
         assert actual == expected
+
+    @pytest.mark.parametrize(
+        "target, other, result, exception",
+        (
+            (core.Library("libfoo", None), core.Library("libfoo", None), True, None),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libfoo", "1.2.3"),
+                True,  # target is unchanged
+                None,
+            ),
+            (
+                core.Library("libfoo", None),
+                core.Library("libfoo", "1.2.3"),
+                False,  # Use version from other
+                None,
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libfoo", "1.2.4"),
+                False,
+                ValueError,  # Version mismatch
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libbar", "1.2.3"),
+                False,
+                ValueError,  # Name mismatch
+            ),
+            (
+                core.Library(
+                    "libfoo", "1.2.4", "https://github.com/esphome/ESPAsyncWebServer"
+                ),
+                core.Library("libfoo", "1.2.3"),
+                True,  # target is unchanged due to having a repository
+                None,
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library(
+                    "libfoo", "1.2.4", "https://github.com/esphome/ESPAsyncWebServer"
+                ),
+                False,  # use other due to having a repository
+                None,
+            ),
+        ),
+    )
+    def test_reconcile(self, target, other, result, exception):
+        if exception is not None:
+            with pytest.raises(exception):
+                target.reconcile_with(other)
+        else:
+            expected = target if result else other
+            actual = target.reconcile_with(other)
+            assert actual == expected
 
 
 class TestEsphomeCore:

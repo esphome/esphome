@@ -1,0 +1,19 @@
+packages:
+  left_garage_door: !include
+    file: garage-door.yaml
+    vars:
+      door_name: Left
+      door_pin: 1
+      door_id: left_garage_door
+  middle_garage_door: !include
+    file: garage-door.yaml
+    vars:
+      door_name: Middle
+      door_pin: 2
+      door_id: middle_garage_door
+  right_garage_door: !include
+    file: garage-door.yaml
+    vars:
+      door_name: Right
+      door_pin: 3
+      door_id: right_garage_door

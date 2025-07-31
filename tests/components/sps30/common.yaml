@@ -1,0 +1,36 @@
+i2c:
+  - id: i2c_sps30
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: sps30
+    pm_1_0:
+      name: Workshop PM <1µm Weight concentration
+      id: workshop_PM_1_0
+    pm_2_5:
+      name: Workshop PM <2.5µm Weight concentration
+      id: workshop_PM_2_5
+    pm_4_0:
+      name: Workshop PM <4µm Weight concentration
+      id: workshop_PM_4_0
+    pm_10_0:
+      name: Workshop PM <10µm Weight concentration
+      id: workshop_PM_10_0
+    pmc_0_5:
+      name: Workshop PM <0.5µm Number concentration
+      id: workshop_PMC_0_5
+    pmc_1_0:
+      name: Workshop PM <1µm Number concentration
+      id: workshop_PMC_1_0
+    pmc_2_5:
+      name: Workshop PM <2.5µm Number concentration
+      id: workshop_PMC_2_5
+    pmc_4_0:
+      name: Workshop PM <4µm Number concentration
+      id: workshop_PMC_4_0
+    pmc_10_0:
+      name: Workshop PM <10µm Number concentration
+      id: workshop_PMC_10_0
+    address: 0x69
+    update_interval: 10s

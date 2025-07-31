@@ -1,26 +1,5 @@
-uart:
-  - id: uart_bl0939
-    tx_pin:
-      number: 4
-    rx_pin:
-      number: 5
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO7
+  rx_pin: GPIO8
 
-sensor:
-  - platform: bl0939
-    voltage:
-      name: BL0939 Voltage
-    current_1:
-      name: BL0939 Current 1
-    current_2:
-      name: BL0939 Current 2
-    active_power_1:
-      name: BL0939 Active Power 1
-    active_power_2:
-      name: BL0939 Active Power 2
-    energy_1:
-      name: BL0939 Energy 1
-    energy_2:
-      name: BL0939 Energy 2
-    energy_total:
-      name: BL0939 Total energy
+<<: !include common.yaml

@@ -30,7 +30,7 @@ void WakeOnLanButton::press_action() {
     ESP_LOGW(TAG, "Network not connected");
     return;
   }
-  ESP_LOGI(TAG, "Sending Wake-on-LAN Packet...");
+  ESP_LOGI(TAG, "Sending Wake-on-LAN Packet");
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   struct sockaddr_storage saddr {};
   auto addr_len =

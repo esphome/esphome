@@ -1,6 +1,7 @@
 #include "time_based_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace time_based {
@@ -11,8 +12,10 @@ using namespace esphome::cover;
 
 void TimeBasedCover::dump_config() {
   LOG_COVER("", "Time Based Cover", this);
-  ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+  ESP_LOGCONFIG(TAG,
+                "  Open Duration: %.1fs\n"
+                "  Close Duration: %.1fs",
+                this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
 }
 void TimeBasedCover::setup() {
   auto restore = this->restore_state_();
@@ -26,7 +29,7 @@ void TimeBasedCover::loop() {
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Recompute position every loop cycle
   this->recompute_position_();

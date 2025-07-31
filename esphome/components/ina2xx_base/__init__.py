@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
@@ -21,8 +21,8 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_VOLT,
-    UNIT_WATT_HOURS,
     UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 
 CODEOWNERS = ["@latonita"]
@@ -78,11 +78,8 @@ def validate_model_config(config):
     model = config[CONF_MODEL]
 
     for key in config:
-        if key in SENSOR_MODEL_OPTIONS:
-            if model not in SENSOR_MODEL_OPTIONS[key]:
-                raise cv.Invalid(
-                    f"Device model '{model}' does not support '{key}' sensor"
-                )
+        if key in SENSOR_MODEL_OPTIONS and model not in SENSOR_MODEL_OPTIONS[key]:
+            raise cv.Invalid(f"Device model '{model}' does not support '{key}' sensor")
 
     tempco = config[CONF_TEMPERATURE_COEFFICIENT]
     if tempco > 0 and model not in ["INA228", "INA229"]:

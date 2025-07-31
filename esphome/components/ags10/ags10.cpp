@@ -1,4 +1,5 @@
 #include "ags10.h"
+#include "esphome/core/helpers.h"
 
 #include <cinttypes>
 
@@ -23,8 +24,6 @@ static const uint16_t ZP_CURRENT = 0x0000;
 static const uint16_t ZP_DEFAULT = 0xFFFF;
 
 void AGS10Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ags10...");
-
   auto version = this->read_version_();
   if (version) {
     ESP_LOGD(TAG, "AGS10 Sensor Version: 0x%02X", *version);
@@ -44,8 +43,6 @@ void AGS10Component::setup() {
   } else {
     ESP_LOGE(TAG, "AGS10 Sensor Resistance: unknown");
   }
-
-  ESP_LOGD(TAG, "Sensor initialized");
 }
 
 void AGS10Component::update() {
@@ -65,7 +62,7 @@ void AGS10Component::dump_config() {
     case NONE:
       break;
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with AGS10 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case CRC_CHECK_FAILED:
       ESP_LOGE(TAG, "The crc check failed");

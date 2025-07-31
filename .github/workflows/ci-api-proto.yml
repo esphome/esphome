@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
       - name: Set up Python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.11"
 
@@ -57,6 +57,17 @@ jobs:
               event: 'REQUEST_CHANGES',
               body: 'You have altered the generated proto files but they do not match what is expected.\nPlease run "script/api_protobuf/api_protobuf.py" and commit the changes.'
             })
+      - if: failure()
+        name: Show changes
+        run: git diff
+      - if: failure()
+        name: Archive artifacts
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: generated-proto-files
+          path: |
+            esphome/components/api/api_pb2.*
+            esphome/components/api/api_pb2_service.*
       - if: success()
         name: Dismiss review
         uses: actions/github-script@v7.0.1

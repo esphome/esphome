@@ -90,8 +90,6 @@ bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
 }
 
 void AM2315C::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AM2315C...");
-
   // get status
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
@@ -128,7 +126,7 @@ void AM2315C::update() {
   data[2] = 0x00;
   if (this->write(data, 3) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Write failed!");
-    this->mark_failed();
+    this->status_set_warning();
     return;
   }
 
@@ -138,12 +136,12 @@ void AM2315C::update() {
     uint8_t status = 0;
     if (this->read(&status, 1) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read failed!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
     if ((status & 0x80) == 0x80) {
       ESP_LOGE(TAG, "HW still busy!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
 
@@ -151,7 +149,7 @@ void AM2315C::update() {
     uint8_t data[7];
     if (this->read(data, 7) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read failed!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
 
@@ -188,7 +186,7 @@ void AM2315C::dump_config() {
   ESP_LOGCONFIG(TAG, "AM2315C:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AM2315C failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

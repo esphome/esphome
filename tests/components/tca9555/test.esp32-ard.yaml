@@ -1,27 +1,5 @@
-i2c:
-  - id: i2c_tca9555
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-tca9555:
-  - id: tca9555_hub
-    address: 0x21
-
-binary_sensor:
-  - platform: gpio
-    id: tca9555_binary_sensor
-    name: TCA9555 Binary Sensor
-    pin:
-      tca9555: tca9555_hub
-      number: 1
-      mode: INPUT
-      inverted: true
-
-output:
-  - platform: gpio
-    id: tca9555_output
-    pin:
-      tca9555: tca9555_hub
-      number: 0
-      mode: OUTPUT
-      inverted: false
+<<: !include common.yaml

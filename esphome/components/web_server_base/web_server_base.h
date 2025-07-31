@@ -17,13 +17,16 @@
 namespace esphome {
 namespace web_server_base {
 
+class WebServerBase;
+extern WebServerBase *global_web_server_base;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 namespace internal {
 
 class MiddlewareHandler : public AsyncWebHandler {
  public:
   MiddlewareHandler(AsyncWebHandler *next) : next_(next) {}
 
-  bool canHandle(AsyncWebServerRequest *request) override { return next_->canHandle(request); }
+  bool canHandle(AsyncWebServerRequest *request) const override { return next_->canHandle(request); }
   void handleRequest(AsyncWebServerRequest *request) override { next_->handleRequest(request); }
   void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
                     bool final) override {
@@ -32,7 +35,7 @@ class MiddlewareHandler : public AsyncWebHandler {
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
     next_->handleBody(request, data, len, index, total);
   }
-  bool isRequestHandlerTrivial() override { return next_->isRequestHandlerTrivial(); }
+  bool isRequestHandlerTrivial() const override { return next_->isRequestHandlerTrivial(); }
 
  protected:
   AsyncWebHandler *next_;
@@ -110,38 +113,15 @@ class WebServerBase : public Component {
 
   void add_handler(AsyncWebHandler *handler);
 
-  void add_ota_handler();
-
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
  protected:
-  friend class OTARequestHandler;
-
   int initialized_{0};
   uint16_t port_{80};
   std::shared_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
   internal::Credentials credentials_;
-};
-
-class OTARequestHandler : public AsyncWebHandler {
- public:
-  OTARequestHandler(WebServerBase *parent) : parent_(parent) {}
-  void handleRequest(AsyncWebServerRequest *request) override;
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override;
-  bool canHandle(AsyncWebServerRequest *request) override {
-    return request->url() == "/update" && request->method() == HTTP_POST;
-  }
-
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  bool isRequestHandlerTrivial() override { return false; }
-
- protected:
-  uint32_t last_ota_progress_{0};
-  uint32_t ota_read_length_{0};
-  WebServerBase *parent_;
 };
 
 }  // namespace web_server_base

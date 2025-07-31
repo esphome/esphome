@@ -1,0 +1,45 @@
+spi:
+  clk_pin: ${clk_pin}
+  mosi_pin: ${mosi_pin}
+  miso_pin: ${miso_pin}
+
+sx127x:
+  cs_pin: ${cs_pin}
+  rst_pin: ${rst_pin}
+  dio0_pin: ${dio0_pin}
+  pa_pin: BOOST
+  pa_power: 17
+  pa_ramp: 40us
+  bitsync: true
+  bitrate: 4800
+  bandwidth: 50_0kHz
+  frequency: 433920000
+  modulation: FSK
+  deviation: 5000
+  rx_start: true
+  rx_floor: -90
+  packet_mode: true
+  payload_length: 8
+  sync_value: [0x33, 0x33]
+  shaping: NONE
+  preamble_size: 2
+  preamble_detect: 2
+  preamble_errors: 8
+  preamble_polarity: 0x55
+  on_packet:
+    then:
+      - sx127x.send_packet:
+          data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+
+button:
+  - platform: template
+    name: "SX127x Button"
+    on_press:
+      then:
+        - sx127x.set_mode_standby
+        - sx127x.run_image_cal
+        - sx127x.set_mode_tx
+        - sx127x.set_mode_sleep
+        - sx127x.set_mode_rx
+        - sx127x.send_packet:
+            data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]

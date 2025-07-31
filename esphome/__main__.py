@@ -2,6 +2,8 @@
 import argparse
 from datetime import datetime
 import functools
+import getpass
+import importlib
 import logging
 import os
 import re
@@ -33,16 +35,15 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
-    PLATFORM_BK72XX,
+    ENV_NOGITIGNORE,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
-    PLATFORM_RTL87XX,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import get_bool_env, indent, is_ip_address
-from esphome.log import Fore, color, setup_log
+from esphome.log import AnsiFore, color, setup_log
 from esphome.util import (
     get_serial_ports,
     list_yaml_files,
@@ -66,7 +67,7 @@ def choose_prompt(options, purpose: str = None):
         return options[0][1]
 
     safe_print(
-        f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
+        f"Found multiple options{f' for {purpose}' if purpose else ''}, please choose one:"
     )
     for i, (desc, _) in enumerate(options):
         safe_print(f"  [{i + 1}] {desc}")
@@ -82,16 +83,16 @@ def choose_prompt(options, purpose: str = None):
                 raise ValueError
             break
         except ValueError:
-            safe_print(color(Fore.RED, f"Invalid option: '{opt}'"))
+            safe_print(color(AnsiFore.RED, f"Invalid option: '{opt}'"))
     return options[opt - 1][1]
 
 
 def choose_upload_log_host(
     default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
 ):
-    options = []
-    for port in get_serial_ports():
-        options.append((f"{port.path} ({port.description})", port.path))
+    options = [
+        (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
+    ]
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
@@ -119,9 +120,7 @@ def mqtt_logging_enabled(mqtt_config):
         return False
     if CONF_TOPIC not in log_topic:
         return False
-    if log_topic.get(CONF_LEVEL, None) == "NONE":
-        return False
-    return True
+    return log_topic.get(CONF_LEVEL, None) != "NONE"
 
 
 def get_port_type(port):
@@ -132,7 +131,8 @@ def get_port_type(port):
     return "NETWORK"
 
 
-def run_miniterm(config, port):
+def run_miniterm(config, port, args):
+    from aioesphomeapi import LogParser
     import serial
 
     from esphome import platformio_api
@@ -153,10 +153,11 @@ def run_miniterm(config, port):
 
     # We can't set to False by default since it leads to toggling and hence
     # ESP32 resets on some platforms.
-    if config["logger"][CONF_DEASSERT_RTS_DTR]:
+    if config["logger"][CONF_DEASSERT_RTS_DTR] or args.reset:
         ser.dtr = False
         ser.rts = False
 
+    parser = LogParser()
     tries = 0
     while tries < 5:
         try:
@@ -173,8 +174,7 @@ def run_miniterm(config, port):
                         .decode("utf8", "backslashreplace")
                     )
                     time_str = datetime.now().time().strftime("[%H:%M:%S]")
-                    message = time_str + line
-                    safe_print(message)
+                    safe_print(parser.parse_line(line, time_str))
 
                     backtrace_state = platformio_api.process_stacktrace(
                         config, line, backtrace_state=backtrace_state
@@ -209,6 +209,9 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config):
+    if not get_bool_env(ENV_NOGITIGNORE):
+        writer.write_gitignore()
+
     generate_cpp_contents(config)
     return write_cpp_file()
 
@@ -225,10 +228,13 @@ def generate_cpp_contents(config):
 
 
 def write_cpp_file():
-    writer.write_platformio_project()
-
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
+
+    from esphome.build_gen import platformio
+
+    platformio.write_project()
+
     return 0
 
 
@@ -243,11 +249,11 @@ def compile_program(args, config):
     return 0 if idedata is not None else 1
 
 
-def upload_using_esptool(config, port, file):
+def upload_using_esptool(config, port, file, speed):
     from esphome import platformio_api
 
-    first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
-        "upload_speed", 460800
+    first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
+        "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
 
     if file is not None:
@@ -330,22 +336,29 @@ def check_permissions(port):
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
-                f"by running the following command: sudo usermod -a -G dialout {os.getlogin()}. "
+                f"by running the following command: sudo usermod -a -G dialout {getpass.getuser()}. "
                 "You will need to log out & back in or reboot to activate the new group access."
             )
 
 
 def upload_program(config, args, host):
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        if getattr(module, "upload_program")(config, args, host):
+            return 0
+    except AttributeError:
+        pass
+
     if get_port_type(host) == "SERIAL":
         check_permissions(host)
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
-            return upload_using_esptool(config, host, file)
+            return upload_using_esptool(config, host, file, args.upload_speed)
 
         if CORE.target_platform in (PLATFORM_RP2040):
             return upload_using_platformio(config, args.device)
 
-        if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
+        if CORE.is_libretiny:
             return upload_using_platformio(config, host)
 
         return 1  # Unknown target platform
@@ -367,10 +380,12 @@ def upload_program(config, args, host):
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        not is_ip_address(CORE.address)  # pylint: disable=too-many-boolean-expressions
-        and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
-        and CONF_MQTT in config
+        CONF_MQTT in config  # pylint: disable=too-many-boolean-expressions
         and (not args.device or args.device in ("MQTT", "OTA"))
+        and (
+            ((config[CONF_MDNS][CONF_DISABLED]) and not is_ip_address(CORE.address))
+            or get_port_type(host) == "MQTT"
+        )
     ):
         from esphome import mqtt
 
@@ -389,7 +404,7 @@ def show_logs(config, args, port):
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
         check_permissions(port)
-        return run_miniterm(config, port)
+        return run_miniterm(config, port, args)
     if get_port_type(port) == "NETWORK" and "api" in config:
         if config[CONF_MDNS][CONF_DISABLED] and CONF_MQTT in config:
             from esphome import mqtt
@@ -583,33 +598,38 @@ def command_update_all(args):
         middle_text = f" {middle_text} "
         width = len(click.unstyle(middle_text))
         half_line = "=" * ((twidth - width) // 2)
-        click.echo(f"{half_line}{middle_text}{half_line}")
+        safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print(f"Updating {color(Fore.CYAN, f)}")
-        print("-" * twidth)
-        print()
-        rc = run_external_process(
-            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
-        )
+        safe_print(f"Updating {color(AnsiFore.CYAN, f)}")
+        safe_print("-" * twidth)
+        safe_print()
+        if CORE.dashboard:
+            rc = run_external_process(
+                "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
+            )
+        else:
+            rc = run_external_process(
+                "esphome", "run", f, "--no-logs", "--device", "OTA"
+            )
         if rc == 0:
-            print_bar(f"[{color(Fore.BOLD_GREEN, 'SUCCESS')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {f}")
             success[f] = True
         else:
-            print_bar(f"[{color(Fore.BOLD_RED, 'ERROR')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {f}")
             success[f] = False
 
-        print()
-        print()
-        print()
+        safe_print()
+        safe_print()
+        safe_print()
 
-    print_bar(f"[{color(Fore.BOLD_WHITE, 'SUMMARY')}]")
+    print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
         if success[f]:
-            print(f"  - {f}: {color(Fore.GREEN, 'SUCCESS')}")
+            safe_print(f"  - {f}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
-            print(f"  - {f}: {color(Fore.BOLD_RED, 'FAILED')}")
+            safe_print(f"  - {f}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 
@@ -635,7 +655,7 @@ def command_rename(args, config):
         if c not in ALLOWED_NAME_CHARS:
             print(
                 color(
-                    Fore.BOLD_RED,
+                    AnsiFore.BOLD_RED,
                     f"'{c}' is an invalid character for names. Valid characters are: "
                     f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)",
                 )
@@ -648,7 +668,9 @@ def command_rename(args, config):
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
         print(
-            color(Fore.BOLD_RED, "Complex YAML files cannot be automatically renamed.")
+            color(
+                AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
+            )
         )
         return 1
     old_name = yaml[CONF_ESPHOME][CONF_NAME]
@@ -671,7 +693,7 @@ def command_rename(args, config):
             )
             > 1
         ):
-            print(color(Fore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            print(color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename"))
             return 1
 
         new_raw = re.sub(
@@ -683,7 +705,7 @@ def command_rename(args, config):
 
     new_path = os.path.join(CORE.config_dir, args.name + ".yaml")
     print(
-        f"Updating {color(Fore.CYAN, CORE.config_path)} to {color(Fore.CYAN, new_path)}"
+        f"Updating {color(AnsiFore.CYAN, CORE.config_path)} to {color(AnsiFore.CYAN, new_path)}"
     )
     print()
 
@@ -692,7 +714,7 @@ def command_rename(args, config):
 
     rc = run_external_process("esphome", "config", new_path)
     if rc != 0:
-        print(color(Fore.BOLD_RED, "Rename failed. Reverting changes."))
+        print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         os.remove(new_path)
         return 1
 
@@ -718,7 +740,7 @@ def command_rename(args, config):
     if CORE.config_path != new_path:
         os.remove(CORE.config_path)
 
-    print(color(Fore.BOLD_GREEN, "SUCCESS"))
+    print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
     return 0
 
@@ -757,6 +779,14 @@ def parse_args(argv):
     )
     options_parser.add_argument(
         "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
+    )
+    options_parser.add_argument(
+        "-l",
+        "--log-level",
+        help="Set the log level.",
+        default=os.getenv("ESPHOME_LOG_LEVEL", "INFO"),
+        action="store",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     )
     options_parser.add_argument(
         "--dashboard", help=argparse.SUPPRESS, action="store_true"
@@ -827,6 +857,10 @@ def parse_args(argv):
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
     parser_upload.add_argument(
+        "--upload_speed",
+        help="Override the default or configured upload speed.",
+    )
+    parser_upload.add_argument(
         "--file",
         help="Manually specify the binary file to upload.",
     )
@@ -843,6 +877,13 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+    parser_logs.add_argument(
+        "--reset",
+        "-r",
+        action="store_true",
+        help="Reset the device before starting serial logs.",
+        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
 
     parser_discover = subparsers.add_parser(
@@ -867,7 +908,18 @@ def parse_args(argv):
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
     parser_run.add_argument(
+        "--upload_speed",
+        help="Override the default or configured upload speed.",
+    )
+    parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"
+    )
+    parser_run.add_argument(
+        "--reset",
+        "-r",
+        action="store_true",
+        help="Reset the device before starting serial logs.",
+        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
 
     parser_clean = subparsers.add_parser(
@@ -987,11 +1039,16 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
+    # Override log level if verbose is set
+    if args.verbose:
+        args.log_level = "DEBUG"
+    elif args.quiet:
+        args.log_level = "CRITICAL"
+
     setup_log(
-        args.verbose,
-        args.quiet,
+        log_level=args.log_level,
         # Show timestamp for dashboard access logs
-        args.command == "dashboard",
+        include_timestamp=args.command == "dashboard",
     )
 
     if args.command in PRE_CONFIG_ACTIONS:

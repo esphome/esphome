@@ -1,35 +1,11 @@
-spi:
-  - id: spi_xpt2046
-    clk_pin: 2
-    mosi_pin: 3
-    miso_pin: 4
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO8
+  dc_pin: GPIO9
+  cs_pin: GPIO0
+  disp_cs_pin: GPIO1
+  interrupt_pin: GPIO2
+  reset_pin: GPIO3
 
-display:
-  - platform: ili9xxx
-    id: xpt_display
-    dimensions: 320x240
-    model: TFT 2.4
-    cs_pin: 8
-    dc_pin: 9
-    reset_pin: 10
-    invert_colors: false
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-
-touchscreen:
-  - platform: xpt2046
-    id: xpt_touchscreen
-    cs_pin: 5
-    interrupt_pin: 6
-    display: xpt_display
-    update_interval: 50ms
-    threshold: 400
-    calibration:
-      x_min: 280
-      x_max: 3860
-      y_min: 340
-      y_max: 3860
-    on_touch:
-      - logger.log:
-          format: Touch at (%d, %d)
-          args: [touch.x, touch.y]
+<<: !include common.yaml

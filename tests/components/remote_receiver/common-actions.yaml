@@ -3,6 +3,11 @@ on_abbwelcome:
     - logger.log:
         format: "on_abbwelcome: %u"
         args: ["x.data()[0]"]
+on_beo4:
+  then:
+    - logger.log:
+        format: "on_beo4: %u %u"
+        args: ["x.source", "x.command"]
 on_aeha:
   then:
     - logger.log:
@@ -43,6 +48,11 @@ on_drayton:
     - logger.log:
         format: "on_drayton: %u %u %u"
         args: ["x.address", "x.channel", "x.command"]
+on_gobox:
+  then:
+    - logger.log:
+        format: "on_gobox: %d"
+        args: ["x.code"]
 on_jvc:
   then:
     - logger.log:
@@ -83,6 +93,11 @@ on_nexa:
     - logger.log:
         format: "on_nexa: %lu %u %u %u %u"
         args: ["long(x.device)", "x.group", "x.state", "x.channel", "x.level"]
+on_nexus:
+  then:
+    - logger.log:
+        format: "on_nexus: %u %u %.1f %u %d %d"
+        args: ["x.channel", "x.address", "x.temperature", "x.humidity", "x.battery_level", "x.force_update"]
 on_panasonic:
   then:
     - logger.log:
@@ -142,8 +157,8 @@ on_mirage:
   then:
     - lambda: |-
         ESP_LOGD("mirage", "Mirage data: %s", format_hex(x.data).c_str());
-on_nexus:
+on_toto:
   then:
     - logger.log:
-        format: "on_nexus: %u %u %.1f %u %d %d"
-        args: ["x.channel", "x.address", "x.temperature", "x.humidity", "x.battery_level", "x.force_update"]
+        format: "on_toto: %u %u %u"
+        args: ["x.rc_code_1", "x.rc_code_2", "x.command"]

@@ -1,44 +1,7 @@
-spi:
-  - id: spi_mcp2515
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO8
 
-canbus:
-  - platform: mcp2515
-    id: mcp2515_can
-    cs_pin: 8
-    can_id: 4
-    bit_rate: 50kbps
-    on_frame:
-      - can_id: 500
-        then:
-          - lambda: |-
-              std::string b(x.begin(), x.end());
-              ESP_LOGD("can_id 500", "%s", b.c_str());
-      - can_id: 23
-        then:
-          - if:
-              condition:
-                lambda: "return x[0] == 0x11;"
-              then:
-                logger.log: "x[0] == 0x11"
-      - can_id: 0b00000000000000000000001000000
-        can_id_mask: 0b11111000000000011111111000000
-        use_extended_id: true
-        then:
-          - lambda: |-
-              auto pdo_id = can_id >> 14;
-              switch (pdo_id)
-              {
-                case 117:
-                  ESP_LOGD("canbus", "exhaust_fan_duty");
-                  break;
-                case 118:
-                  ESP_LOGD("canbus", "supply_fan_duty");
-                  break;
-                case 119:
-                  ESP_LOGD("canbus", "supply_fan_flow");
-                  break;
-                // to be continued...
-              }
+<<: !include common.yaml

@@ -1,25 +1,5 @@
-i2c:
-  - id: i2c_tsl2591
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: tsl2591
-    id: test_tsl2591
-    address: 0x29
-    integration_time: 600ms
-    gain: high
-    visible:
-      name: tsl2591 visible
-      id: tsl2591_vis
-      unit_of_measurement: pH
-    infrared:
-      name: tsl2591 infrared
-      id: tsl2591_ir
-    full_spectrum:
-      name: tsl2591 full_spectrum
-      id: tsl2591_fs
-    calculated_lux:
-      name: tsl2591 calculated_lux
-      id: tsl2591_cl
-    update_interval: 15s
+<<: !include common.yaml

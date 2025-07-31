@@ -1,11 +1,7 @@
 import esphome.codegen as cg
+from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.components import uart, time
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_ID,
-    CONF_TIME_ID,
-)
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_TIME_ID
 
 CODEOWNERS = ["@kroimon"]
 

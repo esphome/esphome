@@ -1,0 +1,13 @@
+i2c:
+  - id: i2c_sht3xd
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: sht3xd
+    temperature:
+      name: SHT3XD Temperature
+    humidity:
+      name: SHT3XD Humidity
+    address: 0x44
+    update_interval: 15s

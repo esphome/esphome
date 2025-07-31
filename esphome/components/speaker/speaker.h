@@ -9,6 +9,7 @@
 #endif
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/audio/audio.h"
 #ifdef USE_AUDIO_DAC
@@ -56,6 +57,10 @@ class Speaker {
   // When finish() is not implemented on the platform component it should just do a normal stop.
   virtual void finish() { this->stop(); }
 
+  // Pauses processing incoming audio. Needs to be implemented specifically per speaker component
+  virtual void set_pause_state(bool pause_state) {}
+  virtual bool get_pause_state() const { return false; }
+
   virtual bool has_buffered_data() const = 0;
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
@@ -71,7 +76,7 @@ class Speaker {
     }
 #endif
   };
-  float get_volume() { return this->volume_; }
+  virtual float get_volume() { return this->volume_; }
 
   virtual void set_mute_state(bool mute_state) {
     this->mute_state_ = mute_state;
@@ -85,7 +90,7 @@ class Speaker {
     }
 #endif
   }
-  bool get_mute_state() { return this->mute_state_; }
+  virtual bool get_mute_state() { return this->mute_state_; }
 
 #ifdef USE_AUDIO_DAC
   void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
@@ -93,6 +98,16 @@ class Speaker {
 
   void set_audio_stream_info(const audio::AudioStreamInfo &audio_stream_info) {
     this->audio_stream_info_ = audio_stream_info;
+  }
+
+  audio::AudioStreamInfo &get_audio_stream_info() { return this->audio_stream_info_; }
+
+  /// Callback function for sending the duration of the audio written to the speaker since the last callback.
+  /// Parameters:
+  ///   - Frames played
+  ///   - System time in microseconds when the frames were written to the DAC
+  void add_audio_output_callback(std::function<void(uint32_t, int64_t)> &&callback) {
+    this->audio_output_callback_.add(std::move(callback));
   }
 
  protected:
@@ -104,6 +119,8 @@ class Speaker {
 #ifdef USE_AUDIO_DAC
   audio_dac::AudioDac *audio_dac_{nullptr};
 #endif
+
+  CallbackManager<void(uint32_t, int64_t)> audio_output_callback_{};
 };
 
 }  // namespace speaker

@@ -1,21 +1,5 @@
-i2c:
-  - id: i2c_bme680
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO22
+  sda_pin: GPIO21
 
-sensor:
-  - platform: bme680
-    temperature:
-      name: BME680 Temperature
-      oversampling: 16x
-    pressure:
-      name: BME680 Pressure
-    humidity:
-      name: BME680 Humidity
-    gas_resistance:
-      name: BME680 Gas Sensor
-    address: 0x77
-    heater:
-      temperature: 320
-      duration: 150ms
-    update_interval: 15s
+<<: !include common.yaml

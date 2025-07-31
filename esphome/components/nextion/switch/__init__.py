@@ -1,17 +1,15 @@
 from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import switch
-
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_STATE
 
-from .. import nextion_ns, CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION
-
+from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
 from ..base_component import (
-    setup_component_core_,
     CONF_COMPONENT_NAME,
     CONF_VARIABLE_NAME,
     CONFIG_SWITCH_COMPONENT_SCHEMA,
+    setup_component_core_,
 )
 
 CODEOWNERS = ["@senexcrenshaw"]

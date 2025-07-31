@@ -24,6 +24,7 @@ from .obj import obj_spec
 
 CONF_TABVIEW = "tabview"
 CONF_TAB_STYLE = "tab_style"
+CONF_CONTENT_STYLE = "content_style"
 
 lv_tab_t = LvType("lv_obj_t")
 
@@ -38,7 +39,8 @@ TABVIEW_SCHEMA = cv.Schema(
                 },
             )
         ),
-        cv.Optional(CONF_TAB_STYLE): part_schema(buttonmatrix_spec),
+        cv.Optional(CONF_TAB_STYLE): part_schema(buttonmatrix_spec.parts),
+        cv.Optional(CONF_CONTENT_STYLE): part_schema(obj_spec.parts),
         cv.Optional(CONF_POSITION, default="top"): DIRECTIONS.one_of,
         cv.Optional(CONF_SIZE, default="10%"): size,
     }
@@ -79,6 +81,11 @@ class TabviewType(WidgetType):
                 "tabview_btnmatrix", lv_obj_t, rhs=lv_expr.tabview_get_tab_btns(w.obj)
             ) as btnmatrix_obj:
                 await set_obj_properties(Widget(btnmatrix_obj, obj_spec), button_style)
+        if content_style := config.get(CONF_CONTENT_STYLE):
+            with LocalVariable(
+                "tabview_content", lv_obj_t, rhs=lv_expr.tabview_get_content(w.obj)
+            ) as content_obj:
+                await set_obj_properties(Widget(content_obj, obj_spec), content_style)
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         return lv_expr.call(

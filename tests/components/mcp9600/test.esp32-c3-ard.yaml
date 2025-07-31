@@ -1,12 +1,5 @@
-i2c:
-  - id: i2c_mcp9600
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: mcp9600
-    thermocouple_type: K
-    hot_junction:
-      name: Thermocouple Temperature
-    cold_junction:
-      name: Ambient Temperature
+<<: !include common.yaml

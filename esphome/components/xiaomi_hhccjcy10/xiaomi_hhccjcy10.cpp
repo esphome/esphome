@@ -1,6 +1,6 @@
 #include "xiaomi_hhccjcy10.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 

@@ -19,6 +19,7 @@ CONF_X_MIN = "x_min"
 CONF_X_MAX = "x_max"
 CONF_Y_MIN = "y_min"
 CONF_Y_MAX = "y_max"
+CONF_USE_RAW = "use_raw"
 
 
 def _validate_coords(config):
@@ -46,6 +47,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.GenerateID(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
+            cv.Optional(CONF_USE_RAW, default=False): cv.boolean,
             cv.Required(CONF_X_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
@@ -69,6 +71,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_TOUCHSCREEN_ID])
 
+    cg.add(var.set_use_raw(config[CONF_USE_RAW]))
     cg.add(
         var.set_area(
             config[CONF_X_MIN],

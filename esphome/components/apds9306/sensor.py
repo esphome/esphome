@@ -2,8 +2,8 @@
 # https://www.mouser.ca/datasheet/2/678/AVGO_S_A0002854364_1-2574547.pdf
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAIN,
     DEVICE_CLASS_ILLUMINANCE,

@@ -1,15 +1,7 @@
-spi:
-  - id: spi_rc522
-    clk_pin: 2
-    mosi_pin: 3
-    miso_pin: 4
+substitutions:
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  miso_pin: GPIO4
+  cs_pin: GPIO5
 
-rc522_spi:
-  id: rc522_nfcc
-  cs_pin: 6
-
-binary_sensor:
-  - platform: rc522
-    rc522_id: rc522_nfcc
-    name: PN532 NFC Tag
-    uid: 74-10-37-94
+<<: !include common.yaml

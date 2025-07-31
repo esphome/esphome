@@ -1,12 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import select
-from esphome.const import (
-    CONF_ENTITY_CATEGORY,
-    CONF_ICON,
-    CONF_ID,
-    CONF_SOURCE_ID,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ENTITY_CATEGORY, CONF_ICON, CONF_ID, CONF_SOURCE_ID
 from esphome.core.entity_helpers import inherit_property_from
 
 from .. import copy_ns

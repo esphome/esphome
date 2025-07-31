@@ -1,4 +1,4 @@
-from esphome.cpp_generator import RawExpression
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -11,8 +11,7 @@ from esphome.const import (
     KEY_PAST_SAFE_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome import automation
-
+from esphome.cpp_generator import RawExpression
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
 

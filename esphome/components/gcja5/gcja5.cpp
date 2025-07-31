@@ -6,6 +6,7 @@
  */
 #include "gcja5.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cstring>
 
 namespace esphome {
@@ -13,10 +14,8 @@ namespace gcja5 {
 
 static const char *const TAG = "gcja5";
 
-void GCJA5Component::setup() { ESP_LOGCONFIG(TAG, "Setting up gcja5..."); }
-
 void GCJA5Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
     // last transmission too long ago. Reset RX index.
     this->rx_message_.clear();
@@ -77,16 +76,6 @@ bool GCJA5Component::calculate_checksum_() {
   return (crc == this->rx_message_[30]);
 }
 
-uint32_t GCJA5Component::get_32_bit_uint_(uint8_t start_index) {
-  return (((uint32_t) this->rx_message_[start_index + 3]) << 24) |
-         (((uint32_t) this->rx_message_[start_index + 2]) << 16) |
-         (((uint32_t) this->rx_message_[start_index + 1]) << 8) | ((uint32_t) this->rx_message_[start_index]);
-}
-
-uint16_t GCJA5Component::get_16_bit_uint_(uint8_t start_index) {
-  return (((uint32_t) this->rx_message_[start_index + 1]) << 8) | ((uint32_t) this->rx_message_[start_index]);
-}
-
 void GCJA5Component::parse_data_() {
   ESP_LOGVV(TAG, "GCJA5 Data: ");
   for (uint8_t i = 0; i < 32; i++) {
@@ -97,8 +86,9 @@ void GCJA5Component::parse_data_() {
   if (this->rx_message_[0] != 0x02 || this->rx_message_[31] != 0x03 || !this->calculate_checksum_()) {
     ESP_LOGVV(TAG, "Discarding bad packet - failed checks.");
     return;
-  } else
+  } else {
     ESP_LOGVV(TAG, "Good packet found.");
+  }
 
   this->have_good_data_ = true;
   uint8_t status = this->rx_message_[29];

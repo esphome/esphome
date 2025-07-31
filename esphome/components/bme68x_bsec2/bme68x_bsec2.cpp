@@ -1,4 +1,5 @@
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -20,8 +21,6 @@ static const char *const TAG = "bme68x_bsec2.sensor";
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 void BME68xBSEC2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BME68X via BSEC2...");
-
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
@@ -57,13 +56,13 @@ void BME68xBSEC2Component::setup() {
 }
 
 void BME68xBSEC2Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "BME68X via BSEC2:");
-
-  ESP_LOGCONFIG(TAG, "  BSEC2 version: %d.%d.%d.%d", this->version_.major, this->version_.minor,
-                this->version_.major_bugfix, this->version_.minor_bugfix);
-
-  ESP_LOGCONFIG(TAG, "  BSEC2 configuration blob:");
-  ESP_LOGCONFIG(TAG, "    Configured: %s", YESNO(this->bsec2_blob_configured_));
+  ESP_LOGCONFIG(TAG,
+                "BME68X via BSEC2:\n"
+                "  BSEC2 version: %d.%d.%d.%d\n"
+                "  BSEC2 configuration blob:\n"
+                "    Configured: %s",
+                this->version_.major, this->version_.minor, this->version_.major_bugfix, this->version_.minor_bugfix,
+                YESNO(this->bsec2_blob_configured_));
   if (this->bsec2_configuration_ != nullptr && this->bsec2_configuration_length_) {
     ESP_LOGCONFIG(TAG, "    Size: %" PRIu32, this->bsec2_configuration_length_);
   }
@@ -76,11 +75,14 @@ void BME68xBSEC2Component::dump_config() {
   if (this->algorithm_output_ != ALGORITHM_OUTPUT_IAQ) {
     ESP_LOGCONFIG(TAG, "  Algorithm output: %s", BME68X_BSEC2_ALGORITHM_OUTPUT_LOG(this->algorithm_output_));
   }
-  ESP_LOGCONFIG(TAG, "  Operating age: %s", BME68X_BSEC2_OPERATING_AGE_LOG(this->operating_age_));
-  ESP_LOGCONFIG(TAG, "  Sample rate: %s", BME68X_BSEC2_SAMPLE_RATE_LOG(this->sample_rate_));
-  ESP_LOGCONFIG(TAG, "  Voltage: %s", BME68X_BSEC2_VOLTAGE_LOG(this->voltage_));
-  ESP_LOGCONFIG(TAG, "  State save interval: %ims", this->state_save_interval_ms_);
-  ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f", this->temperature_offset_);
+  ESP_LOGCONFIG(TAG,
+                "  Operating age: %s\n"
+                "  Sample rate: %s\n"
+                "  Voltage: %s\n"
+                "  State save interval: %ims\n"
+                "  Temperature offset: %.2f",
+                BME68X_BSEC2_OPERATING_AGE_LOG(this->operating_age_), BME68X_BSEC2_SAMPLE_RATE_LOG(this->sample_rate_),
+                BME68X_BSEC2_VOLTAGE_LOG(this->voltage_), this->state_save_interval_ms_, this->temperature_offset_);
 
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

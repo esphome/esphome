@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_CURRENT,
@@ -13,13 +13,14 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CUBIC_METER,
+    UNIT_KILOVOLT_AMPS_REACTIVE,
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
     UNIT_KILOWATT,
     UNIT_KILOWATT_HOURS,
-    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-    UNIT_KILOVOLT_AMPS_REACTIVE,
     UNIT_VOLT,
 )
-from . import Dsmr, CONF_DSMR_ID
+
+from . import CONF_DSMR_ID, Dsmr
 
 AUTO_LOAD = ["dsmr"]
 

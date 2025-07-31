@@ -1,0 +1,55 @@
+esphome:
+  name: host-batch-delay-test
+host:
+api:
+  batch_delay: 0ms
+logger:
+
+# Add multiple sensors to test batching
+sensor:
+  - platform: template
+    name: "Test Sensor 1"
+    id: test_sensor1
+    lambda: |-
+      return 1.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 2"
+    id: test_sensor2
+    lambda: |-
+      return 2.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 3"
+    id: test_sensor3
+    lambda: |-
+      return 3.0;
+    update_interval: 0.1s
+
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor 1"
+    id: test_binary_sensor1
+    lambda: |-
+      return millis() % 1000 < 500;
+  - platform: template
+    name: "Test Binary Sensor 2"
+    id: test_binary_sensor2
+    lambda: |-
+      return millis() % 2000 < 1000;
+
+switch:
+  - platform: template
+    name: "Test Switch 1"
+    id: test_switch1
+    turn_on_action:
+      - logger.log: "Switch 1 turned on"
+    turn_off_action:
+      - logger.log: "Switch 1 turned off"
+  - platform: template
+    name: "Test Switch 2"
+    id: test_switch2
+    turn_on_action:
+      - logger.log: "Switch 2 turned on"
+    turn_off_action:
+      - logger.log: "Switch 2 turned off"

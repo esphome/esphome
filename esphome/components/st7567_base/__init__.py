@@ -1,14 +1,14 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_RESET_PIN,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
+    CONF_RESET_PIN,
     CONF_TRANSFORM,
-    CONF_INVERT_COLORS,
 )
 
 CODEOWNERS = ["@latonita"]

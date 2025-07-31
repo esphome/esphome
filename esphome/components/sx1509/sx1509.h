@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/key_provider/key_provider.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "sx1509_gpio_pin.h"
@@ -27,7 +28,9 @@ class SX1509Processor {
   virtual void process(uint16_t data){};
 };
 
-class SX1509Component : public Component, public i2c::I2CDevice {
+class SX1509KeyTrigger : public Trigger<uint8_t> {};
+
+class SX1509Component : public Component, public i2c::I2CDevice, public key_provider::KeyProvider {
  public:
   SX1509Component() = default;
 
@@ -47,12 +50,14 @@ class SX1509Component : public Component, public i2c::I2CDevice {
     this->cols_ = cols;
     this->has_keypad_ = true;
   };
+  void set_keys(std::string keys) { this->keys_ = std::move(keys); };
   void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; };
   void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; };
   void set_debounce_time(uint8_t debounce_time = 1) { this->debounce_time_ = debounce_time; };
   void register_keypad_binary_sensor(SX1509Processor *binary_sensor) {
     this->keypad_binary_sensors_.push_back(binary_sensor);
   }
+  void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
   void setup_led_driver(uint8_t pin);
 
  protected:
@@ -65,10 +70,13 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
+  std::string keys_;
   uint16_t sleep_time_ = 128;
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;
+  uint8_t last_key_ = 0;
   std::vector<SX1509Processor *> keypad_binary_sensors_;
+  std::vector<SX1509KeyTrigger *> key_triggers_;
 
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms

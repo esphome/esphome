@@ -1,12 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_OCCUPANCY,
-    CONF_HAS_TARGET,
-)
-from . import CONF_MR24HPC1_ID, MR24HPC1Component
+from esphome.const import CONF_HAS_TARGET, DEVICE_CLASS_OCCUPANCY
 
+from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),

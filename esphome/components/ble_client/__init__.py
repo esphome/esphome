@@ -1,7 +1,8 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import esp32_ble_client, esp32_ble_tracker
+from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
+from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
@@ -67,7 +68,7 @@ CONF_AUTO_CONNECT = "auto_connect"
 
 MULTI_CONF = True
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BLEClient),
@@ -114,7 +115,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
+    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA),
+    esp32_ble_tracker.consume_connection_slots(1, "ble_client"),
 )
 
 CONF_BLE_CLIENT_ID = "ble_client_id"
@@ -286,6 +288,9 @@ async def remove_bond_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
+    # Register the loggers this component needs
+    esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_client(var, config)

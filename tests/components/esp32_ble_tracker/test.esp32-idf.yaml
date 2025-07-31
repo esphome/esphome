@@ -1,1 +1,5 @@
 <<: !include common.yaml
+
+esp32_ble_tracker:
+  software_coexistence: true
+  max_connections: 9

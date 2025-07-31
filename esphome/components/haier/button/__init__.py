@@ -1,11 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import button
-from ..climate import (
-    CONF_HAIER_ID,
-    HonClimate,
-    haier_ns,
-)
+import esphome.config_validation as cv
+
+from ..climate import CONF_HAIER_ID, HonClimate, haier_ns
 
 CODEOWNERS = ["@paveldn"]
 SelfCleaningButton = haier_ns.class_("SelfCleaningButton", button.Button)

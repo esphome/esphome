@@ -169,7 +169,7 @@ class ESP8266Preferences : public ESPPreferences {
 
   void setup() {
     s_flash_storage = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT
-    ESP_LOGVV(TAG, "Loading preferences from flash...");
+    ESP_LOGVV(TAG, "Loading preferences from flash");
 
     {
       InterruptLock lock;
@@ -235,7 +235,7 @@ class ESP8266Preferences : public ESPPreferences {
     if (s_prevent_write)
       return false;
 
-    ESP_LOGD(TAG, "Saving preferences to flash...");
+    ESP_LOGD(TAG, "Saving");
     SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
     {
       InterruptLock lock;
@@ -245,11 +245,11 @@ class ESP8266Preferences : public ESPPreferences {
       }
     }
     if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Erasing failed");
       return false;
     }
     if (write_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Write ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Writing failed");
       return false;
     }
 
@@ -258,14 +258,14 @@ class ESP8266Preferences : public ESPPreferences {
   }
 
   bool reset() override {
-    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    ESP_LOGD(TAG, "Erasing storage");
     SpiFlashOpResult erase_res;
     {
       InterruptLock lock;
       erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
     }
     if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Erasing failed");
       return false;
     }
 

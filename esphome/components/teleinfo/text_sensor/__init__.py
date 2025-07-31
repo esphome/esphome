@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 from esphome.const import CONF_ID
 
-from .. import CONF_TAG_NAME, TELEINFO_LISTENER_SCHEMA, teleinfo_ns, CONF_TELEINFO_ID
+from .. import CONF_TAG_NAME, CONF_TELEINFO_ID, TELEINFO_LISTENER_SCHEMA, teleinfo_ns
 
 TeleInfoTextSensor = teleinfo_ns.class_(
     "TeleInfoTextSensor", text_sensor.TextSensor, cg.Component

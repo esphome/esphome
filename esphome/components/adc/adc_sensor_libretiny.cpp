@@ -9,7 +9,6 @@ namespace adc {
 static const char *const TAG = "adc.libretiny";
 
 void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
 #ifndef USE_ADC_SENSOR_VCC
   this->pin_->setup();
 #endif  // !USE_ADC_SENSOR_VCC
@@ -22,24 +21,31 @@ void ADCSensor::dump_config() {
 #else   // USE_ADC_SENSOR_VCC
   LOG_PIN("  Pin: ", this->pin_);
 #endif  // USE_ADC_SENSOR_VCC
-  ESP_LOGCONFIG(TAG, "  Samples: %i", this->sample_count_);
+  ESP_LOGCONFIG(TAG,
+                "  Samples: %i\n"
+                "  Sampling mode: %s",
+                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
   LOG_UPDATE_INTERVAL(this);
 }
 
 float ADCSensor::sample() {
   uint32_t raw = 0;
+  auto aggr = Aggregator(this->sampling_mode_);
+
   if (this->output_raw_) {
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
-      raw += analogRead(this->pin_->get_pin());  // NOLINT
+      raw = analogRead(this->pin_->get_pin());  // NOLINT
+      aggr.add_sample(raw);
     }
-    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
-    return raw;
+    return aggr.aggregate();
   }
+
   for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
-    raw += analogReadVoltage(this->pin_->get_pin());  // NOLINT
+    raw = analogReadVoltage(this->pin_->get_pin());  // NOLINT
+    aggr.add_sample(raw);
   }
-  raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
-  return raw / 1000.0f;
+
+  return aggr.aggregate() / 1000.0f;
 }
 
 }  // namespace adc

@@ -1,0 +1,21 @@
+esp_ldo:
+  - id: ldo_id
+    channel: 3
+    voltage: 2.5V
+
+display:
+  - platform: mipi_dsi
+    model: JC1060P470
+    enable_pin: GPIO22
+
+#light:
+  #- platform: mipi_dsi
+    #id: backlight_id
+
+psram:
+
+i2c:
+  sda: GPIO7
+  scl: GPIO8
+  scan: true
+  frequency: 400kHz

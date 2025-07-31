@@ -1,9 +1,7 @@
 uart:
   - id: uart_bl0906
-    tx_pin:
-      number: ${tx_pin}
-    rx_pin:
-      number: ${rx_pin}
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
     baud_rate: 19200
 
 sensor:

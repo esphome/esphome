@@ -29,7 +29,6 @@ class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESP
     return true;
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 };
 
 }  // namespace ble_scanner

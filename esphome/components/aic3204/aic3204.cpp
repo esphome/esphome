@@ -17,8 +17,6 @@ static const char *const TAG = "aic3204";
   }
 
 void AIC3204::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AIC3204...");
-
   // Set register page to 0
   ERROR_CHECK(this->write_byte(AIC3204_PAGE_CTRL, 0x00), "Set page 0 failed");
   // Initiate SW reset (PLL is powered off as part of reset)
@@ -113,7 +111,7 @@ void AIC3204::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AIC3204 failed");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

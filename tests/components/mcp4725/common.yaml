@@ -1,0 +1,8 @@
+i2c:
+  - id: i2c_mcp4725
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+output:
+  - platform: mcp4725
+    id: mcp4725_dac_output

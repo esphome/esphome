@@ -1,16 +1,5 @@
-i2c:
-  - id: i2c_hm3301
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: hm3301
-    pm_1_0:
-      name: PM1.0
-    pm_2_5:
-      name: PM2.5
-    pm_10_0:
-      name: PM10.0
-    aqi:
-      name: AQI
-      calculation_type: CAQI
+<<: !include common.yaml

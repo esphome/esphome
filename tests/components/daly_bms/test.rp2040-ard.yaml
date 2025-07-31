@@ -1,55 +1,5 @@
-uart:
-  - id: uart_daly_bms
-    tx_pin:
-      number: 4
-    rx_pin:
-      number: 5
-    baud_rate: 4800
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-daly_bms:
-  update_interval: 20s
-
-binary_sensor:
-  - platform: daly_bms
-    charging_mos_enabled:
-      name: Charging MOS
-    discharging_mos_enabled:
-      name: Discharging MOS
-
-sensor:
-  - platform: daly_bms
-    voltage:
-      name: Battery Voltage
-    current:
-      name: Battery Current
-    battery_level:
-      name: Battery Level
-    max_cell_voltage:
-      name: Max Cell Voltage
-    max_cell_voltage_number:
-      name: Max Cell Voltage Number
-    min_cell_voltage:
-      name: Min Cell Voltage
-    min_cell_voltage_number:
-      name: Min Cell Voltage Number
-    max_temperature:
-      name: Max Temperature
-    max_temperature_probe_number:
-      name: Max Temperature Probe Number
-    min_temperature:
-      name: Min Temperature
-    min_temperature_probe_number:
-      name: Min Temperature Probe Number
-    remaining_capacity:
-      name: Remaining Capacity
-    cells_number:
-      name: Cells Number
-    temperature_1:
-      name: Temperature 1
-    temperature_2:
-      name: Temperature 2
-
-text_sensor:
-  - platform: daly_bms
-    status:
-      name: BMS Status
+<<: !include common.yaml

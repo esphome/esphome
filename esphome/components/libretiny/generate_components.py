@@ -94,6 +94,7 @@ PIN_SCHEMA_EXTRA = f"libretiny.BASE_PIN_SCHEMA.extend({VAR_PIN_SCHEMA})"
 COMPONENT_MAP = {
     "rtl87xx": "realtek-amb",
     "bk72xx": "beken-72xx",
+    "ln882x": "lightning-ln882x",
 }
 
 

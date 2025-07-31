@@ -1,7 +1,5 @@
-output:
-  - platform: ac_dimmer
-    id: ac_dimmer_1
-    gate_pin:
-      number: 12
-    zero_cross_pin:
-      number: 13
+substitutions:
+  gate_pin: GPIO18
+  zero_cross_pin: GPIO19
+
+<<: !include common.yaml

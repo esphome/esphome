@@ -1,18 +1,5 @@
-wifi:
-  ssid: MySSID
-  password: password1
+substitutions:
+  light_platform: esp32_rmt_led_strip
+  pin: GPIO2
 
-e131:
-
-light:
-  - platform: esp32_rmt_led_strip
-    id: led_matrix_32x8
-    default_transition_length: 500ms
-    chipset: ws2812
-    rgb_order: GRB
-    num_leds: 256
-    pin: 2
-    rmt_channel: 0
-    effects:
-      - e131:
-          universe: 1
+<<: !include common-ard.yaml

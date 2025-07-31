@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #include "valve.h"
 
 namespace esphome {
@@ -61,24 +61,6 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     if (this->position_.has_value())
       call.set_position(this->position_.value(x...));
     call.perform();
-  }
-
- protected:
-  Valve *valve_;
-};
-
-template<typename... Ts> class ValvePublishAction : public Action<Ts...> {
- public:
-  ValvePublishAction(Valve *valve) : valve_(valve) {}
-  TEMPLATABLE_VALUE(float, position)
-  TEMPLATABLE_VALUE(ValveOperation, current_operation)
-
-  void play(Ts... x) override {
-    if (this->position_.has_value())
-      this->valve_->position = this->position_.value(x...);
-    if (this->current_operation_.has_value())
-      this->valve_->current_operation = this->current_operation_.value(x...);
-    this->valve_->publish_state();
   }
 
  protected:

@@ -1,11 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
-from esphome.const import CONF_INTERRUPT_PIN, CONF_ID, CONF_RESET_PIN
-from .. import cst226_ns
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
 
+from .. import cst226_ns
 
 CST226Touchscreen = cst226_ns.class_(
     "CST226Touchscreen",

@@ -1,8 +1,5 @@
-i2c:
-  - id: i2c_i2c
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-i2c_device:
-  id: i2cdev
-  address: 0x2C
+<<: !include common.yaml

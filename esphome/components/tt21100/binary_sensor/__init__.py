@@ -1,10 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_INDEX
 
 from .. import tt21100_ns
-from ..touchscreen import TT21100Touchscreen, TT21100ButtonListener
+from ..touchscreen import TT21100ButtonListener, TT21100Touchscreen
 
 CONF_TT21100_ID = "tt21100_id"
 

@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
-from esphome.core import CORE
+from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
                     esp32_arduino=cv.Version(0, 0, 0),
                     esp8266_arduino=cv.Version(0, 0, 0),
                     rp2040_arduino=cv.Version(0, 0, 0),
-                    bk72xx_libretiny=cv.Version(1, 7, 0),
+                    bk72xx_arduino=cv.Version(1, 7, 0),
                 ),
                 cv.boolean_false,
             ),
@@ -36,8 +36,11 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+@coroutine_with_priority(201.0)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
+    if CORE.using_arduino and CORE.is_esp32:
+        cg.add_library("Networking", None)
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:

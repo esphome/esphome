@@ -10,7 +10,7 @@ static const char *const TAG = "factory_reset.button";
 
 void FactoryResetButton::dump_config() { LOG_BUTTON("", "Factory Reset Button", this); }
 void FactoryResetButton::press_action() {
-  ESP_LOGI(TAG, "Resetting to factory defaults...");
+  ESP_LOGI(TAG, "Resetting");
   // Let MQTT settle a bit
   delay(100);  // NOLINT
   global_preferences->reset();

@@ -1,27 +1,12 @@
-spi:
-  - id: spi_sn74hc595
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+  miso_pin: GPIO18
+  clock_pin: GPIO15
+  data_pin: GPIO14
+  latch_pin1: GPIO21
+  oe_pin1: GPIO22
+  latch_pin2: GPIO23
+  oe_pin2: GPIO25
 
-sn74hc595:
-  - id: sn74hc595_hub
-    clock_pin: 12
-    data_pin: 13
-    latch_pin: 14
-    oe_pin: 18
-    sr_count: 2
-  - id: sn74hc595_hub_2
-    latch_pin: 21
-    oe_pin: 22
-    spi_id: spi_sn74hc595
-    type: spi
-    sr_count: 2
-
-switch:
-  - platform: gpio
-    name: SN74HC595 Pin 0
-    pin:
-      sn74hc595: sn74hc595_hub_2
-      number: 0
-      inverted: false
+<<: !include common.yaml

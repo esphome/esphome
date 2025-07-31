@@ -4,9 +4,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
-#include <sstream>
-#include <iostream>  // std::cout, std::fixed
-#include <iomanip>
 namespace esphome {
 namespace graph {
 
@@ -135,6 +132,10 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
     yrange = ymax - ymin;
   }
 
+  // Store graph limts
+  this->graph_limit_max_ = ymax;
+  this->graph_limit_min_ = ymin;
+
   /// Draw grid
   if (!std::isnan(this->gridspacing_y_)) {
     for (int y = yn; y <= ym; y++) {
@@ -231,9 +232,8 @@ void GraphLegend::init(Graph *g) {
     ESP_LOGI(TAGL, "  %s %d %d", txtstr.c_str(), fw, fh);
 
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
-      std::stringstream ss;
-      ss << std::fixed << std::setprecision(trace->sensor_->get_accuracy_decimals()) << trace->sensor_->get_state();
-      std::string valstr = ss.str();
+      std::string valstr =
+          value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (this->units_) {
         valstr += trace->sensor_->get_unit_of_measurement();
       }
@@ -368,9 +368,8 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
     if (legend_->values_ != VALUE_POSITION_TYPE_NONE) {
       int xv = x + legend_->xv_;
       int yv = y + legend_->yv_;
-      std::stringstream ss;
-      ss << std::fixed << std::setprecision(trace->sensor_->get_accuracy_decimals()) << trace->sensor_->get_state();
-      std::string valstr = ss.str();
+      std::string valstr =
+          value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (legend_->units_) {
         valstr += trace->sensor_->get_unit_of_measurement();
       }

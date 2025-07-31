@@ -24,6 +24,7 @@ class IDFOTABackend : public OTABackend {
   const esp_partition_t *partition_;
   md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
+  bool md5_set_{false};
 };
 
 }  // namespace ota

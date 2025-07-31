@@ -1,45 +1,46 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
+    CONF_BATTERY_LEVEL,
+    CONF_BUTTON,
+    CONF_CARRIER_FREQUENCY,
+    CONF_CHANNEL,
+    CONF_CHECK,
+    CONF_CODE,
+    CONF_COMMAND,
     CONF_COMMAND_REPEATS,
     CONF_DATA,
-    CONF_TRIGGER_ID,
-    CONF_NBITS,
-    CONF_ADDRESS,
-    CONF_COMMAND,
-    CONF_CODE,
-    CONF_PULSE_LENGTH,
-    CONF_SYNC,
-    CONF_ZERO,
-    CONF_ONE,
-    CONF_INVERTED,
-    CONF_PROTOCOL,
-    CONF_GROUP,
+    CONF_DELTA,
     CONF_DEVICE,
-    CONF_SECOND,
-    CONF_STATE,
-    CONF_CHANNEL,
     CONF_FAMILY,
-    CONF_REPEAT,
-    CONF_WAIT_TIME,
-    CONF_TIMES,
-    CONF_TYPE_ID,
-    CONF_CARRIER_FREQUENCY,
+    CONF_FORCE_UPDATE,
+    CONF_GROUP,
+    CONF_HUMIDITY,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_LEVEL,
+    CONF_MAGNITUDE,
+    CONF_NBITS,
+    CONF_ONE,
+    CONF_PROTOCOL,
+    CONF_PULSE_LENGTH,
     CONF_RC_CODE_1,
     CONF_RC_CODE_2,
-    CONF_MAGNITUDE,
-    CONF_WAND_ID,
-    CONF_LEVEL,
-    CONF_DELTA,
-    CONF_ID,
-    CONF_BUTTON,
-    CONF_CHECK,
+    CONF_REPEAT,
+    CONF_SECOND,
+    CONF_SOURCE,
+    CONF_STATE,
+    CONF_SYNC,
     CONF_TEMPERATURE,
-    CONF_HUMIDITY,
-    CONF_BATTERY_LEVEL,
-    CONF_FORCE_UPDATE,
+    CONF_TIMES,
+    CONF_TRIGGER_ID,
+    CONF_TYPE_ID,
+    CONF_WAIT_TIME,
+    CONF_WAND_ID,
+    CONF_ZERO,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -60,7 +61,7 @@ RemoteReceiverBinarySensorBase = ns.class_(
 RemoteReceiverTrigger = ns.class_(
     "RemoteReceiverTrigger", automation.Trigger, RemoteReceiverListener
 )
-RemoteTransmitterDumper = ns.class_("RemoteTransmitterDumper")
+RemoteReceiverDumperBase = ns.class_("RemoteReceiverDumperBase")
 RemoteTransmittable = ns.class_("RemoteTransmittable")
 RemoteTransmitterActionBase = ns.class_(
     "RemoteTransmitterActionBase", RemoteTransmittable, automation.Action
@@ -129,8 +130,10 @@ def register_trigger(name, type, data_type):
     return decorator
 
 
-def register_dumper(name, type):
-    registerer = DUMPER_REGISTRY.register(name, type, {})
+def register_dumper(name, type, schema=None):
+    if schema is None:
+        schema = {}
+    registerer = DUMPER_REGISTRY.register(name, type, schema)
 
     def decorator(func):
         async def new_func(config, dumper_id):
@@ -192,7 +195,7 @@ def declare_protocol(name):
     binary_sensor_ = ns.class_(f"{name}BinarySensor", RemoteReceiverBinarySensorBase)
     trigger = ns.class_(f"{name}Trigger", RemoteReceiverTrigger)
     action = ns.class_(f"{name}Action", RemoteTransmitterActionBase)
-    dumper = ns.class_(f"{name}Dumper", RemoteTransmitterDumper)
+    dumper = ns.class_(f"{name}Dumper", RemoteReceiverDumperBase)
     return data, binary_sensor_, trigger, action, dumper
 
 
@@ -267,6 +270,53 @@ async def build_dumpers(config):
         dumper = await cg.build_registry_entry(DUMPER_REGISTRY, conf)
         dumpers.append(dumper)
     return dumpers
+
+
+# Beo4
+Beo4Data, Beo4BinarySensor, Beo4Trigger, Beo4Action, Beo4Dumper = declare_protocol(
+    "Beo4"
+)
+BEO4_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE): cv.hex_uint8_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+        cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.uint8_t,
+    }
+)
+
+
+@register_binary_sensor("beo4", Beo4BinarySensor, BEO4_SCHEMA)
+def beo4_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                Beo4Data,
+                ("source", config[CONF_SOURCE]),
+                ("command", config[CONF_COMMAND]),
+                ("repeats", config[CONF_COMMAND_REPEATS]),
+            )
+        )
+    )
+
+
+@register_trigger("beo4", Beo4Trigger, Beo4Data)
+def beo4_trigger(var, config):
+    pass
+
+
+@register_dumper("beo4", Beo4Dumper)
+def beo4_dumper(var, config):
+    pass
+
+
+@register_action("beo4", Beo4Action, BEO4_SCHEMA)
+async def beo4_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_SOURCE], args, cg.uint8)
+    cg.add(var.set_source(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
+    cg.add(var.set_repeats(template_))
 
 
 # ByronSX
@@ -885,6 +935,49 @@ async def pronto_action(var, config, args):
     cg.add(var.set_data(template_))
 
 
+# Gobox
+(
+    GoboxData,
+    GoboxBinarySensor,
+    GoboxTrigger,
+    GoboxAction,
+    GoboxDumper,
+) = declare_protocol("Gobox")
+GOBOX_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.int_,
+    }
+)
+
+
+@register_binary_sensor("gobox", GoboxBinarySensor, GOBOX_SCHEMA)
+def gobox_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                GoboxData,
+                ("code", config[CONF_CODE]),
+            )
+        )
+    )
+
+
+@register_trigger("gobox", GoboxTrigger, GoboxData)
+def gobox_trigger(var, config):
+    pass
+
+
+@register_dumper("gobox", GoboxDumper)
+def gobox_dumper(var, config):
+    pass
+
+
+@register_action("gobox", GoboxAction, GOBOX_SCHEMA)
+async def gobox_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.int_)
+    cg.add(var.set_code(template_))
+
+
 # Roomba
 (
     RoombaData,
@@ -973,12 +1066,11 @@ def validate_raw_alternating(value):
     last_negative = None
     for i, val in enumerate(value):
         this_negative = val < 0
-        if i != 0:
-            if this_negative == last_negative:
-                raise cv.Invalid(
-                    f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
-                    [i],
-                )
+        if i != 0 and this_negative == last_negative:
+            raise cv.Invalid(
+                f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
+                [i],
+            )
         last_negative = this_negative
     return value
 
@@ -1318,7 +1410,7 @@ rc_switch_protocols = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
-RCSwitchDumper = ns.class_("RCSwitchDumper", RemoteTransmitterDumper)
+RCSwitchDumper = ns.class_("RCSwitchDumper", RemoteReceiverDumperBase)
 RCSwitchRawAction = ns.class_("RCSwitchRawAction", RemoteTransmitterActionBase)
 RCSwitchTypeAAction = ns.class_("RCSwitchTypeAAction", RemoteTransmitterActionBase)
 RCSwitchTypeBAction = ns.class_("RCSwitchTypeBAction", RemoteTransmitterActionBase)
@@ -1704,6 +1796,70 @@ def nexa_action(var, config, args):
     cg.add(var.set_level((yield cg.templatable(config[CONF_LEVEL], args, cg.uint8))))
 
 
+# Nexus
+(
+    NexusData,
+    NexusBinarySensor,
+    NexusTrigger,
+    NexusAction,
+    NexusDumper,
+) = declare_protocol("Nexus")
+
+NEXUS_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CHANNEL): cv.All(cv.uint8_t, cv.Range(min=1, max=4)),
+        cv.Required(CONF_ADDRESS): cv.All(cv.uint8_t, cv.Range(min=0, max=255)),
+        cv.Optional(CONF_TEMPERATURE, default="25.5"): cv.All(
+            cv.float_, cv.Range(min=-204.8, max=204.7)
+        ),
+        cv.Optional(CONF_HUMIDITY, default="42"): cv.All(
+            cv.uint8_t, cv.Range(min=0, max=255)
+        ),
+        cv.Optional(CONF_BATTERY_LEVEL, default="true"): cv.boolean,
+        cv.Optional(CONF_FORCE_UPDATE, default="false"): cv.boolean,
+    }
+)
+
+
+@register_binary_sensor("nexus", NexusBinarySensor, NEXUS_SCHEMA)
+def nexus_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                NexusData,
+                ("channel", config[CONF_CHANNEL]),
+                ("address", config[CONF_ADDRESS]),
+            )
+        )
+    )
+
+
+@register_trigger("nexus", NexusTrigger, NexusData)
+def nexus_trigger(var, config):
+    pass
+
+
+@register_dumper("nexus", NexusDumper)
+def nexus_dumper(var, config):
+    pass
+
+
+@register_action("nexus", NexusAction, NEXUS_SCHEMA)
+async def nexus_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+    cg.add(var.set_channel(template_))
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
+    cg.add(var.set_temperature(template_))
+    template_ = await cg.templatable(config[CONF_HUMIDITY], args, cg.uint8)
+    cg.add(var.set_humidity(template_))
+    template_ = await cg.templatable(config[CONF_BATTERY_LEVEL], args, cg.bool_)
+    cg.add(var.set_battery_level(template_))
+    template_ = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
+    cg.add(var.set_force_update(template_))
+
+
 # Midea
 MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
     "Midea"
@@ -1969,65 +2125,53 @@ async def mirage_action(var, config, args):
     cg.add(var.set_code(template_))
 
 
-# Nexus
+# Toto
 (
-    NexusData,
-    NexusBinarySensor,
-    NexusTrigger,
-    NexusAction,
-    NexusDumper,
-) = declare_protocol("Nexus")
+    TotoData,
+    TotoBinarySensor,
+    TotoTrigger,
+    TotoAction,
+    TotoDumper,
+) = declare_protocol("Toto")
 
-NEXUS_SCHEMA = cv.Schema(
+TOTO_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CHANNEL): cv.All(cv.uint8_t, cv.Range(min=1, max=4)),
-        cv.Required(CONF_ADDRESS): cv.All(cv.uint8_t, cv.Range(min=0, max=255)),
-        cv.Optional(CONF_TEMPERATURE, default="25.5"): cv.All(
-            cv.float_, cv.Range(min=-204.8, max=204.7)
-        ),
-        cv.Optional(CONF_HUMIDITY, default="42"): cv.All(
-            cv.uint8_t, cv.Range(min=0, max=255)
-        ),
-        cv.Optional(CONF_BATTERY_LEVEL, default="true"): cv.boolean,
-        cv.Optional(CONF_FORCE_UPDATE, default="false"): cv.boolean,
+        cv.Optional(CONF_RC_CODE_1, default=0): cv.hex_int_range(0, 0xF),
+        cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_int_range(0, 0xF),
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
 
 
-@register_binary_sensor("nexus", NexusBinarySensor, NEXUS_SCHEMA)
-def nexus_binary_sensor(var, config):
+@register_binary_sensor("toto", TotoBinarySensor, TOTO_SCHEMA)
+def toto_binary_sensor(var, config):
     cg.add(
         var.set_data(
             cg.StructInitializer(
-                NexusData,
-                ("channel", config[CONF_CHANNEL]),
-                ("address", config[CONF_ADDRESS]),
+                TotoData,
+                ("rc_code_1", config[CONF_RC_CODE_1]),
+                ("rc_code_2", config[CONF_RC_CODE_2]),
+                ("command", config[CONF_COMMAND]),
             )
         )
     )
 
 
-@register_trigger("nexus", NexusTrigger, NexusData)
-def nexus_trigger(var, config):
+@register_trigger("toto", TotoTrigger, TotoData)
+def toto_trigger(var, config):
     pass
 
 
-@register_dumper("nexus", NexusDumper)
-def nexus_dumper(var, config):
+@register_dumper("toto", TotoDumper)
+def toto_dumper(var, config):
     pass
 
 
-@register_action("nexus", NexusAction, NEXUS_SCHEMA)
-async def nexus_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
-    cg.add(var.set_channel(template_))
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
-    cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
-    cg.add(var.set_temperature(template_))
-    template_ = await cg.templatable(config[CONF_HUMIDITY], args, cg.uint8)
-    cg.add(var.set_humidity(template_))
-    template_ = await cg.templatable(config[CONF_BATTERY_LEVEL], args, cg.bool_)
-    cg.add(var.set_battery_level(template_))
-    template_ = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
-    cg.add(var.set_force_update(template_))
+@register_action("toto", TotoAction, TOTO_SCHEMA)
+async def Toto_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_RC_CODE_1], args, cg.uint8)
+    cg.add(var.set_rc_code_1(template_))
+    template_ = await cg.templatable(config[CONF_RC_CODE_2], args, cg.uint8)
+    cg.add(var.set_rc_code_2(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))

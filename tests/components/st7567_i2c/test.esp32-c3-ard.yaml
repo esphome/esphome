@@ -1,23 +1,6 @@
-i2c:
-  - id: i2c_st7567_i2c
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
+  reset_pin: GPIO3
 
-display:
-  - platform: st7567_i2c
-    reset_pin: 3
-    address: 0x3C
-    id: display1
-    pages:
-      - id: page1
-        lambda: |-
-          it.rectangle(0, 0, it.get_width(), it.get_height());
-      - id: page2
-        lambda: |-
-          it.rectangle(0, 0, 10, 10);
-    on_page_change:
-      from: page1
-      to: page2
-      then:
-        lambda: |-
-          ESP_LOGD("display", "1 -> 2");
+<<: !include common.yaml

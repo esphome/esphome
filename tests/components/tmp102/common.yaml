@@ -1,0 +1,8 @@
+i2c:
+  - id: i2c_tmp102
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: tmp102
+    name: TMP102 Temperature

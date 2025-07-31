@@ -1,14 +1,7 @@
-spi:
-  - id: spi_max31856
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
+  cs_pin: GPIO15
 
-sensor:
-  - platform: max31856
-    name: MAX31856 Temperature
-    cs_pin: 15
-    update_interval: 15s
-    mains_filter: 50Hz
-    thermocouple_type: N
-
+<<: !include common.yaml

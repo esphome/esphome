@@ -1,10 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 from esphome.const import (
+    DEVICE_CLASS_DISTANCE,
+    ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
-    ICON_ARROW_EXPAND_VERTICAL,
-    DEVICE_CLASS_DISTANCE,
 )
 
 CODEOWNERS = ["@MrSuicideParrot"]

@@ -1,15 +1,15 @@
 from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import nfc
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_IRQ_PIN,
     CONF_MESSAGE,
     CONF_ON_FINISHED_WRITE,
-    CONF_ON_TAG_REMOVED,
     CONF_ON_TAG,
+    CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
 )
 

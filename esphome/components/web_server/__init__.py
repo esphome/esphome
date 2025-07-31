@@ -28,10 +28,12 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -39,13 +41,14 @@ CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 
+
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
 sorting_groups = {}
 
 
-def default_url(config):
+def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_VERSION] == 1:
         if CONF_CSS_URL not in config:
@@ -65,19 +68,28 @@ def default_url(config):
     return config
 
 
-def validate_local(config):
+def validate_local(config: ConfigType) -> ConfigType:
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
     return config
 
 
-def validate_ota(config):
-    if CORE.using_esp_idf and config[CONF_OTA]:
-        raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
+def validate_ota(config: ConfigType) -> ConfigType:
+    # The OTA option only accepts False to explicitly disable OTA for web_server
+    # IMPORTANT: Setting ota: false ONLY affects the web_server component
+    # The captive_portal component will still be able to perform OTA updates
+    if CONF_OTA in config and config[CONF_OTA] is not False:
+        raise cv.Invalid(
+            f"The '{CONF_OTA}' option in 'web_server' only accepts 'false' to disable OTA. "
+            f"To enable OTA, please use the new OTA platform structure instead:\n\n"
+            f"ota:\n"
+            f"  - platform: web_server\n\n"
+            f"See https://esphome.io/components/ota for more information."
+        )
     return config
 
 
-def validate_sorting_groups(config):
+def validate_sorting_groups(config: ConfigType) -> ConfigType:
     if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
         raise cv.Invalid(
             f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
@@ -88,7 +100,7 @@ def validate_sorting_groups(config):
 def _validate_no_sorting_component(
     sorting_component: str,
     webserver_version: int,
-    config: dict,
+    config: ConfigType,
     path: list[str] | None = None,
 ) -> None:
     if path is None:
@@ -111,7 +123,7 @@ def _validate_no_sorting_component(
                     )
 
 
-def _final_validate_sorting(config):
+def _final_validate_sorting(config: ConfigType) -> ConfigType:
     if (webserver_version := config.get(CONF_VERSION)) != 3:
         _validate_no_sorting_component(
             CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
@@ -174,24 +186,25 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-            cv.SplitDefault(
-                CONF_OTA,
-                esp8266=True,
-                esp32_arduino=True,
-                esp32_idf=False,
-                bk72xx=True,
-                rtl87xx=True,
-            ): cv.boolean,
+            cv.Optional(CONF_OTA): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_LN882X,
+            PLATFORM_RTL87XX,
+        ]
+    ),
     default_url,
     validate_local,
-    validate_ota,
     validate_sorting_groups,
+    validate_ota,
 )
 
 
@@ -211,6 +224,7 @@ async def add_entity_config(entity, config):
     sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
     sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
 
+    cg.add_define("USE_WEBSERVER_SORTING")
     cg.add(
         web_server.add_entity_config(
             entity,
@@ -274,7 +288,12 @@ async def to_code(config):
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
-    cg.add(var.set_allow_ota(config[CONF_OTA]))
+    # OTA is now handled by the web_server OTA platform
+    # The CONF_OTA option is kept to allow explicitly disabling OTA for web_server
+    # IMPORTANT: This ONLY affects the web_server component, NOT captive_portal
+    # Captive portal will still be able to perform OTA updates even when this is set
+    if config.get(CONF_OTA) is False:
+        cg.add_define("USE_WEBSERVER_OTA_DISABLED")
     cg.add(var.set_expose_log(config[CONF_LOG]))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
@@ -296,4 +315,17 @@ async def to_code(config):
         cg.add_define("USE_WEBSERVER_LOCAL")
 
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
+        cg.add_define("USE_WEBSERVER_SORTING")
         add_sorting_groups(var, sorting_group_config)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Filter out web_server_v1.cpp when version is not 1."""
+    files_to_filter: list[str] = []
+
+    # web_server_v1.cpp is only needed when version is 1
+    config = CORE.config.get("web_server", {})
+    if config.get(CONF_VERSION, 2) != 1:
+        files_to_filter.append("web_server_v1.cpp")
+
+    return files_to_filter

@@ -6,6 +6,7 @@
 #include "esphome/components/text_sensor/filter.h"
 
 #include <vector>
+#include <memory>
 
 namespace esphome {
 namespace text_sensor {
@@ -19,9 +20,6 @@ namespace text_sensor {
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
-    if (!(obj)->unique_id().empty()) { \
-      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
-    } \
   }
 
 #define SUB_TEXT_SENSOR(name) \
@@ -33,6 +31,8 @@ namespace text_sensor {
 
 class TextSensor : public EntityBase, public EntityBase_DeviceClass {
  public:
+  TextSensor() = default;
+
   /// Getter-syntax for .state.
   std::string get_state() const;
   /// Getter-syntax for .raw_state
@@ -61,23 +61,15 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  /** Override this method to set the unique ID of this sensor.
-   *
-   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
-   */
-  virtual std::string unique_id();
-
-  bool has_state();
 
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
-  CallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
-  CallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
+  std::unique_ptr<CallbackManager<void(std::string)>>
+      raw_callback_;                             ///< Storage for raw state callbacks (lazy allocated).
+  CallbackManager<void(std::string)> callback_;  ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
-
-  bool has_state_{false};
 };
 
 }  // namespace text_sensor

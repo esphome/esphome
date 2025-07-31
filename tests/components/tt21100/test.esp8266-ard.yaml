@@ -1,25 +1,8 @@
-i2c:
-  - id: i2c_tt21100
-    scl: 5
-    sda: 4
+substitutions:
+  disp_reset_pin: GPIO12
+  scl_pin: GPIO13
+  sda_pin: GPIO14
+  interrupt_pin: GPIO15
+  reset_pin: GPIO16
 
-display:
-  - platform: ssd1306_i2c
-    id: ssd1306_display
-    model: SSD1306_128X64
-    reset_pin: 13
-    pages:
-      - id: page1
-        lambda: |-
-          it.rectangle(0, 0, it.get_width(), it.get_height());
-
-touchscreen:
-  - platform: tt21100
-    display: ssd1306_display
-    interrupt_pin: 14
-    reset_pin: 15
-
-binary_sensor:
-  - platform: tt21100
-    name: Home Button
-    index: 1
+<<: !include common.yaml

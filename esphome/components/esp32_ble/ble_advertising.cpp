@@ -6,9 +6,9 @@
 #include <cstring>
 #include "ble_uuid.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble.advertising";
 
@@ -143,7 +143,7 @@ void BLEAdvertising::loop() {
   if (this->raw_advertisements_callbacks_.empty()) {
     return;
   }
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_advertisement_time_ > this->advertising_cycle_time_) {
     this->stop();
     this->current_adv_index_ += 1;
@@ -159,7 +159,6 @@ void BLEAdvertising::register_raw_advertisement_callback(std::function<void(bool
   this->raw_advertisements_callbacks_.push_back(std::move(callback));
 }
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
 #endif

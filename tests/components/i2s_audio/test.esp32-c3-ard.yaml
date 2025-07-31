@@ -1,4 +1,6 @@
-i2s_audio:
-  i2s_bclk_pin: 7
-  i2s_lrclk_pin: 6
-  i2s_mclk_pin: 5
+substitutions:
+  i2s_bclk_pin: GPIO5
+  i2s_lrclk_pin: GPIO6
+  i2s_mclk_pin: GPIO7
+
+<<: !include common.yaml

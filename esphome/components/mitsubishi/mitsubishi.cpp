@@ -25,8 +25,8 @@ const uint8_t MITSUBISHI_FAN_AUTO = 0x00;
 
 const uint8_t MITSUBISHI_VERTICAL_VANE_SWING = 0x38;
 
-// const uint8_t MITSUBISHI_AUTO = 0X80;
-const uint8_t MITSUBISHI_OTHERWISE = 0X40;
+// const uint8_t MITSUBISHI_AUTO = 0x80;
+const uint8_t MITSUBISHI_OTHERWISE = 0x40;
 const uint8_t MITSUBISHI_POWERFUL = 0x08;
 
 // Optional presets used to enable some model features
@@ -42,13 +42,13 @@ const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
 const uint16_t MITSUBISHI_MIN_GAP = 17500;
 
 // Marker bytes
-const uint8_t MITSUBISHI_BYTE00 = 0X23;
-const uint8_t MITSUBISHI_BYTE01 = 0XCB;
-const uint8_t MITSUBISHI_BYTE02 = 0X26;
-const uint8_t MITSUBISHI_BYTE03 = 0X01;
-const uint8_t MITSUBISHI_BYTE04 = 0X00;
-const uint8_t MITSUBISHI_BYTE13 = 0X00;
-const uint8_t MITSUBISHI_BYTE16 = 0X00;
+const uint8_t MITSUBISHI_BYTE00 = 0x23;
+const uint8_t MITSUBISHI_BYTE01 = 0xCB;
+const uint8_t MITSUBISHI_BYTE02 = 0x26;
+const uint8_t MITSUBISHI_BYTE03 = 0x01;
+const uint8_t MITSUBISHI_BYTE04 = 0x00;
+const uint8_t MITSUBISHI_BYTE13 = 0x00;
+const uint8_t MITSUBISHI_BYTE16 = 0x00;
 
 climate::ClimateTraits MitsubishiClimate::traits() {
   auto traits = climate::ClimateTraits();

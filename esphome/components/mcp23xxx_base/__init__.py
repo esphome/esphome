@@ -1,13 +1,13 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
-    CONF_NUMBER,
-    CONF_MODE,
-    CONF_INVERTED,
     CONF_INTERRUPT,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
     CONF_OPEN_DRAIN_INTERRUPT,
     CONF_OUTPUT,
     CONF_PULLUP,
@@ -60,7 +60,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
     mode_validator=validate_mode,
-    invertable=True,
+    invertible=True,
 ).extend(
     {
         cv.Required(CONF_MCP23XXX): cv.use_id(MCP23XXXBase),

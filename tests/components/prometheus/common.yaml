@@ -2,10 +2,30 @@ esphome:
   name: livingroomdevice
   friendly_name: Living Room Device
   area: Living Room
+  on_boot:
+    then:
+      - if:
+          condition:
+            update.is_available:
+          then:
+            - logger.log: "Update available"
+      - update.perform:
+          force_update: true
 
 wifi:
   ssid: MySSID
   password: password1
+
+http_request:
+  verify_ssl: ${verify_ssl}
+
+ota:
+  - platform: http_request
+
+update:
+  - platform: http_request
+    name: Firmware Update
+    source: http://example.com/manifest.json
 
 sensor:
   - platform: template
@@ -77,6 +97,42 @@ lock:
         return LOCK_STATE_UNLOCKED;
       }
     optimistic: true
+
+select:
+  - platform: template
+    id: template_select1
+    name: "Template select"
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+number:
+  - platform: template
+    id: template_number1
+    name: "Template number"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
+valve:
+  - platform: template
+    name: "Template Valve"
+    lambda: |-
+      return VALVE_OPEN;
+    optimistic: true
+    has_position: true
+
+remote_transmitter:
+  pin: ${pin}
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: climate_ir_lg
+    name: LG Climate
 
 prometheus:
   include_internal: true

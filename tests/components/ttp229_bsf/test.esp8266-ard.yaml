@@ -1,8 +1,5 @@
-ttp229_bsf:
-  scl_pin: 5
-  sdo_pin: 4
+substitutions:
+  scl_pin: GPIO5
+  sdo_pin: GPIO4
 
-binary_sensor:
-  - platform: ttp229_bsf
-    name: TTP229 Channel 0
-    channel: 0
+<<: !include common.yaml
