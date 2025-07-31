@@ -13,10 +13,15 @@ namespace esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
-// Connection interval defaults matching ESP-IDF's BTM_BLE_CONN_INT_*_DEF
-static const uint16_t DEFAULT_MIN_CONN_INTERVAL = 0x0A;  // 10 * 1.25ms = 12.5ms
-static const uint16_t DEFAULT_MAX_CONN_INTERVAL = 0x0C;  // 12 * 1.25ms = 15ms
-static const uint16_t DEFAULT_CONN_TIMEOUT = 600;        // 600 * 10ms = 6s
+// Intermediate connection parameters for standard operation
+// ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
+// causing disconnections. These medium parameters balance responsiveness with bandwidth usage.
+static const uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x08;  // 8 * 1.25ms = 10ms
+static const uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x0A;  // 10 * 1.25ms = 12.5ms
+// The timeout value was increased from 6s to 8s to address stability issues observed
+// in certain BLE devices when operating through WiFi-based BLE proxies. The longer
+// timeout reduces the likelihood of disconnections during periods of high latency.
+static const uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
 
 // Fastest connection parameters for devices with short discovery timeouts
 static const uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
@@ -151,20 +156,32 @@ void BLEClientBase::connect() {
   } else {
     this->set_state(espbt::ClientState::CONNECTING);
 
-    // For connections without cache, set fast connection parameters after initiating connection
-    // This ensures service discovery completes within the 10-second timeout that
-    // some devices like HomeKit BLE sensors enforce
+    // Always set connection parameters to ensure stable operation
+    // Use FAST for V3_WITHOUT_CACHE (devices that need lowest latency)
+    // Use MEDIUM for all other connections (balanced performance)
+    uint16_t min_interval, max_interval, timeout;
+    const char *param_type;
+
     if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-      auto param_ret =
-          esp_ble_gap_set_prefer_conn_params(this->remote_bda_, FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL,
-                                             0,  // latency: 0
-                                             FAST_CONN_TIMEOUT);
-      if (param_ret != ESP_OK) {
-        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gap_set_prefer_conn_params failed: %d", this->connection_index_,
-                 this->address_str_.c_str(), param_ret);
-      } else {
-        ESP_LOGD(TAG, "[%d] [%s] Set fast conn params", this->connection_index_, this->address_str_.c_str());
-      }
+      min_interval = FAST_MIN_CONN_INTERVAL;
+      max_interval = FAST_MAX_CONN_INTERVAL;
+      timeout = FAST_CONN_TIMEOUT;
+      param_type = "fast";
+    } else {
+      min_interval = MEDIUM_MIN_CONN_INTERVAL;
+      max_interval = MEDIUM_MAX_CONN_INTERVAL;
+      timeout = MEDIUM_CONN_TIMEOUT;
+      param_type = "medium";
+    }
+
+    auto param_ret = esp_ble_gap_set_prefer_conn_params(this->remote_bda_, min_interval, max_interval,
+                                                        0,  // latency: 0
+                                                        timeout);
+    if (param_ret != ESP_OK) {
+      ESP_LOGW(TAG, "[%d] [%s] esp_ble_gap_set_prefer_conn_params failed: %d", this->connection_index_,
+               this->address_str_.c_str(), param_ret);
+    } else {
+      ESP_LOGD(TAG, "[%d] [%s] Set %s conn params", this->connection_index_, this->address_str_.c_str(), param_type);
     }
   }
 }
@@ -394,17 +411,17 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_.c_str());
 
-      // For non-cached connections, restore default connection parameters after service discovery
-      // Now that we've discovered all services, we can use more balanced parameters
-      // that save power and reduce interference
+      // For non-cached connections, restore to medium connection parameters after service discovery
+      // This balances performance with bandwidth usage after the critical discovery phase
       if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         esp_ble_conn_update_params_t conn_params = {{0}};
         memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
-        conn_params.min_int = DEFAULT_MIN_CONN_INTERVAL;
-        conn_params.max_int = DEFAULT_MAX_CONN_INTERVAL;
+        conn_params.min_int = MEDIUM_MIN_CONN_INTERVAL;
+        conn_params.max_int = MEDIUM_MAX_CONN_INTERVAL;
         conn_params.latency = 0;
-        conn_params.timeout = DEFAULT_CONN_TIMEOUT;
-        ESP_LOGD(TAG, "[%d] [%s] Restored default conn params", this->connection_index_, this->address_str_.c_str());
+        conn_params.timeout = MEDIUM_CONN_TIMEOUT;
+        ESP_LOGD(TAG, "[%d] [%s] Restored medium conn params after service discovery", this->connection_index_,
+                 this->address_str_.c_str());
         esp_ble_gap_update_conn_params(&conn_params);
       }
 
