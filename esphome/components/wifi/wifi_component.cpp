@@ -91,8 +91,11 @@ void WiFiComponent::start() {
     }
 
     if (this->fast_connect_) {
-      this->selected_ap_ = this->sta_[0];
-      this->load_fast_connect_settings_();
+      this->trying_loaded_ap_ = this->load_fast_connect_settings_();
+      if (!this->trying_loaded_ap_) {
+        this->ap_index_ = 0;
+        this->selected_ap_ = this->sta_[this->ap_index_];
+      }
       this->start_connecting(this->selected_ap_, false);
     } else {
       this->start_scanning();
@@ -121,6 +124,14 @@ void WiFiComponent::start() {
   this->wifi_apply_hostname_();
 }
 
+void WiFiComponent::restart_adapter() {
+  ESP_LOGW(TAG, "Restarting adapter");
+  this->wifi_mode_(false, {});
+  delay(100);  // NOLINT
+  this->num_retried_ = 0;
+  this->retry_hidden_ = false;
+}
+
 void WiFiComponent::loop() {
   this->wifi_loop_();
   const uint32_t now = App.get_loop_component_start_time();
@@ -140,7 +151,7 @@ void WiFiComponent::loop() {
         this->status_set_warning("waiting to reconnect");
         if (millis() - this->action_started_ > 5000) {
           if (this->fast_connect_ || this->retry_hidden_) {
-            this->start_connecting(this->sta_[0], false);
+            this->start_connecting(this->selected_ap_, false);
           } else {
             this->start_scanning();
           }
@@ -703,18 +714,30 @@ void WiFiComponent::retry_connect() {
   delay(10);
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
       (this->num_retried_ > 3 || this->error_from_callback_)) {
-    if (this->num_retried_ > 5) {
-      // If retry failed for more than 5 times, let's restart STA
-      ESP_LOGW(TAG, "Restarting adapter");
-      this->wifi_mode_(false, {});
-      delay(100);  // NOLINT
+    if (this->fast_connect_) {
+      if (this->trying_loaded_ap_) {
+        this->trying_loaded_ap_ = false;
+        this->ap_index_ = 0;  // Retry from the first configured AP
+      } else if (this->ap_index_ >= this->sta_.size() - 1) {
+        ESP_LOGW(TAG, "No more APs to try");
+        this->ap_index_ = 0;
+        this->restart_adapter();
+      } else {
+        // Try next AP
+        this->ap_index_++;
+      }
       this->num_retried_ = 0;
-      this->retry_hidden_ = false;
+      this->selected_ap_ = this->sta_[this->ap_index_];
     } else {
-      // Try hidden networks after 3 failed retries
-      ESP_LOGD(TAG, "Retrying with hidden networks");
-      this->retry_hidden_ = true;
-      this->num_retried_++;
+      if (this->num_retried_ > 5) {
+        // If retry failed for more than 5 times, let's restart STA
+        this->restart_adapter();
+      } else {
+        // Try hidden networks after 3 failed retries
+        ESP_LOGD(TAG, "Retrying with hidden networks");
+        this->retry_hidden_ = true;
+        this->num_retried_++;
+      }
     }
   } else {
     this->num_retried_++;
@@ -761,17 +784,22 @@ bool WiFiComponent::is_esp32_improv_active_() {
 #endif
 }
 
-void WiFiComponent::load_fast_connect_settings_() {
+bool WiFiComponent::load_fast_connect_settings_() {
   SavedWifiFastConnectSettings fast_connect_save{};
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
     bssid_t bssid{};
     std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
+    this->ap_index_ = fast_connect_save.ap_index;
+    this->selected_ap_ = this->sta_[this->ap_index_];
     this->selected_ap_.set_bssid(bssid);
     this->selected_ap_.set_channel(fast_connect_save.channel);
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
+    return true;
   }
+
+  return false;
 }
 
 void WiFiComponent::save_fast_connect_settings_() {
@@ -783,6 +811,7 @@ void WiFiComponent::save_fast_connect_settings_() {
 
     memcpy(fast_connect_save.bssid, bssid.data(), 6);
     fast_connect_save.channel = channel;
+    fast_connect_save.ap_index = this->ap_index_;
 
     this->fast_connect_pref_.save(&fast_connect_save);
 

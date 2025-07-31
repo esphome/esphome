@@ -265,8 +265,6 @@ def _validate(config):
         networks = config.get(CONF_NETWORKS, [])
         if not networks:
             raise cv.Invalid("At least one network required for fast_connect!")
-        if len(networks) != 1:
-            raise cv.Invalid("Fast connect can only be used with one network!")
 
     if CONF_USE_ADDRESS not in config:
         use_address = CORE.name + config[CONF_DOMAIN]
