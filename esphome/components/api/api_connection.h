@@ -736,6 +736,11 @@ class APIConnection : public APIServerConnection {
     this->deferred_batch_.add_item_front(entity, MessageCreator(function_ptr), message_type, estimated_size);
     return this->schedule_batch_();
   }
+
+  // Helper function to log API errors with errno
+  void log_warning_(const char *message, APIError err);
+  // Specific helper for duplicated error message
+  void log_socket_operation_failed_(APIError err);
 };
 
 }  // namespace esphome::api
