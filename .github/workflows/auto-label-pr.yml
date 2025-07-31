@@ -63,7 +63,11 @@ jobs:
               'needs-docs',
               'needs-codeowners',
               'too-big',
-              'labeller-recheck'
+              'labeller-recheck',
+              'bugfix',
+              'new-feature',
+              'breaking-change',
+              'code-quality'
             ];
 
             const DOCS_PR_PATTERNS = [
@@ -341,6 +345,31 @@ jobs:
               return labels;
             }
 
+            // Strategy: PR Template Checkbox detection
+            async function detectPRTemplateCheckboxes() {
+              const labels = new Set();
+              const prBody = context.payload.pull_request.body || '';
+
+              console.log('Checking PR template checkboxes...');
+
+              // Check for checked checkboxes in the "Types of changes" section
+              const checkboxPatterns = [
+                { pattern: /- \[x\] Bugfix \(non-breaking change which fixes an issue\)/i, label: 'bugfix' },
+                { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
+                { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
+                { pattern: /- \[x\] Code quality improvements to existing code or addition of tests/i, label: 'code-quality' }
+              ];
+
+              for (const { pattern, label } of checkboxPatterns) {
+                if (pattern.test(prBody)) {
+                  console.log(`Found checked checkbox for: ${label}`);
+                  labels.add(label);
+                }
+              }
+
+              return labels;
+            }
+
             // Strategy: Requirements detection
             async function detectRequirements(allLabels) {
               const labels = new Set();
@@ -351,7 +380,7 @@ jobs:
               }
 
               // Check for missing docs
-              if (allLabels.has('new-component') || allLabels.has('new-platform')) {
+              if (allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) {
                 const prBody = context.payload.pull_request.body || '';
                 const hasDocsLink = DOCS_PR_PATTERNS.some(pattern => pattern.test(prBody));
 
@@ -535,7 +564,8 @@ jobs:
               dashboardLabels,
               actionsLabels,
               codeOwnerLabels,
-              testLabels
+              testLabels,
+              checkboxLabels
             ] = await Promise.all([
               detectMergeBranch(),
               detectComponentPlatforms(apiData),
@@ -546,7 +576,8 @@ jobs:
               detectDashboardChanges(),
               detectGitHubActionsChanges(),
               detectCodeOwner(),
-              detectTests()
+              detectTests(),
+              detectPRTemplateCheckboxes()
             ]);
 
             // Combine all labels
@@ -560,7 +591,8 @@ jobs:
               ...dashboardLabels,
               ...actionsLabels,
               ...codeOwnerLabels,
-              ...testLabels
+              ...testLabels,
+              ...checkboxLabels
             ]);
 
             // Detect requirements based on all other labels
