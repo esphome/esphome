@@ -338,12 +338,12 @@ def filter_changed(files: list[str]) -> list[str]:
     return files
 
 
-def filter_grep(files: list[str], value: str) -> list[str]:
+def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
         with open(file, encoding="utf-8") as handle:
             contents = handle.read()
-        if value in contents:
+        if any(v in contents for v in value):
             matched.append(file)
     return matched
 

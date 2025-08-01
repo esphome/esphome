@@ -205,7 +205,12 @@ def main():
     parser.add_argument(
         "-c", "--changed", action="store_true", help="only run on changed files"
     )
-    parser.add_argument("-g", "--grep", help="only run on files containing value")
+    parser.add_argument(
+        "-g",
+        "--grep",
+        action="append",
+        help="only run on files containing value",
+    )
     parser.add_argument(
         "--split-num", type=int, help="split the files into X jobs.", default=None
     )
