@@ -41,7 +41,7 @@ void ADCSensor::dump_config() {
 
 float ADCSensor::sample() {
   uint32_t raw = 0;
-  auto aggr = Aggregator(this->sampling_mode_);
+  auto aggr = Aggregator<uint32_t>(this->sampling_mode_);
 
   if (this->is_temperature_) {
     adc_set_temp_sensor_enabled(true);

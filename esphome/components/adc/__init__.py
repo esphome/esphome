@@ -267,6 +267,11 @@ def validate_adc_pin(value):
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
 
+    if CORE.is_nrf52:
+        return pins.gpio_pin_schema(
+            {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
+        )(value)
+
     raise NotImplementedError
 
 
@@ -283,5 +288,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "adc_sensor_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
