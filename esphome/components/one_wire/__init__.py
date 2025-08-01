@@ -18,13 +18,12 @@ def one_wire_device_schema():
 
     :return: The 1-wire device schema, `extend` this in your config schema.
     """
-    schema = cv.Schema(
+    return cv.Schema(
         {
             cv.GenerateID(CONF_ONE_WIRE_ID): cv.use_id(OneWireBus),
             cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,
         }
     )
-    return schema
 
 
 async def register_one_wire_device(var, config):

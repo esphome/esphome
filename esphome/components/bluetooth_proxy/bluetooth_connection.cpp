@@ -24,6 +24,55 @@ static void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, esp_bt_uuid_t u
            ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0]);
 }
 
+// Helper to fill UUID in the appropriate format based on client support and UUID type
+static void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uuid, const esp_bt_uuid_t &uuid,
+                           bool use_efficient_uuids) {
+  if (!use_efficient_uuids || uuid.len == ESP_UUID_LEN_128) {
+    // Use 128-bit format for old clients or when UUID is already 128-bit
+    fill_128bit_uuid_array(uuid_128, uuid);
+  } else if (uuid.len == ESP_UUID_LEN_16) {
+    short_uuid = uuid.uuid.uuid16;
+  } else if (uuid.len == ESP_UUID_LEN_32) {
+    short_uuid = uuid.uuid.uuid32;
+  }
+}
+
+// Constants for size estimation
+static constexpr uint8_t SERVICE_OVERHEAD_LEGACY = 25;     // UUID(20) + handle(4) + overhead(1)
+static constexpr uint8_t SERVICE_OVERHEAD_EFFICIENT = 10;  // UUID(6) + handle(4)
+static constexpr uint8_t CHAR_SIZE_128BIT = 35;            // UUID(20) + handle(4) + props(4) + overhead(7)
+static constexpr uint8_t DESC_SIZE_128BIT = 25;            // UUID(20) + handle(4) + overhead(1)
+static constexpr uint8_t DESC_SIZE_16BIT = 10;             // UUID(6) + handle(4)
+static constexpr uint8_t DESC_PER_CHAR = 1;                // Assume 1 descriptor per characteristic
+
+// Helper to estimate service size before fetching all data
+/**
+ * Estimate the size of a Bluetooth service based on the number of characteristics and UUID format.
+ *
+ * @param char_count The number of characteristics in the service.
+ * @param use_efficient_uuids Whether to use efficient UUIDs (16-bit or 32-bit) for newer APIVersions.
+ * @return The estimated size of the service in bytes.
+ *
+ * This function calculates the size of a Bluetooth service by considering:
+ * - A service overhead, which depends on whether efficient UUIDs are used.
+ * - The size of each characteristic, assuming 128-bit UUIDs for safety.
+ * - The size of descriptors, assuming one 128-bit descriptor per characteristic.
+ */
+static size_t estimate_service_size(uint16_t char_count, bool use_efficient_uuids) {
+  size_t service_overhead = use_efficient_uuids ? SERVICE_OVERHEAD_EFFICIENT : SERVICE_OVERHEAD_LEGACY;
+  // Always assume 128-bit UUIDs for characteristics to be safe
+  size_t char_size = CHAR_SIZE_128BIT;
+  // Assume one 128-bit descriptor per characteristic
+  size_t desc_size = DESC_SIZE_128BIT * DESC_PER_CHAR;
+
+  return service_overhead + (char_size + desc_size) * char_count;
+}
+
+bool BluetoothConnection::supports_efficient_uuids_() const {
+  auto *api_conn = this->proxy_->get_api_connection();
+  return api_conn && api_conn->client_supports_api_version(1, 12);
+}
+
 void BluetoothConnection::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Connection:");
   BLEClientBase::dump_config();
@@ -57,7 +106,7 @@ void BluetoothConnection::reset_connection_(esp_err_t reason) {
 }
 
 void BluetoothConnection::send_service_for_discovery_() {
-  if (this->send_service_ == this->service_count_) {
+  if (this->send_service_ >= this->service_count_) {
     this->send_service_ = DONE_SENDING_SERVICES;
     this->proxy_->send_gatt_services_done(this->address_);
     if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
@@ -70,119 +119,181 @@ void BluetoothConnection::send_service_for_discovery_() {
   // Early return if no API connection
   auto *api_conn = this->proxy_->get_api_connection();
   if (api_conn == nullptr) {
+    this->send_service_ = DONE_SENDING_SERVICES;
     return;
   }
 
-  // Send next service
-  esp_gattc_service_elem_t service_result;
-  uint16_t service_count = 1;
-  esp_gatt_status_t service_status = esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr,
-                                                               &service_result, &service_count, this->send_service_);
-  this->send_service_++;
+  // Check if client supports efficient UUIDs
+  bool use_efficient_uuids = this->supports_efficient_uuids_();
 
-  if (service_status != ESP_GATT_OK || service_count == 0) {
-    ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service %s, status=%d, service_count=%d, offset=%d",
-             this->connection_index_, this->address_str().c_str(), service_status != ESP_GATT_OK ? "error" : "missing",
-             service_status, service_count, this->send_service_ - 1);
-    return;
-  }
-
+  // Prepare response
   api::BluetoothGATTGetServicesResponse resp;
   resp.address = this->address_;
-  auto &service_resp = resp.services[0];
-  fill_128bit_uuid_array(service_resp.uuid, service_result.uuid);
-  service_resp.handle = service_result.start_handle;
 
-  // Get the number of characteristics directly with one call
-  uint16_t total_char_count = 0;
-  esp_gatt_status_t char_count_status =
-      esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
-                                   service_result.start_handle, service_result.end_handle, 0, &total_char_count);
+  // Dynamic batching based on actual size
+  // Conservative MTU limit for API messages (accounts for WPA3 overhead)
+  static constexpr size_t MAX_PACKET_SIZE = 1360;
 
-  if (char_count_status != ESP_GATT_OK) {
-    ESP_LOGW(TAG, "[%d] [%s] Error getting characteristic count, status=%d", this->connection_index_,
-             this->address_str().c_str(), char_count_status);
-    return;
-  }
+  // Keep running total of actual message size
+  size_t current_size = 0;
+  api::ProtoSize size;
+  resp.calculate_size(size);
+  current_size = size.get_size();
 
-  if (total_char_count == 0) {
-    // No characteristics, just send the service response
-    api_conn->send_message(resp, api::BluetoothGATTGetServicesResponse::MESSAGE_TYPE);
-    return;
-  }
+  while (this->send_service_ < this->service_count_) {
+    esp_gattc_service_elem_t service_result;
+    uint16_t service_count = 1;
+    esp_gatt_status_t service_status = esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr,
+                                                                 &service_result, &service_count, this->send_service_);
 
-  // Reserve space and process characteristics
-  service_resp.characteristics.reserve(total_char_count);
-  uint16_t char_offset = 0;
-  esp_gattc_char_elem_t char_result;
-  while (true) {  // characteristics
-    uint16_t char_count = 1;
-    esp_gatt_status_t char_status =
-        esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, service_result.start_handle,
-                                   service_result.end_handle, &char_result, &char_count, char_offset);
-    if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
-      break;
-    }
-    if (char_status != ESP_GATT_OK) {
-      ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", this->connection_index_,
-               this->address_str().c_str(), char_status);
+    if (service_status != ESP_GATT_OK || service_count == 0) {
+      ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service %s, status=%d, service_count=%d, offset=%d",
+               this->connection_index_, this->address_str().c_str(),
+               service_status != ESP_GATT_OK ? "error" : "missing", service_status, service_count, this->send_service_);
+      this->send_service_ = DONE_SENDING_SERVICES;
       return;
     }
-    if (char_count == 0) {
+
+    // Get the number of characteristics BEFORE adding to response
+    uint16_t total_char_count = 0;
+    esp_gatt_status_t char_count_status =
+        esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
+                                     service_result.start_handle, service_result.end_handle, 0, &total_char_count);
+
+    if (char_count_status != ESP_GATT_OK) {
+      ESP_LOGE(TAG, "[%d] [%s] Error getting characteristic count, status=%d", this->connection_index_,
+               this->address_str().c_str(), char_count_status);
+      this->send_service_ = DONE_SENDING_SERVICES;
+      return;
+    }
+
+    // If this service likely won't fit, send current batch (unless it's the first)
+    size_t estimated_size = estimate_service_size(total_char_count, use_efficient_uuids);
+    if (!resp.services.empty() && (current_size + estimated_size > MAX_PACKET_SIZE)) {
+      // This service likely won't fit, send current batch
       break;
     }
 
-    service_resp.characteristics.emplace_back();
-    auto &characteristic_resp = service_resp.characteristics.back();
-    fill_128bit_uuid_array(characteristic_resp.uuid, char_result.uuid);
-    characteristic_resp.handle = char_result.char_handle;
-    characteristic_resp.properties = char_result.properties;
-    char_offset++;
+    // Now add the service since we know it will likely fit
+    resp.services.emplace_back();
+    auto &service_resp = resp.services.back();
 
-    // Get the number of descriptors directly with one call
-    uint16_t total_desc_count = 0;
-    esp_gatt_status_t desc_count_status = esp_ble_gattc_get_attr_count(
-        this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0, char_result.char_handle, &total_desc_count);
+    fill_gatt_uuid(service_resp.uuid, service_resp.short_uuid, service_result.uuid, use_efficient_uuids);
 
-    if (desc_count_status != ESP_GATT_OK) {
-      ESP_LOGW(TAG, "[%d] [%s] Error getting descriptor count for char handle %d, status=%d", this->connection_index_,
-               this->address_str().c_str(), char_result.char_handle, desc_count_status);
-      return;
-    }
-    if (total_desc_count == 0) {
-      // No descriptors, continue to next characteristic
-      continue;
-    }
+    service_resp.handle = service_result.start_handle;
 
-    // Reserve space and process descriptors
-    characteristic_resp.descriptors.reserve(total_desc_count);
-    uint16_t desc_offset = 0;
-    esp_gattc_descr_elem_t desc_result;
-    while (true) {  // descriptors
-      uint16_t desc_count = 1;
-      esp_gatt_status_t desc_status = esp_ble_gattc_get_all_descr(
-          this->gattc_if_, this->conn_id_, char_result.char_handle, &desc_result, &desc_count, desc_offset);
-      if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
-        break;
+    if (total_char_count > 0) {
+      // Reserve space and process characteristics
+      service_resp.characteristics.reserve(total_char_count);
+      uint16_t char_offset = 0;
+      esp_gattc_char_elem_t char_result;
+      while (true) {  // characteristics
+        uint16_t char_count = 1;
+        esp_gatt_status_t char_status =
+            esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, service_result.start_handle,
+                                       service_result.end_handle, &char_result, &char_count, char_offset);
+        if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
+          break;
+        }
+        if (char_status != ESP_GATT_OK) {
+          ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", this->connection_index_,
+                   this->address_str().c_str(), char_status);
+          this->send_service_ = DONE_SENDING_SERVICES;
+          return;
+        }
+        if (char_count == 0) {
+          break;
+        }
+
+        service_resp.characteristics.emplace_back();
+        auto &characteristic_resp = service_resp.characteristics.back();
+
+        fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid, char_result.uuid, use_efficient_uuids);
+
+        characteristic_resp.handle = char_result.char_handle;
+        characteristic_resp.properties = char_result.properties;
+        char_offset++;
+
+        // Get the number of descriptors directly with one call
+        uint16_t total_desc_count = 0;
+        esp_gatt_status_t desc_count_status = esp_ble_gattc_get_attr_count(
+            this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0, char_result.char_handle, &total_desc_count);
+
+        if (desc_count_status != ESP_GATT_OK) {
+          ESP_LOGE(TAG, "[%d] [%s] Error getting descriptor count for char handle %d, status=%d",
+                   this->connection_index_, this->address_str().c_str(), char_result.char_handle, desc_count_status);
+          this->send_service_ = DONE_SENDING_SERVICES;
+          return;
+        }
+        if (total_desc_count == 0) {
+          // No descriptors, continue to next characteristic
+          continue;
+        }
+
+        // Reserve space and process descriptors
+        characteristic_resp.descriptors.reserve(total_desc_count);
+        uint16_t desc_offset = 0;
+        esp_gattc_descr_elem_t desc_result;
+        while (true) {  // descriptors
+          uint16_t desc_count = 1;
+          esp_gatt_status_t desc_status = esp_ble_gattc_get_all_descr(
+              this->gattc_if_, this->conn_id_, char_result.char_handle, &desc_result, &desc_count, desc_offset);
+          if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+            break;
+          }
+          if (desc_status != ESP_GATT_OK) {
+            ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", this->connection_index_,
+                     this->address_str().c_str(), desc_status);
+            this->send_service_ = DONE_SENDING_SERVICES;
+            return;
+          }
+          if (desc_count == 0) {
+            break;  // No more descriptors
+          }
+
+          characteristic_resp.descriptors.emplace_back();
+          auto &descriptor_resp = characteristic_resp.descriptors.back();
+
+          fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid, desc_result.uuid, use_efficient_uuids);
+
+          descriptor_resp.handle = desc_result.handle;
+          desc_offset++;
+        }
       }
-      if (desc_status != ESP_GATT_OK) {
-        ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", this->connection_index_,
-                 this->address_str().c_str(), desc_status);
-        return;
-      }
-      if (desc_count == 0) {
-        break;  // No more descriptors
-      }
+    }  // end if (total_char_count > 0)
 
-      characteristic_resp.descriptors.emplace_back();
-      auto &descriptor_resp = characteristic_resp.descriptors.back();
-      fill_128bit_uuid_array(descriptor_resp.uuid, desc_result.uuid);
-      descriptor_resp.handle = desc_result.handle;
-      desc_offset++;
+    // Calculate the actual size of just this service
+    api::ProtoSize service_sizer;
+    service_resp.calculate_size(service_sizer);
+    size_t service_size = service_sizer.get_size() + 1;  // +1 for field tag
+
+    // Check if adding this service would exceed the limit
+    if (current_size + service_size > MAX_PACKET_SIZE) {
+      // We would go over - pop the last service if we have more than one
+      if (resp.services.size() > 1) {
+        resp.services.pop_back();
+        ESP_LOGD(TAG, "[%d] [%s] Service %d would exceed limit (current: %d + service: %d > %d), sending current batch",
+                 this->connection_index_, this->address_str().c_str(), this->send_service_, current_size, service_size,
+                 MAX_PACKET_SIZE);
+        // Don't increment send_service_ - we'll retry this service in next batch
+      } else {
+        // This single service is too large, but we have to send it anyway
+        ESP_LOGV(TAG, "[%d] [%s] Service %d is too large (%d bytes) but sending anyway", this->connection_index_,
+                 this->address_str().c_str(), this->send_service_, service_size);
+        // Increment so we don't get stuck
+        this->send_service_++;
+      }
+      // Send what we have
+      break;
     }
+
+    // Now we know we're keeping this service, add its size
+    current_size += service_size;
+    // Successfully added this service, increment counter
+    this->send_service_++;
   }
 
-  // Send the message (we already checked api_conn is not null at the beginning)
+  // Send the message with dynamically batched services
   api_conn->send_message(resp, api::BluetoothGATTGetServicesResponse::MESSAGE_TYPE);
 }
 

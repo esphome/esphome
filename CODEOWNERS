@@ -155,6 +155,7 @@ esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/esp_ldo/* @clydebarrow
+esphome/components/espnow/* @jesserockz
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
 esphome/components/event_emitter/* @Rapsssito
@@ -472,7 +473,7 @@ esphome/components/tlc5971/* @IJIJI
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
-esphome/components/tm1651/* @freekode
+esphome/components/tm1651/* @mrtoy-me
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath

@@ -444,8 +444,7 @@ def get_str_path_schema(strPath):
     if len(parts) > 2:
         parts[0] += "." + parts[1]
         parts[1] = parts[2]
-    s1 = output.get(parts[0], {}).get(S_SCHEMAS, {}).get(parts[1], {})
-    return s1
+    return output.get(parts[0], {}).get(S_SCHEMAS, {}).get(parts[1], {})
 
 
 def pop_str_path_schema(strPath):

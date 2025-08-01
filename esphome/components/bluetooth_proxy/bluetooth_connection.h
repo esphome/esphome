@@ -27,6 +27,7 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
  protected:
   friend class BluetoothProxy;
 
+  bool supports_efficient_uuids_() const;
   void send_service_for_discovery_();
   void reset_connection_(esp_err_t reason);
 

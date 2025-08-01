@@ -69,7 +69,7 @@ def test_calculate_clang_tidy_hash() -> None:
         def read_file_mock(path: Path) -> bytes:
             if ".clang-tidy" in str(path):
                 return clang_tidy_content
-            elif "platformio.ini" in str(path):
+            if "platformio.ini" in str(path):
                 return platformio_content
             return b""
 

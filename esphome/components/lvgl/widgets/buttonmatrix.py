@@ -193,7 +193,7 @@ class ButtonMatrixType(WidgetType):
     async def to_code(self, w: Widget, config):
         lvgl_components_required.add("BUTTONMATRIX")
         if CONF_ROWS not in config:
-            return []
+            return
         text_list, ctrl_list, width_list, key_list = await get_button_data(
             config[CONF_ROWS], w
         )

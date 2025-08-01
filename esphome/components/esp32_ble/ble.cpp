@@ -468,6 +468,8 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Ignore these GAP events as they are not relevant for our use case
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
+    case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
+    case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
       return;
 
     default:

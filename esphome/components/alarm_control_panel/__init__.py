@@ -301,8 +301,7 @@ async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_pending_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -310,8 +309,7 @@ async def alarm_action_pending_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -319,8 +317,7 @@ async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_chime_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -333,8 +330,7 @@ async def alarm_action_chime_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_ready_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition(

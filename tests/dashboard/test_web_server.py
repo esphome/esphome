@@ -31,8 +31,7 @@ class DashboardTestHelper:
         else:
             url = f"http://127.0.0.1:{self.port}{path}"
         future = self.client.fetch(url, raise_error=True, **kwargs)
-        result = await future
-        return result
+        return await future
 
 
 @pytest_asyncio.fixture()

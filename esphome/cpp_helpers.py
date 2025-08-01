@@ -115,7 +115,7 @@ async def build_registry_list(registry, config):
 
 async def past_safe_mode():
     if CONF_SAFE_MODE not in CORE.config:
-        return
+        return None
 
     def _safe_mode_generator():
         while True:

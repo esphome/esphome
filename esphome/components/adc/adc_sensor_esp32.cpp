@@ -152,7 +152,7 @@ float ADCSensor::sample() {
 }
 
 float ADCSensor::sample_fixed_attenuation_() {
-  auto aggr = Aggregator(this->sampling_mode_);
+  auto aggr = Aggregator<uint32_t>(this->sampling_mode_);
 
   for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
     int raw;

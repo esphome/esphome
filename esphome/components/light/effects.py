@@ -353,10 +353,9 @@ async def addressable_lambda_effect_to_code(config, effect_id):
         (bool, "initial_run"),
     ]
     lambda_ = await cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
-    var = cg.new_Pvariable(
+    return cg.new_Pvariable(
         effect_id, config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL]
     )
-    return var
 
 
 @register_addressable_effect(

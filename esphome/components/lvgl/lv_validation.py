@@ -271,8 +271,7 @@ padding = LValidator(padding_validator, int32, retmapper=literal)
 
 
 def zoom_validator(value):
-    value = cv.float_range(0.1, 10.0)(value)
-    return value
+    return cv.float_range(0.1, 10.0)(value)
 
 
 def zoom_retmapper(value):

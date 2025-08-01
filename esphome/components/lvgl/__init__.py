@@ -4,6 +4,7 @@ from esphome.automation import build_automation, register_action, validate_autom
 import esphome.codegen as cg
 from esphome.components.const import CONF_COLOR_DEPTH, CONF_DRAW_ROUNDING
 from esphome.components.display import Display
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -219,7 +220,7 @@ def final_validation(configs):
                     draw_rounding, config[CONF_DRAW_ROUNDING]
                 )
         buffer_frac = config[CONF_BUFFER_SIZE]
-        if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
+        if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
         for image_id in lv_images_used:
             path = global_config.get_path_for_id(image_id)[:-1]

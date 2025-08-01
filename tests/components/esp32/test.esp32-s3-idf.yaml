@@ -1,0 +1,12 @@
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      execute_from_psram: true
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:

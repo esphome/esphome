@@ -85,8 +85,7 @@ async def action_to_code(
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             await action(widget)
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    return var
+    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
 async def update_to_code(config, action_id, template_arg, args):
@@ -354,8 +353,7 @@ async def widget_focus(config, action_id, template_arg, args):
 
         if config[CONF_FREEZE]:
             lv.group_focus_freeze(group, True)
-        var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-        return var
+        return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
 @automation.register_action(

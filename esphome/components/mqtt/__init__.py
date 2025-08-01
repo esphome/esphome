@@ -312,14 +312,13 @@ CONFIG_SCHEMA = cv.All(
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    exp = cg.StructInitializer(
+    return cg.StructInitializer(
         MQTTMessage,
         ("topic", config[CONF_TOPIC]),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
-    return exp
 
 
 @coroutine_with_priority(40.0)

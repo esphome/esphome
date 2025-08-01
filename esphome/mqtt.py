@@ -36,7 +36,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def config_from_env():
-    config = {
+    return {
         CONF_MQTT: {
             CONF_USERNAME: get_str_env("ESPHOME_DASHBOARD_MQTT_USERNAME"),
             CONF_PASSWORD: get_str_env("ESPHOME_DASHBOARD_MQTT_PASSWORD"),
@@ -44,7 +44,6 @@ def config_from_env():
             CONF_PORT: get_int_env("ESPHOME_DASHBOARD_MQTT_PORT", 1883),
         },
     }
-    return config
 
 
 def initialize(

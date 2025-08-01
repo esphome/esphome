@@ -66,8 +66,7 @@ async def style_update_to_code(config, action_id, template_arg, args):
     async with LambdaContext(parameters=args, where=action_id) as context:
         await style_set(style, config)
 
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    return var
+    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
 async def theme_to_code(config):

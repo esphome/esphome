@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_LOOP_TIME,
     PlatformFramework,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["logger"]
@@ -44,6 +46,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("HWINFO", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -62,5 +66,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "debug_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )

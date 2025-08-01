@@ -305,8 +305,7 @@ class ESPHomeLoaderMixin:
         result = self.yaml_loader(self._rel_path(file))
         if not vars:
             vars = {}
-        result = substitute_vars(result, vars)
-        return result
+        return substitute_vars(result, vars)
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:

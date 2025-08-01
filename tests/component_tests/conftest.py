@@ -65,6 +65,7 @@ def set_core_config() -> Generator[SetCoreConfigCallable]:
         *,
         core_data: ConfigType | None = None,
         platform_data: ConfigType | None = None,
+        full_config: dict[str, ConfigType] | None = None,
     ) -> None:
         platform, framework = platform_framework.value
 
@@ -83,7 +84,7 @@ def set_core_config() -> Generator[SetCoreConfigCallable]:
             CORE.data[platform.value] = platform_data
 
         config.path_context.set([])
-        final_validate.full_config.set(Config())
+        final_validate.full_config.set(full_config or Config())
 
     yield setter
 
