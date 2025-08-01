@@ -9,7 +9,7 @@ tzlocal==5.3.1    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==6.1.18  # When updating platformio, also update /docker/Dockerfile
-esptool==4.9.0
+esptool==5.0.2
 click==8.1.7
 esphome-dashboard==20250514.0
 aioesphomeapi==37.2.2
