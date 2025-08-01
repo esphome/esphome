@@ -539,8 +539,7 @@ class BoolType(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f"out.append(YESNO({name}));"
-        return o
+        return f"out.append(YESNO({name}));"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return self._get_simple_size_calculation(name, force, "add_bool")
@@ -592,9 +591,8 @@ class StringType(TypeInfo):
         if no_zero_copy:
             # Use the std::string directly
             return f"buffer.encode_string({self.number}, this->{self.field_name});"
-        else:
-            # Use the StringRef
-            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
+        # Use the StringRef
+        return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
         # Check if no_zero_copy option is set
@@ -716,8 +714,7 @@ class MessageType(TypeInfo):
         return f"case {self.number}: value.decode_to_message(this->{self.field_name}); break;"
 
     def dump(self, name: str) -> str:
-        o = f"{name}.dump_to(out);"
-        return o
+        return f"{name}.dump_to(out);"
 
     @property
     def dump_content(self) -> str:
@@ -865,8 +862,7 @@ class FixedArrayBytesType(TypeInfo):
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     def dump(self, name: str) -> str:
-        o = f"out.append(format_hex_pretty({name}, {name}_len));"
-        return o
+        return f"out.append(format_hex_pretty({name}, {name}_len));"
 
     @property
     def dump_content(self) -> str:
@@ -883,9 +879,8 @@ class FixedArrayBytesType(TypeInfo):
         if force:
             # For repeated fields, always calculate size (no zero check)
             return f"size.add_length_force({field_id_size}, {length_field});"
-        else:
-            # For non-repeated fields, add_length already checks for zero
-            return f"size.add_length({field_id_size}, {length_field});"
+        # For non-repeated fields, add_length already checks for zero
+        return f"size.add_length({field_id_size}, {length_field});"
 
     def get_estimated_size(self) -> int:
         # Estimate based on typical BLE advertisement size
@@ -940,8 +935,7 @@ class EnumType(TypeInfo):
         return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
 
     def dump(self, name: str) -> str:
-        o = f"out.append(proto_enum_to_string<{self.cpp_type}>({name}));"
-        return o
+        return f"out.append(proto_enum_to_string<{self.cpp_type}>({name}));"
 
     def dump_field_value(self, value: str) -> str:
         # Enums need explicit cast for the template
@@ -1115,8 +1109,7 @@ class FixedArrayRepeatedType(TypeInfo):
         def encode_element(element: str) -> str:
             if isinstance(self._ti, EnumType):
                 return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
-            else:
-                return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+            return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
         # If skip_zero is enabled, wrap encoding in a zero check
         if self.skip_zero:
@@ -1133,7 +1126,7 @@ class FixedArrayRepeatedType(TypeInfo):
         # Unroll small arrays for efficiency
         if self.array_size == 1:
             return encode_element(f"this->{self.field_name}[0]")
-        elif self.array_size == 2:
+        if self.array_size == 2:
             return (
                 encode_element(f"this->{self.field_name}[0]")
                 + "\n  "
@@ -1224,8 +1217,7 @@ class RepeatedTypeInfo(TypeInfo):
             # use it as-is, otherwise append the element type
             if "<" in self._container_type and ">" in self._container_type:
                 return f"const {self._container_type}*"
-            else:
-                return f"const {self._container_type}<{self._ti.cpp_type}>*"
+            return f"const {self._container_type}<{self._ti.cpp_type}>*"
         return f"std::vector<{self._ti.cpp_type}>"
 
     @property
@@ -1311,14 +1303,13 @@ class RepeatedTypeInfo(TypeInfo):
                 o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
             o += "}"
             return o
+        o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
+        if isinstance(self._ti, EnumType):
+            o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
         else:
-            o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-            if isinstance(self._ti, EnumType):
-                o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-            else:
-                o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
-            o += "}"
-            return o
+            o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        o += "}"
+        return o
 
     @property
     def dump_content(self) -> str:

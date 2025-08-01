@@ -315,9 +315,8 @@ def test_local_development_no_remotes_configured(monkeypatch: MonkeyPatch) -> No
         def side_effect_func(*args):
             if args == ("git", "remote"):
                 return "origin\nupstream\n"
-            else:
-                # All merge-base attempts fail
-                raise Exception("Command failed")
+            # All merge-base attempts fail
+            raise Exception("Command failed")
 
         mock_output.side_effect = side_effect_func
 

@@ -43,12 +43,11 @@ CONFIG_ADC=y
 
     def extract_defines(command):
         define_pattern = re.compile(r"-D\s*([^\s]+)")
-        defines = [
+        return [
             match
             for match in define_pattern.findall(command)
             if match not in ("_ASMLANGUAGE")
         ]
-        return defines
 
     def find_cxx_path(commands):
         for entry in commands:
@@ -57,6 +56,7 @@ CONFIG_ADC=y
             if not cxx_path.endswith("++"):
                 continue
             return cxx_path
+        return None
 
     def get_builtin_include_paths(compiler):
         result = subprocess.run(
@@ -84,11 +84,10 @@ CONFIG_ADC=y
         flag_pattern = re.compile(
             r"(-O[0-3s]|-g|-std=[^\s]+|-Wall|-Wextra|-Werror|--[^\s]+|-f[^\s]+|-m[^\s]+|-imacros\s*[^\s]+)"
         )
-        flags = [
+        return [
             match.replace("-imacros ", "-imacros")
             for match in flag_pattern.findall(command)
         ]
-        return flags
 
     def transform_to_idedata_format(compile_commands):
         cxx_path = find_cxx_path(compile_commands)

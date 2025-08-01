@@ -189,7 +189,7 @@ class Widget:
         for matrix buttons
         :return:
         """
-        return None
+        return
 
     def get_max(self):
         return self.type.get_max(self.config)
