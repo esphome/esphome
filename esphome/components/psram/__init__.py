@@ -28,12 +28,13 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "psram"
 
 DEPENDENCIES = [PLATFORM_ESP32]
 
 _LOGGER = logging.getLogger(__name__)
 
-psram_ns = cg.esphome_ns.namespace("psram")
+psram_ns = cg.esphome_ns.namespace(DOMAIN)
 PsramComponent = psram_ns.class_("PsramComponent", cg.Component)
 
 TYPE_QUAD = "quad"

@@ -76,6 +76,7 @@ CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
+CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_RELEASE = "release"
 
 ASSERTION_LEVELS = {
@@ -519,32 +520,59 @@ def _detect_variant(value):
 
 
 def final_validate(config):
-    if not (
-        pio_options := fv.full_config.get()[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS)
-    ):
-        # Not specified or empty
-        return config
+    # Imported locally to avoid circular import issues
+    from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
-    pio_flash_size_key = "board_upload.flash_size"
-    pio_partitions_key = "board_build.partitions"
-    if CONF_PARTITIONS in config and pio_partitions_key in pio_options:
-        raise cv.Invalid(
-            f"Do not specify '{pio_partitions_key}' in '{CONF_PLATFORMIO_OPTIONS}' with '{CONF_PARTITIONS}' in esp32"
-        )
-
-    if pio_flash_size_key in pio_options:
-        raise cv.Invalid(
-            f"Please specify {CONF_FLASH_SIZE} within esp32 configuration only"
-        )
-
+    errs = []
+    full_config = fv.full_config.get()
+    if pio_options := full_config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS):
+        pio_flash_size_key = "board_upload.flash_size"
+        pio_partitions_key = "board_build.partitions"
+        if CONF_PARTITIONS in config and pio_partitions_key in pio_options:
+            errs.append(
+                cv.Invalid(
+                    f"Do not specify '{pio_partitions_key}' in '{CONF_PLATFORMIO_OPTIONS}' with '{CONF_PARTITIONS}' in esp32"
+                )
+            )
+        if pio_flash_size_key in pio_options:
+            errs.append(
+                cv.Invalid(
+                    f"Please specify {CONF_FLASH_SIZE} within esp32 configuration only"
+                )
+            )
     if (
         config[CONF_VARIANT] != VARIANT_ESP32
         and CONF_ADVANCED in (conf_fw := config[CONF_FRAMEWORK])
         and CONF_IGNORE_EFUSE_MAC_CRC in conf_fw[CONF_ADVANCED]
     ):
-        raise cv.Invalid(
-            f"{CONF_IGNORE_EFUSE_MAC_CRC} is not supported on {config[CONF_VARIANT]}"
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_IGNORE_EFUSE_MAC_CRC}' is not supported on {config[CONF_VARIANT]}",
+                path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_IGNORE_EFUSE_MAC_CRC],
+            )
         )
+    if (
+        config.get(CONF_FRAMEWORK, {})
+        .get(CONF_ADVANCED, {})
+        .get(CONF_EXECUTE_FROM_PSRAM)
+    ):
+        if config[CONF_VARIANT] != VARIANT_ESP32S3:
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' is only supported on {VARIANT_ESP32S3} variant",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
+                )
+            )
+        if PSRAM_DOMAIN not in full_config:
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' requires PSRAM to be configured",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
+                )
+            )
+
+    if errs:
+        raise cv.MultipleInvalid(errs)
 
     return config
 
@@ -627,6 +655,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
                     ): cv.boolean,
+                    cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -792,6 +821,9 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
         if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
             add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+        if advanced.get(CONF_EXECUTE_FROM_PSRAM, False):
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
 
         # Apply LWIP core locking for better socket performance
         # This is already enabled by default in Arduino framework, where it provides
