@@ -283,6 +283,12 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
+  // Check if the STA interface is initialized before using it
+  if (s_sta_netif == nullptr) {
+    ESP_LOGW(TAG, "STA interface not initialized");
+    return false;
+  }
+
   esp_netif_dhcp_status_t dhcp_status;
   esp_err_t err = esp_netif_dhcpc_get_status(s_sta_netif, &dhcp_status);
   if (err != ESP_OK) {
@@ -541,6 +547,8 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
+      // Clear the STA interface handle to prevent use-after-free
+      s_sta_netif = nullptr;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
@@ -630,6 +638,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STOP: {
       ESP_LOGV(TAG, "AP stop");
+#ifdef USE_WIFI_AP
+      // Clear the AP interface handle to prevent use-after-free
+      s_ap_netif = nullptr;
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
@@ -718,6 +730,12 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;
+
+  // Check if the AP interface is initialized before using it
+  if (s_ap_netif == nullptr) {
+    ESP_LOGW(TAG, "AP interface not initialized");
+    return false;
+  }
 
   esp_netif_ip_info_t info;
   if (manual_ip.has_value()) {
