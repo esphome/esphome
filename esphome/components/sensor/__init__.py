@@ -599,7 +599,9 @@ async def throttle_filter_to_code(config, filter_id):
 TIMEOUT_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
     {
         cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_VALUE, default="nan"): cv.ensure_list(cv.float_),
+        cv.Optional(CONF_VALUE, default="nan"): cv.Any(
+            cv.templatable(cv.float_), [cv.templatable(cv.float_)]
+        ),
     },
     key=CONF_TIMEOUT,
 )
@@ -611,6 +613,8 @@ TIMEOUT_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
     TIMEOUT_WITH_PRIORITY_SCHEMA,
 )
 async def throttle_with_priority_filter_to_code(config, filter_id):
+    if not isinstance(config[CONF_VALUE], list):
+        config[CONF_VALUE] = [config[CONF_VALUE]]
     template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
     return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
 

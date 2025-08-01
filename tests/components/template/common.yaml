@@ -137,8 +137,15 @@ sensor:
       - throttle_with_priority: 5s
       - throttle_with_priority:
           timeout: 3s
+          value: 42.0
+      - throttle_with_priority:
+          timeout: 3s
+          value: !lambda return 1.0f / 2.0f;
+      - throttle_with_priority:
+          timeout: 3s
           value:
             - 42.0
+            - !lambda return 2.0f / 2.0f;
             - nan
       - timeout:
           timeout: 10s

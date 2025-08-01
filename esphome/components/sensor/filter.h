@@ -221,11 +221,11 @@ class ExponentialMovingAverageFilter : public Filter {
   void set_alpha(float alpha);
 
  protected:
-  bool first_value_{true};
   float accumulator_{NAN};
+  float alpha_;
   size_t send_every_;
   size_t send_at_;
-  float alpha_;
+  bool first_value_{true};
 };
 
 /** Simple throttle average filter.
@@ -243,9 +243,9 @@ class ThrottleAverageFilter : public Filter, public Component {
   float get_setup_priority() const override;
 
  protected:
-  uint32_t time_period_;
   float sum_{0.0f};
   unsigned int n_{0};
+  uint32_t time_period_;
   bool have_nan_{false};
 };
 
@@ -378,8 +378,8 @@ class DeltaFilter : public Filter {
  protected:
   float delta_;
   float current_delta_;
-  bool percentage_mode_;
   float last_value_{NAN};
+  bool percentage_mode_;
 };
 
 class OrFilter : public Filter {
@@ -401,8 +401,8 @@ class OrFilter : public Filter {
   };
 
   std::vector<Filter *> filters_;
-  bool has_value_{false};
   PhiNode phi_;
+  bool has_value_{false};
 };
 
 class CalibrateLinearFilter : public Filter {

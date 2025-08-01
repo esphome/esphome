@@ -225,7 +225,7 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
 
 // ExponentialMovingAverageFilter
 ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at)
-    : send_every_(send_every), send_at_(send_every - send_first_at), alpha_(alpha) {}
+    : alpha_(alpha), send_every_(send_every), send_at_(send_every - send_first_at) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!std::isnan(value)) {
     if (this->first_value_) {
@@ -325,7 +325,7 @@ optional<float> FilterOutValueFilter::new_value(float value) {
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_) {
     this->last_input_ = now;
     return value;
@@ -369,7 +369,7 @@ optional<float> ThrottleWithPriorityFilter::new_value(float value) {
 
 // DeltaFilter
 DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), percentage_mode_(percentage_mode), last_value_(NAN) {}
+    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
 optional<float> DeltaFilter::new_value(float value) {
   if (std::isnan(value)) {
     if (std::isnan(this->last_value_)) {
