@@ -78,6 +78,30 @@ void BluetoothConnection::dump_config() {
   BLEClientBase::dump_config();
 }
 
+void BluetoothConnection::update_allocated_slot_(uint64_t find_value, uint64_t set_value) {
+  auto &allocated = this->proxy_->connections_free_response_.allocated;
+  auto *it = std::find(allocated.begin(), allocated.end(), find_value);
+  if (it != allocated.end()) {
+    *it = set_value;
+  }
+}
+
+void BluetoothConnection::set_address(uint64_t address) {
+  // If we're clearing an address (disconnecting), update the pre-allocated message
+  if (address == 0 && this->address_ != 0) {
+    this->proxy_->connections_free_response_.free++;
+    this->update_allocated_slot_(this->address_, 0);
+  }
+  // If we're setting a new address (connecting), update the pre-allocated message
+  else if (address != 0 && this->address_ == 0) {
+    this->proxy_->connections_free_response_.free--;
+    this->update_allocated_slot_(0, address);
+  }
+
+  // Call parent implementation to actually set the address
+  BLEClientBase::set_address(address);
+}
+
 void BluetoothConnection::loop() {
   BLEClientBase::loop();
 

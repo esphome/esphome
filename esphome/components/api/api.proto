@@ -1621,7 +1621,10 @@ message BluetoothConnectionsFreeResponse {
 
   uint32 free = 1;
   uint32 limit = 2;
-  repeated uint64 allocated = 3;
+  repeated uint64 allocated = 3 [
+    (fixed_array_size_define) = "BLUETOOTH_PROXY_MAX_CONNECTIONS",
+    (fixed_array_skip_zero) = true
+  ];
 }
 
 message BluetoothGATTErrorResponse {

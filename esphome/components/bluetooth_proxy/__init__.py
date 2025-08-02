@@ -87,6 +87,10 @@ async def to_code(config):
     cg.add(var.set_active(config[CONF_ACTIVE]))
     await esp32_ble_tracker.register_raw_ble_device(var, config)
 
+    # Define max connections for protobuf fixed array
+    connection_count = len(config.get(CONF_CONNECTIONS, []))
+    cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", connection_count)
+
     for connection_conf in config.get(CONF_CONNECTIONS, []):
         connection_var = cg.new_Pvariable(connection_conf[CONF_ID])
         await cg.register_component(connection_var, connection_conf)

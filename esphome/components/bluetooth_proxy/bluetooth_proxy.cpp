@@ -35,6 +35,9 @@ void BluetoothProxy::setup() {
   // Don't pre-allocate pool - let it grow only if needed in busy environments
   // Many devices in quiet areas will never need the overflow pool
 
+  this->connections_free_response_.limit = this->connections_.size();
+  this->connections_free_response_.free = this->connections_.size();
+
   this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
     if (this->api_connection_ != nullptr) {
       this->send_bluetooth_scanner_state_(state);
@@ -132,20 +135,6 @@ void BluetoothProxy::dump_config() {
                 "  Active: %s\n"
                 "  Connections: %d",
                 YESNO(this->active_), this->connections_.size());
-}
-
-int BluetoothProxy::get_bluetooth_connections_free() {
-  int free = 0;
-  for (auto *connection : this->connections_) {
-    if (connection->address_ == 0) {
-      free++;
-      ESP_LOGV(TAG, "[%d] Free connection", connection->get_connection_index());
-    } else {
-      ESP_LOGV(TAG, "[%d] Used connection by [%s]", connection->get_connection_index(),
-               connection->address_str().c_str());
-    }
-  }
-  return free;
 }
 
 void BluetoothProxy::loop() {
@@ -439,17 +428,13 @@ void BluetoothProxy::send_device_connection(uint64_t address, bool connected, ui
   this->api_connection_->send_message(call, api::BluetoothDeviceConnectionResponse::MESSAGE_TYPE);
 }
 void BluetoothProxy::send_connections_free() {
-  if (this->api_connection_ == nullptr)
-    return;
-  api::BluetoothConnectionsFreeResponse call;
-  call.free = this->get_bluetooth_connections_free();
-  call.limit = this->get_bluetooth_connections_limit();
-  for (auto *connection : this->connections_) {
-    if (connection->address_ != 0) {
-      call.allocated.push_back(connection->address_);
-    }
+  if (this->api_connection_ != nullptr) {
+    this->send_connections_free(this->api_connection_);
   }
-  this->api_connection_->send_message(call, api::BluetoothConnectionsFreeResponse::MESSAGE_TYPE);
+}
+
+void BluetoothProxy::send_connections_free(api::APIConnection *api_connection) {
+  api_connection->send_message(this->connections_free_response_, api::BluetoothConnectionsFreeResponse::MESSAGE_TYPE);
 }
 
 void BluetoothProxy::send_gatt_services_done(uint64_t address) {

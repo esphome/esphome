@@ -2076,13 +2076,13 @@ class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {
 class BluetoothConnectionsFreeResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 81;
-  static constexpr uint8_t ESTIMATED_SIZE = 16;
+  static constexpr uint8_t ESTIMATED_SIZE = 20;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_connections_free_response"; }
 #endif
   uint32_t free{0};
   uint32_t limit{0};
-  std::vector<uint64_t> allocated{};
+  std::array<uint64_t, BLUETOOTH_PROXY_MAX_CONNECTIONS> allocated{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

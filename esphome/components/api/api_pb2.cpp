@@ -2073,15 +2073,17 @@ void BluetoothGATTNotifyDataResponse::calculate_size(ProtoSize &size) const {
 void BluetoothConnectionsFreeResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->free);
   buffer.encode_uint32(2, this->limit);
-  for (auto &it : this->allocated) {
-    buffer.encode_uint64(3, it, true);
+  for (const auto &it : this->allocated) {
+    if (it != 0) {
+      buffer.encode_uint64(3, it, true);
+    }
   }
 }
 void BluetoothConnectionsFreeResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->free);
   size.add_uint32(1, this->limit);
-  if (!this->allocated.empty()) {
-    for (const auto &it : this->allocated) {
+  for (const auto &it : this->allocated) {
+    if (it != 0) {
       size.add_uint64_force(1, it);
     }
   }
