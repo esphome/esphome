@@ -216,69 +216,6 @@ class Application {
   /// Reserve space for components to avoid memory fragmentation
   void reserve_components(size_t count) { this->components_.reserve(count); }
 
-#ifdef USE_BINARY_SENSOR
-  void reserve_binary_sensor(size_t count) { this->binary_sensors_.reserve(count); }
-#endif
-#ifdef USE_SWITCH
-  void reserve_switch(size_t count) { this->switches_.reserve(count); }
-#endif
-#ifdef USE_BUTTON
-  void reserve_button(size_t count) { this->buttons_.reserve(count); }
-#endif
-#ifdef USE_SENSOR
-  void reserve_sensor(size_t count) { this->sensors_.reserve(count); }
-#endif
-#ifdef USE_TEXT_SENSOR
-  void reserve_text_sensor(size_t count) { this->text_sensors_.reserve(count); }
-#endif
-#ifdef USE_FAN
-  void reserve_fan(size_t count) { this->fans_.reserve(count); }
-#endif
-#ifdef USE_COVER
-  void reserve_cover(size_t count) { this->covers_.reserve(count); }
-#endif
-#ifdef USE_CLIMATE
-  void reserve_climate(size_t count) { this->climates_.reserve(count); }
-#endif
-#ifdef USE_LIGHT
-  void reserve_light(size_t count) { this->lights_.reserve(count); }
-#endif
-#ifdef USE_NUMBER
-  void reserve_number(size_t count) { this->numbers_.reserve(count); }
-#endif
-#ifdef USE_DATETIME_DATE
-  void reserve_date(size_t count) { this->dates_.reserve(count); }
-#endif
-#ifdef USE_DATETIME_TIME
-  void reserve_time(size_t count) { this->times_.reserve(count); }
-#endif
-#ifdef USE_DATETIME_DATETIME
-  void reserve_datetime(size_t count) { this->datetimes_.reserve(count); }
-#endif
-#ifdef USE_SELECT
-  void reserve_select(size_t count) { this->selects_.reserve(count); }
-#endif
-#ifdef USE_TEXT
-  void reserve_text(size_t count) { this->texts_.reserve(count); }
-#endif
-#ifdef USE_LOCK
-  void reserve_lock(size_t count) { this->locks_.reserve(count); }
-#endif
-#ifdef USE_VALVE
-  void reserve_valve(size_t count) { this->valves_.reserve(count); }
-#endif
-#ifdef USE_MEDIA_PLAYER
-  void reserve_media_player(size_t count) { this->media_players_.reserve(count); }
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-  void reserve_alarm_control_panel(size_t count) { this->alarm_control_panels_.reserve(count); }
-#endif
-#ifdef USE_EVENT
-  void reserve_event(size_t count) { this->events_.reserve(count); }
-#endif
-#ifdef USE_UPDATE
-  void reserve_update(size_t count) { this->updates_.reserve(count); }
-#endif
 #ifdef USE_AREAS
   void reserve_area(size_t count) { this->areas_.reserve(count); }
 #endif
@@ -394,92 +331,90 @@ class Application {
   const std::vector<Area *> &get_areas() { return this->areas_; }
 #endif
 #ifdef USE_BINARY_SENSOR
-  const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() { return this->binary_sensors_; }
+  auto &get_binary_sensors() const { return this->binary_sensors_; }
   GET_ENTITY_METHOD(binary_sensor::BinarySensor, binary_sensor, binary_sensors)
 #endif
 #ifdef USE_SWITCH
-  const std::vector<switch_::Switch *> &get_switches() { return this->switches_; }
+  auto &get_switches() const { return this->switches_; }
   GET_ENTITY_METHOD(switch_::Switch, switch, switches)
 #endif
 #ifdef USE_BUTTON
-  const std::vector<button::Button *> &get_buttons() { return this->buttons_; }
+  auto &get_buttons() const { return this->buttons_; }
   GET_ENTITY_METHOD(button::Button, button, buttons)
 #endif
 #ifdef USE_SENSOR
-  const std::vector<sensor::Sensor *> &get_sensors() { return this->sensors_; }
+  auto &get_sensors() const { return this->sensors_; }
   GET_ENTITY_METHOD(sensor::Sensor, sensor, sensors)
 #endif
 #ifdef USE_TEXT_SENSOR
-  const std::vector<text_sensor::TextSensor *> &get_text_sensors() { return this->text_sensors_; }
+  auto &get_text_sensors() const { return this->text_sensors_; }
   GET_ENTITY_METHOD(text_sensor::TextSensor, text_sensor, text_sensors)
 #endif
 #ifdef USE_FAN
-  const std::vector<fan::Fan *> &get_fans() { return this->fans_; }
+  auto &get_fans() const { return this->fans_; }
   GET_ENTITY_METHOD(fan::Fan, fan, fans)
 #endif
 #ifdef USE_COVER
-  const std::vector<cover::Cover *> &get_covers() { return this->covers_; }
+  auto &get_covers() const { return this->covers_; }
   GET_ENTITY_METHOD(cover::Cover, cover, covers)
 #endif
 #ifdef USE_LIGHT
-  const std::vector<light::LightState *> &get_lights() { return this->lights_; }
+  auto &get_lights() const { return this->lights_; }
   GET_ENTITY_METHOD(light::LightState, light, lights)
 #endif
 #ifdef USE_CLIMATE
-  const std::vector<climate::Climate *> &get_climates() { return this->climates_; }
+  auto &get_climates() const { return this->climates_; }
   GET_ENTITY_METHOD(climate::Climate, climate, climates)
 #endif
 #ifdef USE_NUMBER
-  const std::vector<number::Number *> &get_numbers() { return this->numbers_; }
+  auto &get_numbers() const { return this->numbers_; }
   GET_ENTITY_METHOD(number::Number, number, numbers)
 #endif
 #ifdef USE_DATETIME_DATE
-  const std::vector<datetime::DateEntity *> &get_dates() { return this->dates_; }
+  auto &get_dates() const { return this->dates_; }
   GET_ENTITY_METHOD(datetime::DateEntity, date, dates)
 #endif
 #ifdef USE_DATETIME_TIME
-  const std::vector<datetime::TimeEntity *> &get_times() { return this->times_; }
+  auto &get_times() const { return this->times_; }
   GET_ENTITY_METHOD(datetime::TimeEntity, time, times)
 #endif
 #ifdef USE_DATETIME_DATETIME
-  const std::vector<datetime::DateTimeEntity *> &get_datetimes() { return this->datetimes_; }
+  auto &get_datetimes() const { return this->datetimes_; }
   GET_ENTITY_METHOD(datetime::DateTimeEntity, datetime, datetimes)
 #endif
 #ifdef USE_TEXT
-  const std::vector<text::Text *> &get_texts() { return this->texts_; }
+  auto &get_texts() const { return this->texts_; }
   GET_ENTITY_METHOD(text::Text, text, texts)
 #endif
 #ifdef USE_SELECT
-  const std::vector<select::Select *> &get_selects() { return this->selects_; }
+  auto &get_selects() const { return this->selects_; }
   GET_ENTITY_METHOD(select::Select, select, selects)
 #endif
 #ifdef USE_LOCK
-  const std::vector<lock::Lock *> &get_locks() { return this->locks_; }
+  auto &get_locks() const { return this->locks_; }
   GET_ENTITY_METHOD(lock::Lock, lock, locks)
 #endif
 #ifdef USE_VALVE
-  const std::vector<valve::Valve *> &get_valves() { return this->valves_; }
+  auto &get_valves() const { return this->valves_; }
   GET_ENTITY_METHOD(valve::Valve, valve, valves)
 #endif
 #ifdef USE_MEDIA_PLAYER
-  const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
+  auto &get_media_players() const { return this->media_players_; }
   GET_ENTITY_METHOD(media_player::MediaPlayer, media_player, media_players)
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
-    return this->alarm_control_panels_;
-  }
+  auto &get_alarm_control_panels() const { return this->alarm_control_panels_; }
   GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
 #endif
 
 #ifdef USE_EVENT
-  const std::vector<event::Event *> &get_events() { return this->events_; }
+  auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
 #endif
 
 #ifdef USE_UPDATE
-  const std::vector<update::UpdateEntity *> &get_updates() { return this->updates_; }
+  auto &get_updates() const { return this->updates_; }
   GET_ENTITY_METHOD(update::UpdateEntity, update, updates)
 #endif
 
@@ -558,67 +493,68 @@ class Application {
   std::vector<Area *> areas_{};
 #endif
 #ifdef USE_BINARY_SENSOR
-  std::vector<binary_sensor::BinarySensor *> binary_sensors_{};
+  StaticVector<binary_sensor::BinarySensor *, ESPHOME_ENTITY_BINARY_SENSOR_COUNT> binary_sensors_{};
 #endif
 #ifdef USE_SWITCH
-  std::vector<switch_::Switch *> switches_{};
+  StaticVector<switch_::Switch *, ESPHOME_ENTITY_SWITCH_COUNT> switches_{};
 #endif
 #ifdef USE_BUTTON
-  std::vector<button::Button *> buttons_{};
+  StaticVector<button::Button *, ESPHOME_ENTITY_BUTTON_COUNT> buttons_{};
 #endif
 #ifdef USE_EVENT
-  std::vector<event::Event *> events_{};
+  StaticVector<event::Event *, ESPHOME_ENTITY_EVENT_COUNT> events_{};
 #endif
 #ifdef USE_SENSOR
-  std::vector<sensor::Sensor *> sensors_{};
+  StaticVector<sensor::Sensor *, ESPHOME_ENTITY_SENSOR_COUNT> sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::vector<text_sensor::TextSensor *> text_sensors_{};
+  StaticVector<text_sensor::TextSensor *, ESPHOME_ENTITY_TEXT_SENSOR_COUNT> text_sensors_{};
 #endif
 #ifdef USE_FAN
-  std::vector<fan::Fan *> fans_{};
+  StaticVector<fan::Fan *, ESPHOME_ENTITY_FAN_COUNT> fans_{};
 #endif
 #ifdef USE_COVER
-  std::vector<cover::Cover *> covers_{};
+  StaticVector<cover::Cover *, ESPHOME_ENTITY_COVER_COUNT> covers_{};
 #endif
 #ifdef USE_CLIMATE
-  std::vector<climate::Climate *> climates_{};
+  StaticVector<climate::Climate *, ESPHOME_ENTITY_CLIMATE_COUNT> climates_{};
 #endif
 #ifdef USE_LIGHT
-  std::vector<light::LightState *> lights_{};
+  StaticVector<light::LightState *, ESPHOME_ENTITY_LIGHT_COUNT> lights_{};
 #endif
 #ifdef USE_NUMBER
-  std::vector<number::Number *> numbers_{};
+  StaticVector<number::Number *, ESPHOME_ENTITY_NUMBER_COUNT> numbers_{};
 #endif
 #ifdef USE_DATETIME_DATE
-  std::vector<datetime::DateEntity *> dates_{};
+  StaticVector<datetime::DateEntity *, ESPHOME_ENTITY_DATE_COUNT> dates_{};
 #endif
 #ifdef USE_DATETIME_TIME
-  std::vector<datetime::TimeEntity *> times_{};
+  StaticVector<datetime::TimeEntity *, ESPHOME_ENTITY_TIME_COUNT> times_{};
 #endif
 #ifdef USE_DATETIME_DATETIME
-  std::vector<datetime::DateTimeEntity *> datetimes_{};
+  StaticVector<datetime::DateTimeEntity *, ESPHOME_ENTITY_DATETIME_COUNT> datetimes_{};
 #endif
 #ifdef USE_SELECT
-  std::vector<select::Select *> selects_{};
+  StaticVector<select::Select *, ESPHOME_ENTITY_SELECT_COUNT> selects_{};
 #endif
 #ifdef USE_TEXT
-  std::vector<text::Text *> texts_{};
+  StaticVector<text::Text *, ESPHOME_ENTITY_TEXT_COUNT> texts_{};
 #endif
 #ifdef USE_LOCK
-  std::vector<lock::Lock *> locks_{};
+  StaticVector<lock::Lock *, ESPHOME_ENTITY_LOCK_COUNT> locks_{};
 #endif
 #ifdef USE_VALVE
-  std::vector<valve::Valve *> valves_{};
+  StaticVector<valve::Valve *, ESPHOME_ENTITY_VALVE_COUNT> valves_{};
 #endif
 #ifdef USE_MEDIA_PLAYER
-  std::vector<media_player::MediaPlayer *> media_players_{};
+  StaticVector<media_player::MediaPlayer *, ESPHOME_ENTITY_MEDIA_PLAYER_COUNT> media_players_{};
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  std::vector<alarm_control_panel::AlarmControlPanel *> alarm_control_panels_{};
+  StaticVector<alarm_control_panel::AlarmControlPanel *, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT>
+      alarm_control_panels_{};
 #endif
 #ifdef USE_UPDATE
-  std::vector<update::UpdateEntity *> updates_{};
+  StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT

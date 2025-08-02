@@ -421,8 +421,10 @@ async def _add_automations(config):
 
 @coroutine_with_priority(-100.0)
 async def _add_platform_reserves() -> None:
+    # Generate compile-time entity count defines for static_entity_vector
     for platform_name, count in sorted(CORE.platform_counts.items()):
-        cg.add(cg.RawStatement(f"App.reserve_{platform_name}({count});"), prepend=True)
+        define_name = f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT"
+        cg.add_define(define_name, count)
 
 
 @coroutine_with_priority(100.0)
