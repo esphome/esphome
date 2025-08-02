@@ -318,3 +318,51 @@ async def channel_action(
     template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
     cg.add(var.set_channel(template_))
     return var
+
+
+FindPeerAction = espnow_ns.class_("FindPeerAction", automation.Action, cg.Component)
+
+
+CONF_ON_SUCCEED = "on_succeed"
+CONF_ON_FAILED = "on_failed"
+
+
+@automation.register_action(
+    "espnow.peer.find",
+    FindPeerAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(ESPNowComponent),
+            cv.Optional(CONF_ADDRESS): validate_peer,
+            cv.Required(CONF_DATA): cv.templatable(_validate_raw_data),
+            cv.Optional(CONF_WAIT_FOR_SENT, default=True): cv.boolean,
+            cv.Optional(CONF_CONTINUE_ON_ERROR, default=True): cv.boolean,
+            cv.Optional(CONF_ON_SUCCEED): automation.validate_action_list,
+            cv.Optional(CONF_ON_FAILED): automation.validate_action_list,
+        },
+        key=CONF_ADDRESS,
+    ),
+)
+async def find_peer_action(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+
+    await register_peer(var, config, args)
+
+    data = config.get(CONF_DATA, [])
+    if isinstance(data, str):
+        data = [cg.RawExpression(f"'{c}'") for c in data]
+    templ = await cg.templatable(data, args, byte_vector, byte_vector)
+    cg.add(var.set_data(templ))
+
+    cg.add(var.set_wait_for_sent(config[CONF_WAIT_FOR_SENT]))
+    cg.add(var.set_continue_on_error(config[CONF_CONTINUE_ON_ERROR]))
+
+    if on_success := config.get(CONF_ON_SUCCEED):
+        actions = await automation.build_action_list(on_success, template_arg, args)
+        cg.add(var.add_on_succeed(actions))
+    if on_failed := config.get(CONF_ON_FAILED):
+        actions = await automation.build_action_list(on_failed, template_arg, args)
+        cg.add(var.add_on_failed(actions))
+
+    return var
