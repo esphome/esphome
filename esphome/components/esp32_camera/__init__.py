@@ -373,6 +373,11 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY", False)
 
+        if config[CONF_PIXEL_FORMAT] != "JPEG":
+            add_idf_sdkconfig_option(name="CONFIG_SPIRAM_SUPPORT", value="y")
+            add_idf_sdkconfig_option(name="CONFIG_SPIRAM_USE_CAPS_ALLOC", value="y")
+            add_idf_sdkconfig_option(name="CONFIG_SPIRAM_USE_MALLOC", value="y")
+
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
