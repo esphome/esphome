@@ -1,11 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import (
-    CONF_STATUS,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_ACCOUNT,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_STATUS, ENTITY_CATEGORY_DIAGNOSTIC, ICON_ACCOUNT
+
 from . import CONF_HLK_FM22X_ID, HlkFm22xComponent
 
 DEPENDENCIES = ["hlk_fm22x"]

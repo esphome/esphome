@@ -1,12 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_VERSION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ACCOUNT,
     ICON_RESTART,
 )
+
 from . import CONF_HLK_FM22X_ID, HlkFm22xComponent
 
 DEPENDENCIES = ["hlk_fm22x"]
