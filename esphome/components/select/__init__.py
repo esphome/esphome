@@ -126,7 +126,6 @@ async def new_select(config, *, options: list[str]):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)
 
 

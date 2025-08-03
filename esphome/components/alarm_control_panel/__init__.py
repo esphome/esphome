@@ -348,4 +348,3 @@ async def alarm_control_panel_is_armed_to_code(
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(alarm_control_panel_ns.using)
-    cg.add_define("USE_ALARM_CONTROL_PANEL")

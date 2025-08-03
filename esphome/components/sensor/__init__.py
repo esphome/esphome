@@ -1139,5 +1139,4 @@ def _lstsq(a, b):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_SENSOR")
     cg.add_global(sensor_ns.using)

@@ -137,4 +137,3 @@ async def button_press_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(button_ns.using)
-    cg.add_define("USE_BUTTON")

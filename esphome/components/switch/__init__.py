@@ -202,4 +202,3 @@ async def switch_is_off_to_code(config, condition_id, template_arg, args):
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(switch_ns.using)
-    cg.add_define("USE_SWITCH")
