@@ -147,7 +147,7 @@ void HlkFm22xComponent::recv_command_() {
 
   byte = this->read();
   if (byte != checksum) {
-    ESP_LOGE(TAG, "Invlid checksum for data. Calculated: 0x%.2X, Received: 0x%.2X", checksum, byte);
+    ESP_LOGE(TAG, "Invalid checksum for data. Calculated: 0x%.2X, Received: 0x%.2X", checksum, byte);
     return;
   }
   switch (response_type) {

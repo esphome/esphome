@@ -30,7 +30,7 @@ enum HlkFm22xCommand {
 enum HlkFm22xResponseType {
   REPLY = 0x00,
   NOTE = 0x01,
-  IAMGE = 0x02,
+  IMAGE = 0x02,
 };
 
 enum HlkFm22xNoteType {
