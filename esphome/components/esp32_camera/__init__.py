@@ -345,7 +345,7 @@ async def to_code(config):
     cg.add_define("USE_CAMERA")
 
     if CORE.using_esp_idf:
-        add_idf_component(name="espressif/esp32-camera", ref="2.0.15")
+        add_idf_component(name="espressif/esp32-camera", ref="2.1.0")
 
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
