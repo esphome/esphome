@@ -240,7 +240,10 @@
 
 #define USE_DASHBOARD_IMPORT
 
-// Default entity counts for static analysis
+// Default counts for static analysis
+#define ESPHOME_COMPONENT_COUNT 50
+#define ESPHOME_DEVICE_COUNT 10
+#define ESPHOME_AREA_COUNT 10
 #define ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT 1
 #define ESPHOME_ENTITY_BINARY_SENSOR_COUNT 1
 #define ESPHOME_ENTITY_BUTTON_COUNT 1
