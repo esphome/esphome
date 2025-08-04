@@ -101,12 +101,9 @@ class Application {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
-      this->name_ = name + "-" + get_mac_address().substr(6);
-      if (friendly_name.empty()) {
-        this->friendly_name_ = "";
-      } else {
-        this->friendly_name_ = friendly_name + " " + get_mac_address().substr(6);
-      }
+      const std::string mac_suffix = get_mac_address().substr(6);
+      this->name_ = name + "-" + mac_suffix;
+      this->friendly_name_ = friendly_name.empty() ? "" : friendly_name + " " + mac_suffix;
     } else {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
