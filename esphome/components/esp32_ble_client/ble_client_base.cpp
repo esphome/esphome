@@ -16,8 +16,8 @@ static const char *const TAG = "esp32_ble_client";
 // Intermediate connection parameters for standard operation
 // ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
 // causing disconnections. These medium parameters balance responsiveness with bandwidth usage.
-static const uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x08;  // 8 * 1.25ms = 10ms
-static const uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x0A;  // 10 * 1.25ms = 12.5ms
+static const uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
+static const uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
 // The timeout value was increased from 6s to 8s to address stability issues observed
 // in certain BLE devices when operating through WiFi-based BLE proxies. The longer
 // timeout reduces the likelihood of disconnections during periods of high latency.
@@ -157,12 +157,13 @@ void BLEClientBase::connect() {
     this->set_state(espbt::ClientState::CONNECTING);
 
     // Always set connection parameters to ensure stable operation
-    // Use FAST for V3_WITHOUT_CACHE (devices that need lowest latency)
-    // Use MEDIUM for all other connections (balanced performance)
+    // Use FAST for all V3 connections (better latency and reliability)
+    // Use MEDIUM for V1/legacy connections (balanced performance)
     uint16_t min_interval, max_interval, timeout;
     const char *param_type;
 
-    if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+    if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE ||
+        this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
       min_interval = FAST_MIN_CONN_INTERVAL;
       max_interval = FAST_MAX_CONN_INTERVAL;
       timeout = FAST_CONN_TIMEOUT;
@@ -411,9 +412,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_.c_str());
 
-      // For non-cached connections, restore to medium connection parameters after service discovery
+      // For V3 connections, restore to medium connection parameters after service discovery
       // This balances performance with bandwidth usage after the critical discovery phase
-      if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE ||
+          this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         esp_ble_conn_update_params_t conn_params = {{0}};
         memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
         conn_params.min_int = MEDIUM_MIN_CONN_INTERVAL;
