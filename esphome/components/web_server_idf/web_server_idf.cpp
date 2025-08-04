@@ -223,6 +223,7 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   this->rsp_ = rsp;
 }
 
+#ifdef USE_WEBSERVER_AUTH
 bool AsyncWebServerRequest::authenticate(const char *username, const char *password) const {
   if (username == nullptr || password == nullptr || *username == 0) {
     return true;
@@ -261,6 +262,7 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
+#endif
 
 AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   auto find = this->params_.find(name);
