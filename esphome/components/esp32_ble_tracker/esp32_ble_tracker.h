@@ -158,18 +158,16 @@ enum class ClientState : uint8_t {
 };
 
 enum class ScannerState {
-  // Scanner is idle, init state, set from the main loop when processing STOPPED
+  // Scanner is idle, init state
   IDLE,
-  // Scanner is starting, set from the main loop only
+  // Scanner is starting
   STARTING,
-  // Scanner is running, set from the ESP callback only
+  // Scanner is running
   RUNNING,
-  // Scanner failed to start, set from the ESP callback only
+  // Scanner failed to start
   FAILED,
-  // Scanner is stopping, set from the main loop only
+  // Scanner is stopping
   STOPPING,
-  // Scanner is stopped, set from the ESP callback only
-  STOPPED,
 };
 
 enum class ConnectionType : uint8_t {
@@ -262,8 +260,6 @@ class ESP32BLETracker : public Component,
   void stop_scan_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
-  /// Called when a scan ends
-  void end_of_scan_();
   /// Called when a `ESP_GAP_BLE_SCAN_RESULT_EVT` event is received.
   void gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
   /// Called when a `ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT` event is received.
@@ -274,6 +270,8 @@ class ESP32BLETracker : public Component,
   void gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
   /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
   void set_scanner_state_(ScannerState state);
+  /// Common cleanup logic when transitioning scanner to IDLE state
+  void cleanup_scan_state_(bool is_stop_complete);
 
   uint8_t app_id_{0};
 
