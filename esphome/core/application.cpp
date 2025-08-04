@@ -34,6 +34,44 @@ namespace esphome {
 
 static const char *const TAG = "app";
 
+// Helper function for insertion sort of components by setup priority
+// Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
+// by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
+// IMPORTANT: This sort is stable (preserves relative order of equal elements),
+// which is necessary to maintain user-defined component order for same priority
+template<typename Iterator> static void insertion_sort_by_setup_priority(Iterator first, Iterator last) {
+  for (auto it = first + 1; it != last; ++it) {
+    auto key = *it;
+    float key_priority = key->get_actual_setup_priority();
+    auto j = it - 1;
+
+    // Using '<' (not '<=') ensures stability - equal priority components keep their order
+    while (j >= first && (*j)->get_actual_setup_priority() < key_priority) {
+      *(j + 1) = *j;
+      j--;
+    }
+    *(j + 1) = key;
+  }
+}
+
+// Helper function for insertion sort of components by loop priority
+// IMPORTANT: This sort is stable (preserves relative order of equal elements),
+// which is required when components are re-sorted during setup() if they block
+template<typename Iterator> static void insertion_sort_by_loop_priority(Iterator first, Iterator last) {
+  for (auto it = first + 1; it != last; ++it) {
+    auto key = *it;
+    float key_priority = key->get_loop_priority();
+    auto j = it - 1;
+
+    // Using '<' (not '<=') ensures stability - equal priority components keep their order
+    while (j >= first && (*j)->get_loop_priority() < key_priority) {
+      *(j + 1) = *j;
+      j--;
+    }
+    *(j + 1) = key;
+  }
+}
+
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {
     ESP_LOGW(TAG, "Tried to register null component!");
@@ -51,9 +89,9 @@ void Application::register_component_(Component *comp) {
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
   ESP_LOGV(TAG, "Sorting components by setup priority");
-  std::stable_sort(this->components_.begin(), this->components_.end(), [](const Component *a, const Component *b) {
-    return a->get_actual_setup_priority() > b->get_actual_setup_priority();
-  });
+
+  // Sort by setup priority using our helper function
+  insertion_sort_by_setup_priority(this->components_.begin(), this->components_.end());
 
   // Initialize looping_components_ early so enable_pending_loops_() works during setup
   this->calculate_looping_components_();
@@ -69,8 +107,8 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
-    std::stable_sort(this->components_.begin(), this->components_.begin() + i + 1,
-                     [](Component *a, Component *b) { return a->get_loop_priority() > b->get_loop_priority(); });
+    // Sort components 0 through i by loop priority
+    insertion_sort_by_loop_priority(this->components_.begin(), this->components_.begin() + i + 1);
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
