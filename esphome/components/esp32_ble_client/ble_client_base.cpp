@@ -45,8 +45,10 @@ void BLEClientBase::set_state(espbt::ClientState st) {
   ESPBTClient::set_state(st);
 
   if (st == espbt::ClientState::READY_TO_CONNECT) {
-    // Enable loop when we need to connect
+    // Enable loop for state processing
     this->enable_loop();
+    // Connect immediately instead of waiting for next loop
+    this->connect();
   }
 }
 
@@ -62,11 +64,6 @@ void BLEClientBase::loop() {
       this->mark_failed();
     }
     this->set_state(espbt::ClientState::IDLE);
-  }
-  // READY_TO_CONNECT means we have discovered the device
-  // and the scanner has been stopped by the tracker.
-  else if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
-    this->connect();
   }
   // If its idle, we can disable the loop as set_state
   // will enable it again when we need to connect.
