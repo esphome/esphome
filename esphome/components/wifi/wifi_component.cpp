@@ -505,6 +505,54 @@ void WiFiComponent::start_scanning() {
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
 }
 
+// Helper function for WiFi scan result comparison
+// Returns true if 'a' should be placed before 'b' in the sorted order
+[[nodiscard]] inline static bool wifi_scan_result_is_better(const WiFiScanResult &a, const WiFiScanResult &b) {
+  // Matching networks always come before non-matching
+  if (a.get_matches() && !b.get_matches())
+    return true;
+  if (!a.get_matches() && b.get_matches())
+    return false;
+
+  if (a.get_matches() && b.get_matches()) {
+    // For APs with the same SSID, always prefer stronger signal
+    // This helps with mesh networks and multiple APs
+    if (a.get_ssid() == b.get_ssid()) {
+      return a.get_rssi() > b.get_rssi();
+    }
+
+    // For different SSIDs, check priority first
+    if (a.get_priority() != b.get_priority())
+      return a.get_priority() > b.get_priority();
+    // If priorities are equal, prefer stronger signal
+    return a.get_rssi() > b.get_rssi();
+  }
+
+  // Both don't match - sort by signal strength
+  return a.get_rssi() > b.get_rssi();
+}
+
+// Helper function for insertion sort of WiFi scan results
+// Using insertion sort instead of std::stable_sort saves flash memory
+// by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
+// IMPORTANT: This sort is stable (preserves relative order of equal elements)
+static void insertion_sort_scan_results(std::vector<WiFiScanResult> &results) {
+  const size_t size = results.size();
+  for (size_t i = 1; i < size; i++) {
+    // Make a copy to avoid issues with move semantics during comparison
+    WiFiScanResult key = results[i];
+    int32_t j = i - 1;
+
+    // Move elements that are worse than key to the right
+    // For stability, we only move if key is strictly better than results[j]
+    while (j >= 0 && wifi_scan_result_is_better(key, results[j])) {
+      results[j + 1] = results[j];
+      j--;
+    }
+    results[j + 1] = key;
+  }
+}
+
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
     if (millis() - this->action_started_ > 30000) {
@@ -535,30 +583,8 @@ void WiFiComponent::check_scanning_finished() {
     }
   }
 
-  std::stable_sort(this->scan_result_.begin(), this->scan_result_.end(),
-                   [](const WiFiScanResult &a, const WiFiScanResult &b) {
-                     // return true if a is better than b
-                     if (a.get_matches() && !b.get_matches())
-                       return true;
-                     if (!a.get_matches() && b.get_matches())
-                       return false;
-
-                     if (a.get_matches() && b.get_matches()) {
-                       // For APs with the same SSID, always prefer stronger signal
-                       // This helps with mesh networks and multiple APs
-                       if (a.get_ssid() == b.get_ssid()) {
-                         return a.get_rssi() > b.get_rssi();
-                       }
-
-                       // For different SSIDs, check priority first
-                       if (a.get_priority() != b.get_priority())
-                         return a.get_priority() > b.get_priority();
-                       // If priorities are equal, prefer stronger signal
-                       return a.get_rssi() > b.get_rssi();
-                     }
-
-                     return a.get_rssi() > b.get_rssi();
-                   });
+  // Sort scan results using insertion sort for better memory efficiency
+  insertion_sort_scan_results(this->scan_result_);
 
   for (auto &res : this->scan_result_) {
     char bssid_s[18];
