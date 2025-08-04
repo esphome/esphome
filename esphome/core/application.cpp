@@ -459,24 +459,25 @@ void Application::unregister_socket_fd(int fd) {
   if (fd < 0)
     return;
 
-  auto it = std::find(this->socket_fds_.begin(), this->socket_fds_.end(), fd);
-  if (it != this->socket_fds_.end()) {
+  for (size_t i = 0; i < this->socket_fds_.size(); i++) {
+    if (this->socket_fds_[i] != fd)
+      continue;
+
     // Swap with last element and pop - O(1) removal since order doesn't matter
-    if (it != this->socket_fds_.end() - 1) {
-      std::swap(*it, this->socket_fds_.back());
-    }
+    if (i < this->socket_fds_.size() - 1)
+      this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
     this->socket_fds_changed_ = true;
 
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {
-      if (this->socket_fds_.empty()) {
-        this->max_fd_ = -1;
-      } else {
-        // Find new max using std::max_element
-        this->max_fd_ = *std::max_element(this->socket_fds_.begin(), this->socket_fds_.end());
+      this->max_fd_ = -1;
+      for (int sock_fd : this->socket_fds_) {
+        if (sock_fd > this->max_fd_)
+          this->max_fd_ = sock_fd;
       }
     }
+    return;
   }
 }
 
