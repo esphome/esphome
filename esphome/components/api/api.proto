@@ -250,8 +250,8 @@ message DeviceInfoResponse {
   // Supports receiving and saving api encryption key
   bool api_encryption_supported = 19 [(field_ifdef) = "USE_API_NOISE"];
 
-  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES"];
-  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS"];
+  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES", (fixed_array_size_define) = "ESPHOME_DEVICE_COUNT"];
+  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS", (fixed_array_size_define) = "ESPHOME_AREA_COUNT"];
 
   // Top-level area info to phase out suggested_area
   AreaInfo area = 22 [(field_ifdef) = "USE_AREAS"];

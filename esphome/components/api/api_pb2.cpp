@@ -115,12 +115,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(19, this->api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
-  for (auto &it : this->devices) {
+  for (const auto &it : this->devices) {
     buffer.encode_message(20, it, true);
   }
 #endif
 #ifdef USE_AREAS
-  for (auto &it : this->areas) {
+  for (const auto &it : this->areas) {
     buffer.encode_message(21, it, true);
   }
 #endif
@@ -167,10 +167,14 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_bool(2, this->api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
-  size.add_repeated_message(2, this->devices);
+  for (const auto &it : this->devices) {
+    size.add_message_object_force(2, it);
+  }
 #endif
 #ifdef USE_AREAS
-  size.add_repeated_message(2, this->areas);
+  for (const auto &it : this->areas) {
+    size.add_message_object_force(2, it);
+  }
 #endif
 #ifdef USE_AREAS
   size.add_message_object(2, this->area);

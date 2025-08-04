@@ -490,7 +490,7 @@ class DeviceInfo : public ProtoMessage {
 class DeviceInfoResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint8_t ESTIMATED_SIZE = 211;
+  static constexpr uint8_t ESTIMATED_SIZE = 247;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
@@ -543,10 +543,10 @@ class DeviceInfoResponse : public ProtoMessage {
   bool api_encryption_supported{false};
 #endif
 #ifdef USE_DEVICES
-  std::vector<DeviceInfo> devices{};
+  std::array<DeviceInfo, ESPHOME_DEVICE_COUNT> devices{};
 #endif
 #ifdef USE_AREAS
-  std::vector<AreaInfo> areas{};
+  std::array<AreaInfo, ESPHOME_AREA_COUNT> areas{};
 #endif
 #ifdef USE_AREAS
   AreaInfo area{};
