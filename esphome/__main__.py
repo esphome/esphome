@@ -277,20 +277,20 @@ def upload_using_esptool(config, port, file, speed):
 
     def run_esptool(baud_rate):
         cmd = [
-            "esptool.py",
+            "esptool",
             "--before",
-            "default_reset",
+            "default-reset",
             "--after",
-            "hard_reset",
+            "hard-reset",
             "--baud",
             str(baud_rate),
             "--port",
             port,
             "--chip",
             mcu,
-            "write_flash",
+            "write-flash",
             "-z",
-            "--flash_size",
+            "--flash-size",
             "detect",
         ]
         for img in flash_images:

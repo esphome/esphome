@@ -61,6 +61,7 @@ FILTER_PLATFORMIO_LINES = [
     r"Advanced Memory Usage is available via .*",
     r"Merged .* ELF section",
     r"esptool.py v.*",
+    r"esptool v.*",
     r"Checking size .*",
     r"Retrieving maximum program size .*",
     r"PLATFORM: .*",
