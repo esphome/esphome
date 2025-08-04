@@ -345,5 +345,11 @@ def get_esp32_arduino_flash_error_help() -> str | None:
         + "2. Clean build files and compile again\n"
         + "\n"
         + "Note: ESP-IDF uses less flash space and provides better performance.\n"
-        + "Some Arduino-specific libraries may need alternatives.\n\n"
+        + "Some Arduino-specific libraries may need alternatives.\n"
+        + "\n"
+        + "For detailed migration instructions, see:\n"
+        + color(
+            AnsiFore.BLUE,
+            "https://esphome.io/guides/esp32_arduino_to_idf.html\n\n",
+        )
     )
