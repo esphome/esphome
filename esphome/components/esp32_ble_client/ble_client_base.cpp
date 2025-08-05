@@ -283,7 +283,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (!this->check_addr(param->open.remote_bda))
         return false;
       this->log_event_("ESP_GATTC_OPEN_EVT");
-      this->conn_id_ = param->open.conn_id;
+      // conn_id was already set in ESP_GATTC_CONNECT_EVT
       this->service_count_ = 0;
       if (this->state_ != espbt::ClientState::CONNECTING) {
         // This should not happen but lets log it in case it does
@@ -317,11 +317,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->conn_id_ = UNSET_CONN_ID;
         break;
       }
-      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
-      if (ret) {
-        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
-                 this->address_str_.c_str(), ret);
-      }
+      // MTU negotiation already started in ESP_GATTC_CONNECT_EVT
       this->set_state(espbt::ClientState::CONNECTED);
       ESP_LOGI(TAG, "[%d] [%s] Connection open", this->connection_index_, this->address_str_.c_str());
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
@@ -338,6 +334,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (!this->check_addr(param->connect.remote_bda))
         return false;
       this->log_event_("ESP_GATTC_CONNECT_EVT");
+      this->conn_id_ = param->connect.conn_id;
+      // Start MTU negotiation immediately as recommended by ESP-IDF examples
+      // (gatt_client, ble_throughput) which call esp_ble_gattc_send_mtu_req in
+      // ESP_GATTC_CONNECT_EVT instead of waiting for ESP_GATTC_OPEN_EVT.
+      // This saves ~3ms in the connection process.
+      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
+      if (ret) {
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
+                 this->address_str_.c_str(), ret);
+      }
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
