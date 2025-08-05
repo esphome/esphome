@@ -767,6 +767,12 @@ POST_CONFIG_ACTIONS = {
     "discover": command_discover,
 }
 
+SIMPLE_CONFIG_ACTIONS = [
+    "clean",
+    "clean-mqtt",
+    "config",
+]
+
 
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
@@ -1032,6 +1038,13 @@ def parse_args(argv):
     arguments = argv[1:]
 
     argcomplete.autocomplete(parser)
+
+    if len(arguments) > 0 and arguments[0] in SIMPLE_CONFIG_ACTIONS:
+        args, unknown_args = parser.parse_known_args(arguments)
+        if unknown_args:
+            _LOGGER.warning("Ignored unrecognized arguments: %s", unknown_args)
+        return args
+
     return parser.parse_args(arguments)
 
 
