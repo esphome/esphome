@@ -60,7 +60,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
           } else {
             this->stop_complex();
           }
-        } else
+        }
       }
     };
     peer_address_t address = this->address_.value(x...);
@@ -157,7 +157,7 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
       if (this->current_channel_ >= 11) {
         this->current_channel_ = 1;
       }
-      this->parent_->set_wifi_channel(current_channel);
+      this->parent_->set_wifi_channel(this->current_channel_);
       this->parent_->apply_wifi_channel();
       if (this->current_channel_ == this->start_channel_) {
         this->play_failed();
@@ -180,7 +180,7 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
     }
   }
 
-  bool send_ping() {
+  void send_ping() {
     send_callback_t send_callback = [this](esp_err_t status) {
       if (status == ESP_OK) {
         this->reset_date();
@@ -194,7 +194,7 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
       }
     };
     esp_err_t err =
-        this->parent_->send(this->current_address_, this->current_data_, this->current_data_, send_callback);
+        this->parent_->send(this->current_address_, this->current_data_, this->current_data_size_, send_callback);
     if (err != ESP_OK) {
       this->current_status = FIND_PEER_WAITING;
     } else {
