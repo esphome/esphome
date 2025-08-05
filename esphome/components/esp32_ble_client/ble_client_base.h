@@ -127,6 +127,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
+  void restore_medium_conn_params_();
 };
 
 }  // namespace esp32_ble_client
