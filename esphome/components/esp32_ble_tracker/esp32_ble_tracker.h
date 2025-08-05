@@ -6,7 +6,6 @@
 #include "esphome/core/helpers.h"
 
 #include <array>
-#include <atomic>
 #include <string>
 #include <vector>
 
@@ -21,6 +20,7 @@
 
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/components/esp32_ble/ble_scan_result.h"
 
 namespace esphome::esp32_ble_tracker {
 
@@ -272,6 +272,13 @@ class ESP32BLETracker : public Component,
   void set_scanner_state_(ScannerState state);
   /// Common cleanup logic when transitioning scanner to IDLE state
   void cleanup_scan_state_(bool is_stop_complete);
+  /// Process a single scan result immediately
+  /// Returns true if a discovered client needs promotion to READY_TO_CONNECT
+  bool process_scan_result_(const BLEScanResult &scan_result);
+#ifdef USE_ESP32_BLE_DEVICE
+  /// Check if any clients are in connecting or ready to connect state
+  bool has_connecting_clients_() const;
+#endif
 
   uint8_t app_id_{0};
 
@@ -294,15 +301,6 @@ class ESP32BLETracker : public Component,
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
-
-  // Lock-free Single-Producer Single-Consumer (SPSC) ring buffer for scan results
-  // Producer: ESP-IDF Bluetooth stack callback (gap_scan_event_handler)
-  // Consumer: ESPHome main loop (loop() method)
-  // This design ensures zero blocking in the BT callback and prevents scan result loss
-  BLEScanResult *scan_ring_buffer_;
-  std::atomic<uint8_t> ring_write_index_{0};       // Written only by BT callback (producer)
-  std::atomic<uint8_t> ring_read_index_{0};        // Written only by main loop (consumer)
-  std::atomic<uint16_t> scan_results_dropped_{0};  // Tracks buffer overflow events
 
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};

@@ -49,13 +49,6 @@ void ESP32BLETracker::setup() {
     ESP_LOGE(TAG, "BLE Tracker was marked failed by ESP32BLE");
     return;
   }
-  RAMAllocator<BLEScanResult> allocator;
-  this->scan_ring_buffer_ = allocator.allocate(SCAN_RESULT_BUFFER_SIZE);
-
-  if (this->scan_ring_buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate ring buffer for BLE Tracker!");
-    this->mark_failed();
-  }
 
   global_esp32_ble_tracker = this;
 
@@ -117,74 +110,8 @@ void ESP32BLETracker::loop() {
   }
   bool promote_to_connecting = discovered && !searching && !connecting;
 
-  // Process scan results from lock-free SPSC ring buffer
-  // Consumer side: This runs in the main loop thread
-  if (this->scanner_state_ == ScannerState::RUNNING) {
-    // Load our own index with relaxed ordering (we're the only writer)
-    uint8_t read_idx = this->ring_read_index_.load(std::memory_order_relaxed);
-
-    // Load producer's index with acquire to see their latest writes
-    uint8_t write_idx = this->ring_write_index_.load(std::memory_order_acquire);
-
-    while (read_idx != write_idx) {
-      // Calculate how many contiguous results we can process in one batch
-      // If write > read: process all results from read to write
-      // If write <= read (wraparound): process from read to end of buffer first
-      size_t batch_size = (write_idx > read_idx) ? (write_idx - read_idx) : (SCAN_RESULT_BUFFER_SIZE - read_idx);
-
-      // Process the batch for raw advertisements
-      if (this->raw_advertisements_) {
-        for (auto *listener : this->listeners_) {
-          listener->parse_devices(&this->scan_ring_buffer_[read_idx], batch_size);
-        }
-        for (auto *client : this->clients_) {
-          client->parse_devices(&this->scan_ring_buffer_[read_idx], batch_size);
-        }
-      }
-
-      // Process individual results for parsed advertisements
-      if (this->parse_advertisements_) {
-#ifdef USE_ESP32_BLE_DEVICE
-        for (size_t i = 0; i < batch_size; i++) {
-          BLEScanResult &scan_result = this->scan_ring_buffer_[read_idx + i];
-          ESPBTDevice device;
-          device.parse_scan_rst(scan_result);
-
-          bool found = false;
-          for (auto *listener : this->listeners_) {
-            if (listener->parse_device(device))
-              found = true;
-          }
-
-          for (auto *client : this->clients_) {
-            if (client->parse_device(device)) {
-              found = true;
-              if (!connecting && client->state() == ClientState::DISCOVERED) {
-                promote_to_connecting = true;
-              }
-            }
-          }
-
-          if (!found && !this->scan_continuous_) {
-            this->print_bt_device_info(device);
-          }
-        }
-#endif  // USE_ESP32_BLE_DEVICE
-      }
-
-      // Update read index for entire batch
-      read_idx = (read_idx + batch_size) % SCAN_RESULT_BUFFER_SIZE;
-
-      // Store with release to ensure reads complete before index update
-      this->ring_read_index_.store(read_idx, std::memory_order_release);
-    }
-
-    // Log dropped results periodically
-    size_t dropped = this->scan_results_dropped_.exchange(0, std::memory_order_relaxed);
-    if (dropped > 0) {
-      ESP_LOGW(TAG, "Dropped %zu BLE scan results due to buffer overflow", dropped);
-    }
-  }
+  // All scan result processing is now done immediately in gap_scan_event_handler
+  // No ring buffer processing needed here
   if (this->scanner_state_ == ScannerState::FAILED ||
       (this->scan_set_param_failed_ && this->scanner_state_ == ScannerState::RUNNING)) {
     this->stop_scan_();
@@ -229,8 +156,10 @@ void ESP32BLETracker::loop() {
   }
   // If there is a discovered client and no connecting
   // clients and no clients using the scanner to search for
-  // devices, then stop scanning and promote the discovered
-  // client to ready to connect.
+  // devices, then promote the discovered client to ready to connect.
+  // Note: Scanning is already stopped by gap_scan_event_handler when
+  // a discovered client is found, so we only need to handle promotion
+  // when the scanner is IDLE.
   if (promote_to_connecting &&
       (this->scanner_state_ == ScannerState::RUNNING || this->scanner_state_ == ScannerState::IDLE)) {
     for (auto *client : this->clients_) {
@@ -392,31 +321,18 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
 
 void ESP32BLETracker::gap_scan_event_handler(const BLEScanResult &scan_result) {
   // Note: This handler is called from the main loop context via esp32_ble's event queue.
-  // However, we still use a lock-free ring buffer to batch results efficiently.
+  // We process advertisements immediately instead of buffering them.
   ESP_LOGV(TAG, "gap_scan_result - event %d", scan_result.search_evt);
 
   if (scan_result.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
-    // Ring buffer write (Producer side)
-    // Even though we're in the main loop, the ring buffer design allows efficient batching
-    // IMPORTANT: Only this thread writes to ring_write_index_
+    // Process the scan result immediately
+    bool found_discovered_client = this->process_scan_result_(scan_result);
 
-    // Load our own index with relaxed ordering (we're the only writer)
-    uint8_t write_idx = this->ring_write_index_.load(std::memory_order_relaxed);
-    uint8_t next_write_idx = (write_idx + 1) % SCAN_RESULT_BUFFER_SIZE;
-
-    // Load consumer's index with acquire to see their latest updates
-    uint8_t read_idx = this->ring_read_index_.load(std::memory_order_acquire);
-
-    // Check if buffer is full
-    if (next_write_idx != read_idx) {
-      // Write to ring buffer
-      this->scan_ring_buffer_[write_idx] = scan_result;
-
-      // Store with release to ensure the write is visible before index update
-      this->ring_write_index_.store(next_write_idx, std::memory_order_release);
-    } else {
-      // Buffer full, track dropped results
-      this->scan_results_dropped_.fetch_add(1, std::memory_order_relaxed);
+    // If we found a discovered client that needs promotion, stop scanning
+    // This replaces the promote_to_connecting logic from loop()
+    if (found_discovered_client && this->scanner_state_ == ScannerState::RUNNING) {
+      ESP_LOGD(TAG, "Found discovered client, stopping scan for connection");
+      this->stop_scan_();
     }
   } else if (scan_result.search_evt == ESP_GAP_SEARCH_INQ_CMPL_EVT) {
     // Scan finished on its own
@@ -861,7 +777,65 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
   return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
          ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
 }
+
+bool ESP32BLETracker::has_connecting_clients_() const {
+  for (auto *client : this->clients_) {
+    auto state = client->state();
+    if (state == ClientState::CONNECTING || state == ClientState::READY_TO_CONNECT) {
+      return true;
+    }
+  }
+  return false;
+}
 #endif  // USE_ESP32_BLE_DEVICE
+
+bool ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
+  bool found_discovered_client = false;
+
+  // Process raw advertisements
+  if (this->raw_advertisements_) {
+    for (auto *listener : this->listeners_) {
+      listener->parse_devices(&scan_result, 1);
+    }
+    for (auto *client : this->clients_) {
+      client->parse_devices(&scan_result, 1);
+    }
+  }
+
+  // Process parsed advertisements
+  if (this->parse_advertisements_) {
+#ifdef USE_ESP32_BLE_DEVICE
+    ESPBTDevice device;
+    device.parse_scan_rst(scan_result);
+
+    bool found = false;
+    for (auto *listener : this->listeners_) {
+      if (listener->parse_device(device))
+        found = true;
+    }
+
+    for (auto *client : this->clients_) {
+      if (client->parse_device(device)) {
+        found = true;
+        // Check if this client is discovered and needs promotion
+        if (client->state() == ClientState::DISCOVERED) {
+          // Only check for connecting clients if we found a discovered client
+          // This matches the original logic: !connecting && client->state() == DISCOVERED
+          if (!this->has_connecting_clients_()) {
+            found_discovered_client = true;
+          }
+        }
+      }
+    }
+
+    if (!found && !this->scan_continuous_) {
+      this->print_bt_device_info(device);
+    }
+#endif  // USE_ESP32_BLE_DEVICE
+  }
+
+  return found_discovered_client;
+}
 
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
   ESP_LOGD(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
