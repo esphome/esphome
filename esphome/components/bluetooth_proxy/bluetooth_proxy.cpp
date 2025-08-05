@@ -35,8 +35,8 @@ void BluetoothProxy::setup() {
   // Don't pre-allocate pool - let it grow only if needed in busy environments
   // Many devices in quiet areas will never need the overflow pool
 
-  this->connections_free_response_.limit = this->connections_.size();
-  this->connections_free_response_.free = this->connections_.size();
+  this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
+  this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
 
   this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
     if (this->api_connection_ != nullptr) {
@@ -134,12 +134,13 @@ void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Active: %s\n"
                 "  Connections: %d",
-                YESNO(this->active_), this->connections_.size());
+                YESNO(this->active_), this->connection_count_);
 }
 
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
-    for (auto *connection : this->connections_) {
+    for (uint8_t i = 0; i < this->connection_count_; i++) {
+      auto *connection = this->connections_[i];
       if (connection->get_address() != 0 && !connection->disconnect_pending()) {
         connection->disconnect();
       }
@@ -162,7 +163,8 @@ esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_par
 }
 
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
-  for (auto *connection : this->connections_) {
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto *connection = this->connections_[i];
     if (connection->get_address() == address)
       return connection;
   }
@@ -170,7 +172,8 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
   if (!reserve)
     return nullptr;
 
-  for (auto *connection : this->connections_) {
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto *connection = this->connections_[i];
     if (connection->get_address() == 0) {
       connection->send_service_ = DONE_SENDING_SERVICES;
       connection->set_address(address);

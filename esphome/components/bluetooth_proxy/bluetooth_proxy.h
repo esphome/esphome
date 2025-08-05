@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <array>
 #include <map>
 #include <vector>
 
@@ -63,8 +64,10 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
   void register_connection(BluetoothConnection *connection) {
-    this->connections_.push_back(connection);
-    connection->proxy_ = this;
+    if (this->connection_count_ < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
+      this->connections_[this->connection_count_++] = connection;
+      connection->proxy_ = this;
+    }
   }
 
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
@@ -138,8 +141,8 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
 
-  // Group 2: Container types (typically 12 bytes on 32-bit)
-  std::vector<BluetoothConnection *> connections_{};
+  // Group 2: Fixed-size array of connection pointers
+  std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 
   // BLE advertisement batching
   std::vector<api::BluetoothLERawAdvertisement> advertisement_pool_;
@@ -154,7 +157,8 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   // Group 4: 1-byte types grouped together
   bool active_;
   uint8_t advertisement_count_{0};
-  // 2 bytes used, 2 bytes padding
+  uint8_t connection_count_{0};
+  // 3 bytes used, 1 byte padding
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
