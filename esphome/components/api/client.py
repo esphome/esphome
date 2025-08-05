@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_run_logs(config: dict[str, Any], address: str) -> None:
+async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
     """Run the logs command in the event loop."""
     conf = config["api"]
     name = config["esphome"]["name"]
@@ -39,13 +39,21 @@ async def async_run_logs(config: dict[str, Any], address: str) -> None:
     noise_psk: str | None = None
     if (encryption := conf.get(CONF_ENCRYPTION)) and (key := encryption.get(CONF_KEY)):
         noise_psk = key
-    _LOGGER.info("Starting log output from %s using esphome API", address)
+
+    if len(addresses) == 1:
+        _LOGGER.info("Starting log output from %s using esphome API", addresses[0])
+    else:
+        _LOGGER.info(
+            "Starting log output from %s using esphome API", " or ".join(addresses)
+        )
+
     cli = APIClient(
-        address,
+        addresses[0],  # Primary address for compatibility
         port,
         password,
         client_info=f"ESPHome Logs {__version__}",
         noise_psk=noise_psk,
+        addresses=addresses,  # Pass all addresses for automatic retry
     )
     dashboard = CORE.dashboard
 
@@ -66,7 +74,7 @@ async def async_run_logs(config: dict[str, Any], address: str) -> None:
         await stop()
 
 
-def run_logs(config: dict[str, Any], address: str) -> None:
+def run_logs(config: dict[str, Any], addresses: list[str]) -> None:
     """Run the logs command."""
     with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(async_run_logs(config, address))
+        asyncio.run(async_run_logs(config, addresses))
