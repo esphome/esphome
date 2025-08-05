@@ -238,19 +238,21 @@ void ESP32BLETracker::loop() {
         if (this->scanner_state_ == ScannerState::RUNNING) {
           ESP_LOGD(TAG, "Stopping scan to make connection");
           this->stop_scan_();
-        } else if (this->scanner_state_ == ScannerState::IDLE) {
-          ESP_LOGD(TAG, "Promoting client to connect");
-          // We only want to promote one client at a time.
-          // once the scanner is fully stopped.
-#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-          ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
-          if (!this->coex_prefer_ble_) {
-            this->coex_prefer_ble_ = true;
-            esp_coex_preference_set(ESP_COEX_PREFER_BT);  // Prioritize Bluetooth
-          }
-#endif
-          client->set_state(ClientState::READY_TO_CONNECT);
+          // Don't wait for scan stop complete - promote immediately.
+          // This is safe because ESP-IDF processes BLE commands sequentially through its internal mailbox queue.
+          // This guarantees that the stop scan command will be fully processed before any subsequent connect command,
+          // preventing race conditions or overlapping operations.
         }
+
+        ESP_LOGD(TAG, "Promoting client to connect");
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+        ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
+        if (!this->coex_prefer_ble_) {
+          this->coex_prefer_ble_ = true;
+          esp_coex_preference_set(ESP_COEX_PREFER_BT);  // Prioritize Bluetooth
+        }
+#endif
+        client->set_state(ClientState::READY_TO_CONNECT);
         break;
       }
     }
