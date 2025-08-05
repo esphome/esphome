@@ -11,7 +11,7 @@ from esphome.log import AnsiFore, color
 
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["api", "esp32"]
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz", "@bdraco"]
 
 _LOGGER = logging.getLogger(__name__)
 

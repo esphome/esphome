@@ -11,7 +11,7 @@ from esphome.core.config import CONF_NAME_ADD_MAC_SUFFIX
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
-CODEOWNERS = ["@jesserockz", "@Rapsssito"]
+CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 
 
 class BTLoggers(Enum):
