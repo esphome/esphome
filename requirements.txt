@@ -12,7 +12,7 @@ platformio==6.1.18  # When updating platformio, also update /docker/Dockerfile
 esptool==5.0.2
 click==8.1.7
 esphome-dashboard==20250514.0
-aioesphomeapi==37.2.5
+aioesphomeapi==38.0.0
 zeroconf==0.147.0
 puremagic==1.30
 ruamel.yaml==0.18.14 # dashboard_import
