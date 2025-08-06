@@ -282,8 +282,10 @@ class ESP32BLETracker : public Component,
 
   uint8_t app_id_{0};
 
+#ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
+#endif
   std::vector<ESPBTDeviceListener *> listeners_;
   /// Client parameters.
   std::vector<ESPBTClient *> clients_;

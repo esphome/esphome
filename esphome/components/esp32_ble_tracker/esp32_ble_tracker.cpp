@@ -241,7 +241,9 @@ void ESP32BLETracker::start_scan_(bool first) {
     for (auto *listener : this->listeners_)
       listener->on_scan_end();
   }
+#ifdef USE_ESP32_BLE_DEVICE
   this->already_discovered_.clear();
+#endif
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
@@ -839,7 +841,9 @@ bool ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
 
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
   ESP_LOGD(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
+#ifdef USE_ESP32_BLE_DEVICE
   this->already_discovered_.clear();
+#endif
   this->cancel_timeout("scan");
 
   for (auto *listener : this->listeners_)
