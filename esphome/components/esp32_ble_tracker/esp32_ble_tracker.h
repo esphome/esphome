@@ -136,6 +136,20 @@ class ESPBTDeviceListener {
   ESP32BLETracker *parent_{nullptr};
 };
 
+struct ClientStateCounts {
+  uint8_t connecting = 0;
+  uint8_t discovered = 0;
+  uint8_t searching = 0;
+  uint8_t disconnecting = 0;
+
+  bool operator==(const ClientStateCounts &other) const {
+    return connecting == other.connecting && discovered == other.discovered && searching == other.searching &&
+           disconnecting == other.disconnecting;
+  }
+
+  bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
+};
+
 enum class ClientState : uint8_t {
   // Connection is allocated
   INIT,
@@ -279,6 +293,38 @@ class ESP32BLETracker : public Component,
   /// Check if any clients are in connecting or ready to connect state
   bool has_connecting_clients_() const;
 #endif
+  /// Handle scanner failure states
+  void handle_scanner_failure_();
+  /// Try to promote discovered clients to ready to connect
+  void try_promote_discovered_clients_();
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+  /// Update BLE coexistence preference
+  void update_coex_preference_(bool force_ble);
+#endif
+  /// Count clients in each state
+  ClientStateCounts count_client_states_() const {
+    ClientStateCounts counts;
+    for (auto *client : this->clients_) {
+      switch (client->state()) {
+        case ClientState::DISCONNECTING:
+          counts.disconnecting++;
+          break;
+        case ClientState::DISCOVERED:
+          counts.discovered++;
+          break;
+        case ClientState::SEARCHING:
+          counts.searching++;
+          break;
+        case ClientState::CONNECTING:
+        case ClientState::READY_TO_CONNECT:
+          counts.connecting++;
+          break;
+        default:
+          break;
+      }
+    }
+    return counts;
+  }
 
   uint8_t app_id_{0};
 
@@ -306,10 +352,7 @@ class ESP32BLETracker : public Component,
 
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
-  int connecting_{0};
-  int discovered_{0};
-  int searching_{0};
-  int disconnecting_{0};
+  ClientStateCounts client_state_counts_;
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
 #endif

@@ -76,58 +76,17 @@ void ESP32BLETracker::loop() {
       this->start_scan();
     }
   }
-  int connecting = 0;
-  int discovered = 0;
-  int searching = 0;
-  int disconnecting = 0;
-  for (auto *client : this->clients_) {
-    switch (client->state()) {
-      case ClientState::DISCONNECTING:
-        disconnecting++;
-        break;
-      case ClientState::DISCOVERED:
-        discovered++;
-        break;
-      case ClientState::SEARCHING:
-        searching++;
-        break;
-      case ClientState::CONNECTING:
-      case ClientState::READY_TO_CONNECT:
-        connecting++;
-        break;
-      default:
-        break;
-    }
+  ClientStateCounts counts = this->count_client_states_();
+  if (counts != this->client_state_counts_) {
+    this->client_state_counts_ = counts;
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, searching: %d, disconnecting: %d",
+             this->client_state_counts_.connecting, this->client_state_counts_.discovered,
+             this->client_state_counts_.searching, this->client_state_counts_.disconnecting);
   }
-  if (connecting != connecting_ || discovered != discovered_ || searching != searching_ ||
-      disconnecting != disconnecting_) {
-    connecting_ = connecting;
-    discovered_ = discovered;
-    searching_ = searching;
-    disconnecting_ = disconnecting;
-    ESP_LOGD(TAG, "connecting: %d, discovered: %d, searching: %d, disconnecting: %d", connecting_, discovered_,
-             searching_, disconnecting_);
-  }
-  bool promote_to_connecting = discovered && !searching && !connecting;
 
-  // All scan result processing is now done immediately in gap_scan_event_handler
-  // No ring buffer processing needed here
   if (this->scanner_state_ == ScannerState::FAILED ||
       (this->scan_set_param_failed_ && this->scanner_state_ == ScannerState::RUNNING)) {
-    this->stop_scan_();
-    if (this->scan_start_fail_count_ == std::numeric_limits<uint8_t>::max()) {
-      ESP_LOGE(TAG, "Scan could not restart after %d attempts, rebooting to restore stack (IDF)",
-               std::numeric_limits<uint8_t>::max());
-      App.reboot();
-    }
-    if (this->scan_start_failed_) {
-      ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
-      this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
-    }
-    if (this->scan_set_param_failed_) {
-      ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
-      this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
-    }
+    this->handle_scanner_failure_();
   }
   /*
 
@@ -142,13 +101,12 @@ void ESP32BLETracker::loop() {
     https://github.com/espressif/esp-idf/issues/6688
 
   */
-  if (this->scanner_state_ == ScannerState::IDLE && !connecting && !disconnecting && !promote_to_connecting) {
+  bool promote_to_connecting = counts.discovered && !counts.searching && !counts.connecting;
+
+  if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting &&
+      !promote_to_connecting) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-    if (this->coex_prefer_ble_) {
-      this->coex_prefer_ble_ = false;
-      ESP_LOGD(TAG, "Setting coexistence preference to balanced.");
-      esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);  // Reset to default
-    }
+    this->update_coex_preference_(false);
 #endif
     if (this->scan_continuous_) {
       this->start_scan_(false);  // first = false
@@ -157,34 +115,12 @@ void ESP32BLETracker::loop() {
   // If there is a discovered client and no connecting
   // clients and no clients using the scanner to search for
   // devices, then promote the discovered client to ready to connect.
-  // Note: Scanning is already stopped by gap_scan_event_handler when
-  // a discovered client is found, so we only need to handle promotion
-  // when the scanner is IDLE.
+  // We check both RUNNING and IDLE states because:
+  // - RUNNING: gap_scan_event_handler initiates stop_scan_() but promotion can happen immediately
+  // - IDLE: Scanner has already stopped (naturally or by gap_scan_event_handler)
   if (promote_to_connecting &&
       (this->scanner_state_ == ScannerState::RUNNING || this->scanner_state_ == ScannerState::IDLE)) {
-    for (auto *client : this->clients_) {
-      if (client->state() == ClientState::DISCOVERED) {
-        if (this->scanner_state_ == ScannerState::RUNNING) {
-          ESP_LOGD(TAG, "Stopping scan to make connection");
-          this->stop_scan_();
-          // Don't wait for scan stop complete - promote immediately.
-          // This is safe because ESP-IDF processes BLE commands sequentially through its internal mailbox queue.
-          // This guarantees that the stop scan command will be fully processed before any subsequent connect command,
-          // preventing race conditions or overlapping operations.
-        }
-
-        ESP_LOGD(TAG, "Promoting client to connect");
-#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-        ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
-        if (!this->coex_prefer_ble_) {
-          this->coex_prefer_ble_ = true;
-          esp_coex_preference_set(ESP_COEX_PREFER_BT);  // Prioritize Bluetooth
-        }
-#endif
-        client->set_state(ClientState::READY_TO_CONNECT);
-        break;
-      }
-    }
+    this->try_promote_discovered_clients_();
   }
 }
 
@@ -701,8 +637,9 @@ void ESP32BLETracker::dump_config() {
       ESP_LOGCONFIG(TAG, "  Scanner State: FAILED");
       break;
   }
-  ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, searching: %d, disconnecting: %d", connecting_, discovered_,
-                searching_, disconnecting_);
+  ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, searching: %d, disconnecting: %d",
+                this->client_state_counts_.connecting, this->client_state_counts_.discovered,
+                this->client_state_counts_.searching, this->client_state_counts_.disconnecting);
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
   }
@@ -851,6 +788,62 @@ void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
 
   this->set_scanner_state_(ScannerState::IDLE);
 }
+
+void ESP32BLETracker::handle_scanner_failure_() {
+  this->stop_scan_();
+  if (this->scan_start_fail_count_ == std::numeric_limits<uint8_t>::max()) {
+    ESP_LOGE(TAG, "Scan could not restart after %d attempts, rebooting to restore stack (IDF)",
+             std::numeric_limits<uint8_t>::max());
+    App.reboot();
+  }
+  if (this->scan_start_failed_) {
+    ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
+    this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+  }
+  if (this->scan_set_param_failed_) {
+    ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
+    this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
+  }
+}
+
+void ESP32BLETracker::try_promote_discovered_clients_() {
+  // Only promote the first discovered client to avoid multiple simultaneous connections
+  for (auto *client : this->clients_) {
+    if (client->state() != ClientState::DISCOVERED) {
+      continue;
+    }
+
+    if (this->scanner_state_ == ScannerState::RUNNING) {
+      ESP_LOGD(TAG, "Stopping scan to make connection");
+      this->stop_scan_();
+      // Don't wait for scan stop complete - promote immediately.
+      // This is safe because ESP-IDF processes BLE commands sequentially through its internal mailbox queue.
+      // This guarantees that the stop scan command will be fully processed before any subsequent connect command,
+      // preventing race conditions or overlapping operations.
+    }
+
+    ESP_LOGD(TAG, "Promoting client to connect");
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+    this->update_coex_preference_(true);
+#endif
+    client->set_state(ClientState::READY_TO_CONNECT);
+    break;
+  }
+}
+
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+void ESP32BLETracker::update_coex_preference_(bool force_ble) {
+  if (force_ble && !this->coex_prefer_ble_) {
+    ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
+    this->coex_prefer_ble_ = true;
+    esp_coex_preference_set(ESP_COEX_PREFER_BT);  // Prioritize Bluetooth
+  } else if (!force_ble && this->coex_prefer_ble_) {
+    ESP_LOGD(TAG, "Setting coexistence preference to balanced.");
+    this->coex_prefer_ble_ = false;
+    esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);  // Reset to default
+  }
+}
+#endif
 
 }  // namespace esphome::esp32_ble_tracker
 
