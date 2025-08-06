@@ -297,6 +297,10 @@ class ESP32BLETracker : public Component,
   void handle_scanner_failure_();
   /// Try to promote discovered clients to ready to connect
   void try_promote_discovered_clients_();
+  /// Convert scanner state enum to string for logging
+  const char *scanner_state_to_string_(ScannerState state) const;
+  /// Log an unexpected scanner state
+  void log_unexpected_state_(const char *operation, ScannerState expected_state) const;
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   /// Update BLE coexistence preference
   void update_coex_preference_(bool force_ble);
