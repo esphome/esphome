@@ -118,6 +118,7 @@ CONF_IO_CAPABILITY = "io_capability"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
+CONF_MAX_NOTIFICATIONS = "max_notifications"
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
@@ -172,6 +173,11 @@ CONFIG_SCHEMA = cv.Schema(
             cv.only_with_esp_idf,
             cv.positive_time_period_seconds,
             cv.Range(min=TimePeriod(seconds=10), max=TimePeriod(seconds=180)),
+        ),
+        cv.SplitDefault(CONF_MAX_NOTIFICATIONS, esp32_idf=12): cv.All(
+            cv.only_with_esp_idf,
+            cv.positive_int,
+            cv.Range(min=1, max=64),
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -270,6 +276,15 @@ async def to_code(config):
             timeout_seconds = int(config[CONF_CONNECTION_TIMEOUT].total_seconds)
             add_idf_sdkconfig_option(
                 "CONFIG_BT_BLE_ESTAB_LINK_CONN_TOUT", timeout_seconds
+            )
+
+        # Set the maximum number of notification registrations
+        # This controls how many BLE characteristics can have notifications enabled
+        # across all connections for a single GATT client interface
+        # https://github.com/esphome/issues/issues/6808
+        if CONF_MAX_NOTIFICATIONS in config:
+            add_idf_sdkconfig_option(
+                "CONFIG_BT_GATTC_NOTIF_REG_MAX", config[CONF_MAX_NOTIFICATIONS]
             )
 
     cg.add_define("USE_ESP32_BLE")
