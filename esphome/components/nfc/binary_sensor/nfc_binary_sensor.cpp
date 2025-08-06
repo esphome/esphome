@@ -1,4 +1,4 @@
-#include "binary_sensor.h"
+#include "nfc_binary_sensor.h"
 #include "../nfc_helpers.h"
 #include "esphome/core/log.h"
 

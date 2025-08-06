@@ -36,6 +36,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
+CODEOWNERS = ["@bdraco"]
 
 KEY_ESP32_BLE_TRACKER = "esp32_ble_tracker"
 KEY_USED_CONNECTION_SLOTS = "used_connection_slots"

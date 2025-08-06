@@ -168,6 +168,8 @@ This document provides essential context for AI models interacting with this pro
     *   `platformio.ini`: Configures the PlatformIO build environments for different microcontrollers.
     *   `.pre-commit-config.yaml`: Configures the pre-commit hooks for linting and formatting.
 *   **CI/CD Pipeline:** Defined in `.github/workflows`.
+*   **Static Analysis & Development:**
+    *   `esphome/core/defines.h`: A comprehensive header file containing all `#define` directives that can be added by components using `cg.add_define()` in Python. This file is used exclusively for development, static analysis tools, and CI testing - it is not used during runtime compilation. When developing components that add new defines, they must be added to this file to ensure proper IDE support and static analysis coverage. The file includes feature flags, build configurations, and platform-specific defines that help static analyzers understand the complete codebase without needing to compile for specific platforms.
 
 ## 6. Development & Testing Workflow
 

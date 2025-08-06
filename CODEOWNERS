@@ -40,11 +40,11 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/apds9306/* @aodrenah
-esphome/components/api/* @OttoWinter
+esphome/components/api/* @esphome/core
 esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
-esphome/components/async_tcp/* @OttoWinter
+esphome/components/async_tcp/* @esphome/core
 esphome/components/at581x/* @X-Ryl669
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/atm90e26/* @danieltwagner
@@ -69,7 +69,7 @@ esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @tobias-
 esphome/components/bl0942/* @dbuezas @dwmw2
 esphome/components/ble_client/* @buxtronix @clydebarrow
-esphome/components/bluetooth_proxy/* @jesserockz
+esphome/components/bluetooth_proxy/* @bdraco @jesserockz
 esphome/components/bme280_base/* @esphome/core
 esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
@@ -91,7 +91,7 @@ esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @DT-art1 @bdraco
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
-esphome/components/captive_portal/* @OttoWinter
+esphome/components/captive_portal/* @esphome/core
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
 esphome/components/ch422g/* @clydebarrow @jesterret
@@ -118,7 +118,7 @@ esphome/components/dallas_temp/* @ssieb
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/datetime/* @jesserockz @rfdarter
-esphome/components/debug/* @OttoWinter
+esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
@@ -144,9 +144,10 @@ esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
 esphome/components/es8388/* @P4uLT
 esphome/components/esp32/* @esphome/core
-esphome/components/esp32_ble/* @Rapsssito @jesserockz
-esphome/components/esp32_ble_client/* @jesserockz
+esphome/components/esp32_ble/* @Rapsssito @bdraco @jesserockz
+esphome/components/esp32_ble_client/* @bdraco @jesserockz
 esphome/components/esp32_ble_server/* @Rapsssito @clydebarrow @jesserockz
+esphome/components/esp32_ble_tracker/* @bdraco
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_hosted/* @swoboda1337
@@ -237,7 +238,7 @@ esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/jsn_sr04t/* @Mafus1
-esphome/components/json/* @OttoWinter
+esphome/components/json/* @esphome/core
 esphome/components/kamstrup_kmp/* @cfeenstra1024
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
@@ -467,7 +468,7 @@ esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
-esphome/components/time/* @OttoWinter
+esphome/components/time/* @esphome/core
 esphome/components/tlc5947/* @rnauber
 esphome/components/tlc5971/* @IJIJI
 esphome/components/tm1621/* @Philippe12
@@ -511,7 +512,7 @@ esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server/ota/* @esphome/core
-esphome/components/web_server_base/* @OttoWinter
+esphome/components/web_server_base/* @esphome/core
 esphome/components/web_server_idf/* @dentra
 esphome/components/weikai/* @DrCoolZic
 esphome/components/weikai_i2c/* @DrCoolZic

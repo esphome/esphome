@@ -33,6 +33,10 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
   void send_service_for_discovery_();
   void reset_connection_(esp_err_t reason);
   void update_allocated_slot_(uint64_t find_value, uint64_t set_value);
+  void log_connection_error_(const char *operation, esp_gatt_status_t status);
+  void log_connection_warning_(const char *operation, esp_err_t err);
+  void log_gatt_not_connected_(const char *action, const char *type);
+  void log_gatt_operation_error_(const char *operation, uint16_t handle, esp_gatt_status_t status);
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)

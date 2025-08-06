@@ -376,23 +376,32 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 }
 #endif
 
-#define set_json_id(root, obj, sensor, start_config) \
-  (root)["id"] = sensor; \
-  if (((start_config) == DETAIL_ALL)) { \
-    (root)["name"] = (obj)->get_name(); \
-    (root)["icon"] = (obj)->get_icon(); \
-    (root)["entity_category"] = (obj)->get_entity_category(); \
-    if ((obj)->is_disabled_by_default()) \
-      (root)["is_disabled_by_default"] = (obj)->is_disabled_by_default(); \
+// Helper functions to reduce code size by avoiding macro expansion
+static void set_json_id(JsonObject &root, EntityBase *obj, const std::string &id, JsonDetail start_config) {
+  root["id"] = id;
+  if (start_config == DETAIL_ALL) {
+    root["name"] = obj->get_name();
+    root["icon"] = obj->get_icon();
+    root["entity_category"] = obj->get_entity_category();
+    bool is_disabled = obj->is_disabled_by_default();
+    if (is_disabled)
+      root["is_disabled_by_default"] = is_disabled;
   }
+}
 
-#define set_json_value(root, obj, sensor, value, start_config) \
-  set_json_id((root), (obj), sensor, start_config); \
-  (root)["value"] = value;
+template<typename T>
+static void set_json_value(JsonObject &root, EntityBase *obj, const std::string &id, const T &value,
+                           JsonDetail start_config) {
+  set_json_id(root, obj, id, start_config);
+  root["value"] = value;
+}
 
-#define set_json_icon_state_value(root, obj, sensor, state, value, start_config) \
-  set_json_value(root, obj, sensor, value, start_config); \
-  (root)["state"] = state;
+template<typename T>
+static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const std::string &id,
+                                      const std::string &state, const T &value, JsonDetail start_config) {
+  set_json_value(root, obj, id, value, start_config);
+  root["state"] = state;
+}
 
 // Helper to get request detail parameter
 static JsonDetail get_request_detail(AsyncWebServerRequest *request) {

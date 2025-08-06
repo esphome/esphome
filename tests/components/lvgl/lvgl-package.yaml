@@ -78,7 +78,7 @@ lvgl:
     - id: date_style
       text_font: roboto10
       align: center
-      text_color: color_id2
+      text_color: !lambda return color_id2;
       bg_opa: cover
       radius: 4
       pad_all: 2

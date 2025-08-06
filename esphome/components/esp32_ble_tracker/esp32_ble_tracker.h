@@ -6,7 +6,6 @@
 #include "esphome/core/helpers.h"
 
 #include <array>
-#include <atomic>
 #include <string>
 #include <vector>
 
@@ -21,6 +20,7 @@
 
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/components/esp32_ble/ble_scan_result.h"
 
 namespace esphome::esp32_ble_tracker {
 
@@ -136,6 +136,20 @@ class ESPBTDeviceListener {
   ESP32BLETracker *parent_{nullptr};
 };
 
+struct ClientStateCounts {
+  uint8_t connecting = 0;
+  uint8_t discovered = 0;
+  uint8_t searching = 0;
+  uint8_t disconnecting = 0;
+
+  bool operator==(const ClientStateCounts &other) const {
+    return connecting == other.connecting && discovered == other.discovered && searching == other.searching &&
+           disconnecting == other.disconnecting;
+  }
+
+  bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
+};
+
 enum class ClientState : uint8_t {
   // Connection is allocated
   INIT,
@@ -158,18 +172,16 @@ enum class ClientState : uint8_t {
 };
 
 enum class ScannerState {
-  // Scanner is idle, init state, set from the main loop when processing STOPPED
+  // Scanner is idle, init state
   IDLE,
-  // Scanner is starting, set from the main loop only
+  // Scanner is starting
   STARTING,
-  // Scanner is running, set from the ESP callback only
+  // Scanner is running
   RUNNING,
-  // Scanner failed to start, set from the ESP callback only
+  // Scanner failed to start
   FAILED,
-  // Scanner is stopping, set from the main loop only
+  // Scanner is stopping
   STOPPING,
-  // Scanner is stopped, set from the ESP callback only
-  STOPPED,
 };
 
 enum class ConnectionType : uint8_t {
@@ -262,8 +274,6 @@ class ESP32BLETracker : public Component,
   void stop_scan_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
-  /// Called when a scan ends
-  void end_of_scan_();
   /// Called when a `ESP_GAP_BLE_SCAN_RESULT_EVT` event is received.
   void gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
   /// Called when a `ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT` event is received.
@@ -274,11 +284,58 @@ class ESP32BLETracker : public Component,
   void gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
   /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
   void set_scanner_state_(ScannerState state);
+  /// Common cleanup logic when transitioning scanner to IDLE state
+  void cleanup_scan_state_(bool is_stop_complete);
+  /// Process a single scan result immediately
+  /// Returns true if a discovered client needs promotion to READY_TO_CONNECT
+  bool process_scan_result_(const BLEScanResult &scan_result);
+#ifdef USE_ESP32_BLE_DEVICE
+  /// Check if any clients are in connecting or ready to connect state
+  bool has_connecting_clients_() const;
+#endif
+  /// Handle scanner failure states
+  void handle_scanner_failure_();
+  /// Try to promote discovered clients to ready to connect
+  void try_promote_discovered_clients_();
+  /// Convert scanner state enum to string for logging
+  const char *scanner_state_to_string_(ScannerState state) const;
+  /// Log an unexpected scanner state
+  void log_unexpected_state_(const char *operation, ScannerState expected_state) const;
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+  /// Update BLE coexistence preference
+  void update_coex_preference_(bool force_ble);
+#endif
+  /// Count clients in each state
+  ClientStateCounts count_client_states_() const {
+    ClientStateCounts counts;
+    for (auto *client : this->clients_) {
+      switch (client->state()) {
+        case ClientState::DISCONNECTING:
+          counts.disconnecting++;
+          break;
+        case ClientState::DISCOVERED:
+          counts.discovered++;
+          break;
+        case ClientState::SEARCHING:
+          counts.searching++;
+          break;
+        case ClientState::CONNECTING:
+        case ClientState::READY_TO_CONNECT:
+          counts.connecting++;
+          break;
+        default:
+          break;
+      }
+    }
+    return counts;
+  }
 
   uint8_t app_id_{0};
 
+#ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
+#endif
   std::vector<ESPBTDeviceListener *> listeners_;
   /// Client parameters.
   std::vector<ESPBTClient *> clients_;
@@ -297,21 +354,9 @@ class ESP32BLETracker : public Component,
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
 
-  // Lock-free Single-Producer Single-Consumer (SPSC) ring buffer for scan results
-  // Producer: ESP-IDF Bluetooth stack callback (gap_scan_event_handler)
-  // Consumer: ESPHome main loop (loop() method)
-  // This design ensures zero blocking in the BT callback and prevents scan result loss
-  BLEScanResult *scan_ring_buffer_;
-  std::atomic<uint8_t> ring_write_index_{0};       // Written only by BT callback (producer)
-  std::atomic<uint8_t> ring_read_index_{0};        // Written only by main loop (consumer)
-  std::atomic<uint16_t> scan_results_dropped_{0};  // Tracks buffer overflow events
-
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
-  int connecting_{0};
-  int discovered_{0};
-  int searching_{0};
-  int disconnecting_{0};
+  ClientStateCounts client_state_counts_;
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
 #endif

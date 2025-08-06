@@ -298,6 +298,7 @@ async def to_code(config):
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:
+        cg.add_define("USE_WEBSERVER_AUTH")
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:

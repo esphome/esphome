@@ -13,7 +13,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["logger"]
 
 CONF_DEBUG_ID = "debug_id"

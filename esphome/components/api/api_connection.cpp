@@ -1462,18 +1462,22 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   resp.api_encryption_supported = true;
 #endif
 #ifdef USE_DEVICES
+  size_t device_index = 0;
   for (auto const &device : App.get_devices()) {
-    resp.devices.emplace_back();
-    auto &device_info = resp.devices.back();
+    if (device_index >= ESPHOME_DEVICE_COUNT)
+      break;
+    auto &device_info = resp.devices[device_index++];
     device_info.device_id = device->get_device_id();
     device_info.set_name(StringRef(device->get_name()));
     device_info.area_id = device->get_area_id();
   }
 #endif
 #ifdef USE_AREAS
+  size_t area_index = 0;
   for (auto const &area : App.get_areas()) {
-    resp.areas.emplace_back();
-    auto &area_info = resp.areas.back();
+    if (area_index >= ESPHOME_AREA_COUNT)
+      break;
+    auto &area_info = resp.areas[area_index++];
     area_info.area_id = area->get_area_id();
     area_info.set_name(StringRef(area->get_name()));
   }

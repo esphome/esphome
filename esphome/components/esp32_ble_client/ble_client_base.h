@@ -66,7 +66,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
                        (uint8_t) (this->address_ >> 0) & 0xff);
     }
   }
-  std::string address_str() const { return this->address_str_; }
+  const std::string &address_str() const { return this->address_str_; }
 
   BLEService *get_service(espbt::ESPBTUUID uuid);
   BLEService *get_service(uint16_t uuid);
@@ -127,6 +127,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
+  void restore_medium_conn_params_();
 };
 
 }  // namespace esp32_ble_client

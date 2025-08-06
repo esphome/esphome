@@ -16,8 +16,8 @@ static const char *const TAG = "esp32_ble_client";
 // Intermediate connection parameters for standard operation
 // ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
 // causing disconnections. These medium parameters balance responsiveness with bandwidth usage.
-static const uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x08;  // 8 * 1.25ms = 10ms
-static const uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x0A;  // 10 * 1.25ms = 12.5ms
+static const uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
+static const uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
 // The timeout value was increased from 6s to 8s to address stability issues observed
 // in certain BLE devices when operating through WiFi-based BLE proxies. The longer
 // timeout reduces the likelihood of disconnections during periods of high latency.
@@ -45,8 +45,10 @@ void BLEClientBase::set_state(espbt::ClientState st) {
   ESPBTClient::set_state(st);
 
   if (st == espbt::ClientState::READY_TO_CONNECT) {
-    // Enable loop when we need to connect
+    // Enable loop for state processing
     this->enable_loop();
+    // Connect immediately instead of waiting for next loop
+    this->connect();
   }
 }
 
@@ -62,11 +64,6 @@ void BLEClientBase::loop() {
       this->mark_failed();
     }
     this->set_state(espbt::ClientState::IDLE);
-  }
-  // READY_TO_CONNECT means we have discovered the device
-  // and the scanner has been stopped by the tracker.
-  else if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
-    this->connect();
   }
   // If its idle, we can disable the loop as set_state
   // will enable it again when we need to connect.
@@ -148,6 +145,36 @@ void BLEClientBase::connect() {
            this->remote_addr_type_);
   this->paired_ = false;
 
+  // Set preferred connection parameters before connecting
+  // Use FAST for all V3 connections (better latency and reliability)
+  // Use MEDIUM for V1/legacy connections (balanced performance)
+  uint16_t min_interval, max_interval, timeout;
+  const char *param_type;
+
+  if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE ||
+      this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+    min_interval = FAST_MIN_CONN_INTERVAL;
+    max_interval = FAST_MAX_CONN_INTERVAL;
+    timeout = FAST_CONN_TIMEOUT;
+    param_type = "fast";
+  } else {
+    min_interval = MEDIUM_MIN_CONN_INTERVAL;
+    max_interval = MEDIUM_MAX_CONN_INTERVAL;
+    timeout = MEDIUM_CONN_TIMEOUT;
+    param_type = "medium";
+  }
+
+  auto param_ret = esp_ble_gap_set_prefer_conn_params(this->remote_bda_, min_interval, max_interval,
+                                                      0,  // latency: 0
+                                                      timeout);
+  if (param_ret != ESP_OK) {
+    ESP_LOGW(TAG, "[%d] [%s] esp_ble_gap_set_prefer_conn_params failed: %d", this->connection_index_,
+             this->address_str_.c_str(), param_ret);
+  } else {
+    ESP_LOGD(TAG, "[%d] [%s] Set %s conn params", this->connection_index_, this->address_str_.c_str(), param_type);
+  }
+
+  // Now open the connection
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
   if (ret) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_open error, status=%d", this->connection_index_, this->address_str_.c_str(),
@@ -155,34 +182,6 @@ void BLEClientBase::connect() {
     this->set_state(espbt::ClientState::IDLE);
   } else {
     this->set_state(espbt::ClientState::CONNECTING);
-
-    // Always set connection parameters to ensure stable operation
-    // Use FAST for V3_WITHOUT_CACHE (devices that need lowest latency)
-    // Use MEDIUM for all other connections (balanced performance)
-    uint16_t min_interval, max_interval, timeout;
-    const char *param_type;
-
-    if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-      min_interval = FAST_MIN_CONN_INTERVAL;
-      max_interval = FAST_MAX_CONN_INTERVAL;
-      timeout = FAST_CONN_TIMEOUT;
-      param_type = "fast";
-    } else {
-      min_interval = MEDIUM_MIN_CONN_INTERVAL;
-      max_interval = MEDIUM_MAX_CONN_INTERVAL;
-      timeout = MEDIUM_CONN_TIMEOUT;
-      param_type = "medium";
-    }
-
-    auto param_ret = esp_ble_gap_set_prefer_conn_params(this->remote_bda_, min_interval, max_interval,
-                                                        0,  // latency: 0
-                                                        timeout);
-    if (param_ret != ESP_OK) {
-      ESP_LOGW(TAG, "[%d] [%s] esp_ble_gap_set_prefer_conn_params failed: %d", this->connection_index_,
-               this->address_str_.c_str(), param_ret);
-    } else {
-      ESP_LOGD(TAG, "[%d] [%s] Set %s conn params", this->connection_index_, this->address_str_.c_str(), param_type);
-    }
   }
 }
 
@@ -257,6 +256,19 @@ void BLEClientBase::log_event_(const char *name) {
   ESP_LOGD(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_.c_str(), name);
 }
 
+void BLEClientBase::restore_medium_conn_params_() {
+  // Restore to medium connection parameters after initial connection phase
+  // This balances performance with bandwidth usage for normal operation
+  esp_ble_conn_update_params_t conn_params = {{0}};
+  memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
+  conn_params.min_int = MEDIUM_MIN_CONN_INTERVAL;
+  conn_params.max_int = MEDIUM_MAX_CONN_INTERVAL;
+  conn_params.latency = 0;
+  conn_params.timeout = MEDIUM_CONN_TIMEOUT;
+  ESP_LOGD(TAG, "[%d] [%s] Restoring medium conn params", this->connection_index_, this->address_str_.c_str());
+  esp_ble_gap_update_conn_params(&conn_params);
+}
+
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                         esp_ble_gattc_cb_param_t *param) {
   if (event == ESP_GATTC_REG_EVT && this->app_id != param->reg.app_id)
@@ -285,7 +297,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (!this->check_addr(param->open.remote_bda))
         return false;
       this->log_event_("ESP_GATTC_OPEN_EVT");
-      this->conn_id_ = param->open.conn_id;
+      // conn_id was already set in ESP_GATTC_CONNECT_EVT
       this->service_count_ = 0;
       if (this->state_ != espbt::ClientState::CONNECTING) {
         // This should not happen but lets log it in case it does
@@ -319,15 +331,15 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->conn_id_ = UNSET_CONN_ID;
         break;
       }
-      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
-      if (ret) {
-        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
-                 this->address_str_.c_str(), ret);
-      }
+      // MTU negotiation already started in ESP_GATTC_CONNECT_EVT
       this->set_state(espbt::ClientState::CONNECTED);
       ESP_LOGI(TAG, "[%d] [%s] Connection open", this->connection_index_, this->address_str_.c_str());
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         ESP_LOGI(TAG, "[%d] [%s] Using cached services", this->connection_index_, this->address_str_.c_str());
+
+        // Restore to medium connection parameters for cached connections too
+        this->restore_medium_conn_params_();
+
         // only set our state, subclients might have more stuff to do yet.
         this->state_ = espbt::ClientState::ESTABLISHED;
         break;
@@ -340,6 +352,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (!this->check_addr(param->connect.remote_bda))
         return false;
       this->log_event_("ESP_GATTC_CONNECT_EVT");
+      this->conn_id_ = param->connect.conn_id;
+      // Start MTU negotiation immediately as recommended by ESP-IDF examples
+      // (gatt_client, ble_throughput) which call esp_ble_gattc_send_mtu_req in
+      // ESP_GATTC_CONNECT_EVT instead of waiting for ESP_GATTC_OPEN_EVT.
+      // This saves ~3ms in the connection process.
+      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
+      if (ret) {
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
+                 this->address_str_.c_str(), ret);
+      }
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
@@ -411,18 +433,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_.c_str());
 
-      // For non-cached connections, restore to medium connection parameters after service discovery
+      // For V3 connections, restore to medium connection parameters after service discovery
       // This balances performance with bandwidth usage after the critical discovery phase
-      if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-        esp_ble_conn_update_params_t conn_params = {{0}};
-        memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
-        conn_params.min_int = MEDIUM_MIN_CONN_INTERVAL;
-        conn_params.max_int = MEDIUM_MAX_CONN_INTERVAL;
-        conn_params.latency = 0;
-        conn_params.timeout = MEDIUM_CONN_TIMEOUT;
-        ESP_LOGD(TAG, "[%d] [%s] Restored medium conn params after service discovery", this->connection_index_,
-                 this->address_str_.c_str());
-        esp_ble_gap_update_conn_params(&conn_params);
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE ||
+          this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+        this->restore_medium_conn_params_();
       }
 
       this->state_ = espbt::ClientState::ESTABLISHED;

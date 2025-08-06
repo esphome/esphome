@@ -9,6 +9,8 @@ import re
 import tempfile
 from urllib.parse import urlparse
 
+from esphome.const import __version__ as ESPHOME_VERSION
+
 _LOGGER = logging.getLogger(__name__)
 
 IS_MACOS = platform.system() == "Darwin"
@@ -503,3 +505,20 @@ _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
+
+
+def docs_url(path: str) -> str:
+    """Return the URL to the documentation for a given path."""
+    # Local import to avoid circular import
+    from esphome.config_validation import Version
+
+    version = Version.parse(ESPHOME_VERSION)
+    if version.is_beta:
+        docs_format = "https://beta.esphome.io/{path}"
+    elif version.is_dev:
+        docs_format = "https://next.esphome.io/{path}"
+    else:
+        docs_format = "https://esphome.io/{path}"
+
+    path = path.removeprefix("/")
+    return docs_format.format(path=path)

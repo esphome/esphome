@@ -6,12 +6,12 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ESPHOME, CONF_ID, CONF_NAME
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriod
 from esphome.core.config import CONF_NAME_ADD_MAC_SUFFIX
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
-CODEOWNERS = ["@jesserockz", "@Rapsssito"]
+CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 
 
 class BTLoggers(Enum):
@@ -117,6 +117,7 @@ CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
+CONF_CONNECTION_TIMEOUT = "connection_timeout"
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
@@ -166,6 +167,11 @@ CONFIG_SCHEMA = cv.Schema(
         ): cv.positive_time_period_milliseconds,
         cv.SplitDefault(CONF_DISABLE_BT_LOGS, esp32_idf=True): cv.All(
             cv.only_with_esp_idf, cv.boolean
+        ),
+        cv.SplitDefault(CONF_CONNECTION_TIMEOUT, esp32_idf="20s"): cv.All(
+            cv.only_with_esp_idf,
+            cv.positive_time_period_seconds,
+            cv.Range(min=TimePeriod(seconds=10), max=TimePeriod(seconds=180)),
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -254,6 +260,17 @@ async def to_code(config):
             for logger in BTLoggers:
                 if logger not in _required_loggers:
                     add_idf_sdkconfig_option(f"{logger.value}_NONE", True)
+
+        # Set BLE connection establishment timeout to match aioesphomeapi/bleak-retry-connector
+        # Default is 20 seconds instead of ESP-IDF's 30 seconds. Because there is no way to
+        # cancel a BLE connection in progress, when aioesphomeapi times out at 20 seconds,
+        # the connection slot remains occupied for the remaining time, preventing new connection
+        # attempts and wasting valuable connection slots.
+        if CONF_CONNECTION_TIMEOUT in config:
+            timeout_seconds = int(config[CONF_CONNECTION_TIMEOUT].total_seconds)
+            add_idf_sdkconfig_option(
+                "CONFIG_BT_BLE_ESTAB_LINK_CONN_TOUT", timeout_seconds
+            )
 
     cg.add_define("USE_ESP32_BLE")
 

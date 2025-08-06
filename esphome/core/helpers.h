@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <string>
@@ -100,6 +101,8 @@ template<typename T, size_t N> class StaticVector {
   using value_type = T;
   using iterator = typename std::array<T, N>::iterator;
   using const_iterator = typename std::array<T, N>::const_iterator;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
  private:
   std::array<T, N> data_{};
@@ -114,6 +117,7 @@ template<typename T, size_t N> class StaticVector {
   }
 
   size_t size() const { return count_; }
+  bool empty() const { return count_ == 0; }
 
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
@@ -123,6 +127,12 @@ template<typename T, size_t N> class StaticVector {
   iterator end() { return data_.begin() + count_; }
   const_iterator begin() const { return data_.begin(); }
   const_iterator end() const { return data_.begin() + count_; }
+
+  // Reverse iterators
+  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  reverse_iterator rend() { return reverse_iterator(begin()); }
+  const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+  const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
 };
 
 ///@}

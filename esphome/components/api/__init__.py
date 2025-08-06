@@ -29,7 +29,7 @@ from esphome.core import CORE, coroutine_with_priority
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)

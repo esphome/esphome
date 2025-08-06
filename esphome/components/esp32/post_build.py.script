@@ -93,8 +93,8 @@ def merge_factory_bin(source, target, env):
         "esptool",
         "--chip",
         chip,
-        "merge_bin",
-        "--flash_size",
+        "merge-bin",
+        "--flash-size",
         flash_size,
         "--output",
         str(output_path),
@@ -110,7 +110,7 @@ def merge_factory_bin(source, target, env):
     if result == 0:
         print(f"Successfully created {output_path}")
     else:
-        print(f"Error: esptool merge_bin failed with code {result}")
+        print(f"Error: esptool merge-bin failed with code {result}")
 
 
 def esp32_copy_ota_bin(source, target, env):
