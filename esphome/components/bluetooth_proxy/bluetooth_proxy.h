@@ -150,7 +150,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   // BLE advertisement batching
   std::vector<api::BluetoothLERawAdvertisement> advertisement_pool_;
-  std::unique_ptr<api::BluetoothLERawAdvertisementsResponse> response_;
+  api::BluetoothLERawAdvertisementsResponse response_;
 
   // Group 3: 4-byte types
   uint32_t last_advertisement_flush_time_{0};

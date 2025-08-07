@@ -25,12 +25,9 @@ static_assert(sizeof(((api::BluetoothLERawAdvertisement *) nullptr)->data) == 62
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 void BluetoothProxy::setup() {
-  // Pre-allocate response object
-  this->response_ = std::make_unique<api::BluetoothLERawAdvertisementsResponse>();
-
   // Reserve capacity but start with size 0
   // Reserve 50% since we'll grow naturally and flush at FLUSH_BATCH_SIZE
-  this->response_->advertisements.reserve(FLUSH_BATCH_SIZE / 2);
+  this->response_.advertisements.reserve(FLUSH_BATCH_SIZE / 2);
 
   // Don't pre-allocate pool - let it grow only if needed in busy environments
   // Many devices in quiet areas will never need the overflow pool
@@ -85,7 +82,7 @@ bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results,
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
     return false;
 
-  auto &advertisements = this->response_->advertisements;
+  auto &advertisements = this->response_.advertisements;
 
   for (size_t i = 0; i < count; i++) {
     auto &result = scan_results[i];
@@ -129,7 +126,7 @@ void BluetoothProxy::flush_pending_advertisements() {
   if (this->advertisement_count_ == 0 || !api::global_api_server->is_connected() || this->api_connection_ == nullptr)
     return;
 
-  auto &advertisements = this->response_->advertisements;
+  auto &advertisements = this->response_.advertisements;
 
   // Return any items beyond advertisement_count_ to the pool
   if (advertisements.size() > this->advertisement_count_) {
@@ -143,7 +140,7 @@ void BluetoothProxy::flush_pending_advertisements() {
   }
 
   // Send the message
-  this->api_connection_->send_message(*this->response_, api::BluetoothLERawAdvertisementsResponse::MESSAGE_TYPE);
+  this->api_connection_->send_message(this->response_, api::BluetoothLERawAdvertisementsResponse::MESSAGE_TYPE);
 
   // Reset count - existing items will be overwritten in next batch
   this->advertisement_count_ = 0;
