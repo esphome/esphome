@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_DEVICE
 
 namespace esphome::esp32_ble_client {
 
@@ -94,4 +95,5 @@ esp_err_t BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size)
 
 }  // namespace esphome::esp32_ble_client
 
+#endif  // USE_ESP32_BLE_DEVICE
 #endif  // USE_ESP32

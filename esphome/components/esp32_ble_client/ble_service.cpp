@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_DEVICE
 
 namespace esphome::esp32_ble_client {
 
@@ -72,4 +73,5 @@ void BLEService::parse_characteristics() {
 
 }  // namespace esphome::esp32_ble_client
 
+#endif  // USE_ESP32_BLE_DEVICE
 #endif  // USE_ESP32

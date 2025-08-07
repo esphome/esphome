@@ -209,9 +209,11 @@ void BLEClientBase::unconditional_disconnect() {
 }
 
 void BLEClientBase::release_services() {
+#ifdef USE_ESP32_BLE_DEVICE
   for (auto &svc : this->services_)
     delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.clear();
+#endif
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   esp_ble_gattc_cache_clean(this->remote_bda_);
 #endif
@@ -379,12 +381,14 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         // as they use the ESP APIs to get services.
         break;
       }
+#ifdef USE_ESP32_BLE_DEVICE
       BLEService *ble_service = new BLEService();  // NOLINT(cppcoreguidelines-owning-memory)
       ble_service->uuid = espbt::ESPBTUUID::from_uuid(param->search_res.srvc_id.uuid);
       ble_service->start_handle = param->search_res.start_handle;
       ble_service->end_handle = param->search_res.end_handle;
       ble_service->client = this;
       this->services_.push_back(ble_service);
+#endif
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -397,12 +401,14 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
           this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         this->restore_medium_conn_params_();
       } else {
+#ifdef USE_ESP32_BLE_DEVICE
         for (auto &svc : this->services_) {
           ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
                    svc->uuid.to_string().c_str());
           ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                    this->address_str_.c_str(), svc->start_handle, svc->end_handle);
         }
+#endif
       }
       ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_.c_str());
       this->state_ = espbt::ClientState::ESTABLISHED;
@@ -581,6 +587,7 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
   return NAN;
 }
 
+#ifdef USE_ESP32_BLE_DEVICE
 BLEService *BLEClientBase::get_service(espbt::ESPBTUUID uuid) {
   for (auto *svc : this->services_) {
     if (svc->uuid == uuid)
@@ -657,6 +664,7 @@ BLEDescriptor *BLEClientBase::get_descriptor(uint16_t handle) {
   }
   return nullptr;
 }
+#endif  // USE_ESP32_BLE_DEVICE
 
 }  // namespace esphome::esp32_ble_client
 

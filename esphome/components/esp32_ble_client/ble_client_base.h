@@ -5,7 +5,9 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
 
+#ifdef USE_ESP32_BLE_DEVICE
 #include "ble_service.h"
+#endif
 
 #include <array>
 #include <string>
@@ -67,6 +69,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   }
   const std::string &address_str() const { return this->address_str_; }
 
+#ifdef USE_ESP32_BLE_DEVICE
   BLEService *get_service(espbt::ESPBTUUID uuid);
   BLEService *get_service(uint16_t uuid);
   BLECharacteristic *get_characteristic(espbt::ESPBTUUID service, espbt::ESPBTUUID chr);
@@ -77,6 +80,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   BLEDescriptor *get_descriptor(uint16_t handle);
   // Get the configuration descriptor for the given characteristic handle.
   BLEDescriptor *get_config_descriptor(uint16_t handle);
+#endif
 
   float parse_char_value(uint8_t *value, uint16_t length);
 
@@ -103,7 +107,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   // Group 2: Container types (grouped for memory optimization)
   std::string address_str_{};
+#ifdef USE_ESP32_BLE_DEVICE
   std::vector<BLEService *> services_;
+#endif
 
   // Group 3: 4-byte types
   int gattc_if_;
