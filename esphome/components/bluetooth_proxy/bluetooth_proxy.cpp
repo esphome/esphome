@@ -130,8 +130,8 @@ void BluetoothProxy::flush_pending_advertisements() {
 }
 
 void BluetoothProxy::dump_config() {
-  ESP_LOGCONFIG(TAG, "Bluetooth Proxy:");
   ESP_LOGCONFIG(TAG,
+                "Bluetooth Proxy:\n"
                 "  Active: %s\n"
                 "  Connections: %d",
                 YESNO(this->active_), this->connection_count_);
