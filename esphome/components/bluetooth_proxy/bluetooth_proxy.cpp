@@ -53,6 +53,26 @@ void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerSta
   this->api_connection_->send_message(resp, api::BluetoothScannerStateResponse::MESSAGE_TYPE);
 }
 
+void BluetoothProxy::log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state) {
+  ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, state: %s", connection->get_connection_index(),
+           connection->address_str().c_str(), espbt::client_state_to_string(state));
+}
+
+void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const char *message) {
+  ESP_LOGI(TAG, "[%d] [%s] Connecting %s", connection->get_connection_index(), connection->address_str().c_str(),
+           message);
+}
+
+void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *type) {
+  ESP_LOGW(TAG, "Cannot %s GATT %s, not connected", action, type);
+}
+
+void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action,
+                                                const char *type) {
+  this->log_not_connected_gatt_(action, type);
+  this->send_gatt_error(address, handle, ESP_GATT_NOT_CONNECTED);
+}
+
 #ifdef USE_ESP32_BLE_DEVICE
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   // This method should never be called since bluetooth_proxy always uses raw advertisements
@@ -202,22 +222,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       if (connection->state() == espbt::ClientState::CONNECTED ||
           connection->state() == espbt::ClientState::ESTABLISHED) {
-        ESP_LOGW(TAG, "[%d] [%s] Connection already established", connection->get_connection_index(),
-                 connection->address_str().c_str());
+        this->log_connection_request_ignored_(connection, connection->state());
         this->send_device_connection(msg.address, true);
         this->send_connections_free();
-        return;
-      } else if (connection->state() == espbt::ClientState::SEARCHING) {
-        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, already searching for device",
-                 connection->get_connection_index(), connection->address_str().c_str());
-        return;
-      } else if (connection->state() == espbt::ClientState::DISCOVERED) {
-        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, device already discovered",
-                 connection->get_connection_index(), connection->address_str().c_str());
-        return;
-      } else if (connection->state() == espbt::ClientState::READY_TO_CONNECT) {
-        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, waiting in line to connect",
-                 connection->get_connection_index(), connection->address_str().c_str());
         return;
       } else if (connection->state() == espbt::ClientState::CONNECTING) {
         if (connection->disconnect_pending()) {
@@ -226,29 +233,21 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
           connection->cancel_pending_disconnect();
           return;
         }
-        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, already connecting", connection->get_connection_index(),
-                 connection->address_str().c_str());
-        return;
-      } else if (connection->state() == espbt::ClientState::DISCONNECTING) {
-        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, device is disconnecting",
-                 connection->get_connection_index(), connection->address_str().c_str());
+        this->log_connection_request_ignored_(connection, connection->state());
         return;
       } else if (connection->state() != espbt::ClientState::INIT) {
-        ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
-                 connection->address_str().c_str());
+        this->log_connection_request_ignored_(connection, connection->state());
         return;
       }
       if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);
-        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 with cache", connection->get_connection_index(),
-                 connection->address_str().c_str());
+        this->log_connection_info_(connection, "v3 with cache");
       } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
-        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 without cache", connection->get_connection_index(),
-                 connection->address_str().c_str());
+        this->log_connection_info_(connection, "v3 without cache");
       } else {
         connection->set_connection_type(espbt::ConnectionType::V1);
-        ESP_LOGI(TAG, "[%d] [%s] Connecting v1", connection->get_connection_index(), connection->address_str().c_str());
+        this->log_connection_info_(connection, "v1");
       }
       if (msg.has_address_type) {
         uint64_to_bd_addr(msg.address, connection->remote_bda_);
@@ -316,8 +315,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
 void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
-    ESP_LOGW(TAG, "Cannot read GATT characteristic, not connected");
-    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->handle_gatt_not_connected_(msg.address, msg.handle, "read", "characteristic");
     return;
   }
 
@@ -330,8 +328,7 @@ void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &ms
 void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
-    ESP_LOGW(TAG, "Cannot write GATT characteristic, not connected");
-    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->handle_gatt_not_connected_(msg.address, msg.handle, "write", "characteristic");
     return;
   }
 
@@ -344,8 +341,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
 void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
-    ESP_LOGW(TAG, "Cannot read GATT descriptor, not connected");
-    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->handle_gatt_not_connected_(msg.address, msg.handle, "read", "descriptor");
     return;
   }
 
@@ -358,8 +354,7 @@ void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTRead
 void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg) {
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
-    ESP_LOGW(TAG, "Cannot write GATT descriptor, not connected");
-    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->handle_gatt_not_connected_(msg.address, msg.handle, "write", "descriptor");
     return;
   }
 
@@ -372,8 +367,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
 void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr || !connection->connected()) {
-    ESP_LOGW(TAG, "Cannot get GATT services, not connected");
-    this->send_gatt_error(msg.address, 0, ESP_GATT_NOT_CONNECTED);
+    this->handle_gatt_not_connected_(msg.address, 0, "get", "services");
     return;
   }
   if (!connection->service_count_) {
@@ -389,8 +383,7 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
 void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
-    ESP_LOGW(TAG, "Cannot notify GATT characteristic, not connected");
-    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->handle_gatt_not_connected_(msg.address, msg.handle, "notify", "characteristic");
     return;
   }
 

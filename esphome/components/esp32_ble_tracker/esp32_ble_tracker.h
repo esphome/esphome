@@ -184,6 +184,9 @@ enum class ScannerState {
   STOPPING,
 };
 
+// Helper function to convert ClientState to string
+const char *client_state_to_string(ClientState state);
+
 enum class ConnectionType : uint8_t {
   // The default connection type, we hold all the services in ram
   // for the duration of the connection.

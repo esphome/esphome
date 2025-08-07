@@ -37,6 +37,7 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
   void log_connection_warning_(const char *operation, esp_err_t err);
   void log_gatt_not_connected_(const char *action, const char *type);
   void log_gatt_operation_error_(const char *operation, uint16_t handle, esp_gatt_status_t status);
+  esp_err_t check_and_log_error_(const char *operation, esp_err_t err);
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
