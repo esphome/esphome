@@ -376,7 +376,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->service_count_++;
       if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         // V3 clients don't need services initialized since
-        // they only request by handle after receiving the services.
+        // as they use the ESP APIs to get services.
         break;
       }
       BLEService *ble_service = new BLEService();  // NOLINT(cppcoreguidelines-owning-memory)
@@ -391,21 +391,20 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (this->conn_id_ != param->search_cmpl.conn_id)
         return false;
       this->log_gattc_event_("SEARCH_CMPL");
-      for (auto &svc : this->services_) {
-        ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
-                 svc->uuid.to_string().c_str());
-        ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
-                 this->address_str_.c_str(), svc->start_handle, svc->end_handle);
-      }
-      ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_.c_str());
-
       // For V3 connections, restore to medium connection parameters after service discovery
       // This balances performance with bandwidth usage after the critical discovery phase
       if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE ||
           this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         this->restore_medium_conn_params_();
+      } else {
+        for (auto &svc : this->services_) {
+          ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
+                   svc->uuid.to_string().c_str());
+          ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
+                   this->address_str_.c_str(), svc->start_handle, svc->end_handle);
+        }
       }
-
+      ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_.c_str());
       this->state_ = espbt::ClientState::ESTABLISHED;
       break;
     }
