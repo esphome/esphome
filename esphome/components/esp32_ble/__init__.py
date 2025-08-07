@@ -12,6 +12,7 @@ import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
+DOMAIN = "esp32_ble"
 
 
 class BTLoggers(Enum):
@@ -115,6 +116,7 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
+CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
@@ -163,6 +165,7 @@ CONFIG_SCHEMA = cv.Schema(
             IO_CAPABILITY, lower=True
         ),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+        cv.Optional(CONF_ADVERTISING, default=False): cv.boolean,
         cv.Optional(
             CONF_ADVERTISING_CYCLE_TIME, default="10s"
         ): cv.positive_time_period_milliseconds,
@@ -288,6 +291,9 @@ async def to_code(config):
             )
 
     cg.add_define("USE_ESP32_BLE")
+
+    if config[CONF_ADVERTISING]:
+        cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
