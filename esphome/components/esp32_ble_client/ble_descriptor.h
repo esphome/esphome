@@ -4,8 +4,7 @@
 
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-namespace esphome {
-namespace esp32_ble_client {
+namespace esphome::esp32_ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -19,7 +18,6 @@ class BLEDescriptor {
   BLECharacteristic *characteristic;
 };
 
-}  // namespace esp32_ble_client
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_client
 
 #endif  // USE_ESP32

@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_client {
+namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
@@ -71,7 +70,6 @@ void BLEService::parse_characteristics() {
   }
 }
 
-}  // namespace esp32_ble_client
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_client
 
 #endif  // USE_ESP32

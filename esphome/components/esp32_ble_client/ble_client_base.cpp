@@ -8,8 +8,7 @@
 #include <esp_gap_ble_api.h>
 #include <esp_gatt_defs.h>
 
-namespace esphome {
-namespace esp32_ble_client {
+namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
@@ -696,7 +695,6 @@ BLEDescriptor *BLEClientBase::get_descriptor(uint16_t handle) {
   return nullptr;
 }
 
-}  // namespace esp32_ble_client
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_client
 
 #endif  // USE_ESP32

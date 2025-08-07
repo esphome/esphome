@@ -16,8 +16,7 @@
 #include <esp_gatt_common_api.h>
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace esp32_ble_client {
+namespace esphome::esp32_ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -130,7 +129,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void restore_medium_conn_params_();
 };
 
-}  // namespace esp32_ble_client
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_client
 
 #endif  // USE_ESP32
