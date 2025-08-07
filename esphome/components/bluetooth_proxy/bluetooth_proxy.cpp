@@ -209,8 +209,7 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
   switch (msg.request_type) {
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE: {
       auto *connection = this->get_connection_(msg.address, true);
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
@@ -239,12 +238,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);
         this->log_connection_info_(connection, "v3 with cache");
-      } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE) {
+      } else {  // BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
-      } else {
-        connection->set_connection_type(espbt::ConnectionType::V1);
-        this->log_connection_info_(connection, "v1");
       }
       if (msg.has_address_type) {
         uint64_to_bd_addr(msg.address, connection->remote_bda_);
@@ -304,6 +300,11 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
 
       this->api_connection_->send_message(call, api::BluetoothDeviceClearCacheResponse::MESSAGE_TYPE);
 
+      break;
+    }
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
+      ESP_LOGE(TAG, "V1 connections removed");
+      this->send_device_connection(msg.address, false);
       break;
     }
   }

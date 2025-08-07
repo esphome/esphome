@@ -1442,7 +1442,7 @@ message BluetoothLERawAdvertisementsResponse {
 }
 
 enum BluetoothDeviceRequestType {
-  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0 [deprecated = true]; // V1 removed, use V3 variants
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
   BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
