@@ -46,11 +46,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   void play(Ts... x) override {
     auto state = this->state_.optional_value(x...);
     if (state.has_value()) {
-      if (*state) {
-        this->switch_->turn_on();
-      } else {
-        this->switch_->turn_off();
-      }
+      this->switch_->control(*state);
     }
   }
 
