@@ -420,7 +420,7 @@ def grid_free_space(value):
     value = cv.Upper(value)
     if value.startswith("FR(") and value.endswith(")"):
         value = value.removesuffix(")").removeprefix("FR(")
-        return f"LV_GRID_FR({lvalid.lv_positive_int(value)})"
+        return f"LV_GRID_FR({cv.positive_int(value)})"
     raise cv.Invalid("must be a size in pixels, CONTENT or FR(nn)")
 
 
