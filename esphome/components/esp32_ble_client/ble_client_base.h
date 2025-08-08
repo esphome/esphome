@@ -136,6 +136,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void restore_medium_conn_params_();
   void log_gattc_warning_(const char *operation, esp_gatt_status_t status);
   void log_gattc_warning_(const char *operation, esp_err_t err);
+  void log_connection_params_(const char *param_type);
 };
 
 }  // namespace esphome::esp32_ble_client
