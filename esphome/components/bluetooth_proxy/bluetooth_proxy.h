@@ -23,6 +23,7 @@ namespace esphome::bluetooth_proxy {
 
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 static const int DONE_SENDING_SERVICES = -2;
+static const int INIT_SENDING_SERVICES = -3;
 
 using namespace esp32_ble_client;
 

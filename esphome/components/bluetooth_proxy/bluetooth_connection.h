@@ -44,7 +44,7 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
   BluetoothProxy *proxy_;
 
   // Group 2: 2-byte types
-  int16_t send_service_{-2};  // Needs to handle negative values and service count
+  int16_t send_service_{-3};  // -3 = INIT_SENDING_SERVICES, -2 = DONE_SENDING_SERVICES, >=0 = service index
 
   // Group 3: 1-byte types
   bool seen_mtu_or_services_{false};

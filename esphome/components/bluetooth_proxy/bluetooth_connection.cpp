@@ -107,13 +107,24 @@ void BluetoothConnection::set_address(uint64_t address) {
 void BluetoothConnection::loop() {
   BLEClientBase::loop();
 
-  // Early return if no active connection or not in service discovery phase
-  if (this->address_ == 0 || this->send_service_ < 0 || this->send_service_ > this->service_count_) {
+  // Early return if no active connection
+  if (this->address_ == 0) {
     return;
   }
 
-  // Handle service discovery
-  this->send_service_for_discovery_();
+  // Handle service discovery if in valid range
+  if (this->send_service_ >= 0 && this->send_service_ <= this->service_count_) {
+    this->send_service_for_discovery_();
+  }
+
+  // Check if we should disable the loop
+  // - For V3_WITH_CACHE: Services are never sent, disable after INIT state
+  // - For other connections: Disable only after service discovery is complete
+  //   (send_service_ == DONE_SENDING_SERVICES, which is only set after services are sent)
+  if (this->state_ != espbt::ClientState::INIT && (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
+                                                   this->send_service_ == DONE_SENDING_SERVICES)) {
+    this->disable_loop();
+  }
 }
 
 void BluetoothConnection::reset_connection_(esp_err_t reason) {
@@ -127,7 +138,7 @@ void BluetoothConnection::reset_connection_(esp_err_t reason) {
   // to detect incomplete service discovery rather than relying on us to
   // tell them about a partial list.
   this->set_address(0);
-  this->send_service_ = DONE_SENDING_SERVICES;
+  this->send_service_ = INIT_SENDING_SERVICES;
   this->proxy_->send_connections_free();
 }
 

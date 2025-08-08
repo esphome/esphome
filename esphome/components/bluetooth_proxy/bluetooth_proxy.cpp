@@ -192,7 +192,7 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto *connection = this->connections_[i];
     if (connection->get_address() == 0) {
-      connection->send_service_ = DONE_SENDING_SERVICES;
+      connection->send_service_ = INIT_SENDING_SERVICES;
       connection->set_address(address);
       // All connections must start at INIT
       // We only set the state if we allocate the connection
@@ -373,8 +373,7 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
     this->send_gatt_services_done(msg.address);
     return;
   }
-  if (connection->send_service_ ==
-      DONE_SENDING_SERVICES)  // Only start sending services if we're not already sending them
+  if (connection->send_service_ == INIT_SENDING_SERVICES)  // Start sending services if not started yet
     connection->send_service_ = 0;
 }
 
