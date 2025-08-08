@@ -49,6 +49,23 @@ class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
   }
 };
 
+template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...> {
+ public:
+  explicit NextionSetBrightnessAction(Nextion *component) : component_(component) {}
+
+  TEMPLATABLE_VALUE(float, brightness)
+
+  void play(Ts... x) override {
+    this->component_->set_brightness(this->brightness_.value(x...));
+    this->component_->set_backlight_brightness(this->brightness_.value(x...));
+  }
+
+  void set_brightness(std::function<void(Ts..., float)> brightness) { this->brightness_ = brightness; }
+
+ protected:
+  Nextion *component_;
+};
+
 template<typename... Ts> class NextionPublishFloatAction : public Action<Ts...> {
  public:
   explicit NextionPublishFloatAction(NextionComponent *component) : component_(component) {}

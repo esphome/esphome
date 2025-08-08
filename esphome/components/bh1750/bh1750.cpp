@@ -38,7 +38,6 @@ MTreg:
 */
 
 void BH1750Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BH1750 '%s'...", this->name_.c_str());
   uint8_t turn_on = BH1750_COMMAND_POWER_ON;
   if (this->write(&turn_on, 1) != i2c::ERROR_OK) {
     this->mark_failed();
@@ -50,7 +49,7 @@ void BH1750Sensor::read_lx_(BH1750Mode mode, uint8_t mtreg, const std::function<
   // turn on (after one-shot sensor automatically powers down)
   uint8_t turn_on = BH1750_COMMAND_POWER_ON;
   if (this->write(&turn_on, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Turning on BH1750 failed");
+    ESP_LOGW(TAG, "Power on failed");
     f(NAN);
     return;
   }
@@ -60,7 +59,7 @@ void BH1750Sensor::read_lx_(BH1750Mode mode, uint8_t mtreg, const std::function<
     uint8_t mtreg_hi = BH1750_COMMAND_MT_REG_HI | ((mtreg >> 5) & 0b111);
     uint8_t mtreg_lo = BH1750_COMMAND_MT_REG_LO | ((mtreg >> 0) & 0b11111);
     if (this->write(&mtreg_hi, 1) != i2c::ERROR_OK || this->write(&mtreg_lo, 1) != i2c::ERROR_OK) {
-      ESP_LOGW(TAG, "Setting measurement time for BH1750 failed");
+      ESP_LOGW(TAG, "Set measurement time failed");
       active_mtreg_ = 0;
       f(NAN);
       return;
@@ -88,7 +87,7 @@ void BH1750Sensor::read_lx_(BH1750Mode mode, uint8_t mtreg, const std::function<
       return;
   }
   if (this->write(&cmd, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Starting measurement for BH1750 failed");
+    ESP_LOGW(TAG, "Start measurement failed");
     f(NAN);
     return;
   }
@@ -99,7 +98,7 @@ void BH1750Sensor::read_lx_(BH1750Mode mode, uint8_t mtreg, const std::function<
   this->set_timeout("read", meas_time, [this, mode, mtreg, f]() {
     uint16_t raw_value;
     if (this->read(reinterpret_cast<uint8_t *>(&raw_value), 2) != i2c::ERROR_OK) {
-      ESP_LOGW(TAG, "Reading BH1750 data failed");
+      ESP_LOGW(TAG, "Read data failed");
       f(NAN);
       return;
     }
@@ -118,7 +117,7 @@ void BH1750Sensor::dump_config() {
   LOG_SENSOR("", "BH1750", this);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with BH1750 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
   }
 
   LOG_UPDATE_INTERVAL(this);
@@ -156,7 +155,7 @@ void BH1750Sensor::update() {
         this->publish_state(NAN);
         return;
       }
-      ESP_LOGD(TAG, "'%s': Got illuminance=%.1flx", this->get_name().c_str(), val);
+      ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), val);
       this->status_clear_warning();
       this->publish_state(val);
     });

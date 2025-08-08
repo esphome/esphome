@@ -1,0 +1,8 @@
+i2c:
+  - id: i2c_qwiic_pir
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+binary_sensor:
+  - platform: qwiic_pir
+    name: Qwiic PIR Motion Sensor

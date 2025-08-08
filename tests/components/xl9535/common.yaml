@@ -1,0 +1,26 @@
+i2c:
+  - id: i2c_xl9535
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+xl9535:
+  - id: xl9535_hub
+    address: 0x20
+
+binary_sensor:
+  - platform: gpio
+    name: XL9535 Pin 0
+    pin:
+      xl9535: xl9535_hub
+      number: 0
+      mode:
+        input: true
+      inverted: false
+  - platform: gpio
+    name: XL9535 Pin 17
+    pin:
+      xl9535: xl9535_hub
+      number: 17
+      mode:
+        input: true
+      inverted: false

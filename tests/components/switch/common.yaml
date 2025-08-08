@@ -9,3 +9,11 @@ switch:
     name: "Template Switch"
     id: the_switch
     optimistic: true
+
+esphome:
+  on_boot:
+    - switch.turn_on: the_switch
+    - switch.turn_off: the_switch
+    - switch.control:
+        id: the_switch
+        state: !lambda return (1 > 2);

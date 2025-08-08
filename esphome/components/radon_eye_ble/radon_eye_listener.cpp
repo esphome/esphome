@@ -17,7 +17,7 @@ bool RadonEyeListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device
 
     // Check if the device name starts with any of the prefixes
     if (std::any_of(prefixes.begin(), prefixes.end(),
-                    [&](const std::string &prefix) { return device.get_name().rfind(prefix, 0) == 0; })) {
+                    [&](const std::string &prefix) { return device.get_name().starts_with(prefix); })) {
       // Device found
       ESP_LOGD(TAG, "Found Radon Eye device Name: %s (MAC: %s)", device.get_name().c_str(),
                device.address_str().c_str());

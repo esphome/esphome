@@ -1,8 +1,5 @@
-i2c:
-  - id: i2c_mcp9808
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: mcp9808
-    name: MCP9808 Temperature
+<<: !include common.yaml

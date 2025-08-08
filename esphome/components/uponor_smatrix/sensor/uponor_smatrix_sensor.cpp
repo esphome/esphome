@@ -7,11 +7,14 @@ namespace uponor_smatrix {
 static const char *const TAG = "uponor_smatrix.sensor";
 
 void UponorSmatrixSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Uponor Smatrix Sensor");
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%04X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "Uponor Smatrix Sensor\n"
+                "  Device address: 0x%04X",
+                this->address_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Target Temperature", this->target_temperature_sensor_);
 }
 
 void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t data_len) {
@@ -28,6 +31,10 @@ void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t d
       case UPONOR_ID_HUMIDITY:
         if (this->humidity_sensor_ != nullptr)
           this->humidity_sensor_->publish_state(data[i].value & 0x00FF);
+        break;
+      case UPONOR_ID_TARGET_TEMP:
+        if (this->target_temperature_sensor_ != nullptr)
+          this->target_temperature_sensor_->publish_state(raw_to_celsius(data[i].value));
         break;
     }
   }

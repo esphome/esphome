@@ -17,7 +17,7 @@ static const char *const TAG = "esp32_can";
 static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config) {
   switch (bitrate) {
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3) || \
-    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H6)
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
     case canbus::CAN_1KBPS:
       *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_1KBITS();
       return true;
@@ -124,7 +124,7 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
     memcpy(message.data, frame->data, frame->can_data_length_code);
   }
 
-  if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
+  if (twai_transmit(&message, this->tx_enqueue_timeout_ticks_) == ESP_OK) {
     return canbus::ERROR_OK;
   } else {
     return canbus::ERROR_ALLTXBUSY;

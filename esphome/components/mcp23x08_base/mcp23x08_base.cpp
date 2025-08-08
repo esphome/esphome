@@ -6,18 +6,20 @@ namespace mcp23x08_base {
 
 static const char *const TAG = "mcp23x08_base";
 
-bool MCP23X08Base::digital_read(uint8_t pin) {
-  uint8_t bit = pin % 8;
-  uint8_t reg_addr = mcp23x08_base::MCP23X08_GPIO;
-  uint8_t value = 0;
-  this->read_reg(reg_addr, &value);
-  return value & (1 << bit);
+bool MCP23X08Base::digital_read_hw(uint8_t pin) {
+  if (!this->read_reg(mcp23x08_base::MCP23X08_GPIO, &this->input_mask_)) {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    return false;
+  }
+  return true;
 }
 
-void MCP23X08Base::digital_write(uint8_t pin, bool value) {
+void MCP23X08Base::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = mcp23x08_base::MCP23X08_OLAT;
   this->update_reg(pin, value, reg_addr);
 }
+
+bool MCP23X08Base::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 void MCP23X08Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t iodir = mcp23x08_base::MCP23X08_IODIR;

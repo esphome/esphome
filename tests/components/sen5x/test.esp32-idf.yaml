@@ -1,49 +1,5 @@
-i2c:
-  - id: i2c_sen5x
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-sensor:
-  - platform: sen5x
-    id: sen54
-    temperature:
-      name: Temperature
-      accuracy_decimals: 1
-    humidity:
-      name: Humidity
-      accuracy_decimals: 0
-    pm_1_0:
-      name: PM <1µm Weight concentration
-      id: pm_1_0
-      accuracy_decimals: 1
-    pm_2_5:
-      name: PM <2.5µm Weight concentration
-      id: pm_2_5
-      accuracy_decimals: 1
-    pm_4_0:
-      name: PM <4µm Weight concentration
-      id: pm_4_0
-      accuracy_decimals: 1
-    pm_10_0:
-      name: PM <10µm Weight concentration
-      id: pm_10_0
-      accuracy_decimals: 1
-    nox:
-      name: NOx
-    voc:
-      name: VOC
-      algorithm_tuning:
-        index_offset: 100
-        learning_time_offset_hours: 12
-        learning_time_gain_hours: 12
-        gating_max_duration_minutes: 180
-        std_initial: 50
-        gain_factor: 230
-    temperature_compensation:
-      offset: 0
-      normalized_offset_slope: 0
-      time_constant: 0
-    auto_cleaning_interval: 604800s
-    acceleration_mode: low
-    store_baseline: true
-    address: 0x69
+<<: !include common.yaml

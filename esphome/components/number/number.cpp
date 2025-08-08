@@ -7,7 +7,7 @@ namespace number {
 static const char *const TAG = "number";
 
 void Number::publish_state(float state) {
-  this->has_state_ = true;
+  this->set_has_state(true);
   this->state = state;
   ESP_LOGD(TAG, "'%s': Sending state %f", this->get_name().c_str(), state);
   this->state_callback_.call(state);

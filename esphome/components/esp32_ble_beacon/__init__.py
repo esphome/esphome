@@ -66,7 +66,9 @@ FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
 
 async def to_code(config):
     uuid = config[CONF_UUID].hex
-    uuid_arr = [cg.RawExpression(f"0x{uuid[i:i + 2]}") for i in range(0, len(uuid), 2)]
+    uuid_arr = [
+        cg.RawExpression(f"0x{uuid[i : i + 2]}") for i in range(0, len(uuid), 2)
+    ]
     var = cg.new_Pvariable(config[CONF_ID], uuid_arr)
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
@@ -79,6 +81,8 @@ async def to_code(config):
     cg.add(var.set_max_interval(config[CONF_MAX_INTERVAL]))
     cg.add(var.set_measured_power(config[CONF_MEASURED_POWER]))
     cg.add(var.set_tx_power(config[CONF_TX_POWER]))
+
+    cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

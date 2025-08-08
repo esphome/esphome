@@ -1,8 +1,19 @@
 """Helpers for config validation using voluptuous."""
 
-from contextlib import contextmanager
+from __future__ import annotations
+
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
+from ipaddress import (
+    AddressValueError,
+    IPv4Address,
+    IPv4Network,
+    IPv6Address,
+    IPv6Network,
+    ip_address,
+    ip_network,
+)
 import logging
 import os
 import re
@@ -20,6 +31,7 @@ from esphome.const import (
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
     CONF_DAY,
+    CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -55,19 +67,18 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
-    KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
+    Framework,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
     CORE,
     HexInt,
-    IPAddress,
     Lambda,
     TimePeriod,
     TimePeriodMicroseconds,
@@ -76,7 +87,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import add_class_to_obj, list_starts_with
+from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     schema_extractor,
@@ -117,7 +128,7 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 ROOT_CONFIG_PATH = object()
 
 RESERVED_IDS = [
-    # C++ keywords http://en.cppreference.com/w/cpp/keyword
+    # C++ keywords https://en.cppreference.com/w/cpp/keyword
     "alarm",
     "alignas",
     "alignof",
@@ -272,6 +283,40 @@ class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
 
 
+@dataclass(frozen=True, order=True)
+class Version:
+    major: int
+    minor: int
+    patch: int
+    extra: str = ""
+
+    def __str__(self):
+        if self.extra:
+            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    @classmethod
+    def parse(cls, value: str) -> Version:
+        match = re.match(r"^(\d+).(\d+).(\d+)-?(\w*)$", value)
+        if match is None:
+            raise ValueError(f"Not a valid version number {value}")
+        major = int(match[1])
+        minor = int(match[2])
+        patch = int(match[3])
+        extra = match[4] or ""
+        return Version(major=major, minor=minor, patch=patch, extra=extra)
+
+    @property
+    def is_beta(self) -> bool:
+        """Check if this version is a beta version."""
+        return self.extra.startswith("b")
+
+    @property
+    def is_dev(self) -> bool:
+        """Check if this version is a development version."""
+        return self.extra.startswith("dev")
+
+
 def check_not_templatable(value):
     if isinstance(value, Lambda):
         raise Invalid("This option is not templatable!")
@@ -346,6 +391,13 @@ def icon(value):
     raise Invalid(
         'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
     )
+
+
+def sub_device_id(value: str | None) -> core.ID:
+    # Lazy import to avoid circular imports
+    from esphome.core.config import Device
+
+    return use_id(Device)(value)
 
 
 def boolean(value):
@@ -602,16 +654,27 @@ def only_on(platforms):
     return validator_
 
 
-def only_with_framework(frameworks):
+def only_with_framework(
+    frameworks: Framework | str | list[Framework | str], suggestions=None
+):
     """Validate that this option can only be specified on the given frameworks."""
     if not isinstance(frameworks, list):
         frameworks = [frameworks]
 
+    frameworks = [Framework(framework) for framework in frameworks]
+
+    if suggestions is None:
+        suggestions = {}
+
     def validator_(obj):
         if CORE.target_framework not in frameworks:
-            raise Invalid(
-                f"This feature is only available with frameworks {frameworks}"
-            )
+            err_str = f"This feature is only available with framework(s) {', '.join([framework.value for framework in frameworks])}"
+            if suggestion := suggestions.get(CORE.target_framework, None):
+                (component, docs_path) = suggestion
+                err_str += f"\nPlease use '{component}'"
+                if docs_path:
+                    err_str += f": {docs_url(path=f'components/{docs_path}')}"
+            raise Invalid(err_str)
         return obj
 
     return validator_
@@ -620,8 +683,8 @@ def only_with_framework(frameworks):
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
-only_with_arduino = only_with_framework("arduino")
-only_with_esp_idf = only_with_framework("esp-idf")
+only_with_arduino = only_with_framework(Framework.ARDUINO)
+only_with_esp_idf = only_with_framework(Framework.ESP_IDF)
 
 
 # Adapted from:
@@ -983,23 +1046,32 @@ def uuid(value):
 
 
 METRIC_SUFFIXES = {
-    "E": 1e18,
-    "P": 1e15,
-    "T": 1e12,
-    "G": 1e9,
-    "M": 1e6,
-    "k": 1e3,
-    "da": 10,
-    "d": 1e-1,
-    "c": 1e-2,
-    "m": 0.001,
-    "µ": 1e-6,
-    "u": 1e-6,
-    "n": 1e-9,
-    "p": 1e-12,
-    "f": 1e-15,
-    "a": 1e-18,
-    "": 1,
+    "Q": 1e30,  # Quetta
+    "R": 1e27,  # Ronna
+    "Y": 1e24,  # Yotta
+    "Z": 1e21,  # Zetta
+    "E": 1e18,  # Exa
+    "P": 1e15,  # Peta
+    "T": 1e12,  # Tera
+    "G": 1e9,  # Giga
+    "M": 1e6,  # Mega
+    "k": 1e3,  # Kilo
+    "h": 1e2,  # Hecto
+    "da": 1e1,  # Deca
+    "": 1e0,  # No prefix
+    "d": 1e-1,  # Deci
+    "c": 1e-2,  # Centi
+    "m": 1e-3,  # Milli
+    "µ": 1e-6,  # Micro
+    "u": 1e-6,  # Micro (same as µ)
+    "n": 1e-9,  # Nano
+    "p": 1e-12,  # Pico
+    "f": 1e-15,  # Femto
+    "a": 1e-18,  # Atto
+    "z": 1e-21,  # Zepto
+    "y": 1e-24,  # Yocto
+    "r": 1e-27,  # Ronto
+    "q": 1e-30,  # Quecto
 }
 
 
@@ -1029,6 +1101,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
     return validator
 
 
+bps = float_with_unit("bits per second", "(bps|bits/s|bit/s)?")
 frequency = float_with_unit("frequency", "(Hz|HZ|hz)?")
 resistance = float_with_unit("resistance", "(Ω|Ω|ohm|Ohm|OHM)?")
 current = float_with_unit("current", "(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
@@ -1130,7 +1203,7 @@ def domain(value):
     if re.match(vol.DOMAIN_REGEX, value) is not None:
         return value
     try:
-        return str(ipv4(value))
+        return str(ipaddress(value))
     except Invalid as err:
         raise Invalid(f"Invalid domain: {value}") from err
 
@@ -1160,21 +1233,64 @@ def ssid(value):
     return value
 
 
-def ipv4(value):
-    if isinstance(value, list):
-        parts = value
-    elif isinstance(value, str):
-        parts = value.split(".")
-    elif isinstance(value, IPAddress):
-        return value
-    else:
-        raise Invalid("IPv4 address must consist of either string or integer list")
-    if len(parts) != 4:
-        raise Invalid("IPv4 address must consist of four point-separated integers")
-    parts_ = list(map(int, parts))
-    if not all(0 <= x < 256 for x in parts_):
-        raise Invalid("IPv4 address parts must be in range from 0 to 255")
-    return IPAddress(*parts_)
+def ipv4address(value):
+    try:
+        address = IPv4Address(value)
+    except AddressValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv4 address") from exc
+    return address
+
+
+def ipv6address(value):
+    try:
+        address = IPv6Address(value)
+    except AddressValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv6 address") from exc
+    return address
+
+
+def ipv4address_multi_broadcast(value):
+    address = ipv4address(value)
+    if not (address.is_multicast or (address == IPv4Address("255.255.255.255"))):
+        raise Invalid(
+            f"{value} is not a multicasst address nor local broadcast address"
+        )
+    return address
+
+
+def ipaddress(value):
+    try:
+        address = ip_address(value)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IP address") from exc
+    return address
+
+
+def ipv4network(value):
+    """Validate that the value is a valid IPv4 network."""
+    try:
+        network = IPv4Network(value, strict=False)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv4 network") from exc
+    return network
+
+
+def ipv6network(value):
+    """Validate that the value is a valid IPv6 network."""
+    try:
+        network = IPv6Network(value, strict=False)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv6 network") from exc
+    return network
+
+
+def ipnetwork(value):
+    """Validate that the value is a valid IP network."""
+    try:
+        network = ip_network(value, strict=False)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IP network") from exc
+    return network
 
 
 def _valid_topic(value):
@@ -1215,8 +1331,7 @@ def subscribe_topic(value):
         if index != len(value) - 1:
             # If there are multiple wildcards, this will also trigger
             raise Invalid(
-                "Multi-level wildcard must be the last "
-                "character in the topic filter."
+                "Multi-level wildcard must be the last character in the topic filter."
             )
         if len(value) > 1 and value[index - 1] != "/":
             raise Invalid("Multi-level wildcard must be after a topic level separator.")
@@ -1492,29 +1607,8 @@ def dimensions(value):
 
 
 def directory(value):
-    import json
-
     value = string(value)
     path = CORE.relative_config_path(value)
-
-    if CORE.vscode and (
-        not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
-    ):
-        print(
-            json.dumps(
-                {
-                    "type": "check_directory_exists",
-                    "path": path,
-                }
-            )
-        )
-        data = json.loads(input())
-        assert data["type"] == "directory_exists_response"
-        if data["content"]:
-            return value
-        raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
-        )
 
     if not os.path.exists(path):
         raise Invalid(
@@ -1528,29 +1622,8 @@ def directory(value):
 
 
 def file_(value):
-    import json
-
     value = string(value)
     path = CORE.relative_config_path(value)
-
-    if CORE.vscode and (
-        not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
-    ):
-        print(
-            json.dumps(
-                {
-                    "type": "check_file_exists",
-                    "path": path,
-                }
-            )
-        )
-        data = json.loads(input())
-        assert data["type"] == "file_exists_response"
-        if data["content"]:
-            return value
-        raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
-        )
 
     if not os.path.exists(path):
         raise Invalid(
@@ -1634,140 +1707,39 @@ class GenerateID(Optional):
         super().__init__(key, default=lambda: None)
 
 
-def _get_priority_default(*args):
-    for arg in args:
-        if arg is not vol.UNDEFINED:
-            return arg
-    return vol.UNDEFINED
+def _get_default_key(*args):
+    return ["_".join([CORE.target_platform] + list(args))]
 
 
 class SplitDefault(Optional):
     """Mark this key to have a split default for ESP8266/ESP32."""
 
-    def __init__(
-        self,
-        key,
-        esp8266=vol.UNDEFINED,
-        esp32=vol.UNDEFINED,
-        esp32_arduino=vol.UNDEFINED,
-        esp32_idf=vol.UNDEFINED,
-        esp32_s2=vol.UNDEFINED,
-        esp32_s2_arduino=vol.UNDEFINED,
-        esp32_s2_idf=vol.UNDEFINED,
-        esp32_s3=vol.UNDEFINED,
-        esp32_s3_arduino=vol.UNDEFINED,
-        esp32_s3_idf=vol.UNDEFINED,
-        esp32_c3=vol.UNDEFINED,
-        esp32_c3_arduino=vol.UNDEFINED,
-        esp32_c3_idf=vol.UNDEFINED,
-        esp32_c6=vol.UNDEFINED,
-        esp32_c6_arduino=vol.UNDEFINED,
-        esp32_c6_idf=vol.UNDEFINED,
-        esp32_h2=vol.UNDEFINED,
-        esp32_h2_arduino=vol.UNDEFINED,
-        esp32_h2_idf=vol.UNDEFINED,
-        rp2040=vol.UNDEFINED,
-        bk72xx=vol.UNDEFINED,
-        rtl87xx=vol.UNDEFINED,
-        host=vol.UNDEFINED,
-    ):
+    def __init__(self, key, **kwargs):
         super().__init__(key)
-        self._esp8266_default = vol.default_factory(esp8266)
-        self._esp32_arduino_default = vol.default_factory(
-            _get_priority_default(esp32_arduino, esp32)
-        )
-        self._esp32_idf_default = vol.default_factory(
-            _get_priority_default(esp32_idf, esp32)
-        )
-        self._esp32_s2_arduino_default = vol.default_factory(
-            _get_priority_default(esp32_s2_arduino, esp32_s2, esp32_arduino, esp32)
-        )
-        self._esp32_s2_idf_default = vol.default_factory(
-            _get_priority_default(esp32_s2_idf, esp32_s2, esp32_idf, esp32)
-        )
-        self._esp32_s3_arduino_default = vol.default_factory(
-            _get_priority_default(esp32_s3_arduino, esp32_s3, esp32_arduino, esp32)
-        )
-        self._esp32_s3_idf_default = vol.default_factory(
-            _get_priority_default(esp32_s3_idf, esp32_s3, esp32_idf, esp32)
-        )
-        self._esp32_c3_arduino_default = vol.default_factory(
-            _get_priority_default(esp32_c3_arduino, esp32_c3, esp32_arduino, esp32)
-        )
-        self._esp32_c3_idf_default = vol.default_factory(
-            _get_priority_default(esp32_c3_idf, esp32_c3, esp32_idf, esp32)
-        )
-        self._esp32_c6_arduino_default = vol.default_factory(
-            _get_priority_default(esp32_c6_arduino, esp32_c6, esp32_arduino, esp32)
-        )
-        self._esp32_c6_idf_default = vol.default_factory(
-            _get_priority_default(esp32_c6_idf, esp32_c6, esp32_idf, esp32)
-        )
-        self._esp32_h2_arduino_default = vol.default_factory(
-            _get_priority_default(esp32_h2_arduino, esp32_h2, esp32_arduino, esp32)
-        )
-        self._esp32_h2_idf_default = vol.default_factory(
-            _get_priority_default(esp32_h2_idf, esp32_h2, esp32_idf, esp32)
-        )
-        self._rp2040_default = vol.default_factory(rp2040)
-        self._bk72xx_default = vol.default_factory(bk72xx)
-        self._rtl87xx_default = vol.default_factory(rtl87xx)
-        self._host_default = vol.default_factory(host)
+
+        self._defaults = {}
+
+        for platform_key, value in kwargs.items():
+            self._defaults[platform_key] = vol.default_factory(value)
 
     @property
     def default(self):
-        if CORE.is_esp8266:
-            return self._esp8266_default
+        keys = []
         if CORE.is_esp32:
             from esphome.components.esp32 import get_esp32_variant
-            from esphome.components.esp32.const import (
-                VARIANT_ESP32C3,
-                VARIANT_ESP32C6,
-                VARIANT_ESP32H2,
-                VARIANT_ESP32S2,
-                VARIANT_ESP32S3,
-            )
+            from esphome.components.esp32.const import VARIANT_ESP32
 
-            variant = get_esp32_variant()
-            if variant == VARIANT_ESP32S2:
-                if CORE.using_arduino:
-                    return self._esp32_s2_arduino_default
-                if CORE.using_esp_idf:
-                    return self._esp32_s2_idf_default
-            elif variant == VARIANT_ESP32S3:
-                if CORE.using_arduino:
-                    return self._esp32_s3_arduino_default
-                if CORE.using_esp_idf:
-                    return self._esp32_s3_idf_default
-            elif variant == VARIANT_ESP32C3:
-                if CORE.using_arduino:
-                    return self._esp32_c3_arduino_default
-                if CORE.using_esp_idf:
-                    return self._esp32_c3_idf_default
-            elif variant == VARIANT_ESP32C6:
-                if CORE.using_arduino:
-                    return self._esp32_c6_arduino_default
-                if CORE.using_esp_idf:
-                    return self._esp32_c6_idf_default
-            elif variant == VARIANT_ESP32H2:
-                if CORE.using_arduino:
-                    return self._esp32_h2_arduino_default
-                if CORE.using_esp_idf:
-                    return self._esp32_h2_idf_default
-            else:
-                if CORE.using_arduino:
-                    return self._esp32_arduino_default
-                if CORE.using_esp_idf:
-                    return self._esp32_idf_default
-        if CORE.is_rp2040:
-            return self._rp2040_default
-        if CORE.is_bk72xx:
-            return self._bk72xx_default
-        if CORE.is_rtl87xx:
-            return self._rtl87xx_default
-        if CORE.is_host:
-            return self._host_default
-        raise NotImplementedError
+            variant = get_esp32_variant().replace(VARIANT_ESP32, "").lower()
+            framework = CORE.target_framework.replace("esp-", "")
+            if variant:
+                keys += _get_default_key(variant, framework)
+                keys += _get_default_key(variant)
+            keys += _get_default_key(framework)
+        keys += _get_default_key()
+        for key in keys:
+            if self._defaults.get(key) is not None:
+                return self._defaults[key]
+        return vol.default_factory(vol.UNDEFINED)
 
     @default.setter
     def default(self, value):
@@ -1786,6 +1758,26 @@ class OnlyWith(Optional):
     @property
     def default(self):
         if self._component in CORE.loaded_integrations:
+            return self._default
+        return vol.UNDEFINED
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from vol.Optional
+        pass
+
+
+class OnlyWithout(Optional):
+    """Set the default value only if the given component is NOT loaded."""
+
+    def __init__(self, key, component, default=None):
+        super().__init__(key)
+        self._component = component
+        self._default = vol.default_factory(default)
+
+    @property
+    def default(self):
+        if self._component not in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
 
@@ -1868,7 +1860,7 @@ def validate_registry_entry(name, registry):
 
 def none(value):
     if value in ("none", "None"):
-        return None
+        return
     raise Invalid("Must be none")
 
 
@@ -1961,6 +1953,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
         Optional(CONF_ENTITY_CATEGORY): entity_category,
+        Optional(CONF_DEVICE_ID): sub_device_id,
     }
 )
 
@@ -2019,26 +2012,6 @@ def source_refresh(value: str):
     return positive_time_period_seconds(value)
 
 
-@dataclass(frozen=True, order=True)
-class Version:
-    major: int
-    minor: int
-    patch: int
-
-    def __str__(self):
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    @classmethod
-    def parse(cls, value: str) -> "Version":
-        match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
-        if match is None:
-            raise ValueError(f"Not a valid version number {value}")
-        major = int(match[1])
-        minor = int(match[2])
-        patch = int(match[3])
-        return Version(major=major, minor=minor, patch=patch)
-
-
 def version_number(value):
     value = string_strict(value)
     try:
@@ -2078,70 +2051,28 @@ def platformio_version_constraint(value):
 
 def require_framework_version(
     *,
-    esp_idf=None,
-    esp32_arduino=None,
-    esp8266_arduino=None,
-    rp2040_arduino=None,
-    bk72xx_libretiny=None,
-    host=None,
     max_version=False,
     extra_message=None,
+    **kwargs,
 ):
     def validator(value):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
-        if framework == "esp-idf":
-            if esp_idf is None:
-                msg = "This feature is incompatible with esp-idf"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = esp_idf
-        elif CORE.is_bk72xx and framework == "arduino":
-            if bk72xx_libretiny is None:
-                msg = "This feature is incompatible with BK72XX"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = bk72xx_libretiny
-        elif CORE.is_esp32 and framework == "arduino":
-            if esp32_arduino is None:
-                msg = "This feature is incompatible with ESP32 using arduino framework"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = esp32_arduino
-        elif CORE.is_esp8266 and framework == "arduino":
-            if esp8266_arduino is None:
-                msg = "This feature is incompatible with ESP8266"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = esp8266_arduino
-        elif CORE.is_rp2040 and framework == "arduino":
-            if rp2040_arduino is None:
-                msg = "This feature is incompatible with RP2040"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = rp2040_arduino
-        elif CORE.is_host and framework == "host":
-            if host is None:
-                msg = "This feature is incompatible with host platform"
-                if extra_message:
-                    msg += f". {extra_message}"
-                raise Invalid(msg)
-            required = host
-        else:
-            raise Invalid(
-                f"""
-            Internal Error: require_framework_version does not support this platform configuration
-                platform: {core_data[KEY_TARGET_PLATFORM]}
-                framework: {framework}
 
-            Please report this issue on GitHub -> https://github.com/esphome/issues/issues/new?template=bug_report.yml.
-            """
-            )
+        if CORE.is_host and framework == "host":
+            key = "host"
+        elif framework == "esp-idf":
+            key = "esp_idf"
+        else:
+            key = CORE.target_platform + "_" + framework
+
+        if key not in kwargs:
+            msg = f"This feature is incompatible with {CORE.target_platform.upper()} using {framework} framework"
+            if extra_message:
+                msg += f". {extra_message}"
+            raise Invalid(msg)
+
+        required = kwargs[key]
 
         if max_version:
             if core_data[KEY_FRAMEWORK_VERSION] > required:
@@ -2176,10 +2107,8 @@ def require_esphome_version(year, month, patch):
 
 @contextmanager
 def suppress_invalid():
-    try:
+    with suppress(vol.Invalid):
         yield
-    except vol.Invalid:
-        pass
 
 
 GIT_SCHEMA = Schema(
@@ -2248,6 +2177,29 @@ def rename_key(old_key, new_key):
         config = config.copy()
         if old_key in config:
             config[new_key] = config.pop(old_key)
+        return config
+
+    return validator
+
+
+# Remove before 2025.11.0
+def deprecated_schema_constant(entity_type: str):
+    def validator(config):
+        type: str = "unknown"
+        if (id := config.get(CONF_ID)) is not None and isinstance(id, core.ID):
+            type = str(id.type).split("::", maxsplit=1)[0]
+        _LOGGER.warning(
+            "Using `%s.%s_SCHEMA` is deprecated and will be removed in ESPHome 2025.11.0. "
+            "Please use `%s.%s_schema(...)` instead. "
+            "If you are seeing this, report an issue to the external_component author and ask them to update it. "
+            "https://developers.esphome.io/blog/2025/05/14/_schema-deprecations/. "
+            "Component using this schema: %s",
+            entity_type,
+            entity_type.upper(),
+            entity_type,
+            entity_type,
+            type,
+        )
         return config
 
     return validator

@@ -1,13 +1,13 @@
 import esphome.codegen as cg
+from esphome.components import output, sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.components import sensor, voltage_sampler, output
 from esphome.const import (
-    CONF_SENSOR,
     CONF_OUTPUT,
+    CONF_SENSOR,
     DEVICE_CLASS_PM25,
+    ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    ICON_CHEMICAL_WEAPON,
 )
 
 DEPENDENCIES = ["output"]

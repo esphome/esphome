@@ -2,8 +2,7 @@
 #include "logger.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -40,6 +39,5 @@ const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
 
 const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 #endif

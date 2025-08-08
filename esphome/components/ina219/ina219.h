@@ -15,6 +15,7 @@ class INA219Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+  void on_powerdown() override;
 
   void set_shunt_resistance_ohm(float shunt_resistance_ohm) { shunt_resistance_ohm_ = shunt_resistance_ohm; }
   void set_max_current_a(float max_current_a) { max_current_a_ = max_current_a; }

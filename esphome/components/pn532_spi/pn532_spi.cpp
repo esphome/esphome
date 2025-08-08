@@ -12,12 +12,10 @@ namespace pn532_spi {
 static const char *const TAG = "pn532_spi";
 
 void PN532Spi::setup() {
-  ESP_LOGI(TAG, "PN532Spi setup started!");
   this->spi_setup();
 
   this->cs_->digital_write(false);
   delay(10);
-  ESP_LOGI(TAG, "SPI setup finished!");
   PN532::setup();
 }
 
@@ -51,7 +49,7 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
   delay(2);
   this->write_byte(0x03);
 
-  ESP_LOGV(TAG, "Reading data...");
+  ESP_LOGV(TAG, "Reading data");
 
   data.resize(len);
   this->read_array(data.data(), len);

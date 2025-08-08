@@ -1,11 +1,5 @@
-i2c:
-  - id: i2c_bme280
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-sensor:
-  - platform: am2320
-    temperature:
-      name: Temperature
-    humidity:
-      name: Humidity
+<<: !include common.yaml

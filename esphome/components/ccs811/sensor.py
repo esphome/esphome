@@ -1,22 +1,22 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor, text_sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    ICON_RADIATOR,
-    ICON_RESTART,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PARTS_PER_BILLION,
     CONF_BASELINE,
     CONF_ECO2,
+    CONF_HUMIDITY,
+    CONF_ID,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    CONF_HUMIDITY,
     CONF_VERSION,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_MOLECULE_CO2,
+    ICON_RADIATOR,
+    ICON_RESTART,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
 )
 
 AUTO_LOAD = ["text_sensor"]
@@ -32,14 +32,14 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CCS811Component),
-            cv.Required(CONF_ECO2): sensor.sensor_schema(
+            cv.Optional(CONF_ECO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_TVOC): sensor.sensor_schema(
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
@@ -64,10 +64,13 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    sens = await sensor.new_sensor(config[CONF_ECO2])
-    cg.add(var.set_co2(sens))
-    sens = await sensor.new_sensor(config[CONF_TVOC])
-    cg.add(var.set_tvoc(sens))
+    if eco2_config := config.get(CONF_ECO2):
+        sens = await sensor.new_sensor(eco2_config)
+        cg.add(var.set_co2(sens))
+
+    if tvoc_config := config.get(CONF_TVOC):
+        sens = await sensor.new_sensor(tvoc_config)
+        cg.add(var.set_tvoc(sens))
 
     if version_config := config.get(CONF_VERSION):
         sens = await text_sensor.new_text_sensor(version_config)

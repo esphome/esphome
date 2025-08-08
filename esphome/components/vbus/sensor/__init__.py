@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_COMMAND,
     CONF_CUSTOM,
     CONF_DEST,
+    CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
     CONF_SENSORS,
@@ -29,15 +29,16 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT_HOURS,
 )
+
 from .. import (
-    vbus_ns,
-    VBus,
-    CONF_VBUS_ID,
-    CONF_DELTASOL_BS_PLUS,
     CONF_DELTASOL_BS_2009,
+    CONF_DELTASOL_BS_PLUS,
     CONF_DELTASOL_C,
     CONF_DELTASOL_CS2,
     CONF_DELTASOL_CS_PLUS,
+    CONF_VBUS_ID,
+    VBus,
+    vbus_ns,
 )
 
 DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusSensor", cg.Component)

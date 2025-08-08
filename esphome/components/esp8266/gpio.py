@@ -112,8 +112,7 @@ def validate_supports(value):
         )
     if is_pullup and num == 16:
         raise cv.Invalid(
-            "GPIO Pin 16 does not support pullup pin mode. "
-            "Please choose another pin.",
+            "GPIO Pin 16 does not support pullup pin mode. Please choose another pin.",
             [CONF_MODE, CONF_PULLUP],
         )
     if is_pulldown and num != 16:

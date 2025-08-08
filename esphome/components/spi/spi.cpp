@@ -7,24 +7,29 @@ namespace spi {
 
 const char *const TAG = "spi";
 
+SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    new SPIDelegateDummy();
+// https://bugs.llvm.org/show_bug.cgi?id=48040
+
 bool SPIDelegate::is_ready() { return true; }
 
 GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
-                                           GPIOPin *cs_pin) {
+                                           GPIOPin *cs_pin, bool release_device, bool write_only) {
   if (this->devices_.count(device) != 0) {
-    ESP_LOGE(TAG, "SPI device already registered");
+    ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
   }
-  SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin);  // NOLINT
+  SPIDelegate *delegate =
+      this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin, release_device, write_only);  // NOLINT
   this->devices_[device] = delegate;
   return delegate;
 }
 
 void SPIComponent::unregister_device(SPIClient *device) {
   if (this->devices_.count(device) == 0) {
-    esph_log_e(TAG, "SPI device not registered");
+    esph_log_e(TAG, "Device not registered");
     return;
   }
   delete this->devices_[device];  // NOLINT
@@ -32,14 +37,12 @@ void SPIComponent::unregister_device(SPIClient *device) {
 }
 
 void SPIComponent::setup() {
-  ESP_LOGD(TAG, "Setting up SPI bus...");
-
   if (this->sdo_pin_ == nullptr)
     this->sdo_pin_ = NullPin::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
     this->sdi_pin_ = NullPin::NULL_PIN;
   if (this->clk_pin_ == nullptr) {
-    ESP_LOGE(TAG, "No clock pin for SPI");
+    ESP_LOGE(TAG, "No clock pin");
     this->mark_failed();
     return;
   }
@@ -75,6 +78,8 @@ void SPIComponent::dump_config() {
   }
 }
 
+void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
+
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) { return this->transfer_(data, 8); }
 
 void SPIDelegateBitBash::write(uint16_t data, size_t num_bits) { this->transfer_(data, num_bits); }
@@ -82,7 +87,7 @@ void SPIDelegateBitBash::write(uint16_t data, size_t num_bits) { this->transfer_
 uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   // Clock starts out at idle level
   this->clk_pin_->digital_write(clock_polarity_);
-  uint8_t out_data = 0;
+  uint16_t out_data = 0;
 
   for (uint8_t i = 0; i != num_bits; i++) {
     uint8_t shift;

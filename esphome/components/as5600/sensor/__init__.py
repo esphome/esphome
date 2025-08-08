@@ -1,19 +1,20 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ANGLE,
+    CONF_GAIN,
     CONF_ID,
-    STATE_CLASS_MEASUREMENT,
+    CONF_MAGNITUDE,
+    CONF_POSITION,
+    CONF_STATUS,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_MAGNET,
     ICON_ROTATE_RIGHT,
-    CONF_GAIN,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    CONF_MAGNITUDE,
-    CONF_STATUS,
-    CONF_POSITION,
-    CONF_ANGLE,
+    STATE_CLASS_MEASUREMENT,
 )
-from .. import as5600_ns, AS5600Component
+
+from .. import AS5600Component, as5600_ns
 
 CODEOWNERS = ["@ammmze"]
 DEPENDENCIES = ["as5600"]

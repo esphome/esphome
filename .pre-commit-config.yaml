@@ -1,49 +1,51 @@
 ---
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+
+ci:
+  autoupdate_commit_msg: 'pre-commit: autoupdate'
+  autoupdate_schedule: off  # Disabled until ruff versions are synced between deps and pre-commit
+  # Skip hooks that have issues in pre-commit CI environment
+  skip: [pylint, clang-tidy-hash]
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.5.4
+    rev: v0.12.8
     hooks:
       # Run the linter.
       - id: ruff
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.4.2
-    hooks:
-      - id: black
-        args:
-          - --safe
-          - --quiet
-        files: ^((esphome|script|tests)/.+)?[^/]+\.py$
   - repo: https://github.com/PyCQA/flake8
-    rev: 6.1.0
+    rev: 7.3.0
     hooks:
       - id: flake8
         additional_dependencies:
-          - flake8-docstrings==1.5.0
+          - flake8-docstrings==1.7.0
           - pydocstyle==5.1.1
         files: ^(esphome|tests)/.+\.py$
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v5.0.0
     hooks:
       - id: no-commit-to-branch
         args:
           - --branch=dev
           - --branch=release
           - --branch=beta
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.2
+    rev: v3.20.0
     hooks:
       - id: pyupgrade
-        args: [--py39-plus]
+        args: [--py311-plus]
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.35.1
+    rev: v1.37.1
     hooks:
       - id: yamllint
+        exclude: ^(\.clang-format|\.clang-tidy)$
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v13.0.1
     hooks:
@@ -53,6 +55,13 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: script/run-in-env.sh pylint
-        language: script
+        entry: python3 script/run-in-env.py pylint
+        language: system
         types: [python]
+      - id: clang-tidy-hash
+        name: Update clang-tidy hash
+        entry: python script/clang_tidy_hash.py --update-if-changed
+        language: python
+        files: ^(\.clang-tidy|platformio\.ini|requirements_dev\.txt)$
+        pass_filenames: false
+        additional_dependencies: []

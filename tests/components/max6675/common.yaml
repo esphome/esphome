@@ -1,0 +1,11 @@
+spi:
+  - id: spi_max6675
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}
+
+sensor:
+  - platform: max6675
+    name: Temperature
+    cs_pin: ${cs_pin}
+    update_interval: 15s

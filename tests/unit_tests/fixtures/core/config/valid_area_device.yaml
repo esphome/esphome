@@ -1,0 +1,11 @@
+esphome:
+  name: test-valid-area
+  areas:
+    - id: bedroom_area
+      name: Bedroom
+  devices:
+    - id: test_device
+      name: Test Device
+      area_id: bedroom_area
+
+host:

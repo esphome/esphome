@@ -1,17 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_WIND_SPEED,
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_KILOMETER_PER_HOUR,
-    ICON_WEATHER_WINDY,
+    CONF_WIND_SPEED,
     ICON_SIGN_DIRECTION,
+    ICON_WEATHER_WINDY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_DEGREES,
+    UNIT_KILOMETER_PER_HOUR,
 )
 
 tx20_ns = cg.esphome_ns.namespace("tx20")

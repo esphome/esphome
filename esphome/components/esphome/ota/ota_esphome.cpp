@@ -26,19 +26,19 @@ void ESPHomeOTAComponent::setup() {
   ota::register_ota_platform(this);
 #endif
 
-  server_ = socket::socket_ip(SOCK_STREAM, 0);
-  if (server_ == nullptr) {
+  this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
+  if (this->server_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");
     this->mark_failed();
     return;
   }
   int enable = 1;
-  int err = server_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  int err = this->server_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
     // we can still continue
   }
-  err = server_->setblocking(false);
+  err = this->server_->setblocking(false);
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
     this->mark_failed();
@@ -54,14 +54,14 @@ void ESPHomeOTAComponent::setup() {
     return;
   }
 
-  err = server_->bind((struct sockaddr *) &server, sizeof(server));
+  err = this->server_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
     this->mark_failed();
     return;
   }
 
-  err = server_->listen(4);
+  err = this->server_->listen(4);
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
     this->mark_failed();
@@ -70,9 +70,11 @@ void ESPHomeOTAComponent::setup() {
 }
 
 void ESPHomeOTAComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Over-The-Air updates:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
-  ESP_LOGCONFIG(TAG, "  Version: %d", USE_OTA_VERSION);
+  ESP_LOGCONFIG(TAG,
+                "Over-The-Air updates:\n"
+                "  Address: %s:%u\n"
+                "  Version: %d",
+                network::get_use_address().c_str(), this->port_, USE_OTA_VERSION);
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");
@@ -80,7 +82,14 @@ void ESPHomeOTAComponent::dump_config() {
 #endif
 }
 
-void ESPHomeOTAComponent::loop() { this->handle_(); }
+void ESPHomeOTAComponent::loop() {
+  // Skip handle_() call if no client connected and no incoming connections
+  // This optimization reduces idle loop overhead when OTA is not active
+  // Note: No need to check server_ for null as the component is marked failed in setup() if server_ creation fails
+  if (this->client_ != nullptr || this->server_->ready()) {
+    this->handle_();
+  }
+}
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
 
@@ -99,22 +108,25 @@ void ESPHomeOTAComponent::handle_() {
   size_t size_acknowledged = 0;
 #endif
 
-  if (client_ == nullptr) {
+  if (this->client_ == nullptr) {
+    // We already checked server_->ready() in loop(), so we can accept directly
     struct sockaddr_storage source_addr;
     socklen_t addr_len = sizeof(source_addr);
-    client_ = server_->accept((struct sockaddr *) &source_addr, &addr_len);
+    this->client_ = this->server_->accept((struct sockaddr *) &source_addr, &addr_len);
+    if (this->client_ == nullptr)
+      return;
   }
-  if (client_ == nullptr)
-    return;
 
   int enable = 1;
-  int err = client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
+  int err = this->client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
   if (err != 0) {
     ESP_LOGW(TAG, "Socket could not enable TCP nodelay, errno %d", errno);
+    this->client_->close();
+    this->client_ = nullptr;
     return;
   }
 
-  ESP_LOGD(TAG, "Starting update from %s...", this->client_->getpeername().c_str());
+  ESP_LOGD(TAG, "Starting update from %s", this->client_->getpeername().c_str());
   this->status_set_warning();
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);

@@ -1,8 +1,8 @@
 import logging
 from pathlib import Path
 
-import esphome.config_validation as cv
 from esphome import git, loader
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPONENTS,
     CONF_EXTERNAL_COMPONENTS,

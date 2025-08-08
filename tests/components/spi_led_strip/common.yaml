@@ -1,0 +1,12 @@
+spi:
+  - id: spi_spi_led_strip
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+
+light:
+  - platform: spi_led_strip
+    num_leds: 4
+    color_correct: [80%, 60%, 100%]
+    id: rgb_led
+    name: RGB LED
+    data_rate: 8MHz

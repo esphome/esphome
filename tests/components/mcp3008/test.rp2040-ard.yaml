@@ -1,17 +1,7 @@
-spi:
-  - id: spi_mcp3008
-    clk_pin: 2
-    mosi_pin: 3
-    miso_pin: 4
+substitutions:
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  miso_pin: GPIO4
+  cs_pin: GPIO5
 
-mcp3008:
-  - id: mcp3008_hub
-    cs_pin: 6
-
-sensor:
-  - platform: mcp3008
-    id: mcp3008_sensor
-    mcp3008_id: mcp3008_hub
-    number: 0
-    reference_voltage: 3.19
-    update_interval: 5s
+<<: !include common.yaml

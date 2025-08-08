@@ -1,12 +1,5 @@
-i2c:
-  - id: i2c_mlx90614
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: mlx90614
-    ambient:
-      name: Ambient
-    object:
-      name: Object
-      emissivity: 1.0
+<<: !include common.yaml

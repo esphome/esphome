@@ -1,18 +1,22 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+from esphome.components.esp32 import CONF_CPU_FREQUENCY
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_FREE,
-    CONF_FRAGMENTATION,
     CONF_BLOCK,
+    CONF_FRAGMENTATION,
+    CONF_FREE,
     CONF_LOOP_TIME,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    UNIT_MILLISECOND,
-    UNIT_PERCENT,
-    UNIT_BYTES,
     ICON_COUNTER,
     ICON_TIMER,
+    UNIT_BYTES,
+    UNIT_HERTZ,
+    UNIT_MILLISECOND,
+    UNIT_PERCENT,
 )
+
 from . import CONF_DEBUG_ID, DebugComponent
 
 DEPENDENCIES = ["debug"]
@@ -51,10 +55,18 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_PSRAM): cv.All(
         cv.only_on_esp32,
-        cv.requires_component("psram"),
+        cv.requires_component(PSRAM_DOMAIN),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_BYTES,
             icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+    ),
+    cv.Optional(CONF_CPU_FREQUENCY): cv.All(
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_HERTZ,
+            icon="mdi:speedometer",
             accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
@@ -84,3 +96,7 @@ async def to_code(config):
     if psram_conf := config.get(CONF_PSRAM):
         sens = await sensor.new_sensor(psram_conf)
         cg.add(debug_component.set_psram_sensor(sens))
+
+    if cpu_freq_conf := config.get(CONF_CPU_FREQUENCY):
+        sens = await sensor.new_sensor(cpu_freq_conf)
+        cg.add(debug_component.set_cpu_frequency_sensor(sens))

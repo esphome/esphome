@@ -13,7 +13,7 @@ void NextionSensor::process_sensor(const std::string &variable_name, int state) 
 
   if (this->wave_chan_id_ == UINT8_MAX && this->variable_name_ == variable_name) {
     this->publish_state(state);
-    ESP_LOGD(TAG, "Processed sensor \"%s\" state %d", variable_name.c_str(), state);
+    ESP_LOGD(TAG, "Sensor: %s=%d", variable_name.c_str(), state);
   }
 }
 
@@ -53,7 +53,7 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
 
   if (this->wave_chan_id_ == UINT8_MAX) {
     if (send_to_nextion) {
-      if (this->nextion_->is_sleeping() || !this->visible_) {
+      if (this->nextion_->is_sleeping() || !this->component_flags_.visible) {
         this->needs_to_send_update_ = true;
       } else {
         this->needs_to_send_update_ = false;
@@ -88,12 +88,12 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
     } else {
       this->raw_state = state;
       this->state = state;
-      this->has_state_ = true;
+      this->set_has_state(true);
     }
   }
   this->update_component_settings();
 
-  ESP_LOGN(TAG, "Wrote state for sensor \"%s\" state %lf", this->variable_name_.c_str(), published_state);
+  ESP_LOGN(TAG, "Write: %s=%lf", this->variable_name_.c_str(), published_state);
 }
 
 void NextionSensor::wave_update_() {
@@ -105,8 +105,8 @@ void NextionSensor::wave_update_() {
   size_t buffer_to_send =
       this->wave_buffer_.size() < 255 ? this->wave_buffer_.size() : 255;  // ADDT command can only send 255
 
-  ESP_LOGN(TAG, "wave_update send %zu of %zu value(s) to wave nextion component id %d and wave channel id %d",
-           buffer_to_send, this->wave_buffer_.size(), this->component_id_, this->wave_chan_id_);
+  ESP_LOGN(TAG, "Wave update: %zu/%zu vals to comp %d ch %d", buffer_to_send, this->wave_buffer_.size(),
+           this->component_id_, this->wave_chan_id_);
 #endif
 
   this->nextion_->add_addt_command_to_queue(this);

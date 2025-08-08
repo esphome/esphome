@@ -25,8 +25,7 @@ void BLEClient::loop() {
 
 void BLEClient::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Client:");
-  ESP_LOGCONFIG(TAG, "  Address: %s", this->address_str().c_str());
-  ESP_LOGCONFIG(TAG, "  Auto-Connect: %s", TRUEFALSE(this->auto_connect_));
+  BLEClientBase::dump_config();
 }
 
 bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {

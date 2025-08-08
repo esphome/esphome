@@ -52,6 +52,8 @@ class PCA6416AGPIOPin : public GPIOPin {
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
 
+  gpio::Flags get_flags() const override { return this->flags_; }
+
  protected:
   PCA6416AComponent *parent_;
   uint8_t pin_;
