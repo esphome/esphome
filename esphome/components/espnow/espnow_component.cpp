@@ -178,7 +178,7 @@ void ESPNowComponent::enable_() {
 
     this->apply_wifi_channel();
   }
-  this->get_wifi_channel();
+  this->wifi_channel_ = this->get_wifi_channel();
 
   esp_err_t err = esp_now_init();
   if (err != ESP_OK) {
@@ -253,7 +253,7 @@ void ESPNowComponent::apply_wifi_channel() {
 void ESPNowComponent::loop() {
 #ifdef USE_WIFI
   if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected()) {
-    int32_t new_channel = wifi::global_wifi_component->get_wifi_channel();
+    int32_t new_channel = this->get_wifi_channel();
     if (new_channel != this->wifi_channel_) {
       ESP_LOGI(TAG, "Wifi Channel is changed from %d to %d.", this->wifi_channel_, new_channel);
       this->wifi_channel_ = new_channel;
@@ -339,8 +339,9 @@ void ESPNowComponent::loop() {
 
 uint8_t ESPNowComponent::get_wifi_channel() {
   wifi_second_chan_t dummy;
-  esp_wifi_get_channel(&this->wifi_channel_, &dummy);
-  return this->wifi_channel_;
+  uint8_t channel;
+  esp_wifi_get_channel(&channel, &dummy);
+  return channel;
 }
 
 esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payload, size_t size,

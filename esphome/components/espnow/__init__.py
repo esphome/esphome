@@ -19,10 +19,10 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@jesserockz"]
 
 byte_vector = cg.std_vector.template(cg.uint8)
-peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
 
 espnow_ns = cg.esphome_ns.namespace("espnow")
 ESPNowComponent = espnow_ns.class_("ESPNowComponent", cg.Component)
+peer_address_t = espnow_ns.class_("peer_address_t")
 
 # Handler interfaces that other components can use to register callbacks
 ESPNowReceivedPacketHandler = espnow_ns.class_("ESPNowReceivedPacketHandler")
@@ -53,6 +53,7 @@ OnBroadcastedTrigger = espnow_ns.class_(
     "OnBroadcastedTrigger", ESPNowHandlerTrigger, ESPNowBroadcastedHandler
 )
 
+CONF_ESPNOW = "espnow"
 
 CONF_AUTO_ADD_PEER = "auto_add_peer"
 CONF_PEERS = "peers"
@@ -63,6 +64,20 @@ CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
+
+ESPNOW_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ESPNOW): cv.use_id(ESPNowComponent),
+        cv.Optional(CONF_ADDRESS): cv.templatable(cv.mac_address),
+    }
+)
+
+
+async def register_espnow_extention(var, config):
+    udp_var = await cg.get_variable(config[CONF_ESPNOW])
+    cg.add(var.set_parent(udp_var))
+    await register_peer(var, config, [])
+    return udp_var
 
 
 CONFIG_SCHEMA = cv.All(
@@ -170,12 +185,12 @@ def _validate_raw_data(value):
 
 
 async def register_peer(var, config, args):
-    peer = config[CONF_ADDRESS]
-    if isinstance(peer, core.MACAddress):
-        peer = [HexInt(p) for p in peer.parts]
+    if peer := config.get(CONF_ADDRESS):
+        if isinstance(peer, core.MACAddress):
+            peer = [HexInt(p) for p in peer.parts]
 
-    template_ = await cg.templatable(peer, args, peer_address_t, peer_address_t)
-    cg.add(var.set_address(template_))
+        template_ = await cg.templatable(peer, args, peer_address_t, peer_address_t)
+        cg.add(var.set_address(template_))
 
 
 PEER_SCHEMA = cv.Schema(

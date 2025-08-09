@@ -28,6 +28,8 @@ static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
+std::string peer_str(uint8_t *peer);
+
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
   ON_NEW_PEER = 1,
@@ -109,7 +111,6 @@ class ESPNowComponent : public Component {
   esp_err_t del_peer(const uint8_t *peer);
 
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
-  uint8_t get_wifi_channel() { return this->wifi_channel_; }
   void apply_wifi_channel();
   uint8_t get_wifi_channel();
 
