@@ -229,6 +229,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                close_fds=False,
             )
             stdout_thread = threading.Thread(target=self._stdout_thread)
             stdout_thread.daemon = True
