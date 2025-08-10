@@ -635,15 +635,8 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     } else if (match.method_equals("turn_on") || match.method_equals("turn_off")) {
       auto call = match.method_equals("turn_on") ? obj->turn_on() : obj->turn_off();
 
-      if (request->hasParam("speed_level")) {
-        auto speed_level = request->getParam("speed_level")->value();
-        auto val = parse_number<int>(speed_level.c_str());
-        if (!val.has_value()) {
-          ESP_LOGW(TAG, "Can't convert '%s' to number!", speed_level.c_str());
-          return;
-        }
-        call.set_speed(*val);
-      }
+      parse_int_param_(request, "speed_level", call, &decltype(call)::set_speed);
+
       if (request->hasParam("oscillation")) {
         auto speed = request->getParam("oscillation")->value();
         auto val = parse_on_off(speed.c_str());
@@ -715,69 +708,26 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       request->send(200);
     } else if (match.method_equals("turn_on")) {
       auto call = obj->turn_on();
-      if (request->hasParam("brightness")) {
-        auto brightness = parse_number<float>(request->getParam("brightness")->value().c_str());
-        if (brightness.has_value()) {
-          call.set_brightness(*brightness / 255.0f);
-        }
-      }
-      if (request->hasParam("r")) {
-        auto r = parse_number<float>(request->getParam("r")->value().c_str());
-        if (r.has_value()) {
-          call.set_red(*r / 255.0f);
-        }
-      }
-      if (request->hasParam("g")) {
-        auto g = parse_number<float>(request->getParam("g")->value().c_str());
-        if (g.has_value()) {
-          call.set_green(*g / 255.0f);
-        }
-      }
-      if (request->hasParam("b")) {
-        auto b = parse_number<float>(request->getParam("b")->value().c_str());
-        if (b.has_value()) {
-          call.set_blue(*b / 255.0f);
-        }
-      }
-      if (request->hasParam("white_value")) {
-        auto white_value = parse_number<float>(request->getParam("white_value")->value().c_str());
-        if (white_value.has_value()) {
-          call.set_white(*white_value / 255.0f);
-        }
-      }
-      if (request->hasParam("color_temp")) {
-        auto color_temp = parse_number<float>(request->getParam("color_temp")->value().c_str());
-        if (color_temp.has_value()) {
-          call.set_color_temperature(*color_temp);
-        }
-      }
-      if (request->hasParam("flash")) {
-        auto flash = parse_number<uint32_t>(request->getParam("flash")->value().c_str());
-        if (flash.has_value()) {
-          call.set_flash_length(*flash * 1000);
-        }
-      }
-      if (request->hasParam("transition")) {
-        auto transition = parse_number<uint32_t>(request->getParam("transition")->value().c_str());
-        if (transition.has_value()) {
-          call.set_transition_length(*transition * 1000);
-        }
-      }
-      if (request->hasParam("effect")) {
-        const char *effect = request->getParam("effect")->value().c_str();
-        call.set_effect(effect);
-      }
+
+      // Parse color parameters
+      parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
+      parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
+      parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
+      parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
+      parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
+      parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
+
+      // Parse timing parameters
+      parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
+      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
+
+      parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
 
       this->defer([call]() mutable { call.perform(); });
       request->send(200);
     } else if (match.method_equals("turn_off")) {
       auto call = obj->turn_off();
-      if (request->hasParam("transition")) {
-        auto transition = parse_number<uint32_t>(request->getParam("transition")->value().c_str());
-        if (transition.has_value()) {
-          call.set_transition_length(*transition * 1000);
-        }
-      }
+      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
       this->defer([call]() mutable { call.perform(); });
       request->send(200);
     } else {
@@ -850,18 +800,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       return;
     }
 
-    if (request->hasParam("position")) {
-      auto position = parse_number<float>(request->getParam("position")->value().c_str());
-      if (position.has_value()) {
-        call.set_position(*position);
-      }
-    }
-    if (request->hasParam("tilt")) {
-      auto tilt = parse_number<float>(request->getParam("tilt")->value().c_str());
-      if (tilt.has_value()) {
-        call.set_tilt(*tilt);
-      }
-    }
+    parse_float_param_(request, "position", call, &decltype(call)::set_position);
+    parse_float_param_(request, "tilt", call, &decltype(call)::set_tilt);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -915,11 +855,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
     }
 
     auto call = obj->make_call();
-    if (request->hasParam("value")) {
-      auto value = parse_number<float>(request->getParam("value")->value().c_str());
-      if (value.has_value())
-        call.set_value(*value);
-    }
+    parse_float_param_(request, "value", call, &decltype(call)::set_value);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -991,10 +927,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
       return;
     }
 
-    if (request->hasParam("value")) {
-      std::string value = request->getParam("value")->value().c_str();  // NOLINT
-      call.set_date(value);
-    }
+    parse_string_param_(request, "value", call, &decltype(call)::set_date);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1050,10 +983,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
       return;
     }
 
-    if (request->hasParam("value")) {
-      std::string value = request->getParam("value")->value().c_str();  // NOLINT
-      call.set_time(value);
-    }
+    parse_string_param_(request, "value", call, &decltype(call)::set_time);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1108,10 +1038,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
       return;
     }
 
-    if (request->hasParam("value")) {
-      std::string value = request->getParam("value")->value().c_str();  // NOLINT
-      call.set_datetime(value);
-    }
+    parse_string_param_(request, "value", call, &decltype(call)::set_datetime);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1162,10 +1089,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
     }
 
     auto call = obj->make_call();
-    if (request->hasParam("value")) {
-      String value = request->getParam("value")->value();
-      call.set_value(value.c_str());  // NOLINT
-    }
+    parse_string_param_(request, "value", call, &decltype(call)::set_value);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1224,11 +1148,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
     }
 
     auto call = obj->make_call();
-
-    if (request->hasParam("option")) {
-      auto option = request->getParam("option")->value();
-      call.set_option(option.c_str());  // NOLINT
-    }
+    parse_string_param_(request, "option", call, &decltype(call)::set_option);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1284,38 +1204,15 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 
     auto call = obj->make_call();
 
-    if (request->hasParam("mode")) {
-      auto mode = request->getParam("mode")->value();
-      call.set_mode(mode.c_str());  // NOLINT
-    }
+    // Parse string mode parameters
+    parse_string_param_(request, "mode", call, &decltype(call)::set_mode);
+    parse_string_param_(request, "fan_mode", call, &decltype(call)::set_fan_mode);
+    parse_string_param_(request, "swing_mode", call, &decltype(call)::set_swing_mode);
 
-    if (request->hasParam("fan_mode")) {
-      auto mode = request->getParam("fan_mode")->value();
-      call.set_fan_mode(mode.c_str());  // NOLINT
-    }
-
-    if (request->hasParam("swing_mode")) {
-      auto mode = request->getParam("swing_mode")->value();
-      call.set_swing_mode(mode.c_str());  // NOLINT
-    }
-
-    if (request->hasParam("target_temperature_high")) {
-      auto target_temperature_high = parse_number<float>(request->getParam("target_temperature_high")->value().c_str());
-      if (target_temperature_high.has_value())
-        call.set_target_temperature_high(*target_temperature_high);
-    }
-
-    if (request->hasParam("target_temperature_low")) {
-      auto target_temperature_low = parse_number<float>(request->getParam("target_temperature_low")->value().c_str());
-      if (target_temperature_low.has_value())
-        call.set_target_temperature_low(*target_temperature_low);
-    }
-
-    if (request->hasParam("target_temperature")) {
-      auto target_temperature = parse_number<float>(request->getParam("target_temperature")->value().c_str());
-      if (target_temperature.has_value())
-        call.set_target_temperature(*target_temperature);
-    }
+    // Parse temperature parameters
+    parse_float_param_(request, "target_temperature_high", call, &decltype(call)::set_target_temperature_high);
+    parse_float_param_(request, "target_temperature_low", call, &decltype(call)::set_target_temperature_low);
+    parse_float_param_(request, "target_temperature", call, &decltype(call)::set_target_temperature);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1506,12 +1403,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       return;
     }
 
-    if (request->hasParam("position")) {
-      auto position = parse_number<float>(request->getParam("position")->value().c_str());
-      if (position.has_value()) {
-        call.set_position(*position);
-      }
-    }
+    parse_float_param_(request, "position", call, &decltype(call)::set_position);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1559,9 +1451,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     }
 
     auto call = obj->make_call();
-    if (request->hasParam("code")) {
-      call.set_code(request->getParam("code")->value().c_str());  // NOLINT
-    }
+    parse_string_param_(request, "code", call, &decltype(call)::set_code);
 
     if (match.method_equals("disarm")) {
       call.disarm();
@@ -1659,6 +1549,19 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 #endif
 
 #ifdef USE_UPDATE
+static const char *update_state_to_string(update::UpdateState state) {
+  switch (state) {
+    case update::UPDATE_STATE_NO_UPDATE:
+      return "NO UPDATE";
+    case update::UPDATE_STATE_AVAILABLE:
+      return "UPDATE AVAILABLE";
+    case update::UPDATE_STATE_INSTALLING:
+      return "INSTALLING";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void WebServer::on_update(update::UpdateEntity *obj) {
   if (this->events_.empty())
     return;
@@ -1698,20 +1601,7 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
   return json::build_json([this, obj, start_config](JsonObject root) {
     set_json_id(root, obj, "update-" + obj->get_object_id(), start_config);
     root["value"] = obj->update_info.latest_version;
-    switch (obj->state) {
-      case update::UPDATE_STATE_NO_UPDATE:
-        root["state"] = "NO UPDATE";
-        break;
-      case update::UPDATE_STATE_AVAILABLE:
-        root["state"] = "UPDATE AVAILABLE";
-        break;
-      case update::UPDATE_STATE_INSTALLING:
-        root["state"] = "INSTALLING";
-        break;
-      default:
-        root["state"] = "UNKNOWN";
-        break;
-    }
+    root["state"] = update_state_to_string(obj->state);
     if (start_config == DETAIL_ALL) {
       root["current_version"] = obj->update_info.current_version;
       root["title"] = obj->update_info.title;
