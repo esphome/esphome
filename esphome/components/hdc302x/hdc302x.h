@@ -42,6 +42,7 @@ class HDC302XComponent : public PollingComponent, public i2c::I2CDevice {
   HDC302XPowerMode power_mode_{HDC302XPowerMode::HIGH_ACCURACY};
   bool heater_enabled_{false};
 
+  uint8_t crc8_(const uint8_t *buf, size_t len);
   void read_data_();
   uint32_t conversion_delay_ms_();
 };
