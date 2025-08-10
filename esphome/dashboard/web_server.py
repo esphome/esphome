@@ -324,14 +324,13 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
-        addresses: list[str] = [port]
+        addresses: list[str] = []
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            addresses = []
             # First priority: entry.address AKA use_address
             if (
                 (use_address := entry.address)
@@ -358,6 +357,13 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                 # if the API is loaded and the device is online
                 # since MQTT logging will not work otherwise
                 addresses.extend(sort_ip_addresses(new_addresses))
+
+        if not addresses:
+            # If no address was found, use the port directly
+            # as otherwise they will get the chooser which
+            # does not work with the dashboard as there is no
+            # interactive way to get keyboard input
+            addresses = [port]
 
         device_args: list[str] = [
             arg for address in addresses for arg in ("--device", address)
