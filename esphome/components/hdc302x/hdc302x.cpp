@@ -18,8 +18,6 @@ static const uint8_t HDC302X_CMD_TRIGGER_LSB[] = {0x00, 0x0b, 0x16, 0xff};
 static const uint8_t HDC302X_CMD_HEATER_ENABLE[2] = {0x30, 0x6d};
 static const uint8_t HDC302X_CMD_HEATER_DISABLE[2] = {0x30, 0x66};
 
-static uint8_t crc8_(const uint8_t *buf, size_t len);
-
 void HDC302XComponent::setup() {
   // Soft reset the device
   ESP_LOGD(TAG, "Resetting I2C address: 0x%02X", this->address_);
@@ -95,7 +93,7 @@ void HDC302XComponent::read_data_() {
   }
 
   // Check checksums
-  if (crc8_(buf, 2) != buf[2] || crc8_(buf + 3, 2) != buf[5]) {
+  if (this->crc8_(buf, 2) != buf[2] || this->crc8_(buf + 3, 2) != buf[5]) {
     ESP_LOGW(TAG, "Read data: invalid CRC");
     this->status_set_warning();
     return;
@@ -136,7 +134,7 @@ uint32_t HDC302XComponent::conversion_delay_ms_() {
   }
 };
 
-uint8_t crc8_(const uint8_t *buf, size_t len) {
+uint8_t HDC302XComponent::crc8_(const uint8_t *buf, size_t len) {
   // Compute 8-bit CRC with properties from datasheet, Table 7-1.
   //  - Initialisation: 0xff
   //  - Polynominal: 0x31
