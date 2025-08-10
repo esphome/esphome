@@ -367,6 +367,14 @@ class ESP32BLETracker : public Component,
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
 #endif
+  // Scan timeout state machine
+  enum class ScanTimeoutState : uint8_t {
+    INACTIVE,       // No timeout monitoring
+    MONITORING,     // Actively monitoring for timeout
+    EXCEEDED_WAIT,  // Timeout exceeded, waiting one loop before reboot
+  };
+  uint32_t scan_start_time_{0};
+  ScanTimeoutState scan_timeout_state_{ScanTimeoutState::INACTIVE};
 };
 
 // NOLINTNEXTLINE
