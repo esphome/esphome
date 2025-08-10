@@ -145,10 +145,11 @@ uint8_t crc8_(const uint8_t *buf, size_t len) {
   for (size_t i = 0; i < len; i++) {
     crc ^= buf[i];
     for (size_t j = 8; j > 0; j--) {
-      if (crc & 0x80)
+      if (crc & 0x80) {
         crc = (crc << 1) ^ 0x31;
-      else
+      } else {
         crc = crc << 1;
+      }
     }
   }
   return crc;
