@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_HEATER,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_TEMPERATURE,
@@ -27,8 +28,6 @@ POWER_MODE_OPTIONS = {
     "LOW_POWER": HDC302XPowerMode.LOW_POWER,
     "ULTRA_LOW_POWER": HDC302XPowerMode.ULTRA_LOW_POWER,
 }
-
-CONF_HEATER = "heater"
 
 CONFIG_SCHEMA = (
     cv.Schema(
