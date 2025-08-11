@@ -23,7 +23,9 @@ class HLW8032Component : public Component, public uart::UARTDevice {
   void set_apparent_power_sensor(sensor::Sensor *apparent_power_sensor) {
     this->apparent_power_sensor_ = apparent_power_sensor;
   }
-  void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { this->power_factor_sensor_ = power_factor_sensor; }
+  void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) {
+    this->power_factor_sensor_ = power_factor_sensor;
+  }
 
  protected:
   void parse_data_();
