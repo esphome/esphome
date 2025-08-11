@@ -75,6 +75,7 @@ void ResonateWebsocket::send_stream_command_message(const media_player::MediaPla
 void ResonateWebsocket::send_time_message() {
   int64_t now = esp_timer_get_time();
   std::string serialized_text = json::build_json([now](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root["type"] = "player/time";
     root["payload"]["player_transmitted"] = now;
   });

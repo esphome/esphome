@@ -200,6 +200,7 @@ bool process_metadata_update_message(const std::string &message, ResonateMetadat
 
 std::string format_player_hello_message(const PlayerHelloMessage *msg) {
   return json::build_json([msg](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root["type"] = "player/hello";
     root["payload"]["player_id"] = msg->player_id;
     root["payload"]["name"] = msg->name;
@@ -234,6 +235,7 @@ std::string format_player_hello_message(const PlayerHelloMessage *msg) {
 
 std::string format_player_state_message(const PlayerStateMessage *msg) {
   return json::build_json([msg](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root["type"] = "player/state";
     root["payload"]["state"] = msg->state;
     root["payload"]["volume"] = msg->volume;
@@ -244,6 +246,7 @@ std::string format_player_state_message(const PlayerStateMessage *msg) {
 #ifdef USE_MEDIA_PLAYER
 std::string format_stream_command_message(const media_player::MediaPlayerCall &call) {
   return json::build_json([call](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root["type"] = "stream/command";
     if (call.get_command().has_value()) {
       switch (call.get_command().value()) {
