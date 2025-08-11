@@ -163,7 +163,7 @@ void ResonateWebsocket::async_send_text(void *arg) {
   async_resp_allocator.deallocate(resp_arg, sizeof(AsyncRespArg));
 }
 
-#endif
-
 }  // namespace resonate
 }  // namespace esphome
+
+#endif
