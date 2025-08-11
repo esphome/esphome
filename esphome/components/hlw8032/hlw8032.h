@@ -15,15 +15,15 @@ class HLW8032Component : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
-  void set_current_resistor(float current_resistor) { current_resistor_ = current_resistor; }
-  void set_voltage_divider(float voltage_divider) { voltage_divider_ = voltage_divider; }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
+  void set_current_resistor(float current_resistor) { this->current_resistor_ = current_resistor; }
+  void set_voltage_divider(float voltage_divider) { this->voltage_divider_ = voltage_divider; }
+  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
+  void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
+  void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
   void set_apparent_power_sensor(sensor::Sensor *apparent_power_sensor) {
-    apparent_power_sensor_ = apparent_power_sensor;
+    this->apparent_power_sensor_ = apparent_power_sensor;
   }
-  void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
+  void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { this->power_factor_sensor_ = power_factor_sensor; }
 
  protected:
   void parse_data_();
