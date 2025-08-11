@@ -29,18 +29,23 @@ class HLW8032Component : public Component, public uart::UARTDevice {
   void parse_data_();
   uint32_t get_24_bit_uint_(uint8_t start_index);
 
-  bool header_found_{false};
-  uint8_t check_{0};
-  uint8_t raw_data_[24]{};
-  uint8_t raw_data_index_{0};
-  uint32_t last_transmission_{0};
-  float current_resistor_{0.001};
-  float voltage_divider_{1.720};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *apparent_power_sensor_{nullptr};
   sensor::Sensor *power_factor_sensor_{nullptr};
+  
+  float current_resistor_{0.001f};
+  float voltage_divider_{1.720f};
+  
+  uint32_t last_transmission_{0};
+  
+  uint8_t raw_data_[24]{};
+  
+  uint8_t check_{0};
+  uint8_t raw_data_index_{0};
+  
+  bool header_found_{false};
 };
 
 }  // namespace hlw8032
