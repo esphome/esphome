@@ -58,6 +58,8 @@ class AudioTransferBuffer {
 
   bool reallocate(size_t new_buffer_size);
 
+  void change_inplace_buffer(uint8_t *new_buffer, size_t new_buffer_size);
+
  protected:
   /// @brief Allocates the transfer buffer in external memory, if available.
   /// @param buffer_size The number of bytes to allocate
@@ -75,6 +77,8 @@ class AudioTransferBuffer {
 
   size_t buffer_size_{0};
   size_t buffer_length_{0};
+
+  bool inplace_{false};
 };
 
 class AudioSinkTransferBuffer : public AudioTransferBuffer {
@@ -87,6 +91,8 @@ class AudioSinkTransferBuffer : public AudioTransferBuffer {
   /// @param buffer_size Size of the transfer buffer in bytes.
   /// @return unique_ptr if successfully allocated, nullptr otherwise
   static std::unique_ptr<AudioSinkTransferBuffer> create(size_t buffer_size);
+
+  static std::unique_ptr<AudioSinkTransferBuffer> create_inplace();
 
   /// @brief Writes any available data in the transfer buffer to the sink.
   /// @param ticks_to_wait FreeRTOS ticks to block while waiting for the sink to have enough space

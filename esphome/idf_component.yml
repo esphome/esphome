@@ -19,6 +19,9 @@ dependencies:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
     version: 1.0.1
+  esp-libopus:
+    git: http://homeserver.lan:3001/kevin/esp-libopus.git
+    version: main
   espressif/lan867x:
     version: "2.0.0"
     rules:

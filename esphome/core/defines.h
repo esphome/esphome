@@ -24,6 +24,7 @@
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
 #define USE_AREAS
+#define USE_AUDIO
 #define USE_BINARY_SENSOR
 #define USE_BUTTON
 #define USE_CAMERA
@@ -93,6 +94,10 @@
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
+#define USE_RESONATE
+#define USE_RESONATE_AUDIO
+#define USE_RESONATE_METADATA
+#define USE_RESONATE_SENSOR
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_STATUS_LED
