@@ -272,8 +272,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
 
     if (interpolation_transfer_buffer->available() == 0) {
       // No interpolation bytes available, send main audio data
-      bytes_written +=
-          output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(3 * duration_in_transfer_buffers / 2), false);
+      output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(3 * duration_in_transfer_buffers / 2), false);
     }
 
     if ((output_transfer_buffer->available() == 0) && (decoded_chunk.data != nullptr) && receive_chunk) {
