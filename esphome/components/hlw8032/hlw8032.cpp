@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 #include <iomanip>
-#include <sstream>
 
 namespace esphome {
 namespace hlw8032 {
@@ -42,17 +41,6 @@ void HLW8032Component::loop() {
 }
 
 void HLW8032Component::parse_data_() {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  {
-    std::stringstream ss;
-    ss << "Raw data:" << std::hex << std::uppercase << std::setfill('0');
-    for (unsigned char i : this->raw_data_) {
-      ss << ' ' << std::setw(2) << static_cast<unsigned>(i);
-    }
-    ESP_LOGD(TAG, "%s", ss.str().c_str());
-  }
-#endif
-
   // Parse header
   uint8_t state_reg = this->raw_data_[0];
 
@@ -161,23 +149,6 @@ void HLW8032Component::parse_data_() {
       this->power_factor_sensor_->publish_state(pf);
     }
   }
-
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  {
-    std::stringstream ss;
-    ss << "Parsed:";
-    if (have_voltage) {
-      ss << " V=" << voltage << "V";
-    }
-    if (have_current) {
-      ss << " I=" << current * 1000.0f << "mA";
-    }
-    if (have_power) {
-      ss << " P=" << power << "W";
-    }
-    ESP_LOGD(TAG, "%s", ss.str().c_str());
-  }
-#endif
 }
 
 void HLW8032Component::dump_config() {
