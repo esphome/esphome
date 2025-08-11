@@ -627,13 +627,15 @@ class SchemaValidationStep(ConfigValidationStep):
     def __init__(
         self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest
     ):
+        self.domain = domain
         self.path = path
         self.conf = conf
         self.comp = comp
 
     def run(self, result: Config) -> None:
         token = path_context.set(self.path)
-        with result.catch_error(self.path):
+        # The domain already contains the full component path (e.g., "sensor.template", "sensor.uptime")
+        with CORE.component_context(self.domain), result.catch_error(self.path):
             if self.comp.is_platform:
                 # Remove 'platform' key for validation
                 input_conf = OrderedDict(self.conf)
