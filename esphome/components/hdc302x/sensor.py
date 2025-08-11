@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_TEMPERATURE,
+    CONF_POWER_MODE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
@@ -20,7 +21,6 @@ HDC302XComponent = hdc302x_ns.class_(
     "HDC302XComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_POWER_MODE = "power_mode"
 HDC302XPowerMode = hdc302x_ns.enum("HDC302XPowerMode")
 POWER_MODE_OPTIONS = {
     "HIGH_ACCURACY": HDC302XPowerMode.HIGH_ACCURACY,
