@@ -62,12 +62,12 @@ void HLW8032Component::parse_data_() {
   }
 
   // Parse data frame
-  uint32_t voltage_parameter = this->get_24_bit_uint_(2);
-  uint32_t voltage_reg = this->get_24_bit_uint_(5);
-  uint32_t current_parameter = this->get_24_bit_uint_(8);
-  uint32_t current_reg = this->get_24_bit_uint_(11);
-  uint32_t power_parameter = this->get_24_bit_uint_(14);
-  uint32_t power_reg = this->get_24_bit_uint_(17);
+  uint32_t voltage_parameter = encode_uint24(this->raw_data_[2], this->raw_data_[3], this->raw_data_[4]);
+  uint32_t voltage_reg = encode_uint24(this->raw_data_[5], this->raw_data_[6], this->raw_data_[7]);
+  uint32_t current_parameter = encode_uint24(this->raw_data_[8], this->raw_data_[9], this->raw_data_[10]);
+  uint32_t current_reg = encode_uint24(this->raw_data_[11], this->raw_data_[12], this->raw_data_[13]);
+  uint32_t power_parameter = encode_uint24(this->raw_data_[14], this->raw_data_[15], this->raw_data_[16]);
+  uint32_t power_reg = encode_uint24(this->raw_data_[17], this->raw_data_[18], this->raw_data_[19]);
 
   uint8_t data_update_register = this->raw_data_[20];
 
@@ -178,11 +178,6 @@ void HLW8032Component::parse_data_() {
     ESP_LOGD(TAG, "%s", ss.str().c_str());
   }
 #endif
-}
-
-uint32_t HLW8032Component::get_24_bit_uint_(uint8_t start_index) {
-  return (uint32_t(this->raw_data_[start_index]) << 16) + (uint32_t(this->raw_data_[start_index + 1]) << 8) +
-         this->raw_data_[start_index + 2];
 }
 
 void HLW8032Component::dump_config() {

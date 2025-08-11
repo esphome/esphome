@@ -27,7 +27,6 @@ class HLW8032Component : public Component, public uart::UARTDevice {
 
  protected:
   void parse_data_();
-  uint32_t get_24_bit_uint_(uint8_t start_index);
 
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
