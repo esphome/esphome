@@ -102,11 +102,11 @@ void HLW8032Component::parse_data_() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGVV(TAG, "HLW8032 Parsed data:");
   ESP_LOGVV(TAG, "  Voltage Parameter REG: 0x%06X, Voltage REG: 0x%06X", (unsigned int) voltage_parameter,
-           (unsigned int) voltage_reg);
+            (unsigned int) voltage_reg);
   ESP_LOGVV(TAG, "  Current Parameter REG: 0x%06X, Current REG: 0x%06X", (unsigned int) current_parameter,
-           (unsigned int) current_reg);
+            (unsigned int) current_reg);
   ESP_LOGVV(TAG, "  Power Parameter REG: 0x%06X, Power REG: 0x%06X", (unsigned int) power_parameter,
-           (unsigned int) power_reg);
+            (unsigned int) power_reg);
   ESP_LOGVV(TAG, "  Data Update REG: 0x%02X", data_update_register);
 #endif
 
@@ -186,10 +186,11 @@ uint32_t HLW8032Component::get_24_bit_uint_(uint8_t start_index) {
 }
 
 void HLW8032Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "HLW8032:\n"
-                     "  Current resistor: %.1f mΩ\n"
-                     "  Voltage Divider: %.3f",
-                     this->current_resistor_ * 1000.0f, this->voltage_divider_);
+  ESP_LOGCONFIG(TAG,
+                "HLW8032:\n"
+                "  Current resistor: %.1f mΩ\n"
+                "  Voltage Divider: %.3f",
+                this->current_resistor_ * 1000.0f, this->voltage_divider_);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_)
   LOG_SENSOR("  ", "Current", this->current_sensor_)
   LOG_SENSOR("  ", "Power", this->power_sensor_)
