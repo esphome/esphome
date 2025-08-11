@@ -194,45 +194,7 @@ def final_validate(config):
         )
 
 
-def final_validate_power_esp32_ble(value):
-    if not CORE.is_esp32:
-        return
-    if value != "NONE":
-        # WiFi should be in modem sleep (!=NONE) with BLE coexistence
-        # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
-        return
-    for conflicting in [
-        "esp32_ble",
-        "esp32_ble_beacon",
-        "esp32_ble_server",
-        "esp32_ble_tracker",
-    ]:
-        if conflicting not in fv.full_config.get():
-            continue
-
-        try:
-            # Only arduino 1.0.5+ and esp-idf impacted
-            cv.require_framework_version(
-                esp32_arduino=cv.Version(1, 0, 5),
-                esp_idf=cv.Version(4, 0, 0),
-            )(None)
-        except cv.Invalid:
-            pass
-        else:
-            raise cv.Invalid(
-                f"power_save_mode NONE is incompatible with {conflicting}. "
-                f"Please remove the power save mode. See also "
-                f"https://github.com/esphome/issues/issues/2141#issuecomment-865688582"
-            )
-
-
 FINAL_VALIDATE_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_POWER_SAVE_MODE): final_validate_power_esp32_ble,
-        },
-        extra=cv.ALLOW_EXTRA,
-    ),
     final_validate,
     validate_variant,
 )
