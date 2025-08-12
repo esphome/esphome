@@ -2,6 +2,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import runtime_image
 from esphome.components.const import CONF_BYTE_ORDER, CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import (
@@ -28,7 +29,7 @@ from esphome.const import (
 )
 from esphome.core import Lambda
 
-AUTO_LOAD = ["image"]
+AUTO_LOAD = ["image", "runtime_image"]
 DEPENDENCIES = ["display", "http_request"]
 CODEOWNERS = ["@guillempages", "@clydebarrow"]
 MULTI_CONF = True
@@ -41,58 +42,21 @@ _LOGGER = logging.getLogger(__name__)
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
 
-ImageFormat = online_image_ns.enum("ImageFormat")
+# Use ImageFormat from runtime_image
+ImageFormat = runtime_image.ImageFormat
 
 
-class Format:
-    def __init__(self, image_type):
-        self.image_type = image_type
-
-    @property
-    def enum(self):
-        return getattr(ImageFormat, self.image_type)
-
-    def actions(self):
-        pass
-
-
-class BMPFormat(Format):
-    def __init__(self):
-        super().__init__("BMP")
-
-    def actions(self):
-        cg.add_define("USE_ONLINE_IMAGE_BMP_SUPPORT")
-
-
-class JPEGFormat(Format):
-    def __init__(self):
-        super().__init__("JPEG")
-
-    def actions(self):
-        cg.add_define("USE_ONLINE_IMAGE_JPEG_SUPPORT")
-        cg.add_library("JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2")
-
-
-class PNGFormat(Format):
-    def __init__(self):
-        super().__init__("PNG")
-
-    def actions(self):
-        cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
-        cg.add_library("pngle", "1.1.0")
-
-
+# Map format names to ImageFormat enum values for backward compatibility
 IMAGE_FORMATS = {
-    x.image_type: x
-    for x in (
-        BMPFormat(),
-        JPEGFormat(),
-        PNGFormat(),
-    )
+    "BMP": "BMP",
+    "JPEG": "JPEG",
+    "PNG": "PNG",
+    "JPG": "JPEG",  # Alias for JPEG
 }
-IMAGE_FORMATS.update({"JPG": IMAGE_FORMATS["JPEG"]})
 
-OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
+# Import RuntimeImage from runtime_image
+RuntimeImage = cg.esphome_ns.namespace("runtime_image").class_("RuntimeImage")
+OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, RuntimeImage)
 
 # Actions
 SetUrlAction = online_image_ns.class_(
@@ -199,8 +163,12 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
-    image_format = IMAGE_FORMATS[config[CONF_FORMAT]]
-    image_format.actions()
+    format_name = config[CONF_FORMAT]
+    # Enable the format in the runtime_image component
+    runtime_image.enable_format(format_name)
+
+    # Get the enum value for the format from runtime_image
+    format_enum = getattr(runtime_image.ImageFormat, IMAGE_FORMATS[format_name])
 
     url = config[CONF_URL]
     width, height = config.get(CONF_RESIZE, (0, 0))
@@ -211,7 +179,7 @@ async def to_code(config):
         url,
         width,
         height,
-        image_format.enum,
+        format_enum,
         get_image_type_enum(config[CONF_TYPE]),
         transparent,
         config[CONF_BUFFER_SIZE],
