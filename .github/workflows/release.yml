@@ -20,7 +20,7 @@ jobs:
       branch_build: ${{ steps.tag.outputs.branch_build }}
       deploy_env: ${{ steps.tag.outputs.deploy_env }}
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -60,7 +60,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
       - name: Set up Python
         uses: actions/setup-python@v5.6.0
         with:
@@ -92,7 +92,7 @@ jobs:
             os: "ubuntu-24.04-arm"
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
       - name: Set up Python
         uses: actions/setup-python@v5.6.0
         with:
@@ -168,7 +168,7 @@ jobs:
           - ghcr
           - dockerhub
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
 
       - name: Download digests
         uses: actions/download-artifact@v5.0.0
