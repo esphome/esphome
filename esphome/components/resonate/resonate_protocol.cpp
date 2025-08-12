@@ -199,7 +199,7 @@ bool process_metadata_update_message(const std::string &message, ResonateMetadat
 #endif
 
 std::string format_player_hello_message(const PlayerHelloMessage *msg) {
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([msg](JsonObject root) {
     root["type"] = "player/hello";
     root["payload"]["player_id"] = msg->player_id;
@@ -231,21 +231,23 @@ std::string format_player_hello_message(const PlayerHelloMessage *msg) {
     root["payload"]["support_picture_formats"].to<JsonArray>();
     root["payload"]["media_display_size"] = serialized("null");
   });
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 std::string format_player_state_message(const PlayerStateMessage *msg) {
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([msg](JsonObject root) {
     root["type"] = "player/state";
     root["payload"]["state"] = msg->state;
     root["payload"]["volume"] = msg->volume;
     root["payload"]["muted"] = msg->muted;
   });
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 #ifdef USE_MEDIA_PLAYER
 std::string format_stream_command_message(const media_player::MediaPlayerCall &call) {
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([call](JsonObject root) {
     root["type"] = "stream/command";
     if (call.get_command().has_value()) {
@@ -282,6 +284,7 @@ std::string format_stream_command_message(const media_player::MediaPlayerCall &c
       root["payload"]["volume"] = call.get_volume().value();
     }
   });
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 #endif
 
