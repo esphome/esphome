@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),

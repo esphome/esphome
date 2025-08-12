@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <string>
@@ -88,6 +89,51 @@ template<> constexpr int8_t byteswap(int8_t n) { return n; }
 template<> constexpr int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
 template<> constexpr int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
 template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
+/// @name Container utilities
+///@{
+
+/// Minimal static vector - saves memory by avoiding std::vector overhead
+template<typename T, size_t N> class StaticVector {
+ public:
+  using value_type = T;
+  using iterator = typename std::array<T, N>::iterator;
+  using const_iterator = typename std::array<T, N>::const_iterator;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+ private:
+  std::array<T, N> data_{};
+  size_t count_{0};
+
+ public:
+  // Minimal vector-compatible interface - only what we actually use
+  void push_back(const T &value) {
+    if (count_ < N) {
+      data_[count_++] = value;
+    }
+  }
+
+  size_t size() const { return count_; }
+  bool empty() const { return count_ == 0; }
+
+  T &operator[](size_t i) { return data_[i]; }
+  const T &operator[](size_t i) const { return data_[i]; }
+
+  // For range-based for loops
+  iterator begin() { return data_.begin(); }
+  iterator end() { return data_.begin() + count_; }
+  const_iterator begin() const { return data_.begin(); }
+  const_iterator end() const { return data_.begin() + count_; }
+
+  // Reverse iterators
+  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  reverse_iterator rend() { return reverse_iterator(begin()); }
+  const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+  const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+};
 
 ///@}
 

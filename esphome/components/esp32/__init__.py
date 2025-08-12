@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
     CONF_IGNORE_EFUSE_MAC_CRC,
+    CONF_LOG_LEVEL,
     CONF_NAME,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
@@ -78,6 +79,15 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_RELEASE = "release"
+
+LOG_LEVELS_IDF = [
+    "NONE",
+    "ERROR",
+    "WARN",
+    "INFO",
+    "DEBUG",
+    "VERBOSE",
+]
 
 ASSERTION_LEVELS = {
     "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
@@ -623,6 +633,9 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
                 cv.string_strict: cv.string_strict
             },
+            cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
+                *LOG_LEVELS_IDF, upper=True
+            ),
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
                     cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
@@ -680,6 +693,64 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
 )
 
 
+class _FrameworkMigrationWarning:
+    shown = False
+
+
+def _show_framework_migration_message(name: str, variant: str) -> None:
+    """Show a friendly message about framework migration when defaulting to Arduino."""
+    if _FrameworkMigrationWarning.shown:
+        return
+    _FrameworkMigrationWarning.shown = True
+
+    from esphome.log import AnsiFore, color
+
+    message = (
+        color(
+            AnsiFore.BOLD_CYAN,
+            f"💡 IMPORTANT: {name} doesn't have a framework specified!",
+        )
+        + "\n\n"
+        + f"Currently, {variant} defaults to the Arduino framework.\n"
+        + color(AnsiFore.YELLOW, "This will change to ESP-IDF in ESPHome 2026.1.0.\n")
+        + "\n"
+        + "Note: Newer ESP32 variants (C6, H2, P4, etc.) already use ESP-IDF by default.\n"
+        + "\n"
+        + "Why change? ESP-IDF offers:\n"
+        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
+        + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
+        + color(
+            AnsiFore.GREEN,
+            "  🔧 Active development and testing by ESPHome developers\n",
+        )
+        + "\n"
+        + "Trade-offs:\n"
+        + color(AnsiFore.YELLOW, "  ⏱️  Compile times are ~25% longer\n")
+        + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
+        + "\n"
+        + "What should I do?\n"
+        + color(AnsiFore.CYAN, "  Option 1")
+        + ": Migrate to ESP-IDF (recommended)\n"
+        + "    Add this to your YAML under 'esp32:':\n"
+        + color(AnsiFore.WHITE, "      framework:\n")
+        + color(AnsiFore.WHITE, "        type: esp-idf\n")
+        + "\n"
+        + color(AnsiFore.CYAN, "  Option 2")
+        + ": Keep using Arduino (still supported)\n"
+        + "    Add this to your YAML under 'esp32:':\n"
+        + color(AnsiFore.WHITE, "      framework:\n")
+        + color(AnsiFore.WHITE, "        type: arduino\n")
+        + "\n"
+        + "Need help? Check out the migration guide:\n"
+        + color(
+            AnsiFore.BLUE,
+            "https://esphome.io/guides/esp32_arduino_to_idf.html",
+        )
+    )
+    _LOGGER.warning(message)
+
+
 def _set_default_framework(config):
     if CONF_FRAMEWORK not in config:
         config = config.copy()
@@ -688,6 +759,10 @@ def _set_default_framework(config):
         if variant in ARDUINO_ALLOWED_VARIANTS:
             config[CONF_FRAMEWORK] = ARDUINO_FRAMEWORK_SCHEMA({})
             config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
+            # Show the migration message
+            _show_framework_migration_message(
+                config.get(CONF_NAME, "This device"), variant
+            )
         else:
             config[CONF_FRAMEWORK] = ESP_IDF_FRAMEWORK_SCHEMA({})
             config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
@@ -873,6 +948,10 @@ async def to_code(config):
             cg.RawExpression(
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
+        )
+
+        add_idf_sdkconfig_option(
+            f"CONFIG_LOG_DEFAULT_LEVEL_{conf[CONF_LOG_LEVEL]}", True
         )
 
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():

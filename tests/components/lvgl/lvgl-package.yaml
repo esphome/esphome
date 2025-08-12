@@ -78,7 +78,7 @@ lvgl:
     - id: date_style
       text_font: roboto10
       align: center
-      text_color: color_id2
+      text_color: !lambda return color_id2;
       bg_opa: cover
       radius: 4
       pad_all: 2
@@ -718,6 +718,20 @@ lvgl:
             max_value: 100
             arc_color: 0xFF0000
             indicator:
+              arc_color: 0xF000FF
+              pressed:
+                arc_color: 0xFFFF00
+              focused:
+                arc_color: 0x808080
+        - arc:
+            align: center
+            id: lv_arc_1
+            value: !lambda return 75;
+            min_value: !lambda return 50;
+            max_value: !lambda return 60;
+            arc_color: 0xFF0000
+            indicator:
+              arc_width: !lambda return 20;
               arc_color: 0xF000FF
               pressed:
                 arc_color: 0xFFFF00

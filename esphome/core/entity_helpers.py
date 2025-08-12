@@ -16,7 +16,7 @@ from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, add, get_variable
 import esphome.final_validate as fv
 from esphome.helpers import sanitize, snake_case
-from esphome.types import ConfigType
+from esphome.types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -214,14 +214,45 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         # Check for duplicates
         unique_key = (device_id, platform, name_key)
         if unique_key in CORE.unique_ids:
+            # Get the existing entity metadata
+            existing = CORE.unique_ids[unique_key]
+            existing_name = existing.get("name", entity_name)
+            existing_device = existing.get("device_id", "")
+            existing_id = existing.get("entity_id", "unknown")
+
+            # Build detailed error message
             device_prefix = f" on device '{device_id}'" if device_id else ""
+            existing_device_prefix = (
+                f" on device '{existing_device}'" if existing_device else ""
+            )
+            existing_component = existing.get("component", "unknown")
+
+            # Provide more context about where the duplicate was found
+            conflict_msg = (
+                f"Conflicts with entity '{existing_name}'{existing_device_prefix}"
+            )
+            if existing_id != "unknown":
+                conflict_msg += f" (id: {existing_id})"
+            if existing_component != "unknown":
+                conflict_msg += f" from component '{existing_component}'"
+
             raise cv.Invalid(
                 f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
+                f"{conflict_msg}. "
                 f"Each entity on a device must have a unique name within its platform."
             )
 
-        # Add to tracking set
-        CORE.unique_ids.add(unique_key)
+        # Store metadata about this entity
+        entity_metadata: EntityMetadata = {
+            "name": entity_name,
+            "device_id": device_id,
+            "platform": platform,
+            "entity_id": str(config.get(CONF_ID, "unknown")),
+            "component": CORE.current_component or "unknown",
+        }
+
+        # Add to tracking dict
+        CORE.unique_ids[unique_key] = entity_metadata
         return config
 
     return validator

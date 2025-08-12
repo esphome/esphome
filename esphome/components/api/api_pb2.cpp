@@ -115,12 +115,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(19, this->api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
-  for (auto &it : this->devices) {
+  for (const auto &it : this->devices) {
     buffer.encode_message(20, it, true);
   }
 #endif
 #ifdef USE_AREAS
-  for (auto &it : this->areas) {
+  for (const auto &it : this->areas) {
     buffer.encode_message(21, it, true);
   }
 #endif
@@ -167,10 +167,14 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_bool(2, this->api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
-  size.add_repeated_message(2, this->devices);
+  for (const auto &it : this->devices) {
+    size.add_message_object_force(2, it);
+  }
 #endif
 #ifdef USE_AREAS
-  size.add_repeated_message(2, this->areas);
+  for (const auto &it : this->areas) {
+    size.add_message_object_force(2, it);
+  }
 #endif
 #ifdef USE_AREAS
   size.add_message_object(2, this->area);
@@ -1839,12 +1843,14 @@ void BluetoothLERawAdvertisement::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->data_len);
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer buffer) const {
-  for (auto &it : this->advertisements) {
-    buffer.encode_message(1, it, true);
+  for (uint16_t i = 0; i < this->advertisements_len; i++) {
+    buffer.encode_message(1, this->advertisements[i], true);
   }
 }
 void BluetoothLERawAdvertisementsResponse::calculate_size(ProtoSize &size) const {
-  size.add_repeated_message(1, this->advertisements);
+  for (uint16_t i = 0; i < this->advertisements_len; i++) {
+    size.add_message_object_force(1, this->advertisements[i]);
+  }
 }
 bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -2073,15 +2079,17 @@ void BluetoothGATTNotifyDataResponse::calculate_size(ProtoSize &size) const {
 void BluetoothConnectionsFreeResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->free);
   buffer.encode_uint32(2, this->limit);
-  for (auto &it : this->allocated) {
-    buffer.encode_uint64(3, it, true);
+  for (const auto &it : this->allocated) {
+    if (it != 0) {
+      buffer.encode_uint64(3, it, true);
+    }
   }
 }
 void BluetoothConnectionsFreeResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->free);
   size.add_uint32(1, this->limit);
-  if (!this->allocated.empty()) {
-    for (const auto &it : this->allocated) {
+  for (const auto &it : this->allocated) {
+    if (it != 0) {
       size.add_uint64_force(1, it);
     }
   }

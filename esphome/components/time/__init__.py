@@ -30,7 +30,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace("time")
