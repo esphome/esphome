@@ -39,7 +39,6 @@ class Format:
 
     def actions(self):
         """Add defines and libraries needed for this format."""
-        pass
 
 
 class BMPFormat(Format):
