@@ -942,6 +942,9 @@ def validate_config(
         # do not try to validate further as we don't know what the target is
         return result
 
+    # Reset the pin registry so that any target platforms with pin validations do not get the duplicate pin warning.
+    pins.PIN_SCHEMA_REGISTRY.reset()
+
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
