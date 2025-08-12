@@ -61,7 +61,7 @@ static const LogString *espnow_error_to_str(esp_err_t error) {
   }
 }
 
-std::string peer_str(uint8_t *peer) {
+std::string peer_str(const uint8_t *peer) {
   if (peer == nullptr || peer[0] == 0) {
     return "[Not Set]";
   } else if (memcmp(peer, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {

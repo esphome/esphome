@@ -28,7 +28,7 @@ static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
-std::string peer_str(uint8_t *peer);
+std::string peer_str(const uint8_t *peer);
 
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
