@@ -3,26 +3,15 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import runtime_image
-from esphome.components.const import CONF_BYTE_ORDER, CONF_REQUEST_HEADERS
+from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
-from esphome.components.image import (
-    CONF_INVERT_ALPHA,
-    CONF_TRANSPARENCY,
-    IMAGE_SCHEMA,
-    Image_,
-    get_image_type_enum,
-    get_transparency_enum,
-    validate_settings,
-)
+from esphome.components.image import get_image_type_enum, validate_settings
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_DITHER,
-    CONF_FILE,
     CONF_FORMAT,
     CONF_ID,
     CONF_ON_ERROR,
-    CONF_RESIZE,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_URL,
@@ -35,7 +24,6 @@ CODEOWNERS = ["@guillempages", "@clydebarrow"]
 MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
-CONF_PLACEHOLDER = "placeholder"
 CONF_UPDATE = "update"
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,7 +33,6 @@ online_image_ns = cg.esphome_ns.namespace("online_image")
 # Use ImageFormat from runtime_image
 ImageFormat = runtime_image.ImageFormat
 
-
 # Map format names to ImageFormat enum values for backward compatibility
 IMAGE_FORMATS = {
     "BMP": "BMP",
@@ -54,9 +41,9 @@ IMAGE_FORMATS = {
     "JPG": "JPEG",  # Alias for JPEG
 }
 
-# Import RuntimeImage from runtime_image
-RuntimeImage = cg.esphome_ns.namespace("runtime_image").class_("RuntimeImage")
-OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, RuntimeImage)
+OnlineImage = online_image_ns.class_(
+    "OnlineImage", cg.PollingComponent, runtime_image.RuntimeImage
+)
 
 # Actions
 SetUrlAction = online_image_ns.class_(
@@ -75,29 +62,18 @@ DownloadErrorTrigger = online_image_ns.class_(
 )
 
 
-def remove_options(*options):
-    return {
-        cv.Optional(option): cv.invalid(
-            f"{option} is an invalid option for online_image"
-        )
-        for option in options
-    }
-
-
 ONLINE_IMAGE_SCHEMA = (
-    IMAGE_SCHEMA.extend(remove_options(CONF_FILE, CONF_INVERT_ALPHA, CONF_DITHER))
+    runtime_image.create_runtime_image_schema(OnlineImage)
     .extend(
         {
-            cv.Required(CONF_ID): cv.declare_id(OnlineImage),
-            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             # Online Image specific options
+            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
-            cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
-            cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
             cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -170,10 +146,16 @@ async def to_code(config):
     # Get the enum value for the format from runtime_image
     format_enum = getattr(runtime_image.ImageFormat, IMAGE_FORMATS[format_name])
 
-    url = config[CONF_URL]
-    width, height = config.get(CONF_RESIZE, (0, 0))
-    transparent = get_transparency_enum(config[CONF_TRANSPARENCY])
+    # Use the helper function to get common runtime image parameters
+    (
+        width,
+        height,
+        transparent,
+        byte_order_big_endian,
+        placeholder,
+    ) = await runtime_image.process_runtime_image_config(config)
 
+    url = config[CONF_URL]
     var = cg.new_Pvariable(
         config[CONF_ID],
         url,
@@ -183,7 +165,7 @@ async def to_code(config):
         get_image_type_enum(config[CONF_TYPE]),
         transparent,
         config[CONF_BUFFER_SIZE],
-        config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN",
+        byte_order_big_endian,
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
@@ -195,8 +177,7 @@ async def to_code(config):
         else:
             cg.add(var.add_request_header(key, value))
 
-    if placeholder_id := config.get(CONF_PLACEHOLDER):
-        placeholder = await cg.get_variable(placeholder_id)
+    if placeholder:
         cg.add(var.set_placeholder(placeholder))
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):

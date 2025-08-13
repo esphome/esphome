@@ -1,7 +1,13 @@
 import esphome.codegen as cg
+from esphome.components.const import CONF_BYTE_ORDER
+import esphome.config_validation as cv
+from esphome.const import CONF_FORMAT, CONF_ID, CONF_RESIZE, CONF_TYPE
 
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
+
+CONF_PLACEHOLDER = "placeholder"
+CONF_TRANSPARENCY = "transparency"
 
 runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 
@@ -94,3 +100,58 @@ def enable_format(format_name):
         format_obj.actions()
         return format_obj
     return None
+
+
+# Runtime image configuration schema base - to be extended by components
+# Note: Components using this should import validate_type and validate_transparency
+# from esphome.components.image if they need those validators
+def create_runtime_image_schema(image_class=RuntimeImage):
+    """Create a runtime image schema with the specified image class."""
+    from esphome.components.image import (
+        IMAGE_TYPE,
+        Image_,
+        validate_transparency,
+        validate_type,
+    )
+
+    return cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(image_class),
+            cv.Optional(CONF_RESIZE): cv.dimensions,
+            cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
+            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
+                "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
+            ),
+            cv.Optional(CONF_TRANSPARENCY, default="OPAQUE"): validate_transparency(),
+            cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
+            cv.Optional(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
+        }
+    )
+
+
+# Default schema for RuntimeImage components
+RUNTIME_IMAGE_SCHEMA = create_runtime_image_schema()
+
+
+async def process_runtime_image_config(config):
+    """
+    Helper function to process common runtime image configuration parameters.
+    Returns a tuple of (width, height, transparent_enum, byte_order_big_endian, placeholder)
+    """
+    from esphome.components.image import get_transparency_enum
+
+    # Get resize dimensions with default (0, 0)
+    width, height = config.get(CONF_RESIZE, (0, 0))
+
+    # Get transparency enum
+    transparent = get_transparency_enum(config.get(CONF_TRANSPARENCY, "OPAQUE"))
+
+    # Get byte order (True for big endian, False for little endian)
+    byte_order_big_endian = config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN"
+
+    # Get placeholder if specified
+    placeholder = None
+    if placeholder_id := config.get(CONF_PLACEHOLDER):
+        placeholder = await cg.get_variable(placeholder_id)
+
+    return width, height, transparent, byte_order_big_endian, placeholder
