@@ -5,15 +5,13 @@ import esphome.codegen as cg
 from esphome.components import runtime_image
 from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
-from esphome.components.image import get_image_type_enum, validate_settings
+from esphome.components.image import validate_settings
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_FORMAT,
     CONF_ID,
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
     CONF_URL,
 )
 from esphome.core import Lambda
@@ -29,17 +27,6 @@ CONF_UPDATE = "update"
 _LOGGER = logging.getLogger(__name__)
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
-
-# Use ImageFormat from runtime_image
-ImageFormat = runtime_image.ImageFormat
-
-# Map format names to ImageFormat enum values for backward compatibility
-IMAGE_FORMATS = {
-    "BMP": "BMP",
-    "JPEG": "JPEG",
-    "PNG": "PNG",
-    "JPG": "JPEG",  # Alias for JPEG
-}
 
 OnlineImage = online_image_ns.class_(
     "OnlineImage", cg.PollingComponent, runtime_image.RuntimeImage
@@ -63,7 +50,7 @@ DownloadErrorTrigger = online_image_ns.class_(
 
 
 ONLINE_IMAGE_SCHEMA = (
-    runtime_image.create_runtime_image_schema(OnlineImage)
+    runtime_image.runtime_image_schema(OnlineImage)
     .extend(
         {
             # Online Image specific options
@@ -73,7 +60,6 @@ ONLINE_IMAGE_SCHEMA = (
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
-            cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -139,17 +125,12 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
-    format_name = config[CONF_FORMAT]
-    # Enable the format in the runtime_image component
-    runtime_image.enable_format(format_name)
-
-    # Get the enum value for the format from runtime_image
-    format_enum = getattr(runtime_image.ImageFormat, IMAGE_FORMATS[format_name])
-
-    # Use the helper function to get common runtime image parameters
+    # Use the enhanced helper function to get all runtime image parameters
     (
         width,
         height,
+        format_enum,
+        image_type_enum,
         transparent,
         byte_order_big_endian,
         placeholder,
@@ -162,7 +143,7 @@ async def to_code(config):
         width,
         height,
         format_enum,
-        get_image_type_enum(config[CONF_TYPE]),
+        image_type_enum,
         transparent,
         config[CONF_BUFFER_SIZE],
         byte_order_big_endian,
