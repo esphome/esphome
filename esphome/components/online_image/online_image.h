@@ -92,8 +92,6 @@ class OnlineImage : public PollingComponent,
    */
   size_t download_buffer_initial_size_;
 
-  const runtime_image::ImageFormat format_;
-
   std::string url_{""};
 
   std::vector<std::pair<std::string, TemplatableValue<std::string>>> request_headers_;

@@ -36,6 +36,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Construct a new RuntimeImage object.
    *
+   * @param format The image format to decode.
    * @param type The pixel format for the image.
    * @param transparency The transparency type for the image.
    * @param placeholder Optional placeholder image to show while loading.
@@ -43,8 +44,9 @@ class RuntimeImage : public image::Image {
    * @param fixed_width Fixed width for the image (0 for auto-resize).
    * @param fixed_height Fixed height for the image (0 for auto-resize).
    */
-  RuntimeImage(image::ImageType type, image::Transparency transparency, image::Image *placeholder = nullptr,
-               bool is_big_endian = false, int fixed_width = 0, int fixed_height = 0);
+  RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
+               image::Image *placeholder = nullptr, bool is_big_endian = false, int fixed_width = 0,
+               int fixed_height = 0);
 
   ~RuntimeImage();
 
@@ -73,11 +75,10 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Begin decoding an image.
    *
-   * @param format The image format to decode.
    * @param expected_size Optional hint about the expected data size.
    * @return true if decoder was successfully initialized.
    */
-  bool begin_decode(ImageFormat format, size_t expected_size = 0);
+  bool begin_decode(size_t expected_size = 0);
 
   /**
    * @brief Feed data to the decoder.
@@ -104,6 +105,11 @@ class RuntimeImage : public image::Image {
    * @brief Check if an image is currently loaded.
    */
   bool is_loaded() const { return this->buffer_ != nullptr; }
+
+  /**
+   * @brief Get the image format.
+   */
+  ImageFormat get_format() const { return this->format_; }
 
   /**
    * @brief Release the image buffer and free memory.
@@ -139,9 +145,9 @@ class RuntimeImage : public image::Image {
   int get_position_(int x, int y) const;
 
   /**
-   * @brief Create decoder instance for the given format.
+   * @brief Create decoder instance for the image's format.
    */
-  std::unique_ptr<ImageDecoder> create_decoder_(ImageFormat format);
+  std::unique_ptr<ImageDecoder> create_decoder_();
 
   // Memory management
   RAMAllocator<uint8_t> allocator_{};
@@ -149,7 +155,8 @@ class RuntimeImage : public image::Image {
 
   // Decoder management
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
-  ImageFormat current_format_{AUTO};
+  /** The image format this RuntimeImage is configured to decode. */
+  const ImageFormat format_;
 
   /**
    * Actual width of the current image.

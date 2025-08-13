@@ -14,10 +14,9 @@ namespace online_image {
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
                          uint32_t buffer_size, bool is_big_endian)
-    : RuntimeImage(type, transparency, placeholder, is_big_endian, width, height),
+    : RuntimeImage(format, type, transparency, placeholder, is_big_endian, width, height),
       download_buffer_(buffer_size),
-      download_buffer_initial_size_(buffer_size),
-      format_(format) {
+      download_buffer_initial_size_(buffer_size) {
   this->set_url(url);
 }
 
@@ -83,8 +82,8 @@ void OnlineImage::update() {
   size_t total_size = this->downloader_->content_length;
 
   // Initialize decoder with the known format
-  if (!this->begin_decode(this->format_, total_size)) {
-    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", this->format_);
+  if (!this->begin_decode(total_size)) {
+    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", this->get_format());
     this->end_connection_();
     this->download_error_callback_.call();
     return;

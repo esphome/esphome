@@ -27,9 +27,10 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
-RuntimeImage::RuntimeImage(image::ImageType type, image::Transparency transparency, image::Image *placeholder,
-                           bool is_big_endian, int fixed_width, int fixed_height)
+RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
+                           image::Image *placeholder, bool is_big_endian, int fixed_width, int fixed_height)
     : Image(nullptr, 0, 0, type, transparency),
+      format_(format),
       is_big_endian_(is_big_endian),
       fixed_width_(fixed_width),
       fixed_height_(fixed_height),
@@ -114,19 +115,18 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
   // If no image is loaded and no placeholder, nothing to draw
 }
 
-bool RuntimeImage::begin_decode(ImageFormat format, size_t expected_size) {
+bool RuntimeImage::begin_decode(size_t expected_size) {
   if (this->decoder_) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
   }
 
-  this->decoder_ = this->create_decoder_(format);
+  this->decoder_ = this->create_decoder_();
   if (!this->decoder_) {
-    ESP_LOGE(TAG, "Failed to create decoder for format %d", format);
+    ESP_LOGE(TAG, "Failed to create decoder for format %d", this->format_);
     return false;
   }
 
-  this->current_format_ = format;
   this->total_size_ = expected_size;
   this->decoded_bytes_ = 0;
 
@@ -226,8 +226,8 @@ size_t RuntimeImage::get_buffer_size_(int width, int height) const {
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
-std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
-  switch (format) {
+std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
+  switch (this->format_) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
       return make_unique<BmpDecoder>(this);
@@ -241,7 +241,7 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
       return make_unique<PngDecoder>(this);
 #endif
     default:
-      ESP_LOGE(TAG, "Unsupported image format: %d", format);
+      ESP_LOGE(TAG, "Unsupported image format: %d", this->format_);
       return nullptr;
   }
 }
