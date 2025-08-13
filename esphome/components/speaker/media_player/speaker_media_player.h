@@ -45,6 +45,9 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   void setup() override;
   void loop() override;
 
+  //  bool is_running() const { return this->state == STATE_RUNNING; }
+  //  bool is_stopped() const { return this->state == STATE_STOPPED; }
+
   // MediaPlayer implementations
   media_player::MediaPlayerTraits get_traits() override;
   bool is_muted() const override { return this->is_muted_; }

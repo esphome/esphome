@@ -36,7 +36,10 @@ class MicroWakeWord : public Component {
   void start();
   void stop();
 
-  bool is_running() const { return this->state_ != State::STOPPED; }
+  bool is_running() const {
+    return this->this->microphone_source_->is_running() && this->state_ == DETECTING_WAKE_WORD;
+  }
+  bool is_stopped() const { return this->this->microphone_source_->is_stopped(); }
 
   void set_features_step_size(uint8_t step_size) { this->features_step_size_ = step_size; }
 

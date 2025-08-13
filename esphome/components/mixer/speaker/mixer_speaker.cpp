@@ -172,6 +172,9 @@ void SourceSpeaker::stop_() {
 
 void SourceSpeaker::finish() { this->stop_gracefully_ = true; }
 
+bool SourceSpeaker::is_running() const { return this->parent_->is_running() && this->state_ == speaker::STATE_RUNNING; }
+bool SourceSpeaker::is_stopped() const { return this->parent_->is_stopped(); }
+
 bool SourceSpeaker::has_buffered_data() const {
   return ((this->transfer_buffer_.use_count() > 0) && this->transfer_buffer_->has_buffered_data());
 }

@@ -61,7 +61,7 @@ class MicrophoneSource {
   void stop();
   bool is_passive() const { return this->passive_; }
   bool is_running() const { return (this->mic_->is_running() && (this->enabled_ || this->passive_)); }
-  bool is_stopped() const { return !this->is_running(); };
+  bool is_stopped() const { return this->mic_->is_stopped(); };
 
  protected:
   void process_audio_(const std::vector<uint8_t> &data, std::vector<uint8_t> &filtered_data);

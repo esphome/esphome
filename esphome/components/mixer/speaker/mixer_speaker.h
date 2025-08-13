@@ -49,6 +49,9 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   void stop() override;
   void finish() override;
 
+  bool is_running() const;
+  bool is_stopped() const;
+
   bool has_buffered_data() const override;
 
   /// @brief Mute state changes are passed to the parent's output speaker
@@ -135,6 +138,9 @@ class MixerSpeaker : public Component {
   esp_err_t start(audio::AudioStreamInfo &stream_info);
 
   void stop();
+
+  bool is_running() const { return this->output_speaker_->is_running(); }
+  bool is_stopped() const { return this->output_speaker_->is_stopped(); }
 
   void set_output_channels(uint8_t output_channels) { this->output_channels_ = output_channels; }
   void set_output_speaker(speaker::Speaker *speaker) { this->output_speaker_ = speaker; }
