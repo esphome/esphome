@@ -12,16 +12,30 @@ namespace esphome::bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy.connection";
 
+// This function is allocation-free and directly packs UUIDs into the output array
+// using precalculated constants for the Bluetooth base UUID
 static void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, esp_bt_uuid_t uuid_source) {
-  esp_bt_uuid_t uuid = espbt::ESPBTUUID::from_uuid(uuid_source).as_128bit().get_uuid();
-  out[0] = ((uint64_t) uuid.uuid.uuid128[15] << 56) | ((uint64_t) uuid.uuid.uuid128[14] << 48) |
-           ((uint64_t) uuid.uuid.uuid128[13] << 40) | ((uint64_t) uuid.uuid.uuid128[12] << 32) |
-           ((uint64_t) uuid.uuid.uuid128[11] << 24) | ((uint64_t) uuid.uuid.uuid128[10] << 16) |
-           ((uint64_t) uuid.uuid.uuid128[9] << 8) | ((uint64_t) uuid.uuid.uuid128[8]);
-  out[1] = ((uint64_t) uuid.uuid.uuid128[7] << 56) | ((uint64_t) uuid.uuid.uuid128[6] << 48) |
-           ((uint64_t) uuid.uuid.uuid128[5] << 40) | ((uint64_t) uuid.uuid.uuid128[4] << 32) |
-           ((uint64_t) uuid.uuid.uuid128[3] << 24) | ((uint64_t) uuid.uuid.uuid128[2] << 16) |
-           ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0]);
+  // Bluetooth base UUID: 00000000-0000-1000-8000-00805F9B34FB
+  // out[0] = bytes 8-15 (big-endian)
+  // - For 128-bit UUIDs: use bytes 8-15 as-is
+  // - For 16/32-bit UUIDs: insert into bytes 12-15, use 0x00001000 for bytes 8-11
+  out[0] = uuid_source.len == ESP_UUID_LEN_128
+               ? (((uint64_t) uuid_source.uuid.uuid128[15] << 56) | ((uint64_t) uuid_source.uuid.uuid128[14] << 48) |
+                  ((uint64_t) uuid_source.uuid.uuid128[13] << 40) | ((uint64_t) uuid_source.uuid.uuid128[12] << 32) |
+                  ((uint64_t) uuid_source.uuid.uuid128[11] << 24) | ((uint64_t) uuid_source.uuid.uuid128[10] << 16) |
+                  ((uint64_t) uuid_source.uuid.uuid128[9] << 8) | ((uint64_t) uuid_source.uuid.uuid128[8]))
+               : (((uint64_t) (uuid_source.len == ESP_UUID_LEN_16 ? uuid_source.uuid.uuid16 : uuid_source.uuid.uuid32)
+                   << 32) |
+                  0x00001000ULL);  // Base UUID bytes 8-11
+  // out[1] = bytes 0-7 (big-endian)
+  // - For 128-bit UUIDs: use bytes 0-7 as-is
+  // - For 16/32-bit UUIDs: use precalculated base UUID constant
+  out[1] = uuid_source.len == ESP_UUID_LEN_128
+               ? ((uint64_t) uuid_source.uuid.uuid128[7] << 56) | ((uint64_t) uuid_source.uuid.uuid128[6] << 48) |
+                     ((uint64_t) uuid_source.uuid.uuid128[5] << 40) | ((uint64_t) uuid_source.uuid.uuid128[4] << 32) |
+                     ((uint64_t) uuid_source.uuid.uuid128[3] << 24) | ((uint64_t) uuid_source.uuid.uuid128[2] << 16) |
+                     ((uint64_t) uuid_source.uuid.uuid128[1] << 8) | ((uint64_t) uuid_source.uuid.uuid128[0])
+               : 0x800000805F9B34FBULL;  // Base UUID bytes 0-7: 80-00-00-80-5F-9B-34-FB
 }
 
 // Helper to fill UUID in the appropriate format based on client support and UUID type
