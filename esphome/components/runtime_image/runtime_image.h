@@ -61,7 +61,7 @@ class RuntimeImage : public image::Image {
    * @param height Requested height (ignored if fixed_height_ is set)
    * @return Size of the allocated buffer in bytes, or 0 if allocation failed.
    */
-  virtual int resize(int width, int height);
+  int resize(int width, int height);
   void draw_pixel(int x, int y, const Color &color);
   int get_buffer_width() const { return this->buffer_width_; }
   int get_buffer_height() const { return this->buffer_height_; }
