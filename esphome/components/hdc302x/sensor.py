@@ -15,6 +15,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+MULTI_CONF = True
 
 hdc302x_ns = cg.esphome_ns.namespace("hdc302x")
 HDC302XComponent = hdc302x_ns.class_(
