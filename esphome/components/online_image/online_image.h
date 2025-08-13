@@ -78,21 +78,6 @@ class OnlineImage : public PollingComponent,
    */
   size_t resize_download_buffer(size_t size) { return this->download_buffer_.resize(size); }
 
-  /**
-   * @brief Resize the image buffer to the requested dimensions.
-   *
-   * The buffer will be allocated if not existing.
-   * If the dimensions have been fixed in the yaml config, the buffer will be created
-   * with those dimensions and not resized, even on request.
-   * Otherwise, the old buffer will be deallocated and a new buffer with the requested
-   * allocated
-   *
-   * @param width
-   * @param height
-   * @return 0 if no memory could be allocated, the size of the new buffer otherwise.
-   */
-  int resize(int width, int height) override;
-
   void add_on_finished_callback(std::function<void(bool)> &&callback);
   void add_on_error_callback(std::function<void()> &&callback);
 
@@ -119,10 +104,6 @@ class OnlineImage : public PollingComponent,
 
   std::vector<std::pair<std::string, TemplatableValue<std::string>>> request_headers_;
 
-  /** width requested on configuration, or 0 if non specified. */
-  const int fixed_width_;
-  /** height requested on configuration, or 0 if non specified. */
-  const int fixed_height_;
   /**
    * The value of the ETag HTTP header provided in the last response.
    */

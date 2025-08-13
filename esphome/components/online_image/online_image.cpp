@@ -14,12 +14,10 @@ namespace online_image {
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, uint32_t buffer_size,
                          bool is_big_endian)
-    : RuntimeImage(type, transparency, is_big_endian),
+    : RuntimeImage(type, transparency, is_big_endian, width, height),
       download_buffer_(buffer_size),
       download_buffer_initial_size_(buffer_size),
-      format_(format),
-      fixed_width_(width),
-      fixed_height_(height) {
+      format_(format) {
   this->set_url(url);
 }
 
@@ -211,15 +209,6 @@ void OnlineImage::release() {
 
   // Call parent's release to free the image buffer
   RuntimeImage::release();
-}
-
-int OnlineImage::resize(int width, int height) {
-  // Use fixed dimensions if specified (0 means auto-resize)
-  int target_width = this->fixed_width_ ? this->fixed_width_ : width;
-  int target_height = this->fixed_height_ ? this->fixed_height_ : height;
-
-  // Call parent's resize with the appropriate dimensions
-  return RuntimeImage::resize(target_width, target_height);
 }
 
 }  // namespace online_image

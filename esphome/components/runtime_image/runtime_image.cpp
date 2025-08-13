@@ -27,13 +27,21 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
-RuntimeImage::RuntimeImage(image::ImageType type, image::Transparency transparency, bool is_big_endian)
-    : Image(nullptr, 0, 0, type, transparency), is_big_endian_(is_big_endian) {}
+RuntimeImage::RuntimeImage(image::ImageType type, image::Transparency transparency, bool is_big_endian, int fixed_width,
+                           int fixed_height)
+    : Image(nullptr, 0, 0, type, transparency),
+      is_big_endian_(is_big_endian),
+      fixed_width_(fixed_width),
+      fixed_height_(fixed_height) {}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 
 int RuntimeImage::resize(int width, int height) {
-  size_t result = this->resize_buffer_(width, height);
+  // Use fixed dimensions if specified (0 means auto-resize)
+  int target_width = this->fixed_width_ ? this->fixed_width_ : width;
+  int target_height = this->fixed_height_ ? this->fixed_height_ : height;
+
+  size_t result = this->resize_buffer_(target_width, target_height);
   if (result > 0 && this->progressive_display_) {
     // Update display dimensions for progressive display
     this->width_ = this->buffer_width_;

@@ -38,12 +38,29 @@ class RuntimeImage : public image::Image {
    *
    * @param type The pixel format for the image.
    * @param transparency The transparency type for the image.
+   * @param is_big_endian Whether the image is stored in big-endian format.
+   * @param fixed_width Fixed width for the image (0 for auto-resize).
+   * @param fixed_height Fixed height for the image (0 for auto-resize).
    */
-  RuntimeImage(image::ImageType type, image::Transparency transparency, bool is_big_endian = false);
+  RuntimeImage(image::ImageType type, image::Transparency transparency, bool is_big_endian = false, int fixed_width = 0,
+               int fixed_height = 0);
 
   ~RuntimeImage();
 
   // Decoder interface methods
+  /**
+   * @brief Resize the image buffer to the requested dimensions.
+   *
+   * The buffer will be allocated if not existing.
+   * If fixed dimensions have been specified in the constructor, the buffer will be created
+   * with those dimensions and not resized, even on request.
+   * Otherwise, the old buffer will be deallocated and a new buffer with the requested
+   * dimensions allocated.
+   *
+   * @param width Requested width (ignored if fixed_width_ is set)
+   * @param height Requested height (ignored if fixed_height_ is set)
+   * @return Size of the allocated buffer in bytes, or 0 if allocation failed.
+   */
   virtual int resize(int width, int height);
   void draw_pixel(int x, int y, const Color &color);
   int get_buffer_width() const { return this->buffer_width_; }
@@ -160,6 +177,11 @@ class RuntimeImage : public image::Image {
    * This is used to determine how to store 16 bit colors in the buffer.
    */
   bool is_big_endian_{false};
+
+  /** Fixed width requested on configuration, or 0 if not specified. */
+  const int fixed_width_{0};
+  /** Fixed height requested on configuration, or 0 if not specified. */
+  const int fixed_height_{0};
 };
 
 }  // namespace runtime_image
