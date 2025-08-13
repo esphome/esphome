@@ -3,6 +3,11 @@ on_abbwelcome:
     - logger.log:
         format: "on_abbwelcome: %u"
         args: ["x.data()[0]"]
+on_beo4:
+  then:
+    - logger.log:
+        format: "on_beo4: %u %u"
+        args: ["x.source", "x.command"]
 on_aeha:
   then:
     - logger.log:
@@ -43,6 +48,11 @@ on_drayton:
     - logger.log:
         format: "on_drayton: %u %u %u"
         args: ["x.address", "x.channel", "x.command"]
+on_gobox:
+  then:
+    - logger.log:
+        format: "on_gobox: %d"
+        args: ["x.code"]
 on_jvc:
   then:
     - logger.log:

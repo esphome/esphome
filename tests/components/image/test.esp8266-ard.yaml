@@ -13,4 +13,13 @@ display:
     reset_pin: 16
     invert_colors: true
 
-<<: !include common.yaml
+image:
+  defaults:
+    type: rgb565
+    transparency: opaque
+    byte_order: little_endian
+    resize: 50x50
+    dither: FloydSteinberg
+  images:
+    - id: test_image
+      file: ../../pnglogo.png

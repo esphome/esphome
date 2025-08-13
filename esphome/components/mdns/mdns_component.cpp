@@ -1,9 +1,9 @@
 #include "esphome/core/defines.h"
 #ifdef USE_MDNS
-#include "mdns_component.h"
-#include "esphome/core/version.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
+#include "mdns_component.h"
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
@@ -59,10 +59,16 @@ void MDNSComponent::compile_records_() {
     service.txt_records.push_back({"network", "wifi"});
 #elif defined(USE_ETHERNET)
     service.txt_records.push_back({"network", "ethernet"});
+#elif defined(USE_OPENTHREAD)
+    service.txt_records.push_back({"network", "thread"});
 #endif
 
 #ifdef USE_API_NOISE
-    service.txt_records.push_back({"api_encryption", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+    if (api::global_api_server->get_noise_ctx()->has_psk()) {
+      service.txt_records.push_back({"api_encryption", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+    } else {
+      service.txt_records.push_back({"api_encryption_supported", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+    }
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
@@ -98,7 +104,9 @@ void MDNSComponent::compile_records_() {
   }
 #endif
 
+#ifdef USE_MDNS_EXTRA_SERVICES
   this->services_.insert(this->services_.end(), this->services_extra_.begin(), this->services_extra_.end());
+#endif
 
   if (this->services_.empty()) {
     // Publish "http" service if not using native API
@@ -113,16 +121,22 @@ void MDNSComponent::compile_records_() {
 }
 
 void MDNSComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "mDNS:");
-  ESP_LOGCONFIG(TAG, "  Hostname: %s", this->hostname_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "mDNS:\n"
+                "  Hostname: %s",
+                this->hostname_.c_str());
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
-    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(), service.port);
+    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(),
+             const_cast<TemplatableValue<uint16_t> &>(service.port).value());
     for (const auto &record : service.txt_records) {
-      ESP_LOGV(TAG, "    TXT: %s = %s", record.key.c_str(), record.value.c_str());
+      ESP_LOGV(TAG, "    TXT: %s = %s", record.key.c_str(),
+               const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
     }
   }
 }
+
+std::vector<MDNSService> MDNSComponent::get_services() { return this->services_; }
 
 }  // namespace mdns
 }  // namespace esphome

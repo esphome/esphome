@@ -1,5 +1,6 @@
 #include "kuntze.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace kuntze {
@@ -60,7 +61,7 @@ void Kuntze::on_modbus_data(const std::vector<uint8_t> &data) {
 }
 
 void Kuntze::loop() {
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
   // timeout after 15 seconds
   if (this->waiting_ && (now - this->last_send_ > 15000)) {
     ESP_LOGW(TAG, "timed out waiting for response");
@@ -76,8 +77,10 @@ void Kuntze::loop() {
 void Kuntze::update() { this->state_ = 1; }
 
 void Kuntze::dump_config() {
-  ESP_LOGCONFIG(TAG, "Kuntze:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "Kuntze:\n"
+                "  Address: 0x%02X",
+                this->address_);
   LOG_SENSOR("", "pH", this->ph_sensor_);
   LOG_SENSOR("", "temperature", this->temperature_sensor_);
   LOG_SENSOR("", "DIS1", this->dis1_sensor_);

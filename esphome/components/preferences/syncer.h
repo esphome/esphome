@@ -12,6 +12,8 @@ class IntervalSyncer : public Component {
   void setup() override {
     if (this->write_interval_ != 0) {
       set_interval(this->write_interval_, []() { global_preferences->sync(); });
+      // When using interval-based syncing, we don't need the loop
+      this->disable_loop();
     }
   }
   void loop() override {

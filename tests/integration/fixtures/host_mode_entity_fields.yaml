@@ -1,0 +1,108 @@
+esphome:
+  name: host-test
+
+host:
+
+api:
+
+logger:
+
+# Test various entity types with different flag combinations
+sensor:
+  - platform: template
+    name: "Test Normal Sensor"
+    id: normal_sensor
+    update_interval: 1s
+    lambda: |-
+      return 42.0;
+
+  - platform: template
+    name: "Test Internal Sensor"
+    id: internal_sensor
+    internal: true
+    update_interval: 1s
+    lambda: |-
+      return 43.0;
+
+  - platform: template
+    name: "Test Disabled Sensor"
+    id: disabled_sensor
+    disabled_by_default: true
+    update_interval: 1s
+    lambda: |-
+      return 44.0;
+
+  - platform: template
+    name: "Test Mixed Flags Sensor"
+    id: mixed_flags_sensor
+    internal: true
+    entity_category: diagnostic
+    update_interval: 1s
+    lambda: |-
+      return 45.0;
+
+  - platform: template
+    name: "Test Diagnostic Sensor"
+    id: diagnostic_sensor
+    entity_category: diagnostic
+    update_interval: 1s
+    lambda: |-
+      return 46.0;
+
+  - platform: template
+    name: "Test All Flags Sensor"
+    id: all_flags_sensor
+    internal: true
+    disabled_by_default: true
+    entity_category: diagnostic
+    update_interval: 1s
+    lambda: |-
+      return 47.0;
+
+# Also test other entity types to ensure bit-packing works across all
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor"
+    entity_category: config
+    lambda: |-
+      return true;
+
+text_sensor:
+  - platform: template
+    name: "Test Text Sensor"
+    disabled_by_default: true
+    lambda: |-
+      return {"Hello"};
+
+number:
+  - platform: template
+    name: "Test Number"
+    initial_value: 50
+    min_value: 0
+    max_value: 100
+    step: 1
+    optimistic: true
+    entity_category: diagnostic
+
+select:
+  - platform: template
+    name: "Test Select"
+    options:
+      - "Option 1"
+      - "Option 2"
+    initial_option: "Option 1"
+    optimistic: true
+    internal: true
+
+switch:
+  - platform: template
+    name: "Test Switch"
+    optimistic: true
+    disabled_by_default: true
+    entity_category: config
+
+button:
+  - platform: template
+    name: "Test Button"
+    on_press:
+      - logger.log: "Button pressed"

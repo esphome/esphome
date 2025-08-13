@@ -1,0 +1,161 @@
+esphome:
+  name: message-size-batching-test
+host:
+api:
+# Default batch_delay to test batching
+logger:
+
+# Create entities that will produce different protobuf header sizes
+# Header size depends on: 1 byte indicator + varint(payload_size) + varint(message_type)
+# 4-byte header: type < 128, payload < 128
+# 5-byte header: type < 128, payload 128-16383 OR type 128+, payload < 128
+# 6-byte header: type 128+, payload 128-16383
+
+# Small select with few options - produces small message
+select:
+  - platform: template
+    name: "Small Select"
+    id: small_select
+    optimistic: true
+    options:
+      - "Option A"
+      - "Option B"
+    initial_option: "Option A"
+    update_interval: 5.0s
+
+  # Medium select with more options - produces medium message
+  - platform: template
+    name: "Medium Select"
+    id: medium_select
+    optimistic: true
+    options:
+      - "Option 001"
+      - "Option 002"
+      - "Option 003"
+      - "Option 004"
+      - "Option 005"
+      - "Option 006"
+      - "Option 007"
+      - "Option 008"
+      - "Option 009"
+      - "Option 010"
+      - "Option 011"
+      - "Option 012"
+      - "Option 013"
+      - "Option 014"
+      - "Option 015"
+      - "Option 016"
+      - "Option 017"
+      - "Option 018"
+      - "Option 019"
+      - "Option 020"
+    initial_option: "Option 001"
+    update_interval: 5.0s
+
+  # Large select with many options - produces larger message
+  - platform: template
+    name: "Large Select with Many Options to Create Larger Payload"
+    id: large_select
+    optimistic: true
+    options:
+      - "Long Option Name 001 - This is a longer option name to increase message size"
+      - "Long Option Name 002 - This is a longer option name to increase message size"
+      - "Long Option Name 003 - This is a longer option name to increase message size"
+      - "Long Option Name 004 - This is a longer option name to increase message size"
+      - "Long Option Name 005 - This is a longer option name to increase message size"
+      - "Long Option Name 006 - This is a longer option name to increase message size"
+      - "Long Option Name 007 - This is a longer option name to increase message size"
+      - "Long Option Name 008 - This is a longer option name to increase message size"
+      - "Long Option Name 009 - This is a longer option name to increase message size"
+      - "Long Option Name 010 - This is a longer option name to increase message size"
+      - "Long Option Name 011 - This is a longer option name to increase message size"
+      - "Long Option Name 012 - This is a longer option name to increase message size"
+      - "Long Option Name 013 - This is a longer option name to increase message size"
+      - "Long Option Name 014 - This is a longer option name to increase message size"
+      - "Long Option Name 015 - This is a longer option name to increase message size"
+      - "Long Option Name 016 - This is a longer option name to increase message size"
+      - "Long Option Name 017 - This is a longer option name to increase message size"
+      - "Long Option Name 018 - This is a longer option name to increase message size"
+      - "Long Option Name 019 - This is a longer option name to increase message size"
+      - "Long Option Name 020 - This is a longer option name to increase message size"
+      - "Long Option Name 021 - This is a longer option name to increase message size"
+      - "Long Option Name 022 - This is a longer option name to increase message size"
+      - "Long Option Name 023 - This is a longer option name to increase message size"
+      - "Long Option Name 024 - This is a longer option name to increase message size"
+      - "Long Option Name 025 - This is a longer option name to increase message size"
+      - "Long Option Name 026 - This is a longer option name to increase message size"
+      - "Long Option Name 027 - This is a longer option name to increase message size"
+      - "Long Option Name 028 - This is a longer option name to increase message size"
+      - "Long Option Name 029 - This is a longer option name to increase message size"
+      - "Long Option Name 030 - This is a longer option name to increase message size"
+      - "Long Option Name 031 - This is a longer option name to increase message size"
+      - "Long Option Name 032 - This is a longer option name to increase message size"
+      - "Long Option Name 033 - This is a longer option name to increase message size"
+      - "Long Option Name 034 - This is a longer option name to increase message size"
+      - "Long Option Name 035 - This is a longer option name to increase message size"
+      - "Long Option Name 036 - This is a longer option name to increase message size"
+      - "Long Option Name 037 - This is a longer option name to increase message size"
+      - "Long Option Name 038 - This is a longer option name to increase message size"
+      - "Long Option Name 039 - This is a longer option name to increase message size"
+      - "Long Option Name 040 - This is a longer option name to increase message size"
+      - "Long Option Name 041 - This is a longer option name to increase message size"
+      - "Long Option Name 042 - This is a longer option name to increase message size"
+      - "Long Option Name 043 - This is a longer option name to increase message size"
+      - "Long Option Name 044 - This is a longer option name to increase message size"
+      - "Long Option Name 045 - This is a longer option name to increase message size"
+      - "Long Option Name 046 - This is a longer option name to increase message size"
+      - "Long Option Name 047 - This is a longer option name to increase message size"
+      - "Long Option Name 048 - This is a longer option name to increase message size"
+      - "Long Option Name 049 - This is a longer option name to increase message size"
+      - "Long Option Name 050 - This is a longer option name to increase message size"
+    initial_option: "Long Option Name 001 - This is a longer option name to increase message size"
+    update_interval: 5.0s
+
+# Text sensors with different value lengths
+text_sensor:
+  - platform: template
+    name: "Short Text Sensor"
+    id: short_text_sensor
+    lambda: |-
+      return {"OK"};
+    update_interval: 5.0s
+
+  - platform: template
+    name: "Medium Text Sensor"
+    id: medium_text_sensor
+    lambda: |-
+      return {"This is a medium length text sensor value that should produce a medium sized message"};
+    update_interval: 5.0s
+
+  - platform: template
+    name: "Long Text Sensor with Very Long Value"
+    id: long_text_sensor
+    lambda: |-
+      return {"This is a very long text sensor value that contains a lot of text to ensure we get a larger protobuf message. The message should be long enough to require a 2-byte varint for the payload size, which happens when the payload exceeds 127 bytes. Let's add even more text here to make sure we exceed that threshold and test the batching of messages with different header sizes properly."};
+    update_interval: 5.0s
+
+# Text input which can have various lengths
+text:
+  - platform: template
+    name: "Test Text Input"
+    id: test_text_input
+    optimistic: true
+    mode: text
+    min_length: 0
+    max_length: 255
+    initial_value: "Initial value"
+    update_interval: 5.0s
+
+# Number entity to add variety (different message type number)
+# The ListEntitiesNumberResponse has message type 49
+# The NumberStateResponse has message type 50
+number:
+  - platform: template
+    name: "Test Number with Long Name to Increase Message Size"
+    id: test_number
+    optimistic: true
+    min_value: 0
+    max_value: 1000
+    step: 0.1
+    initial_value: 42.0
+    update_interval: 5.0s

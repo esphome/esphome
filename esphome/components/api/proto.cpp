@@ -1,13 +1,13 @@
 #include "proto.h"
 #include <cinttypes>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
-void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
+void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   uint32_t i = 0;
   bool error = false;
   while (i < length) {
@@ -88,5 +88,4 @@ std::string ProtoMessage::dump() const {
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

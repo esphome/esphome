@@ -1,8 +1,8 @@
 import re
-from typing import Optional
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AFTER,
@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
+    PlatformFramework,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -322,12 +323,12 @@ def final_validate_device_schema(
     name: str,
     *,
     uart_bus: str = CONF_UART_ID,
-    baud_rate: Optional[int] = None,
+    baud_rate: int | None = None,
     require_tx: bool = False,
     require_rx: bool = False,
-    data_bits: Optional[int] = None,
-    parity: Optional[str] = None,
-    stop_bits: Optional[int] = None,
+    data_bits: int | None = None,
+    parity: str | None = None,
+    stop_bits: int | None = None,
 ):
     def validate_baud_rate(value):
         if value != baud_rate:
@@ -439,3 +440,19 @@ async def uart_write_to_code(config, action_id, template_arg, args):
     else:
         cg.add(var.set_data_static(data))
     return var
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "uart_component_esp32_arduino.cpp": {PlatformFramework.ESP32_ARDUINO},
+        "uart_component_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "uart_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "uart_component_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "uart_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "uart_component_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

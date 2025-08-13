@@ -7,7 +7,6 @@ namespace canbus {
 static const char *const TAG = "canbus";
 
 void Canbus::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Canbus...");
   if (!this->setup_internal()) {
     ESP_LOGE(TAG, "setup error!");
     this->mark_failed();
@@ -85,6 +84,9 @@ void Canbus::loop() {
       ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
       data.push_back(can_message.data[i]);
     }
+
+    this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
+                            data);
 
     // fire all triggers
     for (auto *trigger : this->triggers_) {

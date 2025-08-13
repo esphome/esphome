@@ -1,0 +1,10 @@
+packages:
+  common: !include common.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+  encryption:
+    key: !remove

@@ -33,6 +33,7 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_HERTZ,
     UNIT_VOLT,
+    UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
     UNIT_WATT_HOURS,
@@ -45,10 +46,17 @@ CONF_GAIN_PGA = "gain_pga"
 CONF_CURRENT_PHASES = "current_phases"
 CONF_GAIN_VOLTAGE = "gain_voltage"
 CONF_GAIN_CT = "gain_ct"
+CONF_OFFSET_VOLTAGE = "offset_voltage"
+CONF_OFFSET_CURRENT = "offset_current"
+CONF_OFFSET_ACTIVE_POWER = "offset_active_power"
+CONF_OFFSET_REACTIVE_POWER = "offset_reactive_power"
 CONF_HARMONIC_POWER = "harmonic_power"
 CONF_PEAK_CURRENT = "peak_current"
 CONF_PEAK_CURRENT_SIGNED = "peak_current_signed"
 CONF_ENABLE_OFFSET_CALIBRATION = "enable_offset_calibration"
+CONF_ENABLE_GAIN_CALIBRATION = "enable_gain_calibration"
+CONF_PHASE_STATUS = "phase_status"
+CONF_FREQUENCY_STATUS = "frequency_status"
 UNIT_DEG = "degrees"
 LINE_FREQS = {
     "50HZ": 50,
@@ -92,10 +100,11 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
             icon=ICON_LIGHTBULB,
             accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
+            unit_of_measurement=UNIT_VOLT_AMPS,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
@@ -137,6 +146,10 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
+        cv.Optional(CONF_OFFSET_VOLTAGE, default=0): cv.int_,
+        cv.Optional(CONF_OFFSET_CURRENT, default=0): cv.int_,
+        cv.Optional(CONF_OFFSET_ACTIVE_POWER, default=0): cv.int_,
+        cv.Optional(CONF_OFFSET_REACTIVE_POWER, default=0): cv.int_,
     }
 )
 
@@ -164,9 +177,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(
                 CURRENT_PHASES, upper=True
             ),
-            cv.Optional(CONF_GAIN_PGA, default="2X"): cv.enum(PGA_GAINS, upper=True),
+            cv.Optional(CONF_GAIN_PGA, default="1X"): cv.enum(PGA_GAINS, upper=True),
             cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_OFFSET_CALIBRATION, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_GAIN_CALIBRATION, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -185,6 +199,10 @@ async def to_code(config):
         conf = config[phase]
         cg.add(var.set_volt_gain(i, conf[CONF_GAIN_VOLTAGE]))
         cg.add(var.set_ct_gain(i, conf[CONF_GAIN_CT]))
+        cg.add(var.set_voltage_offset(i, conf[CONF_OFFSET_VOLTAGE]))
+        cg.add(var.set_current_offset(i, conf[CONF_OFFSET_CURRENT]))
+        cg.add(var.set_active_power_offset(i, conf[CONF_OFFSET_ACTIVE_POWER]))
+        cg.add(var.set_reactive_power_offset(i, conf[CONF_OFFSET_REACTIVE_POWER]))
         if voltage_config := conf.get(CONF_VOLTAGE):
             sens = await sensor.new_sensor(voltage_config)
             cg.add(var.set_voltage_sensor(i, sens))
@@ -218,16 +236,15 @@ async def to_code(config):
         if peak_current_config := conf.get(CONF_PEAK_CURRENT):
             sens = await sensor.new_sensor(peak_current_config)
             cg.add(var.set_peak_current_sensor(i, sens))
-
     if frequency_config := config.get(CONF_FREQUENCY):
         sens = await sensor.new_sensor(frequency_config)
         cg.add(var.set_freq_sensor(sens))
     if chip_temperature_config := config.get(CONF_CHIP_TEMPERATURE):
         sens = await sensor.new_sensor(chip_temperature_config)
         cg.add(var.set_chip_temperature_sensor(sens))
-
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
     cg.add(var.set_peak_current_signed(config[CONF_PEAK_CURRENT_SIGNED]))
     cg.add(var.set_enable_offset_calibration(config[CONF_ENABLE_OFFSET_CALIBRATION]))
+    cg.add(var.set_enable_gain_calibration(config[CONF_ENABLE_GAIN_CALIBRATION]))

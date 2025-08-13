@@ -14,7 +14,7 @@ static const char *const TAG = "ring_buffer";
 RingBuffer::~RingBuffer() {
   if (this->handle_ != nullptr) {
     vRingbufferDelete(this->handle_);
-    RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOW_FAILURE);
+    RAMAllocator<uint8_t> allocator;
     allocator.deallocate(this->storage_, this->size_);
   }
 }
@@ -24,7 +24,7 @@ std::unique_ptr<RingBuffer> RingBuffer::create(size_t len) {
 
   rb->size_ = len;
 
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   rb->storage_ = allocator.allocate(rb->size_);
   if (rb->storage_ == nullptr) {
     return nullptr;

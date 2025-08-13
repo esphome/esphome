@@ -3,12 +3,10 @@ import logging
 import os
 from pathlib import Path
 import re
-from typing import Union
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
-    ENV_NOGITIGNORE,
     HEADER_FILE_EXTENSIONS,
     PLATFORM_ESP32,
     SOURCE_FILE_EXTENSIONS,
@@ -17,8 +15,6 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
-    get_bool_env,
-    mkdir_p,
     read_file,
     walk_files,
     write_file_if_changed,
@@ -31,8 +27,6 @@ CPP_AUTO_GENERATE_BEGIN = "// ========== AUTO GENERATED CODE BEGIN ==========="
 CPP_AUTO_GENERATE_END = "// =========== AUTO GENERATED CODE END ============"
 CPP_INCLUDE_BEGIN = "// ========== AUTO GENERATED INCLUDE BLOCK BEGIN ==========="
 CPP_INCLUDE_END = "// ========== AUTO GENERATED INCLUDE BLOCK END ==========="
-INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
-INI_AUTO_GENERATE_END = "; =========== AUTO GENERATED CODE END ============"
 
 CPP_BASE_FORMAT = (
     """// Auto generated code by esphome
@@ -48,20 +42,6 @@ void setup() {
 void loop() {
   App.loop();
 }
-""",
-)
-
-INI_BASE_FORMAT = (
-    """; Auto generated code by esphome
-
-[common]
-lib_deps =
-build_flags =
-upload_flags =
-
-""",
-    """
-
 """,
 )
 
@@ -96,7 +76,7 @@ def get_include_text():
 
 
 def replace_file_content(text, pattern, repl):
-    content_new, count = re.subn(pattern, repl, text, flags=re.M)
+    content_new, count = re.subn(pattern, repl, text, flags=re.MULTILINE)
     return content_new, count
 
 
@@ -106,13 +86,17 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
 
     if old.src_version != new.src_version:
         return True
-    if old.build_path != new.build_path:
-        return True
-    if old.loaded_integrations != new.loaded_integrations:
-        if new.core_platform == PLATFORM_ESP32:
-            from esphome.components.esp32 import FRAMEWORK_ESP_IDF
+    return old.build_path != new.build_path
 
-            return new.framework == FRAMEWORK_ESP_IDF
+
+def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
+    if (
+        old.loaded_integrations != new.loaded_integrations
+        or old.loaded_platforms != new.loaded_platforms
+    ) and new.core_platform == PLATFORM_ESP32:
+        from esphome.components.esp32 import FRAMEWORK_ESP_IDF
+
+        return new.framework == FRAMEWORK_ESP_IDF
     return False
 
 
@@ -124,40 +108,13 @@ def update_storage_json():
         return
 
     if storage_should_clean(old, new):
-        _LOGGER.info(
-            "Core config, version or integrations changed, cleaning build files..."
-        )
+        _LOGGER.info("Core config, version changed, cleaning build files...")
         clean_build()
+    elif storage_should_update_cmake_cache(old, new):
+        _LOGGER.info("Integrations changed, cleaning cmake cache...")
+        clean_cmake_cache()
 
     new.save(path)
-
-
-def format_ini(data: dict[str, Union[str, list[str]]]) -> str:
-    content = ""
-    for key, value in sorted(data.items()):
-        if isinstance(value, list):
-            content += f"{key} =\n"
-            for x in value:
-                content += f"    {x}\n"
-        else:
-            content += f"{key} = {value}\n"
-    return content
-
-
-def get_ini_content():
-    CORE.add_platformio_option(
-        "lib_deps", [x.as_lib_dep for x in CORE.libraries] + ["${common.lib_deps}"]
-    )
-    # Sort to avoid changing build flags order
-    CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
-
-    content = "[platformio]\n"
-    content += f"description = ESPHome {__version__}\n"
-
-    content += f"[env:{CORE.name}]\n"
-    content += format_ini(CORE.platformio_options)
-
-    return content
 
 
 def find_begin_end(text, begin_s, end_s):
@@ -185,31 +142,6 @@ def find_begin_end(text, begin_s, end_s):
         )
 
     return text[:begin_index], text[(end_index + len(end_s)) :]
-
-
-def write_platformio_ini(content):
-    update_storage_json()
-    path = CORE.relative_build_path("platformio.ini")
-
-    if os.path.isfile(path):
-        text = read_file(path)
-        content_format = find_begin_end(
-            text, INI_AUTO_GENERATE_BEGIN, INI_AUTO_GENERATE_END
-        )
-    else:
-        content_format = INI_BASE_FORMAT
-    full_file = f"{content_format[0] + INI_AUTO_GENERATE_BEGIN}\n{content}"
-    full_file += INI_AUTO_GENERATE_END + content_format[1]
-    write_file_if_changed(path, full_file)
-
-
-def write_platformio_project():
-    mkdir_p(CORE.build_path)
-
-    content = get_ini_content()
-    if not get_bool_env(ENV_NOGITIGNORE):
-        write_gitignore()
-    write_platformio_ini(content)
 
 
 DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
@@ -346,6 +278,15 @@ def write_cpp(code_s):
     )
     full_file += code_format[2]
     write_file_if_changed(path, full_file)
+
+
+def clean_cmake_cache():
+    pioenvs = CORE.relative_pioenvs_path()
+    if os.path.isdir(pioenvs):
+        pioenvs_cmake_path = CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt")
+        if os.path.isfile(pioenvs_cmake_path):
+            _LOGGER.info("Deleting %s", pioenvs_cmake_path)
+            os.remove(pioenvs_cmake_path)
 
 
 def clean_build():

@@ -1,0 +1,5 @@
+usb_host:
+  devices:
+    - id: device_1
+      vid: 0x1234
+      pid: 0x1234

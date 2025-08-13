@@ -1,6 +1,6 @@
 #pragma once
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -94,7 +94,7 @@ class I2CBus {
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
   /// that contains the address and the corresponding bool presence flag.
-  void i2c_scan_() {
+  virtual void i2c_scan() {
     for (uint8_t address = 8; address < 120; address++) {
       auto err = writev(address, nullptr, 0);
       if (err == ERROR_OK) {
@@ -106,6 +106,13 @@ class I2CBus {
   }
   std::vector<std::pair<uint8_t, bool>> scan_results_;  ///< array containing scan results
   bool scan_{false};                                    ///< Should we scan ? Can be set in the yaml
+};
+
+class InternalI2CBus : public I2CBus {
+ public:
+  /// @brief Returns the I2C port number.
+  /// @return the port number of the internal I2C bus
+  virtual int get_port() const = 0;
 };
 
 }  // namespace i2c

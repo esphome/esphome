@@ -1,6 +1,6 @@
 #include "pipsolar.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace pipsolar {
@@ -861,8 +861,8 @@ void Pipsolar::switch_command(const std::string &command) {
   queue_command_(command.c_str(), command.length());
 }
 void Pipsolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pipsolar:");
-  ESP_LOGCONFIG(TAG, "used commands:");
+  ESP_LOGCONFIG(TAG, "Pipsolar:\n"
+                     "used commands:");
   for (auto &used_polling_command : this->used_polling_commands_) {
     if (used_polling_command.length != 0) {
       ESP_LOGCONFIG(TAG, "%s", used_polling_command.command);

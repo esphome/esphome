@@ -82,6 +82,8 @@ async def to_code(config):
     cg.add(var.set_measured_power(config[CONF_MEASURED_POWER]))
     cg.add(var.set_tx_power(config[CONF_TX_POWER]))
 
+    cg.add_define("USE_ESP32_BLE_ADVERTISING")
+
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
