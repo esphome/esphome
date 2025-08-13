@@ -3,6 +3,7 @@ from esphome.components.const import CONF_BYTE_ORDER
 from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
+    validate_settings,
     validate_transparency,
     validate_type,
 )
@@ -124,6 +125,11 @@ def runtime_image_schema(image_class=RuntimeImage):
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
         }
     )
+
+
+def validate_runtime_image_settings(config):
+    """Apply validate_settings from image component to runtime image config."""
+    return validate_settings(config)
 
 
 async def process_runtime_image_config(config):

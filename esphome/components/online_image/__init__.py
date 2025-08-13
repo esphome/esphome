@@ -5,7 +5,6 @@ import esphome.codegen as cg
 from esphome.components import runtime_image
 from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
-from esphome.components.image import validate_settings
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -88,7 +87,7 @@ CONFIG_SCHEMA = cv.Schema(
             rp2040_arduino=cv.Version(0, 0, 0),
             host=cv.Version(0, 0, 0),
         ),
-        validate_settings,
+        runtime_image.validate_runtime_image_settings,
     )
 )
 
