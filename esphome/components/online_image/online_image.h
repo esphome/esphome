@@ -38,8 +38,6 @@ class OnlineImage : public PollingComponent,
   OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format, image::ImageType type,
               image::Transparency transparency, uint32_t buffer_size, bool is_big_endian = false);
 
-  void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
-
   void update() override;
   void loop() override;
 
@@ -56,14 +54,6 @@ class OnlineImage : public PollingComponent,
   template<typename V> void add_request_header(const std::string &header, V value) {
     this->request_headers_.push_back(std::pair<std::string, TemplatableValue<std::string>>(header, value));
   }
-
-  /**
-   * @brief Set the image that needs to be shown as long as the downloaded image
-   *  is not available.
-   *
-   * @param placeholder Pointer to the (@link Image) to show as placeholder.
-   */
-  void set_placeholder(image::Image *placeholder) { this->placeholder_ = placeholder; }
 
   /**
    * Release the buffer storing the image. The image will need to be downloaded again
@@ -98,7 +88,6 @@ class OnlineImage : public PollingComponent,
   size_t download_buffer_initial_size_;
 
   const runtime_image::ImageFormat format_;
-  image::Image *placeholder_{nullptr};
 
   std::string url_{""};
 

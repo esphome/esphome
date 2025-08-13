@@ -21,16 +21,6 @@ OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_
   this->set_url(url);
 }
 
-void OnlineImage::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
-  if (this->is_loaded()) {
-    // Use RuntimeImage's draw method
-    RuntimeImage::draw(x, y, display, color_on, color_off);
-  } else if (this->placeholder_) {
-    // Show placeholder while downloading
-    this->placeholder_->draw(x, y, display, color_on, color_off);
-  }
-}
-
 bool OnlineImage::validate_url_(const std::string &url) {
   if (url.empty()) {
     ESP_LOGE(TAG, "URL is empty");

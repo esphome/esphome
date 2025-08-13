@@ -117,6 +117,13 @@ class RuntimeImage : public image::Image {
    */
   void set_progressive_display(bool progressive) { this->progressive_display_ = progressive; }
 
+  /**
+   * @brief Set the placeholder image to show while the runtime image is not available.
+   *
+   * @param placeholder Pointer to the Image to show as placeholder.
+   */
+  void set_placeholder(image::Image *placeholder) { this->placeholder_ = placeholder; }
+
  protected:
   /**
    * @brief Resize the image buffer to the requested dimensions.
@@ -182,6 +189,9 @@ class RuntimeImage : public image::Image {
   const int fixed_width_{0};
   /** Fixed height requested on configuration, or 0 if not specified. */
   const int fixed_height_{0};
+
+  /** Placeholder image to show when the runtime image is not available. */
+  image::Image *placeholder_{nullptr};
 };
 
 }  // namespace runtime_image

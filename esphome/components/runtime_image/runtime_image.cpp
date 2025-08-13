@@ -106,8 +106,11 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
   if (this->data_start_) {
     // If we have a complete image, use the base class draw method
     Image::draw(x, y, display, color_on, color_off);
+  } else if (this->placeholder_) {
+    // Show placeholder while the runtime image is not available
+    this->placeholder_->draw(x, y, display, color_on, color_off);
   }
-  // If no image is loaded, nothing to draw
+  // If no image is loaded and no placeholder, nothing to draw
 }
 
 bool RuntimeImage::begin_decode(ImageFormat format, size_t expected_size) {
