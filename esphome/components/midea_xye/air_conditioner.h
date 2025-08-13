@@ -158,6 +158,7 @@ public:
 
 
   void dump_config() override;
+  void set_sensor(Sensor *sensor) { this->sensor_ = sensor; }
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
   void set_temperature_2a_sensor(Sensor *sensor) { this->temperature_2a_sensor_ = sensor; }
   void set_temperature_2b_sensor(Sensor *sensor) { this->temperature_2b_sensor_ = sensor; }
@@ -213,6 +214,7 @@ protected:
   std::set<ClimatePreset> supported_presets_{};
   std::set<std::string> supported_custom_presets_{};
   std::set<std::string> supported_custom_fan_modes_{};
+  Sensor *sensor_{nullptr};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *temperature_2a_sensor_{nullptr};
   Sensor *temperature_2b_sensor_{nullptr};
