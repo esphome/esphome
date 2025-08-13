@@ -12,9 +12,9 @@ namespace esphome {
 namespace online_image {
 
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
-                         image::ImageType type, image::Transparency transparency, uint32_t buffer_size,
-                         bool is_big_endian)
-    : RuntimeImage(type, transparency, is_big_endian, width, height),
+                         image::ImageType type, image::Transparency transparency, image::Image *placeholder,
+                         uint32_t buffer_size, bool is_big_endian)
+    : RuntimeImage(type, transparency, placeholder, is_big_endian, width, height),
       download_buffer_(buffer_size),
       download_buffer_initial_size_(buffer_size),
       format_(format) {

@@ -144,6 +144,7 @@ async def to_code(config):
         format_enum,
         image_type_enum,
         transparent,
+        placeholder or cg.nullptr,
         config[CONF_BUFFER_SIZE],
         byte_order_big_endian,
     )
@@ -156,9 +157,6 @@ async def to_code(config):
             cg.add(var.add_request_header(key, template_))
         else:
             cg.add(var.add_request_header(key, value))
-
-    if placeholder:
-        cg.add(var.set_placeholder(placeholder))
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

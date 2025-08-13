@@ -38,12 +38,13 @@ class RuntimeImage : public image::Image {
    *
    * @param type The pixel format for the image.
    * @param transparency The transparency type for the image.
+   * @param placeholder Optional placeholder image to show while loading.
    * @param is_big_endian Whether the image is stored in big-endian format.
    * @param fixed_width Fixed width for the image (0 for auto-resize).
    * @param fixed_height Fixed height for the image (0 for auto-resize).
    */
-  RuntimeImage(image::ImageType type, image::Transparency transparency, bool is_big_endian = false, int fixed_width = 0,
-               int fixed_height = 0);
+  RuntimeImage(image::ImageType type, image::Transparency transparency, image::Image *placeholder = nullptr,
+               bool is_big_endian = false, int fixed_width = 0, int fixed_height = 0);
 
   ~RuntimeImage();
 
@@ -116,13 +117,6 @@ class RuntimeImage : public image::Image {
    * When disabled, the image is only displayed after decoding completes.
    */
   void set_progressive_display(bool progressive) { this->progressive_display_ = progressive; }
-
-  /**
-   * @brief Set the placeholder image to show while the runtime image is not available.
-   *
-   * @param placeholder Pointer to the Image to show as placeholder.
-   */
-  void set_placeholder(image::Image *placeholder) { this->placeholder_ = placeholder; }
 
  protected:
   /**

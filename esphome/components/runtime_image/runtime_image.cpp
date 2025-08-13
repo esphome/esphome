@@ -27,12 +27,13 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
-RuntimeImage::RuntimeImage(image::ImageType type, image::Transparency transparency, bool is_big_endian, int fixed_width,
-                           int fixed_height)
+RuntimeImage::RuntimeImage(image::ImageType type, image::Transparency transparency, image::Image *placeholder,
+                           bool is_big_endian, int fixed_width, int fixed_height)
     : Image(nullptr, 0, 0, type, transparency),
       is_big_endian_(is_big_endian),
       fixed_width_(fixed_width),
-      fixed_height_(fixed_height) {}
+      fixed_height_(fixed_height),
+      placeholder_(placeholder) {}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 

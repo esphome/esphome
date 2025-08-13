@@ -33,10 +33,15 @@ class OnlineImage : public PollingComponent,
    * @param width Desired width of the target image area.
    * @param height Desired height of the target image area.
    * @param format Format that the image is encoded in (@see runtime_image::ImageFormat).
+   * @param type The pixel format for the image.
+   * @param transparency The transparency type for the image.
+   * @param placeholder Optional placeholder image to show while loading.
    * @param buffer_size Size of the buffer used to download the image.
+   * @param is_big_endian Whether the image is stored in big-endian format.
    */
   OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format, image::ImageType type,
-              image::Transparency transparency, uint32_t buffer_size, bool is_big_endian = false);
+              image::Transparency transparency, image::Image *placeholder, uint32_t buffer_size,
+              bool is_big_endian = false);
 
   void update() override;
   void loop() override;
