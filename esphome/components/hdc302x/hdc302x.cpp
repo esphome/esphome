@@ -26,7 +26,6 @@ void HDC302XComponent::setup() {
 
   // Clear status register
   if (this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Clear status register failed");
     this->mark_failed("clear status failed");
     return;
   }
@@ -80,16 +79,13 @@ bool HDC302XComponent::disable_heater() {
 void HDC302XComponent::read_data_() {
   uint8_t buf[6];
   if (this->read(buf, 6) != i2c::ERROR_OK) {
-    // Use ESP_LOGW to force warning to be printed
-    ESP_LOGW(TAG, "Sensor read failed");
-    this->status_set_warning();
+    this->status_set_warning("Sensor read failed");
     return;
   }
 
   // Check checksums
   if (this->crc8_(buf, 2) != buf[2] || this->crc8_(buf + 3, 2) != buf[5]) {
-    ESP_LOGW(TAG, "Read data: invalid CRC");
-    this->status_set_warning();
+    this->status_set_warning("Read data: invalid CRC");
     return;
   }
 
