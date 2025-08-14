@@ -69,8 +69,5 @@ async def to_code(config):
         sens = await sensor.new_sensor(humidity_config)
         cg.add(var.set_humidity_sensor(sens))
 
-    if pm_config := config.get(CONF_POWER_MODE):
-        cg.add(var.set_power_mode(pm_config))
-
-    if heater_config := config.get(CONF_HEATER):
-        cg.add(var.set_heater_enabled(heater_config))
+    cg.add(var.set_power_mode(config[CONF_POWER_MODE]))
+    cg.add(var.set_heater_enabled(config[CONF_HEATER]))

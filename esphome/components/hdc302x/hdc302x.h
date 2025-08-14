@@ -8,10 +8,10 @@ namespace esphome {
 namespace hdc302x {
 
 enum HDC302XPowerMode : uint8_t {
-  HIGH_ACCURACY = 0,
-  BALANCED = 1,
-  LOW_POWER = 2,
-  ULTRA_LOW_POWER = 3,
+  HIGH_ACCURACY = 0x00,
+  BALANCED = 0x0b,
+  LOW_POWER = 0x16,
+  ULTRA_LOW_POWER = 0xff,
 };
 
 /**

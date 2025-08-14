@@ -20,9 +20,7 @@ static const uint8_t HDC302X_CMD_HEATER_DISABLE[2] = {0x30, 0x66};
 
 void HDC302XComponent::setup() {
   // Soft reset the device
-  ESP_LOGD(TAG, "Resetting I2C address: 0x%02X", this->address_);
   if (this->write(HDC302X_CMD_SOFT_RESET, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Resetting I2C device failed");
     this->mark_failed("soft reset failed");
     return;
   }
@@ -45,9 +43,6 @@ void HDC302XComponent::setup() {
 void HDC302XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HDC302x:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temp_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -56,7 +51,7 @@ void HDC302XComponent::dump_config() {
 void HDC302XComponent::update() {
   uint8_t cmd[] = {
       HDC302X_CMD_TRIGGER_MSB,
-      HDC302X_CMD_TRIGGER_LSB[this->power_mode_],
+      this->power_mode_,
   };
   if (this->write(cmd, 2) != i2c::ERROR_OK) {
     this->status_set_warning("Measurement command failed");
@@ -101,35 +96,32 @@ void HDC302XComponent::read_data_() {
 
   this->status_clear_warning();
 
-  uint16_t raw_t = encode_uint16(buf[0], buf[1]);
-  uint16_t raw_rh = encode_uint16(buf[3], buf[4]);
-
   if (this->temp_sensor_ != nullptr) {
+    uint16_t raw_t = encode_uint16(buf[0], buf[1]);
     // Calculate temperature in Celcius per datasheet section 7.3.3.
-    float temp = -45 + 175 * (float(raw_t) / 65535);
-    temp_sensor_->publish_state(temp);
+    float temp = -45 + 175 * (float(raw_t) / 65535.0f);
+    this->temp_sensor_->publish_state(temp);
   }
 
   if (this->humidity_sensor_ != nullptr) {
+    uint16_t raw_rh = encode_uint16(buf[3], buf[4]);
     // Calculate RH% per datasheet section 7.3.3.
-    float humidity = 100 * (float(raw_rh) / 65535);
-    humidity_sensor_->publish_state(humidity);
+    float humidity = 100 * (float(raw_rh) / 65535.0f);
+    this->humidity_sensor_->publish_state(humidity);
   }
 };
 
 uint32_t HDC302XComponent::conversion_delay_ms_() {
   // ADC conversion delay per datasheet, Table 7-5. - Trigger on Demand
   switch (this->power_mode_) {
-    case HDC302XPowerMode::HIGH_ACCURACY:
-      return 13;
     case HDC302XPowerMode::BALANCED:
       return 8;
     case HDC302XPowerMode::LOW_POWER:
       return 5;
     case HDC302XPowerMode::ULTRA_LOW_POWER:
       return 4;
+    case HDC302XPowerMode::HIGH_ACCURACY:
     default:
-      // Same as HIGH_ACCURACY
       return 13;
   }
 };
