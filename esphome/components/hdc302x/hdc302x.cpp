@@ -13,7 +13,6 @@ static const uint8_t HDC302X_CMD_SOFT_RESET[2] = {0x30, 0xa2};
 static const uint8_t HDC302X_CMD_CLEAR_STATUS_REGISTER[2] = {0x30, 0x41};
 
 static const uint8_t HDC302X_CMD_TRIGGER_MSB = 0x24;
-static const uint8_t HDC302X_CMD_TRIGGER_LSB[] = {0x00, 0x0b, 0x16, 0xff};
 
 static const uint8_t HDC302X_CMD_HEATER_ENABLE[2] = {0x30, 0x6d};
 static const uint8_t HDC302X_CMD_HEATER_DISABLE[2] = {0x30, 0x66};
