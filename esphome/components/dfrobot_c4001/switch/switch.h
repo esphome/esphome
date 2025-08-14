@@ -7,7 +7,11 @@
 
 namespace esphome {
 namespace dfrobot_c4001 {
-class LedSwitch : public switch_::Switch, public Component, public Parented<DFRobotC4001Hub> {
+class OutLedSwitch : public switch_::Switch, public Component, public Parented<DFRobotC4001Hub> {
+ public:
+  void write_state(bool state) override;
+};
+class RunLedSwitch : public switch_::Switch, public Component, public Parented<DFRobotC4001Hub> {
  public:
   void write_state(bool state) override;
 };
