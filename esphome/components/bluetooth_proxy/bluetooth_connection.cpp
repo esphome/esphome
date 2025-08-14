@@ -133,7 +133,7 @@ void BluetoothConnection::loop() {
 
   // Check if we should disable the loop
   // - For V3_WITH_CACHE: Services are never sent, disable after INIT state
-  // - For other connections: Disable only after service discovery is complete
+  // - For V3_WITHOUT_CACHE: Disable only after service discovery is complete
   //   (send_service_ == DONE_SENDING_SERVICES, which is only set after services are sent)
   if (this->state_ != espbt::ClientState::INIT && (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
                                                    this->send_service_ == DONE_SENDING_SERVICES)) {
@@ -160,10 +160,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   if (this->send_service_ >= this->service_count_) {
     this->send_service_ = DONE_SENDING_SERVICES;
     this->proxy_->send_gatt_services_done(this->address_);
-    if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-        this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-      this->release_services();
-    }
+    this->release_services();
     return;
   }
 
