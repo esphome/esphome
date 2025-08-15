@@ -88,14 +88,14 @@ void HLW8032Component::parse_data_() {
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  ESP_LOGVV(TAG, "HLW8032 Parsed data:");
-  ESP_LOGVV(TAG, "  Voltage Parameter REG: 0x%06X, Voltage REG: 0x%06X", (unsigned int) voltage_parameter,
-            (unsigned int) voltage_reg);
-  ESP_LOGVV(TAG, "  Current Parameter REG: 0x%06X, Current REG: 0x%06X", (unsigned int) current_parameter,
-            (unsigned int) current_reg);
-  ESP_LOGVV(TAG, "  Power Parameter REG: 0x%06X, Power REG: 0x%06X", (unsigned int) power_parameter,
-            (unsigned int) power_reg);
-  ESP_LOGVV(TAG, "  Data Update REG: 0x%02X", data_update_register);
+  ESP_LOGVV(TAG, 
+            "Parsed data:\n"
+            "  Voltage: Parameter REG 0x%06" PRIX32 ", REG 0x%06" PRIX32 "\n"
+            "  Current: Parameter REG 0x%06" PRIX32 ", REG 0x%06" PRIX32 "\n"
+            "  Power: Parameter REG 0x%06" PRIX32 ", REG 0x%06" PRIX32 "\n"
+            "  Data Update: REG 0x%02" PRIX8 "\n",
+            voltage_parameter, voltage_reg, current_parameter, current_reg, power_parameter, power_reg,
+            data_update_register);
 #endif
 
   const float current_multiplier = 1 / (this->current_resistor_ * 1000);
