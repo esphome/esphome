@@ -31,7 +31,7 @@ void HLW8032Component::loop() {
       if (this->check_ == this->raw_data_[23]) {
         this->parse_data_();
       } else
-        ESP_LOGW(TAG, "Invalid checksum from HLW8032: 0x%02X != 0x%02X", this->check_, this->raw_data_[23]);
+        ESP_LOGW(TAG, "Invalid checksum: 0x%02X != 0x%02X", this->check_, this->raw_data_[23]);
 
       this->raw_data_index_ = 0;
       this->header_found_ = false;
@@ -45,7 +45,7 @@ void HLW8032Component::parse_data_() {
   uint8_t state_reg = this->raw_data_[0];
 
   if (state_reg == 0xAA) {
-    ESP_LOGE(TAG, "HLW8032's function of error correction fails.");
+    ESP_LOGE(TAG, "Function of error correction fails.");
     return;
   }
 
@@ -153,7 +153,7 @@ void HLW8032Component::parse_data_() {
 
 void HLW8032Component::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "HLW8032:\n"
+                "Configuration:\n"
                 "  Current resistor: %.1f mΩ\n"
                 "  Voltage Divider: %.3f",
                 this->current_resistor_ * 1000.0f, this->voltage_divider_);
