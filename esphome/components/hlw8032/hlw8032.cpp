@@ -64,23 +64,33 @@ void HLW8032Component::parse_data_() {
   bool have_voltage = data_update_register & (1 << 6);
 
   bool power_cycle_exceeds_range = false;
+  bool parameter_regs_usable = true;
+
   if ((state_reg & 0xF0) == 0xF0) {
     if (state_reg & 0xF) {
-      ESP_LOGW(TAG, "HLW8032 reports: (0x%02X)", state_reg);
       if (state_reg & (1 << 3)) {
-        ESP_LOGW(TAG, "  Voltage REG overflows.");
         have_voltage = false;
       }
       if (state_reg & (1 << 2)) {
-        ESP_LOGW(TAG, "  Current REG overflows.");
         have_current = false;
       }
       if (state_reg & (1 << 1)) {
-        ESP_LOGW(TAG, "  Power REG overflows.");
         have_power = false;
       }
       if (state_reg & (1 << 0)) {
-        ESP_LOGW(TAG, "  Voltage Parameter REG, Current Parameter REG and Power Parameter REG is not usable.");
+        parameter_regs_usable = false;       
+      }
+      
+      ESP_LOGW(TAG,
+            "Reports: (0x%02X)"
+            "%s%s%s%s",
+            state_reg,
+            !have_voltage ? "\n  Voltage REG overflows." : "",
+            !have_current ? "\n  Current REG overflows." : "",
+            !have_power ? "\n  Power REG overflows." : "",
+            !parameter_regs_usable ? "\n  Voltage/Current/Power Parameter REGs not usable." : "");
+      
+      if (!parameter_regs_usable) {
         return;
       }
     }
