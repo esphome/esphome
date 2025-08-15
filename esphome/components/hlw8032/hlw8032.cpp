@@ -78,18 +78,16 @@ void HLW8032Component::parse_data_() {
         have_power = false;
       }
       if (state_reg & (1 << 0)) {
-        parameter_regs_usable = false;       
+        parameter_regs_usable = false;
       }
-      
+
       ESP_LOGW(TAG,
-            "Reports: (0x%02X)"
-            "%s%s%s%s",
-            state_reg,
-            !have_voltage ? "\n  Voltage REG overflows." : "",
-            !have_current ? "\n  Current REG overflows." : "",
-            !have_power ? "\n  Power REG overflows." : "",
-            !parameter_regs_usable ? "\n  Voltage/Current/Power Parameter REGs not usable." : "");
-      
+               "Reports: (0x%02X)"
+               "%s%s%s%s",
+               state_reg, !have_voltage ? "\n  Voltage REG overflows." : "",
+               !have_current ? "\n  Current REG overflows." : "", !have_power ? "\n  Power REG overflows." : "",
+               !parameter_regs_usable ? "\n  Voltage/Current/Power Parameter REGs not usable." : "");
+
       if (!parameter_regs_usable) {
         return;
       }
@@ -98,7 +96,7 @@ void HLW8032Component::parse_data_() {
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  ESP_LOGVV(TAG, 
+  ESP_LOGVV(TAG,
             "Parsed data:\n"
             "  Voltage: Parameter REG 0x%06" PRIX32 ", REG 0x%06" PRIX32 "\n"
             "  Current: Parameter REG 0x%06" PRIX32 ", REG 0x%06" PRIX32 "\n"
