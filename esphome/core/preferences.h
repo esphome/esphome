@@ -18,16 +18,20 @@ class ESPPreferenceObject {
   ESPPreferenceObject() = default;
   ESPPreferenceObject(ESPPreferenceBackend *backend) : backend_(backend) {}
 
-  template<typename T> bool save(const T *src) {
+  template<typename T> bool save(const T *src) { return this->save(reinterpret_cast<const uint8_t *>(src), sizeof(T)); }
+
+  bool save(const uint8_t *src, size_t size) {
     if (backend_ == nullptr)
       return false;
-    return backend_->save(reinterpret_cast<const uint8_t *>(src), sizeof(T));
+    return backend_->save(src, size);
   }
 
-  template<typename T> bool load(T *dest) {
+  template<typename T> bool load(T *dest) { return this->load(reinterpret_cast<uint8_t *>(dest), sizeof(T)); }
+
+  bool load(uint8_t *dest, size_t size) {
     if (backend_ == nullptr)
       return false;
-    return backend_->load(reinterpret_cast<uint8_t *>(dest), sizeof(T));
+    return backend_->load(dest, size);
   }
 
  protected:
