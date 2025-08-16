@@ -252,54 +252,27 @@ class APIConnection : public APIServerConnection {
 
     // Get header padding size - used for both reserve and insert
     uint8_t header_padding = this->helper_->frame_header_padding();
-
     // Get shared buffer from parent server
     std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
+    this->prepare_first_message_buffer(shared_buf, header_padding,
+                                       reserve_size + header_padding + this->helper_->frame_footer_size());
+    return {&shared_buf};
+  }
+
+  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
-    shared_buf.reserve(reserve_size + header_padding + this->helper_->frame_footer_size());
+    shared_buf.reserve(total_size);
     // Resize to add header padding so message encoding starts at the correct position
     shared_buf.resize(header_padding);
-    return {&shared_buf};
-  }
-
-  // Prepare buffer for next message in batch
-  ProtoWriteBuffer prepare_message_buffer(uint16_t message_size, bool is_first_message) {
-    // Get reference to shared buffer (it maintains state between batch messages)
-    std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-
-    if (is_first_message) {
-      shared_buf.clear();
-    }
-
-    size_t current_size = shared_buf.size();
-
-    // Calculate padding to add:
-    // - First message: just header padding
-    // - Subsequent messages: footer for previous message + header padding for this message
-    size_t padding_to_add = is_first_message
-                                ? this->helper_->frame_header_padding()
-                                : this->helper_->frame_header_padding() + this->helper_->frame_footer_size();
-
-    // Reserve space for padding + message
-    shared_buf.reserve(current_size + padding_to_add + message_size);
-
-    // Resize to add the padding bytes
-    shared_buf.resize(current_size + padding_to_add);
-
-    return {&shared_buf};
   }
 
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   std::string get_client_combined_info() const { return this->client_info_.get_combined_info(); }
-
-  // Buffer allocator methods for batch processing
-  ProtoWriteBuffer allocate_single_message_buffer(uint16_t size);
-  ProtoWriteBuffer allocate_batch_message_buffer(uint16_t size);
 
  protected:
   // Helper function to handle authentication completion
