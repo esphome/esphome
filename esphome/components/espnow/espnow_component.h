@@ -2,6 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
 
@@ -24,11 +25,21 @@ namespace esphome::espnow {
 
 // Maximum size of the ESPNow event queue - must be power of 2 for lock-free queue
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
-static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
+static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 128;
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
 std::string peer_str(const uint8_t *peer);
+
+struct ESPNowPeer {
+  uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
+
+  bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0; }
+  bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESP_NOW_ETH_ALEN) == 0; }
+  bool operator==(const peer_address_t other) const {
+    return memcmp(this->address, other.data(), ESP_NOW_ETH_ALEN) == 0;
+  }
+};
 
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
@@ -48,11 +59,10 @@ enum ESPNowState : uint8_t {
   ESPNOW_STATE_ENABLED,
 };
 
-struct ESPNowPeer {
-  uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
-
-  bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0; }
-  bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESP_NOW_ETH_ALEN) == 0; }
+struct ESPNowPrefData {
+  uint8_t version{1};
+  uint8_t peers{0};
+  uint8_t peersize{sizeof(ESPNowPeer)};
 };
 
 /// Handler interface for receiving ESPNow packets from unknown peers
@@ -156,6 +166,10 @@ class ESPNowComponent : public Component {
 
   void enable_();
   void send_();
+  void load_prefs_();
+  void save_prefs_();
+
+  ESPPreferenceObject pref_;
 
   std::vector<ESPNowUnknownPeerHandler *> unknown_peer_handlers_;
   std::vector<ESPNowReceivedPacketHandler *> received_handlers_;
@@ -176,6 +190,8 @@ class ESPNowComponent : public Component {
 
   bool auto_add_peer_{false};
   bool enable_on_boot_{true};
+
+  HighFrequencyLoopRequester high_freq_;
 };
 
 extern ESPNowComponent *global_esp_now;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

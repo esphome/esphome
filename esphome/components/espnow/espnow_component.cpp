@@ -4,6 +4,7 @@
 
 #include "espnow_err.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
@@ -135,6 +136,12 @@ void ESPNowComponent::dump_config() {
 #ifdef USE_WIFI
   ESP_LOGCONFIG(TAG, "  Wi-Fi enabled: %s", YESNO(this->is_wifi_enabled()));
 #endif
+  if (this->peers_.size() > 0) {
+    ESP_LOGCONFIG(TAG, "  Defined peers: ");
+    for (auto it = this->peers_.begin(); it != this->peers_.end(); ++it) {
+      ESP_LOGCONFIG(TAG, "    - %s", format_mac_address_pretty(it->address).c_str());
+    }
+  }
 }
 
 bool ESPNowComponent::is_wifi_enabled() {
@@ -146,11 +153,14 @@ bool ESPNowComponent::is_wifi_enabled() {
 }
 
 void ESPNowComponent::setup() {
+  this->load_prefs_();
   if (this->enable_on_boot_) {
     this->enable_();
   } else {
     this->state_ = ESPNOW_STATE_DISABLED;
   }
+
+  this->high_freq_.start();
 }
 
 void ESPNowComponent::enable() {
@@ -207,12 +217,11 @@ void ESPNowComponent::enable_() {
   esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW);
   esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
 #endif
+  this->state_ = ESPNOW_STATE_ENABLED;
 
   for (auto peer : this->peers_) {
     this->add_peer(peer.address);
   }
-
-  this->state_ = ESPNOW_STATE_ENABLED;
 }
 
 void ESPNowComponent::disable() {
@@ -318,6 +327,7 @@ void ESPNowComponent::loop() {
     this->receive_packet_pool_.release(packet);
     packet = this->receive_packet_queue_.pop();
   }
+  App.feed_wdt();
 
   // Process sending packet queue
   if (this->current_send_packet_ == nullptr) {
@@ -327,13 +337,13 @@ void ESPNowComponent::loop() {
   // Log dropped received packets periodically
   uint16_t received_dropped = this->receive_packet_queue_.get_and_reset_dropped_count();
   if (received_dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %u received packets due to buffer overflow", received_dropped);
+    ESP_LOGE(TAG, "Dropped %u received packets due to buffer overflow", received_dropped);
   }
 
   // Log dropped send packets periodically
   uint16_t send_dropped = this->send_packet_queue_.get_and_reset_dropped_count();
   if (send_dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %u send packets due to buffer overflow", send_dropped);
+    ESP_LOGE(TAG, "Dropped %u send packets due to buffer overflow", send_dropped);
   }
 }
 
@@ -404,11 +414,12 @@ void ESPNowComponent::send_() {
 
 esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
   if (this->state_ != ESPNOW_STATE_ENABLED || this->is_failed()) {
+    ESP_LOGE(TAG, "Error: EspNow is not enabled");
     return ESP_ERR_ESPNOW_NOT_INIT;
   }
 
   if (memcmp(peer, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
-    this->mark_failed();
+    ESP_LOGE(TAG, "Error: Adding own peer %s", format_mac_address_pretty(peer).c_str());
     return ESP_ERR_INVALID_MAC;
   }
 
@@ -424,6 +435,8 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
                LOG_STR_ARG(espnow_error_to_str(err)));
       this->status_momentary_warning("peer-add-failed");
       return err;
+    } else {
+      ESP_LOGI(TAG, "Add peer %s", format_mac_address_pretty(peer).c_str());
     }
   }
   bool found = false;
@@ -437,6 +450,7 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     ESPNowPeer new_peer;
     memcpy(new_peer.address, peer, ESP_NOW_ETH_ALEN);
     this->peers_.push_back(new_peer);
+    this->save_prefs_();
   }
 
   return ESP_OK;
@@ -458,10 +472,55 @@ esp_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
   for (auto it = this->peers_.begin(); it != this->peers_.end(); ++it) {
     if (*it == peer) {
       this->peers_.erase(it);
+      this->save_prefs_();
       break;
     }
   }
   return ESP_OK;
+}
+
+void ESPNowComponent::save_prefs_() {
+  ESPNowPrefData data;
+  data.peers = this->peers_.size();
+  ESP_LOGI(TAG, "saving header : %d, %d", data.peers, data.peersize);
+  uint32_t hdr_hash = fnv1_hash(std::string(this->get_component_source()) + "_hdr");
+  ESPPreferenceObject pref_ = global_preferences->make_preference<ESPNowPrefData>(hdr_hash);
+  pref_.save(&data);
+
+  uint32_t data_hash = fnv1_hash(std::string(this->get_component_source()) + "_data");
+  ESPPreferenceObject peers_pref_ = global_preferences->make_preference(0, data_hash);
+  peers_pref_.save(reinterpret_cast<uint8_t *>(this->peers_.data()), data.peers * data.peersize);
+
+  global_preferences->sync();
+}
+
+void ESPNowComponent::load_prefs_() {
+  ESPNowPrefData data;
+  std::allocator<uint8_t> alloc1;
+
+  uint32_t hdr_hash = fnv1_hash(std::string(this->get_component_source()) + "_hdr");
+  ESPPreferenceObject hdr_pref = global_preferences->make_preference<ESPNowPrefData>(hdr_hash);
+  if (hdr_pref.load(&data)) {
+    uint32_t data_hash = fnv1_hash(std::string(this->get_component_source()) + "_data");
+    ESPPreferenceObject peers_pref_ = global_preferences->make_preference(0, data_hash);
+
+    uint8_t *buffer = alloc1.allocate(data.peers * data.peersize);
+    if (peers_pref_.load(buffer, data.peers * data.peersize)) {
+      uint8_t real_size = std::min(data.peersize, (uint8_t) sizeof(ESPNowPeer));
+      this->peers_.resize(data.peers);
+      for (uint8_t i = 0; i < data.peers; i++) {
+        memcpy(this->peers_[i].address, buffer + (i * data.peersize), real_size);
+      }
+      ESP_LOGI(TAG, "preferences found: %s",
+               format_hex(reinterpret_cast<uint8_t *>(this->peers_.data()), data.peers * data.peersize).c_str());
+
+    } else {
+      ESP_LOGE(TAG, "preferences peers addresses not found");
+    }
+    alloc1.deallocate(buffer, data.peers * data.peersize);
+  } else {
+    ESP_LOGE(TAG, "preferences header not found");
+  }
 }
 
 }  // namespace esphome::espnow
