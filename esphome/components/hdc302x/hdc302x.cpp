@@ -20,20 +20,20 @@ static const uint8_t HDC302X_CMD_HEATER_DISABLE[2] = {0x30, 0x66};
 void HDC302XComponent::setup() {
   // Soft reset the device
   if (this->write(HDC302X_CMD_SOFT_RESET, 2) != i2c::ERROR_OK) {
-    this->mark_failed("soft reset failed");
+    this->mark_failed("Soft reset failed");
     return;
   }
 
   // Clear status register
   if (this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) != i2c::ERROR_OK) {
-    this->mark_failed("clear status failed");
+    this->mark_failed("Clear status failed");
     return;
   }
 
   // Heater
   if (this->heater_enabled_) {
     if (!this->enable_heater()) {
-      this->mark_failed("enable heater failed");
+      this->mark_failed("Enable heater failed");
     }
   }
 };
