@@ -216,7 +216,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   };
 
   uint8_t last_polling_command_ = 0;
-  PollingCommand used_polling_commands_[POLLING_COMMANDS_MAX];
+  PollingCommand enabled_polling_commands_[POLLING_COMMANDS_MAX];
 };
 
 }  // namespace pipsolar

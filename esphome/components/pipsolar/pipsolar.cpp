@@ -67,7 +67,7 @@ void Pipsolar::loop() {
 
   if (this->state_ == STATE_POLL_DECODED) {
     std::string mode;
-    switch (this->used_polling_commands_[this->last_polling_command_].identifier) {
+    switch (this->enabled_polling_commands_[this->last_polling_command_].identifier) {
       case POLLING_QPIRI:
         if (this->grid_rating_voltage_) {
           this->grid_rating_voltage_->publish_state(value_grid_rating_voltage_);
@@ -426,7 +426,7 @@ void Pipsolar::loop() {
     std::string fc;
     char tmp[PIPSOLAR_READ_BUFFER_LENGTH];
     sprintf(tmp, "%s", this->read_buffer_);
-    switch (this->used_polling_commands_[this->last_polling_command_].identifier) {
+    switch (this->enabled_polling_commands_[this->last_polling_command_].identifier) {
       case POLLING_QPIRI:
         ESP_LOGD(TAG, "Decode QPIRI");
         sscanf(tmp, "(%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %d %d %d %d %f %d %d",          // NOLINT
@@ -706,7 +706,7 @@ void Pipsolar::loop() {
         return;
       }
       // crc ok
-      this->used_polling_commands_[this->last_polling_command_].needs_update = false;
+      this->enabled_polling_commands_[this->last_polling_command_].needs_update = false;
       this->state_ = STATE_POLL_CHECKED;
       return;
     } else {
@@ -755,7 +755,7 @@ void Pipsolar::loop() {
   if (this->state_ == STATE_POLL) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
       // command timeout
-      ESP_LOGD(TAG, "timeout command to poll: %s", this->used_polling_commands_[this->last_polling_command_].command);
+      ESP_LOGD(TAG, "timeout command to poll: %s", this->enabled_polling_commands_[this->last_polling_command_].command);
       this->state_ = STATE_IDLE;
     } else {
     }
@@ -786,7 +786,7 @@ uint8_t Pipsolar::check_incoming_crc_() {
   return 0;
 }
 
-// send next command used
+// send next command from queue
 bool Pipsolar::send_next_command_() {
   uint16_t crc16;
   if (!this->command_queue_[this->command_queue_position_].empty()) {
@@ -815,14 +815,13 @@ bool Pipsolar::send_next_command_() {
 
 bool Pipsolar::send_next_poll_() {
   uint16_t crc16;
-
   for (uint8_t i = 0; i < POLLING_COMMANDS_MAX; i++) {
     this->last_polling_command_ = (this->last_polling_command_ + 1) % POLLING_COMMANDS_MAX;
-    if (this->used_polling_commands_[this->last_polling_command_].length == 0) {
+    if (this->enabled_polling_commands_[this->last_polling_command_].length == 0) {
       // not enabled
       continue;
     }
-    if (!this->used_polling_commands_[this->last_polling_command_].needs_update) {
+    if (!this->enabled_polling_commands_[this->last_polling_command_].needs_update) {
       // no update requested
       continue;
     }
@@ -830,18 +829,18 @@ bool Pipsolar::send_next_poll_() {
     this->command_start_millis_ = millis();
     this->empty_uart_buffer_();
     this->read_pos_ = 0;
-    crc16 = this->pipsolar_crc_(this->used_polling_commands_[this->last_polling_command_].command,
-                                this->used_polling_commands_[this->last_polling_command_].length);
-    this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
-                      this->used_polling_commands_[this->last_polling_command_].length);
+    crc16 = this->pipsolar_crc_(this->enabled_polling_commands_[this->last_polling_command_].command,
+                                this->enabled_polling_commands_[this->last_polling_command_].length);
+    this->write_array(this->enabled_polling_commands_[this->last_polling_command_].command,
+                      this->enabled_polling_commands_[this->last_polling_command_].length);
     // checksum
     this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
     this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending polling command : %s with length %d",
-             this->used_polling_commands_[this->last_polling_command_].command,
-             this->used_polling_commands_[this->last_polling_command_].length);
+             this->enabled_polling_commands_[this->last_polling_command_].command,
+             this->enabled_polling_commands_[this->last_polling_command_].length);
     return true;
   }
   return false;
@@ -862,42 +861,42 @@ void Pipsolar::queue_command(const std::string &command) {
 
 void Pipsolar::dump_config() {
   ESP_LOGCONFIG(TAG, "Pipsolar:\n"
-                     "used commands:");
-  for (auto &used_polling_command : this->used_polling_commands_) {
-    if (used_polling_command.length != 0) {
-      ESP_LOGCONFIG(TAG, "%s", used_polling_command.command);
+                     "enabled polling commands:");
+  for (auto &enabled_polling_command : this->enabled_polling_commands_) {
+    if (enabled_polling_command.length != 0) {
+      ESP_LOGCONFIG(TAG, "%s", enabled_polling_command.command);
     }
   }
 }
 void Pipsolar::update() {
-  for (auto &used_polling_command : this->used_polling_commands_) {
-    if (used_polling_command.length != 0) {
-      used_polling_command.needs_update = true;
+  for (auto &enabled_polling_command : this->enabled_polling_commands_) {
+    if (enabled_polling_command.length != 0) {
+      enabled_polling_command.needs_update = true;
     }
   }
 }
 
 void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand polling_command) {
-  for (auto &used_polling_command : this->used_polling_commands_) {
-    if (used_polling_command.length == strlen(command)) {
+  for (auto &enabled_polling_command : this->enabled_polling_commands_) {
+    if (enabled_polling_command.length == strlen(command)) {
       uint8_t len = strlen(command);
-      if (memcmp(used_polling_command.command, command, len) == 0) {
+      if (memcmp(enabled_polling_command.command, command, len) == 0) {
         return;
       }
     }
-    if (used_polling_command.length == 0) {
+    if (enabled_polling_command.length == 0) {
       size_t length = strlen(command) + 1;
       const char *beg = command;
       const char *end = command + length;
-      used_polling_command.command = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
+      enabled_polling_command.command = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
       size_t i = 0;
       for (; beg != end; ++beg, ++i) {
-        used_polling_command.command[i] = (uint8_t) (*beg);
+        enabled_polling_command.command[i] = (uint8_t) (*beg);
       }
-      used_polling_command.errors = 0;
-      used_polling_command.identifier = polling_command;
-      used_polling_command.length = length - 1;
-      used_polling_command.needs_update = true;
+      enabled_polling_command.errors = 0;
+      enabled_polling_command.identifier = polling_command;
+      enabled_polling_command.length = length - 1;
+      enabled_polling_command.needs_update = true;
       return;
     }
   }
