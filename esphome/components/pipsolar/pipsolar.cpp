@@ -23,20 +23,18 @@ void Pipsolar::loop() {
   // Read message
   if (this->state_ == STATE_IDLE) {
     this->empty_uart_buffer_();
-    switch (this->send_next_command_()) {
-      case 0:
-        // no command send (empty queue) time to poll
-        if (millis() - this->last_poll_ > this->update_interval_) {
-          this->send_next_poll_();
-          this->last_poll_ = millis();
-        }
-        return;
-        break;
-      case 1:
-        // command send
-        return;
-        break;
+
+    if (this->send_next_command_()) {
+      // command sent
+      return;
     }
+
+    if (this->send_next_poll_()) {
+      // poll sent
+      return;
+    }
+
+    return;
   }
   if (this->state_ == STATE_COMMAND_COMPLETE) {
     if (this->check_incoming_length_(4)) {
@@ -708,6 +706,7 @@ void Pipsolar::loop() {
         return;
       }
       // crc ok
+      this->enabled_polling_commands_[this->last_polling_command_].needs_update = false;
       this->state_ = STATE_POLL_CHECKED;
       return;
     } else {
@@ -814,32 +813,38 @@ bool Pipsolar::send_next_command_() {
   return false;
 }
 
-void Pipsolar::send_next_poll_() {
+bool Pipsolar::send_next_poll_() {
   uint16_t crc16;
-  this->last_polling_command_ = (this->last_polling_command_ + 1) % 15;
-  if (this->enabled_polling_commands_[this->last_polling_command_].length == 0) {
-    this->last_polling_command_ = 0;
+
+  for (uint8_t i = 0; i < POLLING_COMMANDS_MAX; i++) {
+    this->last_polling_command_ = (this->last_polling_command_ + 1) % POLLING_COMMANDS_MAX;
+    if (this->enabled_polling_commands_[this->last_polling_command_].length == 0) {
+      // not enabled
+      continue;
+    }
+    if(!this->enabled_polling_commands_[this->last_polling_command_].needs_update) {
+      // no update requested
+      continue;
+    }
+    this->state_ = STATE_POLL;
+    this->command_start_millis_ = millis();
+    this->empty_uart_buffer_();
+    this->read_pos_ = 0;
+    crc16 = this->pipsolar_crc_(this->enabled_polling_commands_[this->last_polling_command_].command,
+                                this->enabled_polling_commands_[this->last_polling_command_].length);
+    this->write_array(this->enabled_polling_commands_[this->last_polling_command_].command,
+                      this->enabled_polling_commands_[this->last_polling_command_].length);
+    // checksum
+    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
+    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+    // end Byte
+    this->write(0x0D);
+    ESP_LOGD(TAG, "Sending polling command : %s with length %d",
+            this->enabled_polling_commands_[this->last_polling_command_].command,
+            this->enabled_polling_commands_[this->last_polling_command_].length);
+    return true;
   }
-  if (this->enabled_polling_commands_[this->last_polling_command_].length == 0) {
-    // no command specified
-    return;
-  }
-  this->state_ = STATE_POLL;
-  this->command_start_millis_ = millis();
-  this->empty_uart_buffer_();
-  this->read_pos_ = 0;
-  crc16 = this->pipsolar_crc_(this->enabled_polling_commands_[this->last_polling_command_].command,
-                              this->enabled_polling_commands_[this->last_polling_command_].length);
-  this->write_array(this->enabled_polling_commands_[this->last_polling_command_].command,
-                    this->enabled_polling_commands_[this->last_polling_command_].length);
-  // checksum
-  this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-  this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
-  // end Byte
-  this->write(0x0D);
-  ESP_LOGD(TAG, "Sending polling command : %s with length %d",
-           this->enabled_polling_commands_[this->last_polling_command_].command,
-           this->enabled_polling_commands_[this->last_polling_command_].length);
+  return false;
 }
 
 void Pipsolar::queue_command(const std::string &command) {
@@ -865,7 +870,13 @@ void Pipsolar::dump_config() {
     }
   }
 }
-void Pipsolar::update() {}
+void Pipsolar::update() {
+  for (auto &enabled_polling_command : this->enabled_polling_commands_) {
+    if (enabled_polling_command.length != 0) {
+      enabled_polling_command.needs_update = true;
+    }
+  }
+}
 
 void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand polling_command) {
   for (auto &enabled_polling_command : this->enabled_polling_commands_) {
@@ -887,6 +898,7 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
       enabled_polling_command.errors = 0;
       enabled_polling_command.identifier = polling_command;
       enabled_polling_command.length = length - 1;
+      enabled_polling_command.needs_update = true;
       return;
     }
   }

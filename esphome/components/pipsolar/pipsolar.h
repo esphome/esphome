@@ -25,6 +25,7 @@ struct PollingCommand {
   uint8_t length = 0;
   uint8_t errors;
   ENUMPollingCommand identifier;
+  bool needs_update;
 };
 
 #define PIPSOLAR_VALUED_ENTITY_(type, name, polling_command, value_type) \
@@ -189,14 +190,14 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   static const size_t PIPSOLAR_READ_BUFFER_LENGTH = 110;  // maximum supported answer length
   static const size_t COMMAND_QUEUE_LENGTH = 10;
   static const size_t COMMAND_TIMEOUT = 5000;
-  uint32_t last_poll_ = 0;
+  static const size_t POLLING_COMMANDS_MAX = 15;
   void add_polling_command_(const char *command, ENUMPollingCommand polling_command);
   void empty_uart_buffer_();
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
   uint16_t pipsolar_crc_(uint8_t *msg, uint8_t len);
   bool send_next_command_();
-  void send_next_poll_();
+  bool send_next_poll_();
   std::string command_queue_[COMMAND_QUEUE_LENGTH];
   uint8_t command_queue_position_ = 0;
   uint8_t read_buffer_[PIPSOLAR_READ_BUFFER_LENGTH];
@@ -215,7 +216,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   };
 
   uint8_t last_polling_command_ = 0;
-  PollingCommand enabled_polling_commands_[15];
+  PollingCommand enabled_polling_commands_[POLLING_COMMANDS_MAX];
 };
 
 }  // namespace pipsolar
