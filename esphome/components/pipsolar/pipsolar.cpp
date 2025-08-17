@@ -842,7 +842,7 @@ void Pipsolar::send_next_poll_() {
            this->used_polling_commands_[this->last_polling_command_].length);
 }
 
-void Pipsolar::queue_command_(const char *command, uint8_t length) {
+void Pipsolar::queue_command(const std::string &command) {
   uint8_t next_position = command_queue_position_;
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
@@ -856,10 +856,6 @@ void Pipsolar::queue_command_(const char *command, uint8_t length) {
   ESP_LOGD(TAG, "Command queue full dropping command: %s", command);
 }
 
-void Pipsolar::switch_command(const std::string &command) {
-  ESP_LOGD(TAG, "got command: %s", command.c_str());
-  queue_command_(command.c_str(), command.length());
-}
 void Pipsolar::dump_config() {
   ESP_LOGCONFIG(TAG, "Pipsolar:\n"
                      "used commands:");
