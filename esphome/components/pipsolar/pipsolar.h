@@ -195,7 +195,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
   uint16_t pipsolar_crc_(uint8_t *msg, uint8_t len);
-  uint8_t send_next_command_();
+  bool send_next_command_();
   void send_next_poll_();
   std::string command_queue_[COMMAND_QUEUE_LENGTH];
   uint8_t command_queue_position_ = 0;
@@ -215,7 +215,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   };
 
   uint8_t last_polling_command_ = 0;
-  PollingCommand used_polling_commands_[15];
+  PollingCommand enabled_polling_commands_[15];
 };
 
 }  // namespace pipsolar
