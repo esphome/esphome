@@ -885,17 +885,15 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
       }
     }
     if (enabled_polling_command.length == 0) {
-      size_t length = strlen(command) + 1;
-      const char *beg = command;
-      const char *end = command + length;
-      enabled_polling_command.command = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
-      size_t i = 0;
-      for (; beg != end; ++beg, ++i) {
-        enabled_polling_command.command[i] = (uint8_t) (*beg);
+      size_t length = strlen(command);
+
+      enabled_polling_command.command = new uint8_t[length + 1];  // NOLINT(cppcoreguidelines-owning-memory)
+      for (size_t i = 0; i < length + 1; i++) {
+        enabled_polling_command.command[i] = (uint8_t) command[i];
       }
       enabled_polling_command.errors = 0;
       enabled_polling_command.identifier = polling_command;
-      enabled_polling_command.length = length - 1;
+      enabled_polling_command.length = length;
       enabled_polling_command.needs_update = true;
       return;
     }
