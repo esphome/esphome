@@ -5,6 +5,14 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
+#ifdef USE_ESP_IDF
+
+#include "driver/spi_master.h"
+
+using SPIInterface = spi_host_device_t;
+
+#endif  // USE_ESP_IDF
+
 #ifdef USE_ESP32
 
 #include "esp_eth.h"
@@ -70,6 +78,9 @@ class EthernetComponent : public Component {
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
   void set_clock_speed(int clock_speed);
+#ifdef USE_ESP_IDF
+  void set_interface(SPIInterface interface);
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   void set_polling_interval(uint32_t polling_interval);
 #endif
@@ -124,6 +135,9 @@ class EthernetComponent : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
+#ifdef USE_ESP_IDF
+  SPIInterface interface_{SPI_HOST_MAX};  // Default to invalid, will be set based on ESP32 variant
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif

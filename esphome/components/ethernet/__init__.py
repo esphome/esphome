@@ -68,6 +68,8 @@ CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
 CONF_PHY_REGISTERS = "phy_registers"
 
+CONF_INTERFACE = "interface"
+
 CONF_CLOCK_SPEED = "clock_speed"
 
 EthernetType = ethernet_ns.enum("EthernetType")
@@ -108,6 +110,12 @@ CLK_MODES_DEPRECATED = {
     "GPIO0_OUT": ("CLK_OUT", 0),
     "GPIO16_OUT": ("CLK_OUT", 16),
     "GPIO17_OUT": ("CLK_OUT", 17),
+}
+
+SPI_INTERFACE_MAP = {
+    "spi1": "SPI1_HOST",
+    "spi2": "SPI2_HOST",
+    "spi3": "SPI3_HOST",
 }
 
 MANUAL_IP_SCHEMA = cv.Schema(
@@ -243,6 +251,10 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
                 cv.frequency, cv.int_range(int(8e6), int(80e6))
             ),
+            cv.Optional(CONF_INTERFACE): cv.All(
+                cv.only_with_framework("esp-idf"),
+                cv.one_of(*SPI_INTERFACE_MAP.keys()),
+            ),
             # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
             cv.Optional(CONF_POLLING_INTERVAL): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -277,18 +289,21 @@ def _final_validate(config):
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
         return
     if spi_configs := fv.full_config.get().get(CONF_SPI):
-        variant = get_esp32_variant()
-        if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
-            spi_host = "SPI2_HOST"
+        if CORE.using_esp_idf and CONF_INTERFACE in config:
+            spi_host = SPI_INTERFACE_MAP[config[CONF_INTERFACE]]
         else:
-            spi_host = "SPI3_HOST"
+            variant = get_esp32_variant()
+            if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
+                spi_host = "SPI2_HOST"
+            else:
+                spi_host = "SPI3_HOST"
         for spi_conf in spi_configs:
             if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
                 interface = get_spi_interface(index)
                 if interface == spi_host:
                     raise cv.Invalid(
-                        f"`spi` component is using interface '{interface}'. "
-                        f"To use {config[CONF_TYPE]}, you must change the `interface` on the `spi` component.",
+                        f"this and an `spi` component are both using interface '{interface}'. "
+                        f"To use {config[CONF_TYPE]}, you must change the `interface` on one of these."
                     )
 
 
@@ -336,8 +351,17 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
+        if CORE.using_esp_idf:
+            if CONF_INTERFACE in config:
+                cg.add(
+                    var.set_interface(
+                        cg.RawExpression(SPI_INTERFACE_MAP[config[CONF_INTERFACE]])
+                    )
+                )
+            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+            add_idf_sdkconfig_option(
+                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
+            )
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
