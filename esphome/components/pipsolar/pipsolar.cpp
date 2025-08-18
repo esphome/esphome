@@ -66,7 +66,8 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_POLL_CHECKED) {
-    this->handle_poll_response_(this->enabled_polling_commands_[this->last_polling_command_].identifier, (const char*)this->read_buffer_);
+    this->handle_poll_response_(this->enabled_polling_commands_[this->last_polling_command_].identifier,
+                                (const char *) this->read_buffer_);
     this->state_ = STATE_IDLE;
     return;
   }
@@ -200,7 +201,7 @@ bool Pipsolar::send_next_poll_() {
       // not enabled
       continue;
     }
-    if(!this->enabled_polling_commands_[this->last_polling_command_].needs_update) {
+    if (!this->enabled_polling_commands_[this->last_polling_command_].needs_update) {
       // no update requested
       continue;
     }
@@ -218,8 +219,8 @@ bool Pipsolar::send_next_poll_() {
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending polling command : %s with length %d",
-            this->enabled_polling_commands_[this->last_polling_command_].command,
-            this->enabled_polling_commands_[this->last_polling_command_].length);
+             this->enabled_polling_commands_[this->last_polling_command_].command,
+             this->enabled_polling_commands_[this->last_polling_command_].length);
     return true;
   }
   return false;
@@ -302,7 +303,7 @@ void Pipsolar::handle_poll_error_(ENUMPollingCommand polling_command) {
   }
 }
 
-void Pipsolar::handle_qpiri_(const char* message) {
+void Pipsolar::handle_qpiri_(const char *message) {
   if (this->last_qpiri_) {
     this->last_qpiri_->publish_state(message);
   }
@@ -385,7 +386,7 @@ void Pipsolar::handle_qpiri_(const char* message) {
   }
 }
 
-void Pipsolar::handle_qpigs_(const char* message) {
+void Pipsolar::handle_qpigs_(const char *message) {
   if (this->last_qpigs_) {
     this->last_qpigs_->publish_state(message);
   }
@@ -431,14 +432,14 @@ void Pipsolar::handle_qpigs_(const char* message) {
   }
   this->read_int_sensor_(message, &pos, this->eeprom_version_);
   this->read_int_sensor_(message, &pos, this->pv_charging_power_);
-  
+
   std::string device_status_2 = this->read_field_(message, &pos);
   this->publish_binary_sensor_(this->get_bit_(device_status_2, 0), this->charging_to_floating_mode_);
   this->publish_binary_sensor_(this->get_bit_(device_status_2, 1), this->switch_on_);
   this->publish_binary_sensor_(this->get_bit_(device_status_2, 2), this->dustproof_installed_);
 }
 
-void Pipsolar::handle_qmod_(const char* message) {
+void Pipsolar::handle_qmod_(const char *message) {
   std::string mode;
   char device_mode = char(message[1]);
   if (this->last_qmod_) {
@@ -450,7 +451,7 @@ void Pipsolar::handle_qmod_(const char* message) {
   }
 }
 
-void Pipsolar::handle_qflag_(const char* message) {
+void Pipsolar::handle_qflag_(const char *message) {
   // result like:"(EbkuvxzDajy"
   // get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
   if (this->last_qflag_) {
@@ -503,12 +504,13 @@ void Pipsolar::handle_qflag_(const char* message) {
   this->publish_binary_sensor_(values.overload_restart_function, this->overload_restart_function_);
   this->publish_binary_sensor_(values.over_temperature_restart_function, this->over_temperature_restart_function_);
   this->publish_binary_sensor_(values.backlight_on, this->backlight_on_);
-  this->publish_binary_sensor_(values.alarm_on_when_primary_source_interrupt, this->alarm_on_when_primary_source_interrupt_);
+  this->publish_binary_sensor_(values.alarm_on_when_primary_source_interrupt,
+                               this->alarm_on_when_primary_source_interrupt_);
   this->publish_binary_sensor_(values.fault_code_record, this->fault_code_record_);
   this->publish_binary_sensor_(values.power_saving, this->power_saving_);
 }
 
-void Pipsolar::handle_qpiws_(const char* message) {
+void Pipsolar::handle_qpiws_(const char *message) {
   // '(00000000000000000000000000000000'
   // iterate over all available flag (as not all models have all flags, but at least in the same order)
   if (this->last_qpiws_) {
@@ -687,12 +689,12 @@ void Pipsolar::handle_qmn_(const char *message) {
   }
 }
 
-void Pipsolar::skip_start_(const char* message, size_t *pos) {
+void Pipsolar::skip_start_(const char *message, size_t *pos) {
   if (message[*pos] == '(') {
     (*pos++);
   }
 }
-void Pipsolar::skip_field_(const char* message, size_t *pos) {
+void Pipsolar::skip_field_(const char *message, size_t *pos) {
   // find delimiter or end of string
   while (message[*pos] != '\0' && message[*pos] != ' ') {
     (*pos)++;
@@ -702,7 +704,7 @@ void Pipsolar::skip_field_(const char* message, size_t *pos) {
     (*pos)++;
   }
 }
-std::string Pipsolar::read_field_(const char* message, size_t *pos) {
+std::string Pipsolar::read_field_(const char *message, size_t *pos) {
   size_t begin = *pos;
   // find delimiter or end of string
   while (message[*pos] != '\0' && message[*pos] != ' ') {
@@ -711,7 +713,7 @@ std::string Pipsolar::read_field_(const char* message, size_t *pos) {
   if (*pos == begin) {
     return "";
   }
-  
+
   std::string field(message, begin, *pos - begin);
 
   if (message[*pos] != '\0') {
@@ -722,7 +724,7 @@ std::string Pipsolar::read_field_(const char* message, size_t *pos) {
   return field;
 }
 
-void Pipsolar::read_float_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor) {
+void Pipsolar::read_float_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor) {
   if (sensor != nullptr) {
     std::string field = this->read_field_(message, pos);
     sensor->publish_state(parse_number<float>(field).value_or(NAN));
@@ -730,7 +732,7 @@ void Pipsolar::read_float_sensor_(const char* message, size_t *pos, sensor::Sens
     this->skip_field_(message, pos);
   }
 }
-void Pipsolar::read_int_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor) {
+void Pipsolar::read_int_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor) {
   if (sensor != nullptr) {
     std::string field = this->read_field_(message, pos);
     esphome::optional<int32_t> parsed = parse_number<int32_t>(field);

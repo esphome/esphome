@@ -51,8 +51,7 @@ struct QFLAGValues {
     this->add_polling_command_(#polling_command, POLLING_##polling_command); \
   }
 
-#define PIPSOLAR_SENSOR(name, polling_command) \
-  PIPSOLAR_ENTITY_(sensor::Sensor, name, polling_command)
+#define PIPSOLAR_SENSOR(name, polling_command) PIPSOLAR_ENTITY_(sensor::Sensor, name, polling_command)
 #define PIPSOLAR_SWITCH(name, polling_command) PIPSOLAR_ENTITY_(switch_::Switch, name, polling_command)
 #define PIPSOLAR_BINARY_SENSOR(name, polling_command) \
   PIPSOLAR_ENTITY_(binary_sensor::BinarySensor, name, polling_command)
@@ -216,12 +215,12 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void handle_qt_(const char *message);
   void handle_qmn_(const char *message);
 
-  void skip_start_(const char* message, size_t *pos);
-  void skip_field_(const char* message, size_t *pos);
-  std::string read_field_(const char* message, size_t *pos);
-  
-  void read_float_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor);
-  void read_int_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor);
+  void skip_start_(const char *message, size_t *pos);
+  void skip_field_(const char *message, size_t *pos);
+  std::string read_field_(const char *message, size_t *pos);
+
+  void read_float_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor);
+  void read_int_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor);
 
   void publish_binary_sensor_(esphome::optional<bool> b, binary_sensor::BinarySensor *sensor);
 
