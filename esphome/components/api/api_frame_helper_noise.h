@@ -7,7 +7,7 @@
 
 namespace esphome::api {
 
-class APINoiseFrameHelper : public APIFrameHelper {
+class APINoiseFrameHelper final : public APIFrameHelper {
  public:
   APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx,
                       const ClientInfo *client_info)
@@ -25,10 +25,6 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
-  // Get the frame header padding required by this protocol
-  uint8_t frame_header_padding() override { return frame_header_padding_; }
-  // Get the frame footer size required by this protocol
-  uint8_t frame_footer_size() override { return frame_footer_size_; }
 
  protected:
   APIError state_action_();
