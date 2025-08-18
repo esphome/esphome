@@ -184,7 +184,7 @@ void ESP32Camera::loop() {
   // check if we can return the image
   if (this->can_return_image_()) {
     // return image
-    if (this->config_.pixel_format == PIXFORMAT_JPEG) {
+    if (this->config_.pixel_format == PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
       auto *fb = this->current_image_->get_raw_buffer();
       xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     } else {
@@ -222,7 +222,7 @@ void ESP32Camera::loop() {
   }
 
   // for non-JPEG format, we need to convert the frame to JPEG
-  if (this->config_.pixel_format != PIXFORMAT_JPEG) {
+  if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
     uint8_t *jpg_buf;
     size_t jpg_buf_len;
     size_t width = fb->width;

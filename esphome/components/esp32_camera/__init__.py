@@ -222,7 +222,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PIXEL_FORMAT, default="JPEG"): cv.enum(
                 PIXEL_FORMATS, upper=True
             ),
-            cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=6, max=63),
+            cv.Optional(CONF_JPEG_QUALITY, default=10): cv.Any(
+                cv.one_of(0), cv.int_range(min=6, max=63)
+            ),
             cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
             cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
             cv.Optional(CONF_SATURATION, default=0): camera_range_param,
