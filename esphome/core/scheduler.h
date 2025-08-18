@@ -258,7 +258,10 @@ class Scheduler {
   }
 
   // Helper to mark item for removal (platform-specific)
-  // NOTE: For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller must hold lock!
+  /**
+   * Marks the item for removal.
+   * For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this function.
+   */
   void mark_item_removed_(SchedulerItem *item) {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     // Multi-threaded with atomics: use atomic store
