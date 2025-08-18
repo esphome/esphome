@@ -98,7 +98,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 
   this->status_set_error();
   this->set_timeout(enable_time, []() {
-    ESP_LOGW(TAG, "Safe mode timeout - restarting");
+    ESP_LOGW(TAG, "Timeout, restarting");
     App.reboot();
   });
 
