@@ -17,7 +17,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
     // Parse field header
     auto res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
     if (!res.has_value()) {
-      ESP_LOGV(TAG, "Invalid field start at offset %td", ptr - buffer);
+      ESP_LOGV(TAG, "Invalid field start at offset %ld", (long) (ptr - buffer));
       return;
     }
 
@@ -30,7 +30,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
       case 0: {  // VarInt
         res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
         if (!res.has_value()) {
-          ESP_LOGV(TAG, "Invalid VarInt at offset %td", ptr - buffer);
+          ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
           return;
         }
         if (!this->decode_varint(field_id, *res)) {
@@ -42,13 +42,13 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
       case 2: {  // Length-delimited
         res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
         if (!res.has_value()) {
-          ESP_LOGV(TAG, "Invalid Length Delimited at offset %td", ptr - buffer);
+          ESP_LOGV(TAG, "Invalid Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
         uint32_t field_length = res->as_uint32();
         ptr += consumed;
         if (ptr + field_length > end) {
-          ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %td", ptr - buffer);
+          ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
         if (!this->decode_length(field_id, ProtoLengthDelimited(ptr, field_length))) {
@@ -59,7 +59,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
       }
       case 5: {  // 32-bit
         if (ptr + 4 > end) {
-          ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %td", ptr - buffer);
+          ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
           return;
         }
         uint32_t val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
@@ -70,7 +70,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         break;
       }
       default:
-        ESP_LOGV(TAG, "Invalid field type %u at offset %td", field_type, ptr - buffer);
+        ESP_LOGV(TAG, "Invalid field type %u at offset %ld", field_type, (long) (ptr - buffer));
         return;
     }
   }
