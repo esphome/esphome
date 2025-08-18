@@ -79,7 +79,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   bool is_manual = rtc_val == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
 
   if (is_manual) {
-    ESP_LOGI(TAG, "Manual safe mode");
+    ESP_LOGI(TAG, "Manual mode");
   } else {
     ESP_LOGCONFIG(TAG, "Unsuccessful boot attempts: %" PRIu32, rtc_val);
   }
