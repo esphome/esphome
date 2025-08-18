@@ -12,7 +12,6 @@ Hitachi168bitClimate = hitachi_ns.class_("Hitachi168bitClimate", climate_ir.Clim
 Model = hitachi_ns.enum("Model")
 
 MODEL_MAP = {
-    "DG11J1-91": Model.MODEL_DG11J1_91,
     "HCRA31NEWH": Model.MODEL_HCRA31NEWH,
 }
 
@@ -21,6 +20,9 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(Hitachi168bitClimate),
         cv.Optional(CONF_MODEL, default="HCRA31NEWH"): cv.one_of(
             *MODEL_MAP.keys(), lower=False
+        ),
+        cv.Optional(CONF_MODEL, default="HCRA31NEWH"): cv.one_of(
+            "HCRA31NEWH", lower=False
         ),
     }
 )

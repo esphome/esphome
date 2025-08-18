@@ -42,7 +42,7 @@ void Hitachi168bitClimate::transmit_state() {
   remote_state[0] = 0x95;
   remote_state[1] = 0x9A;
   remote_state[6] = 0x01;
-  // MODEL DG11J1-91
+
   remote_state[18] = 0x1C;  // (or 0x14?) keep as discovered
 
   const bool powered_on = (this->mode != climate::CLIMATE_MODE_OFF);
