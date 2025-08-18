@@ -1,6 +1,6 @@
 from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
-from esphome.components.esp8266 import CONF_RESTORE_FROM_FLASH, KEY_ESP8266
+from esphome.components.esp8266.const import CONF_RESTORE_FROM_FLASH, KEY_ESP8266
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,

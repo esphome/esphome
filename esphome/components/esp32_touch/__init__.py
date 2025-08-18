@@ -1,6 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import esp32
-from esphome.components.esp32 import get_esp32_variant, gpio
+from esphome.components.esp32 import get_esp32_variant, gpio, only_on_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32S2,
@@ -253,11 +252,11 @@ CONFIG_SCHEMA = cv.All(
         CONF_SMOOTH_MODE,
     ),
     cv.has_none_or_all_keys(CONF_WATERPROOF_GUARD_RING, CONF_WATERPROOF_SHIELD_DRIVER),
-    esp32.only_on_variant(
+    only_on_variant(
         supported=[
-            esp32.const.VARIANT_ESP32,
-            esp32.const.VARIANT_ESP32S2,
-            esp32.const.VARIANT_ESP32S3,
+            VARIANT_ESP32,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
         ]
     ),
     validate_variant_vars,

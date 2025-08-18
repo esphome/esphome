@@ -2,7 +2,8 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32H2
 from esphome.components.network import IPAddress
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -51,7 +52,7 @@ from . import wpa2_eap
 
 AUTO_LOAD = ["network"]
 
-NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2]
+NO_WIFI_VARIANTS = [VARIANT_ESP32H2]
 CONF_SAVE = "save"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")

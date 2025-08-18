@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4
+from esphome.components.esp32.const import KEY_BOARD, VARIANT_ESP32P4
 from esphome.const import (
     CONF_DIMENSIONS,
     CONF_HEIGHT,

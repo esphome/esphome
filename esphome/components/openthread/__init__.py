@@ -1,10 +1,6 @@
 import esphome.codegen as cg
-from esphome.components.esp32 import (
-    VARIANT_ESP32C6,
-    VARIANT_ESP32H2,
-    add_idf_sdkconfig_option,
-    only_on_variant,
-)
+from esphome.components.esp32 import add_idf_sdkconfig_option, only_on_variant
+from esphome.components.esp32.const import VARIANT_ESP32C6, VARIANT_ESP32H2
 from esphome.components.mdns import MDNSComponent
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID

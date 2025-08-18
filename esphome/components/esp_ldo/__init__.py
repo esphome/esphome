@@ -1,6 +1,7 @@
 from esphome.automation import Action, register_action
 import esphome.codegen as cg
-from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
+from esphome.components.esp32 import only_on_variant
+from esphome.components.esp32.const import VARIANT_ESP32P4
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_VOLTAGE
 from esphome.final_validate import full_config
