@@ -1401,7 +1401,7 @@ class MemoryAnalyzer:
         lines.append("")
         lines.append("Top RAM Consumers:")
         ram_components = sorted(components, key=lambda x: x[1].ram_total, reverse=True)
-        for i, (name, mem) in enumerate(ram_components[:10]):
+        for i, (name, mem) in enumerate(ram_components[:25]):
             if mem.ram_total > 0:
                 percentage = (mem.ram_total / total_ram * 100) if total_ram > 0 else 0
                 lines.append(
