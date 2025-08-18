@@ -27,7 +27,7 @@ void SafeModeComponent::dump_config() {
   if (this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
     auto remaining_restarts = this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_;
     if (remaining_restarts) {
-      ESP_LOGW(TAG, "Last reset too quick; safe mode in %" PRIu32 " restarts", remaining_restarts);
+      ESP_LOGW(TAG, "Last reset too quick; invoke in %" PRIu32 " restarts", remaining_restarts);
     } else {
       ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
     }
