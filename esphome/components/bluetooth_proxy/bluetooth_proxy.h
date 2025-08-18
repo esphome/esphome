@@ -150,7 +150,6 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 
   // BLE advertisement batching
-  std::vector<api::BluetoothLERawAdvertisement> advertisement_pool_;
   api::BluetoothLERawAdvertisementsResponse response_;
 
   // Group 3: 4-byte types
@@ -161,9 +160,8 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   // Group 4: 1-byte types grouped together
   bool active_;
-  uint8_t advertisement_count_{0};
   uint8_t connection_count_{0};
-  // 3 bytes used, 1 byte padding
+  // 2 bytes used, 2 bytes padding
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

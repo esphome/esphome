@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
     CONF_IGNORE_EFUSE_MAC_CRC,
+    CONF_LOG_LEVEL,
     CONF_NAME,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
@@ -78,6 +79,15 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_RELEASE = "release"
+
+LOG_LEVELS_IDF = [
+    "NONE",
+    "ERROR",
+    "WARN",
+    "INFO",
+    "DEBUG",
+    "VERBOSE",
+]
 
 ASSERTION_LEVELS = {
     "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
@@ -623,6 +633,9 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
                 cv.string_strict: cv.string_strict
             },
+            cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
+                *LOG_LEVELS_IDF, upper=True
+            ),
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
                     cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
@@ -935,6 +948,10 @@ async def to_code(config):
             cg.RawExpression(
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
+        )
+
+        add_idf_sdkconfig_option(
+            f"CONFIG_LOG_DEFAULT_LEVEL_{conf[CONF_LOG_LEVEL]}", True
         )
 
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():

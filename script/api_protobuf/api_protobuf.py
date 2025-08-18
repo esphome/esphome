@@ -339,6 +339,11 @@ def create_field_type_info(
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
     if field.label == 3:  # repeated
+        # Check if this repeated field has fixed_array_with_length_define option
+        if (
+            fixed_size := get_field_opt(field, pb.fixed_array_with_length_define)
+        ) is not None:
+            return FixedArrayWithLengthRepeatedType(field, fixed_size)
         # Check if this repeated field has fixed_array_size option
         if (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None:
             return FixedArrayRepeatedType(field, fixed_size)
@@ -1052,7 +1057,7 @@ def _generate_array_dump_content(
     """
     o = f"for (const auto {'' if is_bool else '&'}it : {field_name}) {{\n"
     # Check if underlying type can use dump_field
-    if type(ti).can_use_dump_field():
+    if ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
         o += f'  dump_field(out, "{name}", {ti.dump_field_value("it")}, 4);\n'
     else:
@@ -1084,6 +1089,12 @@ class FixedArrayRepeatedType(TypeInfo):
         validate_field_type(field.type, field.name)
         self._ti: TypeInfo = TYPE_INFO[field.type](field)
 
+    def _encode_element(self, element: str) -> str:
+        """Helper to generate encode statement for a single element."""
+        if isinstance(self._ti, EnumType):
+            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+
     @property
     def cpp_type(self) -> str:
         return f"std::array<{self._ti.cpp_type}, {self.array_size}>"
@@ -1111,19 +1122,13 @@ class FixedArrayRepeatedType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Helper to generate encode statement for a single element
-        def encode_element(element: str) -> str:
-            if isinstance(self._ti, EnumType):
-                return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
-            return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
-
         # If skip_zero is enabled, wrap encoding in a zero check
         if self.skip_zero:
             if self.is_define:
                 # When using a define, we need to use a loop-based approach
                 o = f"for (const auto &it : this->{self.field_name}) {{\n"
                 o += "  if (it != 0) {\n"
-                o += f"    {encode_element('it')}\n"
+                o += f"    {self._encode_element('it')}\n"
                 o += "  }\n"
                 o += "}"
                 return o
@@ -1132,7 +1137,7 @@ class FixedArrayRepeatedType(TypeInfo):
                 [f"this->{self.field_name}[{i}] != 0" for i in range(self.array_size)]
             )
             encode_lines = [
-                f"  {encode_element(f'this->{self.field_name}[{i}]')}"
+                f"  {self._encode_element(f'this->{self.field_name}[{i}]')}"
                 for i in range(self.array_size)
             ]
             return f"if ({non_zero_checks}) {{\n" + "\n".join(encode_lines) + "\n}"
@@ -1140,23 +1145,23 @@ class FixedArrayRepeatedType(TypeInfo):
         # When using a define, always use loop-based approach
         if self.is_define:
             o = f"for (const auto &it : this->{self.field_name}) {{\n"
-            o += f"  {encode_element('it')}\n"
+            o += f"  {self._encode_element('it')}\n"
             o += "}"
             return o
 
         # Unroll small arrays for efficiency
         if self.array_size == 1:
-            return encode_element(f"this->{self.field_name}[0]")
+            return self._encode_element(f"this->{self.field_name}[0]")
         if self.array_size == 2:
             return (
-                encode_element(f"this->{self.field_name}[0]")
+                self._encode_element(f"this->{self.field_name}[0]")
                 + "\n  "
-                + encode_element(f"this->{self.field_name}[1]")
+                + self._encode_element(f"this->{self.field_name}[1]")
             )
 
         # Use loops for larger arrays
         o = f"for (const auto &it : this->{self.field_name}) {{\n"
-        o += f"  {encode_element('it')}\n"
+        o += f"  {self._encode_element('it')}\n"
         o += "}"
         return o
 
@@ -1228,6 +1233,66 @@ class FixedArrayRepeatedType(TypeInfo):
             # fixed arrays are only for SOURCE_SERVER (encode-only) messages
             return underlying_size * 3
         return underlying_size * self.array_size
+
+
+class FixedArrayWithLengthRepeatedType(FixedArrayRepeatedType):
+    """Special type for fixed-size repeated fields with variable length tracking.
+
+    Similar to FixedArrayRepeatedType but generates an additional length field
+    to track how many elements are actually in use. Only encodes/sends elements
+    up to the current length.
+
+    Fixed arrays with length are only supported for encoding (SOURCE_SERVER) since
+    we cannot control how many items we receive when decoding.
+    """
+
+    @property
+    def public_content(self) -> list[str]:
+        # Return both the array and the length field
+        return [
+            f"{self.cpp_type} {self.field_name}{{}};",
+            f"uint16_t {self.field_name}_len{{0}};",
+        ]
+
+    @property
+    def encode_content(self) -> str:
+        # Always use a loop up to the current length
+        o = f"for (uint16_t i = 0; i < this->{self.field_name}_len; i++) {{\n"
+        o += f"  {self._encode_element(f'this->{self.field_name}[i]')}\n"
+        o += "}"
+        return o
+
+    @property
+    def dump_content(self) -> str:
+        # Dump only the active elements
+        o = f"for (uint16_t i = 0; i < this->{self.field_name}_len; i++) {{\n"
+        # Check if underlying type can use dump_field
+        if self._ti.can_use_dump_field():
+            o += f'  dump_field(out, "{self.name}", {self._ti.dump_field_value(f"this->{self.field_name}[i]")}, 4);\n'
+        else:
+            o += f'  out.append("  {self.name}: ");\n'
+            o += indent(self._ti.dump(f"this->{self.field_name}[i]")) + "\n"
+            o += '  out.append("\\n");\n'
+        o += "}"
+        return o
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        # Calculate size only for active elements
+        o = f"for (uint16_t i = 0; i < {name}_len; i++) {{\n"
+        o += f"  {self._ti.get_size_calculation(f'{name}[i]', True)}\n"
+        o += "}"
+        return o
+
+    def get_estimated_size(self) -> int:
+        # For fixed arrays with length, estimate based on typical usage
+        # Assume on average half the array is used
+        underlying_size = self._ti.get_estimated_size()
+        if self.is_define:
+            # When using a define, estimate 8 elements as typical
+            return underlying_size * 8
+        return underlying_size * (
+            self.array_size // 2 if self.array_size > 2 else self.array_size
+        )
 
 
 class RepeatedTypeInfo(TypeInfo):
@@ -1708,6 +1773,19 @@ def build_message_type(
                 f"Message '{desc.name}' uses fixed_array_size on field '{field.name}' "
                 f"but has source={SOURCE_NAMES[source]}. "
                 f"Fixed arrays are only supported for SOURCE_SERVER (encode-only) messages "
+                f"since we cannot trust or control the number of items received from clients."
+            )
+
+        # Validate that fixed_array_with_length_define is only used in encode-only messages
+        if (
+            needs_decode
+            and field.label == 3
+            and get_field_opt(field, pb.fixed_array_with_length_define) is not None
+        ):
+            raise ValueError(
+                f"Message '{desc.name}' uses fixed_array_with_length_define on field '{field.name}' "
+                f"but has source={SOURCE_NAMES[source]}. "
+                f"Fixed arrays with length are only supported for SOURCE_SERVER (encode-only) messages "
                 f"since we cannot trust or control the number of items received from clients."
             )
 

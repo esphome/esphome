@@ -373,6 +373,7 @@ async def _add_ble_features():
     # Add feature-specific defines based on what's needed
     if BLEFeatures.ESP_BT_DEVICE in _required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
+        cg.add_define("USE_ESP32_BLE_UUID")
 
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(

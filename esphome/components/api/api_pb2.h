@@ -1788,11 +1788,12 @@ class BluetoothLERawAdvertisement : public ProtoMessage {
 class BluetoothLERawAdvertisementsResponse : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 93;
-  static constexpr uint8_t ESTIMATED_SIZE = 34;
+  static constexpr uint8_t ESTIMATED_SIZE = 136;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_le_raw_advertisements_response"; }
 #endif
-  std::vector<BluetoothLERawAdvertisement> advertisements{};
+  std::array<BluetoothLERawAdvertisement, BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE> advertisements{};
+  uint16_t advertisements_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
