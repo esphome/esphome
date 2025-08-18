@@ -129,8 +129,6 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
 }
 
 void RotaryEncoderSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
-
   int32_t initial_value = 0;
   switch (this->restore_mode_) {
     case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:

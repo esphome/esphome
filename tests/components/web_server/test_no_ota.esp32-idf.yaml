@@ -1,3 +1,11 @@
+esphome:
+  name: test-web-server-no-ota-idf
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
 packages:
   device_base: !include common.yaml
 
@@ -6,4 +14,3 @@ packages:
 web_server:
   port: 8080
   version: 2
-  ota: false

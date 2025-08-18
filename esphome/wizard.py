@@ -116,10 +116,7 @@ def wizard_file(**kwargs):
     kwargs["fallback_name"] = ap_name
     kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
 
-    if kwargs.get("friendly_name"):
-        base = BASE_CONFIG_FRIENDLY
-    else:
-        base = BASE_CONFIG
+    base = BASE_CONFIG_FRIENDLY if kwargs.get("friendly_name") else BASE_CONFIG
 
     config = base.format(**kwargs)
 
@@ -411,7 +408,7 @@ def wizard(path):
     safe_print("Options:")
     for board_id, board_data in boards_list:
         safe_print(f" - {board_id} - {board_data['name']}")
-        boards.append(board_id)
+        boards.append(board_id.lower())
 
     while True:
         board = safe_input(color(AnsiFore.BOLD_WHITE, "(board): "))

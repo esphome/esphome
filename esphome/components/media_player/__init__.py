@@ -7,6 +7,8 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_IDLE,
     CONF_ON_STATE,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
     CONF_VOLUME,
 )
@@ -58,6 +60,12 @@ VolumeDownAction = media_player_ns.class_(
 VolumeSetAction = media_player_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+TurnOnAction = media_player_ns.class_(
+    "TurnOnAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+TurnOffAction = media_player_ns.class_(
+    "TurnOffAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ON_PLAY = "on_play"
@@ -72,12 +80,16 @@ PauseTrigger = media_player_ns.class_("PauseTrigger", automation.Trigger.templat
 AnnoucementTrigger = media_player_ns.class_(
     "AnnouncementTrigger", automation.Trigger.template()
 )
+OnTrigger = media_player_ns.class_("OnTrigger", automation.Trigger.template())
+OffTrigger = media_player_ns.class_("OffTrigger", automation.Trigger.template())
 IsIdleCondition = media_player_ns.class_("IsIdleCondition", automation.Condition)
 IsPausedCondition = media_player_ns.class_("IsPausedCondition", automation.Condition)
 IsPlayingCondition = media_player_ns.class_("IsPlayingCondition", automation.Condition)
 IsAnnouncingCondition = media_player_ns.class_(
     "IsAnnouncingCondition", automation.Condition
 )
+IsOnCondition = media_player_ns.class_("IsOnCondition", automation.Condition)
+IsOffCondition = media_player_ns.class_("IsOffCondition", automation.Condition)
 
 
 async def setup_media_player_core_(var, config):
@@ -95,6 +107,12 @@ async def setup_media_player_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_ANNOUNCEMENT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TURN_ON, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
@@ -138,6 +156,16 @@ _MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_ON_ANNOUNCEMENT): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(AnnoucementTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OffTrigger),
             }
         ),
     }
@@ -218,6 +246,12 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
 @automation.register_action(
     "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
 )
+@automation.register_action(
+    "media_player.turn_on", TurnOnAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.turn_off", TurnOffAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
 async def media_player_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -237,6 +271,12 @@ async def media_player_action(config, action_id, template_arg, args):
 )
 @automation.register_condition(
     "media_player.is_announcing", IsAnnouncingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_on", IsOnCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_off", IsOffCondition, MEDIA_PLAYER_CONDITION_SCHEMA
 )
 async def media_player_condition(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

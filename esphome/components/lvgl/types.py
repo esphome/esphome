@@ -161,7 +161,7 @@ class WidgetType:
         """
         return []
 
-    def obj_creator(self, parent: MockObjClass, config: dict):
+    async def obj_creator(self, parent: MockObjClass, config: dict):
         """
         Create an instance of the widget type
         :param parent: The parent to which it should be attached
@@ -192,7 +192,7 @@ class WidgetType:
 
 class NumberType(WidgetType):
     def get_max(self, config: dict):
-        return int(config[CONF_MAX_VALUE] or 100)
+        return int(config.get(CONF_MAX_VALUE, 100))
 
     def get_min(self, config: dict):
-        return int(config[CONF_MIN_VALUE] or 0)
+        return int(config.get(CONF_MIN_VALUE, 0))

@@ -37,6 +37,15 @@ namespace web_server_idf {
 
 static const char *const TAG = "web_server_idf";
 
+// Global instance to avoid guard variable (saves 8 bytes)
+// This is initialized at program startup before any threads
+namespace {
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+DefaultHeaders default_headers_instance;
+}  // namespace
+
+DefaultHeaders &DefaultHeaders::Instance() { return default_headers_instance; }
+
 void AsyncWebServer::end() {
   if (this->server_) {
     httpd_stop(this->server_);
@@ -107,7 +116,7 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
   }
 
   // Handle regular form data
-  if (r->content_len > HTTPD_MAX_REQ_HDR_LEN) {
+  if (r->content_len > CONFIG_HTTPD_MAX_REQ_HDR_LEN) {
     ESP_LOGW(TAG, "Request size is to big: %zu", r->content_len);
     httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
     return ESP_FAIL;
@@ -214,6 +223,7 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   this->rsp_ = rsp;
 }
 
+#ifdef USE_WEBSERVER_AUTH
 bool AsyncWebServerRequest::authenticate(const char *username, const char *password) const {
   if (username == nullptr || password == nullptr || *username == 0) {
     return true;
@@ -252,6 +262,7 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
+#endif
 
 AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   auto find = this->params_.find(name);
@@ -380,10 +391,12 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
+    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     message = json::build_json([group](JsonObject root) {
       root["name"] = group.second.name;
       root["sorting_weight"] = group.second.weight;
     });
+    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config
@@ -412,14 +425,14 @@ void AsyncEventSourceResponse::destroy(void *ptr) {
 void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
 
-  auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
-                           [&item](const DeferredEvent &test) -> bool { return test == item; });
-
-  if (iter != this->deferred_queue_.end()) {
-    (*iter) = item;
-  } else {
-    this->deferred_queue_.push_back(item);
+  // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
+  for (auto &event : this->deferred_queue_) {
+    if (event == item) {
+      event = item;
+      return;
+    }
   }
+  this->deferred_queue_.push_back(item);
 }
 
 void AsyncEventSourceResponse::process_deferred_queue_() {

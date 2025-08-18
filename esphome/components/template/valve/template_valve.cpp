@@ -16,7 +16,6 @@ TemplateValve::TemplateValve()
       position_trigger_(new Trigger<float>()) {}
 
 void TemplateValve::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   switch (this->restore_mode_) {
     case VALVE_NO_RESTORE:
       break;

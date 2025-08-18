@@ -12,7 +12,7 @@ from esphome.const import (
     UNIT_DECIBEL,
 )
 
-AUTOLOAD = ["audio"]
+AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["microphone"]
 

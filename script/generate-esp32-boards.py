@@ -64,8 +64,10 @@ def main():
         for line in lines:
             if line.startswith("BOARDS = {"):
                 f.write("BOARDS = {\n")
-                for board, info in sorted(boards.items()):
-                    f.write(TEMPLATE % (board, info["name"], info["variant"]))
+                f.writelines(
+                    TEMPLATE % (board, info["name"], info["variant"])
+                    for board, info in sorted(boards.items())
+                )
                 f.write("}\n")
                 break
 

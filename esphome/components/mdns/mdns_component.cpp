@@ -104,7 +104,9 @@ void MDNSComponent::compile_records_() {
   }
 #endif
 
+#ifdef USE_MDNS_EXTRA_SERVICES
   this->services_.insert(this->services_.end(), this->services_extra_.begin(), this->services_extra_.end());
+#endif
 
   if (this->services_.empty()) {
     // Publish "http" service if not using native API

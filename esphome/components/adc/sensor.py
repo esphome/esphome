@@ -3,6 +3,12 @@ import logging
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import get_esp32_variant
+from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
+from esphome.components.zephyr import (
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+    zephyr_add_user,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ATTENUATION,
@@ -10,13 +16,12 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_RAW,
-    CONF_WIFI,
     DEVICE_CLASS_VOLTAGE,
+    PLATFORM_NRF52,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
 from esphome.core import CORE
-import esphome.final_validate as fv
 
 from . import (
     ATTENUATION_MODES,
@@ -24,6 +29,7 @@ from . import (
     ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
     SAMPLING_MODES,
     adc_ns,
+    adc_unit_t,
     validate_adc_pin,
 )
 
@@ -57,24 +63,13 @@ def validate_config(config):
     return config
 
 
-def final_validate_config(config):
-    if CORE.is_esp32:
-        variant = get_esp32_variant()
-        if (
-            CONF_WIFI in fv.full_config.get()
-            and config[CONF_PIN][CONF_NUMBER]
-            in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
-        ):
-            raise cv.Invalid(
-                f"{variant} doesn't support ADC on this pin when Wi-Fi is configured"
-            )
-
-    return config
-
-
 ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
+
+CONF_NRF_SAADC = "nrf_saadc"
+
+adc_dt_spec = cg.global_ns.class_("adc_dt_spec")
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
@@ -91,6 +86,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, _attenuation
             ),
+            cv.OnlyWith(CONF_NRF_SAADC, PLATFORM_NRF52): cv.declare_id(adc_dt_spec),
             cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
             cv.Optional(CONF_SAMPLING_MODE, default="avg"): _sampling_mode,
         }
@@ -99,7 +95,7 @@ CONFIG_SCHEMA = cv.All(
     validate_config,
 )
 
-FINAL_VALIDATE_SCHEMA = final_validate_config
+CONF_ADC_CHANNEL_ID = "adc_channel_id"
 
 
 async def to_code(config):
@@ -111,7 +107,7 @@ async def to_code(config):
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
         cg.add(var.set_is_temperature())
-    else:
+    elif not CORE.is_nrf52 or config[CONF_PIN][CONF_NUMBER] not in EXTRA_ADC:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
 
@@ -119,13 +115,13 @@ async def to_code(config):
     cg.add(var.set_sample_count(config[CONF_SAMPLES]))
     cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
 
-    if attenuation := config.get(CONF_ATTENUATION):
-        if attenuation == "auto":
-            cg.add(var.set_autorange(cg.global_ns.true))
-        else:
-            cg.add(var.set_attenuation(attenuation))
-
     if CORE.is_esp32:
+        if attenuation := config.get(CONF_ATTENUATION):
+            if attenuation == "auto":
+                cg.add(var.set_autorange(cg.global_ns.true))
+            else:
+                cg.add(var.set_attenuation(attenuation))
+
         variant = get_esp32_variant()
         pin_num = config[CONF_PIN][CONF_NUMBER]
         if (
@@ -133,10 +129,48 @@ async def to_code(config):
             and pin_num in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
         ):
             chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel1(chan))
+            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_1, chan))
         elif (
             variant in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL
             and pin_num in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
         ):
             chan = ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel2(chan))
+            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_2, chan))
+
+    elif CORE.is_nrf52:
+        CORE.data.setdefault(CONF_ADC_CHANNEL_ID, 0)
+        channel_id = CORE.data[CONF_ADC_CHANNEL_ID]
+        CORE.data[CONF_ADC_CHANNEL_ID] = channel_id + 1
+        zephyr_add_prj_conf("ADC", True)
+        nrf_saadc = config[CONF_NRF_SAADC]
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+        )
+        adc = cg.new_Pvariable(nrf_saadc, rhs)
+        cg.add(var.set_adc_channel(adc))
+        gain = "ADC_GAIN_1_6"
+        pin_number = config[CONF_PIN][CONF_NUMBER]
+        if pin_number == "VDDHDIV5":
+            gain = "ADC_GAIN_1_2"
+        if isinstance(pin_number, int):
+            GPIO_TO_AIN = {v: k for k, v in AIN_TO_GPIO.items()}
+            pin_number = GPIO_TO_AIN[pin_number]
+        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+&adc {{
+    #address-cells = <1>;
+    #size-cells = <0>;
+
+    channel@{channel_id} {{
+        reg = <{channel_id}>;
+        zephyr,gain = "{gain}";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
+        zephyr,resolution = <14>;
+        zephyr,oversampling = <8>;
+    }};
+}};
+"""
+        )

@@ -162,6 +162,7 @@ def text_sensor_schema(
     device_class: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
@@ -172,6 +173,7 @@ def text_sensor_schema(
         (CONF_ICON, icon, cv.icon),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
@@ -230,7 +232,6 @@ async def new_text_sensor(config, *args):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_TEXT_SENSOR")
     cg.add_global(text_sensor_ns.using)
 
 

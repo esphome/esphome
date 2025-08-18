@@ -36,7 +36,9 @@ class MDNSComponent : public Component {
 #endif
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
+#ifdef USE_MDNS_EXTRA_SERVICES
   void add_extra_service(MDNSService service) { services_extra_.push_back(std::move(service)); }
+#endif
 
   network::IPAddress resolve(const std::string &servicename);
   std::vector<MDNSService> get_services();
@@ -44,7 +46,9 @@ class MDNSComponent : public Component {
   void on_shutdown() override;
 
  protected:
+#ifdef USE_MDNS_EXTRA_SERVICES
   std::vector<MDNSService> services_extra_{};
+#endif
   std::vector<MDNSService> services_{};
   std::string hostname_;
   void compile_records_();

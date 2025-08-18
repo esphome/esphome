@@ -72,7 +72,7 @@ for f in ./tests/components/$target_component/*.*.yaml; do
 
   if [ "$target_platform" = "all" ] || [ $file_name_parts = 2 ]; then
     # Test has *not* defined a specific target platform. Need to run tests for all possible target platforms.
-    
+
     for target_platform_file in ./tests/test_build_components/build_components_base.*.yaml; do
       IFS='/' read -r -a folder_name <<< "$target_platform_file"
       IFS='.' read -r -a file_name <<< "${folder_name[3]}"
@@ -83,7 +83,7 @@ for f in ./tests/components/$target_component/*.*.yaml; do
 
   else
     # Test has defined a specific target platform.
-  
+
     # Validate we have a base test yaml for selected platform.
     # The target_platform is sourced from the following location.
     # 1. `./tests/test_build_components/build_components_base.[target_platform].yaml`

@@ -1,20 +1,79 @@
 """Constants used by esphome."""
 
-__version__ = "2025.7.0-dev"
+from enum import Enum
+
+from esphome.enum import StrEnum
+
+__version__ = "2025.9.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
-PLATFORM_BK72XX = "bk72xx"
-PLATFORM_ESP32 = "esp32"
-PLATFORM_ESP8266 = "esp8266"
-PLATFORM_HOST = "host"
-PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
-PLATFORM_LN882X = "ln882x"
-PLATFORM_RP2040 = "rp2040"
-PLATFORM_RTL87XX = "rtl87xx"
+
+class Platform(StrEnum):
+    """Platform identifiers for ESPHome."""
+
+    BK72XX = "bk72xx"
+    ESP32 = "esp32"
+    ESP8266 = "esp8266"
+    HOST = "host"
+    LIBRETINY_OLDSTYLE = "libretiny"
+    LN882X = "ln882x"
+    NRF52 = "nrf52"
+    RP2040 = "rp2040"
+    RTL87XX = "rtl87xx"
+
+
+class Framework(StrEnum):
+    """Framework identifiers for ESPHome."""
+
+    ARDUINO = "arduino"
+    ESP_IDF = "esp-idf"
+    NATIVE = "host"
+    ZEPHYR = "zephyr"
+
+
+class ThreadModel(StrEnum):
+    """Threading model identifiers for ESPHome scheduler."""
+
+    SINGLE = "ESPHOME_THREAD_SINGLE"
+    MULTI_NO_ATOMICS = "ESPHOME_THREAD_MULTI_NO_ATOMICS"
+    MULTI_ATOMICS = "ESPHOME_THREAD_MULTI_ATOMICS"
+
+
+class PlatformFramework(Enum):
+    """Combined platform-framework identifiers with tuple values."""
+
+    # ESP32 variants
+    ESP32_ARDUINO = (Platform.ESP32, Framework.ARDUINO)
+    ESP32_IDF = (Platform.ESP32, Framework.ESP_IDF)
+
+    # Arduino framework platforms
+    ESP8266_ARDUINO = (Platform.ESP8266, Framework.ARDUINO)
+    RP2040_ARDUINO = (Platform.RP2040, Framework.ARDUINO)
+    BK72XX_ARDUINO = (Platform.BK72XX, Framework.ARDUINO)
+    RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
+    LN882X_ARDUINO = (Platform.LN882X, Framework.ARDUINO)
+
+    # Zephyr framework platforms
+    NRF52_ZEPHYR = (Platform.NRF52, Framework.ZEPHYR)
+
+    # Host platform (native)
+    HOST_NATIVE = (Platform.HOST, Framework.NATIVE)
+
+
+# Maintain backward compatibility by reassigning after enum definition
+PLATFORM_BK72XX = Platform.BK72XX
+PLATFORM_ESP32 = Platform.ESP32
+PLATFORM_ESP8266 = Platform.ESP8266
+PLATFORM_HOST = Platform.HOST
+PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
+PLATFORM_LN882X = Platform.LN882X
+PLATFORM_NRF52 = Platform.NRF52
+PLATFORM_RP2040 = Platform.RP2040
+PLATFORM_RTL87XX = Platform.RTL87XX
 
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
@@ -45,6 +104,7 @@ CONF_ALL = "all"
 CONF_ALLOW_OTHER_USES = "allow_other_uses"
 CONF_ALPHA = "alpha"
 CONF_ALTITUDE = "altitude"
+CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
 CONF_AMBIENT_LIGHT = "ambient_light"
 CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
 CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
@@ -323,6 +383,8 @@ CONF_FINGER_ID = "finger_id"
 CONF_FINGERPRINT_COUNT = "fingerprint_count"
 CONF_FLASH_LENGTH = "flash_length"
 CONF_FLASH_TRANSITION_LENGTH = "flash_transition_length"
+CONF_FLIP_X = "flip_x"
+CONF_FLIP_Y = "flip_y"
 CONF_FLOW = "flow"
 CONF_FLOW_CONTROL_PIN = "flow_control_pin"
 CONF_FONT = "font"
@@ -463,6 +525,7 @@ CONF_LOADED_INTEGRATIONS = "loaded_integrations"
 CONF_LOCAL = "local"
 CONF_LOCK_ACTION = "lock_action"
 CONF_LOG = "log"
+CONF_LOG_LEVEL = "log_level"
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
@@ -700,6 +763,7 @@ CONF_POSITION_COMMAND_TOPIC = "position_command_topic"
 CONF_POSITION_STATE_TOPIC = "position_state_topic"
 CONF_POWER = "power"
 CONF_POWER_FACTOR = "power_factor"
+CONF_POWER_MODE = "power_mode"
 CONF_POWER_ON_VALUE = "power_on_value"
 CONF_POWER_SAVE_MODE = "power_save_mode"
 CONF_POWER_SUPPLY = "power_supply"
@@ -872,6 +936,7 @@ CONF_SWING_MODE_COMMAND_TOPIC = "swing_mode_command_topic"
 CONF_SWING_MODE_STATE_TOPIC = "swing_mode_state_topic"
 CONF_SWING_OFF_ACTION = "swing_off_action"
 CONF_SWING_VERTICAL_ACTION = "swing_vertical_action"
+CONF_SWITCH = "switch"
 CONF_SWITCH_DATAPOINT = "switch_datapoint"
 CONF_SWITCHES = "switches"
 CONF_SYNC = "sync"
@@ -1144,6 +1209,7 @@ UNIT_WATT = "W"
 UNIT_WATT_HOURS = "Wh"
 
 # device classes
+DEVICE_CLASS_ABSOLUTE_HUMIDITY = "absolute_humidity"
 DEVICE_CLASS_APPARENT_POWER = "apparent_power"
 DEVICE_CLASS_AQI = "aqi"
 DEVICE_CLASS_AREA = "area"
@@ -1268,3 +1334,7 @@ ENTITY_CATEGORY_CONFIG = "config"
 
 # The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
 ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
+
+# The corresponding constant exists in c++
+# when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
+SCHEDULER_DONT_RUN = 4294967295

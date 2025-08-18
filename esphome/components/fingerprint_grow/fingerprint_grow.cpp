@@ -57,8 +57,6 @@ void FingerprintGrowComponent::update() {
 }
 
 void FingerprintGrowComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->has_sensing_pin_ = (this->sensing_pin_ != nullptr);
   this->has_power_pin_ = (this->sensor_power_pin_ != nullptr);
 

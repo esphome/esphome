@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from aioesphomeapi import LogLevel
+from aioesphomeapi import LogLevel, SensorInfo
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -63,7 +63,7 @@ async def test_api_vv_logging(
         entity_info, _ = await client.list_entities_services()
 
         # Count sensors
-        sensor_count = sum(1 for e in entity_info if hasattr(e, "unit_of_measurement"))
+        sensor_count = sum(1 for e in entity_info if isinstance(e, SensorInfo))
         assert sensor_count >= 10, f"Expected at least 10 sensors, got {sensor_count}"
 
         # Wait for sensor updates to flow with VV logging active

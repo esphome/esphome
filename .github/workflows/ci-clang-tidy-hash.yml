@@ -1,0 +1,75 @@
+name: Clang-tidy Hash CI
+
+on:
+  pull_request:
+    paths:
+      - ".clang-tidy"
+      - "platformio.ini"
+      - "requirements_dev.txt"
+      - ".clang-tidy.hash"
+      - "script/clang_tidy_hash.py"
+      - ".github/workflows/ci-clang-tidy-hash.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  verify-hash:
+    name: Verify clang-tidy hash
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Verify hash
+        run: |
+          python script/clang_tidy_hash.py --verify
+
+      - if: failure()
+        name: Show hash details
+        run: |
+          python script/clang_tidy_hash.py
+          echo "## Job Failed" | tee -a $GITHUB_STEP_SUMMARY
+          echo "You have modified clang-tidy configuration but have not updated the hash." | tee -a $GITHUB_STEP_SUMMARY
+          echo "Please run 'script/clang_tidy_hash.py --update' and commit the changes." | tee -a $GITHUB_STEP_SUMMARY
+
+      - if: failure()
+        name: Request changes
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            await github.rest.pulls.createReview({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event: 'REQUEST_CHANGES',
+              body: 'You have modified clang-tidy configuration but have not updated the hash.\nPlease run `script/clang_tidy_hash.py --update` and commit the changes.'
+            })
+
+      - if: success()
+        name: Dismiss review
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            let reviews = await github.rest.pulls.listReviews({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            for (let review of reviews.data) {
+              if (review.user.login === 'github-actions[bot]' && review.state === 'CHANGES_REQUESTED') {
+                await github.rest.pulls.dismissReview({
+                  pull_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  review_id: review.id,
+                  message: 'Clang-tidy hash now matches configuration.'
+                });
+              }
+            }

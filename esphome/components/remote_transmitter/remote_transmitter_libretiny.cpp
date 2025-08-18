@@ -75,6 +75,8 @@ void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->target_time_ += usec;
 }
 
+void RemoteTransmitterComponent::digital_write(bool value) { this->pin_->digital_write(value); }
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   ESP_LOGD(TAG, "Sending remote code");
   uint32_t on_time, off_time;

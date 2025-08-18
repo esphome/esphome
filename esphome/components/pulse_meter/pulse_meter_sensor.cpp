@@ -31,6 +31,10 @@ void PulseMeterSensor::setup() {
     this->pulse_state_.latched_ = this->last_pin_val_;
     this->pin_->attach_interrupt(PulseMeterSensor::pulse_intr, this, gpio::INTERRUPT_ANY_EDGE);
   }
+
+  if (this->total_sensor_ != nullptr) {
+    this->total_sensor_->publish_state(this->total_pulses_);
+  }
 }
 
 void PulseMeterSensor::loop() {

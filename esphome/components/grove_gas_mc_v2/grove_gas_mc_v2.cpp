@@ -33,7 +33,6 @@ bool GroveGasMultichannelV2Component::read_sensor_(uint8_t address, sensor::Sens
 }
 
 void GroveGasMultichannelV2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Before reading sensor values, must preheat sensor
   if (!(this->write_bytes(GROVE_GAS_MC_V2_HEAT_ON, {}))) {
     this->mark_failed();

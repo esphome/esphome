@@ -14,11 +14,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#ifdef USE_ESP32
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <deque>
-#endif
 
 #if USE_WEBSERVER_VERSION >= 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
@@ -83,7 +78,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred
   update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with
   multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's
-  implemented in a more straightforward way for ESP-IDF. Arudino platform will eventually go away and this workaround
+  implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
 #ifdef USE_ARDUINO
@@ -126,6 +121,8 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   // footprint is more important than speed here)
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
+  uint16_t consecutive_send_failures_{0};
+  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 
   // helper for allowing only unique entries in the queue
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
@@ -212,11 +209,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param include_internal Whether internal components should be displayed.
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
-  /** Set whether or not the webserver should expose the OTA form and handler.
-   *
-   * @param allow_ota.
-   */
-  void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
   /** Set whether or not the webserver should expose the Log.
    *
    * @param expose_log.
@@ -506,7 +498,66 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
  protected:
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
-  void schedule_(std::function<void()> &&f);
+
+#ifdef USE_LIGHT
+  // Helper to parse and apply a float parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float),
+                          float scale = 1.0f) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value / scale);
+      }
+    }
+  }
+
+  // Helper to parse and apply a uint32_t parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_uint_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                               Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value * scale);
+      }
+    }
+  }
+#endif
+
+  // Generic helper to parse and apply a float parameter
+  template<typename T, typename Ret>
+  void parse_float_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply an int parameter
+  template<typename T, typename Ret>
+  void parse_int_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(int)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply a string parameter
+  template<typename T, typename Ret>
+  void parse_string_param_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                           Ret (T::*setter)(const std::string &)) {
+    if (request->hasParam(param_name)) {
+      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
+      std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+      (call.*setter)(value);
+    }
+  }
+
   web_server_base::WebServerBase *base_;
 #ifdef USE_ARDUINO
   DeferredUpdateEventSourceList events_;
@@ -525,12 +576,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool allow_ota_{true};
   bool expose_log_{true};
-#ifdef USE_ESP32
-  std::deque<std::function<void()>> to_schedule_;
-  SemaphoreHandle_t to_schedule_lock_;
-#endif
 };
 
 }  // namespace web_server

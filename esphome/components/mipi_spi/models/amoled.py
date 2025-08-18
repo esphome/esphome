@@ -1,8 +1,21 @@
+from esphome.components.mipi import (
+    MIPI,
+    MODE_RGB,
+    NORON,
+    PAGESEL,
+    PIXFMT,
+    SLPOUT,
+    SPIMODESEL,
+    SWIRE1,
+    SWIRE2,
+    TEON,
+    WCE,
+    WRAM,
+    WRCTRLD,
+    DriverChip,
+    delay,
+)
 from esphome.components.spi import TYPE_QUAD
-
-from .. import MODE_RGB
-from . import DriverChip, delay
-from .commands import MIPI, NORON, PAGESEL, PIXFMT, SLPOUT, SWIRE1, SWIRE2, TEON, WRAM
 
 DriverChip(
     "T-DISPLAY-S3-AMOLED",
@@ -67,6 +80,29 @@ RM690B0 = DriverChip(
     ),
 )
 
-T4_S3_AMOLED = RM690B0.extend("T4-S3", width=450, offset_width=16, bus_mode=TYPE_QUAD)
+T4_S3_AMOLED = RM690B0.extend(
+    "T4-S3",
+    width=450,
+    offset_width=16,
+    cs_pin=11,
+    reset_pin=13,
+    enable_pin=9,
+    bus_mode=TYPE_QUAD,
+)
+
+CO5300 = DriverChip(
+    "CO5300",
+    brightness=0xD0,
+    color_order=MODE_RGB,
+    bus_mode=TYPE_QUAD,
+    initsequence=(
+        (SLPOUT,),  # Requires early SLPOUT
+        (PAGESEL, 0x00),
+        (SPIMODESEL, 0x80),
+        (WRCTRLD, 0x20),
+        (WCE, 0x00),
+    ),
+)
+
 
 models = {}

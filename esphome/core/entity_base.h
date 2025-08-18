@@ -54,6 +54,14 @@ class EntityBase {
   // Get/set this entity's icon
   std::string get_icon() const;
   void set_icon(const char *icon);
+  StringRef get_icon_ref() const {
+    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+#ifdef USE_ENTITY_ICON
+    return this->icon_c_str_ == nullptr ? EMPTY_STRING : StringRef(this->icon_c_str_);
+#else
+    return EMPTY_STRING;
+#endif
+  }
 
 #ifdef USE_DEVICES
   // Get/set this entity's device id
@@ -80,7 +88,9 @@ class EntityBase {
 
   StringRef name_;
   const char *object_id_c_str_{nullptr};
+#ifdef USE_ENTITY_ICON
   const char *icon_c_str_{nullptr};
+#endif
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};
@@ -103,6 +113,11 @@ class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
   std::string get_device_class();
   /// Manually set the device class.
   void set_device_class(const char *device_class);
+  /// Get the device class as StringRef
+  StringRef get_device_class_ref() const {
+    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+    return this->device_class_ == nullptr ? EMPTY_STRING : StringRef(this->device_class_);
+  }
 
  protected:
   const char *device_class_{nullptr};  ///< Device class override
@@ -114,6 +129,11 @@ class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
   std::string get_unit_of_measurement();
   /// Manually set the unit of measurement.
   void set_unit_of_measurement(const char *unit_of_measurement);
+  /// Get the unit of measurement as StringRef
+  StringRef get_unit_of_measurement_ref() const {
+    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+    return this->unit_of_measurement_ == nullptr ? EMPTY_STRING : StringRef(this->unit_of_measurement_);
+  }
 
  protected:
   const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override

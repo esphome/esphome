@@ -54,7 +54,6 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
     // Delay here to allow power to stabilise before Ethernet is initialized.
     delay(300);  // NOLINT
@@ -122,25 +121,12 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
-#if ESP_IDF_VERSION_MAJOR >= 5
 #if CONFIG_ETH_SPI_ETHERNET_W5500
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
 #endif
 #if CONFIG_ETH_SPI_ETHERNET_DM9051
   eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(host, &devcfg);
 #endif
-#else
-  spi_device_handle_t spi_handle = nullptr;
-  err = spi_bus_add_device(host, &devcfg, &spi_handle);
-  ESPHL_ERROR_CHECK(err, "SPI bus add device error");
-
-#if CONFIG_ETH_SPI_ETHERNET_W5500
-  eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
-#endif
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
-  eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(spi_handle);
-#endif
-#endif  // ESP_IDF_VERSION_MAJOR >= 5
 
 #if CONFIG_ETH_SPI_ETHERNET_W5500
   w5500_config.int_gpio_num = this->interrupt_pin_;
@@ -211,11 +197,7 @@ void EthernetComponent::setup() {
     }
     case ETHERNET_TYPE_KSZ8081:
     case ETHERNET_TYPE_KSZ8081RNA: {
-#if ESP_IDF_VERSION_MAJOR >= 5
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
-#else
-      this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
-#endif
       break;
     }
 #endif
@@ -437,6 +419,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
 }
 
 network::IPAddress EthernetComponent::get_dns_address(uint8_t num) {
+  LwIPLock lock;
   const ip_addr_t *dns_ip = dns_getserver(num);
   return dns_ip;
 }
@@ -544,6 +527,7 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
   if (this->manual_ip_.has_value()) {
+    LwIPLock lock;
     if (this->manual_ip_->dns1.is_set()) {
       ip_addr_t d;
       d = this->manual_ip_->dns1;
@@ -576,8 +560,13 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  const ip_addr_t *dns_ip1 = dns_getserver(0);
-  const ip_addr_t *dns_ip2 = dns_getserver(1);
+  const ip_addr_t *dns_ip1;
+  const ip_addr_t *dns_ip2;
+  {
+    LwIPLock lock;
+    dns_ip1 = dns_getserver(0);
+    dns_ip2 = dns_getserver(1);
+  }
 
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"

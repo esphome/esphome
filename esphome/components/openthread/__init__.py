@@ -11,6 +11,7 @@ from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID
 import esphome.final_validate as fv
 
 from .const import (
+    CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
     CONF_MDNS_ID,
@@ -31,6 +32,11 @@ AUTO_LOAD = ["network"]
 # TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
+
+CONF_DEVICE_TYPES = [
+    "FTD",
+    "MTD",
+]
 
 
 def set_sdkconfig_options(config):
@@ -73,16 +79,15 @@ def set_sdkconfig_options(config):
                 "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
             )
 
-    if force_dataset := config.get(CONF_FORCE_DATASET):
-        if force_dataset:
-            cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
+    if config.get(CONF_FORCE_DATASET):
+        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     # TODO: Add suport for sleepy end devices
-    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_FTD", True)  # Full Thread Device
+    add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
 
 
 openthread_ns = cg.esphome_ns.namespace("openthread")
@@ -107,6 +112,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(OpenThreadComponent),
             cv.GenerateID(CONF_SRP_ID): cv.declare_id(OpenThreadSrpComponent),
             cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
+            cv.Optional(CONF_DEVICE_TYPE, default="FTD"): cv.one_of(
+                *CONF_DEVICE_TYPES, upper=True
+            ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.string_strict,
         }

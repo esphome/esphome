@@ -5,7 +5,9 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
 
+#ifdef USE_ESP32_BLE_DEVICE
 #include "ble_service.h"
+#endif
 
 #include <array>
 #include <string>
@@ -16,8 +18,7 @@
 #include <esp_gatt_common_api.h>
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace esp32_ble_client {
+namespace esphome::esp32_ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -31,7 +32,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void dump_config() override;
 
   void run_later(std::function<void()> &&f);  // NOLINT
+#ifdef USE_ESP32_BLE_DEVICE
   bool parse_device(const espbt::ESPBTDevice &device) override;
+#endif
   void on_scan_end() override {}
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
@@ -46,7 +49,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
 
-  void set_address(uint64_t address) {
+  virtual void set_address(uint64_t address) {
     this->address_ = address;
     this->remote_bda_[0] = (address >> 40) & 0xFF;
     this->remote_bda_[1] = (address >> 32) & 0xFF;
@@ -64,8 +67,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
                        (uint8_t) (this->address_ >> 0) & 0xff);
     }
   }
-  std::string address_str() const { return this->address_str_; }
+  const std::string &address_str() const { return this->address_str_; }
 
+#ifdef USE_ESP32_BLE_DEVICE
   BLEService *get_service(espbt::ESPBTUUID uuid);
   BLEService *get_service(uint16_t uuid);
   BLECharacteristic *get_characteristic(espbt::ESPBTUUID service, espbt::ESPBTUUID chr);
@@ -76,6 +80,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   BLEDescriptor *get_descriptor(uint16_t handle);
   // Get the configuration descriptor for the given characteristic handle.
   BLEDescriptor *get_config_descriptor(uint16_t handle);
+#endif
 
   float parse_char_value(uint8_t *value, uint16_t length);
 
@@ -102,7 +107,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   // Group 2: Container types (grouped for memory optimization)
   std::string address_str_{};
+#ifdef USE_ESP32_BLE_DEVICE
   std::vector<BLEService *> services_;
+#endif
 
   // Group 3: 4-byte types
   int gattc_if_;
@@ -125,9 +132,13 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
+  void log_gattc_event_(const char *name);
+  void restore_medium_conn_params_();
+  void log_gattc_warning_(const char *operation, esp_gatt_status_t status);
+  void log_gattc_warning_(const char *operation, esp_err_t err);
+  void log_connection_params_(const char *param_type);
 };
 
-}  // namespace esp32_ble_client
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_client
 
 #endif  // USE_ESP32
