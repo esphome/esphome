@@ -2,7 +2,12 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32P4,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -52,11 +57,11 @@ def validate_config(config):
         config[CONF_SCAN]
         and CORE.is_esp32
         and CORE.using_esp_idf
-        and esp32.get_esp32_variant()
+        and get_esp32_variant()
         in [
-            esp32.const.VARIANT_ESP32C5,
-            esp32.const.VARIANT_ESP32C6,
-            esp32.const.VARIANT_ESP32P4,
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32P4,
         ]
     ):
         version: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]

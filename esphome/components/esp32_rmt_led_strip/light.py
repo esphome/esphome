@@ -3,8 +3,10 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32, light
 from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.esp32 import only_on_variant
+from esphome.components.esp32.const import VARIANT_ESP32P4, VARIANT_ESP32S3
+from esphome.components.light import ADDRESSABLE_LIGHT_SCHEMA, register_light, types
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -25,7 +27,7 @@ DEPENDENCIES = ["esp32"]
 
 esp32_rmt_led_strip_ns = cg.esphome_ns.namespace("esp32_rmt_led_strip")
 ESP32RMTLEDStripLightOutput = esp32_rmt_led_strip_ns.class_(
-    "ESP32RMTLEDStripLightOutput", light.AddressableLight
+    "ESP32RMTLEDStripLightOutput", types.AddressableLight
 )
 
 RGBOrder = esp32_rmt_led_strip_ns.enum("RGBOrder")
@@ -68,7 +70,7 @@ CONF_RESET_LOW = "reset_low"
 
 
 CONFIG_SCHEMA = cv.All(
-    light.ADDRESSABLE_LIGHT_SCHEMA.extend(
+    ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
@@ -77,22 +79,20 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
-                esp32_s2=192,
-                esp32_s3=192,
-                esp32_p4=192,
                 esp32_c3=96,
                 esp32_c5=96,
                 esp32_c6=96,
                 esp32_h2=96,
+                esp32_p4=192,
+                esp32_s2=192,
+                esp32_s3=192,
             ): cv.int_range(min=2),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
             cv.Optional(CONF_USE_DMA): cv.All(
-                esp32.only_on_variant(
-                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
-                ),
+                only_on_variant(supported=[VARIANT_ESP32P4, VARIANT_ESP32S3]),
                 cv.boolean,
             ),
             cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,
@@ -128,7 +128,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    await light.register_light(var, config)
+    await register_light(var, config)
     await cg.register_component(var, config)
 
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))

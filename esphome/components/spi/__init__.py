@@ -277,7 +277,7 @@ def get_spi_interface(index):
     if index == 0:
         return "&SPI"
     # Following code can't apply to C2, H2 or 8266 since they have only one SPI
-    if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
+    if get_target_variant() in (VARIANT_ESP32S2, VARIANT_ESP32S3):
         return "new SPIClass(FSPI)"
     return "new SPIClass(HSPI)"
 
@@ -313,7 +313,7 @@ def spi_mode_schema(mode):
     if pin_count == 8:
         onlys.append(
             only_on_variant(
-                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+                supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]
             )
         )
     return cv.All(

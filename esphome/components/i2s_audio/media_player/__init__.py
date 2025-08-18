@@ -1,6 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32, media_player
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32S2
+from esphome.components.media_player import (
+    MediaPlayer,
+    media_player_schema,
+    new_media_player,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_MODE
 
@@ -21,7 +27,7 @@ CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2s_audio"]
 
 I2SAudioMediaPlayer = i2s_audio_ns.class_(
-    "I2SAudioMediaPlayer", cg.Component, media_player.MediaPlayer, I2SAudioOut
+    "I2SAudioMediaPlayer", cg.Component, MediaPlayer, I2SAudioOut
 )
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
@@ -40,7 +46,7 @@ INTERNAL_DAC_OPTIONS = {
 
 EXTERNAL_DAC_OPTIONS = [CONF_MONO, CONF_STEREO]
 
-NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
+NO_INTERNAL_DAC_VARIANTS = [VARIANT_ESP32S2]
 
 I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
 
@@ -48,7 +54,7 @@ I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
 def validate_esp32_variant(config):
     if config[CONF_DAC_TYPE] != "internal":
         return config
-    variant = esp32.get_esp32_variant()
+    variant = get_esp32_variant()
     if variant in NO_INTERNAL_DAC_VARIANTS:
         raise cv.Invalid(f"{variant} does not have an internal DAC")
     return config
@@ -57,7 +63,7 @@ def validate_esp32_variant(config):
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "internal": media_player.media_player_schema(I2SAudioMediaPlayer)
+            "internal": media_player_schema(I2SAudioMediaPlayer)
             .extend(
                 {
                     cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
@@ -65,7 +71,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             )
             .extend(cv.COMPONENT_SCHEMA),
-            "external": media_player.media_player_schema(I2SAudioMediaPlayer)
+            "external": media_player_schema(I2SAudioMediaPlayer)
             .extend(
                 {
                     cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
@@ -99,7 +105,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
-    var = await media_player.new_media_player(config)
+    var = await new_media_player(config)
     await cg.register_component(var, config)
 
     await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])

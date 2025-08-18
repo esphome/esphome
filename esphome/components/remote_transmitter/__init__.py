@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.components.esp32.const import VARIANT_ESP32P4, VARIANT_ESP32S3
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -49,21 +50,19 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_EOT_LEVEL): cv.All(cv.only_on_esp32, cv.boolean),
         cv.Optional(CONF_USE_DMA): cv.All(
-            esp32.only_on_variant(
-                supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
-            ),
+            esp32.only_on_variant(supported=[VARIANT_ESP32P4, VARIANT_ESP32S3]),
             cv.boolean,
         ),
         cv.SplitDefault(
             CONF_RMT_SYMBOLS,
             esp32=64,
-            esp32_s2=64,
-            esp32_s3=48,
-            esp32_p4=48,
             esp32_c3=48,
             esp32_c5=48,
             esp32_c6=48,
             esp32_h2=48,
+            esp32_p4=48,
+            esp32_s2=64,
+            esp32_s3=48,
         ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
         cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),

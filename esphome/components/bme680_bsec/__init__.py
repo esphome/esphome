@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
+from esphome.components.esp32.const import VARIANT_ESP32
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
 
@@ -69,7 +70,7 @@ CONFIG_SCHEMA = cv.All(
         cv.only_on_esp8266,
         cv.All(
             cv.only_on_esp32,
-            esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32]),
+            esp32.only_on_variant(supported=[VARIANT_ESP32]),
         ),
     ),
 )

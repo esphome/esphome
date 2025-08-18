@@ -4,11 +4,11 @@ import esphome.codegen as cg
 from esphome.components.esp32 import (
     CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
-    VARIANT_ESP32,
     add_idf_sdkconfig_option,
     get_esp32_variant,
 )
 from esphome.components.esp32.const import (
+    VARIANT_ESP32,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -48,17 +48,17 @@ CONF_ENABLE_ECC = "enable_ecc"
 
 SPIRAM_MODES = {
     VARIANT_ESP32: (TYPE_QUAD,),
+    VARIANT_ESP32P4: (TYPE_HEX,),
     VARIANT_ESP32S2: (TYPE_QUAD,),
     VARIANT_ESP32S3: (TYPE_QUAD, TYPE_OCTAL),
-    VARIANT_ESP32P4: (TYPE_HEX,),
 }
 
 
 SPIRAM_SPEEDS = {
     VARIANT_ESP32: (40, 80, 120),
+    VARIANT_ESP32P4: (20, 100, 200),
     VARIANT_ESP32S2: (40, 80, 120),
     VARIANT_ESP32S3: (40, 80, 120),
-    VARIANT_ESP32P4: (20, 100, 200),
 }
 
 

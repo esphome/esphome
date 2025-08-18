@@ -99,14 +99,14 @@ CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
-    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
-    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
+    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
+    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -225,15 +225,15 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
-                esp32_s2=USB_CDC,
-                esp32_s3_arduino=USB_CDC,
-                esp32_s3_idf=USB_SERIAL_JTAG,
                 esp32_c3_arduino=USB_CDC,
                 esp32_c3_idf=USB_SERIAL_JTAG,
                 esp32_c5_idf=USB_SERIAL_JTAG,
                 esp32_c6_arduino=USB_CDC,
                 esp32_c6_idf=USB_SERIAL_JTAG,
                 esp32_p4_idf=USB_SERIAL_JTAG,
+                esp32_s2=USB_CDC,
+                esp32_s3_arduino=USB_CDC,
+                esp32_s3_idf=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,

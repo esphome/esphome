@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import (
+from esphome.components.esp32.const import (
     KEY_BOARD,
     KEY_VARIANT,
     VARIANT_ESP32,
