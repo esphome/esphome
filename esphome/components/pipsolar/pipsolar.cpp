@@ -603,7 +603,7 @@ void Pipsolar::handle_qpiws_(const char* message) {
   bool enabled = true;
   std::string fc;
   bool value_warnings_present = false;
-  bool value_faults_present = true;
+  bool value_faults_present = false;
 
   for (size_t i = 1; i < strlen(message); i++) {
     enabled = message[i] == '1';
