@@ -241,7 +241,10 @@ class Scheduler {
 
   // Helper to check if item is marked for removal (platform-specific)
   // Returns true if item should be skipped, handles platform-specific synchronization
-  // NOTE: For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller must hold lock!
+  /**
+   * Returns true if the item is marked for removal.
+   * For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this function.
+   */
   bool is_item_removed_(SchedulerItem *item) const {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     // Multi-threaded with atomics: use atomic load for lock-free access
