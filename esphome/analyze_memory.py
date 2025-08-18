@@ -1472,7 +1472,7 @@ class MemoryAnalyzer:
                 self._esphome_core_symbols, key=lambda x: x[2], reverse=True
             )
 
-            for i, (symbol, demangled, size) in enumerate(sorted_core_symbols[:10]):
+            for i, (symbol, demangled, size) in enumerate(sorted_core_symbols[:15]):
                 lines.append(f"{i + 1}. {demangled} ({size:,} B)")
 
             lines.append("=" * table_width)
@@ -1485,7 +1485,7 @@ class MemoryAnalyzer:
         ]
         top_esphome_components = sorted(
             esphome_components, key=lambda x: x[1].flash_total, reverse=True
-        )[:10]
+        )[:25]
 
         # Check if API component exists and ensure it's included
         api_component = None
