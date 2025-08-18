@@ -6,9 +6,14 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import VARIANT_ESP32S2
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ESPHOME, CONF_ID, CONF_NAME
+from esphome.const import (
+    CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
+    CONF_ID,
+    CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
+)
 from esphome.core import CORE, TimePeriod
-from esphome.core.config import CONF_NAME_ADD_MAC_SUFFIX
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
