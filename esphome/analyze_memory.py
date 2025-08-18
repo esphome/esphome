@@ -1389,7 +1389,7 @@ class MemoryAnalyzer:
         # Top consumers
         lines.append("")
         lines.append("Top Flash Consumers:")
-        for i, (name, mem) in enumerate(components[:10]):
+        for i, (name, mem) in enumerate(components[:25]):
             if mem.flash_total > 0:
                 percentage = (
                     (mem.flash_total / total_flash * 100) if total_flash > 0 else 0
