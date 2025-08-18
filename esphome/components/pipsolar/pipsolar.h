@@ -204,6 +204,9 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   bool send_next_command_();
   bool send_next_poll_();
 
+  void handle_poll_response_(ENUMPollingCommand polling_command, const char *message);
+  void handle_poll_error_(ENUMPollingCommand polling_command);
+  // these handlers are designed in a way that an empty message sets all sensors to unknown
   void handle_qpiri_(const char *message);
   void handle_qpigs_(const char *message);
   void handle_qmod_(const char *message);

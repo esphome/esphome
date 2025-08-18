@@ -66,46 +66,9 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_POLL_CHECKED) {
-    switch (this->enabled_polling_commands_[this->last_polling_command_].identifier) {
-      case POLLING_QPIRI:
-        ESP_LOGD(TAG, "Decode QPIRI");
-        handle_qpiri_((const char*)this->read_buffer_);
-        this->state_ = STATE_IDLE;
-        break;
-      case POLLING_QPIGS:
-        ESP_LOGD(TAG, "Decode QPIGS");
-        handle_qpigs_((const char*)this->read_buffer_);
-        this->state_ = STATE_IDLE;
-        break;
-      case POLLING_QMOD:
-        ESP_LOGD(TAG, "Decode QMOD");
-        handle_qmod_((const char*)this->read_buffer_);
-        this->state_ = STATE_IDLE;
-        break;
-      case POLLING_QFLAG:
-        ESP_LOGD(TAG, "Decode QFLAG");
-        handle_qflag_((const char*)this->read_buffer_);
-        this->state_ = STATE_IDLE;
-        break;
-      case POLLING_QPIWS:
-        ESP_LOGD(TAG, "Decode QPIWS");
-        handle_qpiws_((const char*)this->read_buffer_);
-        this->state_ = STATE_IDLE;
-        break;
-      case POLLING_QT:
-        ESP_LOGD(TAG, "Decode QT");
-        handle_qt_((const char*)this->read_buffer_);
-        this->state_ = STATE_IDLE;
-        break;
-      case POLLING_QMN:
-        ESP_LOGD(TAG, "Decode QMN");
-        handle_qmn_((const char*)this->read_buffer_);
-        this->state_ = STATE_IDLE;
-        break;
-      default:
-        this->state_ = STATE_IDLE;
-        break;
-    }
+    this->handle_poll_response_(this->enabled_polling_commands_[this->last_polling_command_].identifier,
+                                (const char *) this->read_buffer_);
+    this->state_ = STATE_IDLE;
     return;
   }
 
@@ -113,6 +76,8 @@ void Pipsolar::loop() {
     if (this->check_incoming_crc_()) {
       if (this->read_buffer_[0] == '(' && this->read_buffer_[1] == 'N' && this->read_buffer_[2] == 'A' &&
           this->read_buffer_[3] == 'K') {
+        ESP_LOGD(TAG, "poll %s NACK", this->enabled_polling_commands_[this->last_polling_command_].command);
+        this->handle_poll_error_(this->enabled_polling_commands_[this->last_polling_command_].identifier);
         this->state_ = STATE_IDLE;
         return;
       }
@@ -121,6 +86,8 @@ void Pipsolar::loop() {
       this->state_ = STATE_POLL_CHECKED;
       return;
     } else {
+      ESP_LOGD(TAG, "poll %s CRC error", this->enabled_polling_commands_[this->last_polling_command_].command);
+      this->handle_poll_error_(this->enabled_polling_commands_[this->last_polling_command_].identifier);
       this->state_ = STATE_IDLE;
     }
   }
@@ -166,7 +133,8 @@ void Pipsolar::loop() {
   if (this->state_ == STATE_POLL) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
       // command timeout
-      ESP_LOGD(TAG, "timeout command to poll: %s", this->enabled_polling_commands_[this->last_polling_command_].command);
+      ESP_LOGD(TAG, "poll %s timeout", this->enabled_polling_commands_[this->last_polling_command_].command);
+      this->handle_poll_error_(this->enabled_polling_commands_[this->last_polling_command_].identifier);
       this->state_ = STATE_IDLE;
     } else {
     }
@@ -270,7 +238,70 @@ void Pipsolar::queue_command(const std::string &command) {
   ESP_LOGD(TAG, "Command queue full dropping command: %s", command.c_str());
 }
 
-void Pipsolar::handle_qpiri_(const char* message) {
+void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const char *message) {
+  switch (polling_command) {
+    case POLLING_QPIRI:
+      ESP_LOGD(TAG, "Decode QPIRI");
+      handle_qpiri_(message);
+      break;
+    case POLLING_QPIGS:
+      ESP_LOGD(TAG, "Decode QPIGS");
+      handle_qpigs_(message);
+      break;
+    case POLLING_QMOD:
+      ESP_LOGD(TAG, "Decode QMOD");
+      handle_qmod_(message);
+      break;
+    case POLLING_QFLAG:
+      ESP_LOGD(TAG, "Decode QFLAG");
+      handle_qflag_(message);
+      break;
+    case POLLING_QPIWS:
+      ESP_LOGD(TAG, "Decode QPIWS");
+      handle_qpiws_(message);
+      break;
+    case POLLING_QT:
+      ESP_LOGD(TAG, "Decode QT");
+      handle_qt_(message);
+      break;
+    case POLLING_QMN:
+      ESP_LOGD(TAG, "Decode QMN");
+      handle_qmn_(message);
+      break;
+    default:
+      break;
+  }
+}
+void Pipsolar::handle_poll_error_(ENUMPollingCommand polling_command) {
+  // these handlers are designed in a way that an empty message sets all sensors to unknown
+  switch (polling_command) {
+    case POLLING_QPIRI:
+      handle_qpiri_("");
+      break;
+    case POLLING_QPIGS:
+      handle_qpigs_("");
+      break;
+    case POLLING_QMOD:
+      handle_qmod_("");
+      break;
+    case POLLING_QFLAG:
+      handle_qflag_("");
+      break;
+    case POLLING_QPIWS:
+      handle_qpiws_("");
+      break;
+    case POLLING_QT:
+      handle_qt_("");
+      break;
+    case POLLING_QMN:
+      handle_qmn_("");
+      break;
+    default:
+      break;
+  }
+}
+
+void Pipsolar::handle_qpiri_(const char *message) {
   if (this->last_qpiri_) {
     this->last_qpiri_->publish_state(message);
   }
@@ -353,7 +384,7 @@ void Pipsolar::handle_qpiri_(const char* message) {
   }
 }
 
-void Pipsolar::handle_qpigs_(const char* message) {
+void Pipsolar::handle_qpigs_(const char *message) {
   if (this->last_qpigs_) {
     this->last_qpigs_->publish_state(message);
   }
@@ -406,7 +437,7 @@ void Pipsolar::handle_qpigs_(const char* message) {
   this->publish_binary_sensor_(this->get_bit_(device_status_2, 2), this->dustproof_installed_);
 }
 
-void Pipsolar::handle_qmod_(const char* message) {
+void Pipsolar::handle_qmod_(const char *message) {
   std::string mode;
   char device_mode = char(message[1]);
   if (this->last_qmod_) {
@@ -418,7 +449,7 @@ void Pipsolar::handle_qmod_(const char* message) {
   }
 }
 
-void Pipsolar::handle_qflag_(const char* message) {
+void Pipsolar::handle_qflag_(const char *message) {
   // result like:"(EbkuvxzDajy"
   // get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
   if (this->last_qflag_) {
@@ -471,12 +502,13 @@ void Pipsolar::handle_qflag_(const char* message) {
   this->publish_binary_sensor_(values.overload_restart_function, this->overload_restart_function_);
   this->publish_binary_sensor_(values.over_temperature_restart_function, this->over_temperature_restart_function_);
   this->publish_binary_sensor_(values.backlight_on, this->backlight_on_);
-  this->publish_binary_sensor_(values.alarm_on_when_primary_source_interrupt, this->alarm_on_when_primary_source_interrupt_);
+  this->publish_binary_sensor_(values.alarm_on_when_primary_source_interrupt,
+                               this->alarm_on_when_primary_source_interrupt_);
   this->publish_binary_sensor_(values.fault_code_record, this->fault_code_record_);
   this->publish_binary_sensor_(values.power_saving, this->power_saving_);
 }
 
-void Pipsolar::handle_qpiws_(const char* message) {
+void Pipsolar::handle_qpiws_(const char *message) {
   // '(00000000000000000000000000000000'
   // iterate over all available flag (as not all models have all flags, but at least in the same order)
   if (this->last_qpiws_) {
@@ -657,12 +689,12 @@ void Pipsolar::handle_qmn_(const char *message) {
   }
 }
 
-void Pipsolar::skip_start_(const char* message, size_t *pos) {
+void Pipsolar::skip_start_(const char *message, size_t *pos) {
   if (message[*pos] == '(') {
     (*pos)++;
   }
 }
-void Pipsolar::skip_field_(const char* message, size_t *pos) {
+void Pipsolar::skip_field_(const char *message, size_t *pos) {
   // find delimiter or end of string
   while (message[*pos] != '\0' && message[*pos] != ' ') {
     (*pos)++;
@@ -672,7 +704,7 @@ void Pipsolar::skip_field_(const char* message, size_t *pos) {
     (*pos)++;
   }
 }
-std::string Pipsolar::read_field_(const char* message, size_t *pos) {
+std::string Pipsolar::read_field_(const char *message, size_t *pos) {
   size_t begin = *pos;
   // find delimiter or end of string
   while (message[*pos] != '\0' && message[*pos] != ' ') {
@@ -692,7 +724,7 @@ std::string Pipsolar::read_field_(const char* message, size_t *pos) {
   return field;
 }
 
-void Pipsolar::read_float_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor) {
+void Pipsolar::read_float_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor) {
   if (sensor != nullptr) {
     std::string field = this->read_field_(message, pos);
     sensor->publish_state(parse_number<float>(field).value_or(NAN));
@@ -700,7 +732,7 @@ void Pipsolar::read_float_sensor_(const char* message, size_t *pos, sensor::Sens
     this->skip_field_(message, pos);
   }
 }
-void Pipsolar::read_int_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor) {
+void Pipsolar::read_int_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor) {
   if (sensor != nullptr) {
     std::string field = this->read_field_(message, pos);
     esphome::optional<int32_t> parsed = parse_number<int32_t>(field);
