@@ -18,7 +18,7 @@ void SafeModeComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Safe Mode:\n"
                 "  Successful after: %" PRIu32 "s\n"
-                "  Attempts: %u\n"
+                "  Invoke after: %u attempts\n"
                 "  Duration: %" PRIu32 "s",
                 this->safe_mode_boot_is_good_after_ / 1000,  // because milliseconds
                 this->safe_mode_num_attempts_,
