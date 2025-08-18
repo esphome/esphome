@@ -7,6 +7,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace pipsolar {
@@ -28,115 +29,17 @@ struct PollingCommand {
   bool needs_update;
 };
 
-struct QPIRIValues {
-  float grid_rating_voltage;
-  float grid_rating_current;
-  float ac_output_rating_voltage;
-  float ac_output_rating_frequency;
-  float ac_output_rating_current;
-  int ac_output_rating_apparent_power;
-  int ac_output_rating_active_power;
-  float battery_rating_voltage;
-  float battery_recharge_voltage;
-  float battery_under_voltage;
-  float battery_bulk_voltage;
-  float battery_float_voltage;
-  int battery_type;
-  int current_max_ac_charging_current;
-  int current_max_charging_current;
-  int input_voltage_range;
-  int output_source_priority;
-  int charger_source_priority;
-  int parallel_max_num;
-  int machine_type;
-  int topology;
-  int output_mode;
-  float battery_redischarge_voltage;
-  int pv_ok_condition_for_parallel;
-  int pv_power_balance;
-};
-struct QPIGSValues {
-  float grid_voltage;
-  float grid_frequency;
-  float ac_output_voltage;
-  float ac_output_frequency;
-  int ac_output_apparent_power;
-  int ac_output_active_power;
-  int output_load_percent;
-  int bus_voltage;
-  float battery_voltage;
-  int battery_charging_current;
-  int battery_capacity_percent;
-  int inverter_heat_sink_temperature;
-  float pv_input_current_for_battery;
-  float pv_input_voltage;
-  float battery_voltage_scc;
-  int battery_discharge_current;
-  int add_sbu_priority_version;
-  int configuration_status;
-  int scc_firmware_version;
-  int load_status;
-  int battery_voltage_to_steady_while_charging;
-  int charging_status;
-  int scc_charging_status;
-  int ac_charging_status;
-  int battery_voltage_offset_for_fans_on;
-  int eeprom_version;
-  int pv_charging_power;
-  int charging_to_floating_mode;
-  int switch_on;
-  int dustproof_installed;
-};
 struct QFLAGValues {
-  int silence_buzzer_open_buzzer;
-  int overload_bypass_function;
-  int lcd_escape_to_default;
-  int overload_restart_function;
-  int over_temperature_restart_function;
-  int backlight_on;
-  int alarm_on_when_primary_source_interrupt;
-  int fault_code_record;
-  int power_saving;
+  esphome::optional<bool> silence_buzzer_open_buzzer;
+  esphome::optional<bool> overload_bypass_function;
+  esphome::optional<bool> lcd_escape_to_default;
+  esphome::optional<bool> overload_restart_function;
+  esphome::optional<bool> over_temperature_restart_function;
+  esphome::optional<bool> backlight_on;
+  esphome::optional<bool> alarm_on_when_primary_source_interrupt;
+  esphome::optional<bool> fault_code_record;
+  esphome::optional<bool> power_saving;
 };
-struct QPIWSValues {
-  bool warnings_present;
-  bool faults_present;
-  bool warning_power_loss;
-  bool fault_inverter_fault;
-  bool fault_bus_over;
-  bool fault_bus_under;
-  bool fault_bus_soft_fail;
-  bool warning_line_fail;
-  bool fault_opvshort;
-  bool fault_inverter_voltage_too_low;
-  bool fault_inverter_voltage_too_high;
-  bool warning_over_temperature;
-  bool warning_fan_lock;
-  bool warning_battery_voltage_high;
-  bool warning_battery_low_alarm;
-  bool warning_battery_under_shutdown;
-  bool warning_battery_derating;
-  bool warning_over_load;
-  bool warning_eeprom_failed;
-  bool fault_inverter_over_current;
-  bool fault_inverter_soft_failed;
-  bool fault_self_test_failed;
-  bool fault_op_dc_voltage_over;
-  bool fault_battery_open;
-  bool fault_current_sensor_failed;
-  bool fault_battery_short;
-  bool warning_power_limit;
-  bool warning_pv_voltage_high;
-  bool fault_mppt_overload;
-  bool warning_mppt_overload;
-  bool warning_battery_too_low_to_charge;
-  bool fault_dc_dc_over_current;
-  int fault_code;
-  bool warnung_low_pv_energy;
-  bool warning_high_ac_input_during_bus_soft_start;
-  bool warning_battery_equalization;
-};
-
 
 #define PIPSOLAR_ENTITY_(type, name, polling_command) \
  protected: \
@@ -309,6 +212,17 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void handle_qpiws_(const char *message);
   void handle_qt_(const char *message);
   void handle_qmn_(const char *message);
+
+  void skip_start_(const char* message, size_t *pos);
+  void skip_field_(const char* message, size_t *pos);
+  std::string read_field_(const char* message, size_t *pos);
+  
+  void read_float_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor);
+  void read_int_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor);
+
+  void publish_binary_sensor_(esphome::optional<bool> b, binary_sensor::BinarySensor *sensor);
+
+  esphome::optional<bool> get_bit_(std::string bits, uint8_t bit_pos);
 
   std::string command_queue_[COMMAND_QUEUE_LENGTH];
   uint8_t command_queue_position_ = 0;

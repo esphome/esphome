@@ -273,240 +273,139 @@ void Pipsolar::queue_command(const std::string &command) {
 }
 
 void Pipsolar::handle_qpiri_(const char* message) {
-  QPIRIValues values = QPIRIValues();
-
-  sscanf(message, "(%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %d %d %d %d %f %d %d",       // NOLINT
-          &values.grid_rating_voltage, &values.grid_rating_current, &values.ac_output_rating_voltage,  // NOLINT
-          &values.ac_output_rating_frequency, &values.ac_output_rating_current,                        // NOLINT
-          &values.ac_output_rating_apparent_power, &values.ac_output_rating_active_power,              // NOLINT
-          &values.battery_rating_voltage, &values.battery_recharge_voltage,                            // NOLINT
-          &values.battery_under_voltage, &values.battery_bulk_voltage, &values.battery_float_voltage,  // NOLINT
-          &values.battery_type, &values.current_max_ac_charging_current,                               // NOLINT
-          &values.current_max_charging_current, &values.input_voltage_range,                           // NOLINT
-          &values.output_source_priority, &values.charger_source_priority, &values.parallel_max_num,   // NOLINT
-          &values.machine_type, &values.topology, &values.output_mode,                                 // NOLINT
-          &values.battery_redischarge_voltage, &values.pv_ok_condition_for_parallel,                   // NOLINT
-          &values.pv_power_balance);                                                                   // NOLINT
   if (this->last_qpiri_) {
     this->last_qpiri_->publish_state(message);
   }
 
-  if (this->grid_rating_voltage_) {
-    this->grid_rating_voltage_->publish_state(values.grid_rating_voltage);
-  }
-  if (this->grid_rating_current_) {
-    this->grid_rating_current_->publish_state(values.grid_rating_current);
-  }
-  if (this->ac_output_rating_voltage_) {
-    this->ac_output_rating_voltage_->publish_state(values.ac_output_rating_voltage);
-  }
-  if (this->ac_output_rating_frequency_) {
-    this->ac_output_rating_frequency_->publish_state(values.ac_output_rating_frequency);
-  }
-  if (this->ac_output_rating_current_) {
-    this->ac_output_rating_current_->publish_state(values.ac_output_rating_current);
-  }
-  if (this->ac_output_rating_apparent_power_) {
-    this->ac_output_rating_apparent_power_->publish_state(values.ac_output_rating_apparent_power);
-  }
-  if (this->ac_output_rating_active_power_) {
-    this->ac_output_rating_active_power_->publish_state(values.ac_output_rating_active_power);
-  }
-  if (this->battery_rating_voltage_) {
-    this->battery_rating_voltage_->publish_state(values.battery_rating_voltage);
-  }
-  if (this->battery_recharge_voltage_) {
-    this->battery_recharge_voltage_->publish_state(values.battery_recharge_voltage);
-  }
-  if (this->battery_under_voltage_) {
-    this->battery_under_voltage_->publish_state(values.battery_under_voltage);
-  }
-  if (this->battery_bulk_voltage_) {
-    this->battery_bulk_voltage_->publish_state(values.battery_bulk_voltage);
-  }
-  if (this->battery_float_voltage_) {
-    this->battery_float_voltage_->publish_state(values.battery_float_voltage);
-  }
-  if (this->battery_type_) {
-    this->battery_type_->publish_state(values.battery_type);
-  }
-  if (this->current_max_ac_charging_current_) {
-    this->current_max_ac_charging_current_->publish_state(values.current_max_ac_charging_current);
-  }
-  if (this->current_max_charging_current_) {
-    this->current_max_charging_current_->publish_state(values.current_max_charging_current);
-  }
+  size_t pos = 0;
+  this->skip_start_(message, &pos);
+
+  this->read_float_sensor_(message, &pos, this->grid_rating_voltage_);
+  this->read_float_sensor_(message, &pos, this->grid_rating_current_);
+  this->read_float_sensor_(message, &pos, this->ac_output_rating_voltage_);
+  this->read_float_sensor_(message, &pos, this->ac_output_rating_frequency_);
+  this->read_float_sensor_(message, &pos, this->ac_output_rating_current_);
+
+  this->read_int_sensor_(message, &pos, this->ac_output_rating_apparent_power_);
+  this->read_int_sensor_(message, &pos, this->ac_output_rating_active_power_);
+
+  this->read_float_sensor_(message, &pos, this->battery_rating_voltage_);
+  this->read_float_sensor_(message, &pos, this->battery_recharge_voltage_);
+  this->read_float_sensor_(message, &pos, this->battery_under_voltage_);
+  this->read_float_sensor_(message, &pos, this->battery_bulk_voltage_);
+  this->read_float_sensor_(message, &pos, this->battery_float_voltage_);
+
+  this->read_int_sensor_(message, &pos, this->battery_type_);
+  this->read_int_sensor_(message, &pos, this->current_max_ac_charging_current_);
+  this->read_int_sensor_(message, &pos, this->current_max_charging_current_);
+
+  esphome::optional<int> input_voltage_range = parse_number<int32_t>(this->read_field_(message, &pos));
+  esphome::optional<int> output_source_priority = parse_number<int32_t>(this->read_field_(message, &pos));
+
+  this->read_int_sensor_(message, &pos, this->charger_source_priority_);
+  this->read_int_sensor_(message, &pos, this->parallel_max_num_);
+  this->read_int_sensor_(message, &pos, this->machine_type_);
+  this->read_int_sensor_(message, &pos, this->topology_);
+  this->read_int_sensor_(message, &pos, this->output_mode_);
+
+  this->read_float_sensor_(message, &pos, this->battery_redischarge_voltage_);
+
+  esphome::optional<int> pv_ok_condition_for_parallel = parse_number<int32_t>(this->read_field_(message, &pos));
+  esphome::optional<int> pv_power_balance = parse_number<int32_t>(this->read_field_(message, &pos));
+
   if (this->input_voltage_range_) {
-    this->input_voltage_range_->publish_state(values.input_voltage_range);
+    this->input_voltage_range_->publish_state(input_voltage_range.value_or(NAN));
   }
   // special for input voltage range switch
-  if (this->input_voltage_range_switch_) {
-    this->input_voltage_range_switch_->publish_state(values.input_voltage_range == 1);
+  if (this->input_voltage_range_switch_ && input_voltage_range.has_value()) {
+    this->input_voltage_range_switch_->publish_state(input_voltage_range.value() == 1);
   }
+
   if (this->output_source_priority_) {
-    this->output_source_priority_->publish_state(values.output_source_priority);
+    this->output_source_priority_->publish_state(output_source_priority.value_or(NAN));
   }
   // special for output source priority switches
-  if (this->output_source_priority_utility_switch_) {
-    this->output_source_priority_utility_switch_->publish_state(values.output_source_priority == 0);
+  if (this->output_source_priority_utility_switch_ && output_source_priority.has_value()) {
+    this->output_source_priority_utility_switch_->publish_state(output_source_priority.value() == 0);
   }
-  if (this->output_source_priority_solar_switch_) {
-    this->output_source_priority_solar_switch_->publish_state(values.output_source_priority == 1);
+  if (this->output_source_priority_solar_switch_ && output_source_priority.has_value()) {
+    this->output_source_priority_solar_switch_->publish_state(output_source_priority.value() == 1);
   }
-  if (this->output_source_priority_battery_switch_) {
-    this->output_source_priority_battery_switch_->publish_state(values.output_source_priority == 2);
+  if (this->output_source_priority_battery_switch_ && output_source_priority.has_value()) {
+    this->output_source_priority_battery_switch_->publish_state(output_source_priority.value() == 2);
   }
-  if (this->output_source_priority_hybrid_switch_) {
-    this->output_source_priority_hybrid_switch_->publish_state(values.output_source_priority == 3);
+  if (this->output_source_priority_hybrid_switch_ && output_source_priority.has_value()) {
+    this->output_source_priority_hybrid_switch_->publish_state(output_source_priority.value() == 3);
   }
-  if (this->charger_source_priority_) {
-    this->charger_source_priority_->publish_state(values.charger_source_priority);
-  }
-  if (this->parallel_max_num_) {
-    this->parallel_max_num_->publish_state(values.parallel_max_num);
-  }
-  if (this->machine_type_) {
-    this->machine_type_->publish_state(values.machine_type);
-  }
-  if (this->topology_) {
-    this->topology_->publish_state(values.topology);
-  }
-  if (this->output_mode_) {
-    this->output_mode_->publish_state(values.output_mode);
-  }
-  if (this->battery_redischarge_voltage_) {
-    this->battery_redischarge_voltage_->publish_state(values.battery_redischarge_voltage);
-  }
+
   if (this->pv_ok_condition_for_parallel_) {
-    this->pv_ok_condition_for_parallel_->publish_state(values.pv_ok_condition_for_parallel);
+    this->pv_ok_condition_for_parallel_->publish_state(pv_ok_condition_for_parallel.value_or(NAN));
   }
   // special for pv ok condition switch
-  if (this->pv_ok_condition_for_parallel_switch_) {
-    this->pv_ok_condition_for_parallel_switch_->publish_state(values.pv_ok_condition_for_parallel == 1);
+  if (this->pv_ok_condition_for_parallel_switch_ && pv_ok_condition_for_parallel.has_value()) {
+    this->pv_ok_condition_for_parallel_switch_->publish_state(pv_ok_condition_for_parallel.value() == 1);
   }
+
   if (this->pv_power_balance_) {
-    this->pv_power_balance_->publish_state(values.pv_power_balance == 1);
+    this->pv_power_balance_->publish_state(pv_power_balance.value_or(NAN));
   }
   // special for power balance switch
-  if (this->pv_power_balance_switch_) {
-    this->pv_power_balance_switch_->publish_state(values.pv_power_balance == 1);
+  if (this->pv_power_balance_switch_ && pv_power_balance.has_value()) {
+    this->pv_power_balance_switch_->publish_state(pv_power_balance.value() == 1);
   }
 }
 
 void Pipsolar::handle_qpigs_(const char* message) {
-  QPIGSValues values = QPIGSValues();
-
-  sscanf(                                                                                              // NOLINT
-      message,                                                                                         // NOLINT
-      "(%f %f %f %f %d %d %d %d %f %d %d %d %f %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",  // NOLINT
-      &values.grid_voltage, &values.grid_frequency, &values.ac_output_voltage,                         // NOLINT
-      &values.ac_output_frequency,                                                                     // NOLINT
-      &values.ac_output_apparent_power, &values.ac_output_active_power, &values.output_load_percent,   // NOLINT
-      &values.bus_voltage, &values.battery_voltage, &values.battery_charging_current,                  // NOLINT
-      &values.battery_capacity_percent, &values.inverter_heat_sink_temperature,                        // NOLINT
-      &values.pv_input_current_for_battery, &values.pv_input_voltage, &values.battery_voltage_scc,     // NOLINT
-      &values.battery_discharge_current, &values.add_sbu_priority_version,                             // NOLINT
-      &values.configuration_status, &values.scc_firmware_version, &values.load_status,                 // NOLINT
-      &values.battery_voltage_to_steady_while_charging, &values.charging_status,                       // NOLINT
-      &values.scc_charging_status, &values.ac_charging_status,                                         // NOLINT
-      &values.battery_voltage_offset_for_fans_on, &values.eeprom_version, &values.pv_charging_power,   // NOLINT
-      &values.charging_to_floating_mode, &values.switch_on,                                            // NOLINT
-      &values.dustproof_installed);                                                                    // NOLINT
   if (this->last_qpigs_) {
     this->last_qpigs_->publish_state(message);
   }
 
-  if (this->grid_voltage_) {
-    this->grid_voltage_->publish_state(values.grid_voltage);
-  }
-  if (this->grid_frequency_) {
-    this->grid_frequency_->publish_state(values.grid_frequency);
-  }
-  if (this->ac_output_voltage_) {
-    this->ac_output_voltage_->publish_state(values.ac_output_voltage);
-  }
-  if (this->ac_output_frequency_) {
-    this->ac_output_frequency_->publish_state(values.ac_output_frequency);
-  }
-  if (this->ac_output_apparent_power_) {
-    this->ac_output_apparent_power_->publish_state(values.ac_output_apparent_power);
-  }
-  if (this->ac_output_active_power_) {
-    this->ac_output_active_power_->publish_state(values.ac_output_active_power);
-  }
-  if (this->output_load_percent_) {
-    this->output_load_percent_->publish_state(values.output_load_percent);
-  }
-  if (this->bus_voltage_) {
-    this->bus_voltage_->publish_state(values.bus_voltage);
-  }
-  if (this->battery_voltage_) {
-    this->battery_voltage_->publish_state(values.battery_voltage);
-  }
-  if (this->battery_charging_current_) {
-    this->battery_charging_current_->publish_state(values.battery_charging_current);
-  }
-  if (this->battery_capacity_percent_) {
-    this->battery_capacity_percent_->publish_state(values.battery_capacity_percent);
-  }
-  if (this->inverter_heat_sink_temperature_) {
-    this->inverter_heat_sink_temperature_->publish_state(values.inverter_heat_sink_temperature);
-  }
-  if (this->pv_input_current_for_battery_) {
-    this->pv_input_current_for_battery_->publish_state(values.pv_input_current_for_battery);
-  }
-  if (this->pv_input_voltage_) {
-    this->pv_input_voltage_->publish_state(values.pv_input_voltage);
-  }
-  if (this->battery_voltage_scc_) {
-    this->battery_voltage_scc_->publish_state(values.battery_voltage_scc);
-  }
-  if (this->battery_discharge_current_) {
-    this->battery_discharge_current_->publish_state(values.battery_discharge_current);
-  }
-  if (this->add_sbu_priority_version_) {
-    this->add_sbu_priority_version_->publish_state(values.add_sbu_priority_version);
-  }
-  if (this->configuration_status_) {
-    this->configuration_status_->publish_state(values.configuration_status);
-  }
-  if (this->scc_firmware_version_) {
-    this->scc_firmware_version_->publish_state(values.scc_firmware_version);
-  }
-  if (this->load_status_) {
-    this->load_status_->publish_state(values.load_status);
-  }
-  if (this->battery_voltage_to_steady_while_charging_) {
-    this->battery_voltage_to_steady_while_charging_->publish_state(
-        values.battery_voltage_to_steady_while_charging);
-  }
-  if (this->charging_status_) {
-    this->charging_status_->publish_state(values.charging_status);
-  }
-  if (this->scc_charging_status_) {
-    this->scc_charging_status_->publish_state(values.scc_charging_status);
-  }
-  if (this->ac_charging_status_) {
-    this->ac_charging_status_->publish_state(values.ac_charging_status);
-  }
+  size_t pos = 0;
+  this->skip_start_(message, &pos);
+
+  this->read_float_sensor_(message, &pos, this->grid_voltage_);
+  this->read_float_sensor_(message, &pos, this->grid_frequency_);
+  this->read_float_sensor_(message, &pos, this->ac_output_voltage_);
+  this->read_float_sensor_(message, &pos, this->ac_output_frequency_);
+
+  this->read_int_sensor_(message, &pos, this->ac_output_apparent_power_);
+  this->read_int_sensor_(message, &pos, this->ac_output_active_power_);
+  this->read_int_sensor_(message, &pos, this->output_load_percent_);
+  this->read_int_sensor_(message, &pos, this->bus_voltage_);
+
+  this->read_float_sensor_(message, &pos, this->battery_voltage_);
+
+  this->read_int_sensor_(message, &pos, this->battery_charging_current_);
+  this->read_int_sensor_(message, &pos, this->battery_capacity_percent_);
+  this->read_int_sensor_(message, &pos, this->inverter_heat_sink_temperature_);
+
+  this->read_float_sensor_(message, &pos, this->pv_input_current_for_battery_);
+  this->read_float_sensor_(message, &pos, this->pv_input_voltage_);
+  this->read_float_sensor_(message, &pos, this->battery_voltage_scc_);
+
+  this->read_int_sensor_(message, &pos, this->battery_discharge_current_);
+
+  std::string device_status_1 = this->read_field_(message, &pos);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 0), this->add_sbu_priority_version_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 1), this->configuration_status_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 2), this->scc_firmware_version_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 3), this->load_status_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 4), this->battery_voltage_to_steady_while_charging_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 5), this->charging_status_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 6), this->scc_charging_status_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_1, 7), this->ac_charging_status_);
+
+  esphome::optional<int> battery_voltage_offset_for_fans_on_ = parse_number<int32_t>(this->read_field_(message, &pos));
   if (this->battery_voltage_offset_for_fans_on_) {
-    this->battery_voltage_offset_for_fans_on_->publish_state(values.battery_voltage_offset_for_fans_on / 10.0f);
-  }  //.1 scale
-  if (this->eeprom_version_) {
-    this->eeprom_version_->publish_state(values.eeprom_version);
+    this->battery_voltage_offset_for_fans_on_->publish_state(battery_voltage_offset_for_fans_on_.value_or(NAN) / 10.0f);
   }
-  if (this->pv_charging_power_) {
-    this->pv_charging_power_->publish_state(values.pv_charging_power);
-  }
-  if (this->charging_to_floating_mode_) {
-    this->charging_to_floating_mode_->publish_state(values.charging_to_floating_mode);
-  }
-  if (this->switch_on_) {
-    this->switch_on_->publish_state(values.switch_on);
-  }
-  if (this->dustproof_installed_) {
-    this->dustproof_installed_->publish_state(values.dustproof_installed);
-  }
+  this->read_int_sensor_(message, &pos, this->eeprom_version_);
+  this->read_int_sensor_(message, &pos, this->pv_charging_power_);
+  
+  std::string device_status_2 = this->read_field_(message, &pos);
+  this->publish_binary_sensor_(this->get_bit_(device_status_2, 0), this->charging_to_floating_mode_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_2, 1), this->switch_on_);
+  this->publish_binary_sensor_(this->get_bit_(device_status_2, 2), this->dustproof_installed_);
 }
 
 void Pipsolar::handle_qmod_(const char* message) {
@@ -524,6 +423,10 @@ void Pipsolar::handle_qmod_(const char* message) {
 void Pipsolar::handle_qflag_(const char* message) {
   // result like:"(EbkuvxzDajy"
   // get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
+  if (this->last_qflag_) {
+    this->last_qflag_->publish_state(message);
+  }
+
   QFLAGValues values = QFLAGValues();
   bool enabled = true;
   for (size_t i = 1; i < strlen(message); i++) {
@@ -563,302 +466,182 @@ void Pipsolar::handle_qflag_(const char* message) {
         break;
     }
   }
-  if (this->last_qflag_) {
-    this->last_qflag_->publish_state(message);
-  }
 
-  if (this->silence_buzzer_open_buzzer_) {
-    this->silence_buzzer_open_buzzer_->publish_state(values.silence_buzzer_open_buzzer);
-  }
-  if (this->overload_bypass_function_) {
-    this->overload_bypass_function_->publish_state(values.overload_bypass_function);
-  }
-  if (this->lcd_escape_to_default_) {
-    this->lcd_escape_to_default_->publish_state(values.lcd_escape_to_default);
-  }
-  if (this->overload_restart_function_) {
-    this->overload_restart_function_->publish_state(values.overload_restart_function);
-  }
-  if (this->over_temperature_restart_function_) {
-    this->over_temperature_restart_function_->publish_state(values.over_temperature_restart_function);
-  }
-  if (this->backlight_on_) {
-    this->backlight_on_->publish_state(values.backlight_on);
-  }
-  if (this->alarm_on_when_primary_source_interrupt_) {
-    this->alarm_on_when_primary_source_interrupt_->publish_state(values.alarm_on_when_primary_source_interrupt);
-  }
-  if (this->fault_code_record_) {
-    this->fault_code_record_->publish_state(values.fault_code_record);
-  }
-  if (this->power_saving_) {
-    this->power_saving_->publish_state(values.power_saving);
-  }
+  this->publish_binary_sensor_(values.silence_buzzer_open_buzzer, this->silence_buzzer_open_buzzer_);
+  this->publish_binary_sensor_(values.overload_bypass_function, this->overload_bypass_function_);
+  this->publish_binary_sensor_(values.lcd_escape_to_default, this->lcd_escape_to_default_);
+  this->publish_binary_sensor_(values.overload_restart_function, this->overload_restart_function_);
+  this->publish_binary_sensor_(values.over_temperature_restart_function, this->over_temperature_restart_function_);
+  this->publish_binary_sensor_(values.backlight_on, this->backlight_on_);
+  this->publish_binary_sensor_(values.alarm_on_when_primary_source_interrupt, this->alarm_on_when_primary_source_interrupt_);
+  this->publish_binary_sensor_(values.fault_code_record, this->fault_code_record_);
+  this->publish_binary_sensor_(values.power_saving, this->power_saving_);
 }
 
 void Pipsolar::handle_qpiws_(const char* message) {
   // '(00000000000000000000000000000000'
   // iterate over all available flag (as not all models have all flags, but at least in the same order)
-  QPIWSValues values = QPIWSValues();
-  bool enabled = true;
-  std::string fc;
-  bool value_warnings_present = false;
-  bool value_faults_present = false;
-
-  for (size_t i = 1; i < strlen(message); i++) {
-    enabled = message[i] == '1';
-    switch (i) {
-      case 1:
-        values.warning_power_loss = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 2:
-        values.fault_inverter_fault = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 3:
-        values.fault_bus_over = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 4:
-        values.fault_bus_under = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 5:
-        values.fault_bus_soft_fail = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 6:
-        values.warning_line_fail = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 7:
-        values.fault_opvshort = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 8:
-        values.fault_inverter_voltage_too_low = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 9:
-        values.fault_inverter_voltage_too_high = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 10:
-        values.warning_over_temperature = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 11:
-        values.warning_fan_lock = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 12:
-        values.warning_battery_voltage_high = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 13:
-        values.warning_battery_low_alarm = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 15:
-        values.warning_battery_under_shutdown = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 16:
-        values.warning_battery_derating = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 17:
-        values.warning_over_load = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 18:
-        values.warning_eeprom_failed = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 19:
-        values.fault_inverter_over_current = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 20:
-        values.fault_inverter_soft_failed = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 21:
-        values.fault_self_test_failed = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 22:
-        values.fault_op_dc_voltage_over = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 23:
-        values.fault_battery_open = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 24:
-        values.fault_current_sensor_failed = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 25:
-        values.fault_battery_short = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 26:
-        values.warning_power_limit = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 27:
-        values.warning_pv_voltage_high = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 28:
-        values.fault_mppt_overload = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 29:
-        values.warning_mppt_overload = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 30:
-        values.warning_battery_too_low_to_charge = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 31:
-        values.fault_dc_dc_over_current = enabled;
-        value_faults_present |= enabled;
-        break;
-      case 32:
-        fc = message[i];
-        fc += message[i + 1];
-        values.fault_code = parse_number<int>(fc).value_or(0);
-        break;
-      case 34:
-        values.warnung_low_pv_energy = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 35:
-        values.warning_high_ac_input_during_bus_soft_start = enabled;
-        value_warnings_present |= enabled;
-        break;
-      case 36:
-        values.warning_battery_equalization = enabled;
-        value_warnings_present |= enabled;
-        break;
-    }
-  }
   if (this->last_qpiws_) {
     this->last_qpiws_->publish_state(message);
   }
 
-  if (this->warnings_present_) {
-    this->warnings_present_->publish_state(value_warnings_present);
+  size_t pos = 0;
+  this->skip_start_(message, &pos);
+  std::string flags = this->read_field_(message, &pos);
+
+  esphome::optional<bool> enabled;
+  bool value_warnings_present = false;
+  bool value_faults_present = false;
+
+  for (size_t i = 0; i < 36; i++) {
+    if (i == 31 || i == 32) {
+      // special case for fault code
+      continue;
+    }
+    enabled = this->get_bit_(flags, i);
+    switch (i) {
+      case 0:
+        this->publish_binary_sensor_(enabled, this->warning_power_loss_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 1:
+        this->publish_binary_sensor_(enabled, this->fault_inverter_fault_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 2:
+        this->publish_binary_sensor_(enabled, this->fault_bus_over_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 3:
+        this->publish_binary_sensor_(enabled, this->fault_bus_under_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 4:
+        this->publish_binary_sensor_(enabled, this->fault_bus_soft_fail_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 5:
+        this->publish_binary_sensor_(enabled, this->warning_line_fail_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 6:
+        this->publish_binary_sensor_(enabled, this->fault_opvshort_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 7:
+        this->publish_binary_sensor_(enabled, this->fault_inverter_voltage_too_low_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 8:
+        this->publish_binary_sensor_(enabled, this->fault_inverter_voltage_too_high_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 9:
+        this->publish_binary_sensor_(enabled, this->warning_over_temperature_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 10:
+        this->publish_binary_sensor_(enabled, this->warning_fan_lock_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 11:
+        this->publish_binary_sensor_(enabled, this->warning_battery_voltage_high_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 12:
+        this->publish_binary_sensor_(enabled, this->warning_battery_low_alarm_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 14:
+        this->publish_binary_sensor_(enabled, this->warning_battery_under_shutdown_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 15:
+        this->publish_binary_sensor_(enabled, this->warning_battery_derating_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 16:
+        this->publish_binary_sensor_(enabled, this->warning_over_load_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 17:
+        this->publish_binary_sensor_(enabled, this->warning_eeprom_failed_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 18:
+        this->publish_binary_sensor_(enabled, this->fault_inverter_over_current_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 19:
+        this->publish_binary_sensor_(enabled, this->fault_inverter_soft_failed_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 20:
+        this->publish_binary_sensor_(enabled, this->fault_self_test_failed_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 21:
+        this->publish_binary_sensor_(enabled, this->fault_op_dc_voltage_over_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 22:
+        this->publish_binary_sensor_(enabled, this->fault_battery_open_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 23:
+        this->publish_binary_sensor_(enabled, this->fault_current_sensor_failed_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 24:
+        this->publish_binary_sensor_(enabled, this->fault_battery_short_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 25:
+        this->publish_binary_sensor_(enabled, this->warning_power_limit_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 26:
+        this->publish_binary_sensor_(enabled, this->warning_pv_voltage_high_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 27:
+        this->publish_binary_sensor_(enabled, this->fault_mppt_overload_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 28:
+        this->publish_binary_sensor_(enabled, this->warning_mppt_overload_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 29:
+        this->publish_binary_sensor_(enabled, this->warning_battery_too_low_to_charge_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 30:
+        this->publish_binary_sensor_(enabled, this->fault_dc_dc_over_current_);
+        value_faults_present |= enabled.value_or(false);
+        break;
+      case 33:
+        this->publish_binary_sensor_(enabled, this->warnung_low_pv_energy_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+      case 34:
+        this->publish_binary_sensor_(enabled, this->warning_high_ac_input_during_bus_soft_start_);
+        value_warnings_present |= enabled.value_or(false);
+        35;
+      case 36:
+        this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
+        value_warnings_present |= enabled.value_or(false);
+        break;
+    }
   }
-  if (this->faults_present_) {
-    this->faults_present_->publish_state(value_faults_present);
-  }
-  if (this->warning_power_loss_) {
-    this->warning_power_loss_->publish_state(values.warning_power_loss);
-  }
-  if (this->fault_inverter_fault_) {
-    this->fault_inverter_fault_->publish_state(values.fault_inverter_fault);
-  }
-  if (this->fault_bus_over_) {
-    this->fault_bus_over_->publish_state(values.fault_bus_over);
-  }
-  if (this->fault_bus_under_) {
-    this->fault_bus_under_->publish_state(values.fault_bus_under);
-  }
-  if (this->fault_bus_soft_fail_) {
-    this->fault_bus_soft_fail_->publish_state(values.fault_bus_soft_fail);
-  }
-  if (this->warning_line_fail_) {
-    this->warning_line_fail_->publish_state(values.warning_line_fail);
-  }
-  if (this->fault_opvshort_) {
-    this->fault_opvshort_->publish_state(values.fault_opvshort);
-  }
-  if (this->fault_inverter_voltage_too_low_) {
-    this->fault_inverter_voltage_too_low_->publish_state(values.fault_inverter_voltage_too_low);
-  }
-  if (this->fault_inverter_voltage_too_high_) {
-    this->fault_inverter_voltage_too_high_->publish_state(values.fault_inverter_voltage_too_high);
-  }
-  if (this->warning_over_temperature_) {
-    this->warning_over_temperature_->publish_state(values.warning_over_temperature);
-  }
-  if (this->warning_fan_lock_) {
-    this->warning_fan_lock_->publish_state(values.warning_fan_lock);
-  }
-  if (this->warning_battery_voltage_high_) {
-    this->warning_battery_voltage_high_->publish_state(values.warning_battery_voltage_high);
-  }
-  if (this->warning_battery_low_alarm_) {
-    this->warning_battery_low_alarm_->publish_state(values.warning_battery_low_alarm);
-  }
-  if (this->warning_battery_under_shutdown_) {
-    this->warning_battery_under_shutdown_->publish_state(values.warning_battery_under_shutdown);
-  }
-  if (this->warning_battery_derating_) {
-    this->warning_battery_derating_->publish_state(values.warning_battery_derating);
-  }
-  if (this->warning_over_load_) {
-    this->warning_over_load_->publish_state(values.warning_over_load);
-  }
-  if (this->warning_eeprom_failed_) {
-    this->warning_eeprom_failed_->publish_state(values.warning_eeprom_failed);
-  }
-  if (this->fault_inverter_over_current_) {
-    this->fault_inverter_over_current_->publish_state(values.fault_inverter_over_current);
-  }
-  if (this->fault_inverter_soft_failed_) {
-    this->fault_inverter_soft_failed_->publish_state(values.fault_inverter_soft_failed);
-  }
-  if (this->fault_self_test_failed_) {
-    this->fault_self_test_failed_->publish_state(values.fault_self_test_failed);
-  }
-  if (this->fault_op_dc_voltage_over_) {
-    this->fault_op_dc_voltage_over_->publish_state(values.fault_op_dc_voltage_over);
-  }
-  if (this->fault_battery_open_) {
-    this->fault_battery_open_->publish_state(values.fault_battery_open);
-  }
-  if (this->fault_current_sensor_failed_) {
-    this->fault_current_sensor_failed_->publish_state(values.fault_current_sensor_failed);
-  }
-  if (this->fault_battery_short_) {
-    this->fault_battery_short_->publish_state(values.fault_battery_short);
-  }
-  if (this->warning_power_limit_) {
-    this->warning_power_limit_->publish_state(values.warning_power_limit);
-  }
-  if (this->warning_pv_voltage_high_) {
-    this->warning_pv_voltage_high_->publish_state(values.warning_pv_voltage_high);
-  }
-  if (this->fault_mppt_overload_) {
-    this->fault_mppt_overload_->publish_state(values.fault_mppt_overload);
-  }
-  if (this->warning_mppt_overload_) {
-    this->warning_mppt_overload_->publish_state(values.warning_mppt_overload);
-  }
-  if (this->warning_battery_too_low_to_charge_) {
-    this->warning_battery_too_low_to_charge_->publish_state(values.warning_battery_too_low_to_charge);
-  }
-  if (this->fault_dc_dc_over_current_) {
-    this->fault_dc_dc_over_current_->publish_state(values.fault_dc_dc_over_current);
-  }
+
   if (this->fault_code_) {
-    this->fault_code_->publish_state(values.fault_code);
-  }
-  if (this->warnung_low_pv_energy_) {
-    this->warnung_low_pv_energy_->publish_state(values.warnung_low_pv_energy);
-  }
-  if (this->warning_high_ac_input_during_bus_soft_start_) {
-    this->warning_high_ac_input_during_bus_soft_start_->publish_state(
-        values.warning_high_ac_input_during_bus_soft_start);
-  }
-  if (this->warning_battery_equalization_) {
-    this->warning_battery_equalization_->publish_state(values.warning_battery_equalization);
+    if (flags.length() < 33) {
+      this->fault_code_->publish_state(NAN);
+    } else {
+      std::string fc(flags, 31, 2);
+      this->fault_code_->publish_state(parse_number<int>(fc).value_or(NAN));
+    }
   }
 }
 
@@ -872,6 +655,76 @@ void Pipsolar::handle_qmn_(const char *message) {
   if (this->last_qmn_) {
     this->last_qmn_->publish_state(message);
   }
+}
+
+void Pipsolar::skip_start_(const char* message, size_t *pos) {
+  if (message[*pos] == '(') {
+    (*pos++);
+  }
+}
+void Pipsolar::skip_field_(const char* message, size_t *pos) {
+  // find delimiter or end of string
+  while (message[*pos] != '\0' && message[*pos] != ' ') {
+    (*pos)++;
+  }
+  if (message[*pos] != '\0') {
+    // skip delimiter after this field if there is one
+    (*pos)++;
+  }
+}
+std::string Pipsolar::read_field_(const char* message, size_t *pos) {
+  size_t begin = *pos;
+  // find delimiter or end of string
+  while (message[*pos] != '\0' && message[*pos] != ' ') {
+    (*pos)++;
+  }
+  if (*pos == begin) {
+    return "";
+  }
+  
+  std::string field(message, begin, *pos - begin);
+
+  if (message[*pos] != '\0') {
+    // skip delimiter after this field if there is one
+    (*pos)++;
+  }
+
+  return field;
+}
+
+void Pipsolar::read_float_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor) {
+  if (sensor != nullptr) {
+    std::string field = this->read_field_(message, pos);
+    sensor->publish_state(parse_number<float>(field).value_or(NAN));
+  } else {
+    this->skip_field_(message, pos);
+  }
+}
+void Pipsolar::read_int_sensor_(const char* message, size_t *pos, sensor::Sensor *sensor) {
+  if (sensor != nullptr) {
+    std::string field = this->read_field_(message, pos);
+    esphome::optional<int32_t> parsed = parse_number<int32_t>(field);
+    sensor->publish_state(parsed.has_value() ? parsed.value() : NAN);
+  } else {
+    this->skip_field_(message, pos);
+  }
+}
+
+void Pipsolar::publish_binary_sensor_(esphome::optional<bool> b, binary_sensor::BinarySensor *sensor) {
+  if (sensor) {
+    if (b.has_value()) {
+      sensor->publish_state(b.value());
+    } else {
+      sensor->invalidate_state();
+    }
+  }
+}
+
+esphome::optional<bool> Pipsolar::get_bit_(std::string bits, uint8_t bit_pos) {
+  if (bit_pos >= bits.length()) {
+    return {};
+  }
+  return bits[bit_pos] == '1';
 }
 
 void Pipsolar::dump_config() {
