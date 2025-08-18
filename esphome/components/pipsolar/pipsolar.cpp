@@ -530,7 +530,7 @@ void Pipsolar::loop() {
         // '(00000000000000000000000000000000'
         // iterate over all available flag (as not all models have all flags, but at least in the same order)
         this->value_warnings_present_ = false;
-        this->value_faults_present_ = true;
+        this->value_faults_present_ = false;
 
         for (size_t i = 1; i < strlen(tmp); i++) {
           enabled = tmp[i] == '1';
