@@ -507,14 +507,37 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       std::string data = this->switch_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("toggle")) {
-      this->defer([obj]() { obj->toggle(); });
-      request->send(200);
+      return;
+    }
+
+    // Handle action methods with single defer and response
+    enum SwitchAction { NONE, TOGGLE, TURN_ON, TURN_OFF };
+    SwitchAction action = NONE;
+
+    if (match.method_equals("toggle")) {
+      action = TOGGLE;
     } else if (match.method_equals("turn_on")) {
-      this->defer([obj]() { obj->turn_on(); });
-      request->send(200);
+      action = TURN_ON;
     } else if (match.method_equals("turn_off")) {
-      this->defer([obj]() { obj->turn_off(); });
+      action = TURN_OFF;
+    }
+
+    if (action != NONE) {
+      this->defer([obj, action]() {
+        switch (action) {
+          case TOGGLE:
+            obj->toggle();
+            break;
+          case TURN_ON:
+            obj->turn_on();
+            break;
+          case TURN_OFF:
+            obj->turn_off();
+            break;
+          default:
+            break;
+        }
+      });
       request->send(200);
     } else {
       request->send(404);
@@ -1332,14 +1355,37 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       auto detail = get_request_detail(request);
       std::string data = this->lock_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("lock")) {
-      this->defer([obj]() { obj->lock(); });
-      request->send(200);
+      return;
+    }
+
+    // Handle action methods with single defer and response
+    enum LockAction { NONE, LOCK, UNLOCK, OPEN };
+    LockAction action = NONE;
+
+    if (match.method_equals("lock")) {
+      action = LOCK;
     } else if (match.method_equals("unlock")) {
-      this->defer([obj]() { obj->unlock(); });
-      request->send(200);
+      action = UNLOCK;
     } else if (match.method_equals("open")) {
-      this->defer([obj]() { obj->open(); });
+      action = OPEN;
+    }
+
+    if (action != NONE) {
+      this->defer([obj, action]() {
+        switch (action) {
+          case LOCK:
+            obj->lock();
+            break;
+          case UNLOCK:
+            obj->unlock();
+            break;
+          case OPEN:
+            obj->open();
+            break;
+          default:
+            break;
+        }
+      });
       request->send(200);
     } else {
       request->send(404);
