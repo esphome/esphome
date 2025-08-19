@@ -1952,7 +1952,7 @@ def build_message_type(
     dump_impl += "}\n"
 
     if base_class:
-        out = f"class {desc.name} : public {base_class} {{\n"
+        out = f"class {desc.name} final : public {base_class} {{\n"
     else:
         # Check if message has any non-deprecated fields
         has_fields = any(not field.options.deprecated for field in desc.field)
@@ -1961,7 +1961,7 @@ def build_message_type(
             base_class = "ProtoDecodableMessage"
         else:
             base_class = "ProtoMessage"
-        out = f"class {desc.name} : public {base_class} {{\n"
+        out = f"class {desc.name} final : public {base_class} {{\n"
     out += " public:\n"
     out += indent("\n".join(public_content)) + "\n"
     out += "\n"

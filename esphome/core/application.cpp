@@ -475,11 +475,16 @@ bool Application::register_socket_fd(int fd) {
   if (fd < 0)
     return false;
 
+#ifndef USE_ESP32
+  // Only check on non-ESP32 platforms
+  // On ESP32 (both Arduino and ESP-IDF), CONFIG_LWIP_MAX_SOCKETS is always <= FD_SETSIZE by design
+  // (LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS per lwipopts.h)
+  // Other platforms may not have this guarantee
   if (fd >= FD_SETSIZE) {
-    ESP_LOGE(TAG, "Cannot monitor socket fd %d: exceeds FD_SETSIZE (%d)", fd, FD_SETSIZE);
-    ESP_LOGE(TAG, "Socket will not be monitored for data - may cause performance issues!");
+    ESP_LOGE(TAG, "fd %d exceeds FD_SETSIZE %d", fd, FD_SETSIZE);
     return false;
   }
+#endif
 
   this->socket_fds_.push_back(fd);
   this->socket_fds_changed_ = true;
