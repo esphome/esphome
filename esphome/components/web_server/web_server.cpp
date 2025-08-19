@@ -534,6 +534,8 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
           case TURN_OFF:
             obj->turn_off();
             break;
+          default:
+            break;
         }
       });
       request->send(200);
@@ -1379,6 +1381,8 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
             break;
           case OPEN:
             obj->open();
+            break;
+          default:
             break;
         }
       });
