@@ -150,7 +150,6 @@ _LOGGER = logging.getLogger(__name__)
 
 SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(ServerCourtesyResponse),
         cv.Optional(CONF_ENABLED, default=False): cv.boolean,
         cv.Optional(CONF_REGISTER_LAST_ADDRESS, default=0xFFFF): cv.hex_uint16_t,
         cv.Optional(CONF_REGISTER_VALUE, default=0): cv.hex_uint16_t,
@@ -315,19 +314,19 @@ async def to_code(config):
     cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
     cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
     if server_courtesy_response := config.get(CONF_SERVER_COURTESY_RESPONSE):
-        server_courtesy_response_var = cg.new_variable(
-            server_courtesy_response[CONF_ID],
-            cg.StructInitializer(
-                ServerCourtesyResponse,
-                ("enabled", server_courtesy_response[CONF_ENABLED]),
-                (
-                    "register_last_address",
-                    server_courtesy_response[CONF_REGISTER_LAST_ADDRESS],
-                ),
-                ("register_value", server_courtesy_response[CONF_REGISTER_VALUE]),
-            ),
+        cg.add(
+            var.set_server_courtesy_response(
+                cg.StructInitializer(
+                    ServerCourtesyResponse,
+                    ("enabled", server_courtesy_response[CONF_ENABLED]),
+                    (
+                        "register_last_address",
+                        server_courtesy_response[CONF_REGISTER_LAST_ADDRESS],
+                    ),
+                    ("register_value", server_courtesy_response[CONF_REGISTER_VALUE]),
+                )
+            )
         )
-        cg.add(var.set_server_courtesy_response(server_courtesy_response_var))
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     if CONF_SERVER_REGISTERS in config:
