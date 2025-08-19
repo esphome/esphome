@@ -7,7 +7,6 @@
 namespace esphome {
 namespace button {
 
-// Forward declaration
 class Button;
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj);
 
