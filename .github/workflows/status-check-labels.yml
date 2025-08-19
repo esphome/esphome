@@ -5,11 +5,17 @@ on:
     types: [labeled, unlabeled]
 
 jobs:
-  needs-docs:
-    name: Check needs-docs
+  check:
+    name: Check ${{ matrix.label }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        label:
+          - needs-docs
+          - merge-after-release
     steps:
-      - name: Check for needs-docs label
+      - name: Check for ${{ matrix.label }} label
         uses: actions/github-script@v7.0.1
         with:
           script: |
@@ -18,24 +24,7 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            const needsDocs = labels.find(label => label.name === 'needs-docs');
-            if (needsDocs) {
-              core.setFailed('Pull request needs docs');
-            }
-  merge-after-release:
-    name: Check merge-after-release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check for merge-after-release label
-        uses: actions/github-script@v7.0.1
-        with:
-          script: |
-            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-            const mergeAfterRelease = labels.find(label => label.name === 'merge-after-release');
-            if (mergeAfterRelease) {
-              core.setFailed('Pull request is labeled for merge after release');
+            const hasLabel = labels.find(label => label.name === '${{ matrix.label }}');
+            if (hasLabel) {
+              core.setFailed('Pull request cannot be merged, it is labeled as ${{ matrix.label }}');
             }
