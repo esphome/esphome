@@ -7,6 +7,7 @@
 namespace esphome {
 namespace button {
 
+class Button;
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj);
 
 #define LOG_BUTTON(prefix, type, obj) log_button(TAG, prefix, LOG_STR_LITERAL(type), obj)
