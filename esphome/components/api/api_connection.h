@@ -44,7 +44,7 @@ static constexpr size_t MAX_PACKETS_PER_BATCH = 64;  // ESP32 has 8KB+ stack, HO
 static constexpr size_t MAX_PACKETS_PER_BATCH = 32;  // ESP8266/RP2040/etc have smaller stacks
 #endif
 
-class APIConnection : public APIServerConnection {
+class APIConnection final : public APIServerConnection {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
