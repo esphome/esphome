@@ -9,7 +9,6 @@
 namespace esphome {
 namespace number {
 
-// Forward declaration
 class Number;
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj);
 
