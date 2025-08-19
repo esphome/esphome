@@ -12,7 +12,6 @@
 namespace esphome {
 namespace sensor {
 
-// Forward declaration
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj);
 
 #define LOG_SENSOR(prefix, type, obj) log_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
