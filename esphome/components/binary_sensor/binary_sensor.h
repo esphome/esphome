@@ -10,7 +10,6 @@ namespace esphome {
 
 namespace binary_sensor {
 
-// Forward declaration
 class BinarySensor;
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj);
 
