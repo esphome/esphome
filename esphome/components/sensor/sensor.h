@@ -12,10 +12,8 @@
 namespace esphome {
 namespace sensor {
 
-// Forward declaration
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj);
 
-// Macro that calls the function - kept for backward compatibility
 #define LOG_SENSOR(prefix, type, obj) log_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_SENSOR(name) \
