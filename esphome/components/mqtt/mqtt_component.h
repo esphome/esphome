@@ -137,7 +137,7 @@ class MQTTComponent : public Component {
    */
   void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos);
   void subscribe(const std::string &topic, mqtt_callback_t callback) {
-    this->subscribe(topic, callback, this->subscribe_qos_);
+    this->subscribe(topic, std::move(callback), this->subscribe_qos_);
   }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
@@ -151,7 +151,7 @@ class MQTTComponent : public Component {
    */
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos);
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback) {
-    this->subscribe_json(topic, callback, this->subscribe_qos_);
+    this->subscribe_json(topic, std::move(callback), this->subscribe_qos_);
   }
 
  protected:
