@@ -104,9 +104,9 @@ class APIFrameHelper {
   // The buffer contains all messages with appropriate padding before each
   virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
   // Get the frame header padding required by this protocol
-  virtual uint8_t frame_header_padding() = 0;
+  uint8_t frame_header_padding() const { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
-  virtual uint8_t frame_footer_size() = 0;
+  uint8_t frame_footer_size() const { return frame_footer_size_; }
   // Check if socket has data ready to read
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
 
