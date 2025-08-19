@@ -133,9 +133,12 @@ class MQTTComponent : public Component {
    *
    * @param topic The topic. Wildcards are currently not supported.
    * @param callback The callback that will be called when a message with matching topic is received.
-   * @param qos The MQTT quality of service. Defaults to 0.
+   * @param qos The MQTT quality of service. Defaults to `subscribe_qos`.
    */
-  void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
+  void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos);
+  void subscribe(const std::string &topic, mqtt_callback_t callback) {
+    this->subscribe(topic, callback, this->subscribe_qos_);
+  }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
@@ -144,9 +147,12 @@ class MQTTComponent : public Component {
    * @param topic The topic. Wildcards are currently not supported.
    * @param callback The callback with a parsed JsonObject that will be called when a message with matching topic is
    * received.
-   * @param qos The MQTT quality of service. Defaults to 0.
+   * @param qos The MQTT quality of service. Defaults to `subscribe_qos`.
    */
-  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback) {
+    this->subscribe_json(topic, callback, this->subscribe_qos_);
+  }
 
  protected:
   /// Helper method to get the discovery topic for this component.
