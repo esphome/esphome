@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+import sys
 
 from esphome import automation, core
 import esphome.codegen as cg
@@ -442,7 +443,7 @@ async def _add_platform_defines() -> None:
             cg.add_define(f"USE_{platform_name.upper()}")
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(sys.float_info.max)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
     # These can be used by user lambdas, put them to default scope

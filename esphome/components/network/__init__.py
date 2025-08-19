@@ -72,7 +72,7 @@ def parse_hosts_file(hosts_contents: str) -> list[tuple[str, IPAddress]]:
     return hosts
 
 
-@coroutine_with_priority(100)
+@coroutine_with_priority(201)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
     if CORE.using_arduino and CORE.is_esp32:
