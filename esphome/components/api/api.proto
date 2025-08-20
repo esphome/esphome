@@ -250,8 +250,8 @@ message DeviceInfoResponse {
   // Supports receiving and saving api encryption key
   bool api_encryption_supported = 19 [(field_ifdef) = "USE_API_NOISE"];
 
-  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES"];
-  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS"];
+  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES", (fixed_array_size_define) = "ESPHOME_DEVICE_COUNT"];
+  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS", (fixed_array_size_define) = "ESPHOME_AREA_COUNT"];
 
   // Top-level area info to phase out suggested_area
   AreaInfo area = 22 [(field_ifdef) = "USE_AREAS"];
@@ -1438,11 +1438,11 @@ message BluetoothLERawAdvertisementsResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   option (no_delay) = true;
 
-  repeated BluetoothLERawAdvertisement advertisements = 1;
+  repeated BluetoothLERawAdvertisement advertisements = 1 [(fixed_array_with_length_define) = "BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE"];
 }
 
 enum BluetoothDeviceRequestType {
-  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0 [deprecated = true]; // V1 removed, use V3 variants
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
   BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;

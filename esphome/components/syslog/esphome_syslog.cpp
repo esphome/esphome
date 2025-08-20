@@ -35,7 +35,7 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     severity = LOG_LEVEL_TO_SYSLOG_SEVERITY[level];
   }
   int pri = this->facility_ * 8 + severity;
-  auto timestamp = this->time_->now().strftime("%b %d %H:%M:%S");
+  auto timestamp = this->time_->now().strftime("%b %e %H:%M:%S");
   size_t len = message_len;
   // remove color formatting
   if (this->strip_ && message[0] == 0x1B && len > 11) {

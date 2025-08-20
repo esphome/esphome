@@ -42,9 +42,6 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
         symbols[i] = params->bit0;
       }
     }
-    if ((index + 1) >= size && params->reset.duration0 == 0 && params->reset.duration1 == 0) {
-      *done = true;
-    }
     return RMT_SYMBOLS_PER_BYTE;
   }
 
@@ -110,7 +107,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   memset(&encoder, 0, sizeof(encoder));
   encoder.callback = encoder_callback;
   encoder.arg = &this->params_;
-  encoder.min_chunk_size = 8;
+  encoder.min_chunk_size = RMT_SYMBOLS_PER_BYTE;
   if (rmt_new_simple_encoder(&encoder, &this->encoder_) != ESP_OK) {
     ESP_LOGE(TAG, "Encoder creation failed");
     this->mark_failed();

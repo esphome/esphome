@@ -1534,9 +1534,9 @@ void BluetoothLERawAdvertisement::dump_to(std::string &out) const {
 }
 void BluetoothLERawAdvertisementsResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothLERawAdvertisementsResponse");
-  for (const auto &it : this->advertisements) {
+  for (uint16_t i = 0; i < this->advertisements_len; i++) {
     out.append("  advertisements: ");
-    it.dump_to(out);
+    this->advertisements[i].dump_to(out);
     out.append("\n");
   }
 }

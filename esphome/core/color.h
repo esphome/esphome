@@ -1,7 +1,12 @@
 #pragma once
 
+#include "defines.h"
 #include "component.h"
 #include "helpers.h"
+
+#ifdef USE_LVGL
+#include "esphome/components/lvgl/lvgl_proxy.h"
+#endif  // USE_LVGL
 
 namespace esphome {
 
@@ -32,6 +37,11 @@ struct Color {
     uint8_t raw[4];
     uint32_t raw_32;
   };
+
+#ifdef USE_LVGL
+  // convenience function for Color to get a lv_color_t representation
+  operator lv_color_t() const { return lv_color_make(this->r, this->g, this->b); }
+#endif
 
   inline constexpr Color() ESPHOME_ALWAYS_INLINE : raw_32(0) {}  // NOLINT
   inline constexpr Color(uint8_t red, uint8_t green, uint8_t blue) ESPHOME_ALWAYS_INLINE : r(red),

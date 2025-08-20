@@ -164,7 +164,6 @@ async def register_datetime(var, config):
     cg.add(getattr(cg.App, f"register_{entity_type}")(var))
     CORE.register_platform_component(entity_type, var)
     await setup_datetime_core_(var, config)
-    cg.add_define(f"USE_DATETIME_{config[CONF_TYPE]}")
 
 
 async def new_datetime(config, *args):
@@ -175,7 +174,6 @@ async def new_datetime(config, *args):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_DATETIME")
     cg.add_global(datetime_ns.using)
 
 

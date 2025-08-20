@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <array>
 #include <map>
 #include <vector>
 
@@ -22,6 +23,7 @@ namespace esphome::bluetooth_proxy {
 
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 static const int DONE_SENDING_SERVICES = -2;
+static const int INIT_SENDING_SERVICES = -3;
 
 using namespace esp32_ble_client;
 
@@ -48,7 +50,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
@@ -63,8 +65,10 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
   void register_connection(BluetoothConnection *connection) {
-    this->connections_.push_back(connection);
-    connection->proxy_ = this;
+    if (this->connection_count_ < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
+      this->connections_[this->connection_count_++] = connection;
+      connection->proxy_ = this;
+    }
   }
 
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
@@ -133,17 +137,20 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
+  void log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state);
+  void log_connection_info_(BluetoothConnection *connection, const char *message);
+  void log_not_connected_gatt_(const char *action, const char *type);
+  void handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action, const char *type);
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
 
-  // Group 2: Container types (typically 12 bytes on 32-bit)
-  std::vector<BluetoothConnection *> connections_{};
+  // Group 2: Fixed-size array of connection pointers
+  std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 
   // BLE advertisement batching
-  std::vector<api::BluetoothLERawAdvertisement> advertisement_pool_;
-  std::unique_ptr<api::BluetoothLERawAdvertisementsResponse> response_;
+  api::BluetoothLERawAdvertisementsResponse response_;
 
   // Group 3: 4-byte types
   uint32_t last_advertisement_flush_time_{0};
@@ -153,7 +160,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   // Group 4: 1-byte types grouped together
   bool active_;
-  uint8_t advertisement_count_{0};
+  uint8_t connection_count_{0};
   // 2 bytes used, 2 bytes padding
 };
 
