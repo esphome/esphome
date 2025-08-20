@@ -1,4 +1,5 @@
 #ifdef USE_ESP32
+#include "driver/gpio.h"
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
 
@@ -74,11 +75,20 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
+    const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
+    if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLUP) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLUP_ONLY);
+    } else if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLDOWN) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLDOWN_ONLY);
+    }
+    gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
+    gpio_hold_en(gpio_pin);
+    gpio_deep_sleep_hold_en();
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
     }
-    esp_sleep_enable_ext0_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()), level);
+    esp_sleep_enable_ext0_wakeup(gpio_pin, level);
   }
   if (this->ext1_wakeup_.has_value()) {
     esp_sleep_enable_ext1_wakeup(this->ext1_wakeup_->mask, this->ext1_wakeup_->wakeup_mode);
@@ -102,6 +112,15 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
+    const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
+    if (this->wakeup_pin_->get_flags() && gpio::FLAG_PULLUP) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLUP_ONLY);
+    } else if (this->wakeup_pin_->get_flags() && gpio::FLAG_PULLDOWN) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLDOWN_ONLY);
+    }
+    gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
+    gpio_hold_en(gpio_pin);
+    gpio_deep_sleep_hold_en();
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;

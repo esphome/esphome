@@ -139,9 +139,24 @@ def _get_changed_files_github_actions() -> list[str] | None:
     if event_name == "pull_request":
         pr_number = _get_pr_number_from_github_env()
         if pr_number:
-            # Use GitHub CLI to get changed files directly
+            # Try gh pr diff first (faster for small PRs)
             cmd = ["gh", "pr", "diff", pr_number, "--name-only"]
-            return _get_changed_files_from_command(cmd)
+            try:
+                return _get_changed_files_from_command(cmd)
+            except Exception as e:
+                # If it fails due to the 300 file limit, use the API method
+                if "maximum" in str(e) and "files" in str(e):
+                    cmd = [
+                        "gh",
+                        "api",
+                        f"repos/esphome/esphome/pulls/{pr_number}/files",
+                        "--paginate",
+                        "--jq",
+                        ".[].filename",
+                    ]
+                    return _get_changed_files_from_command(cmd)
+                # Re-raise for other errors
+                raise
 
     # For pushes (including squash-and-merge)
     elif event_name == "push":
@@ -338,12 +353,12 @@ def filter_changed(files: list[str]) -> list[str]:
     return files
 
 
-def filter_grep(files: list[str], value: str) -> list[str]:
+def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
         with open(file, encoding="utf-8") as handle:
             contents = handle.read()
-        if value in contents:
+        if any(v in contents for v in value):
             matched.append(file)
     return matched
 
@@ -365,9 +380,11 @@ def load_idedata(environment: str) -> dict[str, Any]:
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if "idf" in environment:

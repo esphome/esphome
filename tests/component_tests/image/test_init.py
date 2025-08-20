@@ -9,7 +9,8 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.image import CONFIG_SCHEMA
+from esphome.components.image import CONF_TRANSPARENCY, CONFIG_SCHEMA
+from esphome.const import CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
 
 
 @pytest.mark.parametrize(
@@ -22,12 +23,12 @@ from esphome.components.image import CONFIG_SCHEMA
         ),
         pytest.param(
             {"id": "image_id", "type": "rgb565"},
-            r"required key not provided @ data\[0\]\['file'\]",
+            r"required key not provided @ data\['file'\]",
             id="missing_file",
         ),
         pytest.param(
             {"file": "image.png", "type": "rgb565"},
-            r"required key not provided @ data\[0\]\['id'\]",
+            r"required key not provided @ data\['id'\]",
             id="missing_id",
         ),
         pytest.param(
@@ -160,13 +161,66 @@ def test_image_configuration_errors(
             },
             id="type_based_organization",
         ),
+        pytest.param(
+            {
+                "defaults": {
+                    "type": "binary",
+                    "transparency": "chroma_key",
+                    "byte_order": "little_endian",
+                    "dither": "FloydSteinberg",
+                    "resize": "100x100",
+                    "invert_alpha": False,
+                },
+                "rgb565": {
+                    "alpha_channel": [
+                        {
+                            "id": "image_id",
+                            "file": "image.png",
+                            "transparency": "alpha_channel",
+                            "dither": "none",
+                        }
+                    ]
+                },
+                "binary": [
+                    {
+                        "id": "image_id",
+                        "file": "image.png",
+                        "transparency": "opaque",
+                    }
+                ],
+            },
+            id="type_based_with_defaults",
+        ),
+        pytest.param(
+            {
+                "defaults": {
+                    "type": "rgb565",
+                    "transparency": "alpha_channel",
+                },
+                "binary": {
+                    "opaque": [
+                        {
+                            "id": "image_id",
+                            "file": "image.png",
+                        }
+                    ],
+                },
+            },
+            id="binary_with_defaults",
+        ),
     ],
 )
 def test_image_configuration_success(
     config: dict[str, Any] | list[dict[str, Any]],
 ) -> None:
     """Test successful configuration validation."""
-    CONFIG_SCHEMA(config)
+    result = CONFIG_SCHEMA(config)
+    # All valid configurations should return a list of images
+    assert isinstance(result, list)
+    for key in (CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_RAW_DATA_ID):
+        assert all(key in x for x in result), (
+            f"Missing key {key} in image configuration"
+        )
 
 
 def test_image_generation(

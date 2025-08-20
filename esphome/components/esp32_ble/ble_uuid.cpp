@@ -1,14 +1,14 @@
 #include "ble_uuid.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_UUID
 
 #include <cstring>
 #include <cstdio>
 #include <cinttypes>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace esp32_ble {
+namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
@@ -189,7 +189,7 @@ std::string ESPBTUUID::to_string() const {
   return "";
 }
 
-}  // namespace esp32_ble
-}  // namespace esphome
+}  // namespace esphome::esp32_ble
 
-#endif
+#endif  // USE_ESP32_BLE_UUID
+#endif  // USE_ESP32

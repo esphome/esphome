@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from typing import Any
 
 from esphome import const
 
@@ -59,7 +60,7 @@ def safe_print(message="", end="\n"):
     from esphome.core import CORE
 
     if CORE.dashboard:
-        try:
+        try:  # noqa: SIM105
             message = message.replace("\033", "\\033")
         except UnicodeEncodeError:
             pass
@@ -110,7 +111,7 @@ class RedirectText:
     def __getattr__(self, item):
         return getattr(self._out, item)
 
-    def _write_color_replace(self, s):
+    def _write_color_replace(self, s: str | bytes) -> None:
         from esphome.core import CORE
 
         if CORE.dashboard:
@@ -121,7 +122,7 @@ class RedirectText:
             s = s.replace("\033", "\\033")
         self._out.write(s)
 
-    def write(self, s):
+    def write(self, s: str | bytes) -> int:
         # s is usually a str already (self._out is of type TextIOWrapper)
         # However, s is sometimes also a bytes object in python3. Let's make sure it's a
         # str
@@ -223,7 +224,7 @@ def run_external_command(
     return retval
 
 
-def run_external_process(*cmd, **kwargs):
+def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
@@ -238,7 +239,12 @@ def run_external_process(*cmd, **kwargs):
 
     try:
         proc = subprocess.run(
-            cmd, stdout=sub_stdout, stderr=sub_stderr, encoding="utf-8", check=False
+            cmd,
+            stdout=sub_stdout,
+            stderr=sub_stderr,
+            encoding="utf-8",
+            check=False,
+            close_fds=False,
         )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
@@ -266,7 +272,7 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(folders):
+def list_yaml_files(folders: list[str]) -> list[str]:
     files = filter_yaml_files(
         [os.path.join(folder, p) for folder in folders for p in os.listdir(folder)]
     )
@@ -274,7 +280,7 @@ def list_yaml_files(folders):
     return files
 
 
-def filter_yaml_files(files):
+def filter_yaml_files(files: list[str]) -> list[str]:
     return [
         f
         for f in files
@@ -345,5 +351,11 @@ def get_esp32_arduino_flash_error_help() -> str | None:
         + "2. Clean build files and compile again\n"
         + "\n"
         + "Note: ESP-IDF uses less flash space and provides better performance.\n"
-        + "Some Arduino-specific libraries may need alternatives.\n\n"
+        + "Some Arduino-specific libraries may need alternatives.\n"
+        + "\n"
+        + "For detailed migration instructions, see:\n"
+        + color(
+            AnsiFore.BLUE,
+            "https://esphome.io/guides/esp32_arduino_to_idf.html\n\n",
+        )
     )

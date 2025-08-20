@@ -61,6 +61,7 @@ FILTER_PLATFORMIO_LINES = [
     r"Advanced Memory Usage is available via .*",
     r"Merged .* ELF section",
     r"esptool.py v.*",
+    r"esptool v.*",
     r"Checking size .*",
     r"Retrieving maximum program size .*",
     r"PLATFORM: .*",
@@ -131,9 +132,11 @@ def _load_idedata(config):
     temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
 
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if not changed:
@@ -208,7 +211,7 @@ def _decode_pc(config, addr):
         return
     command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
     try:
-        translation = subprocess.check_output(command).decode().strip()
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return

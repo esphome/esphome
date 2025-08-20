@@ -118,15 +118,14 @@ async def register_select(var, config, *, options: list[str]):
     await setup_select_core_(var, config, options=options)
 
 
-async def new_select(config, *, options: list[str]):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_select(config, *args, options: list[str]):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_select(var, config, options=options)
     return var
 
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)
 
 

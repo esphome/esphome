@@ -346,14 +346,13 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
-    if CORE.using_arduino:
-        if config[CONF_HARDWARE_UART] == USB_CDC:
-            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
-            if CORE.is_esp32 and get_esp32_variant() in (
-                VARIANT_ESP32C3,
-                VARIANT_ESP32C6,
-            ):
-                cg.add_build_flag("-DARDUINO_USB_MODE=1")
+    if CORE.using_arduino and config[CONF_HARDWARE_UART] == USB_CDC:
+        cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
+        if CORE.is_esp32 and get_esp32_variant() in (
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C6,
+        ):
+            cg.add_build_flag("-DARDUINO_USB_MODE=1")
 
     if CORE.using_esp_idf:
         if config[CONF_HARDWARE_UART] == USB_CDC:
@@ -410,7 +409,7 @@ def validate_printf(value):
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
     """  # noqa
-    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
+    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
@@ -422,6 +421,7 @@ CONF_LOGGER_LOG = "logger.log"
 LOGGER_LOG_ACTION_SCHEMA = cv.All(
     cv.maybe_simple_value(
         {
+            cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
             cv.Required(CONF_FORMAT): cv.string,
             cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
             cv.Optional(CONF_LEVEL, default="DEBUG"): cv.one_of(

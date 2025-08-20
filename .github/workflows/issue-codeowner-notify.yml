@@ -29,6 +29,9 @@ jobs:
 
             console.log(`Processing issue #${issue_number} with label: ${labelName}`);
 
+            // Hidden marker to identify bot comments from this workflow
+            const BOT_COMMENT_MARKER = '<!-- issue-codeowner-notify-bot -->';
+
             // Extract component name from label
             const componentName = labelName.replace('component: ', '');
             console.log(`Component: ${componentName}`);
@@ -92,16 +95,57 @@ jobs:
                 mention !== `@${issueAuthor}`
               );
 
-              const allMentions = [...filteredUserOwners, ...teamOwners];
+              // Check for previous comments from this workflow to avoid duplicate pings
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {
+                  owner,
+                  repo,
+                  issue_number: issue_number
+                }
+              );
+
+              const previouslyPingedUsers = new Set();
+              const previouslyPingedTeams = new Set();
+
+              // Look for comments from github-actions bot that contain codeowner pings for this component
+              const workflowComments = comments.filter(comment =>
+                comment.user.type === 'Bot' &&
+                comment.body.includes(BOT_COMMENT_MARKER) &&
+                comment.body.includes(`component: ${componentName}`)
+              );
+
+              // Extract previously mentioned users and teams from workflow comments
+              for (const comment of workflowComments) {
+                // Match @username patterns (not team mentions)
+                const userMentions = comment.body.match(/@([a-zA-Z0-9_.-]+)(?![/])/g) || [];
+                userMentions.forEach(mention => {
+                  previouslyPingedUsers.add(mention); // Keep @ prefix for easy comparison
+                });
+
+                // Match @org/team patterns
+                const teamMentions = comment.body.match(/@[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/g) || [];
+                teamMentions.forEach(mention => {
+                  previouslyPingedTeams.add(mention);
+                });
+              }
+
+              console.log(`Found ${previouslyPingedUsers.size} previously pinged users and ${previouslyPingedTeams.size} previously pinged teams for component ${componentName}`);
+
+              // Remove previously pinged users and teams
+              const newUserOwners = filteredUserOwners.filter(mention => !previouslyPingedUsers.has(mention));
+              const newTeamOwners = teamOwners.filter(mention => !previouslyPingedTeams.has(mention));
+
+              const allMentions = [...newUserOwners, ...newTeamOwners];
 
               if (allMentions.length === 0) {
-                console.log('No codeowners to notify (issue author is the only codeowner)');
+                console.log('No new codeowners to notify (all previously pinged or issue author is the only codeowner)');
                 return;
               }
 
               // Create comment body
               const mentionString = allMentions.join(', ');
-              const commentBody = `👋 Hey ${mentionString}!\n\nThis issue has been labeled with \`component: ${componentName}\` and you've been identified as a codeowner of this component. Please take a look when you have a chance!\n\nThanks for maintaining this component! 🙏`;
+              const commentBody = `${BOT_COMMENT_MARKER}\n👋 Hey ${mentionString}!\n\nThis issue has been labeled with \`component: ${componentName}\` and you've been identified as a codeowner of this component. Please take a look when you have a chance!\n\nThanks for maintaining this component! 🙏`;
 
               // Post comment
               await github.rest.issues.createComment({
@@ -111,7 +155,7 @@ jobs:
                 body: commentBody
               });
 
-              console.log(`Successfully notified codeowners: ${mentionString}`);
+              console.log(`Successfully notified new codeowners: ${mentionString}`);
 
             } catch (error) {
               console.log('Failed to process codeowner notifications:', error.message);

@@ -111,8 +111,7 @@ def merge_config(full_old, full_new):
                     else:
                         ids[new_id] = len(res)
                 res.append(v)
-            res = [v for i, v in enumerate(res) if i not in ids_to_delete]
-            return res
+            return [v for i, v in enumerate(res) if i not in ids_to_delete]
         if new is None:
             return old
 

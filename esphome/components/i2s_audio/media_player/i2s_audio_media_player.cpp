@@ -119,10 +119,7 @@ void I2SAudioMediaPlayer::set_volume_(float volume, bool publish) {
     this->volume = volume;
 }
 
-void I2SAudioMediaPlayer::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
-}
+void I2SAudioMediaPlayer::setup() { this->state = media_player::MEDIA_PLAYER_STATE_IDLE; }
 
 void I2SAudioMediaPlayer::loop() {
   switch (this->i2s_state_) {

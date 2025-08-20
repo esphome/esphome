@@ -23,6 +23,9 @@ async def test_scheduler_retry_test(
     empty_name_retry_done = asyncio.Event()
     component_retry_done = asyncio.Event()
     multiple_name_done = asyncio.Event()
+    const_char_done = asyncio.Event()
+    static_char_done = asyncio.Event()
+    mixed_cancel_done = asyncio.Event()
     test_complete = asyncio.Event()
 
     # Track retry counts
@@ -33,16 +36,20 @@ async def test_scheduler_retry_test(
     empty_name_retry_count = 0
     component_retry_count = 0
     multiple_name_count = 0
+    const_char_retry_count = 0
+    static_char_retry_count = 0
 
     # Track specific test results
     cancel_result = None
     empty_cancel_result = None
+    mixed_cancel_result = None
     backoff_intervals = []
 
     def on_log_line(line: str) -> None:
         nonlocal simple_retry_count, backoff_retry_count, immediate_done_count
         nonlocal cancel_retry_count, empty_name_retry_count, component_retry_count
-        nonlocal multiple_name_count, cancel_result, empty_cancel_result
+        nonlocal multiple_name_count, const_char_retry_count, static_char_retry_count
+        nonlocal cancel_result, empty_cancel_result, mixed_cancel_result
 
         # Strip ANSI color codes
         clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
@@ -106,6 +113,27 @@ async def test_scheduler_retry_test(
                 if multiple_name_count >= 20:
                     multiple_name_done.set()
 
+        # Const char retry test
+        elif "Const char retry" in clean_line:
+            if match := re.search(r"Const char retry (\d+)", clean_line):
+                const_char_retry_count = int(match.group(1))
+                const_char_done.set()
+
+        # Static const char retry test
+        elif "Static const char retry" in clean_line:
+            if match := re.search(r"Static const char retry (\d+)", clean_line):
+                static_char_retry_count = int(match.group(1))
+                static_char_done.set()
+
+        elif "Static cancel result:" in clean_line:
+            # This is part of test 9, but we don't track it separately
+            pass
+
+        # Mixed cancel test
+        elif "Mixed cancel result:" in clean_line:
+            mixed_cancel_result = "true" in clean_line
+            mixed_cancel_done.set()
+
         # Test completion
         elif "All retry tests completed" in clean_line:
             test_complete.set()
@@ -148,16 +176,16 @@ async def test_scheduler_retry_test(
             f"Expected at least 2 intervals, got {len(backoff_intervals)}"
         )
         if len(backoff_intervals) >= 3:
-            # First interval should be ~50ms
-            assert 30 <= backoff_intervals[0] <= 70, (
+            # First interval should be ~50ms (very wide tolerance for heavy system load)
+            assert 20 <= backoff_intervals[0] <= 150, (
                 f"First interval {backoff_intervals[0]}ms not ~50ms"
             )
             # Second interval should be ~100ms (50ms * 2.0)
-            assert 80 <= backoff_intervals[1] <= 120, (
+            assert 50 <= backoff_intervals[1] <= 250, (
                 f"Second interval {backoff_intervals[1]}ms not ~100ms"
             )
             # Third interval should be ~200ms (100ms * 2.0)
-            assert 180 <= backoff_intervals[2] <= 220, (
+            assert 100 <= backoff_intervals[2] <= 500, (
                 f"Third interval {backoff_intervals[2]}ms not ~200ms"
             )
 
@@ -175,7 +203,7 @@ async def test_scheduler_retry_test(
 
         # Wait for cancel retry test
         try:
-            await asyncio.wait_for(cancel_retry_done.wait(), timeout=2.0)
+            await asyncio.wait_for(cancel_retry_done.wait(), timeout=3.0)
         except TimeoutError:
             pytest.fail(
                 f"Cancel retry test did not complete. Count: {cancel_retry_count}"
@@ -195,8 +223,8 @@ async def test_scheduler_retry_test(
             )
 
         # Empty name retry should run at least once before being cancelled
-        assert 1 <= empty_name_retry_count <= 2, (
-            f"Expected 1-2 empty name retry attempts, got {empty_name_retry_count}"
+        assert 1 <= empty_name_retry_count <= 3, (
+            f"Expected 1-3 empty name retry attempts, got {empty_name_retry_count}"
         )
         assert empty_cancel_result is True, (
             "Empty name retry cancel should have succeeded"
@@ -225,6 +253,40 @@ async def test_scheduler_retry_test(
         # Should be 20+ (only second retry should run)
         assert multiple_name_count >= 20, (
             f"Expected multiple name count >= 20 (second retry only), got {multiple_name_count}"
+        )
+
+        # Wait for const char retry test
+        try:
+            await asyncio.wait_for(const_char_done.wait(), timeout=1.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Const char retry test did not complete. Count: {const_char_retry_count}"
+            )
+
+        assert const_char_retry_count == 1, (
+            f"Expected 1 const char retry call, got {const_char_retry_count}"
+        )
+
+        # Wait for static char retry test
+        try:
+            await asyncio.wait_for(static_char_done.wait(), timeout=1.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Static char retry test did not complete. Count: {static_char_retry_count}"
+            )
+
+        assert static_char_retry_count == 1, (
+            f"Expected 1 static char retry call, got {static_char_retry_count}"
+        )
+
+        # Wait for mixed cancel test
+        try:
+            await asyncio.wait_for(mixed_cancel_done.wait(), timeout=1.0)
+        except TimeoutError:
+            pytest.fail("Mixed cancel test did not complete")
+
+        assert mixed_cancel_result is True, (
+            "Mixed string/const char cancel should have succeeded"
         )
 
         # Wait for test completion

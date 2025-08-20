@@ -41,11 +41,13 @@ SX1509KeyTrigger = sx1509_ns.class_(
 
 
 def check_keys(config):
-    if CONF_KEYS in config:
-        if len(config[CONF_KEYS]) != config[CONF_KEY_ROWS] * config[CONF_KEY_COLUMNS]:
-            raise cv.Invalid(
-                "The number of key codes must equal the number of rows * columns"
-            )
+    if (
+        CONF_KEYS in config
+        and len(config[CONF_KEYS]) != config[CONF_KEY_ROWS] * config[CONF_KEY_COLUMNS]
+    ):
+        raise cv.Invalid(
+            "The number of key codes must equal the number of rows * columns"
+        )
     return config
 
 

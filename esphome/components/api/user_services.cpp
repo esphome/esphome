@@ -1,8 +1,7 @@
 #include "user_services.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 template<> bool get_execute_arg_value<bool>(const ExecuteServiceArgument &arg) { return arg.bool_; }
 template<> int32_t get_execute_arg_value<int32_t>(const ExecuteServiceArgument &arg) {
@@ -40,5 +39,4 @@ template<> enums::ServiceArgType to_service_arg_type<std::vector<std::string>>()
   return enums::SERVICE_ARG_TYPE_STRING_ARRAY;
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

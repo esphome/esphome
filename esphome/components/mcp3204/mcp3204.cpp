@@ -8,10 +8,7 @@ static const char *const TAG = "mcp3204";
 
 float MCP3204::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void MCP3204::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  this->spi_setup();
-}
+void MCP3204::setup() { this->spi_setup(); }
 
 void MCP3204::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP3204:");

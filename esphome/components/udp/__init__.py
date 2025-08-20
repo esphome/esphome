@@ -1,6 +1,7 @@
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_RECEIVE
 from esphome.components.packet_transport import (
     CONF_BINARY_SENSORS,
     CONF_ENCRYPTION,
@@ -27,7 +28,6 @@ trigger_args = cg.std_vector.template(cg.uint8)
 CONF_ADDRESSES = "addresses"
 CONF_LISTEN_ADDRESS = "listen_address"
 CONF_UDP_ID = "udp_id"
-CONF_ON_RECEIVE = "on_receive"
 CONF_LISTEN_PORT = "listen_port"
 CONF_BROADCAST_PORT = "broadcast_port"
 

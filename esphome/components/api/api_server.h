@@ -18,8 +18,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
@@ -107,7 +106,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
+#endif
 #ifdef USE_API_SERVICES
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
@@ -127,6 +128,7 @@ class APIServer : public Component, public Controller {
 
   bool is_connected() const;
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
     std::string entity_id;
     optional<std::string> attribute;
@@ -139,6 +141,7 @@ class APIServer : public Component, public Controller {
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+#endif
 #ifdef USE_API_SERVICES
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
@@ -172,7 +175,9 @@ class APIServer : public Component, public Controller {
   std::string password_;
 #endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+#ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
+#endif
 #ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
@@ -196,6 +201,5 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   bool check(Ts... x) override { return global_api_server->is_connected(); }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

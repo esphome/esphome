@@ -21,8 +21,6 @@ static const char *const TAG = "bme68x_bsec2.sensor";
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 void BME68xBSEC2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
