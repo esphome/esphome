@@ -16,7 +16,6 @@ static const uint16_t PRESSURE_ADDRESS = 0x04B0;
 
 void EE895Component::setup() {
   uint16_t crc16_check = 0;
-  ESP_LOGCONFIG(TAG, "Running setup");
   write_command_(SERIAL_NUMBER, 8);
   uint8_t serial_number[20];
   this->read(serial_number, 20);

@@ -1,0 +1,17 @@
+esphome:
+  name: gpio-expander-cache
+host:
+
+logger:
+  level: DEBUG
+
+api:
+
+# External component that uses gpio_expander::CachedGpioExpander
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [gpio_expander_test_component]
+
+gpio_expander_test_component:

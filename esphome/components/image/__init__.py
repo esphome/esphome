@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import logging
@@ -10,8 +11,10 @@ from PIL import Image, UnidentifiedImageError
 
 from esphome import core, external_files
 import esphome.codegen as cg
+from esphome.components.const import CONF_BYTE_ORDER
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEFAULTS,
     CONF_DITHER,
     CONF_FILE,
     CONF_ICON,
@@ -38,6 +41,7 @@ CONF_OPAQUE = "opaque"
 CONF_CHROMA_KEY = "chroma_key"
 CONF_ALPHA_CHANNEL = "alpha_channel"
 CONF_INVERT_ALPHA = "invert_alpha"
+CONF_IMAGES = "images"
 
 TRANSPARENCY_TYPES = (
     CONF_OPAQUE,
@@ -103,6 +107,24 @@ class ImageEncoder:
         Marks the end of a pixel row
         :return:
         """
+
+    @classmethod
+    def is_endian(cls) -> bool:
+        """
+        Check if the image encoder supports endianness configuration
+        """
+        return getattr(cls, "set_big_endian", None) is not None
+
+    @classmethod
+    def get_options(cls) -> list[str]:
+        """
+        Get the available options for this image encoder
+        """
+        options = [*OPTIONS]
+        if not cls.is_endian():
+            options.remove(CONF_BYTE_ORDER)
+        options.append(CONF_RAW_DATA_ID)
+        return options
 
 
 def is_alpha_only(image: Image):
@@ -171,9 +193,8 @@ class ImageGrayscale(ImageEncoder):
                 b = 1
         if self.invert_alpha:
             b ^= 0xFF
-        if self.transparency == CONF_ALPHA_CHANNEL:
-            if a != 0xFF:
-                b = a
+        if self.transparency == CONF_ALPHA_CHANNEL and a != 0xFF:
+            b = a
         self.data[self.index] = b
         self.index += 1
 
@@ -188,6 +209,10 @@ class ImageRGB565(ImageEncoder):
             dither,
             invert_alpha,
         )
+        self.big_endian = True
+
+    def set_big_endian(self, big_endian: bool) -> None:
+        self.big_endian = big_endian
 
     def convert(self, image, path):
         return image.convert("RGBA")
@@ -205,10 +230,16 @@ class ImageRGB565(ImageEncoder):
                 g = 1
                 b = 0
         rgb = (r << 11) | (g << 5) | b
-        self.data[self.index] = rgb >> 8
-        self.index += 1
-        self.data[self.index] = rgb & 0xFF
-        self.index += 1
+        if self.big_endian:
+            self.data[self.index] = rgb >> 8
+            self.index += 1
+            self.data[self.index] = rgb & 0xFF
+            self.index += 1
+        else:
+            self.data[self.index] = rgb & 0xFF
+            self.index += 1
+            self.data[self.index] = rgb >> 8
+            self.index += 1
         if self.transparency == CONF_ALPHA_CHANNEL:
             if self.invert_alpha:
                 a ^= 0xFF
@@ -364,7 +395,7 @@ def validate_file_shorthand(value):
     value = cv.string_strict(value)
     parts = value.strip().split(":")
     if len(parts) == 2 and parts[0] in MDI_SOURCES:
-        match = re.match(r"[a-zA-Z0-9\-]+", parts[1])
+        match = re.match(r"^[a-zA-Z0-9\-]+$", parts[1])
         if match is None:
             raise cv.Invalid(f"Could not parse mdi icon name from '{value}'.")
         return download_gh_svg(parts[1], parts[0])
@@ -433,21 +464,30 @@ def validate_type(image_types):
     return validate
 
 
-def validate_settings(value):
-    type = value[CONF_TYPE]
-    transparency = value[CONF_TRANSPARENCY].lower()
-    allow_config = IMAGE_TYPE[type].allow_config
-    if transparency not in allow_config:
+def validate_settings(value, path=()):
+    """
+    Validate the settings for a single image configuration.
+    """
+    conf_type = value[CONF_TYPE]
+    type_class = IMAGE_TYPE[conf_type]
+
+    transparency = value.get(CONF_TRANSPARENCY, CONF_OPAQUE).lower()
+    if transparency not in type_class.allow_config:
         raise cv.Invalid(
-            f"Image format '{type}' cannot have transparency: {transparency}"
+            f"Image format '{conf_type}' cannot have transparency: {transparency}"
         )
     invert_alpha = value.get(CONF_INVERT_ALPHA, False)
     if (
         invert_alpha
         and transparency != CONF_ALPHA_CHANNEL
-        and CONF_INVERT_ALPHA not in allow_config
+        and CONF_INVERT_ALPHA not in type_class.allow_config
     ):
         raise cv.Invalid("No alpha channel to invert")
+    if value.get(CONF_BYTE_ORDER) is not None and not type_class.is_endian():
+        raise cv.Invalid(
+            f"Image format '{conf_type}' does not support byte order configuration",
+            path=path,
+        )
     if file := value.get(CONF_FILE):
         file = Path(file)
         if is_svg_file(file):
@@ -456,29 +496,98 @@ def validate_settings(value):
             try:
                 Image.open(file)
             except UnidentifiedImageError as exc:
-                raise cv.Invalid(f"File can't be opened as image: {file}") from exc
+                raise cv.Invalid(
+                    f"File can't be opened as image: {file.absolute()}", path=path
+                ) from exc
     return value
 
 
-BASE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(Image_),
-        cv.Required(CONF_FILE): cv.Any(validate_file_shorthand, TYPED_FILE_SCHEMA),
-        cv.Optional(CONF_RESIZE): cv.dimensions,
-        cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
-            "NONE", "FLOYDSTEINBERG", upper=True
-        ),
-        cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
-        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-    }
-).add_extra(validate_settings)
+IMAGE_ID_SCHEMA = {
+    cv.Required(CONF_ID): cv.declare_id(Image_),
+    cv.Required(CONF_FILE): cv.Any(validate_file_shorthand, TYPED_FILE_SCHEMA),
+    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+}
 
-IMAGE_SCHEMA = BASE_SCHEMA.extend(
+
+OPTIONS_SCHEMA = {
+    cv.Optional(CONF_RESIZE): cv.dimensions,
+    cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
+        "NONE", "FLOYDSTEINBERG", upper=True
+    ),
+    cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
+    cv.Optional(CONF_BYTE_ORDER): cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True),
+    cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
+}
+
+DEFAULTS_SCHEMA = {
+    **OPTIONS_SCHEMA,
+    cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
+}
+
+OPTIONS = [key.schema for key in OPTIONS_SCHEMA]
+
+# image schema with no defaults, used with `CONF_IMAGES` in the config
+IMAGE_SCHEMA_NO_DEFAULTS = {
+    **IMAGE_ID_SCHEMA,
+    **{cv.Optional(key): OPTIONS_SCHEMA[key] for key in OPTIONS},
+}
+
+IMAGE_SCHEMA = cv.Schema(
     {
+        **IMAGE_ID_SCHEMA,
+        **OPTIONS_SCHEMA,
         cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
-        cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
     }
 )
+
+
+def apply_defaults(image, defaults, path):
+    """
+    Apply defaults to an image configuration
+    """
+    type = image.get(CONF_TYPE, defaults.get(CONF_TYPE))
+    if type is None:
+        raise cv.Invalid(
+            "Type is required either in the image config or in the defaults", path=path
+        )
+    type_class = IMAGE_TYPE[type]
+    config = {
+        **{key: image.get(key, defaults.get(key)) for key in type_class.get_options()},
+        **{key.schema: image[key.schema] for key in IMAGE_ID_SCHEMA},
+        CONF_TYPE: image.get(CONF_TYPE, defaults.get(CONF_TYPE)),
+    }
+    validate_settings(config, path)
+    return config
+
+
+def validate_defaults(value):
+    """
+    Apply defaults to the images in the configuration and flatten to a single list.
+    """
+    defaults = value[CONF_DEFAULTS]
+    result = []
+    # Apply defaults to the images: list and add the list entries to the result
+    for index, image in enumerate(value.get(CONF_IMAGES, [])):
+        result.append(apply_defaults(image, defaults, [CONF_IMAGES, index]))
+
+    # Apply defaults to images under the type keys and add them to the result
+    for image_type, type_config in value.items():
+        type_upper = image_type.upper()
+        if type_upper not in IMAGE_TYPE:
+            continue
+        type_class = IMAGE_TYPE[type_upper]
+        if isinstance(type_config, list):
+            # If the type is a list, apply defaults to each entry
+            for index, image in enumerate(type_config):
+                result.append(apply_defaults(image, defaults, [image_type, index]))
+        else:
+            # Handle transparency options for the type
+            for trans_type in set(type_class.allow_config).intersection(type_config):
+                for index, image in enumerate(type_config[trans_type]):
+                    result.append(
+                        apply_defaults(image, defaults, [image_type, trans_type, index])
+                    )
+    return result
 
 
 def typed_image_schema(image_type):
@@ -489,16 +598,20 @@ def typed_image_schema(image_type):
         cv.Schema(
             {
                 cv.Optional(t.lower()): cv.ensure_list(
-                    BASE_SCHEMA.extend(
-                        {
-                            cv.Optional(
-                                CONF_TRANSPARENCY, default=t
-                            ): validate_transparency((t,)),
-                            cv.Optional(CONF_TYPE, default=image_type): validate_type(
-                                (image_type,)
-                            ),
-                        }
-                    )
+                    {
+                        **IMAGE_ID_SCHEMA,
+                        **{
+                            cv.Optional(key): OPTIONS_SCHEMA[key]
+                            for key in OPTIONS
+                            if key != CONF_TRANSPARENCY
+                        },
+                        cv.Optional(
+                            CONF_TRANSPARENCY, default=t
+                        ): validate_transparency((t,)),
+                        cv.Optional(CONF_TYPE, default=image_type): validate_type(
+                            (image_type,)
+                        ),
+                    }
                 )
                 for t in IMAGE_TYPE[image_type].allow_config.intersection(
                     TRANSPARENCY_TYPES
@@ -507,26 +620,47 @@ def typed_image_schema(image_type):
         ),
         # Allow a default configuration with no transparency preselected
         cv.ensure_list(
-            BASE_SCHEMA.extend(
-                {
-                    cv.Optional(
-                        CONF_TRANSPARENCY, default=CONF_OPAQUE
-                    ): validate_transparency(),
-                    cv.Optional(CONF_TYPE, default=image_type): validate_type(
-                        (image_type,)
-                    ),
-                }
-            )
+            {
+                **IMAGE_SCHEMA_NO_DEFAULTS,
+                cv.Optional(CONF_TYPE, default=image_type): validate_type(
+                    (image_type,)
+                ),
+            }
         ),
     )
 
 
 # The config schema can be a (possibly empty) single list of images,
-# or a dictionary of image types each with a list of images
-CONFIG_SCHEMA = cv.Any(
-    cv.Schema({cv.Optional(t.lower()): typed_image_schema(t) for t in IMAGE_TYPE}),
-    cv.ensure_list(IMAGE_SCHEMA),
-)
+# or a dictionary with optional keys `defaults:`, `images:` and the image types
+
+
+def _config_schema(value):
+    if isinstance(value, list) or (
+        isinstance(value, dict) and (CONF_ID in value or CONF_FILE in value)
+    ):
+        return cv.ensure_list(cv.All(IMAGE_SCHEMA, validate_settings))(value)
+    if not isinstance(value, dict):
+        raise cv.Invalid(
+            "Badly formed image configuration, expected a list or a dictionary",
+        )
+    return cv.All(
+        cv.Schema(
+            {
+                cv.Optional(CONF_DEFAULTS, default={}): DEFAULTS_SCHEMA,
+                cv.Optional(CONF_IMAGES, default=[]): cv.ensure_list(
+                    {
+                        **IMAGE_SCHEMA_NO_DEFAULTS,
+                        cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
+                    }
+                ),
+                **{cv.Optional(t.lower()): typed_image_schema(t) for t in IMAGE_TYPE},
+            }
+        ),
+        validate_defaults,
+    )(value)
+
+
+CONFIG_SCHEMA = _config_schema
 
 
 async def write_image(config, all_frames=False):
@@ -572,19 +706,20 @@ async def write_image(config, all_frames=False):
         else Image.Dither.FLOYDSTEINBERG
     )
     type = config[CONF_TYPE]
-    transparency = config[CONF_TRANSPARENCY]
+    transparency = config.get(CONF_TRANSPARENCY, CONF_OPAQUE)
     invert_alpha = config[CONF_INVERT_ALPHA]
     frame_count = 1
     if all_frames:
-        try:
+        with contextlib.suppress(AttributeError):
             frame_count = image.n_frames
-        except AttributeError:
-            pass
         if frame_count <= 1:
             _LOGGER.warning("Image file %s has no animation frames", path)
 
     total_rows = height * frame_count
     encoder = IMAGE_TYPE[type](width, total_rows, transparency, dither, invert_alpha)
+    if byte_order := config.get(CONF_BYTE_ORDER):
+        # Check for valid type has already been done in validate_settings
+        encoder.set_big_endian(byte_order == "BIG_ENDIAN")
     for frame_index in range(frame_count):
         image.seek(frame_index)
         pixels = encoder.convert(image.resize((width, height)), path).getdata()
@@ -602,14 +737,9 @@ async def write_image(config, all_frames=False):
 
 
 async def to_code(config):
-    if isinstance(config, list):
-        for entry in config:
-            await to_code(entry)
-    elif CONF_ID not in config:
-        for entry in config.values():
-            await to_code(entry)
-    else:
-        prog_arr, width, height, image_type, trans_value, _ = await write_image(config)
+    # By now the config should be a simple list.
+    for entry in config:
+        prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
         cg.new_Pvariable(
-            config[CONF_ID], prog_arr, width, height, image_type, trans_value
+            entry[CONF_ID], prog_arr, width, height, image_type, trans_value
         )

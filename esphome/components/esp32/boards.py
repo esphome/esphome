@@ -2,12 +2,29 @@ from .const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANTS,
 )
+
+STANDARD_BOARDS = {
+    VARIANT_ESP32: "esp32dev",
+    VARIANT_ESP32C2: "esp32-c2-devkitm-1",
+    VARIANT_ESP32C3: "esp32-c3-devkitm-1",
+    VARIANT_ESP32C5: "esp32-c5-devkitc-1",
+    VARIANT_ESP32C6: "esp32-c6-devkitm-1",
+    VARIANT_ESP32H2: "esp32-h2-devkitm-1",
+    VARIANT_ESP32P4: "esp32-p4-evboard",
+    VARIANT_ESP32S2: "esp32-s2-kaluga-1",
+    VARIANT_ESP32S3: "esp32-s3-devkitc-1",
+}
+
+# Make sure not missed here if a new variant added.
+assert all(v in STANDARD_BOARDS for v in VARIANTS)
 
 ESP32_BASE_PINS = {
     "TX": 1,

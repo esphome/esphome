@@ -34,7 +34,6 @@ MQTTClientComponent::MQTTClientComponent() {
 
 // Connection
 void MQTTClientComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
         if (index == 0)
@@ -57,14 +56,15 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
-      if (level <= this->log_level_ && this->is_connected()) {
-        this->publish({.topic = this->log_message_.topic,
-                       .payload = message,
-                       .qos = this->log_message_.qos,
-                       .retain = this->log_message_.retain});
-      }
-    });
+    logger::global_logger->add_on_log_callback(
+        [this](int level, const char *tag, const char *message, size_t message_len) {
+          if (level <= this->log_level_ && this->is_connected()) {
+            this->publish({.topic = this->log_message_.topic,
+                           .payload = std::string(message, message_len),
+                           .qos = this->log_message_.qos,
+                           .retain = this->log_message_.retain});
+          }
+        });
   }
 #endif
 
@@ -91,6 +91,7 @@ void MQTTClientComponent::send_device_info_() {
   std::string topic = "esphome/discover/";
   topic.append(App.get_name());
 
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
       topic,
       [](JsonObject root) {
@@ -146,6 +147,7 @@ void MQTTClientComponent::send_device_info_() {
 #endif
       },
       2, this->discovery_info_.retain);
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 void MQTTClientComponent::dump_config() {
@@ -190,13 +192,17 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
+  err_t err;
+  {
+    LwIPLock lock;
 #if USE_NETWORK_IPV6
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
 #else
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif /* USE_NETWORK_IPV6 */
+  }
   switch (err) {
     case ERR_OK: {
       // Got IP immediately

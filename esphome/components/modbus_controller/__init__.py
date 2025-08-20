@@ -39,6 +39,7 @@ CODEOWNERS = ["@martgras"]
 AUTO_LOAD = ["modbus"]
 
 CONF_READ_LAMBDA = "read_lambda"
+CONF_WRITE_LAMBDA = "write_lambda"
 CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
@@ -148,6 +149,7 @@ ModbusServerRegisterSchema = cv.Schema(
         cv.Required(CONF_ADDRESS): cv.positive_int,
         cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
+        cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
     }
 )
 
@@ -318,6 +320,17 @@ async def to_code(config):
                     ),
                 )
             )
+            if CONF_WRITE_LAMBDA in server_register:
+                cg.add(
+                    server_register_var.set_write_lambda(
+                        cg.TemplateArguments(cpp_type),
+                        await cg.process_lambda(
+                            server_register[CONF_WRITE_LAMBDA],
+                            parameters=[(cg.uint16, "address"), (cpp_type, "x")],
+                            return_type=cg.bool_,
+                        ),
+                    )
+                )
             cg.add(var.add_server_register(server_register_var))
     await register_modbus_device(var, config)
     for conf in config.get(CONF_ON_COMMAND_SENT, []):
