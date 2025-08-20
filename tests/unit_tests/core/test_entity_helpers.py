@@ -730,3 +730,23 @@ def test_entity_duplicate_validator_non_ascii_names() -> None:
         ),
     ):
         validator(config2)
+
+
+def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
+    """Test that identical names don't show the enhanced message."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Temperature"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second entity with exact same name should fail without enhanced message
+    config2 = {CONF_NAME: "Temperature"}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Temperature' found.*"
+        r"Each entity on a device must have a unique name within its platform\.$",
+    ):
+        validator(config2)

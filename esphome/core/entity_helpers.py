@@ -238,12 +238,12 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
 
             # Show both original names and their ASCII-only versions if they differ
             sanitized_msg = ""
-            if entity_name != name_key or existing_name != name_key:
+            if entity_name != existing_name:
                 sanitized_msg = (
                     f"\n  Original names: '{entity_name}' and '{existing_name}'"
                     f"\n  Both convert to ASCII ID: '{name_key}'"
                     "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
-                    "\n           to distinguish them"
+                    "\n          to distinguish them"
                 )
 
             raise cv.Invalid(
