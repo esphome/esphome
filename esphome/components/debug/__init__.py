@@ -48,6 +48,15 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("HWINFO", True)
+        # gdb thread support
+        zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
+        # RTT
+        zephyr_add_prj_conf("USE_SEGGER_RTT", True)
+        zephyr_add_prj_conf("RTT_CONSOLE", True)
+        zephyr_add_prj_conf("LOG", True)
+        zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
+        zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
+        zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

@@ -16,6 +16,7 @@ from esphome.components.esp32.const import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
+    CONF_DISABLED,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_MODE,
@@ -102,6 +103,7 @@ def get_config_schema(config):
             cv.Optional(CONF_MODE, default=modes[0]): cv.one_of(*modes, lower=True),
             cv.Optional(CONF_ENABLE_ECC, default=False): cv.boolean,
             cv.Optional(CONF_SPEED, default=speeds[0]): cv.one_of(*speeds, upper=True),
+            cv.Optional(CONF_DISABLED, default=False): cv.boolean,
         }
     )(config)
 
@@ -112,6 +114,8 @@ FINAL_VALIDATE_SCHEMA = validate_psram_mode
 
 
 async def to_code(config):
+    if config[CONF_DISABLED]:
+        return
     if CORE.using_arduino:
         cg.add_build_flag("-DBOARD_HAS_PSRAM")
         if config[CONF_MODE] == TYPE_OCTAL:

@@ -8,6 +8,14 @@ static const char *const TAG = "switch";
 
 Switch::Switch() : state(false) {}
 
+void Switch::control(bool target_state) {
+  ESP_LOGV(TAG, "'%s' Control: %s", this->get_name().c_str(), ONOFF(target_state));
+  if (target_state) {
+    this->turn_on();
+  } else {
+    this->turn_off();
+  }
+}
 void Switch::turn_on() {
   ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());
   this->write_state(!this->inverted_);

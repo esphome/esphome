@@ -1,6 +1,6 @@
-#ifdef USE_ESP32
-
 #include "ble.h"
+
+#ifdef USE_ESP32
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -53,6 +53,7 @@ void ESP32BLE::disable() {
 
 bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
   if (!this->is_active())
@@ -88,6 +89,7 @@ void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_->remove_service_uuid(uuid);
   this->advertising_start();
 }
+#endif
 
 bool ESP32BLE::ble_pre_setup_() {
   esp_err_t err = nvs_flash_init();
@@ -98,6 +100,7 @@ bool ESP32BLE::ble_pre_setup_() {
   return true;
 }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_init_() {
   if (this->advertising_ != nullptr)
     return;
@@ -107,6 +110,7 @@ void ESP32BLE::advertising_init_() {
   this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->set_appearance(this->appearance_);
 }
+#endif
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
@@ -302,7 +306,7 @@ void ESP32BLE::loop() {
       case BLEEvent::GATTS: {
         esp_gatts_cb_event_t event = ble_event->event_.gatts.gatts_event;
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
-        esp_ble_gatts_cb_param_t *param = ble_event->event_.gatts.gatts_param;
+        esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
         for (auto *gatts_handler : this->gatts_event_handlers_) {
           gatts_handler->gatts_event_handler(event, gatts_if, param);
@@ -312,7 +316,7 @@ void ESP32BLE::loop() {
       case BLEEvent::GATTC: {
         esp_gattc_cb_event_t event = ble_event->event_.gattc.gattc_event;
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
-        esp_ble_gattc_cb_param_t *param = ble_event->event_.gattc.gattc_param;
+        esp_ble_gattc_cb_param_t *param = &ble_event->event_.gattc.gattc_param;
         ESP_LOGV(TAG, "gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
         for (auto *gattc_handler : this->gattc_event_handlers_) {
           gattc_handler->gattc_event_handler(event, gattc_if, param);
@@ -394,9 +398,11 @@ void ESP32BLE::loop() {
     this->ble_event_pool_.release(ble_event);
     ble_event = this->ble_events_.pop();
   }
+#ifdef USE_ESP32_BLE_ADVERTISING
   if (this->advertising_ != nullptr) {
     this->advertising_->loop();
   }
+#endif
 
   // Log dropped events periodically
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
