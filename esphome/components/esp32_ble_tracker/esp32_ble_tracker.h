@@ -289,7 +289,7 @@ class ESP32BLETracker : public Component,
   void cleanup_scan_state_(bool is_stop_complete);
   /// Process a single scan result immediately
   /// Returns true if a discovered client needs promotion to READY_TO_CONNECT
-  bool process_scan_result_(const BLEScanResult &scan_result);
+  void process_scan_result_(const BLEScanResult &scan_result);
 #ifdef USE_ESP32_BLE_DEVICE
   /// Check if any clients are in connecting or ready to connect state
   bool has_connecting_clients_() const;
