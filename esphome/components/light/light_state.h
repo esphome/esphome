@@ -4,6 +4,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "light_call.h"
 #include "light_color_values.h"
 #include "light_effect.h"
@@ -116,6 +117,8 @@ class LightState : public EntityBase, public Component {
 
   /// Return the name of the current effect, or if no effect is active "None".
   std::string get_effect_name();
+  /// Return the name of the current effect as StringRef (for API usage)
+  StringRef get_effect_name_ref();
 
   /**
    * This lets front-end components subscribe to light change events. This callback is called once
