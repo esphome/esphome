@@ -8,8 +8,8 @@ namespace hdc2080 {
 static const char *const TAG = "hdc2080";
 
 static const uint8_t HDC2080_CMD_CONFIGURATION = 0x0E;
+static const uint8_t HDC2080_CMD_MEASUREMENT_CONFIGURATION = 0x0F;
 static const uint8_t HDC2080_CMD_TEMPERATURE = 0x00;
-static const uint8_t HDC2080_CMD_HUMIDITY = 0x02;
 
 void HDC2080Component::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
