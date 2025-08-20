@@ -44,7 +44,7 @@ static constexpr size_t MAX_PACKETS_PER_BATCH = 64;  // ESP32 has 8KB+ stack, HO
 static constexpr size_t MAX_PACKETS_PER_BATCH = 32;  // ESP8266/RP2040/etc have smaller stacks
 #endif
 
-class APIConnection : public APIServerConnection {
+class APIConnection final : public APIServerConnection {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
@@ -301,9 +301,15 @@ class APIConnection : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // IMPORTANT: get_object_id() may return a temporary std::string
-    std::string object_id = entity->get_object_id();
-    msg.set_object_id(StringRef(object_id));
+    // Try to use static reference first to avoid allocation
+    StringRef static_ref = entity->get_object_id_ref_for_api_();
+    if (!static_ref.empty()) {
+      msg.set_object_id(static_ref);
+    } else {
+      // Dynamic case - need to allocate
+      std::string object_id = entity->get_object_id();
+      msg.set_object_id(StringRef(object_id));
+    }
 
     if (entity->has_own_name()) {
       msg.set_name(entity->get_name());

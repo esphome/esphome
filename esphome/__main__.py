@@ -476,7 +476,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         from esphome.components.api.client import run_logs
 
         return run_logs(config, addresses_to_use)
-    if get_port_type(port) == "MQTT" and "mqtt" in config:
+    if get_port_type(port) in ("NETWORK", "MQTT") and "mqtt" in config:
         from esphome import mqtt
 
         return mqtt.show_logs(
