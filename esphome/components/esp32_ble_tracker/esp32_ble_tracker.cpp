@@ -307,14 +307,7 @@ void ESP32BLETracker::gap_scan_event_handler(const BLEScanResult &scan_result) {
 
   if (scan_result.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     // Process the scan result immediately
-    bool found_discovered_client = this->process_scan_result_(scan_result);
-
-    // If we found a discovered client that needs promotion, stop scanning
-    // This replaces the promote_to_connecting logic from loop()
-    if (found_discovered_client && this->scanner_state_ == ScannerState::RUNNING) {
-      ESP_LOGD(TAG, "Found discovered client, stopping scan for connection");
-      this->stop_scan_();
-    }
+    this->process_scan_result_(scan_result);
   } else if (scan_result.search_evt == ESP_GAP_SEARCH_INQ_CMPL_EVT) {
     // Scan finished on its own
     if (this->scanner_state_ != ScannerState::RUNNING) {
@@ -720,20 +713,9 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
          ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
 }
 
-bool ESP32BLETracker::has_connecting_clients_() const {
-  for (auto *client : this->clients_) {
-    auto state = client->state();
-    if (state == ClientState::CONNECTING || state == ClientState::READY_TO_CONNECT) {
-      return true;
-    }
-  }
-  return false;
-}
 #endif  // USE_ESP32_BLE_DEVICE
 
-bool ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
-  bool found_discovered_client = false;
-
+void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
   // Process raw advertisements
   if (this->raw_advertisements_) {
     for (auto *listener : this->listeners_) {
@@ -759,14 +741,6 @@ bool ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
     for (auto *client : this->clients_) {
       if (client->parse_device(device)) {
         found = true;
-        // Check if this client is discovered and needs promotion
-        if (client->state() == ClientState::DISCOVERED) {
-          // Only check for connecting clients if we found a discovered client
-          // This matches the original logic: !connecting && client->state() == DISCOVERED
-          if (!this->has_connecting_clients_()) {
-            found_discovered_client = true;
-          }
-        }
       }
     }
 
@@ -775,8 +749,6 @@ bool ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
     }
 #endif  // USE_ESP32_BLE_DEVICE
   }
-
-  return found_discovered_client;
 }
 
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
