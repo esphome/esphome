@@ -14,15 +14,10 @@ static const uint8_t HDC2080_CMD_TEMPERATURE = 0x00;
 void HDC2080Component::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
 
-  const uint8_t data[2] = {
-      0b00000000,  // automatic reading mode, 1 sample for minute
-      0b00000001   // resolution 14bit for both humidity and temperature and start measurement
-  };
+   const uint8_t data = 0b00000000;  // automatic measurement mode disabled, heater off
 
-  if (!this->write_bytes(HDC2080_CMD_CONFIGURATION, data, 2)) {
-    // as instruction is same as powerup defaults (for now), interpret as warning if this fails
-    ESP_LOGW(TAG, "HDC2080 initial config instruction error");
-    this->status_set_warning();
+  if (this->write_register(HDC2080_CMD_CONFIGURATION, &data, 1) != i2c::ERROR_OK) {
+    this->mark_failed("Communication failed");
     return;
   }
 }
