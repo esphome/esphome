@@ -16,7 +16,6 @@ class HDC2080Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  void loop() override;
 
  protected:
   void read_temperature_();
