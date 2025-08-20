@@ -161,27 +161,15 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
 
-    uint32_t delay_value = this->delay_.value(x...);
-
     // If num_running_ > 1, we have multiple instances running in parallel
     // In single/restart/queued modes, only one instance runs at a time
-    if (this->num_running_ > 1) {
-      // Parallel mode - directly call set_timer_common_ with skip_cancel=true
-      // to allow multiple delays to coexist.
-      // We directly call set_timer_common_ instead of using a public method because
-      // this functionality is dangerous (can accumulate delays and overload the scheduler)
-      // and should not be exposed in the public API. DelayAction is a friend class of
-      // Scheduler specifically to access this internal method.
-      // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
-      // Users should set max_runs on parallel scripts to limit concurrent executions.
-      // Issue #10264: This is a workaround for parallel script delays interfering with each other.
-      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
-                                      /* is_static_string= */ true, "delay", delay_value, std::move(f),
-                                      /* is_retry= */ false, /* skip_cancel= */ true);
-    } else {
-      // Single/restart/queued mode - use set_timeout for normal cancellation behavior
-      this->set_timeout("delay", delay_value, f);
-    }
+    // Parallel mode uses skip_cancel=true to allow multiple delays to coexist
+    // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
+    // Users should set max_runs on parallel scripts to limit concurrent executions.
+    // Issue #10264: This is a workaround for parallel script delays interfering with each other.
+    App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
+                                    /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
+                                    /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
