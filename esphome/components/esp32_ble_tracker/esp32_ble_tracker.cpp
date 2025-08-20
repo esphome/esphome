@@ -134,9 +134,8 @@ void ESP32BLETracker::loop() {
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
-    ESP_LOGD(TAG, "connecting: %d, discovered: %d, searching: %d, disconnecting: %d",
-             this->client_state_counts_.connecting, this->client_state_counts_.discovered,
-             this->client_state_counts_.searching, this->client_state_counts_.disconnecting);
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
+             this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
   }
 
   if (this->scanner_state_ == ScannerState::FAILED ||
