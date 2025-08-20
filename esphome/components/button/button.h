@@ -7,11 +7,9 @@
 namespace esphome {
 namespace button {
 
-// Forward declaration
 class Button;
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj);
 
-// Macro that calls the function - kept for backward compatibility
 #define LOG_BUTTON(prefix, type, obj) log_button(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_BUTTON(name) \

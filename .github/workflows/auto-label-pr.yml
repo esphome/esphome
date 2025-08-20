@@ -105,7 +105,9 @@ jobs:
 
             // Calculate data from PR files
             const changedFiles = prFiles.map(file => file.filename);
-            const totalChanges = prFiles.reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
+            const totalAdditions = prFiles.reduce((sum, file) => sum + (file.additions || 0), 0);
+            const totalDeletions = prFiles.reduce((sum, file) => sum + (file.deletions || 0), 0);
+            const totalChanges = totalAdditions + totalDeletions;
 
             console.log('Current labels:', currentLabels.join(', '));
             console.log('Changed files:', changedFiles.length);
@@ -231,15 +233,20 @@ jobs:
             // Strategy: PR size detection
             async function detectPRSize() {
               const labels = new Set();
-              const testChanges = prFiles
-                .filter(file => file.filename.startsWith('tests/'))
-                .reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
-
-              const nonTestChanges = totalChanges - testChanges;
 
               if (totalChanges <= SMALL_PR_THRESHOLD) {
                 labels.add('small-pr');
+                return labels;
               }
+
+              const testAdditions = prFiles
+                .filter(file => file.filename.startsWith('tests/'))
+                .reduce((sum, file) => sum + (file.additions || 0), 0);
+              const testDeletions = prFiles
+                .filter(file => file.filename.startsWith('tests/'))
+                .reduce((sum, file) => sum + (file.deletions || 0), 0);
+
+              const nonTestChanges = (totalAdditions - testAdditions) - (totalDeletions - testDeletions);
 
               // Don't add too-big if mega-pr label is already present
               if (nonTestChanges > TOO_BIG_THRESHOLD && !isMegaPR) {
@@ -412,10 +419,13 @@ jobs:
 
               // Too big message
               if (finalLabels.includes('too-big')) {
-                const testChanges = prFiles
+                const testAdditions = prFiles
                   .filter(file => file.filename.startsWith('tests/'))
-                  .reduce((sum, file) => sum + (file.additions || 0) + (file.deletions || 0), 0);
-                const nonTestChanges = totalChanges - testChanges;
+                  .reduce((sum, file) => sum + (file.additions || 0), 0);
+                const testDeletions = prFiles
+                  .filter(file => file.filename.startsWith('tests/'))
+                  .reduce((sum, file) => sum + (file.deletions || 0), 0);
+                const nonTestChanges = (totalAdditions - testAdditions) - (totalDeletions - testDeletions);
 
                 const tooManyLabels = finalLabels.length > MAX_LABELS;
                 const tooManyChanges = nonTestChanges > TOO_BIG_THRESHOLD;

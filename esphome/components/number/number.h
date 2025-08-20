@@ -9,11 +9,9 @@
 namespace esphome {
 namespace number {
 
-// Forward declaration
 class Number;
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj);
 
-// Macro that calls the function - kept for backward compatibility
 #define LOG_NUMBER(prefix, type, obj) log_number(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_NUMBER(name) \
