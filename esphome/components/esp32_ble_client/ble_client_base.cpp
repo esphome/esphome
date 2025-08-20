@@ -92,7 +92,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
     return false;
   if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
-  if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
+  if (this->state_ != espbt::ClientState::IDLE)
     return false;
 
   this->log_event_("Found device");
@@ -190,8 +190,7 @@ void BLEClientBase::unconditional_disconnect() {
     this->log_gattc_warning_("esp_ble_gattc_close", err);
   }
 
-  if (this->state_ == espbt::ClientState::SEARCHING || this->state_ == espbt::ClientState::READY_TO_CONNECT ||
-      this->state_ == espbt::ClientState::DISCOVERED) {
+  if (this->state_ == espbt::ClientState::READY_TO_CONNECT || this->state_ == espbt::ClientState::DISCOVERED) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
