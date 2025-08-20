@@ -382,20 +382,15 @@ float ATM90E32Component::get_setup_priority() const { return setup_priority::IO;
 // R/C registers can conly be cleared after the LastSPIData register is updated (register 78H)
 // Peakdetect period: 05H. Bit 15:8 are PeakDet_period in ms. 7:0 are Sag_period
 // Default is 143FH (20ms, 63ms)
-uint16_t ATM90E32Component::read16_transaction_(uint16_t a_register) {
+uint16_t ATM90E32Component::read16_(uint16_t a_register) {
+  this->enable();
+  delay_microseconds_safe(1);  // min delay between CS low and first SCK is 200ns - 1us is plenty
   uint8_t addrh = (1 << 7) | ((a_register >> 8) & 0x03);
   uint8_t addrl = (a_register & 0xFF);
   uint8_t data[4] = {addrh, addrl, 0x00, 0x00};
   this->transfer_array(data, 4);
   uint16_t output = encode_uint16(data[2], data[3]);
   ESP_LOGVV(TAG, "read16_ 0x%04" PRIX16 " output 0x%04" PRIX16, a_register, output);
-  return output;
-}
-
-uint16_t ATM90E32Component::read16_(uint16_t a_register) {
-  this->enable();
-  delay_microseconds_safe(1);  // min delay between CS low and first SCK is 200ns - 1us is plenty
-  uint16_t output = this->read16_transaction_(a_register);
   delay_microseconds_safe(1);  // allow the last clock to propagate before releasing CS
   this->disable();
   delay_microseconds_safe(1);  // meet minimum CS high time before next transaction
@@ -403,14 +398,8 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
 }
 
 int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
-  this->enable();
-  delay_microseconds_safe(1);
-  const uint16_t val_h = this->read16_transaction_(addr_h);
-  delay_microseconds_safe(1);
-  const uint16_t val_l = this->read16_transaction_(addr_l);
-  delay_microseconds_safe(1);
-  this->disable();
-  delay_microseconds_safe(1);
+  const uint16_t val_h = this->read16_(addr_h);
+  const uint16_t val_l = this->read16_(addr_l);
   const int32_t val = (val_h << 16) | val_l;
 
   ESP_LOGVV(TAG,
