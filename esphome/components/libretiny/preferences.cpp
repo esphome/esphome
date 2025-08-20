@@ -6,7 +6,6 @@
 #include <flashdb.h>
 #include <cstring>
 #include <memory>
-#include <vector>
 #include <string>
 
 namespace esphome {
