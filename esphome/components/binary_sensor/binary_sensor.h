@@ -10,11 +10,9 @@ namespace esphome {
 
 namespace binary_sensor {
 
-// Forward declaration
 class BinarySensor;
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj);
 
-// Macro that calls the function - kept for backward compatibility
 #define LOG_BINARY_SENSOR(prefix, type, obj) log_binary_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_BINARY_SENSOR(name) \
