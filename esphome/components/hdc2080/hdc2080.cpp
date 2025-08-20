@@ -14,7 +14,7 @@ static const uint8_t HDC2080_CMD_TEMPERATURE = 0x00;
 void HDC2080Component::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
 
-   const uint8_t data = 0b00000000;  // automatic measurement mode disabled, heater off
+  const uint8_t data = 0b00000000;  // automatic measurement mode disabled, heater off
 
   if (this->write_register(HDC2080_CMD_CONFIGURATION, &data, 1) != i2c::ERROR_OK) {
     this->mark_failed("Communication failed");
