@@ -34,67 +34,38 @@ void HDC2080Component::dump_config() {
 }
 
 void HDC2080Component::update() {
-  if (this->temperature_sensor_ != nullptr)
-    this->state_ = READ_TEMPERATURE;
-  else if (this->humidity_sensor_ != nullptr)
-    this->state_ = READ_HUMIDITY;
-  else
-    return;
-  this->enable_loop();
-}
+  uint8_t data = 0b00000001;  // resolution 14bit, sample both humidity and temperature, start measurement
 
-void HDC2080Component::loop() {
-  if (this->state_ == READ_TEMPERATURE) {
-    this->read_temperature_();
-  } else if (this->state_ == READ_HUMIDITY) {
-    this->read_humidity_();
+  if ((this->temperature_sensor_ != nullptr) && (this->humidity_sensor_ == nullptr)) {
+    data = 0b00000011;  // measure temperature only
+  } else if ((this->temperature_sensor_ == nullptr) && (this->humidity_sensor_ != nullptr)) {
+    data = 0b00000101;  // measure humidity only
   }
-  this->disable_loop();
-}
-
-void HDC2080Component::read_temperature_() {
-  if (this->write(&HDC2080_CMD_TEMPERATURE, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  // start the conversion
+  if (this->write_register(HDC2080_CMD_MEASUREMENT_CONFIGURATION, &data, 1) != i2c::ERROR_OK) {
+    this->status_set_warning("Communication failed");
     return;
   }
-  this->set_timeout(20, [this]() {
-    uint16_t raw_temp;
-    if (this->read(reinterpret_cast<uint8_t *>(&raw_temp), 2) != i2c::ERROR_OK) {
-      this->status_set_warning();
+  // wait for conversion to complete 2ms should be enough, more is fine
+  this->set_timeout(5, [this]() {
+    uint8_t raw_data[4];
+    if (this->read_register(HDC2080_CMD_TEMPERATURE, raw_data, 4) != i2c::ERROR_OK) {
+      this->status_set_warning("Communication failed");
       return;
     }
-    float temp = raw_temp * 0.0025177f - 40.5f;  // raw * 2^-16 * 165 - 40.5
-    this->temperature_sensor_->publish_state(temp);
-
     this->status_clear_warning();
-
+    // grab temperature if needed
+    if (this->temperature_sensor_ != nullptr) {
+      // temperature is (raw / 2^16) * 165 - 40.5
+      float temp = convert_little_endian(*reinterpret_cast<uint16_t *>(&raw_data[0])) * 0.0025177f - 40.5f;
+      this->temperature_sensor_->publish_state(temp);
+    }
+    // grab humidity if needed
     if (this->humidity_sensor_ != nullptr) {
-      this->state_ = READ_HUMIDITY;
-      this->enable_loop();
-    } else {
-      this->state_ = IDLE;
+      // humidity is (raw / 2^16) * 100
+      float humidity = convert_little_endian(*reinterpret_cast<uint16_t *>(&raw_data[2])) * 0.001525879f;
+      this->humidity_sensor_->publish_state(humidity);
     }
-  });
-}
-
-void HDC2080Component::read_humidity_() {
-  if (this->write(&HDC2080_CMD_HUMIDITY, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  this->set_timeout(20, [this]() {
-    uint16_t raw_humidity;
-    if (this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return;
-    }
-    raw_humidity = i2c::i2ctohs(raw_humidity);
-    float humidity = raw_humidity * 0.001525879f;  // raw * 2^-16 * 100
-    this->humidity_sensor_->publish_state(humidity);
-
-    this->status_clear_warning();
-
-    this->state_ = IDLE;
   });
 }
 
