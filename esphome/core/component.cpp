@@ -119,10 +119,6 @@ void Component::set_timeout(const char *name, uint32_t timeout, std::function<vo
   App.scheduler.set_timeout(this, name, timeout, std::move(f));
 }
 
-void Component::add_timeout(const char *name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
-  App.scheduler.add_timeout(this, name, timeout, std::move(f));
-}
-
 bool Component::cancel_timeout(const std::string &name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }

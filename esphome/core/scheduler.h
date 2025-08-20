@@ -21,8 +21,13 @@ struct RetryArgs;
 void retry_handler(const std::shared_ptr<RetryArgs> &args);
 
 class Scheduler {
-  // Allow retry_handler to access protected members
+  // Allow retry_handler to access protected members for internal retry mechanism
   friend void ::esphome::retry_handler(const std::shared_ptr<RetryArgs> &args);
+  // Allow DelayAction to call set_timer_common_ with skip_cancel=true for parallel script delays.
+  // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
+  // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
+  // to accumulate and overload the scheduler if misused.
+  template<typename... Ts> friend class DelayAction;
 
  public:
   // Public API - accepts std::string for backward compatibility
@@ -39,27 +44,6 @@ class Scheduler {
    * For dynamic strings, use the std::string overload instead.
    */
   void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
-
-  /** Add a timeout without cancelling existing timeouts with the same name.
-   *
-   * WARNING: This method is DANGEROUS and should not be used in normal code!
-   * It does not cancel any existing timeouts with the same name, which can lead to:
-   * - Memory leaks if timeouts accumulate
-   * - Scheduler overload with too many pending timeouts
-   * - Unpredictable behavior if multiple timeouts trigger
-   *
-   * This method is ONLY used internally for parallel script delays where multiple
-   * instances need to coexist. DO NOT USE this in components or user code.
-   *
-   * Use set_timeout() instead, which safely cancels any existing timeout with the
-   * same name before creating a new one.
-   *
-   * @param component The component for this timeout
-   * @param name The name of the timeout (does NOT cancel existing timeouts with this name)
-   * @param timeout The timeout in milliseconds
-   * @param func The function to call when the timeout triggers
-   */
-  void add_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
 
   bool cancel_timeout(Component *component, const std::string &name);
   bool cancel_timeout(Component *component, const char *name);

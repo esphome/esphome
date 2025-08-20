@@ -174,11 +174,6 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, false, &name, timeout, std::move(func));
 }
 
-void HOT Scheduler::add_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func) {
-  this->set_timer_common_(component, SchedulerItem::TIMEOUT, /* is_static_string= */ true, name, timeout,
-                          std::move(func), /* is_retry= */ false, /* skip_cancel= */ true);
-}
-
 bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name) {
   return this->cancel_item_(component, false, &name, SchedulerItem::TIMEOUT);
 }
