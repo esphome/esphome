@@ -272,6 +272,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
   uint32_t now = start_time;
   size_t pending_count = num_components;
 
+<<<<<<< HEAD
   // Compaction algorithm for teardown
   // ==================================
   // We repeatedly call teardown() on each component until it returns true.
@@ -292,6 +293,44 @@ void Application::teardown_components(uint32_t timeout_ms) {
   // The algorithm compacts remaining components to the front of the array,
   // tracking only the count of pending components. This avoids expensive
   // erase operations while maintaining O(n) complexity per iteration.
+=======
+  // Teardown Algorithm
+  // ==================
+  // We iterate through pending components, calling teardown() on each.
+  // Components that return false (need more time) are copied forward
+  // in the array. Components that return true (finished) are skipped.
+  //
+  // The compaction happens in-place during iteration:
+  //   - still_pending tracks the write position (where to put next pending component)
+  //   - i tracks the read position (which component we're testing)
+  //   - When teardown() returns false, we copy component[i] to component[still_pending]
+  //   - When teardown() returns true, we just skip it (don't increment still_pending)
+  //
+  // Example with 4 components where B can teardown immediately:
+  //
+  // Start:
+  //   pending_components: [A, B, C, D]
+  //   pending_count: 4    ^----------^
+  //
+  // Iteration 1:
+  //   i=0: A needs more time → keep at pos 0 (no copy needed)
+  //   i=1: B finished → skip
+  //   i=2: C needs more time → copy to pos 1
+  //   i=3: D needs more time → copy to pos 2
+  //
+  // After iteration 1:
+  //   pending_components: [A, C, D | D]
+  //   pending_count: 3    ^--------^
+  //
+  // Iteration 2:
+  //   i=0: A finished → skip
+  //   i=1: C needs more time → copy to pos 0
+  //   i=2: D finished → skip
+  //
+  // After iteration 2:
+  //   pending_components: [C | C, D, D]  (positions 1-3 have old values)
+  //   pending_count: 1    ^--^
+>>>>>>> upstream/dev
 
   while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
@@ -301,7 +340,11 @@ void Application::teardown_components(uint32_t timeout_ms) {
     size_t still_pending = 0;
     for (size_t i = 0; i < pending_count; ++i) {
       if (!pending_components[i]->teardown()) {
+<<<<<<< HEAD
         // Component still needs time, keep it in the list
+=======
+        // Component still needs time, copy it forward
+>>>>>>> upstream/dev
         if (still_pending != i) {
           pending_components[still_pending] = pending_components[i];
         }
