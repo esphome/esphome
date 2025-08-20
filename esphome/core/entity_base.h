@@ -85,7 +85,23 @@ class EntityBase {
   // Set has_state - for components that need to manually set this
   void set_has_state(bool state) { this->flags_.has_state = state; }
 
-  // Get a unique hash for preferences that includes device_id
+  /**
+   * @brief Get a unique hash for storing preferences/settings for this entity.
+   *
+   * This method returns a hash that uniquely identifies the entity for the purpose of
+   * storing preferences (such as calibration, state, etc.). Unlike get_object_id_hash(),
+   * this hash also incorporates the device_id (if devices are enabled), ensuring uniqueness
+   * across multiple devices that may have entities with the same object_id.
+   *
+   * Use this method when storing or retrieving preferences/settings that should be unique
+   * per device-entity pair. Use get_object_id_hash() when you need a hash that identifies
+   * the entity regardless of the device it belongs to.
+   *
+   * For backward compatibility, if device_id is 0 (the main device), the hash is unchanged
+   * from previous versions, so existing single-device configurations will continue to work.
+   *
+   * @return uint32_t The unique hash for preferences, including device_id if available.
+   */
   uint32_t get_preference_hash() {
 #ifdef USE_DEVICES
     // Combine object_id_hash with device_id to ensure uniqueness across devices
