@@ -272,28 +272,6 @@ void Application::teardown_components(uint32_t timeout_ms) {
   uint32_t now = start_time;
   size_t pending_count = num_components;
 
-<<<<<<< HEAD
-  // Compaction algorithm for teardown
-  // ==================================
-  // We repeatedly call teardown() on each component until it returns true.
-  // Components that are done are removed using array compaction:
-  //
-  // Initial state (all components pending):
-  //   pending_components: [A, B, C, D, E, F]
-  //   pending_count: 6                    ^
-  //
-  // After first iteration (B and D finish teardown):
-  //   pending_components: [A, C, E, F | B, D]  (B, D are still in memory but ignored)
-  //   pending_count: 4                ^
-  //
-  // After second iteration (A finishes):
-  //   pending_components: [C, E, F | A, B, D]
-  //   pending_count: 3             ^
-  //
-  // The algorithm compacts remaining components to the front of the array,
-  // tracking only the count of pending components. This avoids expensive
-  // erase operations while maintaining O(n) complexity per iteration.
-=======
   // Teardown Algorithm
   // ==================
   // We iterate through pending components, calling teardown() on each.
@@ -330,7 +308,6 @@ void Application::teardown_components(uint32_t timeout_ms) {
   // After iteration 2:
   //   pending_components: [C | C, D, D]  (positions 1-3 have old values)
   //   pending_count: 1    ^--^
->>>>>>> upstream/dev
 
   while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
@@ -340,11 +317,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
     size_t still_pending = 0;
     for (size_t i = 0; i < pending_count; ++i) {
       if (!pending_components[i]->teardown()) {
-<<<<<<< HEAD
-        // Component still needs time, keep it in the list
-=======
         // Component still needs time, copy it forward
->>>>>>> upstream/dev
         if (still_pending != i) {
           pending_components[still_pending] = pending_components[i];
         }
