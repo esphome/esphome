@@ -256,30 +256,79 @@ void Application::run_powerdown_hooks() {
 void Application::teardown_components(uint32_t timeout_ms) {
   uint32_t start_time = millis();
 
-  // Copy all components in reverse order using reverse iterators
+  // Use a StaticVector instead of std::vector to avoid heap allocation
+  // since we know the actual size at compile time
+  StaticVector<Component *, ESPHOME_COMPONENT_COUNT> pending_components;
+
+  // Copy all components in reverse order
   // Reverse order matches the behavior of run_safe_shutdown_hooks() above and ensures
   // components are torn down in the opposite order of their setup_priority (which is
   // used to sort components during Application::setup())
-  std::vector<Component *> pending_components(this->components_.rbegin(), this->components_.rend());
+  size_t num_components = this->components_.size();
+  for (size_t i = 0; i < num_components; ++i) {
+    pending_components[i] = this->components_[num_components - 1 - i];
+  }
 
   uint32_t now = start_time;
-  while (!pending_components.empty() && (now - start_time) < timeout_ms) {
+  size_t pending_count = num_components;
+
+  // Teardown Algorithm
+  // ==================
+  // We iterate through pending components, calling teardown() on each.
+  // Components that return false (need more time) are copied forward
+  // in the array. Components that return true (finished) are skipped.
+  //
+  // The compaction happens in-place during iteration:
+  //   - still_pending tracks the write position (where to put next pending component)
+  //   - i tracks the read position (which component we're testing)
+  //   - When teardown() returns false, we copy component[i] to component[still_pending]
+  //   - When teardown() returns true, we just skip it (don't increment still_pending)
+  //
+  // Example with 4 components where B can teardown immediately:
+  //
+  // Start:
+  //   pending_components: [A, B, C, D]
+  //   pending_count: 4    ^----------^
+  //
+  // Iteration 1:
+  //   i=0: A needs more time → keep at pos 0 (no copy needed)
+  //   i=1: B finished → skip
+  //   i=2: C needs more time → copy to pos 1
+  //   i=3: D needs more time → copy to pos 2
+  //
+  // After iteration 1:
+  //   pending_components: [A, C, D | D]
+  //   pending_count: 3    ^--------^
+  //
+  // Iteration 2:
+  //   i=0: A finished → skip
+  //   i=1: C needs more time → copy to pos 0
+  //   i=2: D finished → skip
+  //
+  // After iteration 2:
+  //   pending_components: [C | C, D, D]  (positions 1-3 have old values)
+  //   pending_count: 1    ^--^
+
+  while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
     this->feed_wdt(now);
 
-    // Use iterator to safely erase elements
-    for (auto it = pending_components.begin(); it != pending_components.end();) {
-      if ((*it)->teardown()) {
-        // Component finished teardown, erase it
-        it = pending_components.erase(it);
-      } else {
-        // Component still needs time
-        ++it;
+    // Process components and compact the array, keeping only those still pending
+    size_t still_pending = 0;
+    for (size_t i = 0; i < pending_count; ++i) {
+      if (!pending_components[i]->teardown()) {
+        // Component still needs time, copy it forward
+        if (still_pending != i) {
+          pending_components[still_pending] = pending_components[i];
+        }
+        ++still_pending;
       }
+      // Component finished teardown, skip it (don't increment still_pending)
     }
+    pending_count = still_pending;
 
     // Give some time for I/O operations if components are still pending
-    if (!pending_components.empty()) {
+    if (pending_count > 0) {
       this->yield_with_select_(1);
     }
 
@@ -287,11 +336,11 @@ void Application::teardown_components(uint32_t timeout_ms) {
     now = millis();
   }
 
-  if (!pending_components.empty()) {
+  if (pending_count > 0) {
     // Note: At this point, connections are either disconnected or in a bad state,
     // so this warning will only appear via serial rather than being transmitted to clients
-    for (auto *component : pending_components) {
-      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", component->get_component_source(),
+    for (size_t i = 0; i < pending_count; ++i) {
+      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", pending_components[i]->get_component_source(),
                timeout_ms);
     }
   }
