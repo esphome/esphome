@@ -47,14 +47,11 @@ void PVVXDisplay::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
       this->connection_established_ = true;
       this->char_handle_ = chr->handle;
 
-      // Check if already paired - if not, writes will be deferred to next update cycle
-      if (this->parent_->is_paired()) {
-        ESP_LOGD(TAG, "[%s] Device is paired, writing immediately.", this->parent_->address_str().c_str());
-        this->sync_time_and_display_();
-      } else {
-        ESP_LOGD(TAG, "[%s] Device not paired yet, deferring writes until authentication completes.",
-                 this->parent_->address_str().c_str());
-      }
+      // Attempt to write immediately
+      // For devices without security, this will work
+      // For devices with security that are already paired, this will work
+      // For devices that need pairing, the write will be retried after auth completes
+      this->sync_time_and_display_();
       break;
     }
     default:
@@ -106,11 +103,6 @@ void PVVXDisplay::display() {
              this->parent_->address_str().c_str());
     return;
   }
-  // Check if authentication is required and not complete
-  if (!this->parent_->is_paired()) {
-    ESP_LOGD(TAG, "[%s] Waiting for pairing to complete before writing.", this->parent_->address_str().c_str());
-    return;
-  }
   ESP_LOGD(TAG, "[%s] Send to display: bignum %d, smallnum: %d, cfg: 0x%02x, validity period: %u.",
            this->parent_->address_str().c_str(), this->bignum_, this->smallnum_, this->cfg_, this->validity_period_);
   uint8_t blk[8] = {};
@@ -137,10 +129,6 @@ void PVVXDisplay::setcfgbit_(uint8_t bit, bool value) {
 void PVVXDisplay::send_to_setup_char_(uint8_t *blk, size_t size) {
   if (!this->connection_established_) {
     ESP_LOGW(TAG, "[%s] Not connected to BLE client.", this->parent_->address_str().c_str());
-    return;
-  }
-  if (!this->parent_->is_paired()) {
-    ESP_LOGW(TAG, "[%s] Cannot write - authentication not complete.", this->parent_->address_str().c_str());
     return;
   }
   auto status =
