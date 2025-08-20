@@ -83,7 +83,11 @@ void DeepSleepComponent::deep_sleep_() {
     }
     gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
     gpio_hold_en(gpio_pin);
+#if !defined(USE_ESP32_VARIANT_ESP32C6)
+    // ESP32-C6 doesn't have gpio_deep_sleep_hold_en() since it has SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+    // For C6, gpio_hold_en() is sufficient to hold the pin state during deep sleep
     gpio_deep_sleep_hold_en();
+#endif
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
@@ -120,7 +124,11 @@ void DeepSleepComponent::deep_sleep_() {
     }
     gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
     gpio_hold_en(gpio_pin);
+#if !defined(USE_ESP32_VARIANT_ESP32C6)
+    // ESP32-C6 doesn't have gpio_deep_sleep_hold_en() since it has SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+    // For C6, gpio_hold_en() is sufficient to hold the pin state during deep sleep
     gpio_deep_sleep_hold_en();
+#endif
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
