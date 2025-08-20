@@ -165,11 +165,11 @@ void HLW8032Component::dump_config() {
                 "  Current resistor: %.1f mΩ\n"
                 "  Voltage Divider: %.3f",
                 this->current_resistor_ * 1000.0f, this->voltage_divider_);
-  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_)
-  LOG_SENSOR("  ", "Current", this->current_sensor_)
-  LOG_SENSOR("  ", "Power", this->power_sensor_)
-  LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_)
-  LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_)
+  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Current", this->current_sensor_);
+  LOG_SENSOR("  ", "Power", this->power_sensor_);
+  LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
+  LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
 }
 }  // namespace hlw8032
 }  // namespace esphome
