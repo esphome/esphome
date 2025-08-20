@@ -242,13 +242,14 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                 sanitized_msg = (
                     f"\n  Original names: '{entity_name}' and '{existing_name}'"
                     f"\n  Both convert to ASCII ID: '{name_key}'"
-                    f"\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B') to distinguish them"
+                    "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
+                    "\n           to distinguish them"
                 )
 
             raise cv.Invalid(
                 f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
                 f"{conflict_msg}. "
-                f"Each entity on a device must have a unique name within its platform."
+                "Each entity on a device must have a unique name within its platform."
                 f"{sanitized_msg}"
             )
 
