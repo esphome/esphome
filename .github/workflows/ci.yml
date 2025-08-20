@@ -36,7 +36,7 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
@@ -70,7 +70,7 @@ jobs:
     if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -91,7 +91,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -136,7 +136,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Restore Python
         id: restore-python
         uses: ./.github/actions/restore-python
@@ -179,7 +179,7 @@ jobs:
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
         with:
           # Fetch enough history to find the merge base
           fetch-depth: 2
@@ -214,7 +214,7 @@ jobs:
     if: needs.determine-jobs.outputs.integration-tests == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@v5.6.0
@@ -287,7 +287,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -374,7 +374,7 @@ jobs:
           sudo apt-get install libsdl2-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -400,7 +400,7 @@ jobs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Split components into 20 groups
         id: split
         run: |
@@ -430,7 +430,7 @@ jobs:
           sudo apt-get install libsdl2-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -459,7 +459,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.base_ref != 'beta' && github.base_ref != 'release'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:

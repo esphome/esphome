@@ -689,3 +689,19 @@ def test_entity_duplicate_validator_internal_entities() -> None:
         Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
     ):
         validator(config4)
+
+
+def test_empty_or_null_device_id_on_entity() -> None:
+    """Test that empty or null device IDs are handled correctly."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # Entity with empty device_id should pass
+    config1 = {CONF_NAME: "Battery", CONF_DEVICE_ID: ""}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Entity with None device_id should pass
+    config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: None}
+    validated2 = validator(config2)
+    assert validated2 == config2

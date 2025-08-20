@@ -50,7 +50,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
