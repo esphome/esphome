@@ -12,6 +12,11 @@
 
 namespace esphome {
 
+// Forward declaration for friend access
+namespace api {
+class APIConnection;
+}  // namespace api
+
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -81,6 +86,12 @@ class EntityBase {
   void set_has_state(bool state) { this->flags_.has_state = state; }
 
  protected:
+  friend class api::APIConnection;
+
+  // Get object_id as StringRef when it's static (for API usage)
+  // Returns empty StringRef if object_id is dynamic (needs allocation)
+  StringRef get_object_id_ref_for_api_() const;
+
   /// The hash_base() function has been deprecated. It is kept in this
   /// class for now, to prevent external components from not compiling.
   virtual uint32_t hash_base() { return 0L; }
