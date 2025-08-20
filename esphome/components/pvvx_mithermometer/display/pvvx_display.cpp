@@ -46,10 +46,35 @@ void PVVXDisplay::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
       }
       this->connection_established_ = true;
       this->char_handle_ = chr->handle;
-#ifdef USE_TIME
-      this->sync_time_();
-#endif
-      this->display();
+
+      // Check if already paired - if not, writes will be deferred to next update cycle
+      if (this->parent_->is_paired()) {
+        ESP_LOGD(TAG, "[%s] Device is paired, writing immediately.", this->parent_->address_str().c_str());
+        this->sync_time_and_display_();
+      } else {
+        ESP_LOGD(TAG, "[%s] Device not paired yet, deferring writes until authentication completes.",
+                 this->parent_->address_str().c_str());
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void PVVXDisplay::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  switch (event) {
+    case ESP_GAP_BLE_AUTH_CMPL_EVT: {
+      if (!this->parent_->check_addr(param->ble_security.auth_cmpl.bd_addr))
+        return;
+
+      if (param->ble_security.auth_cmpl.success) {
+        ESP_LOGD(TAG, "[%s] Authentication successful, performing writes.", this->parent_->address_str().c_str());
+        // Now that pairing is complete, perform the pending writes
+        this->sync_time_and_display_();
+      } else {
+        ESP_LOGW(TAG, "[%s] Authentication failed.", this->parent_->address_str().c_str());
+      }
       break;
     }
     default:
@@ -81,6 +106,11 @@ void PVVXDisplay::display() {
              this->parent_->address_str().c_str());
     return;
   }
+  // Check if authentication is required and not complete
+  if (!this->parent_->is_paired()) {
+    ESP_LOGD(TAG, "[%s] Waiting for pairing to complete before writing.", this->parent_->address_str().c_str());
+    return;
+  }
   ESP_LOGD(TAG, "[%s] Send to display: bignum %d, smallnum: %d, cfg: 0x%02x, validity period: %u.",
            this->parent_->address_str().c_str(), this->bignum_, this->smallnum_, this->cfg_, this->validity_period_);
   uint8_t blk[8] = {};
@@ -109,6 +139,10 @@ void PVVXDisplay::send_to_setup_char_(uint8_t *blk, size_t size) {
     ESP_LOGW(TAG, "[%s] Not connected to BLE client.", this->parent_->address_str().c_str());
     return;
   }
+  if (!this->parent_->is_paired()) {
+    ESP_LOGW(TAG, "[%s] Cannot write - authentication not complete.", this->parent_->address_str().c_str());
+    return;
+  }
   auto status =
       esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_, size,
                                blk, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -125,6 +159,13 @@ void PVVXDisplay::delayed_disconnect_() {
     return;
   this->cancel_timeout("disconnect");
   this->set_timeout("disconnect", this->disconnect_delay_ms_, [this]() { this->parent_->set_enabled(false); });
+}
+
+void PVVXDisplay::sync_time_and_display_() {
+#ifdef USE_TIME
+  this->sync_time_();
+#endif
+  this->display();
 }
 
 #ifdef USE_TIME
