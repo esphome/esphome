@@ -155,7 +155,7 @@ void ESP32BLETracker::loop() {
     https://github.com/espressif/esp-idf/issues/6688
 
   */
-  bool promote_to_connecting = counts.discovered && !counts.searching && !counts.connecting;
+  bool promote_to_connecting = counts.discovered && !counts.connecting;
 
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting &&
       !promote_to_connecting) {
