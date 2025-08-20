@@ -49,8 +49,6 @@ const char *client_state_to_string(ClientState state) {
       return "DISCONNECTING";
     case ClientState::IDLE:
       return "IDLE";
-    case ClientState::SEARCHING:
-      return "SEARCHING";
     case ClientState::DISCOVERED:
       return "DISCOVERED";
     case ClientState::READY_TO_CONNECT:
