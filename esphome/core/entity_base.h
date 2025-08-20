@@ -85,6 +85,19 @@ class EntityBase {
   // Set has_state - for components that need to manually set this
   void set_has_state(bool state) { this->flags_.has_state = state; }
 
+  // Get a unique hash for preferences that includes device_id
+  uint32_t get_preference_hash() {
+#ifdef USE_DEVICES
+    // Combine object_id_hash with device_id to ensure uniqueness across devices
+    // Note: device_id is 0 for the main device, so XORing with 0 preserves the original hash
+    // This ensures backward compatibility for existing single-device configurations
+    return this->get_object_id_hash() ^ this->get_device_id();
+#else
+    // Without devices, just use object_id_hash as before
+    return this->get_object_id_hash();
+#endif
+  }
+
  protected:
   friend class api::APIConnection;
 
