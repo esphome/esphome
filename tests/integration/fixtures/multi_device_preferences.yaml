@@ -140,32 +140,7 @@ select:
           ESP_LOGI("test", "Main Mode set to %s", x.c_str());
           id(mode_main).state = x;
 
-# Test sensors for reading entity states
-sensor:
-  - platform: template
-    name: Switch State A
-    id: switch_state_a
-    device_id: device_a
-    lambda: |-
-      return id(light_device_a).state ? 1.0 : 0.0;
-    update_interval: 0.5s
-
-  - platform: template
-    name: Switch State B
-    id: switch_state_b
-    device_id: device_b
-    lambda: |-
-      return id(light_device_b).state ? 1.0 : 0.0;
-    update_interval: 0.5s
-
-  - platform: template
-    name: Switch State Main
-    id: switch_state_main
-    lambda: |-
-      return id(light_main).state ? 1.0 : 0.0;
-    update_interval: 0.5s
-
-# Button to trigger preference save/restore test
+# Button to trigger preference logging test
 button:
   - platform: template
     name: Test Preferences

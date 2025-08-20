@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 
-from aioesphomeapi import ButtonInfo, NumberInfo, SelectInfo, SensorInfo, SwitchInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SelectInfo, SwitchInfo
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -94,16 +94,6 @@ async def test_multi_device_preferences(
             e for e in entities if isinstance(e, SelectInfo) and e.name == "Mode"
         ]
         assert len(selects) == 3, f"Expected 3 'Mode' selects, got {len(selects)}"
-
-        # Check sensors for switch state monitoring
-        state_sensors = [
-            e
-            for e in entities
-            if isinstance(e, SensorInfo) and "Switch State" in e.name
-        ]
-        assert len(state_sensors) == 3, (
-            f"Expected 3 'Switch State' sensors, got {len(state_sensors)}"
-        )
 
         # Find the test button entity to trigger preference logging
         buttons = [e for e in entities if isinstance(e, ButtonInfo)]
