@@ -38,19 +38,19 @@ DriverChip(
 )
 DriverChip(
     "JC4880P443C",
-	width = 480
-	height = 800
-	hsync_back_porch = 42
-	hsync_pulse_width = 12
-	hsync_front_porch = 42
-	vsync_back_porch = 8
-	vsync_pulse_width = 2
-	vsync_front_porch = 166
-	pclk_frequency = "34 MHz"
-	lane_bit_rate = "500 Mbps"
-	swap_xy = False
-	color_order = "RGB"
-	reset_pin = 5
+	width = 480,
+	height = 800,
+	hsync_back_porch = 42,
+	hsync_pulse_width = 12,
+	hsync_front_porch = 42,
+	vsync_back_porch = 8,
+	vsync_pulse_width = 2,
+	vsync_front_porch = 166,
+	pclk_frequency = "34 MHz",
+	lane_bit_rate = "500 Mbps",
+	swap_xy = False,
+	color_order = "RGB",
+	reset_pin = 5,
 	initsequence = [
 		# Command sequence from ST7701 initialization
 		(0xFF, [0x77, 0x01, 0x00, 0x00, 0x13], 0),
