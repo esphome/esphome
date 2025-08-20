@@ -366,6 +366,21 @@ class Component {
 
   void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
+  /** Add a timeout without cancelling existing timeouts with the same name.
+   *
+   * WARNING: This method is DANGEROUS and should not be used in components!
+   * It can lead to memory leaks and scheduler overload if timeouts accumulate.
+   *
+   * This method is ONLY used internally by DelayAction for parallel scripts.
+   * DO NOT USE this in your component code. Use set_timeout() instead.
+   *
+   * @param name The identifier for this timeout function.
+   * @param timeout The timeout in ms.
+   * @param f The function to call.
+   * @internal
+   */
+  void add_timeout(const char *name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
   /** Cancel a timeout function.
    *
    * @param name The identifier for this timeout function.

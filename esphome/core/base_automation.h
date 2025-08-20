@@ -158,7 +158,19 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   void play_complex(Ts... x) override {
     auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
-    this->set_timeout("delay", this->delay_.value(x...), f);
+
+    // If num_running_ > 1, we have multiple instances running in parallel
+    // In single/restart/queued modes, only one instance runs at a time
+    if (this->num_running_ > 1) {
+      // Parallel mode - use add_timeout to allow multiple delays to coexist
+      // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
+      // Users should set max_runs on parallel scripts to limit concurrent executions.
+      // Issue #10264: This is a workaround for parallel script delays interfering with each other.
+      this->add_timeout("delay", this->delay_.value(x...), f);
+    } else {
+      // Single/restart/queued mode - use set_timeout for normal cancellation behavior
+      this->set_timeout("delay", this->delay_.value(x...), f);
+    }
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 

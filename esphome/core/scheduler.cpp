@@ -65,14 +65,17 @@ static void validate_static_string(const char *name) {
 
 // Common implementation for both timeout and interval
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string,
-                                      const void *name_ptr, uint32_t delay, std::function<void()> func, bool is_retry) {
+                                      const void *name_ptr, uint32_t delay, std::function<void()> func, bool is_retry,
+                                      bool skip_cancel) {
   // Get the name as const char*
   const char *name_cstr = this->get_name_cstr_(is_static_string, name_ptr);
 
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if name is not empty
-    LockGuard guard{this->lock_};
-    this->cancel_item_locked_(component, name_cstr, type);
+    if (!skip_cancel) {
+      LockGuard guard{this->lock_};
+      this->cancel_item_locked_(component, name_cstr, type);
+    }
     return;
   }
 
@@ -97,7 +100,9 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   if (delay == 0 && type == SchedulerItem::TIMEOUT) {
     // Put in defer queue for guaranteed FIFO execution
     LockGuard guard{this->lock_};
-    this->cancel_item_locked_(component, name_cstr, type);
+    if (!skip_cancel) {
+      this->cancel_item_locked_(component, name_cstr, type);
+    }
     this->defer_queue_.push_back(std::move(item));
     return;
   }
@@ -150,9 +155,11 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     return;
   }
 
-  // If name is provided, do atomic cancel-and-add
+  // If name is provided, do atomic cancel-and-add (unless skip_cancel is true)
   // Cancel existing items
-  this->cancel_item_locked_(component, name_cstr, type);
+  if (!skip_cancel) {
+    this->cancel_item_locked_(component, name_cstr, type);
+  }
   // Add new item directly to to_add_
   // since we have the lock held
   this->to_add_.push_back(std::move(item));
@@ -166,6 +173,12 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
                                 std::function<void()> func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, false, &name, timeout, std::move(func));
 }
+
+void HOT Scheduler::add_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func) {
+  this->set_timer_common_(component, SchedulerItem::TIMEOUT, /* is_static_string= */ true, name, timeout,
+                          std::move(func), /* is_retry= */ false, /* skip_cancel= */ true);
+}
+
 bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name) {
   return this->cancel_item_(component, false, &name, SchedulerItem::TIMEOUT);
 }
