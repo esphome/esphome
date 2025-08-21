@@ -749,6 +749,9 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   this->area.dump_to(out);
   out.append("\n");
 #endif
+#ifdef USE_ZWAVE_PROXY
+  dump_field(out, "zwave_proxy_feature_flags", this->zwave_proxy_feature_flags);
+#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
@@ -2096,6 +2099,12 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
+#endif
+#ifdef USE_ZWAVE_PROXY
+void ZWaveProxyReadRequest::dump_to(std::string &out) const { out.append("ZWaveProxyReadRequest {}"); }
+void ZWaveProxyReadResponse::dump_to(std::string &out) const { dump_field(out, "data", this->data_ref_); }
+void ZWaveProxyWriteRequest::dump_to(std::string &out) const { dump_field(out, "data", this->data); }
+void ZWaveProxyWriteResponse::dump_to(std::string &out) const { out.append("ZWaveProxyWriteResponse {}"); }
 #endif
 
 }  // namespace esphome::api

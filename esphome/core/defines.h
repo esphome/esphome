@@ -100,6 +100,7 @@
 #define USE_UART_DEBUGGER
 #define USE_UPDATE
 #define USE_VALVE
+#define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR

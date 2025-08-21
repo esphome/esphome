@@ -127,6 +127,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_AREAS
   buffer.encode_message(22, this->area);
 #endif
+#ifdef USE_ZWAVE_PROXY
+  buffer.encode_uint32(23, this->zwave_proxy_feature_flags);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_PASSWORD
@@ -178,6 +181,9 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_AREAS
   size.add_message_object(2, this->area);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  size.add_uint32(2, this->zwave_proxy_feature_flags);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -2994,6 +3000,20 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1:
       this->key = value.as_fixed32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void ZWaveProxyReadResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->data_ref_); }
+void ZWaveProxyReadResponse::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_ref_.size()); }
+bool ZWaveProxyWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->data = value.as_string();
       break;
     default:
       return false;

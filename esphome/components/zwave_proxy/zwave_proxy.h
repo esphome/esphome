@@ -25,16 +25,25 @@ enum ZWaveParsingState : uint8_t {
   ZWAVE_PARSING_STATE_SEND_NAK,
 };
 
+enum ZWaveProxyFeature : uint32_t {
+  FEATURE_ZWAVE_PROXY_ENABLED = 1 << 0,
+};
+
 class ZWaveProxy : public uart::UARTDevice, public Component {
  public:
+  ZWaveProxy();
+
   void setup() override;
   void loop() override;
   void dump_config() override;
 
-  void send_frame(std::vector<uint8_t> &data);
+  uint32_t get_feature_flags() const { return ZWaveProxyFeature::FEATURE_ZWAVE_PROXY_ENABLED; }
+
+  void send_frame(const std::string &data);
+  void send_frame(const std::vector<uint8_t> &data);
 
  protected:
-  void parse_byte_(uint8_t byte);
+  bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
   bool response_handler_();
 
@@ -44,6 +53,8 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   uint8_t end_frame_after_{0};  // Payload reception ends after this index
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
 };
+
+extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace zwave_proxy
 }  // namespace esphome

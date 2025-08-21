@@ -7,6 +7,8 @@ namespace zwave_proxy {
 
 static const char *TAG = "zwave_proxy";
 
+ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
+
 void ZWaveProxy::setup() {
   // Get capabilities command sent once here just to test communication for component development
   uint8_t get_capabilities_cmd[] = {0x01, 0x03, 0x00, 0x07, 0xfb};
@@ -25,19 +27,27 @@ void ZWaveProxy::loop() {
       this->status_set_warning("Failed reading from UART");
       return;
     }
-    this->parse_byte_(byte);
+    if (this->parse_byte_(byte)) {
+      // TODO: send frame to client(s)...
+      ESP_LOGD(TAG, "Frame complete");
+    }
   }
   this->status_clear_warning();
 }
 
 void ZWaveProxy::dump_config() { ESP_LOGCONFIG(TAG, "Z-Wave Proxy"); }
 
-void ZWaveProxy::send_frame(std::vector<uint8_t> &data) {
+void ZWaveProxy::send_frame(const std::string &data) {
+  ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(data).c_str());
+  this->write_array((uint8_t *) data.data(), data.size());
+}
+
+void ZWaveProxy::send_frame(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(data).c_str());
   this->write_array(data);
 }
 
-void ZWaveProxy::parse_byte_(uint8_t byte) {
+bool ZWaveProxy::parse_byte_(uint8_t byte) {
   // Basic parsing logic for received frames
   switch (this->parsing_state_) {
     case ZWAVE_PARSING_STATE_WAIT_START:
@@ -81,6 +91,7 @@ void ZWaveProxy::parse_byte_(uint8_t byte) {
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
         ESP_LOGD(TAG, "Received frame: %s", format_hex_pretty(this->buffer_, this->buffer_index_).c_str());
+        return true;
       }
       break;
     case ZWAVE_PARSING_STATE_SEND_ACK:
@@ -90,6 +101,7 @@ void ZWaveProxy::parse_byte_(uint8_t byte) {
       ESP_LOGD(TAG, "Received unknown byte: 0x%02X", byte);
       break;
   }
+  return false;
 }
 
 void ZWaveProxy::parse_start_(uint8_t byte) {
@@ -138,6 +150,8 @@ bool ZWaveProxy::response_handler_() {
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
   return true;
 }
+
+ZWaveProxy *global_zwave_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace zwave_proxy
 }  // namespace esphome
