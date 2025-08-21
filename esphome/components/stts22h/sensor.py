@@ -11,7 +11,7 @@ DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@B48D81EFCC"]
 
 sensor_ns = cg.esphome_ns.namespace("stts22h")
-stts22h = sensor_ns.class_("STTS22H", cg.PollingComponent, i2c.I2CDevice)
+stts22h = sensor_ns.class_("STTS22HComponent", cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
