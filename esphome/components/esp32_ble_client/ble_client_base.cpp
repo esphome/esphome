@@ -496,8 +496,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
 
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
-      if (this->conn_id_ != param->unreg_for_notify.conn_id)
-        return false;
       this->log_gattc_event_("UNREG_FOR_NOTIFY");
       break;
     }
