@@ -323,7 +323,6 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_NUMBER")
     cg.add_global(number_ns.using)
 
 

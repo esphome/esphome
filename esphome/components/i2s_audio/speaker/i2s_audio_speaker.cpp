@@ -61,8 +61,6 @@ static const std::vector<int16_t> Q15_VOLUME_SCALING_FACTORS = {
     19508, 20665, 21891, 23189, 24565, 26022, 27566, 29201, 30933, 32767};
 
 void I2SAudioSpeaker::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->event_group_ = xEventGroupCreate();
 
   if (this->event_group_ == nullptr) {

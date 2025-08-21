@@ -189,7 +189,7 @@ class Widget:
         for matrix buttons
         :return:
         """
-        return None
+        return
 
     def get_max(self):
         return self.type.get_max(self.config)
@@ -439,7 +439,7 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     :return:
     """
     spec: WidgetType = WIDGET_TYPES[w_type]
-    creator = spec.obj_creator(parent, w_cnfig)
+    creator = await spec.obj_creator(parent, w_cnfig)
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
     wid = w_cnfig[CONF_ID]

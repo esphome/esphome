@@ -81,8 +81,7 @@ def _print_file_read_event(path: str) -> None:
 
 def _request_and_get_stream_on_stdin(fname: str) -> StringIO:
     _print_file_read_event(fname)
-    raw_yaml_stream = StringIO(_read_file_content_from_json_on_stdin())
-    return raw_yaml_stream
+    return StringIO(_read_file_content_from_json_on_stdin())
 
 
 def _vscode_loader(fname: str) -> dict[str, Any]:

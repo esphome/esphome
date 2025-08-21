@@ -37,6 +37,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await switch.register_switch(var, config)

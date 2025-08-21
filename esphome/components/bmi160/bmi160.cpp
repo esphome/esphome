@@ -119,7 +119,6 @@ const float GRAVITY_EARTH = 9.80665f;
 void BMI160Component::internal_setup_(int stage) {
   switch (stage) {
     case 0:
-      ESP_LOGCONFIG(TAG, "Running setup");
       uint8_t chipid;
       if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
         this->mark_failed();

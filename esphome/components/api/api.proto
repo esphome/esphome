@@ -250,8 +250,8 @@ message DeviceInfoResponse {
   // Supports receiving and saving api encryption key
   bool api_encryption_supported = 19 [(field_ifdef) = "USE_API_NOISE"];
 
-  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES"];
-  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS"];
+  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES", (fixed_array_size_define) = "ESPHOME_DEVICE_COUNT"];
+  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS", (fixed_array_size_define) = "ESPHOME_AREA_COUNT"];
 
   // Top-level area info to phase out suggested_area
   AreaInfo area = 22 [(field_ifdef) = "USE_AREAS"];
@@ -419,7 +419,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 11;
-  repeated string supported_preset_modes = 12;
+  repeated string supported_preset_modes = 12 [(container_pointer) = "std::set"];
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
 }
 // Deprecated in API version 1.6 - only used in deprecated fields
@@ -500,7 +500,7 @@ message ListEntitiesLightResponse {
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
-  repeated ColorMode supported_color_modes = 12;
+  repeated ColorMode supported_color_modes = 12 [(container_pointer) = "std::set<light::ColorMode>"];
   // next four supports_* are for legacy clients, newer clients should use color modes
   // Deprecated in API version 1.6
   bool legacy_supports_brightness = 5 [deprecated=true];
@@ -755,17 +755,19 @@ message NoiseEncryptionSetKeyResponse {
 message SubscribeHomeassistantServicesRequest {
   option (id) = 34;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 }
 
 message HomeassistantServiceMap {
   string key = 1;
-  string value = 2;
+  string value = 2 [(no_zero_copy) = true];
 }
 
 message HomeassistantServiceResponse {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
   string service = 1;
   repeated HomeassistantServiceMap data = 2;
@@ -781,11 +783,13 @@ message HomeassistantServiceResponse {
 message SubscribeHomeAssistantStatesRequest {
   option (id) = 38;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
 }
 
 message SubscribeHomeAssistantStateResponse {
   option (id) = 39;
   option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
   string entity_id = 1;
   string attribute = 2;
   bool once = 3;
@@ -795,6 +799,7 @@ message HomeAssistantStateResponse {
   option (id) = 40;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
 
   string entity_id = 1;
   string state = 2;
@@ -961,7 +966,7 @@ message ListEntitiesClimateResponse {
 
   bool supports_current_temperature = 5;
   bool supports_two_point_target_temperature = 6;
-  repeated ClimateMode supported_modes = 7;
+  repeated ClimateMode supported_modes = 7 [(container_pointer) = "std::set<climate::ClimateMode>"];
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
   float visual_target_temperature_step = 10;
@@ -970,11 +975,11 @@ message ListEntitiesClimateResponse {
   // Deprecated in API version 1.5
   bool legacy_supports_away = 11 [deprecated=true];
   bool supports_action = 12;
-  repeated ClimateFanMode supported_fan_modes = 13;
-  repeated ClimateSwingMode supported_swing_modes = 14;
-  repeated string supported_custom_fan_modes = 15;
-  repeated ClimatePreset supported_presets = 16;
-  repeated string supported_custom_presets = 17;
+  repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer) = "std::set<climate::ClimateFanMode>"];
+  repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer) = "std::set<climate::ClimateSwingMode>"];
+  repeated string supported_custom_fan_modes = 15 [(container_pointer) = "std::set"];
+  repeated ClimatePreset supported_presets = 16 [(container_pointer) = "std::set<climate::ClimatePreset>"];
+  repeated string supported_custom_presets = 17 [(container_pointer) = "std::set"];
   bool disabled_by_default = 18;
   string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 20;
@@ -1114,7 +1119,7 @@ message ListEntitiesSelectResponse {
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
-  repeated string options = 6;
+  repeated string options = 6 [(container_pointer) = "std::vector"];
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
@@ -1292,6 +1297,9 @@ enum MediaPlayerState {
   MEDIA_PLAYER_STATE_IDLE = 1;
   MEDIA_PLAYER_STATE_PLAYING = 2;
   MEDIA_PLAYER_STATE_PAUSED = 3;
+  MEDIA_PLAYER_STATE_ANNOUNCING = 4;
+  MEDIA_PLAYER_STATE_OFF = 5;
+  MEDIA_PLAYER_STATE_ON = 6;
 }
 enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_PLAY = 0;
@@ -1299,6 +1307,15 @@ enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_STOP = 2;
   MEDIA_PLAYER_COMMAND_MUTE = 3;
   MEDIA_PLAYER_COMMAND_UNMUTE = 4;
+  MEDIA_PLAYER_COMMAND_TOGGLE = 5;
+  MEDIA_PLAYER_COMMAND_VOLUME_UP = 6;
+  MEDIA_PLAYER_COMMAND_VOLUME_DOWN = 7;
+  MEDIA_PLAYER_COMMAND_ENQUEUE = 8;
+  MEDIA_PLAYER_COMMAND_REPEAT_ONE = 9;
+  MEDIA_PLAYER_COMMAND_REPEAT_OFF = 10;
+  MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 11;
+  MEDIA_PLAYER_COMMAND_TURN_ON = 12;
+  MEDIA_PLAYER_COMMAND_TURN_OFF = 13;
 }
 enum MediaPlayerFormatPurpose {
   MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0;
@@ -1333,6 +1350,8 @@ message ListEntitiesMediaPlayerResponse {
   repeated MediaPlayerSupportedFormat supported_formats = 9;
 
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
+
+  uint32 feature_flags = 11;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;
@@ -1419,11 +1438,11 @@ message BluetoothLERawAdvertisementsResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   option (no_delay) = true;
 
-  repeated BluetoothLERawAdvertisement advertisements = 1;
+  repeated BluetoothLERawAdvertisement advertisements = 1 [(fixed_array_with_length_define) = "BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE"];
 }
 
 enum BluetoothDeviceRequestType {
-  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0 [deprecated = true]; // V1 removed, use V3 variants
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
   BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
@@ -1463,21 +1482,39 @@ message BluetoothGATTGetServicesRequest {
 }
 
 message BluetoothGATTDescriptor {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 3;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTCharacteristic {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   uint32 properties = 3;
   repeated BluetoothGATTDescriptor descriptors = 4;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 5;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTService {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   repeated BluetoothGATTCharacteristic characteristics = 3;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 4;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTGetServicesResponse {
@@ -1486,7 +1523,7 @@ message BluetoothGATTGetServicesResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
-  repeated BluetoothGATTService services = 2 [(fixed_array_size) = 1];
+  repeated BluetoothGATTService services = 2;
 }
 
 message BluetoothGATTGetServicesDoneResponse {
@@ -1584,7 +1621,10 @@ message BluetoothConnectionsFreeResponse {
 
   uint32 free = 1;
   uint32 limit = 2;
-  repeated uint64 allocated = 3;
+  repeated uint64 allocated = 3 [
+    (fixed_array_size_define) = "BLUETOOTH_PROXY_MAX_CONNECTIONS",
+    (fixed_array_skip_zero) = true
+  ];
 }
 
 message BluetoothGATTErrorResponse {
@@ -1829,7 +1869,7 @@ message VoiceAssistantConfigurationResponse {
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   repeated VoiceAssistantWakeWord available_wake_words = 1;
-  repeated string active_wake_words = 2;
+  repeated string active_wake_words = 2 [(container_pointer) = "std::vector"];
   uint32 max_active_wake_words = 3;
 }
 

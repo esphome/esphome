@@ -105,6 +105,7 @@ logger:
                     check=True,
                     cwd=init_dir,
                     env=env,
+                    close_fds=False,
                 )
 
         # Lock is held until here, ensuring cache is fully populated before any test proceeds
@@ -245,25 +246,25 @@ async def compile_esphome(
                 # Start in a new process group to isolate signal handling
                 start_new_session=True,
                 env=env,
+                close_fds=False,
             )
             await proc.wait()
 
             if proc.returncode == 0:
                 # Success!
                 break
-            elif proc.returncode == -11 and attempt < max_retries - 1:
+            if proc.returncode == -11 and attempt < max_retries - 1:
                 # Segfault (-11 = SIGSEGV), retry
                 print(
                     f"Compilation segfaulted (attempt {attempt + 1}/{max_retries}), retrying..."
                 )
                 await asyncio.sleep(1)  # Brief pause before retry
                 continue
-            else:
-                # Other error or final retry
-                raise RuntimeError(
-                    f"Failed to compile {config_path}, return code: {proc.returncode}. "
-                    f"Run with 'pytest -s' to see compilation output."
-                )
+            # Other error or final retry
+            raise RuntimeError(
+                f"Failed to compile {config_path}, return code: {proc.returncode}. "
+                f"Run with 'pytest -s' to see compilation output."
+            )
 
         # Load the config to get idedata (blocking call, must use executor)
         loop = asyncio.get_running_loop()
@@ -478,6 +479,7 @@ async def run_binary_and_wait_for_port(
         # Start in a new process group to isolate signal handling
         start_new_session=True,
         pass_fds=(device_fd,),
+        close_fds=False,
     )
 
     # Close the device end in the parent process

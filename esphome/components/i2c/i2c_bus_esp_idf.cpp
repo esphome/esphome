@@ -19,7 +19,6 @@ namespace i2c {
 static const char *const TAG = "i2c.idf";
 
 void IDFI2CBus::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   static i2c_port_t next_port = I2C_NUM_0;
   this->port_ = next_port;
   if (this->port_ == I2C_NUM_MAX) {
@@ -152,13 +151,13 @@ void IDFI2CBus::dump_config() {
       break;
   }
   if (this->scan_) {
-    ESP_LOGI(TAG, "Results from bus scan:");
+    ESP_LOGCONFIG(TAG, "Results from bus scan:");
     if (scan_results_.empty()) {
-      ESP_LOGI(TAG, "Found no devices");
+      ESP_LOGCONFIG(TAG, "Found no devices");
     } else {
       for (const auto &s : scan_results_) {
         if (s.second) {
-          ESP_LOGI(TAG, "Found device at address 0x%02X", s.first);
+          ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
         } else {
           ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
         }

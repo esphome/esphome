@@ -124,7 +124,9 @@ async def to_code(config: ConfigType) -> None:
         ],
     )
 
-    if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
+    if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        cg.add_define("USE_BOOTLOADER_MCUBOOT")
+    else:
         # make sure that firmware.zip is created
         # for Adafruit_nRF52_Bootloader
         cg.add_platformio_option("board_upload.protocol", "nrfutil")

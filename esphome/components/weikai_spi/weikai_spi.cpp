@@ -156,7 +156,7 @@ void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
 ///////////////////////////////////////////////////////////////////////////////
 void WeikaiComponentSPI::setup() {
   using namespace weikai;
-  ESP_LOGCONFIG(TAG, "Running setup for '%s' with %d UARTs", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "Setup %s (%d UARTs)", this->get_name(), this->children_.size());
   this->spi_setup();
   // enable all channels
   this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;

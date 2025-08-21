@@ -93,6 +93,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    if config[CONF_SERVICES]:
+        cg.add_define("USE_MDNS_EXTRA_SERVICES")
+
     for service in config[CONF_SERVICES]:
         txt = [
             cg.StructInitializer(

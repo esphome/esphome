@@ -77,6 +77,7 @@ BRIGHTNESS = 0x51
 WRDISBV = 0x51
 RDDISBV = 0x52
 WRCTRLD = 0x53
+WCE = 0x58
 SWIRE1 = 0x5A
 SWIRE2 = 0x5B
 IFMODE = 0xB0
@@ -91,6 +92,7 @@ PWCTR2 = 0xC1
 PWCTR3 = 0xC2
 PWCTR4 = 0xC3
 PWCTR5 = 0xC4
+SPIMODESEL = 0xC4
 VMCTR1 = 0xC5
 IFCTR = 0xC6
 VMCTR2 = 0xC7
@@ -230,7 +232,7 @@ class DriverChip:
     ):
         name = name.upper()
         self.name = name
-        self.initsequence = initsequence
+        self.initsequence = initsequence or defaults.get("init_sequence")
         self.defaults = defaults
         DriverChip.models[name] = self
 
@@ -347,7 +349,7 @@ class DriverChip:
         Pixel format, color order, and orientation will be set.
         Returns a tuple of the init sequence and the computed MADCTL value.
         """
-        sequence = list(self.initsequence)
+        sequence = list(self.initsequence or ())
         custom_sequence = config.get(CONF_INIT_SEQUENCE, [])
         sequence.extend(custom_sequence)
         # Ensure each command is a tuple
@@ -356,6 +358,8 @@ class DriverChip:
         # Set pixel format if not already in the custom sequence
         pixel_mode = config[CONF_PIXEL_MODE]
         if not isinstance(pixel_mode, int):
+            if not pixel_mode.endswith("bit"):
+                pixel_mode = f"{pixel_mode}bit"
             pixel_mode = PIXEL_MODES[pixel_mode]
         sequence.append((PIXFMT, pixel_mode))
 
