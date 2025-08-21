@@ -14,10 +14,9 @@ class STTS22HComponent : public sensor::Sensor, public PollingComponent, public 
   void dump_config() override;
 
  protected:
-  uint8_t read_sensor_identification();
-  void enable_low_odr_operation_mode();
-  void enable_reg_adr_auto_increment();
-  float read_temperature();
+  void initialize_sensor_();
+  bool is_stts22h_sensor_();
+  float read_temperature_();
 };
 
 }  // namespace stts22h

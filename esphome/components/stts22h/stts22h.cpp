@@ -20,18 +20,12 @@ static const float SENSOR_SCALE = 0.01f;  // Sensor resolution in degrees Celsiu
 
 void STTS22HComponent::setup() {
   // Check if device is a STTS22H
-  uint8_t sensor_id = this->read_sensor_identification();
-  if (sensor_id != WHOAMI_STTS22H_IDENTIFICATION) {
-    this->mark_failed("Unexpected WHOAMI identifier. Sensor is not a STTS22H");
+  if (!this->is_stts22h_sensor_()) {
+    this->mark_failed("Device is not a STTS22H sensor");
     return;
   }
 
-  // Enable low ODR (Output Data Rate) operation mode
-  // TODO: Implement one-shot mode
-  // TODO: Implement freerun mode
-  this->enable_low_odr_operation_mode();
-
-  this->enable_reg_adr_auto_increment();
+  this->initialize_sensor_();
 }
 
 void STTS22HComponent::update() {
@@ -39,12 +33,13 @@ void STTS22HComponent::update() {
     return;
   }
 
-  float temperature = this->read_temperature();
+  float temperature = this->read_temperature_();
   if (std::isnan(temperature)) {
     ESP_LOGW(TAG, "Temperature is NaN");
     return;
   }
 
+  ESP_LOGI(TAG, "Is published");
   this->publish_state(temperature);
 }
 
@@ -52,9 +47,12 @@ void STTS22HComponent::dump_config() {
   LOG_SENSOR("", "STTS22H", this);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  }
 }
 
-float STTS22HComponent::read_temperature() {
+float STTS22HComponent::read_temperature_() {
   uint8_t temperature_register_value[2];
   if (this->read_register(TEMPERATURE_REG, temperature_register_value, 2) != i2c::NO_ERROR) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -69,29 +67,34 @@ float STTS22HComponent::read_temperature() {
   return temperature_value;
 }
 
-uint8_t STTS22HComponent::read_sensor_identification() {
+/// @brief Reads the harcoded ID whih identifies device on the bus as STTS22H sensor.
+/// @return
+bool STTS22HComponent::is_stts22h_sensor_() {
   uint8_t whoami_value[1];
   if (this->read_register(WHOAMI_REG, whoami_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
-    return 0XFF;  // Return an invalid value to indicate failure
+    return false;
   }
 
-  return whoami_value[0];
+  if (whoami_value[0] != WHOAMI_STTS22H_IDENTIFICATION) {
+    this->mark_failed("Unexpected WHOAMI identifier. Sensor is not a STTS22H");
+    return false;
+  }
+
+  return true;
 }
 
-/// @brief Sets the ODR (Output Data Rate) to 1Hz
-/// The sensor will measure the temperature at 1Hz
-void STTS22HComponent::enable_low_odr_operation_mode() {
-  if (this->write_register(CTRL_REG, &LOW_ODR_CTRL_ENABLE_FLAG, 1) != i2c::NO_ERROR) {
+void STTS22HComponent::initialize_sensor_() {
+  uint8_t ctrl_value[1];
+  if (this->read_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-}
 
-/// @brief Enable automatic address increment when multiple I²C read and write transactions are used at once.
-/// when multiple I²C read and write transactions are used at once.
-void STTS22HComponent::enable_reg_adr_auto_increment() {
-  if (this->write_register(CTRL_REG, &AUTO_INC_CTRL_ENABLE_FLAG, 1) != i2c::NO_ERROR) {
+  // Enable low ODR mode and auto increment in CTRL_REG
+  // Enable auto increment of register address in CTRL_REG
+  ctrl_value[0] = ctrl_value[0] | AUTO_INC_CTRL_ENABLE_FLAG | LOW_ODR_CTRL_ENABLE_FLAG;
+  if (this->write_register(CTRL_REG, ctrl_value, 1) != i2c::NO_ERROR) {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
