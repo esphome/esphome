@@ -215,30 +215,31 @@ void BLEClientBase::log_warning_(const char *message) {
   ESP_LOGW(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_.c_str(), message);
 }
 
+void BLEClientBase::set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
+                                     const char *param_type) {
+  esp_ble_conn_update_params_t conn_params = {{0}};
+  memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
+  conn_params.min_int = min_interval;
+  conn_params.max_int = max_interval;
+  conn_params.latency = latency;
+  conn_params.timeout = timeout;
+  this->log_connection_params_(param_type);
+  esp_err_t err = esp_ble_gap_update_conn_params(&conn_params);
+  if (err != ESP_OK) {
+    this->log_gattc_warning_("esp_ble_gap_update_conn_params", err);
+  }
+}
+
 void BLEClientBase::set_fast_conn_params_() {
   // Switch to fast connection parameters for service discovery
   // This improves discovery speed for devices with short timeouts
-  esp_ble_conn_update_params_t conn_params = {{0}};
-  memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
-  conn_params.min_int = FAST_MIN_CONN_INTERVAL;
-  conn_params.max_int = FAST_MAX_CONN_INTERVAL;
-  conn_params.latency = 0;
-  conn_params.timeout = FAST_CONN_TIMEOUT;
-  this->log_connection_params_("fast");
-  esp_ble_gap_update_conn_params(&conn_params);
+  this->set_conn_params_(FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL, 0, FAST_CONN_TIMEOUT, "fast");
 }
 
 void BLEClientBase::set_medium_conn_params_() {
   // Set medium connection parameters for balanced performance
   // This balances performance with bandwidth usage for normal operation
-  esp_ble_conn_update_params_t conn_params = {{0}};
-  memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
-  conn_params.min_int = MEDIUM_MIN_CONN_INTERVAL;
-  conn_params.max_int = MEDIUM_MAX_CONN_INTERVAL;
-  conn_params.latency = 0;
-  conn_params.timeout = MEDIUM_CONN_TIMEOUT;
-  this->log_connection_params_("medium");
-  esp_ble_gap_update_conn_params(&conn_params);
+  this->set_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
 }
 
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
