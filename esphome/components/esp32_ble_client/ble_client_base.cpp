@@ -159,7 +159,8 @@ void BLEClientBase::disconnect() {
     return;
   }
   if (this->state_ == espbt::ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
-    this->log_warning_("Disconnect before connected, disconnect scheduled.");
+    ESP_LOGD(TAG, "[%d] [%s] Disconnect before connected, disconnect scheduled", this->connection_index_,
+             this->address_str_.c_str());
     this->want_disconnect_ = true;
     return;
   }
