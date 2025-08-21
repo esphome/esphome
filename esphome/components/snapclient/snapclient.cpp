@@ -3,7 +3,7 @@
 
 #include "snapclient.h"
 #include "decoder.h"
-#include "esp_log.h"
+#include "esphome/core/log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -27,7 +27,7 @@ void SnapClientComponent::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGI(TAG, "init player");
+  ESP_LOGD(TAG, "init player");
   i2s_std_gpio_config_t i2s_pin_config0 = this->parent_->get_pin_config();
   i2s_pin_config0.dout = (gpio_num_t) this->dout_pin_;
 
@@ -60,6 +60,7 @@ void SnapClientComponent::setup() {
 #if CONFIG_USE_DSP_PROCESSOR
   dsp_processor_init();
 #endif
+  ESP_LOGD(TAG, "Create Task");
   xTaskCreatePinnedToCore(&http_get_task, "http", 4 * 1024, NULL, HTTP_TASK_PRIORITY, &t_http_get_task,
                           HTTP_TASK_CORE_ID);
 }
@@ -85,6 +86,7 @@ void SnapClientComponent::loop() {
       }
 #endif
       this->mute_state_ = dac_data.mute;
+      ESP_LOGD(TAG, "%s", dac_data.mute ? "Mute" : "Unmute");
     }
     if (dac_data.volume != dac_data_old.volume) {
       this->volume_ = (float) dac_data.volume / 100;

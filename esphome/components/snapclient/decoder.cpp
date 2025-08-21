@@ -3,7 +3,7 @@
 #ifndef USE_I2S_LEGACY
 
 #include "decoder.h"
-#include "esp_log.h"
+#include "esphome/core/log.h"
 #include "esp_mac.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"

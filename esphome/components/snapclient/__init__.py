@@ -55,35 +55,48 @@ async def to_code(config):
     add_idf_component(name="espressif/esp-dsp", ref=">1.5.0")
     add_idf_component(name="espressif/mdns", ref=">1.2.3")
     add_idf_component(
-        name="snapcast",
-        # repo="..",  # todo: replace by repo
+        name="lightsnapcast",
         ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
         repo="https://github.com/CarlosDerSeher/snapclient.git",
-        path="components/",
-        components=[
-            "lightsnapcast",
-            "libbuffer",
-            "libmedian",
-            "opus",
-            "flac",
-            "dsp_processor",
-        ],
-        submodules=[
-            "components/opus/opus",
-            "components/flac/flac",
-        ],
+        path="components/lightsnapcast",
+    )
+    add_idf_component(
+        name="libbuffer",
+        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        repo="https://github.com/CarlosDerSeher/snapclient.git",
+        path="components/libbuffer",
+    )
+    add_idf_component(
+        name="libmedian",
+        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        repo="https://github.com/CarlosDerSeher/snapclient.git",
+        path="components/libmedian",
+    )
+    add_idf_component(
+        name="opus",
+        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        repo="https://github.com/CarlosDerSeher/snapclient.git",
+        path="components/opus",
+    )
+    add_idf_component(
+        name="flac",
+        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        repo="https://github.com/CarlosDerSeher/snapclient.git",
+        path="components/flac",
+    )
+    add_idf_component(
+        name="dsp_processor",
+        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        repo="https://github.com/CarlosDerSeher/snapclient.git",
+        path="components/dsp_processor",
     )
     if CONF_WEBSERVER_PORT in config:
         cg.add_build_flag(f"-DCONFIG_WEB_PORT={config[CONF_WEBSERVER_PORT]}")
         add_idf_component(
-            name="snapcast",
-            # repo="..",  # todo: replace by repo
+            name="ui_http_server",
             ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
             repo="https://github.com/CarlosDerSeher/snapclient.git",
-            path="components/",
-            components=[
-                "ui_http_server",
-            ],
+            path="components/ui_http_server",
         )
     if (CONF_AUDIO_DAC not in config) or (CONF_WEBSERVER_PORT in config):
         add_idf_sdkconfig_option("CONFIG_USE_DSP_PROCESSOR", True)
