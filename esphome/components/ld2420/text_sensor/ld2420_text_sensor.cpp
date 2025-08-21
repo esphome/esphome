@@ -1,4 +1,4 @@
-#include "text_sensor.h"
+#include "ld2420_text_sensor.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 

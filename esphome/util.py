@@ -239,7 +239,12 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
 
     try:
         proc = subprocess.run(
-            cmd, stdout=sub_stdout, stderr=sub_stderr, encoding="utf-8", check=False
+            cmd,
+            stdout=sub_stdout,
+            stderr=sub_stderr,
+            encoding="utf-8",
+            check=False,
+            close_fds=False,
         )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise

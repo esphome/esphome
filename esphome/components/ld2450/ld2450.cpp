@@ -199,9 +199,8 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2450:\n"
                 "  Firmware version: %s\n"
-                "  MAC address: %s\n"
-                "  Throttle: %u ms",
-                version.c_str(), mac_str.c_str(), this->throttle_);
+                "  MAC address: %s",
+                version.c_str(), mac_str.c_str());
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
@@ -431,11 +430,6 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
 //  [AA FF 03 00] [0E 03 B1 86 10 00 40 01] [00 00 00 00 00 00 00 00] [00 00 00 00 00 00 00 00] [55 CC]
 //   Header       Target 1                  Target 2                  Target 3                  End
 void LD2450Component::handle_periodic_data_() {
-  // Early throttle check - moved before any processing to save CPU cycles
-  if (App.get_loop_component_start_time() - this->last_periodic_millis_ < this->throttle_) {
-    return;
-  }
-
   if (this->buffer_pos_ < 29) {  // header (4 bytes) + 8 x 3 target data + footer (2 bytes)
     ESP_LOGE(TAG, "Invalid length");
     return;
@@ -446,8 +440,6 @@ void LD2450Component::handle_periodic_data_() {
     ESP_LOGE(TAG, "Invalid header/footer");
     return;
   }
-  // Save the timestamp after validating the frame so, if invalid, we'll take the next frame immediately
-  this->last_periodic_millis_ = App.get_loop_component_start_time();
 
   int16_t target_count = 0;
   int16_t still_target_count = 0;

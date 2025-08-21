@@ -289,16 +289,26 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
     return 0;  // Doesn't fit
   }
 
-  // Allocate buffer space - pass payload size, allocation functions add header/footer space
-  ProtoWriteBuffer buffer = is_single ? conn->allocate_single_message_buffer(calculated_size)
-                                      : conn->allocate_batch_message_buffer(calculated_size);
-
   // Get buffer size after allocation (which includes header padding)
   std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
-  size_t size_before_encode = shared_buf.size();
+
+  if (is_single || conn->flags_.batch_first_message) {
+    // Single message or first batch message
+    conn->prepare_first_message_buffer(shared_buf, header_padding, total_calculated_size);
+    if (conn->flags_.batch_first_message) {
+      conn->flags_.batch_first_message = false;
+    }
+  } else {
+    // Batch message second or later
+    // Add padding for previous message footer + this message header
+    size_t current_size = shared_buf.size();
+    shared_buf.reserve(current_size + total_calculated_size);
+    shared_buf.resize(current_size + footer_size + header_padding);
+  }
 
   // Encode directly into buffer
-  msg.encode(buffer);
+  size_t size_before_encode = shared_buf.size();
+  msg.encode({&shared_buf});
 
   // Calculate actual encoded size (not including header that was already added)
   size_t actual_payload_size = shared_buf.size() - size_before_encode;
@@ -455,9 +465,7 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
   resp.cold_white = values.get_cold_white();
   resp.warm_white = values.get_warm_white();
   if (light->supports_effects()) {
-    // get_effect_name() returns temporary std::string - must store it
-    std::string effect_name = light->get_effect_name();
-    resp.set_effect(StringRef(effect_name));
+    resp.set_effect(light->get_effect_name_ref());
   }
   return fill_and_encode_entity_state(light, resp, LightStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -1415,9 +1423,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
-  // get_compilation_time() returns temporary std::string - must store it
-  std::string compilation_time = App.get_compilation_time();
-  resp.set_compilation_time(StringRef(compilation_time));
+  resp.set_compilation_time(App.get_compilation_time_ref());
 
   // Compile-time StringRef constants for manufacturers
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -1620,14 +1626,6 @@ bool APIConnection::schedule_batch_() {
   return true;
 }
 
-ProtoWriteBuffer APIConnection::allocate_single_message_buffer(uint16_t size) { return this->create_buffer(size); }
-
-ProtoWriteBuffer APIConnection::allocate_batch_message_buffer(uint16_t size) {
-  ProtoWriteBuffer result = this->prepare_message_buffer(size, this->flags_.batch_first_message);
-  this->flags_.batch_first_message = false;
-  return result;
-}
-
 void APIConnection::process_batch_() {
   // Ensure PacketInfo remains trivially destructible for our placement new approach
   static_assert(std::is_trivially_destructible<PacketInfo>::value,
@@ -1735,7 +1733,7 @@ void APIConnection::process_batch_() {
     }
     remaining_size -= payload_size;
     // Calculate where the next message's header padding will start
-    // Current buffer size + footer space (that prepare_message_buffer will add for this message)
+    // Current buffer size + footer space for this message
     current_offset = shared_buf.size() + footer_size;
   }
 

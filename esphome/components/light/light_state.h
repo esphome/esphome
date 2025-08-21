@@ -4,6 +4,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "light_call.h"
 #include "light_color_values.h"
 #include "light_effect.h"
@@ -116,6 +117,8 @@ class LightState : public EntityBase, public Component {
 
   /// Return the name of the current effect, or if no effect is active "None".
   std::string get_effect_name();
+  /// Return the name of the current effect as StringRef (for API usage)
+  StringRef get_effect_name_ref();
 
   /**
    * This lets front-end components subscribe to light change events. This callback is called once
@@ -159,6 +162,44 @@ class LightState : public EntityBase, public Component {
 
   /// Add effects for this light state.
   void add_effects(const std::vector<LightEffect *> &effects);
+
+  /// Get the total number of effects available for this light.
+  size_t get_effect_count() const { return this->effects_.size(); }
+
+  /// Get the currently active effect index (0 = no effect, 1+ = effect index).
+  uint32_t get_current_effect_index() const { return this->active_effect_index_; }
+
+  /// Get effect index by name. Returns 0 if effect not found.
+  uint32_t get_effect_index(const std::string &effect_name) const {
+    if (strcasecmp(effect_name.c_str(), "none") == 0) {
+      return 0;
+    }
+    for (size_t i = 0; i < this->effects_.size(); i++) {
+      if (strcasecmp(effect_name.c_str(), this->effects_[i]->get_name().c_str()) == 0) {
+        return i + 1;  // Effects are 1-indexed in active_effect_index_
+      }
+    }
+    return 0;  // Effect not found
+  }
+
+  /// Get effect by index. Returns nullptr if index is invalid.
+  LightEffect *get_effect_by_index(uint32_t index) const {
+    if (index == 0 || index > this->effects_.size()) {
+      return nullptr;
+    }
+    return this->effects_[index - 1];  // Effects are 1-indexed in active_effect_index_
+  }
+
+  /// Get effect name by index. Returns "None" for index 0, empty string for invalid index.
+  std::string get_effect_name_by_index(uint32_t index) const {
+    if (index == 0) {
+      return "None";
+    }
+    if (index > this->effects_.size()) {
+      return "";  // Invalid index
+    }
+    return this->effects_[index - 1]->get_name();
+  }
 
   /// The result of all the current_values_as_* methods have gamma correction applied.
   void current_values_as_binary(bool *binary);

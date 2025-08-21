@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.8.0-dev"
+__version__ = "2025.9.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -523,6 +523,7 @@ CONF_LOADED_INTEGRATIONS = "loaded_integrations"
 CONF_LOCAL = "local"
 CONF_LOCK_ACTION = "lock_action"
 CONF_LOG = "log"
+CONF_LOG_LEVEL = "log_level"
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
@@ -760,6 +761,7 @@ CONF_POSITION_COMMAND_TOPIC = "position_command_topic"
 CONF_POSITION_STATE_TOPIC = "position_state_topic"
 CONF_POWER = "power"
 CONF_POWER_FACTOR = "power_factor"
+CONF_POWER_MODE = "power_mode"
 CONF_POWER_ON_VALUE = "power_on_value"
 CONF_POWER_SAVE_MODE = "power_save_mode"
 CONF_POWER_SUPPLY = "power_supply"
@@ -1330,3 +1332,7 @@ ENTITY_CATEGORY_CONFIG = "config"
 
 # The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
 ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
+
+# The corresponding constant exists in c++
+# when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
+SCHEDULER_DONT_RUN = 4294967295

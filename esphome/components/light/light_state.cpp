@@ -140,12 +140,22 @@ float LightState::get_setup_priority() const { return setup_priority::HARDWARE -
 void LightState::publish_state() { this->remote_values_callback_.call(); }
 
 LightOutput *LightState::get_output() const { return this->output_; }
+
+static constexpr const char *EFFECT_NONE = "None";
+static constexpr auto EFFECT_NONE_REF = StringRef::from_lit("None");
+
 std::string LightState::get_effect_name() {
   if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
-  } else {
-    return "None";
   }
+  return EFFECT_NONE;
+}
+
+StringRef LightState::get_effect_name_ref() {
+  if (this->active_effect_index_ > 0) {
+    return StringRef(this->effects_[this->active_effect_index_ - 1]->get_name());
+  }
+  return EFFECT_NONE_REF;
 }
 
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {

@@ -212,7 +212,7 @@ def validate_use_legacy(value):
                 f"All i2s_audio components must set {CONF_USE_LEGACY} to the same value."
             )
         if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
-            raise cv.Invalid("Arduino supports only the legacy i2s driver.")
+            raise cv.Invalid("Arduino supports only the legacy i2s driver")
         _use_legacy_driver = value[CONF_USE_LEGACY]
     return value
 

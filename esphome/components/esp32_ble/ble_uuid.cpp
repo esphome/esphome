@@ -1,6 +1,7 @@
 #include "ble_uuid.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_UUID
 
 #include <cstring>
 #include <cstdio>
@@ -190,4 +191,5 @@ std::string ESPBTUUID::to_string() const {
 
 }  // namespace esphome::esp32_ble
 
-#endif
+#endif  // USE_ESP32_BLE_UUID
+#endif  // USE_ESP32

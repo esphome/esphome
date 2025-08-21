@@ -156,7 +156,9 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
   }
 
   // Try to send directly if no buffered data
-  ssize_t sent = this->socket_->writev(iov, iovcnt);
+  // Optimize for single iovec case (common for plaintext API)
+  ssize_t sent =
+      (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
 
   if (sent == -1) {
     APIError err = this->handle_socket_write_error_();
