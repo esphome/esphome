@@ -1,5 +1,5 @@
 #include "esphome/core/helpers.h"  // for clamp() and lerp()
-#include "output.h"
+#include "opentherm_output.h"
 
 namespace esphome {
 namespace opentherm {
