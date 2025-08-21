@@ -597,24 +597,24 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_ZWAVE_PROXY
-    case ZWaveProxyReadRequest::MESSAGE_TYPE: {
-      ZWaveProxyReadRequest msg;
+    case ZWaveProxyFromDeviceRequest::MESSAGE_TYPE: {
+      ZWaveProxyFromDeviceRequest msg;
       // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_z_wave_proxy_read_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_z_wave_proxy_from_device_request: %s", msg.dump().c_str());
 #endif
-      this->on_z_wave_proxy_read_request(msg);
+      this->on_z_wave_proxy_from_device_request(msg);
       break;
     }
 #endif
 #ifdef USE_ZWAVE_PROXY
-    case ZWaveProxyWriteRequest::MESSAGE_TYPE: {
-      ZWaveProxyWriteRequest msg;
+    case ZWaveProxyToDeviceRequest::MESSAGE_TYPE: {
+      ZWaveProxyToDeviceRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_z_wave_proxy_write_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_z_wave_proxy_to_device_request: %s", msg.dump().c_str());
 #endif
-      this->on_z_wave_proxy_write_request(msg);
+      this->on_z_wave_proxy_to_device_request(msg);
       break;
     }
 #endif
@@ -932,16 +932,16 @@ void APIServerConnection::on_alarm_control_panel_command_request(const AlarmCont
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_read_request(const ZWaveProxyReadRequest &msg) {
+void APIServerConnection::on_z_wave_proxy_from_device_request(const ZWaveProxyFromDeviceRequest &msg) {
   if (this->check_authenticated_()) {
-    this->zwave_proxy_read(msg);
+    this->zwave_proxy_from_device(msg);
   }
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_write_request(const ZWaveProxyWriteRequest &msg) {
+void APIServerConnection::on_z_wave_proxy_to_device_request(const ZWaveProxyToDeviceRequest &msg) {
   if (this->check_authenticated_()) {
-    this->zwave_proxy_write(msg);
+    this->zwave_proxy_to_device(msg);
   }
 }
 #endif

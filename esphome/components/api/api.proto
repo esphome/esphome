@@ -70,8 +70,8 @@ service APIConnection {
 
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
 
-  rpc zwave_proxy_read(ZWaveProxyReadRequest) returns (void) {}
-  rpc zwave_proxy_write(ZWaveProxyWriteRequest) returns (void) {}
+  rpc zwave_proxy_from_device(ZWaveProxyFromDeviceRequest) returns (void) {}
+  rpc zwave_proxy_to_device(ZWaveProxyToDeviceRequest) returns (void) {}
 }
 
 
@@ -2284,14 +2284,14 @@ message UpdateCommandRequest {
 
 // ==================== Z-WAVE ====================
 
-message ZWaveProxyReadRequest {
+message ZWaveProxyFromDeviceRequest {
   option (id) = 128;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_ZWAVE_PROXY";
   option (no_delay) = true;
 }
 
-message ZWaveProxyReadResponse {
+message ZWaveProxyFromDeviceResponse {
   option (id) = 129;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_ZWAVE_PROXY";
@@ -2300,7 +2300,7 @@ message ZWaveProxyReadResponse {
   string data = 1;
 }
 
-message ZWaveProxyWriteRequest {
+message ZWaveProxyToDeviceRequest {
   option (id) = 130;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_ZWAVE_PROXY";
@@ -2309,7 +2309,7 @@ message ZWaveProxyWriteRequest {
   string data = 1;
 }
 
-message ZWaveProxyWriteResponse {
+message ZWaveProxyToDeviceResponse {
   option (id) = 131;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_ZWAVE_PROXY";

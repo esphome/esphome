@@ -2914,12 +2914,12 @@ class UpdateCommandRequest final : public CommandProtoMessage {
 };
 #endif
 #ifdef USE_ZWAVE_PROXY
-class ZWaveProxyReadRequest final : public ProtoMessage {
+class ZWaveProxyFromDeviceRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 128;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "z_wave_proxy_read_request"; }
+  const char *message_name() const override { return "z_wave_proxy_from_device_request"; }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2927,12 +2927,12 @@ class ZWaveProxyReadRequest final : public ProtoMessage {
 
  protected:
 };
-class ZWaveProxyReadResponse final : public ProtoMessage {
+class ZWaveProxyFromDeviceResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 129;
   static constexpr uint8_t ESTIMATED_SIZE = 9;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "z_wave_proxy_read_response"; }
+  const char *message_name() const override { return "z_wave_proxy_from_device_response"; }
 #endif
   StringRef data_ref_{};
   void set_data(const StringRef &ref) { this->data_ref_ = ref; }
@@ -2944,12 +2944,12 @@ class ZWaveProxyReadResponse final : public ProtoMessage {
 
  protected:
 };
-class ZWaveProxyWriteRequest final : public ProtoDecodableMessage {
+class ZWaveProxyToDeviceRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 130;
   static constexpr uint8_t ESTIMATED_SIZE = 9;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "z_wave_proxy_write_request"; }
+  const char *message_name() const override { return "z_wave_proxy_to_device_request"; }
 #endif
   std::string data{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2959,12 +2959,12 @@ class ZWaveProxyWriteRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ZWaveProxyWriteResponse final : public ProtoMessage {
+class ZWaveProxyToDeviceResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 131;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "z_wave_proxy_write_response"; }
+  const char *message_name() const override { return "z_wave_proxy_to_device_response"; }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

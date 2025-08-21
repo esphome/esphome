@@ -2101,10 +2101,10 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void ZWaveProxyReadRequest::dump_to(std::string &out) const { out.append("ZWaveProxyReadRequest {}"); }
-void ZWaveProxyReadResponse::dump_to(std::string &out) const { dump_field(out, "data", this->data_ref_); }
-void ZWaveProxyWriteRequest::dump_to(std::string &out) const { dump_field(out, "data", this->data); }
-void ZWaveProxyWriteResponse::dump_to(std::string &out) const { out.append("ZWaveProxyWriteResponse {}"); }
+void ZWaveProxyFromDeviceRequest::dump_to(std::string &out) const { out.append("ZWaveProxyFromDeviceRequest {}"); }
+void ZWaveProxyFromDeviceResponse::dump_to(std::string &out) const { dump_field(out, "data", this->data_ref_); }
+void ZWaveProxyToDeviceRequest::dump_to(std::string &out) const { dump_field(out, "data", this->data); }
+void ZWaveProxyToDeviceResponse::dump_to(std::string &out) const { out.append("ZWaveProxyToDeviceResponse {}"); }
 #endif
 
 }  // namespace esphome::api
