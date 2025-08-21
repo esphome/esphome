@@ -484,12 +484,12 @@ void ESPNowComponent::save_prefs_() {
   data.peers = this->peers_.size();
   ESP_LOGI(TAG, "saving header : %d, %d", data.peers, data.peersize);
   uint32_t hdr_hash = fnv1_hash(std::string(this->get_component_source()) + "_hdr");
-  ESPPreferenceObject pref_ = global_preferences->make_preference<ESPNowPrefData>(hdr_hash);
-  pref_.save(&data);
+  ESPPreferenceObject pref = global_preferences->make_preference<ESPNowPrefData>(hdr_hash);
+  pref.save(&data);
 
   uint32_t data_hash = fnv1_hash(std::string(this->get_component_source()) + "_data");
-  ESPPreferenceObject peers_pref_ = global_preferences->make_preference(0, data_hash);
-  peers_pref_.save(reinterpret_cast<uint8_t *>(this->peers_.data()), data.peers * data.peersize);
+  ESPPreferenceObject peers_pref = global_preferences->make_preference(0, data_hash);
+  peers_pref.save(reinterpret_cast<uint8_t *>(this->peers_.data()), data.peers * data.peersize);
 
   global_preferences->sync();
 }
@@ -502,10 +502,10 @@ void ESPNowComponent::load_prefs_() {
   ESPPreferenceObject hdr_pref = global_preferences->make_preference<ESPNowPrefData>(hdr_hash);
   if (hdr_pref.load(&data)) {
     uint32_t data_hash = fnv1_hash(std::string(this->get_component_source()) + "_data");
-    ESPPreferenceObject peers_pref_ = global_preferences->make_preference(0, data_hash);
+    ESPPreferenceObject peers_pref = global_preferences->make_preference(0, data_hash);
 
     uint8_t *buffer = alloc1.allocate(data.peers * data.peersize);
-    if (peers_pref_.load(buffer, data.peers * data.peersize)) {
+    if (peers_pref.load(buffer, data.peers * data.peersize)) {
       uint8_t real_size = std::min(data.peersize, (uint8_t) sizeof(ESPNowPeer));
       this->peers_.resize(data.peers);
       for (uint8_t i = 0; i < data.peers; i++) {

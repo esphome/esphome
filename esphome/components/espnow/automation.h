@@ -151,8 +151,8 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
   void set_wait_for_sent(bool wait_for_sent) { this->flags_.wait_for_sent = wait_for_sent; }
   void set_continue_on_error(bool continue_on_error) { this->flags_.continue_on_error = continue_on_error; }
 
-  void loop() {
-    if (this->current_status == FIND_PEER_FAILED) {
+  void loop() override {
+    if (this->current_status_ == FIND_PEER_FAILED) {
       this->current_channel_++;
       if (this->current_channel_ >= 11) {
         this->current_channel_ = 1;
@@ -190,13 +190,13 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
           this->play_next_(this->var_);
         }
       } else {
-        this->current_status = FIND_PEER_FAILED;
+        this->current_status_ = FIND_PEER_FAILED;
       }
     };
     esp_err_t err =
         this->parent_->send(this->current_address_, this->current_data_, this->current_data_size_, send_callback);
     if (err != ESP_OK) {
-      this->current_status = FIND_PEER_WAITING;
+      this->current_status_ = FIND_PEER_WAITING;
     } else {
       this->play_failed();
     }
@@ -207,11 +207,11 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
     peer_address_t address = this->address_.value(x...);
     std::vector<uint8_t> data = this->data_.value(x...);
     this->var_ = std::make_tuple(x...);
-    this->start_channel = this->parent_->get_wifi_channel();
+    this->start_channel_ = this->parent_->get_wifi_channel();
     this->current_channel_ = this->parent_->get_wifi_channel();
     this->current_address_ = address.data();
     this->current_data_ = data.data();
-    this->current_data_size = data.size();
+    this->current_data_size_ = data.size();
     this->send_ping();
   }
 
@@ -223,24 +223,24 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
   }
 
   void reset_date() {
-    this->current_status = FIND_PEER_NONE;
-    this->start_channel = 0;
+    this->current_status_ = FIND_PEER_NONE;
+    this->start_channel_ = 0;
     this->current_channel_ = 0;
     this->current_address_ = nullptr;
     this->current_data_ = nullptr;
-    this->current_data_size = 0;
+    this->current_data_size_ = 0;
   }
 
  protected:
   ActionList<Ts...> success_;
   ActionList<Ts...> failed_;
   std::tuple<Ts...> var_{};
-  ESPNowFindPeerState current_status{FIND_PEER_NONE};
-  uint8_t start_channel{0};
+  ESPNowFindPeerState current_status_{FIND_PEER_NONE};
+  uint8_t start_channel_{0};
   uint8_t current_channel_{0};
   uint8_t *current_address_{nullptr};
   uint8_t *current_data_{nullptr};
-  size_t current_data_size{0};
+  size_t current_data_size_{0};
 
   struct {
     uint8_t wait_for_sent : 1;      // Wait for the send operation to complete before continuing automation
