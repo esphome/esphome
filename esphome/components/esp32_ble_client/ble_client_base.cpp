@@ -303,7 +303,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // Service discovery period is critical - we typically have only 10s to complete
       // discovery before the device disconnects us. Fast connection parameters are
       // essential to finish service resolution in time and avoid retry loops.
-      if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+      else if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         this->set_fast_conn_params_();
       }
       this->log_event_("Searching for services");
