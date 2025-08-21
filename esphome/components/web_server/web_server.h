@@ -498,6 +498,66 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
  protected:
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
+
+#ifdef USE_LIGHT
+  // Helper to parse and apply a float parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float),
+                          float scale = 1.0f) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value / scale);
+      }
+    }
+  }
+
+  // Helper to parse and apply a uint32_t parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_uint_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                               Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value * scale);
+      }
+    }
+  }
+#endif
+
+  // Generic helper to parse and apply a float parameter
+  template<typename T, typename Ret>
+  void parse_float_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply an int parameter
+  template<typename T, typename Ret>
+  void parse_int_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(int)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply a string parameter
+  template<typename T, typename Ret>
+  void parse_string_param_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                           Ret (T::*setter)(const std::string &)) {
+    if (request->hasParam(param_name)) {
+      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
+      std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+      (call.*setter)(value);
+    }
+  }
+
   web_server_base::WebServerBase *base_;
 #ifdef USE_ARDUINO
   DeferredUpdateEventSourceList events_;

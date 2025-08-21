@@ -29,8 +29,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -119,9 +118,6 @@ void Logger::pre_setup() {
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
         this->hw_serial_ = &Serial;
-#if ARDUINO_USB_CDC_ON_BOOT
-        Serial.setTxTimeoutMs(0);  // workaround for 2.0.9 crash when there's no data connection
-#endif
         Serial.begin(this->baud_rate_);
         break;
 #endif
@@ -209,6 +205,5 @@ const char *const UART_SELECTIONS[] = {
 
 const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 #endif

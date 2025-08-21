@@ -23,6 +23,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
+    ThreadModel,
 )
 from esphome.core import CORE, EsphomeError, coroutine_with_priority
 from esphome.storage_json import StorageJSON
@@ -108,6 +109,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
+    # nRF52 processors are single-core
+    cg.add_define(ThreadModel.SINGLE)
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
     cg.add_platformio_option(
         "platform",
@@ -121,7 +124,9 @@ async def to_code(config: ConfigType) -> None:
         ],
     )
 
-    if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
+    if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        cg.add_define("USE_BOOTLOADER_MCUBOOT")
+    else:
         # make sure that firmware.zip is created
         # for Adafruit_nRF52_Bootloader
         cg.add_platformio_option("board_upload.protocol", "nrfutil")

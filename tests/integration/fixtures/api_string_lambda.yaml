@@ -60,5 +60,28 @@ api:
             data:
               value: !lambda 'return input_float;'
 
+    # Service that tests char* lambda functionality (e.g., from itoa or sprintf)
+    - action: test_char_ptr_lambda
+      variables:
+        input_number: int
+        input_string: string
+      then:
+        # Log the input to verify service was called
+        - logger.log:
+            format: "Service called with number for char* test: %d"
+            args: [input_number]
+
+        # Test that char* lambdas work correctly
+        # This would fail in issue #9628 with "invalid conversion from 'char*' to 'long long unsigned int'"
+        - homeassistant.event:
+            event: esphome.test_char_ptr_lambda
+            data:
+              # Test snprintf returning char*
+              decimal_value: !lambda 'static char buffer[20]; snprintf(buffer, sizeof(buffer), "%d", input_number); return buffer;'
+              # Test strdup returning char* (dynamically allocated)
+              string_copy: !lambda 'return strdup(input_string.c_str());'
+              # Test string literal (const char*)
+              literal: !lambda 'return "test literal";'
+
 logger:
   level: DEBUG

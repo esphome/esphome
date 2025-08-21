@@ -105,8 +105,6 @@ void SX126x::write_register_(uint16_t reg, uint8_t *data, uint8_t size) {
 }
 
 void SX126x::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // setup pins
   this->busy_pin_->setup();
   this->rst_pin_->setup();

@@ -34,9 +34,7 @@
 struct device;
 #endif
 
-namespace esphome {
-
-namespace logger {
+namespace esphome::logger {
 
 // Color and letter constants for log levels
 static const char *const LOG_LEVEL_COLORS[] = {
@@ -411,6 +409,4 @@ class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>
   uint8_t level_;
 };
 
-}  // namespace logger
-
-}  // namespace esphome
+}  // namespace esphome::logger

@@ -34,7 +34,6 @@ void DHT12Component::update() {
   this->status_clear_warning();
 }
 void DHT12Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[5];
   if (!this->read_data_(data)) {
     this->mark_failed();

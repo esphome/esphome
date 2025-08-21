@@ -298,6 +298,7 @@ async def to_code(config):
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:
+        cg.add_define("USE_WEBSERVER_AUTH")
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
@@ -317,3 +318,15 @@ async def to_code(config):
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
         cg.add_define("USE_WEBSERVER_SORTING")
         add_sorting_groups(var, sorting_group_config)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Filter out web_server_v1.cpp when version is not 1."""
+    files_to_filter: list[str] = []
+
+    # web_server_v1.cpp is only needed when version is 1
+    config = CORE.config.get("web_server", {})
+    if config.get(CONF_VERSION, 2) != 1:
+        files_to_filter.append("web_server_v1.cpp")
+
+    return files_to_filter
