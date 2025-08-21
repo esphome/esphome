@@ -7,11 +7,11 @@ from ..defines import (
     CONF_CURSOR,
     CONF_DECIMAL_PLACES,
     CONF_DIGITS,
-    CONF_INITIAL_STEP_POSITION,
     CONF_MAIN,
     CONF_ROLLOVER,
     CONF_SCROLLBAR,
     CONF_SELECTED,
+    CONF_SELECTED_DIGIT,
     CONF_TEXTAREA_PLACEHOLDER,
 )
 from ..lv_validation import lv_bool, lv_float
@@ -39,7 +39,7 @@ def validate_spinbox(config):
     min_val = -1 - max_val
     range_from = int(config[CONF_RANGE_FROM])
     range_to = int(config[CONF_RANGE_TO])
-    step = config.get(CONF_INITIAL_STEP_POSITION)
+    step = config.get(CONF_SELECTED_DIGIT)
     digits = config[CONF_DIGITS]
     if (
         range_from > max_val
@@ -54,8 +54,8 @@ def validate_spinbox(config):
         )
     if step is not None and step >= digits:
         raise cv.Invalid(
-            "Initial step position must be less than number of digits",
-            path=[CONF_INITIAL_STEP_POSITION],
+            "Initial selected digit must be less than number of digits",
+            path=[CONF_SELECTED_DIGIT],
         )
     return config
 
@@ -66,7 +66,7 @@ SPINBOX_SCHEMA = cv.Schema(
         cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
         cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
         cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
-        cv.Optional(CONF_INITIAL_STEP_POSITION, default=0): cv.positive_int,
+        cv.Optional(CONF_SELECTED_DIGIT, default=0): cv.positive_int,
         cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
         cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
     }
@@ -100,7 +100,7 @@ class SpinboxType(WidgetType):
             scale = 10 ** config[CONF_DECIMAL_PLACES]
             range_from = int(config[CONF_RANGE_FROM]) * scale
             range_to = int(config[CONF_RANGE_TO]) * scale
-            step = config.get(CONF_INITIAL_STEP_POSITION)
+            step = config.get(CONF_SELECTED_DIGIT)
             w.scale = scale
             w.range_to = range_to
             w.range_from = range_from
@@ -128,8 +128,8 @@ class SpinboxType(WidgetType):
         return config[CONF_RANGE_FROM]
 
     def get_step(self, config: dict):
-        if CONF_INITIAL_STEP_POSITION in config:
-            return 10 ** config[CONF_INITIAL_STEP_POSITION]
+        if CONF_SELECTED_DIGIT in config:
+            return 10 ** config[CONF_SELECTED_DIGIT]
         return 1
 
 
