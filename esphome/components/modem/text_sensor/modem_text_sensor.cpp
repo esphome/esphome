@@ -36,16 +36,14 @@ void ModemTextSensor::setup() { ESP_LOGI(TAG, "Setting up Modem Sensor..."); }
 
 void ModemTextSensor::update() {
   ESP_LOGD(TAG, "Modem text_sensor update");
-  if (modem::global_modem_component->modem_handler->dce &&
-      modem::global_modem_component->modem_handler->dce->sync() == command_result::OK) {
+  if (modem::global_modem_component->modem_handler->dce->sync() == command_result::OK) {
     this->update_network_type_text_sensor_();
     this->update_signal_strength_text_sensor_();
   }
 }
 
 void ModemTextSensor::update_network_type_text_sensor_() {
-  if (modem::global_modem_component->modem_handler->dce &&
-      modem::global_modem_component->modem_handler->dce->sync() == command_result::OK &&
+  if (modem::global_modem_component->modem_handler->dce->sync() == command_result::OK &&
       this->network_type_text_sensor_) {
     int act;
     std::string network_type = "Not available";
@@ -57,8 +55,7 @@ void ModemTextSensor::update_network_type_text_sensor_() {
 }
 
 void ModemTextSensor::update_signal_strength_text_sensor_() {
-  if (modem::global_modem_component->modem_handler->dce &&
-      modem::global_modem_component->modem_handler->dce->sync() == command_result::OK &&
+  if (modem::global_modem_component->modem_handler->dce->sync() == command_result::OK &&
       this->signal_strength_text_sensor_) {
     float rssi, ber;
     if (modem::global_modem_component->modem_handler->get_signal_quality(rssi, ber)) {

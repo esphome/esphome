@@ -151,6 +151,8 @@ void ModemComponent::setup() {
                                    this->modem_handler.get());
   ESPHL_ERROR_CHECK(err, "IP event handler register failed");
 
+  this->modem_handler->modem_create_dte_dce(this->modem_handler->baud_rate);
+
   ESP_LOGV(TAG, "Setup complete. State: %s", state_to_string(this->component_state_).c_str());
 }
 
@@ -171,6 +173,7 @@ void ModemComponent::loop() {
   switch (this->component_state_) {
     case ModemComponentState::ENABLING:
       this->handle_state_enabling_();
+      break;
     case ModemComponentState::DISABLED:
       this->handle_state_disabled_();
       break;
@@ -244,7 +247,7 @@ void ModemComponent::handle_state_enabling_() {
   };
 
   std::vector<int> bauds = {this->modem_handler->current_baud_rate, this->modem_restore_state_.baud_rate,
-                            this->modem_handler->baud_rate, 0};
+                            this->modem_handler->baud_rate, 115200};
   std::sort(bauds.begin(), bauds.end());
   bauds.erase(std::unique(bauds.begin(), bauds.end()), bauds.end());
 
@@ -264,7 +267,10 @@ void ModemComponent::handle_state_enabling_() {
           this->component_state_ = ModemComponentState::SYNCING;
           return;
         }
-        this->component_state_ = ModemComponentState::WAIT_IP;
+        // this->component_state_ = ModemComponentState::WAIT_IP;
+        this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
+        this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
+        this->component_state_ = ModemComponentState::SYNCING;
         return;
       }
       this->component_state_ = ModemComponentState::SYNCING;
@@ -302,8 +308,6 @@ void ModemComponent::handle_state_powering_off_() {
   this->component_state_ = ModemComponentState::DISABLED;
   this->modem_restore_state_.baud_rate = 0;
   this->pref_.save(&this->modem_restore_state_);
-  this->modem_handler->dce.reset();
-  this->modem_handler->dte.reset();
 }
 
 void ModemComponent::handle_state_syncing_() {
@@ -320,7 +324,6 @@ void ModemComponent::handle_state_syncing_() {
   if (this->modem_handler->baud_rate != this->modem_handler->current_baud_rate) {
     ESP_LOGD(TAG, "Setting baud rate: %d -> %d", this->modem_handler->current_baud_rate,
              this->modem_handler->baud_rate);
-    // this->modem_handler->flush_uart();
     this->modem_handler->dce->sync();
     if (this->modem_handler->dce->set_baud(this->modem_handler->baud_rate) == esp_modem::command_result::OK) {
       ESP_LOGD(TAG, "Modem baud rate set to %d.", this->modem_handler->baud_rate);
@@ -328,7 +331,6 @@ void ModemComponent::handle_state_syncing_() {
       this->modem_handler->modem_create_dte_dce(this->modem_handler->baud_rate);
       App.feed_wdt();
       delay(200);  // NOLINT
-      // this->modem_handler->flush_uart();
       this->modem_handler->dce->sync();
       if (this->modem_handler->dce->sync() == esp_modem::command_result::OK) {
         ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->modem_handler->current_baud_rate);
@@ -355,7 +357,7 @@ void ModemComponent::handle_state_syncing_() {
 }
 
 void ModemComponent::handle_state_init_network_() {
-  if (!this->modem_handler->dce || (this->modem_handler->dce->sync() != esp_modem::command_result::OK)) {
+  if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
     ESP_LOGW(TAG, "Modem not synced during network init");
     this->component_state_ = ModemComponentState::SYNCING;
     return;
@@ -406,6 +408,7 @@ void ModemComponent::handle_state_wait_ip_() {
   if (this->modem_handler->network_infos.got_ip) {
     this->component_state_ = ModemComponentState::CONNECTED;
     this->status_clear_warning();
+    this->dump_connect_params_();
     retry = 10;
     return;
   } else {
@@ -439,7 +442,7 @@ void ModemComponent::handle_state_connected_() {
 }
 
 void ModemComponent::handle_state_disconnected_() {
-  if (!this->modem_handler->dce || (this->modem_handler->dce->sync() != esp_modem::command_result::OK)) {
+  if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
     ESP_LOGD(TAG, "Disconnected and not responding");
     this->component_state_ = ModemComponentState::NOT_RESPONDING;
   } else {
@@ -464,27 +467,20 @@ void ModemComponent::handle_state_disabling_() {
   if (this->modem_handler->power_pin) {
     this->component_state_ = ModemComponentState::POWERING_OFF;
   } else {
-    if (this->modem_handler->dce) {
-      if (this->modem_handler->dce->get_mode() != esp_modem::modem_mode::COMMAND_MODE) {
-        this->modem_handler->dce->set_mode(esp_modem::modem_mode::COMMAND_MODE);
-      }
-      if (this->modem_handler->dce->set_radio_state(0) == esp_modem::command_result::OK) {
-        ESP_LOGI(TAG, "No power pin. Modem set to minimal functionality.");
-      } else {
-        ESP_LOGE(TAG, "Failed to set modem to minimal functionality.");
-      }
-    } else {
-      ESP_LOGW(TAG, "No DCE available to disable modem.");
+    if (this->modem_handler->dce->get_mode() != esp_modem::modem_mode::COMMAND_MODE) {
+      this->modem_handler->dce->set_mode(esp_modem::modem_mode::COMMAND_MODE);
     }
-    if (this->disable_wanted_) {
-      this->component_state_ = ModemComponentState::DISABLED;
+    if (this->modem_handler->dce->set_radio_state(0) == esp_modem::command_result::OK) {
+      ESP_LOGI(TAG, "No power pin. Modem set to minimal functionality.");
     } else {
+      ESP_LOGE(TAG, "Failed to set modem to minimal functionality.");
+    }
+    this->component_state_ = ModemComponentState::DISABLED;
+    if (!this->disable_wanted_) {
       this->enable();
       this->disable_wanted_ = true;
     }
   }
-  this->modem_handler->dce.reset();
-  this->modem_handler->dte.reset();
   this->loop_delay_(this->modem_handler->command_delay);
 }
 
