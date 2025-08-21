@@ -133,6 +133,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   void log_event_(const char *name);
   void log_gattc_event_(const char *name);
+  void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
+                        const char *param_type);
   void set_fast_conn_params_();
   void set_medium_conn_params_();
   void log_gattc_warning_(const char *operation, esp_gatt_status_t status);
