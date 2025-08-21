@@ -215,8 +215,7 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
     this->send_ping();
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
+  void play(Ts... x) override {} /* ignore - see play_complex */
 
   void stop() override {
     this->sent_.stop();
@@ -252,8 +251,40 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
 
 /* triggers ******************************* */
 
+class checkHeader {
+ public:
+  void set_header(std::string header) { this->header_ = std::move(header); }
+  bool check_header(uint8_t *data, uint8_t &size) {
+    if (this->header_.empty())
+      return true;
+    if (this->header_.size() <= size && memcmp(data, this->header_.data(), this->header_.size()) == 0) {
+      size -= this->header_.size();
+      memcpy(data, data + this->header_.size(), size);
+      return true;
+    }
+    return false;
+  }
+
+ protected:
+  std::string header_{""};
+};
+
+class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
+                             public ESPNowUnknownPeerHandler,
+                             public checkHeader {
+ public:
+  bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+    uint8_t *stripped_data = (uint8_t *) data;
+    if (!this->check_header(stripped_data, size))
+      return false;
+    this->trigger(info, stripped_data, size);
+    return false;  // Return false to continue processing other internal handlers
+  }
+};
+
 class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                         public ESPNowReceivedPacketHandler {
+                         public ESPNowReceivedPacketHandler,
+                         public checkHeader {
  public:
   explicit OnReceiveTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
@@ -263,10 +294,12 @@ class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *,
 
   bool on_received(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
-    if (!match)
+    uint8_t *stripped_data = (uint8_t *) data;
+
+    if (!match || !this->check_header(stripped_data, size))
       return false;
 
-    this->trigger(info, data, size);
+    this->trigger(info, stripped_data, size);
     return false;  // Return false to continue processing other internal handlers
   }
 
@@ -274,16 +307,10 @@ class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *,
   bool has_address_{false};
   const uint8_t *address_[ESP_NOW_ETH_ALEN];
 };
-class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                             public ESPNowUnknownPeerHandler {
- public:
-  bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
-    this->trigger(info, data, size);
-    return false;  // Return false to continue processing other internal handlers
-  }
-};
+
 class OnBroadcastedTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                             public ESPNowBroadcastedHandler {
+                             public ESPNowBroadcastedHandler,
+                             public checkHeader {
  public:
   explicit OnBroadcastedTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
@@ -292,10 +319,11 @@ class OnBroadcastedTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_
 
   bool on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
-    if (!match)
+    uint8_t *stripped_data = (uint8_t *) data;
+    if (!match && !this->check_header(stripped_data, size))
       return false;
 
-    this->trigger(info, data, size);
+    this->trigger(info, stripped_data, size);
     return false;  // Return false to continue processing other internal handlers
   }
 

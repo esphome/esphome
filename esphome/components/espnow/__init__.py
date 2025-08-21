@@ -62,6 +62,7 @@ CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
 CONF_ON_BROADCAST = "on_broadcast"
 CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
+CONF_HEADER = "header"
 
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
@@ -91,6 +92,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnUnknownPeerTrigger),
+                    cv.Optional(CONF_HEADER): cv.string,
                 },
                 single=True,
             ),
@@ -98,12 +100,14 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnReceiveTrigger),
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
+                    cv.Optional(CONF_HEADER): cv.string,
                 }
             ),
             cv.Optional(CONF_ON_BROADCAST): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastedTrigger),
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
+                    cv.Optional(CONF_HEADER): cv.string,
                 }
             ),
         },
@@ -116,6 +120,8 @@ async def _trigger_to_code(config):
     if address := config.get(CONF_ADDRESS):
         address = address.parts
     trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], address)
+    if header := config.get(CONF_HEADER):
+        cg.add(trigger.set_header(header))
     await automation.build_automation(
         trigger,
         [
