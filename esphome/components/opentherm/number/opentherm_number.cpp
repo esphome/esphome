@@ -1,4 +1,4 @@
-#include "number.h"
+#include "opentherm_number.h"
 
 namespace esphome {
 namespace opentherm {
