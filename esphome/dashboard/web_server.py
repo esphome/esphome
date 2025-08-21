@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 import datetime
 import functools
 import gzip
@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import urlparse
 
 import tornado
@@ -38,7 +38,7 @@ import yaml
 from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
-from esphome.helpers import get_bool_env, mkdir_p
+from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
 from esphome.storage_json import (
     StorageJSON,
     archive_storage_path,
@@ -144,7 +144,7 @@ def websocket_class(cls):
     if not hasattr(cls, "_message_handlers"):
         cls._message_handlers = {}
 
-    for _, method in cls.__dict__.items():
+    for method in cls.__dict__.values():
         if hasattr(method, "_message_handler"):
             cls._message_handlers[method._message_handler] = method
 
@@ -229,6 +229,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                close_fds=False,
             )
             stdout_thread = threading.Thread(target=self._stdout_thread)
             stdout_thread.daemon = True
@@ -324,38 +325,52 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
+        addresses: list[str] = []
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            if (mdns := dashboard.mdns_status) and (
-                address_list := await mdns.async_resolve_host(entry.name)
-            ):
-                # Use the IP address if available but only
-                # if the API is loaded and the device is online
-                # since MQTT logging will not work otherwise
-                port = address_list[0]
-            elif (
-                entry.address
+            # First priority: entry.address AKA use_address
+            if (
+                (use_address := entry.address)
                 and (
                     address_list := await dashboard.dns_cache.async_resolve(
-                        entry.address, time.monotonic()
+                        use_address, time.monotonic()
                     )
                 )
                 and not isinstance(address_list, Exception)
             ):
-                # If mdns is not available, try to use the DNS cache
-                port = address_list[0]
+                addresses.extend(sort_ip_addresses(address_list))
 
-        return [
-            *DASHBOARD_COMMAND,
-            *args,
-            config_file,
-            "--device",
-            port,
+            # Second priority: mDNS
+            if (
+                (mdns := dashboard.mdns_status)
+                and (address_list := await mdns.async_resolve_host(entry.name))
+                and (
+                    new_addresses := [
+                        addr for addr in address_list if addr not in addresses
+                    ]
+                )
+            ):
+                # Use the IP address if available but only
+                # if the API is loaded and the device is online
+                # since MQTT logging will not work otherwise
+                addresses.extend(sort_ip_addresses(new_addresses))
+
+        if not addresses:
+            # If no address was found, use the port directly
+            # as otherwise they will get the chooser which
+            # does not work with the dashboard as there is no
+            # interactive way to get keyboard input
+            addresses = [port]
+
+        device_args: list[str] = [
+            arg for address in addresses for arg in ("--device", address)
         ]
+
+        return [*DASHBOARD_COMMAND, *args, config_file, *device_args]
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
@@ -601,10 +616,12 @@ class DownloadListRequestHandler(BaseHandler):
         loop = asyncio.get_running_loop()
         try:
             downloads_json = await loop.run_in_executor(None, self._get, configuration)
-        except vol.Invalid:
+        except vol.Invalid as exc:
+            _LOGGER.exception("Error while fetching downloads", exc_info=exc)
             self.send_error(404)
             return
         if downloads_json is None:
+            _LOGGER.error("Configuration %s not found", configuration)
             self.send_error(404)
             return
         self.set_status(200)
@@ -618,14 +635,17 @@ class DownloadListRequestHandler(BaseHandler):
         if storage_json is None:
             return None
 
-        config = yaml_util.load_yaml(settings.rel_path(configuration))
+        try:
+            config = yaml_util.load_yaml(settings.rel_path(configuration))
 
-        if const.CONF_EXTERNAL_COMPONENTS in config:
-            from esphome.components.external_components import (
-                do_external_components_pass,
-            )
+            if const.CONF_EXTERNAL_COMPONENTS in config:
+                from esphome.components.external_components import (
+                    do_external_components_pass,
+                )
 
-            do_external_components_pass(config)
+                do_external_components_pass(config)
+        except vol.Invalid:
+            _LOGGER.info("Could not parse `external_components`, skipping")
 
         from esphome.components.esp32 import VARIANTS as ESP32_VARIANTS
 
@@ -634,7 +654,11 @@ class DownloadListRequestHandler(BaseHandler):
 
         if platform.upper() in ESP32_VARIANTS:
             platform = "esp32"
-        elif platform in (const.PLATFORM_RTL87XX, const.PLATFORM_BK72XX):
+        elif platform in (
+            const.PLATFORM_RTL87XX,
+            const.PLATFORM_BK72XX,
+            const.PLATFORM_LN882X,
+        ):
             platform = "libretiny"
 
         try:
@@ -832,6 +856,10 @@ class BoardsRequestHandler(BaseHandler):
             from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
 
             boards = BK72XX_BOARDS
+        elif platform == const.PLATFORM_LN882X:
+            from esphome.components.ln882x.boards import BOARDS as LN882X_BOARDS
+
+            boards = LN882X_BOARDS
         elif platform == const.PLATFORM_RTL87XX:
             from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 

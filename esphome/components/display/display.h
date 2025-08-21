@@ -138,8 +138,6 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-#define PI 3.1415926535897932384626433832795
-
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -182,9 +180,11 @@ using display_writer_t = std::function<void(Display &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
+    ESP_LOGCONFIG(TAG, \
+                  prefix type "\n" \
+                              "%s  Rotations: %d °\n" \
+                              "%s  Dimensions: %dpx x %dpx", \
+                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 /// Turn the pixel OFF.

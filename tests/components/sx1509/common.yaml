@@ -6,6 +6,12 @@ i2c:
 sx1509:
   - id: sx1509_hub
     address: 0x3E
+    keypad:
+      key_rows: 2
+      key_columns: 2
+      keys: abcd
+      on_key:
+        - lambda: ESP_LOGD("test", "got key '%c'", x);
 
 binary_sensor:
   - platform: gpio
@@ -13,6 +19,11 @@ binary_sensor:
     pin:
       sx1509: sx1509_hub
       number: 3
+  - platform: sx1509
+    sx1509_id: sx1509_hub
+    name: "keypadkey_0"
+    row: 0
+    col: 0
 
 switch:
   - platform: gpio

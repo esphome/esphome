@@ -15,4 +15,3 @@ display:
 
 packages:
   animation: !include common.yaml
-

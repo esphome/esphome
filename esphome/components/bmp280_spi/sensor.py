@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import spi
-from ..bmp280_base import to_code_base, CONFIG_SCHEMA_BASE
+import esphome.config_validation as cv
+
+from ..bmp280_base import CONFIG_SCHEMA_BASE, to_code_base
 
 AUTO_LOAD = ["bmp280_base"]
 CODEOWNERS = ["@ademuri"]

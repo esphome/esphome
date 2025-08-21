@@ -43,7 +43,6 @@ class BLEServer : public Component,
   float get_setup_priority() const override;
   bool can_proceed() override;
 
-  void teardown();
   bool is_running();
 
   void set_manufacturer_data(const std::vector<uint8_t> &data) {

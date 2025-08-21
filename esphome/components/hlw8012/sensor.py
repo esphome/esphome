@@ -1,17 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANGE_MODE_EVERY,
-    CONF_INITIAL_MODE,
     CONF_CURRENT,
     CONF_CURRENT_RESISTOR,
-    CONF_ID,
-    CONF_POWER,
     CONF_ENERGY,
-    CONF_SEL_PIN,
+    CONF_ID,
+    CONF_INITIAL_MODE,
     CONF_MODEL,
+    CONF_POWER,
+    CONF_SEL_PIN,
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
     DEVICE_CLASS_CURRENT,
@@ -20,8 +20,8 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_VOLT,
     UNIT_AMPERE,
+    UNIT_VOLT,
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )

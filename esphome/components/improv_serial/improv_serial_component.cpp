@@ -59,11 +59,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
       break;
 #if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
     case logger::UART_SELECTION_USB_CDC:
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
       if (esp_usb_console_available_for_read()) {
-#else
-      if (esp_usb_console_read_available()) {
-#endif
         esp_usb_console_read_buf((char *) &data, 1);
         byte = data;
       }

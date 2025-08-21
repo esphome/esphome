@@ -19,6 +19,10 @@ void ModbusSwitch::setup() {
 }
 void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", this); }
 
+void ModbusSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+
+bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
+
 void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value = false;
   switch (this->register_type) {

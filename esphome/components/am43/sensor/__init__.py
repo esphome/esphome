@@ -1,12 +1,12 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, ble_client
 from esphome.const import (
-    CONF_ID,
     CONF_BATTERY_LEVEL,
+    CONF_ID,
+    CONF_ILLUMINANCE,
     DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    CONF_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     UNIT_PERCENT,
 )

@@ -1,0 +1,71 @@
+image:
+  grayscale:
+    alpha_channel:
+      - file: ../../pnglogo.png
+        id: image_1
+        resize: 50x50
+      - file: ../../pnglogo.png
+        id: image_2
+        resize: 50x50
+
+mapping:
+  - id: weather_map
+    from: string
+    to: "image::Image"
+    entries:
+      clear-night: image_1
+      sunny: image_2
+  - id: weather_map_1
+    from: string
+    to: esphome::image::Image
+    entries:
+      clear-night: image_1
+      sunny: image_2
+  - id: weather_map_2
+    from: string
+    to: image
+    entries:
+      clear-night: image_1
+      sunny: image_2
+  - id: int_map
+    from: int
+    to: string
+    entries:
+      1: "one"
+      2: "two"
+      3: "three"
+      77: "seventy-seven"
+  - id: string_map
+    from: string
+    to: int
+    entries:
+      one: 1
+      two: 2
+      three: 3
+      seventy-seven: 77
+  - id: color_map
+    from: string
+    to: color
+    entries:
+      red: red_id
+      blue: blue_id
+      green: green_id
+
+color:
+  - id: red_id
+    red: 1.0
+    green: 0.0
+    blue: 0.0
+  - id: green_id
+    red: 0.0
+    green: 1.0
+    blue: 0.0
+  - id: blue_id
+    red: 0.0
+    green: 0.0
+    blue: 1.0
+
+display:
+  lambda: |-
+      it.image(0, 0, id(weather_map)[0]);
+      it.image(0, 100, id(weather_map)[1]);

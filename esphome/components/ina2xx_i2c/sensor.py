@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import i2c, ina2xx_base
 import esphome.config_validation as cv
-from esphome.components import ina2xx_base, i2c
 from esphome.const import CONF_ID, CONF_MODEL
 
 AUTO_LOAD = ["ina2xx_base"]

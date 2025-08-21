@@ -5,7 +5,7 @@ spi:
     miso_pin: ${miso_pin}
 
 spi_device:
-  id: spi_device_test
-  data_rate: 2MHz
-  spi_mode: 3
-  bit_order: lsb_first
+  - id: spi_device_test
+    data_rate: 2MHz
+    spi_mode: 3
+    bit_order: lsb_first

@@ -73,8 +73,7 @@ def ota_esphome_final_validate(config):
         else:
             new_ota_conf.append(ota_conf)
 
-    for port_conf in merged_ota_esphome_configs_by_port.values():
-        new_ota_conf.append(port_conf)
+    new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
     full_conf[CONF_OTA] = new_ota_conf
     fv.full_config.set(full_conf)
@@ -100,6 +99,7 @@ CONFIG_SCHEMA = (
                 esp32=3232,
                 rp2040=2040,
                 bk72xx=8892,
+                ln882x=8820,
                 rtl87xx=8892,
             ): cv.port,
             cv.Optional(CONF_PASSWORD): cv.string,

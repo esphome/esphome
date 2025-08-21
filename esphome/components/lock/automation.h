@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/lock/lock.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace lock {
@@ -70,17 +70,6 @@ class LockUnlockTrigger : public Trigger<> {
       }
     });
   }
-};
-
-template<typename... Ts> class LockPublishAction : public Action<Ts...> {
- public:
-  LockPublishAction(Lock *a_lock) : lock_(a_lock) {}
-  TEMPLATABLE_VALUE(LockState, state)
-
-  void play(Ts... x) override { this->lock_->publish_state(this->state_.value(x...)); }
-
- protected:
-  Lock *lock_;
 };
 
 }  // namespace lock

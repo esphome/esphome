@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WIDTH,
 )
+from esphome.cpp_generator import IntLiteral
 
 from ..automation import action_to_code
 from ..defines import (
@@ -29,9 +30,9 @@ from ..defines import (
 )
 from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
-    angle,
     get_end_value,
     get_start_value,
+    lv_angle,
     lv_bool,
     lv_color,
     lv_float,
@@ -162,7 +163,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_RANGE_FROM, default=0.0): cv.float_,
         cv.Optional(CONF_RANGE_TO, default=100.0): cv.float_,
         cv.Optional(CONF_ANGLE_RANGE, default=270): cv.int_range(0, 360),
-        cv.Optional(CONF_ROTATION): angle,
+        cv.Optional(CONF_ROTATION): lv_angle,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
     }
 )
@@ -187,7 +188,9 @@ class MeterType(WidgetType):
         for scale_conf in config.get(CONF_SCALES, ()):
             rotation = 90 + (360 - scale_conf[CONF_ANGLE_RANGE]) / 2
             if CONF_ROTATION in scale_conf:
-                rotation = scale_conf[CONF_ROTATION] // 10
+                rotation = await lv_angle.process(scale_conf[CONF_ROTATION])
+                if isinstance(rotation, IntLiteral):
+                    rotation = int(str(rotation)) // 10
             with LocalVariable(
                 "meter_var", "lv_meter_scale_t", lv_expr.meter_add_scale(var)
             ) as meter_var:
@@ -205,21 +208,20 @@ class MeterType(WidgetType):
                         var,
                         meter_var,
                         ticks[CONF_COUNT],
-                        ticks[CONF_WIDTH],
-                        ticks[CONF_LENGTH],
+                        await size.process(ticks[CONF_WIDTH]),
+                        await size.process(ticks[CONF_LENGTH]),
                         color,
                     )
                     if CONF_MAJOR in ticks:
                         major = ticks[CONF_MAJOR]
-                        color = await lv_color.process(major[CONF_COLOR])
                         lv.meter_set_scale_major_ticks(
                             var,
                             meter_var,
                             major[CONF_STRIDE],
-                            major[CONF_WIDTH],
-                            major[CONF_LENGTH],
-                            color,
-                            major[CONF_LABEL_GAP],
+                            await size.process(major[CONF_WIDTH]),
+                            await size.process(major[CONF_LENGTH]),
+                            await lv_color.process(major[CONF_COLOR]),
+                            await size.process(major[CONF_LABEL_GAP]),
                         )
                 for indicator in scale_conf.get(CONF_INDICATORS, ()):
                     (t, v) = next(iter(indicator.items()))
@@ -233,7 +235,11 @@ class MeterType(WidgetType):
                         lv_assign(
                             ivar,
                             lv_expr.meter_add_needle_line(
-                                var, meter_var, v[CONF_WIDTH], color, v[CONF_R_MOD]
+                                var,
+                                meter_var,
+                                await size.process(v[CONF_WIDTH]),
+                                color,
+                                await size.process(v[CONF_R_MOD]),
                             ),
                         )
                     if t == CONF_ARC:
@@ -241,7 +247,11 @@ class MeterType(WidgetType):
                         lv_assign(
                             ivar,
                             lv_expr.meter_add_arc(
-                                var, meter_var, v[CONF_WIDTH], color, v[CONF_R_MOD]
+                                var,
+                                meter_var,
+                                await size.process(v[CONF_WIDTH]),
+                                color,
+                                await size.process(v[CONF_R_MOD]),
                             ),
                         )
                     if t == CONF_TICK_STYLE:
@@ -257,7 +267,7 @@ class MeterType(WidgetType):
                                 color_start,
                                 color_end,
                                 v[CONF_LOCAL],
-                                v[CONF_WIDTH],
+                                await size.process(v[CONF_WIDTH]),
                             ),
                         )
                     if t == CONF_IMAGE:
@@ -297,7 +307,9 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     async def set_value(w: Widget):
         await set_indicator_values(w.var, w.obj, config)
 
-    return await action_to_code(widget, set_value, action_id, template_arg, args)
+    return await action_to_code(
+        widget, set_value, action_id, template_arg, args, config
+    )
 
 
 async def set_indicator_values(meter, indicator, config):

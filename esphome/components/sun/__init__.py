@@ -1,15 +1,16 @@
+import contextlib
 import re
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import time
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_TIME_ID,
     CONF_ID,
-    CONF_TRIGGER_ID,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_TIME_ID,
+    CONF_TRIGGER_ID,
 )
 
 CODEOWNERS = ["@OttoWinter"]
@@ -41,12 +42,10 @@ ELEVATION_MAP = {
 
 def elevation(value):
     if isinstance(value, str):
-        try:
+        with contextlib.suppress(cv.Invalid):
             value = ELEVATION_MAP[
                 cv.one_of(*ELEVATION_MAP, lower=True, space="_")(value)
             ]
-        except cv.Invalid:
-            pass
     value = cv.angle(value)
     return cv.float_range(min=-180, max=180)(value)
 
