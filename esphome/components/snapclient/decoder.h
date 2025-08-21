@@ -4,6 +4,7 @@
 #ifndef USE_I2S_LEGACY
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace snapclient {

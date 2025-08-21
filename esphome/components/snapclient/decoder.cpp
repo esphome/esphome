@@ -526,8 +526,15 @@ void http_get_task(void *pvParameters) {
     inet_pton(AF_INET, SNAPCAST_SERVER_HOST, &(servaddr.sin_addr.s_addr));
     servaddr.sin_port = htons(SNAPCAST_SERVER_PORT);
 
+#if USE_NETWORK_IPV6
     inet_pton(AF_INET, SNAPCAST_SERVER_HOST, &(remote_ip.u_addr.ip4.addr));
     remote_ip.type = IPADDR_TYPE_V4;
+#else
+    if (!(inet_pton(AF_INET, SNAPCAST_SERVER_HOST, &remote_ip) == 1)) {
+      ESP_LOGE(TAG, "invalid snapcast server ip");
+      return;
+    }
+#endif
     remotePort = SNAPCAST_SERVER_PORT;
 
     ESP_LOGI(TAG, "try connecting to static configuration %s:%d", ipaddr_ntoa(&remote_ip), remotePort);

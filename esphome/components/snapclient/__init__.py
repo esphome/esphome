@@ -100,6 +100,8 @@ async def to_code(config):
         cg.add_build_flag("-DCONFIG_SNAPCLIENT_USE_MDNS=0")
     # cg.add_build_flag("-DCONFIG_SNAPCLIENT_NAME='"+config[CONF_NAME]+"'")
     cg.add_build_flag("-DCONFIG_USE_SAMPLE_INSERTION=1")
+    # fix for esp-idf 5.4
+    cg.add_build_flag("-Wno-incompatible-pointer-types")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
