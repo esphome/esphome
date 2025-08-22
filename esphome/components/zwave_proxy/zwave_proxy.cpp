@@ -28,14 +28,33 @@ void ZWaveProxy::loop() {
       return;
     }
     if (this->parse_byte_(byte)) {
-      // TODO: send frame to client(s)...
-      ESP_LOGD(TAG, "Frame complete");
+      this->outgoing_request_.data = std::string((const char *) this->buffer_, this->buffer_index_);
+      ESP_LOGD(TAG, "Sending frame...%s", YESNO(this->api_connection_ != nullptr));
+      if (this->api_connection_ != nullptr) {
+        this->api_connection_->send_message(this->outgoing_request_, api::ZWaveProxyFromDeviceRequest::MESSAGE_TYPE);
+      }
     }
   }
   this->status_clear_warning();
 }
 
 void ZWaveProxy::dump_config() { ESP_LOGCONFIG(TAG, "Z-Wave Proxy"); }
+
+void ZWaveProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
+  if (this->api_connection_ != nullptr) {
+    ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+    return;
+  }
+  this->api_connection_ = api_connection;
+}
+
+void ZWaveProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {
+  if (this->api_connection_ != api_connection) {
+    ESP_LOGV(TAG, "API connection is not subscribed");
+    return;
+  }
+  this->api_connection_ = nullptr;
+}
 
 void ZWaveProxy::send_frame(const std::string &data) {
   ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(data).c_str());

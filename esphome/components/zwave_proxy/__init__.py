@@ -3,7 +3,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-DEPENDENCIES = ["uart"]
+DEPENDENCIES = ["api", "uart"]
 
 zwave_proxy_ns = cg.esphome_ns.namespace("zwave_proxy")
 ZWaveProxy = zwave_proxy_ns.class_("ZWaveProxy", cg.Component, uart.UARTDevice)

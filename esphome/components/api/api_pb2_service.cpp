@@ -599,7 +599,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #ifdef USE_ZWAVE_PROXY
     case ZWaveProxyFromDeviceRequest::MESSAGE_TYPE: {
       ZWaveProxyFromDeviceRequest msg;
-      // Empty message: no decode needed
+      msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_z_wave_proxy_from_device_request: %s", msg.dump().c_str());
 #endif
@@ -615,6 +615,28 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_z_wave_proxy_to_device_request: %s", msg.dump().c_str());
 #endif
       this->on_z_wave_proxy_to_device_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZWAVE_PROXY
+    case ZWaveProxySubscribeRequest::MESSAGE_TYPE: {
+      ZWaveProxySubscribeRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_z_wave_proxy_subscribe_request: %s", msg.dump().c_str());
+#endif
+      this->on_z_wave_proxy_subscribe_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZWAVE_PROXY
+    case ZWaveProxyUnsubscribeRequest::MESSAGE_TYPE: {
+      ZWaveProxyUnsubscribeRequest msg;
+      // Empty message: no decode needed
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_z_wave_proxy_unsubscribe_request: %s", msg.dump().c_str());
+#endif
+      this->on_z_wave_proxy_unsubscribe_request(msg);
       break;
     }
 #endif
@@ -928,6 +950,20 @@ void APIServerConnection::on_voice_assistant_set_configuration(const VoiceAssist
 void APIServerConnection::on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) {
   if (this->check_authenticated_()) {
     this->alarm_control_panel_command(msg);
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void APIServerConnection::on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &msg) {
+  if (this->check_authenticated_()) {
+    this->zwave_proxy_subscribe(msg);
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void APIServerConnection::on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &msg) {
+  if (this->check_authenticated_()) {
+    this->zwave_proxy_unsubscribe(msg);
   }
 }
 #endif

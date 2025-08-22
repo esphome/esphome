@@ -214,6 +214,12 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_z_wave_proxy_to_device_request(const ZWaveProxyToDeviceRequest &value){};
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+  virtual void on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &value){};
+#endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &value){};
+#endif
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -342,6 +348,12 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) = 0;
 #endif
 #ifdef USE_ZWAVE_PROXY
+  virtual void zwave_proxy_subscribe(const ZWaveProxySubscribeRequest &msg) = 0;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void zwave_proxy_unsubscribe(const ZWaveProxyUnsubscribeRequest &msg) = 0;
+#endif
+#ifdef USE_ZWAVE_PROXY
   virtual void zwave_proxy_from_device(const ZWaveProxyFromDeviceRequest &msg) = 0;
 #endif
 #ifdef USE_ZWAVE_PROXY
@@ -468,6 +480,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) override;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  void on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &msg) override;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  void on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &msg) override;
 #endif
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_from_device_request(const ZWaveProxyFromDeviceRequest &msg) override;
