@@ -26,7 +26,7 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
-#ifdef USE_WEBSERVER_LOCAL
+#if defined(USE_WEBSERVER_LOCAL) && !defined(USE_WEBSERVER_GUI_DISABLED)
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
 #elif USE_WEBSERVER_VERSION == 3
@@ -257,10 +257,10 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 
 WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 
-#ifdef USE_WEBSERVER_CSS_INCLUDE
+#if defined(USE_WEBSERVER_CSS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
 void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
 #endif
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#if defined(USE_WEBSERVER_JS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
@@ -313,7 +313,7 @@ void WebServer::dump_config() {
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
-#ifdef USE_WEBSERVER_LOCAL
+#if defined(USE_WEBSERVER_LOCAL) && !defined(USE_WEBSERVER_GUI_DISABLED)
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
   AsyncWebServerResponse *response = request->beginResponse(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
@@ -323,7 +323,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
-#elif USE_WEBSERVER_VERSION >= 2
+#elif USE_WEBSERVER_VERSION >= 2 && !defined(USE_WEBSERVER_GUI_DISABLED)
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
   AsyncWebServerResponse *response =
@@ -331,7 +331,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-#endif
+#endif  // USE_WEBSERVER_LOCAL / VERSION >=2
   // No gzip header here because the HTML file is so small
   request->send(response);
 }
@@ -348,7 +348,7 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
 }
 #endif
 
-#ifdef USE_WEBSERVER_CSS_INCLUDE
+#if defined(USE_WEBSERVER_CSS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
   AsyncWebServerResponse *response =
@@ -356,13 +356,13 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
-#endif
+#endif  // USE_WEBSERVER_CSS_INCLUDE
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
 
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#if defined(USE_WEBSERVER_JS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
   AsyncWebServerResponse *response =
@@ -370,7 +370,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
-#endif
+#endif  // USE_WEBSERVER_JS_INCLUDE
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
@@ -1665,20 +1665,25 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   const auto method = request->method();
 
   // Simple URL checks
-  if (url == "/")
+  if (url == "/") {
+#ifndef USE_WEBSERVER_GUI_DISABLED
     return true;
+#else
+    // GUI disabled: index not served
+#endif
+  }
 
 #ifdef USE_ARDUINO
   if (url == "/events")
     return true;
 #endif
 
-#ifdef USE_WEBSERVER_CSS_INCLUDE
+#if defined(USE_WEBSERVER_CSS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   if (url == "/0.css")
     return true;
 #endif
 
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#if defined(USE_WEBSERVER_JS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   if (url == "/0.js")
     return true;
 #endif
@@ -1796,8 +1801,10 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
   // Handle static routes first
   if (url == "/") {
+#ifndef USE_WEBSERVER_GUI_DISABLED
     this->handle_index_request(request);
     return;
+#endif
   }
 
 #ifdef USE_ARDUINO
@@ -1807,14 +1814,14 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 
-#ifdef USE_WEBSERVER_CSS_INCLUDE
+#if defined(USE_WEBSERVER_CSS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   if (url == "/0.css") {
     this->handle_css_request(request);
     return;
   }
 #endif
 
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#if defined(USE_WEBSERVER_JS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   if (url == "/0.js") {
     this->handle_js_request(request);
     return;

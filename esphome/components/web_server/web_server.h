@@ -187,7 +187,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void set_js_url(const char *js_url);
 #endif
 
-#ifdef USE_WEBSERVER_CSS_INCLUDE
+#if defined(USE_WEBSERVER_CSS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   /** Set local path to the script that's embedded in the index page. Defaults to
    *
    * @param css_include Local path to web server script.
@@ -195,7 +195,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void set_css_include(const char *css_include);
 #endif
 
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#if defined(USE_WEBSERVER_JS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   /** Set local path to the script that's embedded in the index page. Defaults to
    *
    * @param js_include Local path to web server script.
@@ -227,17 +227,19 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   float get_setup_priority() const override;
 
   /// Handle an index request under '/'.
+#ifndef USE_WEBSERVER_GUI_DISABLED
   void handle_index_request(AsyncWebServerRequest *request);
+#endif
 
   /// Return the webserver configuration as JSON.
   std::string get_config_json();
 
-#ifdef USE_WEBSERVER_CSS_INCLUDE
+#if defined(USE_WEBSERVER_CSS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   /// Handle included css request under '/0.css'.
   void handle_css_request(AsyncWebServerRequest *request);
 #endif
 
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#if defined(USE_WEBSERVER_JS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
@@ -570,10 +572,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};
 #endif
-#ifdef USE_WEBSERVER_CSS_INCLUDE
+#if defined(USE_WEBSERVER_CSS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   const char *css_include_{nullptr};
 #endif
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#if defined(USE_WEBSERVER_JS_INCLUDE) && !defined(USE_WEBSERVER_GUI_DISABLED)
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};

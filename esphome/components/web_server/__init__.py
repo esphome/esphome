@@ -40,6 +40,7 @@ AUTO_LOAD = ["json", "web_server_base"]
 CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
+CONF_GUI = "gui"
 
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -94,6 +95,18 @@ def validate_sorting_groups(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
         )
+    return config
+
+
+def validate_gui(config: ConfigType) -> ConfigType:
+    # If gui explicitly disabled but a component requiring it (e.g. captive_portal) is present, raise error
+    if not config.get(CONF_GUI, True):
+        full = CORE.config
+        # captive_portal uses the web_server for its captive page so force GUI
+        if "captive_portal" in full:
+            raise cv.Invalid(
+                "'gui: false' no es compatible con 'captive_portal'. Elimina captive_portal o activa gui."
+            )
     return config
 
 
@@ -167,6 +180,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
+            cv.Optional(CONF_GUI, default=True): cv.boolean,
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
@@ -205,6 +219,7 @@ CONFIG_SCHEMA = cv.All(
     validate_local,
     validate_sorting_groups,
     validate_ota,
+    validate_gui,
 )
 
 
@@ -278,16 +293,21 @@ async def to_code(config):
 
     version = config[CONF_VERSION]
 
+    gui_enabled = config.get(CONF_GUI, True)
+
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
-    if version >= 2:
-        # Don't compress the index HTML as the data sizes are almost the same.
-        add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
-    else:
-        cg.add(var.set_css_url(config[CONF_CSS_URL]))
-        cg.add(var.set_js_url(config[CONF_JS_URL]))
+    if not gui_enabled:
+        cg.add_define("USE_WEBSERVER_GUI_DISABLED")
+    if gui_enabled:
+        if version >= 2:
+            # Don't compress the index HTML as the data sizes are almost the same.
+            add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
+        else:
+            cg.add(var.set_css_url(config[CONF_CSS_URL]))
+            cg.add(var.set_js_url(config[CONF_JS_URL]))
     # OTA is now handled by the web_server OTA platform
     # The CONF_OTA option is kept to allow explicitly disabling OTA for web_server
     # IMPORTANT: This ONLY affects the web_server component, NOT captive_portal
@@ -301,18 +321,19 @@ async def to_code(config):
         cg.add_define("USE_WEBSERVER_AUTH")
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
-    if CONF_CSS_INCLUDE in config:
-        cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
-        path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, encoding="utf-8") as css_file:
-            add_resource_as_progmem("CSS_INCLUDE", css_file.read())
-    if CONF_JS_INCLUDE in config:
-        cg.add_define("USE_WEBSERVER_JS_INCLUDE")
-        path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, encoding="utf-8") as js_file:
-            add_resource_as_progmem("JS_INCLUDE", js_file.read())
+    if gui_enabled:
+        if CONF_CSS_INCLUDE in config:
+            cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
+            path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
+            with open(file=path, encoding="utf-8") as css_file:
+                add_resource_as_progmem("CSS_INCLUDE", css_file.read())
+        if CONF_JS_INCLUDE in config:
+            cg.add_define("USE_WEBSERVER_JS_INCLUDE")
+            path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
+            with open(file=path, encoding="utf-8") as js_file:
+                add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
-    if CONF_LOCAL in config and config[CONF_LOCAL]:
+    if gui_enabled and CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
 
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
