@@ -251,7 +251,7 @@ class FindPeerction : public Action<Ts...>, public Parented<ESPNowComponent>, pu
 
 /* triggers ******************************* */
 
-class checkHeader {
+class CheckHeader {
  public:
   void set_header(std::string header) { this->header_ = std::move(header); }
   bool check_header(uint8_t *data, uint8_t &size) {
@@ -271,7 +271,7 @@ class checkHeader {
 
 class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
                              public ESPNowUnknownPeerHandler,
-                             public checkHeader {
+                             public CheckHeader {
  public:
   bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
     uint8_t *stripped_data = (uint8_t *) data;
@@ -284,7 +284,7 @@ class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_
 
 class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
                          public ESPNowReceivedPacketHandler,
-                         public checkHeader {
+                         public CheckHeader {
  public:
   explicit OnReceiveTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
@@ -310,7 +310,7 @@ class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *,
 
 class OnBroadcastedTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
                              public ESPNowBroadcastedHandler,
-                             public checkHeader {
+                             public CheckHeader {
  public:
   explicit OnBroadcastedTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
