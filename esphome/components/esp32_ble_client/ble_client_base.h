@@ -137,12 +137,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
                            const char *param_type);
   void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                         const char *param_type);
-  void set_fast_conn_params_();
-  void set_medium_conn_params_();
-  void set_default_conn_params_();
   void log_gattc_warning_(const char *operation, esp_gatt_status_t status);
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
+  void handle_connection_result_(esp_err_t ret);
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);
   void log_error_(const char *message, int code);
