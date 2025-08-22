@@ -172,10 +172,9 @@ class APIConnection final : public APIServerConnection {
 #endif
 
 #ifdef USE_ZWAVE_PROXY
+  void zwave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &msg) override;
   void zwave_proxy_subscribe(const ZWaveProxySubscribeRequest &msg) override;
   void zwave_proxy_unsubscribe(const ZWaveProxyUnsubscribeRequest &msg) override;
-  void zwave_proxy_from_device(const ZWaveProxyFromDeviceRequest &msg) override;
-  void zwave_proxy_to_device(const ZWaveProxyToDeviceRequest &msg) override;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

@@ -3008,17 +3008,9 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-bool ZWaveProxyFromDeviceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->data = value.as_string();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool ZWaveProxyToDeviceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+void ZWaveProxyFrameFromDevice::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->data_ref_); }
+void ZWaveProxyFrameFromDevice::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_ref_.size()); }
+bool ZWaveProxyFrameToDevice::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1:
       this->data = value.as_string();

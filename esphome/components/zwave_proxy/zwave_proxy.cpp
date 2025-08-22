@@ -28,10 +28,10 @@ void ZWaveProxy::loop() {
       return;
     }
     if (this->parse_byte_(byte)) {
-      this->outgoing_request_.data = std::string((const char *) this->buffer_, this->buffer_index_);
-      ESP_LOGD(TAG, "Sending frame...%s", YESNO(this->api_connection_ != nullptr));
+      ESP_LOGD(TAG, "Sending frame: %s", YESNO(this->api_connection_ != nullptr));
       if (this->api_connection_ != nullptr) {
-        this->api_connection_->send_message(this->outgoing_request_, api::ZWaveProxyFromDeviceRequest::MESSAGE_TYPE);
+        this->outgoing_proto_msg_.set_data(StringRef((const char *) this->buffer_, this->buffer_index_));
+        this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrameFromDevice::MESSAGE_TYPE);
       }
     }
   }
@@ -147,10 +147,9 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
       return;
   }
   // Forward response (ACK/NAK/CAN) back to client for processing
-  this->outgoing_request_.data.resize(1);
-  this->outgoing_request_.data[0] = byte;
   if (this->api_connection_ != nullptr) {
-    this->api_connection_->send_message(this->outgoing_request_, api::ZWaveProxyFromDeviceRequest::MESSAGE_TYPE);
+    this->outgoing_proto_msg_.set_data(StringRef(&byte, 1));
+    this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrameFromDevice::MESSAGE_TYPE);
   }
 }
 

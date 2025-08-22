@@ -1207,20 +1207,16 @@ void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetCon
 #endif
 
 #ifdef USE_ZWAVE_PROXY
+void APIConnection::zwave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &msg) {
+  zwave_proxy::global_zwave_proxy->send_frame(msg.data);
+}
+
 void APIConnection::zwave_proxy_subscribe(const ZWaveProxySubscribeRequest &msg) {
   zwave_proxy::global_zwave_proxy->subscribe_api_connection(this, msg.flags);
 }
 
 void APIConnection::zwave_proxy_unsubscribe(const ZWaveProxyUnsubscribeRequest &msg) {
   zwave_proxy::global_zwave_proxy->unsubscribe_api_connection(this);
-}
-
-void APIConnection::zwave_proxy_from_device(const ZWaveProxyFromDeviceRequest &msg) {
-  this->send_message(msg, ZWaveProxyFromDeviceRequest::MESSAGE_TYPE);
-}
-
-void APIConnection::zwave_proxy_to_device(const ZWaveProxyToDeviceRequest &msg) {
-  zwave_proxy::global_zwave_proxy->send_frame(msg.data);
 }
 #endif
 

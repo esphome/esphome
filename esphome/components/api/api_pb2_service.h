@@ -206,14 +206,10 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_UPDATE
   virtual void on_update_command_request(const UpdateCommandRequest &value){};
 #endif
-#ifdef USE_ZWAVE_PROXY
-  virtual void on_z_wave_proxy_from_device_request(const ZWaveProxyFromDeviceRequest &value){};
-#endif
 
 #ifdef USE_ZWAVE_PROXY
-  virtual void on_z_wave_proxy_to_device_request(const ZWaveProxyToDeviceRequest &value){};
+  virtual void on_z_wave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &value){};
 #endif
-
 #ifdef USE_ZWAVE_PROXY
   virtual void on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &value){};
 #endif
@@ -348,16 +344,13 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) = 0;
 #endif
 #ifdef USE_ZWAVE_PROXY
+  virtual void zwave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &msg) = 0;
+#endif
+#ifdef USE_ZWAVE_PROXY
   virtual void zwave_proxy_subscribe(const ZWaveProxySubscribeRequest &msg) = 0;
 #endif
 #ifdef USE_ZWAVE_PROXY
   virtual void zwave_proxy_unsubscribe(const ZWaveProxyUnsubscribeRequest &msg) = 0;
-#endif
-#ifdef USE_ZWAVE_PROXY
-  virtual void zwave_proxy_from_device(const ZWaveProxyFromDeviceRequest &msg) = 0;
-#endif
-#ifdef USE_ZWAVE_PROXY
-  virtual void zwave_proxy_to_device(const ZWaveProxyToDeviceRequest &msg) = 0;
 #endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
@@ -482,16 +475,13 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 #ifdef USE_ZWAVE_PROXY
+  void on_z_wave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &msg) override;
+#endif
+#ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &msg) override;
 #endif
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &msg) override;
-#endif
-#ifdef USE_ZWAVE_PROXY
-  void on_z_wave_proxy_from_device_request(const ZWaveProxyFromDeviceRequest &msg) override;
-#endif
-#ifdef USE_ZWAVE_PROXY
-  void on_z_wave_proxy_to_device_request(const ZWaveProxyToDeviceRequest &msg) override;
 #endif
 };
 

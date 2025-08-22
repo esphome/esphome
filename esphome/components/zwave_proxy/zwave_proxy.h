@@ -61,8 +61,8 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   uint8_t end_frame_after_{0};  // Payload reception ends after this index
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
 
-  // Pre-allocated response message - always ready to send
-  api::ZWaveProxyFromDeviceRequest outgoing_request_;
+  // Pre-allocated message - always ready to send
+  api::ZWaveProxyFrameFromDevice outgoing_proto_msg_;
 };
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -597,24 +597,13 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_ZWAVE_PROXY
-    case ZWaveProxyFromDeviceRequest::MESSAGE_TYPE: {
-      ZWaveProxyFromDeviceRequest msg;
+    case ZWaveProxyFrameToDevice::MESSAGE_TYPE: {
+      ZWaveProxyFrameToDevice msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_z_wave_proxy_from_device_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_z_wave_proxy_frame_to_device: %s", msg.dump().c_str());
 #endif
-      this->on_z_wave_proxy_from_device_request(msg);
-      break;
-    }
-#endif
-#ifdef USE_ZWAVE_PROXY
-    case ZWaveProxyToDeviceRequest::MESSAGE_TYPE: {
-      ZWaveProxyToDeviceRequest msg;
-      msg.decode(msg_data, msg_size);
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_z_wave_proxy_to_device_request: %s", msg.dump().c_str());
-#endif
-      this->on_z_wave_proxy_to_device_request(msg);
+      this->on_z_wave_proxy_frame_to_device(msg);
       break;
     }
 #endif
@@ -954,6 +943,13 @@ void APIServerConnection::on_alarm_control_panel_command_request(const AlarmCont
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
+void APIServerConnection::on_z_wave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &msg) {
+  if (this->check_authenticated_()) {
+    this->zwave_proxy_frame_to_device(msg);
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
 void APIServerConnection::on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &msg) {
   if (this->check_authenticated_()) {
     this->zwave_proxy_subscribe(msg);
@@ -964,20 +960,6 @@ void APIServerConnection::on_z_wave_proxy_subscribe_request(const ZWaveProxySubs
 void APIServerConnection::on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &msg) {
   if (this->check_authenticated_()) {
     this->zwave_proxy_unsubscribe(msg);
-  }
-}
-#endif
-#ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_from_device_request(const ZWaveProxyFromDeviceRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->zwave_proxy_from_device(msg);
-  }
-}
-#endif
-#ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_to_device_request(const ZWaveProxyToDeviceRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->zwave_proxy_to_device(msg);
   }
 }
 #endif

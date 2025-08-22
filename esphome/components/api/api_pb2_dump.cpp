@@ -2101,10 +2101,8 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void ZWaveProxyFromDeviceRequest::dump_to(std::string &out) const { dump_field(out, "data", this->data); }
-void ZWaveProxyFromDeviceResponse::dump_to(std::string &out) const { out.append("ZWaveProxyFromDeviceResponse {}"); }
-void ZWaveProxyToDeviceRequest::dump_to(std::string &out) const { dump_field(out, "data", this->data); }
-void ZWaveProxyToDeviceResponse::dump_to(std::string &out) const { out.append("ZWaveProxyToDeviceResponse {}"); }
+void ZWaveProxyFrameFromDevice::dump_to(std::string &out) const { dump_field(out, "data", this->data_ref_); }
+void ZWaveProxyFrameToDevice::dump_to(std::string &out) const { dump_field(out, "data", this->data); }
 void ZWaveProxySubscribeRequest::dump_to(std::string &out) const { dump_field(out, "flags", this->flags); }
 void ZWaveProxyUnsubscribeRequest::dump_to(std::string &out) const { out.append("ZWaveProxyUnsubscribeRequest {}"); }
 #endif
