@@ -3,7 +3,6 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -73,14 +72,12 @@ class AMG8833 : public PollingComponent, public i2c::I2CDevice {
   SUB_SWITCH(filter)
   SUB_SWITCH(interrupt_pin)
 #endif
-
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
+  float get_setup_priority() const override { return setup_priority::LATE; }
   uint32_t get_update_interval() const override { return this->fps_ == FPS_1 ? 1000 : 100; }
-
   void set_fps(FPS fps) { this->fps_ = fps; }
   void set_filter(bool enable) { this->filter_ = enable; }
   void set_software_output(bool enable) { this->software_output_ = enable; }
@@ -96,36 +93,30 @@ class AMG8833 : public PollingComponent, public i2c::I2CDevice {
     this->motion_maximum_ = maximum;
     this->motion_hysteresis_ = hysteresis;
   }
-
   void number_presence_hysteresis(float value);
   void number_presence_upper(float value);
   void number_presence_lower(float value);
   void number_motion_hysteresis(float value);
   void number_motion_maximum(float value);
   void number_motion_minimum(float value);
-
   void switch_filter(bool enable);
   void switch_interrupt_pin(bool enable);
-
   void select_fps(const std::string &fps);
   void select_mode(const std::string &mode);
-
   void add_measurement_callback(std::function<void(std::array<std::array<float, 8>, 8> &)> &&callback) {
     this->measurement_callback_.add(std::move(callback));
   }
-
   std::array<std::array<float, 8>, 8> &get_measurement() { return measurement_; }
 
  protected:
-  bool write_fps_();
+  bool write_fps_() { return this->write_byte(0x02, this->fps_); }
   bool write_filter_();
   bool write_mode_();
   bool write_presence_thresholds_();
   bool write_motion_thresholds_();
   bool write_threshold_(uint8_t a_register, float temperature);
-  bool is_interrupt_();
+  bool is_interrupt_() { return this->status_ & 0x02; }
   float thermistor_to_temperature_();
-
   uint8_t pixels_[128];
   uint8_t thermistor_[2];
   uint8_t interrupts_[8];

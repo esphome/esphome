@@ -7,38 +7,26 @@
 namespace esphome {
 namespace amg8833 {
 
-static const uint8_t FPSC = 0x02;
-static const uint8_t INTC = 0x03;
-static const uint8_t STAT = 0x04;
-static const uint8_t AVE = 0x07;
 static const uint8_t INTHL = 0x08;
 static const uint8_t INTLL = 0x0A;
 static const uint8_t INTSL = 0x0C;
-static const uint8_t TTHL = 0x0E;
-static const uint8_t INT0 = 0x10;
 static const uint8_t SAM = 0x1F;
-static const uint8_t T01L = 0x80;
-
 static const char *const TAG = "amg8833";
 
 void AMG8833::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!this->write_fps_() || !this->write_filter_() || !this->write_mode_()) {
     this->mark_failed();
     return;
   }
-
   if (this->mode_ == MOTION && !this->write_motion_thresholds_()) {
     this->mark_failed();
     return;
   }
-
   if (this->mode_ == PRESENCE && !this->write_presence_thresholds_()) {
     this->mark_failed();
     return;
   }
-
 #ifdef USE_NUMBER
   if (this->presence_hysteresis_number_ != nullptr)
     this->presence_hysteresis_number_->publish_state(this->presence_hysteresis_);
@@ -94,11 +82,10 @@ void AMG8833::dump_config() {
 }
 
 void AMG8833::update() {
-  this->read_bytes(T01L, this->pixels_, 128);
-  this->read_bytes(TTHL, this->thermistor_, 2);
-  this->read_bytes(INT0, this->interrupts_, 8);
-  this->read_bytes(STAT, &status_, 1);
-
+  this->read_bytes(0x80, this->pixels_, 128);
+  this->read_bytes(0x0E, this->thermistor_, 2);
+  this->read_bytes(0x10, this->interrupts_, 8);
+  this->read_bytes(0x04, &status_, 1);
   float maximum_temperature = __FLT_MIN__;
   float minimum_temperature = __FLT_MAX__;
   int index = 0;
@@ -113,7 +100,6 @@ void AMG8833::update() {
       index += 2;
     }
   }
-
   this->measurement_callback_(measurement_);
 #ifdef USE_BINARY_SENSOR
   if (this->motion_binary_sensor_ != nullptr && mode_ == MOTION && !this->software_output_)
@@ -197,17 +183,15 @@ void AMG8833::select_mode(const std::string &mode) {
   this->write_mode_();
 }
 
-bool AMG8833::write_fps_() { return this->write_byte(FPSC, this->fps_); }
-
 bool AMG8833::write_filter_() {
   return this->write_byte(SAM, 0x50) && this->write_byte(SAM, 0x45) && this->write_byte(SAM, 0x57) &&
-         this->write_byte(AVE, this->filter_ ? 0x20 : 0x00) && this->write_byte(SAM, 0x00);
+         this->write_byte(0x07, this->filter_ ? 0x20 : 0x00) && this->write_byte(SAM, 0x00);
 }
 
 bool AMG8833::write_mode_() {
   uint8_t value = this->mode_ == PRESENCE ? 0x02 : 0x00;
   value |= interrupt_pin_ ? 0x01 : 0x00;
-  return this->write_byte(INTC, value);
+  return this->write_byte(0x03, value);
 }
 
 bool AMG8833::write_presence_thresholds_() {
@@ -224,8 +208,6 @@ bool AMG8833::write_threshold_(uint8_t a_register, float temperature) {
   int16_t threshold = static_cast<int16_t>(temperature * 4);
   return this->write_byte(a_register, threshold & 0xFF) && this->write_byte(a_register + 1, (threshold >> 8) & 0xFF);
 }
-
-bool AMG8833::is_interrupt_() { return this->status_ & 0x02; }
 
 float AMG8833::thermistor_to_temperature_() {
   int16_t raw = this->thermistor_[0] | (this->thermistor_[1] << 8);

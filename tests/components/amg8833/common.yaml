@@ -1,6 +1,6 @@
 i2c:
-  scl: GPIO6
-  sda: GPIO5
+  scl: ${scl_pin}
+  sda: ${sda_pin}
 
 number:
   - platform: amg8833
