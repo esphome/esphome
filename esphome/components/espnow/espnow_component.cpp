@@ -136,7 +136,7 @@ void ESPNowComponent::dump_config() {
 #ifdef USE_WIFI
   ESP_LOGCONFIG(TAG, "  Wi-Fi enabled: %s", YESNO(this->is_wifi_enabled()));
 #endif
-  if (this->peers_.size() > 0) {
+  if (!this->peers_.empty()) {
     ESP_LOGCONFIG(TAG, "  Defined peers: ");
     for (auto it = this->peers_.begin(); it != this->peers_.end(); ++it) {
       ESP_LOGCONFIG(TAG, "    - %s", format_mac_address_pretty(it->address).c_str());
