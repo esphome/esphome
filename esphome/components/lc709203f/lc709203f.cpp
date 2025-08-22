@@ -1,5 +1,6 @@
-#include "esphome/core/log.h"
 #include "lc709203f.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace lc709203f {
@@ -189,7 +190,7 @@ uint8_t Lc709203f::get_register_(uint8_t register_to_read, uint16_t *register_va
       // Error on the i2c bus
       this->status_set_warning(
           str_sprintf("Error code %d when reading from register 0x%02X", return_code, register_to_read).c_str());
-    } else if (this->crc8_(read_buffer, 5) != read_buffer[5]) {
+    } else if (crc8(read_buffer, 5, 0x00, 0x07, true) != read_buffer[5]) {
       // I2C indicated OK, but the CRC of the data does not matcth.
       this->status_set_warning(str_sprintf("CRC error reading from register 0x%02X", register_to_read).c_str());
     } else {
@@ -220,7 +221,7 @@ uint8_t Lc709203f::set_register_(uint8_t register_to_set, uint16_t value_to_set)
   write_buffer[1] = register_to_set;
   write_buffer[2] = value_to_set & 0xFF;         // Low byte
   write_buffer[3] = (value_to_set >> 8) & 0xFF;  // High byte
-  write_buffer[4] = this->crc8_(write_buffer, 4);
+  write_buffer[4] = crc8(write_buffer, 4, 0x00, 0x07, true);
 
   for (uint8_t i = 0; i <= LC709203F_I2C_RETRY_COUNT; i++) {
     // Note: we don't write the first byte of the write buffer to the device.
@@ -237,20 +238,6 @@ uint8_t Lc709203f::set_register_(uint8_t register_to_set, uint16_t value_to_set)
   // If we get here, we tried to send the data LC709203F_I2C_RETRY_COUNT times and failed.
   //  We return the I2C error code, it is up to the higher level code what to do about it.
   return return_code;
-}
-
-uint8_t Lc709203f::crc8_(uint8_t *byte_buffer, uint8_t length_of_crc) {
-  uint8_t crc = 0x00;
-  const uint8_t polynomial(0x07);
-
-  for (uint8_t j = length_of_crc; j; --j) {
-    crc ^= *byte_buffer++;
-
-    for (uint8_t i = 8; i; --i) {
-      crc = (crc & 0x80) ? (crc << 1) ^ polynomial : (crc << 1);
-    }
-  }
-  return crc;
 }
 
 void Lc709203f::set_pack_size(uint16_t pack_size) {

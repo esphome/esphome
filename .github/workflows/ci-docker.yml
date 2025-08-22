@@ -43,7 +43,7 @@ jobs:
           - "docker"
           # - "lint"
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
       - name: Set up Python
         uses: actions/setup-python@v5.6.0
         with:

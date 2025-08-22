@@ -33,10 +33,12 @@ enum AdvertisementParserType {
   RAW_ADVERTISEMENTS,
 };
 
+#ifdef USE_ESP32_BLE_UUID
 struct ServiceData {
   ESPBTUUID uuid;
   adv_data_t data;
 };
+#endif
 
 #ifdef USE_ESP32_BLE_DEVICE
 class ESPBLEiBeacon {
@@ -184,6 +186,9 @@ enum class ScannerState {
   STOPPING,
 };
 
+// Helper function to convert ClientState to string
+const char *client_state_to_string(ClientState state);
+
 enum class ConnectionType : uint8_t {
   // The default connection type, we hold all the services in ram
   // for the duration of the connection.
@@ -330,36 +335,48 @@ class ESP32BLETracker : public Component,
     return counts;
   }
 
-  uint8_t app_id_{0};
-
+  // Group 1: Large objects (12+ bytes) - vectors and callback manager
+  std::vector<ESPBTDeviceListener *> listeners_;
+  std::vector<ESPBTClient *> clients_;
+  CallbackManager<void(ScannerState)> scanner_state_callbacks_;
 #ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
 #endif
-  std::vector<ESPBTDeviceListener *> listeners_;
-  /// Client parameters.
-  std::vector<ESPBTClient *> clients_;
+
+  // Group 2: Structs (aligned to 4 bytes)
   /// A structure holding the ESP BLE scan parameters.
   esp_ble_scan_params_t scan_params_;
+  ClientStateCounts client_state_counts_;
+
+  // Group 3: 4-byte types
   /// The interval in seconds to perform scans.
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
+  esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
+  esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
+
+  // Group 4: 1-byte types (enums, uint8_t, bool)
+  uint8_t app_id_{0};
   uint8_t scan_start_fail_count_{0};
+  ScannerState scanner_state_{ScannerState::IDLE};
   bool scan_continuous_;
   bool scan_active_;
-  ScannerState scanner_state_{ScannerState::IDLE};
-  CallbackManager<void(ScannerState)> scanner_state_callbacks_;
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
-
-  esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
-  esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
-  ClientStateCounts client_state_counts_;
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
 #endif
+  // Scan timeout state machine
+  enum class ScanTimeoutState : uint8_t {
+    INACTIVE,       // No timeout monitoring
+    MONITORING,     // Actively monitoring for timeout
+    EXCEEDED_WAIT,  // Timeout exceeded, waiting one loop before reboot
+  };
+  uint32_t scan_start_time_{0};
+  ScanTimeoutState scan_timeout_state_{ScanTimeoutState::INACTIVE};
 };
 
 // NOLINTNEXTLINE

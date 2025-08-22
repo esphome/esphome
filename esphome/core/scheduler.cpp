@@ -82,7 +82,13 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   item->set_name(name_cstr, !is_static_string);
   item->type = type;
   item->callback = std::move(func);
+  // Initialize remove to false (though it should already be from constructor)
+  // Not using mark_item_removed_ helper since we're setting to false, not true
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  item->remove.store(false, std::memory_order_relaxed);
+#else
   item->remove = false;
+#endif
   item->is_retry = is_retry;
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -398,6 +404,31 @@ void HOT Scheduler::call(uint32_t now) {
         this->pop_raw_();
         continue;
       }
+
+      // Check if item is marked for removal
+      // This handles two cases:
+      // 1. Item was marked for removal after cleanup_() but before we got here
+      // 2. Item is marked for removal but wasn't at the front of the heap during cleanup_()
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+      // Multi-threaded platforms without atomics: must take lock to safely read remove flag
+      {
+        LockGuard guard{this->lock_};
+        if (is_item_removed_(item.get())) {
+          this->pop_raw_();
+          this->to_remove_--;
+          continue;
+        }
+      }
+#else
+      // Single-threaded or multi-threaded with atomics: can check without lock
+      if (is_item_removed_(item.get())) {
+        LockGuard guard{this->lock_};
+        this->pop_raw_();
+        this->to_remove_--;
+        continue;
+      }
+#endif
+
 #ifdef ESPHOME_DEBUG_SCHEDULER
       const char *item_name = item->get_name();
       ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
@@ -518,7 +549,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   if (type == SchedulerItem::TIMEOUT) {
     for (auto &item : this->defer_queue_) {
       if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-        item->remove = true;
+        this->mark_item_removed_(item.get());
         total_cancelled++;
       }
     }
@@ -528,7 +559,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   // Cancel items in the main heap
   for (auto &item : this->items_) {
     if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-      item->remove = true;
+      this->mark_item_removed_(item.get());
       total_cancelled++;
       this->to_remove_++;  // Track removals for heap items
     }
@@ -537,7 +568,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   // Cancel items in to_add_
   for (auto &item : this->to_add_) {
     if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-      item->remove = true;
+      this->mark_item_removed_(item.get());
       total_cancelled++;
       // Don't track removals for to_add_ items
     }
