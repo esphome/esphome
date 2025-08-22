@@ -1,0 +1,8 @@
+i2c:
+  sda: ${scl_pin}
+  scl: ${sda_pin}
+
+sensor:
+  - platform: stts22h
+    name: Temperature
+    update_interval: 15s
