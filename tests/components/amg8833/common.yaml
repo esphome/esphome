@@ -1,3 +1,7 @@
+i2c:
+  scl: ${scl_pin}
+  sda: ${sda_pin}
+
 number:
   - platform: amg8833
     presence_upper:

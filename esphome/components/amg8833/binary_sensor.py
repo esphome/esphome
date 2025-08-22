@@ -1,13 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_OCCUPANCY
+from esphome.const import CONF_MOTION, DEVICE_CLASS_OCCUPANCY
 
 from . import AMG8833, CONF_AMG8833_ID
 
 DEPENDENCIES = ["amg8833"]
 
-CONF_MOTION = "motion"
 CONF_PRESENCE = "presence"
 
 CONFIG_SCHEMA = {

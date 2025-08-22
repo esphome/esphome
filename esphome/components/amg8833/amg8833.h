@@ -7,9 +7,6 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
-#ifdef USE_CAMERA
-#include "esphome/components/camera/camera.h"
-#endif
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -54,9 +51,6 @@ class AMG8833 : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(motion)
   SUB_BINARY_SENSOR(presence)
-#endif
-#ifdef USE_CAMERA
-  SUB_CAMERA(thermal)
 #endif
 #ifdef USE_NUMBER
   SUB_NUMBER(presence_hysteresis)
@@ -129,7 +123,7 @@ class AMG8833 : public PollingComponent, public i2c::I2CDevice {
   bool write_presence_thresholds_();
   bool write_motion_thresholds_();
   bool write_threshold_(uint8_t a_register, float temperature);
-  bool is_temperature_interrupt();
+  bool is_interrupt_();
   float thermistor_to_temperature_();
 
   uint8_t pixels_[128];

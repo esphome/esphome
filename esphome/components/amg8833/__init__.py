@@ -13,6 +13,7 @@ from esphome.const import (
 from esphome.core import Lambda
 from esphome.cpp_generator import ExpressionStatement, MockObj
 
+CODEOWNERS = ["@DT-art1"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

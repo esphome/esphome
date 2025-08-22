@@ -99,34 +99,34 @@ void AMG8833::update() {
   this->read_bytes(INT0, this->interrupts_, 8);
   this->read_bytes(STAT, &status_, 1);
 
-  float maximum_temperature_ = __FLT_MIN__;
-  float minimum_temperature_ = __FLT_MAX__;
+  float maximum_temperature = __FLT_MIN__;
+  float minimum_temperature = __FLT_MAX__;
   int index = 0;
   for (int y = 0; y < 8; ++y) {
     for (int x = 0; x < 8; ++x) {
       float t = (this->pixels_[index++] | (this->pixels_[index++] << 8)) * 0.25f;
       measurement_[y][x] = t;
-      if (t > maximum_temperature_)
-        maximum_temperature_ = t;
-      if (t < minimum_temperature_)
-        minimum_temperature_ = t;
+      if (t > maximum_temperature)
+        maximum_temperature = t;
+      if (t < minimum_temperature)
+        minimum_temperature = t;
     }
   }
 
   this->measurement_callback_(measurement_);
 #ifdef USE_BINARY_SENSOR
   if (this->motion_binary_sensor_ != nullptr && mode_ == MOTION && !this->software_output_)
-    this->motion_binary_sensor_->publish_state(is_temperature_interrupt());
+    this->motion_binary_sensor_->publish_state(this->is_interrupt_());
   if (this->presence_binary_sensor_ != nullptr && mode_ == PRESENCE && !this->software_output_)
-    this->presence_binary_sensor_->publish_state(is_temperature_interrupt());
+    this->presence_binary_sensor_->publish_state(this->is_interrupt_());
 #endif
 #ifdef USE_SENSOR
   if (this->ambient_sensor_ != nullptr)
     this->ambient_sensor_->publish_state(thermistor_to_temperature_());
   if (this->maximum_sensor_ != nullptr)
-    this->maximum_sensor_->publish_state(maximum_temperature_);
+    this->maximum_sensor_->publish_state(maximum_temperature);
   if (this->minimum_sensor_ != nullptr)
-    this->minimum_sensor_->publish_state(minimum_temperature_);
+    this->minimum_sensor_->publish_state(minimum_temperature);
 #endif
 }
 
@@ -224,7 +224,7 @@ bool AMG8833::write_threshold_(uint8_t a_register, float temperature) {
   return this->write_byte(a_register, threshold & 0xFF) && this->write_byte(a_register + 1, (threshold >> 8) & 0xFF);
 }
 
-bool AMG8833::is_temperature_interrupt() { return this->status_ & 0x02; }
+bool AMG8833::is_interrupt_() { return this->status_ & 0x02; }
 
 float AMG8833::thermistor_to_temperature_() {
   int16_t raw = this->thermistor_[0] | (this->thermistor_[1] << 8);
