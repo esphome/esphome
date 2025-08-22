@@ -5,16 +5,16 @@ namespace cst328 {
 
 static const char *const TAG = "cst328.touchscreen";
 
-static const uint32_t CST328_TRANSITION_TIMEOUT = 100;  // 200 ms from datasheet, but typically much less
-static const uint16_t CST328_FW_CRC = 0xCACA;           // Expected firmware CRC value
-static const uint8_t CST328_SYNC_BYTE = 0xAB;           // Sync byte used in communication
+static const uint32_t CST328_TRANSITION_TIMEOUT = 50;  // 200 ms from datasheet, but typically much less
+static const uint16_t CST328_FW_CRC = 0xCACA;          // Expected firmware CRC value
+static const uint8_t CST328_SYNC_BYTE = 0xAB;          // Sync byte used in communication
 
 void CST328Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up CST328 Touchscreen...");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
-    delay(5);
+    delay(50);
     this->reset_pin_->digital_write(false);
     delay(5);
     this->reset_pin_->digital_write(true);
@@ -24,10 +24,12 @@ void CST328Touchscreen::setup() {
   }
 }
 
-bool CST328Touchscreen::read16_(uint16_t addr, uint8_t *data, size_t len) {
+bool CST328Touchscreen::read16_(uint16_t addr, uint8_t *data, size_t len, bool ok_to_fail) {
   if (i2c::ERROR_OK != this->read_register16(addr, data, len)) {
-    ESP_LOGE(TAG, "Read data from 0x%04X failed", addr);
-    this->mark_failed();
+    if (!ok_to_fail) {
+      ESP_LOGE(TAG, "Read data from 0x%04X failed", addr);
+      this->mark_failed();
+    }
     return false;
   }
   return true;
@@ -48,13 +50,6 @@ void CST328Touchscreen::continue_setup_() {
     return;
   }
 
-  // Read chip and project ID
-  if (this->read16_(CST_REG_CHIP_TYPE_AND_PROJECT_ID, buffer, 4)) {
-    this->chip_id_ = buffer[2] + (buffer[3] << 8);
-    this->project_id_ = buffer[0] + (buffer[1] << 8);
-    ESP_LOGV(TAG, "Chip ID %X, project ID %X", this->chip_id_, this->project_id_);
-  }
-
   // Read FW checksum
   if (this->read16_(CST_REG_FW_CRC_AND_BOOT_TIME, buffer, 4)) {
     uint16_t fw_crc = buffer[2] + (buffer[3] << 8);
@@ -63,6 +58,17 @@ void CST328Touchscreen::continue_setup_() {
       this->mark_failed();
       return;
     }
+  } else {
+    return;
+  }
+
+  // Read chip and project ID
+  if (this->read16_(CST_REG_CHIP_TYPE_AND_PROJECT_ID, buffer, 4)) {
+    this->chip_id_ = buffer[2] + (buffer[3] << 8);
+    this->project_id_ = buffer[0] + (buffer[1] << 8);
+    ESP_LOGV(TAG, "Chip ID %X, project ID %X", this->chip_id_, this->project_id_);
+  } else {
+    return;
   }
 
   // Read FW version
@@ -71,6 +77,8 @@ void CST328Touchscreen::continue_setup_() {
     this->fw_ver_minor_ = buffer[2];
     this->fw_build_ = buffer[0] + (buffer[1] << 8);
     ESP_LOGV(TAG, "FW version %d.%d.%d", this->fw_ver_major_, this->fw_ver_minor_, this->fw_build_);
+  } else {
+    return;
   }
 
   // Read X/Y resolution
@@ -93,7 +101,7 @@ void CST328Touchscreen::continue_setup_() {
 
   this->setup_complete_ = true;
 
-  ESP_LOGV(TAG, "CST328 Touchscreen setup complete");
+  ESP_LOGV(TAG, "CST328 setup complete");
 }
 
 void CST328Touchscreen::dump_config() {
@@ -123,31 +131,18 @@ void CST328Touchscreen::update_touches() {
   this->status_clear_warning();
   this->skip_update_ = false;
 
-  if (!this->read16_(CST_REG_TOUCH_FINGER_NUMBER, data, 1)) {
-    // Failed to read
-    ESP_LOGW(TAG, "update_touches() ERROR - Can't read touch count");
+  if (!this->read16_(CST_REG_TOUCH_FINGER_NUMBER, data, 1, true)) {
     this->skip_update_ = true;
-    this->status_set_warning();
-
   } else {
-    // number of touches
     touch_cnt = data[0] & 0x0F;
 
     if (touch_cnt == 0 || touch_cnt > CST328_TOUCH_MAX_POINTS) {
-      // No touches
       this->update_button_state_(false);
-      ESP_LOGVV(TAG, "update_touches() INFO: Zero touches");
-
     } else {
-      // Touches
-      ESP_LOGD(TAG, "update_touches() INFO %d touches", touch_cnt);
+      ESP_LOGVV(TAG, "%d touch(es)", touch_cnt);
 
       // Read Touch Points
-      if (!this->read16_(CST_REG_TOUCH_INFORMATION, data, sizeof(data))) {
-        ESP_LOGV(TAG, "update_touches() ERROR - Can't read touch data");
-        this->status_set_warning();
-
-      } else {
+      if (this->read16_(CST_REG_TOUCH_INFORMATION, data, sizeof(data)), true) {
         size_t index = 0;
         for (uint8_t i = 0; i != touch_cnt; i++) {
           uint8_t id = data[index] >> 4;
@@ -157,7 +152,6 @@ void CST328Touchscreen::update_touches() {
           int16_t z = data[index + 4];
 
           this->add_raw_touch_position_(id, x, y, z);
-          ESP_LOGD(TAG, "update_touches() INFO id:%d, status:%d, x:%d, y:%d, z:%d", id, status, x, y, z);
 
           // first touch data block is 7 bytes, others are 5
           index += 5;
@@ -169,8 +163,8 @@ void CST328Touchscreen::update_touches() {
     }
   }
 
-  this->write_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1);
   this->write_register16(CST_REG_TOUCH_FINGER_NUMBER, &clear_byte, 1);
+  this->write_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1);
 }
 }  // namespace cst328
 }  // namespace esphome
