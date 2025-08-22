@@ -1,0 +1,13 @@
+logger:
+  level: VERBOSE
+
+esphome:
+  on_boot:
+    - lambda: |-
+        int x = 100;
+        x = constrain(x, 50, 90);
+        assert(x == 90);
+        x = constrainAtLeast(x, 95);
+        assert(x == 95);
+        x = constrainAtMost(x, 40);
+        assert(x == 40);
