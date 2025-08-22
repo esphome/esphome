@@ -104,12 +104,13 @@ void AMG8833::update() {
   int index = 0;
   for (int y = 0; y < 8; ++y) {
     for (int x = 0; x < 8; ++x) {
-      float t = (this->pixels_[index++] | (this->pixels_[index++] << 8)) * 0.25f;
+      float t = (this->pixels_[index] | (this->pixels_[index + 1] << 8)) * 0.25f;
       measurement_[y][x] = t;
       if (t > maximum_temperature)
         maximum_temperature = t;
       if (t < minimum_temperature)
         minimum_temperature = t;
+      index += 2;
     }
   }
 
