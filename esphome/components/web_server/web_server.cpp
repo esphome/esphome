@@ -8,7 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && defined(USE_WEBSERVER_EVENTS)
 #include "StreamString.h"
 #endif
 
@@ -103,7 +103,7 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
   return match;
 }
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && defined(USE_WEBSERVER_EVENTS)
 // helper for allowing only unique entries in the queue
 void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
@@ -288,12 +288,14 @@ void WebServer::setup() {
         // logs are not deferred, the memory overhead would be too large
         [this](int level, const char *tag, const char *message, size_t message_len) {
           (void) message_len;
+#ifdef USE_WEBSERVER_EVENTS
           this->events_.try_send_nodefer(message, "log", millis());
+#endif
         });
   }
 #endif
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && defined(USE_WEBSERVER_EVENTS)
   this->base_->add_handler(&this->events_);
 #endif
   this->base_->add_handler(this);
@@ -302,9 +304,17 @@ void WebServer::setup() {
 
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
-  this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
+  this->set_interval(10000, [this]() {
+#ifdef USE_WEBSERVER_EVENTS
+    this->events_.try_send_nodefer("", "ping", millis(), 30000);
+#endif
+  });
 }
-void WebServer::loop() { this->events_.loop(); }
+void WebServer::loop() {
+#ifdef USE_WEBSERVER_EVENTS
+  this->events_.loop();
+#endif
+}
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
@@ -411,9 +421,11 @@ static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", sensor_state_json_generator);
+#endif
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
@@ -456,9 +468,11 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", text_sensor_state_json_generator);
+#endif
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
@@ -494,9 +508,11 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 
 #ifdef USE_SWITCH
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", switch_state_json_generator);
+#endif
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
@@ -601,9 +617,11 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", binary_sensor_state_json_generator);
+#endif
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
@@ -639,9 +657,11 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::Fan *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", fan_state_json_generator);
+#endif
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
@@ -713,9 +733,11 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", light_state_json_generator);
+#endif
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
@@ -786,9 +808,11 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", cover_state_json_generator);
+#endif
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
@@ -857,9 +881,11 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
 #ifdef USE_NUMBER
 void WebServer::on_number_update(number::Number *obj, float state) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", number_state_json_generator);
+#endif
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
@@ -924,9 +950,11 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
 #ifdef USE_DATETIME_DATE
 void WebServer::on_date_update(datetime::DateEntity *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", date_state_json_generator);
+#endif
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
@@ -980,9 +1008,11 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_TIME
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", time_state_json_generator);
+#endif
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
@@ -1035,9 +1065,11 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_DATETIME
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", datetime_state_json_generator);
+#endif
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
@@ -1091,9 +1123,11 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", text_state_json_generator);
+#endif
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
@@ -1149,9 +1183,11 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", select_state_json_generator);
+#endif
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
@@ -1204,9 +1240,11 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", climate_state_json_generator);
+#endif
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
@@ -1342,9 +1380,11 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
 #ifdef USE_LOCK
 void WebServer::on_lock_update(lock::Lock *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", lock_state_json_generator);
+#endif
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
@@ -1413,9 +1453,11 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
 
 #ifdef USE_VALVE
 void WebServer::on_valve_update(valve::Valve *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", valve_state_json_generator);
+#endif
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
@@ -1480,9 +1522,11 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", alarm_control_panel_state_json_generator);
+#endif
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
@@ -1546,7 +1590,9 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
+#ifdef USE_WEBSERVER_EVENTS
   this->events_.deferrable_send_state(obj, "state", event_state_json_generator);
+#endif
 }
 
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1609,9 +1655,11 @@ static const char *update_state_to_string(update::UpdateState state) {
 }
 
 void WebServer::on_update(update::UpdateEntity *obj) {
+#ifdef USE_WEBSERVER_EVENTS
   if (this->events_.empty())
     return;
   this->events_.deferrable_send_state(obj, "state", update_state_json_generator);
+#endif
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
@@ -1673,7 +1721,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #endif
   }
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && defined(USE_WEBSERVER_EVENTS)
   if (url == "/events")
     return true;
 #endif
@@ -1807,7 +1855,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
   }
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && defined(USE_WEBSERVER_EVENTS)
   if (url == "/events") {
     this->events_.add_new_client(this, request);
     return;

@@ -41,6 +41,7 @@ CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_GUI = "gui"
+CONF_EVENTS = "events"
 
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -107,6 +108,12 @@ def validate_gui(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "'gui: false' no es compatible con 'captive_portal'. Elimina captive_portal o activa gui."
             )
+    return config
+
+
+def validate_events(config: ConfigType) -> ConfigType:
+    if config.get(CONF_EVENTS, True) is False and config.get(CONF_GUI, True):
+        raise cv.Invalid("'events: false' requires 'gui: false'")
     return config
 
 
@@ -181,6 +188,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=80): cv.port,
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_GUI, default=True): cv.boolean,
+            cv.Optional(CONF_EVENTS, default=True): cv.boolean,
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
@@ -220,6 +228,7 @@ CONFIG_SCHEMA = cv.All(
     validate_sorting_groups,
     validate_ota,
     validate_gui,
+    validate_events,
 )
 
 
@@ -294,6 +303,7 @@ async def to_code(config):
     version = config[CONF_VERSION]
 
     gui_enabled = config.get(CONF_GUI, True)
+    events_enabled = config.get(CONF_EVENTS, True)
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("USE_WEBSERVER")
@@ -301,6 +311,8 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if not gui_enabled:
         cg.add_define("USE_WEBSERVER_GUI_DISABLED")
+    if events_enabled:
+        cg.add_define("USE_WEBSERVER_EVENTS")
     if gui_enabled:
         if version >= 2:
             # Don't compress the index HTML as the data sizes are almost the same.

@@ -81,7 +81,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && defined(USE_WEBSERVER_EVENTS)
 using message_generator_t = std::string(WebServer *, void *);
 
 class DeferredUpdateEventSourceList;
@@ -164,7 +164,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && defined(USE_WEBSERVER_EVENTS)
   friend class DeferredUpdateEventSourceList;
 #endif
 
@@ -561,10 +561,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   }
 
   web_server_base::WebServerBase *base_;
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && defined(USE_WEBSERVER_EVENTS)
   DeferredUpdateEventSourceList events_;
 #endif
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && defined(USE_WEBSERVER_EVENTS)
   AsyncEventSource events_{"/events", this};
 #endif
 
