@@ -1,0 +1,56 @@
+number:
+  - platform: amg8833
+    presence_upper:
+      name: P.Upper
+    presence_lower:
+      name: P.Lower
+    presence_hysteresis:
+      name: P.Hysteresis.
+    motion_maximum:
+      name: M.Maximum
+    motion_minimum:
+      name: M.Minimum
+    motion_hysteresis:
+      name: M.Hysteresis
+
+binary_sensor:
+  - platform: amg8833
+    presence:
+      name: Presence
+    motion:
+      name: Motion
+
+sensor:
+  - platform: amg8833
+    ambient:
+      name: Ambient
+    maximum:
+      name: Maximum
+    minimum:
+      name: Minimum
+
+select:
+  - platform: amg8833
+    fps:
+      name: FPS
+    mode:
+      name: Mode
+
+switch:
+  - platform: amg8833
+    filter:
+      name: Filter
+    interrupt_pin:
+      name: Interrupt Pin
+
+amg8833:
+  fps: FPS_1
+  interrupt_pin: True
+  filter: True
+  mode: Presence
+  presence_upper: 25.0
+  presence_lower: 18.0
+  presence_hysteresis: 0.5
+  motion_maximum: 0.5
+  motion_minimum: -0.5
+  motion_hysteresis: 0.5
