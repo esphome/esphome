@@ -132,7 +132,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
       ESP_LOGD(TAG, "Received START");
       this->buffer_[this->buffer_index_++] = byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_LENGTH;
-      break;
+      return;
     case ZWAVE_FRAME_TYPE_ACK:
       ESP_LOGD(TAG, "Received ACK");
       break;
@@ -144,7 +144,13 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
       break;
     default:
       ESP_LOGW(TAG, "Unexpected type: 0x%02X", byte);
-      break;
+      return;
+  }
+  // Forward response (ACK/NAK/CAN) back to client for processing
+  this->outgoing_request_.data.resize(1);
+  this->outgoing_request_.data[0] = byte;
+  if (this->api_connection_ != nullptr) {
+    this->api_connection_->send_message(this->outgoing_request_, api::ZWaveProxyFromDeviceRequest::MESSAGE_TYPE);
   }
 }
 
