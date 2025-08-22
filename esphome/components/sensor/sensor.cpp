@@ -6,6 +6,33 @@ namespace sensor {
 
 static const char *const TAG = "sensor";
 
+// Function implementation of LOG_SENSOR macro to reduce code size
+void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj) {
+  if (obj == nullptr) {
+    return;
+  }
+
+  ESP_LOGCONFIG(tag,
+                "%s%s '%s'\n"
+                "%s  State Class: '%s'\n"
+                "%s  Unit of Measurement: '%s'\n"
+                "%s  Accuracy Decimals: %d",
+                prefix, type, obj->get_name().c_str(), prefix, state_class_to_string(obj->get_state_class()).c_str(),
+                prefix, obj->get_unit_of_measurement().c_str(), prefix, obj->get_accuracy_decimals());
+
+  if (!obj->get_device_class().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
+  }
+
+  if (!obj->get_icon().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
+  }
+
+  if (obj->get_force_update()) {
+    ESP_LOGV(tag, "%s  Force Update: YES", prefix);
+  }
+}
+
 std::string state_class_to_string(StateClass state_class) {
   switch (state_class) {
     case STATE_CLASS_MEASUREMENT:

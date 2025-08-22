@@ -294,6 +294,7 @@ async def to_code(config):
 
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
+        cg.add_define("USE_ESP32_BLE_UUID")
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))

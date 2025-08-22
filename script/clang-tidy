@@ -158,7 +158,11 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         invocation.extend(options)
 
         proc = subprocess.run(
-            invocation, capture_output=True, encoding="utf-8", check=False
+            invocation,
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            close_fds=False,
         )
         if proc.returncode != 0:
             with lock:
@@ -320,9 +324,11 @@ def main():
         print("Applying fixes ...")
         try:
             try:
-                subprocess.call(["clang-apply-replacements-18", tmpdir])
+                subprocess.call(
+                    ["clang-apply-replacements-18", tmpdir], close_fds=False
+                )
             except FileNotFoundError:
-                subprocess.call(["clang-apply-replacements", tmpdir])
+                subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
         except FileNotFoundError:
             print(
                 "Error please install clang-apply-replacements-18 or clang-apply-replacements.\n",
