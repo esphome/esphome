@@ -60,6 +60,7 @@ LOG_LEVELS = {
     "ERROR": cg.global_ns.ESPHOME_LOG_LEVEL_ERROR,
     "WARN": cg.global_ns.ESPHOME_LOG_LEVEL_WARN,
     "INFO": cg.global_ns.ESPHOME_LOG_LEVEL_INFO,
+    "CONFIG": cg.global_ns.ESPHOME_LOG_LEVEL_CONFIG,
     "DEBUG": cg.global_ns.ESPHOME_LOG_LEVEL_DEBUG,
     "VERBOSE": cg.global_ns.ESPHOME_LOG_LEVEL_VERBOSE,
     "VERY_VERBOSE": cg.global_ns.ESPHOME_LOG_LEVEL_VERY_VERBOSE,
