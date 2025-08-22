@@ -101,9 +101,9 @@ def validate_sorting_groups(config: ConfigType) -> ConfigType:
 def validate_gui(config: ConfigType) -> ConfigType:
     # If gui explicitly disabled but a component requiring it (e.g. captive_portal) is present, raise error
     if not config.get(CONF_GUI, True):
-        full = CORE.config
+        full = CORE.config or {}
         # captive_portal uses the web_server for its captive page so force GUI
-        if "captive_portal" in full:
+        if isinstance(full, dict) and "captive_portal" in full:
             raise cv.Invalid(
                 "'gui: false' no es compatible con 'captive_portal'. Elimina captive_portal o activa gui."
             )
