@@ -4,7 +4,6 @@ import re
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
-from esphome.components.esp32.const import VARIANT_ESP32C3, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ESPHOME, CONF_ID, CONF_NAME
 from esphome.core import CORE, TimePeriod
@@ -260,12 +259,6 @@ async def to_code(config):
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
-        # Enable BLE 5.0 features on ESP32-S3/C3
-        # Note: Despite ESP-IDF docs stating BLE 4.2 and 5.0 can't be used simultaneously,
-        # both were already enabled by default and this configuration works in practice.
-        # We're making it explicit here for clarity and to ensure both APIs are available.
-        if get_esp32_variant() in (VARIANT_ESP32S3, VARIANT_ESP32C3):
-            add_idf_sdkconfig_option("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", True)
 
         # Register the core BLE loggers that are always needed
         register_bt_logger(BTLoggers.GAP, BTLoggers.BTM, BTLoggers.HCI)
