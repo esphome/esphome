@@ -7,16 +7,11 @@
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatt_defs.h>
+#include <esp_gattc_api.h>
 
 namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
-
-// Default connection parameters matching ESP-IDF's BTM_BLE_CONN_INT_*_DEF
-// These are conservative values that work well with most devices
-static const uint16_t DEFAULT_MIN_CONN_INTERVAL = 0x0A;  // 10 * 1.25ms = 12.5ms
-static const uint16_t DEFAULT_MAX_CONN_INTERVAL = 0x0C;  // 12 * 1.25ms = 15ms
-static const uint16_t DEFAULT_CONN_TIMEOUT = 600;        // 600 * 10ms = 6s
 
 // Intermediate connection parameters for standard operation
 // ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
@@ -117,19 +112,19 @@ void BLEClientBase::connect() {
            this->remote_addr_type_);
   this->paired_ = false;
 
-  // Set default connection parameters before connecting
-  // This ensures we use conservative parameters that work well with weak signal devices
-  // rather than potentially aggressive parameters from a previous connection
-  this->set_default_conn_params_();
-
-  // Open the connection with default parameters
-  auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
-  if (ret) {
-    this->log_gattc_warning_("esp_ble_gattc_open", ret);
-    this->set_state(espbt::ClientState::IDLE);
-  } else {
-    this->set_state(espbt::ClientState::CONNECTING);
+  // Determine connection parameters based on connection type
+  if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+    // V3 without cache needs fast params for service discovery
+    this->set_conn_params_(FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL, 0, FAST_CONN_TIMEOUT, "fast");
+  } else if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+    // V3 with cache can use medium params
+    this->set_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   }
+  // For V1/Legacy, don't set params - use ESP-IDF defaults
+
+  // Open the connection
+  auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
+  this->handle_connection_result_(ret);
 }
 
 esp_err_t BLEClientBase::pair() { return esp_ble_set_encryption(this->remote_bda_, ESP_BLE_SEC_ENCRYPT); }
@@ -213,6 +208,15 @@ void BLEClientBase::log_connection_params_(const char *param_type) {
   ESP_LOGD(TAG, "[%d] [%s] %s conn params", this->connection_index_, this->address_str_.c_str(), param_type);
 }
 
+void BLEClientBase::handle_connection_result_(esp_err_t ret) {
+  if (ret) {
+    this->log_gattc_warning_("esp_ble_gattc_open", ret);
+    this->set_state(espbt::ClientState::IDLE);
+  } else {
+    this->set_state(espbt::ClientState::CONNECTING);
+  }
+}
+
 void BLEClientBase::log_error_(const char *message) {
   ESP_LOGE(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_.c_str(), message);
 }
@@ -249,24 +253,6 @@ void BLEClientBase::set_conn_params_(uint16_t min_interval, uint16_t max_interva
   if (err != ESP_OK) {
     this->log_gattc_warning_("esp_ble_gap_set_prefer_conn_params", err);
   }
-}
-
-void BLEClientBase::set_fast_conn_params_() {
-  // Switch to fast connection parameters for service discovery
-  // This improves discovery speed for devices with short timeouts
-  this->update_conn_params_(FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL, 0, FAST_CONN_TIMEOUT, "fast");
-}
-
-void BLEClientBase::set_medium_conn_params_() {
-  // Set medium connection parameters for balanced performance
-  // This balances performance with bandwidth usage for normal operation
-  this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
-}
-
-void BLEClientBase::set_default_conn_params_() {
-  // Set default connection parameters before connecting
-  // These conservative values work well with most devices including weak signal ones
-  this->set_conn_params_(DEFAULT_MIN_CONN_INTERVAL, DEFAULT_MAX_CONN_INTERVAL, 0, DEFAULT_CONN_TIMEOUT, "default");
 }
 
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -332,19 +318,13 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->set_state(espbt::ClientState::CONNECTED);
       ESP_LOGI(TAG, "[%d] [%s] Connection open", this->connection_index_, this->address_str_.c_str());
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        // Cached connections use medium connection parameters
-        this->set_medium_conn_params_();
+        // Cached connections already connected with medium parameters, no update needed
         // only set our state, subclients might have more stuff to do yet.
         this->state_ = espbt::ClientState::ESTABLISHED;
         break;
       }
-      // For V3_WITHOUT_CACHE, switch to fast params for service discovery
-      // Service discovery period is critical - we typically have only 10s to complete
-      // discovery before the device disconnects us. Fast connection parameters are
-      // essential to finish service resolution in time and avoid retry loops.
-      else if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-        this->set_fast_conn_params_();
-      }
+      // For V3_WITHOUT_CACHE, we already set fast params before connecting
+      // No need to update them again here
       this->log_event_("Searching for services");
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
@@ -430,7 +410,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // For V3_WITHOUT_CACHE, switch back to medium connection parameters after service discovery
       // This balances performance with bandwidth usage after the critical discovery phase
       if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-        this->set_medium_conn_params_();
+        this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
       } else if (this->connection_type_ != espbt::ConnectionType::V3_WITH_CACHE) {
 #ifdef USE_ESP32_BLE_DEVICE
         for (auto &svc : this->services_) {
