@@ -34,6 +34,44 @@ namespace esphome {
 
 static const char *const TAG = "app";
 
+// Helper function for insertion sort of components by setup priority
+// Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
+// by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
+// IMPORTANT: This sort is stable (preserves relative order of equal elements),
+// which is necessary to maintain user-defined component order for same priority
+template<typename Iterator> static void insertion_sort_by_setup_priority(Iterator first, Iterator last) {
+  for (auto it = first + 1; it != last; ++it) {
+    auto key = *it;
+    float key_priority = key->get_actual_setup_priority();
+    auto j = it - 1;
+
+    // Using '<' (not '<=') ensures stability - equal priority components keep their order
+    while (j >= first && (*j)->get_actual_setup_priority() < key_priority) {
+      *(j + 1) = *j;
+      j--;
+    }
+    *(j + 1) = key;
+  }
+}
+
+// Helper function for insertion sort of components by loop priority
+// IMPORTANT: This sort is stable (preserves relative order of equal elements),
+// which is required when components are re-sorted during setup() if they block
+template<typename Iterator> static void insertion_sort_by_loop_priority(Iterator first, Iterator last) {
+  for (auto it = first + 1; it != last; ++it) {
+    auto key = *it;
+    float key_priority = key->get_loop_priority();
+    auto j = it - 1;
+
+    // Using '<' (not '<=') ensures stability - equal priority components keep their order
+    while (j >= first && (*j)->get_loop_priority() < key_priority) {
+      *(j + 1) = *j;
+      j--;
+    }
+    *(j + 1) = key;
+  }
+}
+
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {
     ESP_LOGW(TAG, "Tried to register null component!");
@@ -51,9 +89,9 @@ void Application::register_component_(Component *comp) {
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
   ESP_LOGV(TAG, "Sorting components by setup priority");
-  std::stable_sort(this->components_.begin(), this->components_.end(), [](const Component *a, const Component *b) {
-    return a->get_actual_setup_priority() > b->get_actual_setup_priority();
-  });
+
+  // Sort by setup priority using our helper function
+  insertion_sort_by_setup_priority(this->components_.begin(), this->components_.end());
 
   // Initialize looping_components_ early so enable_pending_loops_() works during setup
   this->calculate_looping_components_();
@@ -69,8 +107,8 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
-    std::stable_sort(this->components_.begin(), this->components_.begin() + i + 1,
-                     [](Component *a, Component *b) { return a->get_loop_priority() > b->get_loop_priority(); });
+    // Sort components 0 through i by loop priority
+    insertion_sort_by_loop_priority(this->components_.begin(), this->components_.begin() + i + 1);
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
@@ -218,30 +256,79 @@ void Application::run_powerdown_hooks() {
 void Application::teardown_components(uint32_t timeout_ms) {
   uint32_t start_time = millis();
 
-  // Copy all components in reverse order using reverse iterators
+  // Use a StaticVector instead of std::vector to avoid heap allocation
+  // since we know the actual size at compile time
+  StaticVector<Component *, ESPHOME_COMPONENT_COUNT> pending_components;
+
+  // Copy all components in reverse order
   // Reverse order matches the behavior of run_safe_shutdown_hooks() above and ensures
   // components are torn down in the opposite order of their setup_priority (which is
   // used to sort components during Application::setup())
-  std::vector<Component *> pending_components(this->components_.rbegin(), this->components_.rend());
+  size_t num_components = this->components_.size();
+  for (size_t i = 0; i < num_components; ++i) {
+    pending_components[i] = this->components_[num_components - 1 - i];
+  }
 
   uint32_t now = start_time;
-  while (!pending_components.empty() && (now - start_time) < timeout_ms) {
+  size_t pending_count = num_components;
+
+  // Teardown Algorithm
+  // ==================
+  // We iterate through pending components, calling teardown() on each.
+  // Components that return false (need more time) are copied forward
+  // in the array. Components that return true (finished) are skipped.
+  //
+  // The compaction happens in-place during iteration:
+  //   - still_pending tracks the write position (where to put next pending component)
+  //   - i tracks the read position (which component we're testing)
+  //   - When teardown() returns false, we copy component[i] to component[still_pending]
+  //   - When teardown() returns true, we just skip it (don't increment still_pending)
+  //
+  // Example with 4 components where B can teardown immediately:
+  //
+  // Start:
+  //   pending_components: [A, B, C, D]
+  //   pending_count: 4    ^----------^
+  //
+  // Iteration 1:
+  //   i=0: A needs more time → keep at pos 0 (no copy needed)
+  //   i=1: B finished → skip
+  //   i=2: C needs more time → copy to pos 1
+  //   i=3: D needs more time → copy to pos 2
+  //
+  // After iteration 1:
+  //   pending_components: [A, C, D | D]
+  //   pending_count: 3    ^--------^
+  //
+  // Iteration 2:
+  //   i=0: A finished → skip
+  //   i=1: C needs more time → copy to pos 0
+  //   i=2: D finished → skip
+  //
+  // After iteration 2:
+  //   pending_components: [C | C, D, D]  (positions 1-3 have old values)
+  //   pending_count: 1    ^--^
+
+  while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
     this->feed_wdt(now);
 
-    // Use iterator to safely erase elements
-    for (auto it = pending_components.begin(); it != pending_components.end();) {
-      if ((*it)->teardown()) {
-        // Component finished teardown, erase it
-        it = pending_components.erase(it);
-      } else {
-        // Component still needs time
-        ++it;
+    // Process components and compact the array, keeping only those still pending
+    size_t still_pending = 0;
+    for (size_t i = 0; i < pending_count; ++i) {
+      if (!pending_components[i]->teardown()) {
+        // Component still needs time, copy it forward
+        if (still_pending != i) {
+          pending_components[still_pending] = pending_components[i];
+        }
+        ++still_pending;
       }
+      // Component finished teardown, skip it (don't increment still_pending)
     }
+    pending_count = still_pending;
 
     // Give some time for I/O operations if components are still pending
-    if (!pending_components.empty()) {
+    if (pending_count > 0) {
       this->yield_with_select_(1);
     }
 
@@ -249,11 +336,11 @@ void Application::teardown_components(uint32_t timeout_ms) {
     now = millis();
   }
 
-  if (!pending_components.empty()) {
+  if (pending_count > 0) {
     // Note: At this point, connections are either disconnected or in a bad state,
     // so this warning will only appear via serial rather than being transmitted to clients
-    for (auto *component : pending_components) {
-      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", component->get_component_source(),
+    for (size_t i = 0; i < pending_count; ++i) {
+      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", pending_components[i]->get_component_source(),
                timeout_ms);
     }
   }
@@ -437,11 +524,16 @@ bool Application::register_socket_fd(int fd) {
   if (fd < 0)
     return false;
 
+#ifndef USE_ESP32
+  // Only check on non-ESP32 platforms
+  // On ESP32 (both Arduino and ESP-IDF), CONFIG_LWIP_MAX_SOCKETS is always <= FD_SETSIZE by design
+  // (LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS per lwipopts.h)
+  // Other platforms may not have this guarantee
   if (fd >= FD_SETSIZE) {
-    ESP_LOGE(TAG, "Cannot monitor socket fd %d: exceeds FD_SETSIZE (%d)", fd, FD_SETSIZE);
-    ESP_LOGE(TAG, "Socket will not be monitored for data - may cause performance issues!");
+    ESP_LOGE(TAG, "fd %d exceeds FD_SETSIZE %d", fd, FD_SETSIZE);
     return false;
   }
+#endif
 
   this->socket_fds_.push_back(fd);
   this->socket_fds_changed_ = true;
@@ -459,24 +551,25 @@ void Application::unregister_socket_fd(int fd) {
   if (fd < 0)
     return;
 
-  auto it = std::find(this->socket_fds_.begin(), this->socket_fds_.end(), fd);
-  if (it != this->socket_fds_.end()) {
+  for (size_t i = 0; i < this->socket_fds_.size(); i++) {
+    if (this->socket_fds_[i] != fd)
+      continue;
+
     // Swap with last element and pop - O(1) removal since order doesn't matter
-    if (it != this->socket_fds_.end() - 1) {
-      std::swap(*it, this->socket_fds_.back());
-    }
+    if (i < this->socket_fds_.size() - 1)
+      this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
     this->socket_fds_changed_ = true;
 
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {
-      if (this->socket_fds_.empty()) {
-        this->max_fd_ = -1;
-      } else {
-        // Find new max using std::max_element
-        this->max_fd_ = *std::max_element(this->socket_fds_.begin(), this->socket_fds_.end());
+      this->max_fd_ = -1;
+      for (int sock_fd : this->socket_fds_) {
+        if (sock_fd > this->max_fd_)
+          this->max_fd_ = sock_fd;
       }
     }
+    return;
   }
 }
 

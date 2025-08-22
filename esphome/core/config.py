@@ -459,10 +459,8 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
-    # Reserve space for components to avoid reallocation during registration
-    cg.add(
-        cg.RawStatement(f"App.reserve_components({len(CORE.component_ids)});"),
-    )
+    # Define component count for static allocation
+    cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
     CORE.add_job(_add_platform_defines)
 
@@ -531,8 +529,8 @@ async def to_code(config: ConfigType) -> None:
     all_areas.extend(config[CONF_AREAS])
 
     if all_areas:
-        cg.add(cg.RawStatement(f"App.reserve_area({len(all_areas)});"))
         cg.add_define("USE_AREAS")
+        cg.add_define("ESPHOME_AREA_COUNT", len(all_areas))
 
         for area_conf in all_areas:
             area_id: core.ID = area_conf[CONF_ID]
@@ -549,9 +547,9 @@ async def to_code(config: ConfigType) -> None:
     if not devices:
         return
 
-    # Reserve space for devices
-    cg.add(cg.RawStatement(f"App.reserve_device({len(devices)});"))
+    # Define device count for static allocation
     cg.add_define("USE_DEVICES")
+    cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
 
     # Process each device
     for dev_conf in devices:

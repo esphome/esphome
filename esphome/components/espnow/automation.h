@@ -40,20 +40,20 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
     this->num_running_++;
     send_callback_t send_callback = [this, x...](esp_err_t status) {
       if (status == ESP_OK) {
-        if (this->sent_.empty() && this->flags_.wait_for_sent) {
-          this->play_next_(x...);
-        } else if (!this->sent_.empty()) {
+        if (!this->sent_.empty()) {
           this->sent_.play(x...);
+        } else if (this->flags_.wait_for_sent) {
+          this->play_next_(x...);
         }
       } else {
-        if (this->error_.empty() && this->flags_.wait_for_sent) {
+        if (!this->error_.empty()) {
+          this->error_.play(x...);
+        } else if (this->flags_.wait_for_sent) {
           if (this->flags_.continue_on_error) {
             this->play_next_(x...);
           } else {
             this->stop_complex();
           }
-        } else if (!this->error_.empty()) {
-          this->error_.play(x...);
         }
       }
     };

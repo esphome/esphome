@@ -2,3 +2,4 @@ substitutions:
   pin: GPIO12
 
 <<: !include common-variants.yaml
+<<: !include common-get-value.yaml

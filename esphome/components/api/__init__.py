@@ -29,7 +29,7 @@ from esphome.core import CORE, coroutine_with_priority
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
@@ -321,6 +321,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     cg.add(var.set_service("esphome.tag_scanned"))

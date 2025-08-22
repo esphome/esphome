@@ -330,7 +330,8 @@ class ThrottleWithPriorityFilter : public Filter {
 
 class TimeoutFilter : public Filter, public Component {
  public:
-  explicit TimeoutFilter(uint32_t time_period, TemplatableValue<float> new_value);
+  explicit TimeoutFilter(uint32_t time_period);
+  explicit TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value);
 
   optional<float> new_value(float value) override;
 
@@ -338,7 +339,7 @@ class TimeoutFilter : public Filter, public Component {
 
  protected:
   uint32_t time_period_;
-  TemplatableValue<float> value_;
+  optional<TemplatableValue<float>> value_;
 };
 
 class DebounceFilter : public Filter, public Component {
