@@ -764,7 +764,8 @@ void Nextion::process_nextion_commands_() {
         variable_name = to_process.substr(0, index);
         ++index;
 
-        text_value = to_process.substr(index);
+        // Get variable value without terminating NUL byte.  Length check above ensures substr len >= 0.
+        text_value = to_process.substr(index, to_process_length - index - 1);
 
         ESP_LOGN(TAG, "Text sensor: %s='%s'", variable_name.c_str(), text_value.c_str());
 
