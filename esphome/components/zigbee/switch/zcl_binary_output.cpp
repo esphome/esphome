@@ -11,7 +11,8 @@ namespace zigbee {
 
 const zb_uint8_t ZB_ZCL_BINARY_OUTPUT_STATUS_FLAG_MAX_VALUE = 0x0F;
 
-static zb_ret_t check_value_binary_output_server(zb_uint16_t attr_id, zb_uint8_t endpoint, zb_uint8_t *value) {
+static zb_ret_t check_value_binary_output_server(zb_uint16_t attr_id, zb_uint8_t endpoint,
+                                                 zb_uint8_t *value) {  // NOLINT(readability-non-const-parameter)
   zb_ret_t ret = RET_OK;
   ZVUNUSED(endpoint);
 
@@ -33,6 +34,7 @@ static zb_ret_t check_value_binary_output_server(zb_uint16_t attr_id, zb_uint8_t
 
   return ret;
 }
+
 }  // namespace zigbee
 }  // namespace esphome
 

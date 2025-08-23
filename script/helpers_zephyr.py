@@ -30,6 +30,8 @@ CONFIG_ADC=y
 #zigbee begin
 CONFIG_ZIGBEE=y
 CONFIG_CRYPTO=y
+CONFIG_NVS=y
+CONFIG_SETTINGS=y
 #zigbee end
 """,
         encoding="utf-8",
