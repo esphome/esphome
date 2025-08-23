@@ -39,8 +39,8 @@ DriverChip(
 # fmt: off
 DriverChip(
     "JC4880P443C",
-    width=800,
-    height=480,
+    width=480,
+    height=800,
     hsync_back_porch=42,
     hsync_pulse_width=12,
     hsync_front_porch=42,
@@ -49,7 +49,7 @@ DriverChip(
     vsync_front_porch=166,
     pclk_frequency="34MHz",
     lane_bit_rate="500Mbps",
-    swap_xy=False,
+    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     reset_pin=5,
     initsequence=[
