@@ -120,7 +120,7 @@ async def to_code(config: ConfigType) -> None:
         "platform_packages",
         [
             "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v2.6.1-4.zip",
-            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v0.16.1-1.zip",
+            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v0.17.4-0.zip",
         ],
     )
 
