@@ -99,7 +99,8 @@ def clang_options(idedata):
     cmd.extend(flag for flag in idedata["cxx_flags"] if flag not in omit_flags)
 
     # defines
-    cmd.extend(f"-D{define}" for define in idedata["defines"])
+    defines = [f"'-D{define}'" for define in idedata["defines"]]
+    cmd.extend(defines)
 
     # add toolchain include directories using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
