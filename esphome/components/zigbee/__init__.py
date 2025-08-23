@@ -197,7 +197,7 @@ async def to_code(config):
     )
 
     if CONF_WIPE_ON_BOOT in config:
-        cg.add_define("USE_WIPE_ON_BOOT")
+        cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT")
     var = cg.new_Pvariable(config[CONF_ID])
 
     if on_join_config := config.get(CONF_ON_JOIN):

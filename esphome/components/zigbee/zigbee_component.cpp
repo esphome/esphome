@@ -123,7 +123,7 @@ void Zigbee::on_join_() {
   });
 }
 
-#ifdef USE_WIPE_ON_BOOT
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT
 void Zigbee::erase_flash_(int area) {
   const struct flash_area *fap;
   flash_area_open(area, &fap);
@@ -140,7 +140,7 @@ void Zigbee::setup() {
     return;
   }
 
-#ifdef USE_WIPE_ON_BOOT
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT
   erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
   erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
   erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));

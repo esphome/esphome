@@ -71,7 +71,7 @@ class Zigbee : public Component {
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
   void on_join_();
-#ifdef USE_WIPE_ON_BOOT
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
   std::map<zb_uint8_t, std::function<void(zb_bufid_t bufid)>> callbacks_;

@@ -242,7 +242,7 @@
 
 #ifdef USE_NRF52
 #define USE_ZIGBEE
-#define USE_WIPE_ON_BOOT
+#define USE_ZIGBEE_WIPE_ON_BOOT
 #endif
 
 // Disabled feature flags
