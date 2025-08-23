@@ -457,9 +457,11 @@ void WiFiComponent::print_connect_params_() {
                                                                         "  Signal strength: %d dB %s",
                 bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], App.get_name().c_str(), rssi,
                 LOG_STR_ARG(get_signal_bars(rssi)));
+#ifdef ESPHOME_LOG_HAS_VERBOSE
   if (this->selected_ap_.get_bssid().has_value()) {
     ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));
   }
+#endif
   ESP_LOGCONFIG(TAG,
                 "  Channel: %" PRId32 "\n"
                 "  Subnet: %s\n"
@@ -594,8 +596,10 @@ void WiFiComponent::check_scanning_finished() {
     if (res.get_matches()) {
       ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
                res.get_is_hidden() ? "(HIDDEN) " : "", bssid_s, LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-      ESP_LOGD(TAG, "    Channel: %u", res.get_channel());
-      ESP_LOGD(TAG, "    RSSI: %d dB", res.get_rssi());
+      ESP_LOGD(TAG,
+               "    Channel: %u\n"
+               "    RSSI: %d dB",
+               res.get_channel(), res.get_rssi());
     } else {
       ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
                LOG_STR_ARG(get_signal_bars(res.get_rssi())));
