@@ -50,10 +50,11 @@ CONFIG_SETTINGS=y
 
     def extract_defines(command):
         define_pattern = re.compile(r"-D\s*([^\s]+)")
+        ignore_prefixes = ("_ASMLANGUAGE", "NRF_802154_ECB_PRIORITY=")
         return [
-            match
+            match.replace("\\", "")
             for match in define_pattern.findall(command)
-            if match not in ("_ASMLANGUAGE")
+            if not any(match.startswith(prefix) for prefix in ignore_prefixes)
         ]
 
     def find_cxx_path(commands):
