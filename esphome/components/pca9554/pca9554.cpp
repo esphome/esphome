@@ -96,7 +96,7 @@ bool PCA9554Component::read_inputs_() {
     return false;
   }
 
-  this->last_error_ = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_, true);
+  this->last_error_ = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
@@ -114,7 +114,7 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
   uint8_t outputs[2];
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
-  this->last_error_ = this->write_register(reg * this->reg_width_, outputs, this->reg_width_, true);
+  this->last_error_ = this->write_register(reg * this->reg_width_, outputs, this->reg_width_);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
