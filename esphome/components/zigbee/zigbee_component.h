@@ -56,8 +56,10 @@ struct BinaryAttrs {
 class Zigbee : public Component {
  public:
   void setup() override;
-  void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> cb) { this->callbacks_[endpoint] = cb; }
-  void add_join_callback(std::function<void()> cb) { this->join_cb_ = cb; }
+  void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
+    this->callbacks_[endpoint] = std::move(cb);
+  }
+  void add_join_callback(std::function<void()> &&cb) { this->join_cb_ = std::move(cb); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void factory_reset();
   Trigger<> *get_join_trigger() const { return this->join_trigger_; };
@@ -68,7 +70,10 @@ class Zigbee : public Component {
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
-  void on_join();
+  void on_join_();
+#ifdef USE_WIPE_ON_BOOT
+  void erase_flash_(int area);
+#endif
   std::map<zb_uint8_t, std::function<void(zb_bufid_t bufid)>> callbacks_;
   std::function<void()> join_cb_;
   Trigger<> *join_trigger_{new Trigger<>()};

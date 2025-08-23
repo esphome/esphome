@@ -16,6 +16,7 @@ def load_idedata(environment, temp_folder, platformio_ini):
     Path(esphome_dir / "main.cpp").write_text(
         """
 #include <zephyr/kernel.h>
+extern "C" void zboss_signal_handler() {};
 int main() { return 0;}
 """,
         encoding="utf-8",
@@ -26,6 +27,10 @@ int main() { return 0;}
         """
 CONFIG_NEWLIB_LIBC=y
 CONFIG_ADC=y
+#zigbee begin
+CONFIG_ZIGBEE=y
+CONFIG_CRYPTO=y
+#zigbee end
 """,
         encoding="utf-8",
     )

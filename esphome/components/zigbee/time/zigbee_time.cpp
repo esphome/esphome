@@ -11,7 +11,7 @@ static const char *const TAG = "zigbee.time";
 // seconds since 0 hrs 0 mins 0 sec on 1st January 2000 UTC (Universal Coordinated Time).
 constexpr time_t EPOCH_2000 = 946684800;
 
-ZigbeeTime *global_time = nullptr;
+ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void zb_zcl_time_sync_time_server_found_cb(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t short_addr,
                                            zb_uint8_t ep, zb_uint32_t nw_time) {

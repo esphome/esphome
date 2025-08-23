@@ -17,7 +17,7 @@ namespace zigbee {
 
 static const char *const TAG = "zigbee";
 
-Zigbee *global_zigbee = nullptr;
+Zigbee *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 const uint8_t IEEE_ADDR_BUF_SIZE = 17;
 
@@ -39,7 +39,7 @@ void Zigbee::zboss_signal_handler_esphome(zb_bufid_t bufid) {
     case ZB_BDB_SIGNAL_DEVICE_REBOOT:
       ESP_LOGD(TAG, "ZB_BDB_SIGNAL_DEVICE_REBOOT, status: %d", status);
       if (status == RET_OK) {
-        on_join();
+        on_join_();
       }
       break;
     case ZB_BDB_SIGNAL_STEERING:
@@ -79,7 +79,7 @@ void Zigbee::zboss_signal_handler_esphome(zb_bufid_t bufid) {
 
         for (int i = 0; i < addr_len; ++i) {
           if (ieee_addr_buf[i] != '0') {
-            on_join();
+            on_join_();
             break;
           }
         }
@@ -113,7 +113,7 @@ void Zigbee::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_ERROR;
 }
 
-void Zigbee::on_join() {
+void Zigbee::on_join_() {
   this->schedule([this]() {
     ESP_LOGD(TAG, "joined the network");
     this->join_trigger_->trigger();
@@ -123,12 +123,14 @@ void Zigbee::on_join() {
   });
 }
 
-void _erase_flash(int area) {
+#ifdef USE_WIPE_ON_BOOT
+void Zigbee::erase_flash_(int area) {
   const struct flash_area *fap;
   flash_area_open(area, &fap);
   flash_area_erase(fap, 0, fap->fa_size);
   flash_area_close(fap);
 }
+#endif
 
 void Zigbee::setup() {
   global_zigbee = this;
@@ -139,9 +141,9 @@ void Zigbee::setup() {
   }
 
 #ifdef USE_WIPE_ON_BOOT
-  _erase_flash(FIXED_PARTITION_ID(ZBOSS_NVRAM));
-  _erase_flash(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
-  _erase_flash(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+  erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
+  erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
+  erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
 #endif
 
   ZB_ZCL_REGISTER_DEVICE_CB(zcl_device_cb);
@@ -191,7 +193,7 @@ void Zigbee::factory_reset() {
 }  // namespace zigbee
 }  // namespace esphome
 
-extern "C" void zboss_signal_handler(zb_bufid_t bufid) {
-  esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(bufid);
+extern "C" void zboss_signal_handler(zb_uint8_t param) {
+  esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param);
 }
 #endif
