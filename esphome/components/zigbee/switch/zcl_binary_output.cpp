@@ -20,7 +20,7 @@ void zb_zcl_binary_output_init_client(void) {
                               (zb_zcl_cluster_handler_t) NULL);
 }
 
-#define ZB_ZCL_BINARY_OUTPUT_STATUS_FLAG_MAX_VALUE 0x0F
+const zb_uint8_t ZB_ZCL_BINARY_OUTPUT_STATUS_FLAG_MAX_VALUE = 0x0F;
 
 static zb_ret_t check_value_binary_output_server(zb_uint16_t attr_id, zb_uint8_t endpoint, zb_uint8_t *value) {
   zb_ret_t ret = RET_OK;

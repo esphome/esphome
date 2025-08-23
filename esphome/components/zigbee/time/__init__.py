@@ -1,20 +1,18 @@
 import esphome.codegen as cg
 from esphome.components import time as time_
-from esphome.components.zigbee import (
-    KEY_EP_NUMBER,
-    consume_ep_slots,
-    zigbee_register_ep,
-)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import coroutine_with_priority
 
 from .. import (
+    KEY_EP_NUMBER,
     ZigbeeBaseSchema,
     ZigbeeClusterDesc,
+    consume_ep_slots,
     zigbee_new_attr_list,
     zigbee_new_cluster_list,
     zigbee_new_variable,
+    zigbee_register_ep,
 )
 from ..const import (
     CONF_TIME_ATTRIB_LIST,
