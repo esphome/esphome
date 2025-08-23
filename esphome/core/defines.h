@@ -240,6 +240,11 @@
 #define USE_SOCKET_SELECT_SUPPORT
 #endif
 
+#ifdef USE_NRF52
+#define USE_ZIGBEE
+#define USE_WIPE_ON_BOOT
+#endif
+
 // Disabled feature flags
 // #define USE_BSEC   // Requires a library with proprietary license
 // #define USE_BSEC2  // Requires a library with proprietary license
