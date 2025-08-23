@@ -1,1 +1,1 @@
-.ai/instructions.md
+die
