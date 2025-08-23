@@ -19,7 +19,7 @@ static const char *const TAG = "zigbee";
 
 Zigbee *global_zigbee = nullptr;
 
-#define IEEE_ADDR_BUF_SIZE 17
+const uint8_t IEEE_ADDR_BUF_SIZE = 17;
 
 void Zigbee::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   zb_zdo_app_signal_hdr_t *sig_hndler = NULL;
