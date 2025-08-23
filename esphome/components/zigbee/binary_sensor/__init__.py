@@ -1,22 +1,20 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.components.zigbee import (
-    KEY_EP_NUMBER,
-    consume_ep_slots,
-    zigbee_register_ep,
-)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE
 from esphome.core import coroutine_with_priority
 
 from .. import (
+    KEY_EP_NUMBER,
     ZigbeeBaseSchema,
     ZigbeeClusterDesc,
+    consume_ep_slots,
     zigbee_assign,
     zigbee_new_attr_list,
     zigbee_new_cluster_list,
     zigbee_new_variable,
+    zigbee_register_ep,
     zigbee_set_string,
 )
 from ..const import (
