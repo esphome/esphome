@@ -1,9 +1,7 @@
+from esphome.components.mipi import MODE_RGB, DriverChip
 from esphome.components.spi import TYPE_QUAD
 import esphome.config_validation as cv
 from esphome.const import CONF_IGNORE_STRAPPING_WARNING, CONF_NUMBER
-
-from .. import MODE_RGB
-from . import DriverChip
 
 AXS15231 = DriverChip(
     "AXS15231",

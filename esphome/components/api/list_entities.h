@@ -4,8 +4,7 @@
 #ifdef USE_API
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class APIConnection;
 
@@ -96,6 +95,5 @@ class ListEntitiesIterator : public ComponentIterator {
   APIConnection *client_;
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

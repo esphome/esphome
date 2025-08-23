@@ -72,70 +72,57 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
  protected:
   /// @brief Function for the FreeRTOS task handling audio output.
-  /// After receiving the COMMAND_START signal, allocates space for the buffers, starts the I2S driver, and reads
-  /// audio from the ring buffer and writes audio to the I2S port. Stops immmiately after receiving the COMMAND_STOP
-  /// signal and stops only after the ring buffer is empty after receiving the COMMAND_STOP_GRACEFULLY signal. Stops if
-  /// the ring buffer hasn't read data for more than timeout_ milliseconds. When stopping, it deallocates the buffers,
-  /// stops the I2S driver, unlocks the I2S port, and deletes the task. It communicates the state and any errors via
-  /// event_group_.
+  /// Allocates space for the buffers, reads audio from the ring buffer and writes audio to the I2S port. Stops
+  /// immmiately after receiving the COMMAND_STOP signal and stops only after the ring buffer is empty after receiving
+  /// the COMMAND_STOP_GRACEFULLY signal. Stops if the ring buffer hasn't read data for more than timeout_ milliseconds.
+  /// When stopping, it deallocates the buffers. It communicates its state and any errors via ``event_group_``.
   /// @param params I2SAudioSpeaker component
   static void speaker_task(void *params);
 
-  /// @brief Sends a stop command to the speaker task via event_group_.
+  /// @brief Sends a stop command to the speaker task via ``event_group_``.
   /// @param wait_on_empty If false, sends the COMMAND_STOP signal. If true, sends the COMMAND_STOP_GRACEFULLY signal.
   void stop_(bool wait_on_empty);
 
-  /// @brief Sets the corresponding ERR_ESP event group bits.
-  /// @param err esp_err_t error code.
-  /// @return True if an ERR_ESP bit is set and false if err == ESP_OK
-  bool send_esp_err_to_event_group_(esp_err_t err);
-
 #ifndef USE_I2S_LEGACY
-  static bool i2s_overflow_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
+  /// @brief Callback function used to send playback timestamps the to the speaker task.
+  /// @param handle (i2s_chan_handle_t)
+  /// @param event (i2s_event_data_t)
+  /// @param user_ctx (void*) User context pointer that the callback accesses
+  /// @return True if a higher priority task was interrupted
+  static bool i2s_on_sent_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
 #endif
-
-  /// @brief Allocates the data buffer and ring buffer
-  /// @param data_buffer_size Number of bytes to allocate for the data buffer.
-  /// @param ring_buffer_size Number of bytes to allocate for the ring buffer.
-  /// @return ESP_ERR_NO_MEM if either buffer fails to allocate
-  ///         ESP_OK if successful
-  esp_err_t allocate_buffers_(size_t data_buffer_size, size_t ring_buffer_size);
 
   /// @brief Starts the ESP32 I2S driver.
   /// Attempts to lock the I2S port, starts the I2S driver using the passed in stream information, and sets the data out
-  /// pin. If it fails, it will unlock the I2S port and uninstall the driver, if necessary.
+  /// pin. If it fails, it will unlock the I2S port and uninstalls the driver, if necessary.
   /// @param audio_stream_info Stream information for the I2S driver.
   /// @return ESP_ERR_NOT_ALLOWED if the I2S port can't play the incoming audio stream.
   ///         ESP_ERR_INVALID_STATE if the I2S port is already locked.
-  ///         ESP_ERR_INVALID_ARG if nstalling the driver or setting the data outpin fails due to a parameter error.
+  ///         ESP_ERR_INVALID_ARG if installing the driver or setting the data outpin fails due to a parameter error.
   ///         ESP_ERR_NO_MEM if the driver fails to install due to a memory allocation error.
-  ///         ESP_FAIL if setting the data out pin fails due to an IO error ESP_OK if successful
+  ///         ESP_FAIL if setting the data out pin fails due to an IO error
+  ///         ESP_OK if successful
   esp_err_t start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info);
 
-  /// @brief Deletes the speaker's task.
-  /// Deallocates the data_buffer_ and audio_ring_buffer_, if necessary, and deletes the task. Should only be called by
-  /// the speaker_task itself.
-  /// @param buffer_size The allocated size of the data_buffer_.
-  void delete_task_(size_t buffer_size);
+  /// @brief Stops the I2S driver and unlocks the I2S port
+  void stop_i2s_driver_();
 
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
 
   QueueHandle_t i2s_event_queue_;
 
-  uint8_t *data_buffer_;
-  std::shared_ptr<RingBuffer> audio_ring_buffer_;
+  std::weak_ptr<RingBuffer> audio_ring_buffer_;
 
   uint32_t buffer_duration_ms_;
 
   optional<uint32_t> timeout_;
 
-  bool task_created_{false};
   bool pause_state_{false};
 
   int16_t q15_volume_factor_{INT16_MAX};
 
-  size_t bytes_written_{0};
+  audio::AudioStreamInfo current_stream_info_;  // The currently loaded driver's stream info
 
 #ifdef USE_I2S_LEGACY
 #if SOC_I2S_SUPPORTS_DAC
@@ -148,8 +135,6 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   std::string i2s_comm_fmt_;
   i2s_chan_handle_t tx_handle_;
 #endif
-
-  uint32_t accumulated_frames_written_{0};
 };
 
 }  // namespace i2s_audio

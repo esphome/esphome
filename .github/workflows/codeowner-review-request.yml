@@ -34,6 +34,9 @@ jobs:
 
             console.log(`Processing PR #${pr_number} for codeowner review requests`);
 
+            // Hidden marker to identify bot comments from this workflow
+            const BOT_COMMENT_MARKER = '<!-- codeowner-review-request-bot -->';
+
             try {
               // Get the list of changed files in this PR
               const { data: files } = await github.rest.pulls.listFiles({
@@ -84,9 +87,9 @@ jobs:
                 const allMentions = [...reviewerMentions, ...teamMentions].join(', ');
 
                 if (isSuccessful) {
-                  return `👋 Hi there! I've automatically requested reviews from codeowners based on the files changed in this PR.\n\n${allMentions} - You've been requested to review this PR as codeowner(s) of ${matchedFileCount} file(s) that were modified. Thanks for your time! 🙏`;
+                  return `${BOT_COMMENT_MARKER}\n👋 Hi there! I've automatically requested reviews from codeowners based on the files changed in this PR.\n\n${allMentions} - You've been requested to review this PR as codeowner(s) of ${matchedFileCount} file(s) that were modified. Thanks for your time! 🙏`;
                 } else {
-                  return `👋 Hi there! This PR modifies ${matchedFileCount} file(s) with codeowners.\n\n${allMentions} - As codeowner(s) of the affected files, your review would be appreciated! 🙏\n\n_Note: Automatic review request may have failed, but you're still welcome to review._`;
+                  return `${BOT_COMMENT_MARKER}\n👋 Hi there! This PR modifies ${matchedFileCount} file(s) with codeowners.\n\n${allMentions} - As codeowner(s) of the affected files, your review would be appreciated! 🙏\n\n_Note: Automatic review request may have failed, but you're still welcome to review._`;
                 }
               }
 
@@ -178,6 +181,53 @@ jobs:
                 reviewedUsers.add(review.user.login);
               });
 
+              // Check for previous comments from this workflow to avoid duplicate pings
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {
+                  owner,
+                  repo,
+                  issue_number: pr_number
+                }
+              );
+
+              const previouslyPingedUsers = new Set();
+              const previouslyPingedTeams = new Set();
+
+              // Look for comments from github-actions bot that contain our bot marker
+              const workflowComments = comments.filter(comment =>
+                comment.user.type === 'Bot' &&
+                comment.body.includes(BOT_COMMENT_MARKER)
+              );
+
+              // Extract previously mentioned users and teams from workflow comments
+              for (const comment of workflowComments) {
+                // Match @username patterns (not team mentions)
+                const userMentions = comment.body.match(/@([a-zA-Z0-9_.-]+)(?![/])/g) || [];
+                userMentions.forEach(mention => {
+                  const username = mention.slice(1); // remove @
+                  previouslyPingedUsers.add(username);
+                });
+
+                // Match @org/team patterns
+                const teamMentions = comment.body.match(/@[a-zA-Z0-9_.-]+\/([a-zA-Z0-9_.-]+)/g) || [];
+                teamMentions.forEach(mention => {
+                  const teamName = mention.split('/')[1];
+                  previouslyPingedTeams.add(teamName);
+                });
+              }
+
+              console.log(`Found ${previouslyPingedUsers.size} previously pinged users and ${previouslyPingedTeams.size} previously pinged teams`);
+
+              // Remove users who have already been pinged in previous workflow comments
+              previouslyPingedUsers.forEach(user => {
+                matchedOwners.delete(user);
+              });
+
+              previouslyPingedTeams.forEach(team => {
+                matchedTeams.delete(team);
+              });
+
               // Remove only users who have already submitted reviews (not just requested reviewers)
               reviewedUsers.forEach(reviewer => {
                 matchedOwners.delete(reviewer);
@@ -192,7 +242,7 @@ jobs:
               const teamsList = Array.from(matchedTeams);
 
               if (reviewersList.length === 0 && teamsList.length === 0) {
-                console.log('No eligible reviewers found (all may already be requested or reviewed)');
+                console.log('No eligible reviewers found (all may already be requested, reviewed, or previously pinged)');
                 return;
               }
 
@@ -227,31 +277,41 @@ jobs:
                   console.log('All codeowners are already requested reviewers or have reviewed');
                 }
 
-                // Add a comment to the PR mentioning what happened (include all matched codeowners)
-                const commentBody = createCommentBody(reviewersList, teamsList, fileMatches.size, true);
+                // Only add a comment if there are new codeowners to mention (not previously pinged)
+                if (reviewersList.length > 0 || teamsList.length > 0) {
+                  const commentBody = createCommentBody(reviewersList, teamsList, fileMatches.size, true);
 
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: pr_number,
-                  body: commentBody
-                });
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: pr_number,
+                    body: commentBody
+                  });
+                  console.log(`Added comment mentioning ${reviewersList.length} users and ${teamsList.length} teams`);
+                } else {
+                  console.log('No new codeowners to mention in comment (all previously pinged)');
+                }
               } catch (error) {
                 if (error.status === 422) {
                   console.log('Some reviewers may already be requested or unavailable:', error.message);
 
-                  // Try to add a comment even if review request failed
-                  const commentBody = createCommentBody(reviewersList, teamsList, fileMatches.size, false);
+                  // Only try to add a comment if there are new codeowners to mention
+                  if (reviewersList.length > 0 || teamsList.length > 0) {
+                    const commentBody = createCommentBody(reviewersList, teamsList, fileMatches.size, false);
 
-                  try {
-                    await github.rest.issues.createComment({
-                      owner,
-                      repo,
-                      issue_number: pr_number,
-                      body: commentBody
-                    });
-                  } catch (commentError) {
-                    console.log('Failed to add comment:', commentError.message);
+                    try {
+                      await github.rest.issues.createComment({
+                        owner,
+                        repo,
+                        issue_number: pr_number,
+                        body: commentBody
+                      });
+                      console.log(`Added fallback comment mentioning ${reviewersList.length} users and ${teamsList.length} teams`);
+                    } catch (commentError) {
+                      console.log('Failed to add comment:', commentError.message);
+                    }
+                  } else {
+                    console.log('No new codeowners to mention in fallback comment');
                   }
                 } else {
                   throw error;

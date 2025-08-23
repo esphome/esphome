@@ -8,8 +8,6 @@ namespace sx1509 {
 static const char *const TAG = "sx1509";
 
 void SX1509Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_byte(REG_RESET, 0x12)) {
     this->mark_failed();

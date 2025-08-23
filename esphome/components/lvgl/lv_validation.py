@@ -271,8 +271,7 @@ padding = LValidator(padding_validator, int32, retmapper=literal)
 
 
 def zoom_validator(value):
-    value = cv.float_range(0.1, 10.0)(value)
-    return value
+    return cv.float_range(0.1, 10.0)(value)
 
 
 def zoom_retmapper(value):
@@ -288,10 +287,14 @@ def angle(value):
     :param value: The input in the range 0..360
     :return: An angle in 1/10 degree units.
     """
-    return int(cv.float_range(0.0, 360.0)(cv.angle(value)) * 10)
+    return cv.float_range(0.0, 360.0)(cv.angle(value))
 
 
-lv_angle = LValidator(angle, uint32)
+# Validator for angles in LVGL expressed in 1/10 degree units.
+lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10))
+
+# Validator for angles in LVGL expressed in whole degrees
+lv_angle_degrees = LValidator(angle, uint32, retmapper=int)
 
 
 @schema_extractor("one_of")

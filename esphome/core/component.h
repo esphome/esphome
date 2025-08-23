@@ -202,9 +202,9 @@ class Component {
 
   bool status_has_error() const;
 
-  void status_set_warning(const char *message = "unspecified");
+  void status_set_warning(const char *message = nullptr);
 
-  void status_set_error(const char *message = "unspecified");
+  void status_set_error(const char *message = nullptr);
 
   void status_clear_warning();
 
@@ -235,6 +235,9 @@ class Component {
   virtual void call_loop();
   virtual void call_setup();
   virtual void call_dump_config();
+
+  /// Helper to set component state (clears state bits and sets new state)
+  void set_component_state_(uint8_t state);
 
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
@@ -405,10 +408,10 @@ class Component {
   const char *component_source_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
   /// State of this component - each bit has a purpose:
-  /// Bits 0-1: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED)
-  /// Bit 2: STATUS_LED_WARNING
-  /// Bit 3: STATUS_LED_ERROR
-  /// Bits 4-7: Unused - reserved for future expansion (50% of the bits are free)
+  /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)
+  /// Bit 3: STATUS_LED_WARNING
+  /// Bit 4: STATUS_LED_ERROR
+  /// Bits 5-7: Unused - reserved for future expansion
   uint8_t component_state_{0x00};
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 };

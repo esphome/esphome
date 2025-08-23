@@ -30,7 +30,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace("time")
@@ -236,7 +236,7 @@ def validate_time_at(value):
 
 def validate_cron_keys(value):
     if CONF_CRON in value:
-        for key in value.keys():
+        for key in value:
             if key in CRON_KEYS:
                 raise cv.Invalid(f"Cannot use option {key} when cron: is specified.")
         if CONF_AT in value:
@@ -246,7 +246,7 @@ def validate_cron_keys(value):
         value.update(cron_)
         return value
     if CONF_AT in value:
-        for key in value.keys():
+        for key in value:
             if key in CRON_KEYS:
                 raise cv.Invalid(f"Cannot use option {key} when at: is specified.")
         at_ = value[CONF_AT]

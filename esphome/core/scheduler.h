@@ -1,10 +1,11 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include <vector>
 #include <memory>
 #include <cstring>
 #include <deque>
-#if !defined(USE_ESP8266) && !defined(USE_RP2040) && !defined(USE_LIBRETINY)
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
 
@@ -14,8 +15,15 @@
 namespace esphome {
 
 class Component;
+struct RetryArgs;
+
+// Forward declaration of retry_handler - needs to be non-static for friend declaration
+void retry_handler(const std::shared_ptr<RetryArgs> &args);
 
 class Scheduler {
+  // Allow retry_handler to access protected members
+  friend void ::esphome::retry_handler(const std::shared_ptr<RetryArgs> &args);
+
  public:
   // Public API - accepts std::string for backward compatibility
   void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
@@ -53,10 +61,16 @@ class Scheduler {
   bool cancel_interval(Component *component, const char *name);
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
+  void set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
+                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
   bool cancel_retry(Component *component, const std::string &name);
+  bool cancel_retry(Component *component, const char *name);
 
   // Calculate when the next scheduled item should run
   // @param now Fresh timestamp from millis() - must not be stale/cached
+  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
+  // This method performs cleanup of removed items before checking the schedule
+  // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint32_t now);
 
   // Execute all scheduled items that are ready
@@ -83,15 +97,42 @@ class Scheduler {
 
     std::function<void()> callback;
 
-    // Bit-packed fields to minimize padding
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    // Multi-threaded with atomics: use atomic for lock-free access
+    // Place atomic<bool> separately since it can't be packed with bit fields
+    std::atomic<bool> remove{false};
+
+    // Bit-packed fields (3 bits used, 5 bits padding in 1 byte)
+    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
+    bool name_is_dynamic : 1;  // True if name was dynamically allocated (needs delete[])
+    bool is_retry : 1;         // True if this is a retry timeout
+                               // 5 bits padding
+#else
+    // Single-threaded or multi-threaded without atomics: can pack all fields together
+    // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     bool remove : 1;
     bool name_is_dynamic : 1;  // True if name was dynamically allocated (needs delete[])
-    // 5 bits padding
+    bool is_retry : 1;         // True if this is a retry timeout
+                               // 4 bits padding
+#endif
 
     // Constructor
     SchedulerItem()
-        : component(nullptr), interval(0), next_execution_(0), type(TIMEOUT), remove(false), name_is_dynamic(false) {
+        : component(nullptr),
+          interval(0),
+          next_execution_(0),
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+          // remove is initialized in the member declaration as std::atomic<bool>{false}
+          type(TIMEOUT),
+          name_is_dynamic(false),
+          is_retry(false) {
+#else
+          type(TIMEOUT),
+          remove(false),
+          name_is_dynamic(false),
+          is_retry(false) {
+#endif
       name_.static_name = nullptr;
     }
 
@@ -143,15 +184,22 @@ class Scheduler {
 
   // Common implementation for both timeout and interval
   void set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string, const void *name_ptr,
-                         uint32_t delay, std::function<void()> func);
+                         uint32_t delay, std::function<void()> func, bool is_retry = false);
+
+  // Common implementation for retry
+  void set_retry_common_(Component *component, bool is_static_string, const void *name_ptr, uint32_t initial_wait_time,
+                         uint8_t max_attempts, std::function<RetryResult(uint8_t)> func, float backoff_increase_factor);
 
   uint64_t millis_64_(uint32_t now);
-  void cleanup_();
+  // Cleanup logically deleted items from the scheduler
+  // Returns the number of items remaining after cleanup
+  // IMPORTANT: This method should only be called from the main thread (loop task).
+  size_t cleanup_();
   void pop_raw_();
 
  private:
   // Helper to cancel items by name - must be called with lock held
-  bool cancel_item_locked_(Component *component, const char *name, SchedulerItem::Type type);
+  bool cancel_item_locked_(Component *component, const char *name, SchedulerItem::Type type, bool match_retry = false);
 
   // Helper to extract name as const char* from either static string or std::string
   inline const char *get_name_cstr_(bool is_static_string, const void *name_ptr) {
@@ -163,8 +211,9 @@ class Scheduler {
 
   // Helper function to check if item matches criteria for cancellation
   inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
-                                SchedulerItem::Type type) {
-    if (item->component != component || item->type != type || item->remove) {
+                                SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
+    if (item->component != component || item->type != type || (skip_removed && item->remove) ||
+        (match_retry && !item->is_retry)) {
       return false;
     }
     const char *item_name = item->get_name();
@@ -190,37 +239,87 @@ class Scheduler {
     return item->remove || (item->component != nullptr && item->component->is_failed());
   }
 
-  // Check if the scheduler has no items.
-  // IMPORTANT: This method should only be called from the main thread (loop task).
-  // It performs cleanup of removed items and checks if the queue is empty.
-  // The items_.empty() check at the end is done without a lock for performance,
-  // which is safe because this is only called from the main thread while other
-  // threads only add items (never remove them).
-  bool empty_() {
-    this->cleanup_();
-    return this->items_.empty();
+  // Helper to check if item is marked for removal (platform-specific)
+  // Returns true if item should be skipped, handles platform-specific synchronization
+  // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
+  // function.
+  bool is_item_removed_(SchedulerItem *item) const {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    // Multi-threaded with atomics: use atomic load for lock-free access
+    return item->remove.load(std::memory_order_acquire);
+#else
+    // Single-threaded (ESPHOME_THREAD_SINGLE) or
+    // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct read
+    // For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller MUST hold lock!
+    return item->remove;
+#endif
+  }
+
+  // Helper to mark item for removal (platform-specific)
+  // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
+  // function.
+  void mark_item_removed_(SchedulerItem *item) {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    // Multi-threaded with atomics: use atomic store
+    item->remove.store(true, std::memory_order_release);
+#else
+    // Single-threaded (ESPHOME_THREAD_SINGLE) or
+    // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
+    // For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller MUST hold lock!
+    item->remove = true;
+#endif
+  }
+
+  // Template helper to check if any item in a container matches our criteria
+  template<typename Container>
+  bool has_cancelled_timeout_in_container_(const Container &container, Component *component, const char *name_cstr,
+                                           bool match_retry) const {
+    for (const auto &item : container) {
+      if (item->remove && this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, match_retry,
+                                              /* skip_removed= */ false)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
-#if !defined(USE_ESP8266) && !defined(USE_RP2040)
-  // ESP8266 and RP2040 don't need the defer queue because:
-  // ESP8266: Single-core with no preemptive multitasking
-  // RP2040: Currently has empty mutex implementation in ESPHome
-  // Both platforms save 40 bytes of RAM by excluding this
+#ifndef ESPHOME_THREAD_SINGLE
+  // Single-core platforms don't need the defer queue and save 40 bytes of RAM
   std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-#endif
-#if !defined(USE_ESP8266) && !defined(USE_RP2040) && !defined(USE_LIBRETINY)
-  // Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
+#endif                                                      /* ESPHOME_THREAD_SINGLE */
+  uint32_t to_remove_{0};
+
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  /*
+   * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
+   *
+   * MEMORY-ORDERING NOTE
+   * --------------------
+   * `last_millis_` and `millis_major_` form a single 64-bit timestamp split in half.
+   * Writers publish `last_millis_` with memory_order_release and readers use
+   * memory_order_acquire. This ensures that once a reader sees the new low word,
+   * it also observes the corresponding increment of `millis_major_`.
+   */
   std::atomic<uint32_t> last_millis_{0};
-#else
+#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   // Platforms without atomic support or single-threaded platforms
   uint32_t last_millis_{0};
-#endif
-  // millis_major_ is protected by lock when incrementing
+#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+
+  /*
+   * Upper 16 bits of the 64-bit millis counter. Incremented only while holding
+   * `lock_`; read concurrently. Atomic (relaxed) avoids a formal data race.
+   * Ordering relative to `last_millis_` is provided by its release store and the
+   * corresponding acquire loads.
+   */
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  std::atomic<uint16_t> millis_major_{0};
+#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   uint16_t millis_major_{0};
-  uint32_t to_remove_{0};
+#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
 };
 
 }  // namespace esphome

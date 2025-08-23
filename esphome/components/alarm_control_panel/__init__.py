@@ -301,8 +301,7 @@ async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_pending_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -310,8 +309,7 @@ async def alarm_action_pending_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -319,8 +317,7 @@ async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_chime_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -333,8 +330,7 @@ async def alarm_action_chime_to_code(config, action_id, template_arg, args):
 )
 async def alarm_action_ready_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition(
@@ -352,4 +348,3 @@ async def alarm_control_panel_is_armed_to_code(
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(alarm_control_panel_ns.using)
-    cg.add_define("USE_ALARM_CONTROL_PANEL")

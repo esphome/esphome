@@ -8,8 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -283,5 +282,4 @@ void Logger::set_log_level(uint8_t level) {
 
 Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger

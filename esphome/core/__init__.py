@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextlib import contextmanager
 import logging
 import math
 import os
@@ -38,7 +39,7 @@ from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
-    from ..types import ConfigType
+    from ..types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -263,7 +264,7 @@ class TimePeriodMinutes(TimePeriod):
     pass
 
 
-LAMBDA_PROG = re.compile(r"id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
+LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 
 class Lambda:
@@ -470,6 +471,52 @@ class Library:
             return self.as_tuple == other.as_tuple
         return NotImplemented
 
+    def reconcile_with(self, other):
+        """Merge two libraries, reconciling any conflicts."""
+
+        if self.name != other.name:
+            # Different libraries, no reconciliation possible
+            raise ValueError(
+                f"Cannot reconcile libraries with different names: {self.name} and {other.name}"
+            )
+
+        # repository specificity takes precedence over version specificity
+        if self.repository is None and other.repository is None:
+            pass  # No repositories, no conflict, continue on
+
+        elif self.repository is None:
+            # incoming library has a repository, use it
+            self.repository = other.repository
+            self.version = other.version
+            return self
+
+        elif other.repository is None:
+            return self  # use the repository/version already present
+
+        elif self.repository != other.repository:
+            raise ValueError(
+                f"Reconciliation failed! Libraries {self} and {other} requested with conflicting repositories!"
+            )
+
+        if self.version is None and other.version is None:
+            return self  # Arduino library reconciled against another Arduino library, current is acceptable
+
+        if self.version is None:
+            # incoming library has a version, use it
+            self.version = other.version
+            return self
+
+        if other.version is None:
+            return self  # incoming library has no version, current is acceptable
+
+            # Same versions, current library is acceptable
+        if self.version != other.version:
+            raise ValueError(
+                f"Version pinning failed! Libraries {other} and {self} "
+                "requested with conflicting versions!"
+            )
+        return self
+
 
 # pylint: disable=too-many-public-methods
 class EsphomeCore:
@@ -505,8 +552,8 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
-        # A set of platformio libraries to add to the project
-        self.libraries: list[Library] = []
+        # A map of platformio libraries to add to the project (shortname: (name, version, repository))
+        self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
@@ -525,14 +572,16 @@ class EsphomeCore:
         # Key: platform name (e.g. "sensor", "binary_sensor"), Value: count
         self.platform_counts: defaultdict[str, int] = defaultdict(int)
         # Track entity unique IDs to handle duplicates
-        # Set of (device_id, platform, sanitized_name) tuples
-        self.unique_ids: set[tuple[str, str, str]] = set()
+        # Dict mapping (device_id, platform, sanitized_name) -> entity metadata
+        self.unique_ids: dict[tuple[str, str, str], EntityMetadata] = {}
         # Whether ESPHome was started in verbose mode
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
         # A list of all known ID classes
         self.id_classes = {}
+        # The current component being processed during validation
+        self.current_component: str | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -550,7 +599,7 @@ class EsphomeCore:
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
-        self.libraries = []
+        self.platformio_libraries = {}
         self.build_flags = set()
         self.build_unflags = set()
         self.defines = set()
@@ -558,8 +607,19 @@ class EsphomeCore:
         self.loaded_integrations = set()
         self.component_ids = set()
         self.platform_counts = defaultdict(int)
-        self.unique_ids = set()
+        self.unique_ids = {}
+        self.current_component = None
         PIN_SCHEMA_REGISTRY.reset()
+
+    @contextmanager
+    def component_context(self, component: str):
+        """Context manager to set the current component being processed."""
+        old_component = self.current_component
+        self.current_component = component
+        try:
+            yield
+        finally:
+            self.current_component = old_component
 
     @property
     def address(self) -> str | None:
@@ -738,54 +798,26 @@ class EsphomeCore:
         _LOGGER.debug("Adding global: %s", expression)
         return expression
 
-    def add_library(self, library):
+    def add_library(self, library: Library):
         if not isinstance(library, Library):
-            raise ValueError(
+            raise TypeError(
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
-        for other in self.libraries[:]:
-            if other.name is None or library.name is None:
-                continue
-            library_name = (
-                library.name if "/" not in library.name else library.name.split("/")[1]
-            )
-            other_name = (
-                other.name if "/" not in other.name else other.name.split("/")[1]
-            )
-            if other_name != library_name:
-                continue
-            if other.repository is not None:
-                if library.repository is None or other.repository == library.repository:
-                    # Other is using a/the same repository, takes precedence
-                    break
-                raise ValueError(
-                    f"Adding named Library with repository failed! Libraries {library} and {other} "
-                    "requested with conflicting repositories!"
-                )
 
-            if library.repository is not None:
-                # This is more specific since its using a repository
-                self.libraries.remove(other)
-                continue
+        if not library.name:
+            raise ValueError(f"The library for {library.repository} must have a name")
 
-            if library.version is None:
-                # Other requirement is more specific
-                break
-            if other.version is None:
-                # Found more specific version requirement
-                self.libraries.remove(other)
-                continue
-            if other.version == library.version:
-                break
+        short_name = (
+            library.name if "/" not in library.name else library.name.split("/")[-1]
+        )
 
-            raise ValueError(
-                f"Version pinning failed! Libraries {library} and {other} "
-                "requested with conflicting versions!"
-            )
-        else:
+        if short_name not in self.platformio_libraries:
             _LOGGER.debug("Adding library: %s", library)
-            self.libraries.append(library)
-        return library
+            self.platformio_libraries[short_name] = library
+            return library
+
+        self.platformio_libraries[short_name].reconcile_with(library)
+        return self.platformio_libraries[short_name]
 
     def add_build_flag(self, build_flag: str) -> str:
         self.build_flags.add(build_flag)

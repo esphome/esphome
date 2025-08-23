@@ -1,10 +1,12 @@
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 from esphome.components.network import IPAddress
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
+from esphome.config_validation import only_with_esp_idf
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -192,45 +194,7 @@ def final_validate(config):
         )
 
 
-def final_validate_power_esp32_ble(value):
-    if not CORE.is_esp32:
-        return
-    if value != "NONE":
-        # WiFi should be in modem sleep (!=NONE) with BLE coexistence
-        # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
-        return
-    for conflicting in [
-        "esp32_ble",
-        "esp32_ble_beacon",
-        "esp32_ble_server",
-        "esp32_ble_tracker",
-    ]:
-        if conflicting not in fv.full_config.get():
-            continue
-
-        try:
-            # Only arduino 1.0.5+ and esp-idf impacted
-            cv.require_framework_version(
-                esp32_arduino=cv.Version(1, 0, 5),
-                esp_idf=cv.Version(4, 0, 0),
-            )(None)
-        except cv.Invalid:
-            pass
-        else:
-            raise cv.Invalid(
-                f"power_save_mode NONE is incompatible with {conflicting}. "
-                f"Please remove the power save mode. See also "
-                f"https://github.com/esphome/issues/issues/2141#issuecomment-865688582"
-            )
-
-
 FINAL_VALIDATE_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_POWER_SAVE_MODE): final_validate_power_esp32_ble,
-        },
-        extra=cv.ALLOW_EXTRA,
-    ),
     final_validate,
     validate_variant,
 )
@@ -263,8 +227,6 @@ def _validate(config):
         networks = config.get(CONF_NETWORKS, [])
         if not networks:
             raise cv.Invalid("At least one network required for fast_connect!")
-        if len(networks) != 1:
-            raise cv.Invalid("Fast connect can only be used with one network!")
 
     if CONF_USE_ADDRESS not in config:
         use_address = CORE.name + config[CONF_DOMAIN]
@@ -333,6 +295,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
+            ),
+            cv.Optional(CONF_USE_PSRAM): cv.All(
+                only_with_esp_idf, cv.requires_component("psram"), cv.boolean
             ),
         }
     ),
@@ -410,11 +375,16 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
+    # Track if any network uses Enterprise authentication
+    has_eap = False
+
     def add_sta(ap, network):
         ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
         cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
 
     for network in config.get(CONF_NETWORKS, []):
+        if CONF_EAP in network:
+            has_eap = True
         cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
@@ -431,6 +401,10 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
+    # Disable Enterprise WiFi support if no EAP is configured
+    if CORE.is_esp32 and CORE.using_esp_idf and not has_eap:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
+
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
@@ -442,9 +416,7 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-    elif CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("WiFi", None)
-    elif CORE.is_rp2040:
+    elif (CORE.is_esp32 and CORE.using_arduino) or CORE.is_rp2040:
         cg.add_library("WiFi", None)
 
     if CORE.is_esp32 and CORE.using_esp_idf:
@@ -456,6 +428,8 @@ async def to_code(config):
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
 
+    if config.get(CONF_USE_PSRAM):
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
     cg.add_define("USE_WIFI")
 
     # must register before OTA safe mode check
