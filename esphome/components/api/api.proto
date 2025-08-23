@@ -1438,7 +1438,7 @@ message BluetoothLERawAdvertisementsResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   option (no_delay) = true;
 
-  repeated BluetoothLERawAdvertisement advertisements = 1;
+  repeated BluetoothLERawAdvertisement advertisements = 1 [(fixed_array_with_length_define) = "BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE"];
 }
 
 enum BluetoothDeviceRequestType {

@@ -107,7 +107,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 #endif
 
 void BLEClientBase::connect() {
-  ESP_LOGI(TAG, "[%d] [%s] 0x%02x Attempting BLE connection", this->connection_index_, this->address_str_.c_str(),
+  ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_.c_str(),
            this->remote_addr_type_);
   this->paired_ = false;
 
@@ -137,7 +137,7 @@ void BLEClientBase::connect() {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gap_set_prefer_conn_params failed: %d", this->connection_index_,
              this->address_str_.c_str(), param_ret);
   } else {
-    ESP_LOGD(TAG, "[%d] [%s] Set %s conn params", this->connection_index_, this->address_str_.c_str(), param_type);
+    this->log_connection_params_(param_type);
   }
 
   // Now open the connection
@@ -153,19 +153,13 @@ void BLEClientBase::connect() {
 esp_err_t BLEClientBase::pair() { return esp_ble_set_encryption(this->remote_bda_, ESP_BLE_SEC_ENCRYPT); }
 
 void BLEClientBase::disconnect() {
-  if (this->state_ == espbt::ClientState::IDLE) {
-    ESP_LOGI(TAG, "[%d] [%s] Disconnect requested, but already idle.", this->connection_index_,
-             this->address_str_.c_str());
-    return;
-  }
-  if (this->state_ == espbt::ClientState::DISCONNECTING) {
-    ESP_LOGI(TAG, "[%d] [%s] Disconnect requested, but already disconnecting.", this->connection_index_,
-             this->address_str_.c_str());
+  if (this->state_ == espbt::ClientState::IDLE || this->state_ == espbt::ClientState::DISCONNECTING) {
+    ESP_LOGI(TAG, "[%d] [%s] Disconnect requested, but already %s", this->connection_index_, this->address_str_.c_str(),
+             espbt::client_state_to_string(this->state_));
     return;
   }
   if (this->state_ == espbt::ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
-    ESP_LOGW(TAG, "[%d] [%s] Disconnecting before connected, disconnect scheduled.", this->connection_index_,
-             this->address_str_.c_str());
+    this->log_warning_("Disconnect before connected, disconnect scheduled.");
     this->want_disconnect_ = true;
     return;
   }
@@ -177,13 +171,11 @@ void BLEClientBase::unconditional_disconnect() {
   ESP_LOGI(TAG, "[%d] [%s] Disconnecting (conn_id: %d).", this->connection_index_, this->address_str_.c_str(),
            this->conn_id_);
   if (this->state_ == espbt::ClientState::DISCONNECTING) {
-    ESP_LOGE(TAG, "[%d] [%s] Tried to disconnect while already disconnecting.", this->connection_index_,
-             this->address_str_.c_str());
+    this->log_error_("Already disconnecting");
     return;
   }
   if (this->conn_id_ == UNSET_CONN_ID) {
-    ESP_LOGE(TAG, "[%d] [%s] No connection ID set, cannot disconnect.", this->connection_index_,
-             this->address_str_.c_str());
+    this->log_error_("conn id unset, cannot disconnect");
     return;
   }
   auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
@@ -195,8 +187,7 @@ void BLEClientBase::unconditional_disconnect() {
     // In the future we might consider App.reboot() here since
     // the BLE stack is in an indeterminate state.
     //
-    ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_close error, err=%d", this->connection_index_, this->address_str_.c_str(),
-             err);
+    this->log_gattc_warning_("esp_ble_gattc_close", err);
   }
 
   if (this->state_ == espbt::ClientState::SEARCHING || this->state_ == espbt::ClientState::READY_TO_CONNECT ||
@@ -236,6 +227,22 @@ void BLEClientBase::log_gattc_warning_(const char *operation, esp_err_t err) {
   ESP_LOGW(TAG, "[%d] [%s] %s error, status=%d", this->connection_index_, this->address_str_.c_str(), operation, err);
 }
 
+void BLEClientBase::log_connection_params_(const char *param_type) {
+  ESP_LOGD(TAG, "[%d] [%s] %s conn params", this->connection_index_, this->address_str_.c_str(), param_type);
+}
+
+void BLEClientBase::log_error_(const char *message) {
+  ESP_LOGE(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_.c_str(), message);
+}
+
+void BLEClientBase::log_error_(const char *message, int code) {
+  ESP_LOGE(TAG, "[%d] [%s] %s=%d", this->connection_index_, this->address_str_.c_str(), message, code);
+}
+
+void BLEClientBase::log_warning_(const char *message) {
+  ESP_LOGW(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_.c_str(), message);
+}
+
 void BLEClientBase::restore_medium_conn_params_() {
   // Restore to medium connection parameters after initial connection phase
   // This balances performance with bandwidth usage for normal operation
@@ -245,7 +252,7 @@ void BLEClientBase::restore_medium_conn_params_() {
   conn_params.max_int = MEDIUM_MAX_CONN_INTERVAL;
   conn_params.latency = 0;
   conn_params.timeout = MEDIUM_CONN_TIMEOUT;
-  ESP_LOGD(TAG, "[%d] [%s] Restoring medium conn params", this->connection_index_, this->address_str_.c_str());
+  this->log_connection_params_("medium");
   esp_ble_gap_update_conn_params(&conn_params);
 }
 
@@ -266,8 +273,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->app_id);
         this->gattc_if_ = esp_gattc_if;
       } else {
-        ESP_LOGE(TAG, "[%d] [%s] gattc app registration failed id=%d code=%d", this->connection_index_,
-                 this->address_str_.c_str(), param->reg.app_id, param->reg.status);
+        this->log_error_("gattc app registration failed status", param->reg.status);
         this->status_ = param->reg.status;
         this->mark_failed();
       }
@@ -283,8 +289,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         // This should not happen but lets log it in case it does
         // because it means we have a bad assumption about how the
         // ESP BT stack works.
-        ESP_LOGE(TAG, "[%d] [%s] Got ESP_GATTC_OPEN_EVT while in %s state, status=%d", this->connection_index_,
-                 this->address_str_.c_str(), espbt::client_state_to_string(this->state_), param->open.status);
+        this->log_error_("ESP_GATTC_OPEN_EVT wrong state status", param->open.status);
       }
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
@@ -303,16 +308,13 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->set_state(espbt::ClientState::CONNECTED);
       ESP_LOGI(TAG, "[%d] [%s] Connection open", this->connection_index_, this->address_str_.c_str());
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        ESP_LOGI(TAG, "[%d] [%s] Using cached services", this->connection_index_, this->address_str_.c_str());
-
         // Restore to medium connection parameters for cached connections too
         this->restore_medium_conn_params_();
-
         // only set our state, subclients might have more stuff to do yet.
         this->state_ = espbt::ClientState::ESTABLISHED;
         break;
       }
-      ESP_LOGD(TAG, "[%d] [%s] Searching for services", this->connection_index_, this->address_str_.c_str());
+      this->log_event_("Searching for services");
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
@@ -327,8 +329,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // This saves ~3ms in the connection process.
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
       if (ret) {
-        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
-                 this->address_str_.c_str(), ret);
+        this->log_gattc_warning_("esp_ble_gattc_send_mtu_req", ret);
       }
       break;
     }
@@ -338,8 +339,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // Check if we were disconnected while waiting for service discovery
       if (param->disconnect.reason == ESP_GATT_CONN_TERMINATE_PEER_USER &&
           this->state_ == espbt::ClientState::CONNECTED) {
-        ESP_LOGW(TAG, "[%d] [%s] Disconnected by remote during service discovery", this->connection_index_,
-                 this->address_str_.c_str());
+        this->log_warning_("Remote closed during discovery");
       } else {
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_,
                  this->address_str_.c_str(), param->disconnect.reason);
@@ -512,16 +512,14 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
         return;
       esp_bd_addr_t bd_addr;
       memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
-      ESP_LOGI(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
+      ESP_LOGI(TAG, "[%d] [%s] auth complete addr: %s", this->connection_index_, this->address_str_.c_str(),
                format_hex(bd_addr, 6).c_str());
       if (!param->ble_security.auth_cmpl.success) {
-        ESP_LOGE(TAG, "[%d] [%s] auth fail reason = 0x%x", this->connection_index_, this->address_str_.c_str(),
-                 param->ble_security.auth_cmpl.fail_reason);
+        this->log_error_("auth fail reason", param->ble_security.auth_cmpl.fail_reason);
       } else {
         this->paired_ = true;
-        ESP_LOGD(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
-                 this->address_str_.c_str(), param->ble_security.auth_cmpl.addr_type,
-                 param->ble_security.auth_cmpl.auth_mode);
+        ESP_LOGD(TAG, "[%d] [%s] auth success type = %d mode = %d", this->connection_index_, this->address_str_.c_str(),
+                 param->ble_security.auth_cmpl.addr_type, param->ble_security.auth_cmpl.auth_mode);
       }
       break;
 
