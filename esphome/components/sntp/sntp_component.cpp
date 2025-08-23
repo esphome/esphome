@@ -30,7 +30,11 @@ void SNTPComponent::setup() {
     esp_sntp_setservername(i++, server.c_str());
   }
   esp_sntp_set_sync_interval(this->get_update_interval());
-  esp_sntp_set_time_sync_notification_cb([](struct timeval *tv) { SNTPComponent::instance->time_synced(); });
+  esp_sntp_set_time_sync_notification_cb([](struct timeval *tv) {
+    if (SNTPComponent::instance != nullptr) {
+      SNTPComponent::instance->defer([]() { SNTPComponent::instance->time_synced(); });
+    }
+  });
   esp_sntp_init();
 #else
   sntp_stop();
