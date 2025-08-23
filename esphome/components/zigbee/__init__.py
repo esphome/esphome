@@ -2,7 +2,6 @@ from collections.abc import MutableMapping
 from datetime import datetime
 from typing import Any
 
-# import random
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
@@ -133,22 +132,15 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_ZIGBEE")
-    # zigbee
+
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
 
     zephyr_add_prj_conf("ZIGBEE_CHANNEL_SELECTION_MODE_MULTI", True)
 
-    # TODO zigbee2mqtt do not update configuration of device without this
-    # zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
-    # random_number = random.randint(0x000000, 0xFFFFFF)
-    # zephyr_add_prj_conf("IEEE802154_VENDOR_OUI", random_number)
-
-    # crypto
     zephyr_add_prj_conf("CRYPTO", True)
 
-    # networking
     zephyr_add_prj_conf("NET_IPV6", False)
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)

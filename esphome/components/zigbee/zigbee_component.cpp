@@ -144,17 +144,12 @@ void Zigbee::setup() {
   _erase_flash(FIXED_PARTITION_ID(SETTINGS_STORAGE));
 #endif
 
-  /* Register callback for handling ZCL commands. */
   ZB_ZCL_REGISTER_DEVICE_CB(zcl_device_cb);
-
-  /* Settings should be loaded after zcl_scenes_init */
   err = settings_load();
   if (err) {
     ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
     return;
   }
-
-  /* Start Zigbee default thread */
   zigbee_enable();
 }
 
