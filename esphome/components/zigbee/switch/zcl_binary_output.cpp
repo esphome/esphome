@@ -37,13 +37,13 @@ static zb_ret_t check_value_binary_output_server(zb_uint16_t attr_id, zb_uint8_t
 }
 }
 
-void zb_zcl_binary_output_init_server(void) {
+void zb_zcl_binary_output_init_server() {
   zb_zcl_add_cluster_handlers(ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT, ZB_ZCL_CLUSTER_SERVER_ROLE,
                               esphome::zigbee::check_value_binary_output_server,
                               (zb_zcl_cluster_write_attr_hook_t) NULL, (zb_zcl_cluster_handler_t) NULL);
 }
 
-void zb_zcl_binary_output_init_client(void) {
+void zb_zcl_binary_output_init_client() {
   zb_zcl_add_cluster_handlers(ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT, ZB_ZCL_CLUSTER_CLIENT_ROLE,
                               (zb_zcl_cluster_check_value_t) NULL, (zb_zcl_cluster_write_attr_hook_t) NULL,
                               (zb_zcl_cluster_handler_t) NULL);
