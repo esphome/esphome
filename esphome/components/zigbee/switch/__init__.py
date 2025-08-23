@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import output, switch
-from esphome.components.zigbee_ctx import (
+from esphome.components.zigbee import (
     KEY_EP_NUMBER,
     consume_ep_slots,
     zigbee_register_ep,

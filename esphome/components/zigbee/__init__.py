@@ -1,14 +1,13 @@
+from collections.abc import MutableMapping
 from datetime import datetime
+from typing import Any
 
 # import random
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
-from esphome.components.zigbee_ctx import (
-    KEY_EP_NUMBER,
-    KEY_ZIGBEE,
-    zigbee_set_core_data,
-)
+from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
+from esphome.components.zephyr import zephyr_add_pm_static, zephyr_add_prj_conf
+from esphome.components.zephyr.const import KEY_BOOTLOADER, KEY_ZEPHYR
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, __version__
 from esphome.core import CORE, ID, coroutine_with_priority
@@ -49,11 +48,21 @@ from .const import (
     zigbee_ns,
 )
 
-AUTO_LOAD = ["zigbee_ctx"]
 CODEOWNERS = ["@tomaszduda23"]
 
 CONF_ON_JOIN = "on_join"
 CONF_WIPE_ON_BOOT = "wipe_on_boot"
+KEY_ZIGBEE = "zigbee"
+KEY_EP_NUMBER = "ep_number"
+
+
+def zigbee_set_core_data(config):
+    if CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
+        zephyr_add_pm_static(
+            [Section("empty_after_zboss_offset", 0xF4000, 0xC000, "flash_primary")]
+        )
+
+    return config
 
 
 ZigbeeBaseSchema = cv.Schema(
@@ -202,6 +211,7 @@ async def to_code(config):
     if on_join_config := config.get(CONF_ON_JOIN):
         await automation.build_automation(var.get_join_trigger(), [], on_join_config)
     await cg.register_component(var, config)
+    CORE.add_job(_ctx_to_code, config)
 
 
 FactoryResetAction = zigbee_ns.class_("FactoryResetAction", automation.Action)
@@ -314,3 +324,44 @@ def zigbee_new_cluster_list(config, attr_list):
         rhs.extend([attr_list[1]])
     obj = zigbee_array(config[CONF_CLUSTER_LIST], rhs)
     return (obj, rhs)
+
+
+def consume_ep_slots(config: MutableMapping) -> MutableMapping:
+    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
+    slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
+    slots.extend([""])
+    config[KEY_EP_NUMBER] = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
+    return config
+
+
+def zigbee_register_ep(
+    config,
+    cluster_id,
+    report_attr_count: int,
+    clusters,
+):
+    id_ = config[CONF_EP]
+    in_cluster_num = 0
+    out_cluster_num = 0
+    attrs = []
+    for c in clusters:
+        if c.attr:
+            in_cluster_num += 1
+        else:
+            out_cluster_num += 1
+        attrs.append(c.name)
+    CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER][config[KEY_EP_NUMBER] - 1] = str(id_)
+    obj = cg.RawExpression(
+        f"{id_.type}({id_}, {config[KEY_EP_NUMBER]}, {cluster_id}, {in_cluster_num}, {out_cluster_num}, {report_attr_count}, {', '.join(attrs)})"
+    )
+    CORE.add_global(obj)
+
+
+@coroutine_with_priority(10.0)
+async def _ctx_to_code(config):
+    cg.add_global(
+        cg.RawExpression(
+            f"ZBOSS_DECLARE_DEVICE_CTX_EP_VA(zb_device_ctx, &{', &'.join(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
+        )
+    )
+    cg.add(cg.RawExpression("ZB_AF_REGISTER_DEVICE_CTX(&zb_device_ctx)"))
