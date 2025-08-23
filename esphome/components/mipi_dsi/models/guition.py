@@ -39,8 +39,8 @@ DriverChip(
 # fmt: off
 DriverChip(
     "JC4880P443C",
-    width=480,
-    height=800,
+    width=800,
+    height=480,
     hsync_back_porch=42,
     hsync_pulse_width=12,
     hsync_front_porch=42,
