@@ -938,12 +938,12 @@ template<std::totally_ordered T> T constrain(T value, T min, T max) {
   return value;
 }
 
-template<std::totally_ordered T> T constrainAtLeast(T value, T min) {
+template<std::totally_ordered T> T constrain_at_least(T value, T min) {
   if (value < min)
     return min;
   return value;
 }
-template<std::totally_ordered T> T constrainAtMost(T value, T max) {
+template<std::totally_ordered T> T constrain_at_most(T value, T max) {
   if (value > max)
     return max;
   return value;

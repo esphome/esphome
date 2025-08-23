@@ -7,7 +7,7 @@ esphome:
         int x = 100;
         x = constrain(x, 50, 90);
         assert(x == 90);
-        x = constrainAtLeast(x, 95);
+        x = constrain_at_least(x, 95);
         assert(x == 95);
-        x = constrainAtMost(x, 40);
+        x = constrain_at_most(x, 40);
         assert(x == 40);
