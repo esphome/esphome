@@ -106,7 +106,6 @@ class SpinboxType(WidgetType):
             w.range_from = range_from
             lv.spinbox_set_range(w.obj, range_from, range_to)
             await w.set_property("step", 10**step)
-            w.step = 10**step
             await w.set_property(CONF_ROLLOVER, config)
             lv.spinbox_set_digit_format(
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
@@ -127,9 +126,7 @@ class SpinboxType(WidgetType):
         return config[CONF_RANGE_FROM]
 
     def get_step(self, config: dict):
-        if CONF_SELECTED_DIGIT in config:
-            return 10 ** config[CONF_SELECTED_DIGIT]
-        return 1
+        return 10 ** config[CONF_SELECTED_DIGIT]
 
 
 spinbox_spec = SpinboxType()
