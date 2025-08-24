@@ -21,8 +21,13 @@ struct RetryArgs;
 void retry_handler(const std::shared_ptr<RetryArgs> &args);
 
 class Scheduler {
-  // Allow retry_handler to access protected members
+  // Allow retry_handler to access protected members for internal retry mechanism
   friend void ::esphome::retry_handler(const std::shared_ptr<RetryArgs> &args);
+  // Allow DelayAction to call set_timer_common_ with skip_cancel=true for parallel script delays.
+  // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
+  // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
+  // to accumulate and overload the scheduler if misused.
+  template<typename... Ts> friend class DelayAction;
 
  public:
   // Public API - accepts std::string for backward compatibility
@@ -184,7 +189,7 @@ class Scheduler {
 
   // Common implementation for both timeout and interval
   void set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string, const void *name_ptr,
-                         uint32_t delay, std::function<void()> func, bool is_retry = false);
+                         uint32_t delay, std::function<void()> func, bool is_retry = false, bool skip_cancel = false);
 
   // Common implementation for retry
   void set_retry_common_(Component *component, bool is_static_string, const void *name_ptr, uint32_t initial_wait_time,

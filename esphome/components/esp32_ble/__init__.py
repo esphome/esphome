@@ -280,6 +280,10 @@ async def to_code(config):
             add_idf_sdkconfig_option(
                 "CONFIG_BT_BLE_ESTAB_LINK_CONN_TOUT", timeout_seconds
             )
+            # Increase GATT client connection retry count for problematic devices
+            # Default in ESP-IDF is 3, we increase to 10 for better reliability with
+            # low-power/timing-sensitive devices
+            add_idf_sdkconfig_option("CONFIG_BT_GATTC_CONNECT_RETRY_COUNT", 10)
 
         # Set the maximum number of notification registrations
         # This controls how many BLE characteristics can have notifications enabled
