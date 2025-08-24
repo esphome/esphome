@@ -56,10 +56,29 @@ light:
     warm_white_color_temperature: 2000 K
     constant_brightness: true
     effects:
+      # Use default parameters:
       - random:
-          name: "Random Effect"
+      # Customize parameters - use longer names to potentially trigger buffer issues
+      - random:
+          name: "My Very Slow Random Effect With Long Name"
+          transition_length: 30s
+          update_interval: 30s
+      - random:
+          name: "My Fast Random Effect That Changes Quickly"
+          transition_length: 4s
+          update_interval: 5s
+      - random:
+          name: "Random Effect With Medium Length Name Here"
           transition_length: 100ms
           update_interval: 200ms
+      - random:
+          name: "Another Random Effect With Different Parameters"
+          transition_length: 2s
+          update_interval: 3s
+      - random:
+          name: "Yet Another Random Effect To Test Memory"
+          transition_length: 15s
+          update_interval: 20s
       - strobe:
           name: "Strobe Effect"
       - pulse:
@@ -73,6 +92,17 @@ light:
     red: test_red
     green: test_green
     blue: test_blue
+    effects:
+      # Same random effects to test for cross-contamination
+      - random:
+      - random:
+          name: "RGB Slow Random"
+          transition_length: 20s
+          update_interval: 25s
+      - random:
+          name: "RGB Fast Random"
+          transition_length: 2s
+          update_interval: 3s
 
   - platform: binary
     name: "Test Binary Light"
