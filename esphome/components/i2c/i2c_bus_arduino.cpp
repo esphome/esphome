@@ -65,8 +65,10 @@ void ArduinoI2CBus::set_pins_and_clock_() {
     wire_->setTimeout(timeout_ / 1000);  // unit: ms
 #endif
   }
-  wire_->setClock(frequency_);
+  this->set_clock_();
 }
+
+void ArduinoI2CBus::set_clock_() { wire_->setClock(frequency_); }
 
 void ArduinoI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
@@ -212,6 +214,15 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
       ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
       return ERROR_UNKNOWN;
   }
+}
+
+ErrorCode ArduinoI2CBus::set_frequency(uint32_t frequency) {
+  frequency_ = frequency;
+  if (this->initialized_) {
+    ESP_LOGD(TAG, "Setting frequency to %" PRIu32 " Hz");
+    this->set_clock_();
+  }
+  return ERROR_OK;
 }
 
 /// Perform I2C bus recovery, see:

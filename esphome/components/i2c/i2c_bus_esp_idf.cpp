@@ -19,6 +19,7 @@ namespace i2c {
 static const char *const TAG = "i2c.idf";
 
 void IDFI2CBus::setup() {
+  esp_err_t err;
   static i2c_port_t next_port = I2C_NUM_0;
   this->port_ = next_port;
   if (this->port_ == I2C_NUM_MAX) {
@@ -53,31 +54,16 @@ void IDFI2CBus::setup() {
   bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
 #endif
   bus_conf.flags.enable_internal_pullup = sda_pullup_enabled_ || scl_pullup_enabled_;
-  esp_err_t err = i2c_new_master_bus(&bus_conf, &this->bus_);
+  err = i2c_new_master_bus(&bus_conf, &this->bus_);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
-  i2c_device_config_t dev_conf{};
-  memset(&dev_conf, 0, sizeof(dev_conf));
-  dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-  dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
-  dev_conf.scl_speed_hz = this->frequency_;
-  dev_conf.scl_wait_us = this->timeout_;
-  err = i2c_master_bus_add_device(this->bus_, &dev_conf, &this->dev_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
+  if (this->set_clock_() != ERROR_OK) {
     this->mark_failed();
     return;
-  }
-
-  this->initialized_ = true;
-
-  if (this->scan_) {
-    ESP_LOGV(TAG, "Scanning for devices");
-    this->i2c_scan();
   }
 #else
 #if SOC_HP_I2C_NUM > 1
@@ -86,21 +72,7 @@ void IDFI2CBus::setup() {
   next_port = I2C_NUM_MAX;
 #endif
 
-  i2c_config_t conf{};
-  memset(&conf, 0, sizeof(conf));
-  conf.mode = I2C_MODE_MASTER;
-  conf.sda_io_num = sda_pin_;
-  conf.sda_pullup_en = sda_pullup_enabled_;
-  conf.scl_io_num = scl_pin_;
-  conf.scl_pullup_en = scl_pullup_enabled_;
-  conf.master.clk_speed = frequency_;
-#ifdef USE_ESP32_VARIANT_ESP32S2
-  // workaround for https://github.com/esphome/issues/issues/6718
-  conf.clk_flags = I2C_SCLK_SRC_FLAG_AWARE_DFS;
-#endif
-  esp_err_t err = i2c_param_config(port_, &conf);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
+  if (this->set_clock_() != ERROR_OK) {
     this->mark_failed();
     return;
   }
@@ -120,13 +92,49 @@ void IDFI2CBus::setup() {
     this->mark_failed();
     return;
   }
+#endif
 
-  initialized_ = true;
+  this->initialized_ = true;
+
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning bus for active devices");
     this->i2c_scan();
   }
+}
+
+ErrorCode IDFI2CBus::set_clock_() {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
+  i2c_device_config_t dev_conf{};
+  memset(&dev_conf, 0, sizeof(dev_conf));
+  dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+  dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
+  dev_conf.scl_speed_hz = this->frequency_;
+  dev_conf.scl_wait_us = this->timeout_;
+  const esp_err_t err = i2c_master_bus_add_device(this->bus_, &dev_conf, &this->dev_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
+    return ERROR_UNKNOWN;
+  }
+#else
+  i2c_config_t conf{};
+  memset(&conf, 0, sizeof(conf));
+  conf.mode = I2C_MODE_MASTER;
+  conf.sda_io_num = sda_pin_;
+  conf.sda_pullup_en = sda_pullup_enabled_;
+  conf.scl_io_num = scl_pin_;
+  conf.scl_pullup_en = scl_pullup_enabled_;
+  conf.master.clk_speed = frequency_;
+#ifdef USE_ESP32_VARIANT_ESP32S2
+  // workaround for https://github.com/esphome/issues/issues/6718
+  conf.clk_flags = I2C_SCLK_SRC_FLAG_AWARE_DFS;
 #endif
+  const esp_err_t err = i2c_param_config(port_, &conf);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
+    return ERROR_UNKNOWN;
+  }
+#endif
+  return ERROR_OK;
 }
 
 void IDFI2CBus::dump_config() {
@@ -427,6 +435,15 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
     return ERROR_UNKNOWN;
   }
 #endif
+  return ERROR_OK;
+}
+
+ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
+  frequency_ = frequency;
+  if (this->initialized_) {
+    ESP_LOGD(TAG, "Setting frequency to %" PRIu32 " Hz");
+    return this->set_clock_();
+  }
   return ERROR_OK;
 }
 

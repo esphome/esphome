@@ -33,13 +33,15 @@ class IDFI2CBus : public InternalI2CBus, public Component {
   void set_sda_pullup_enabled(bool sda_pullup_enabled) { sda_pullup_enabled_ = sda_pullup_enabled; }
   void set_scl_pin(uint8_t scl_pin) { scl_pin_ = scl_pin; }
   void set_scl_pullup_enabled(bool scl_pullup_enabled) { scl_pullup_enabled_ = scl_pullup_enabled; }
-  void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
   int get_port() const override { return static_cast<int>(this->port_); }
+  ErrorCode set_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
 
  private:
   void recover_();
+  ErrorCode set_clock_();
   RecoveryCode recovery_result_;
 
  protected:
