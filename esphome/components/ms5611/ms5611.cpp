@@ -15,7 +15,6 @@ static const uint8_t MS5611_CMD_CONV_D2 = 0x50;
 static const uint8_t MS5611_CMD_READ_PROM = 0xA2;
 
 void MS5611Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_bytes(MS5611_CMD_RESET, nullptr, 0)) {
     this->mark_failed();
     return;

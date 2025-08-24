@@ -29,7 +29,7 @@ from esphome.core import CORE, coroutine_with_priority
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
@@ -53,6 +53,8 @@ SERVICE_ARG_NATIVE_TYPES = {
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
+CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
+CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 
 
 def validate_encryption_key(value):
@@ -118,6 +120,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
             cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),
@@ -145,6 +149,12 @@ async def to_code(config):
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_SERVICES]:
+        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_STATES]:
+        cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
         for conf in actions:
@@ -235,6 +245,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
 )
 async def homeassistant_service_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
     templ = await cg.templatable(config[CONF_ACTION], args, None)
@@ -278,6 +289,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     templ = await cg.templatable(config[CONF_EVENT], args, None)
@@ -309,6 +321,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     cg.add(var.set_service("esphome.tag_scanned"))
@@ -323,9 +336,10 @@ async def api_connected_to_code(config, condition_id, template_arg, args):
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled
-    and user_services.cpp when no services are defined."""
-    files_to_filter = []
+    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled,
+    user_services.cpp when no services are defined, and protocol-specific
+    implementations based on encryption configuration."""
+    files_to_filter: list[str] = []
 
     # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
     # This is a particularly large file that still needs to be opened and read
@@ -340,5 +354,17 @@ def FILTER_SOURCE_FILES() -> list[str]:
     config = CORE.config.get(DOMAIN, {})
     if config and not config.get(CONF_ACTIONS) and not config[CONF_CUSTOM_SERVICES]:
         files_to_filter.append("user_services.cpp")
+
+    # Filter protocol-specific implementations based on encryption configuration
+    encryption_config = config.get(CONF_ENCRYPTION) if config else None
+
+    # If encryption is not configured at all, we only need plaintext
+    if encryption_config is None:
+        files_to_filter.append("api_frame_helper_noise.cpp")
+    # If encryption is configured with a key, we only need noise
+    elif encryption_config.get(CONF_KEY):
+        files_to_filter.append("api_frame_helper_plaintext.cpp")
+    # If encryption is configured but no key is provided, we need both
+    # (this allows a plaintext client to provide a noise key)
 
     return files_to_filter

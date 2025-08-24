@@ -16,6 +16,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_RP2040,
+    ThreadModel,
 )
 from esphome.core import CORE, EsphomeError, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, mkdir_p, read_file, write_file
@@ -171,6 +172,7 @@ async def to_code(config):
     cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")
+    cg.add_define(ThreadModel.SINGLE)
 
     cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
@@ -204,7 +206,7 @@ def add_pio_file(component: str, key: str, data: str):
         cv.validate_id_name(key)
     except cv.Invalid as e:
         raise EsphomeError(
-            f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/issues"
+            f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/esphome/issues"
         ) from e
     CORE.data[KEY_RP2040][KEY_PIO_FILES][key] = data
 

@@ -534,6 +534,8 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {
+    if (!this->get_clipping().inside(x, y))
+      return;
     rotate_coordinates_(x, y);
     if (x < 0 || x >= WIDTH || y < this->start_line_ || y >= this->end_line_)
       return;

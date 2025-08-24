@@ -1,0 +1,52 @@
+espnow:
+  auto_add_peer: false
+  channel: 1
+  peers:
+    - 11:22:33:44:55:66
+  on_receive:
+    - logger.log:
+        format: "Received from: %s = '%s'  RSSI: %d"
+        args:
+          - format_mac_address_pretty(info.src_addr).c_str()
+          - format_hex_pretty(data, size).c_str()
+          - info.rx_ctrl->rssi
+    - espnow.send:
+        address: 11:22:33:44:55:66
+        data: "Hello from ESPHome"
+        on_sent:
+          - logger.log: "ESPNow message sent successfully"
+        on_error:
+          - logger.log: "ESPNow message failed to send"
+        wait_for_sent: true
+        continue_on_error: true
+
+    - espnow.send:
+        address: 11:22:33:44:55:66
+        data: [0x01, 0x02, 0x03, 0x04, 0x05]
+    - espnow.send:
+        address: 11:22:33:44:55:66
+        data: !lambda 'return {0x01, 0x02, 0x03, 0x04, 0x05};'
+    - espnow.broadcast:
+        data: "Hello, World!"
+    - espnow.broadcast:
+        data: [0x01, 0x02, 0x03, 0x04, 0x05]
+    - espnow.broadcast:
+        data: !lambda 'return {0x01, 0x02, 0x03, 0x04, 0x05};'
+    - espnow.peer.add:
+        address: 11:22:33:44:55:66
+    - espnow.peer.delete:
+        address: 11:22:33:44:55:66
+  on_broadcast:
+    - logger.log:
+        format: "Broadcast from: %s = '%s'  RSSI: %d"
+        args:
+          - format_mac_address_pretty(info.src_addr).c_str()
+          - format_hex_pretty(data, size).c_str()
+          - info.rx_ctrl->rssi
+  on_unknown_peer:
+    - logger.log:
+        format: "Unknown peer: %s = '%s'  RSSI: %d"
+        args:
+          - format_mac_address_pretty(info.src_addr).c_str()
+          - format_hex_pretty(data, size).c_str()
+          - info.rx_ctrl->rssi

@@ -89,9 +89,10 @@ def validate_(config):
             raise cv.Invalid("No sensors or binary sensors to encrypt")
     elif config[CONF_ROLLING_CODE_ENABLE]:
         raise cv.Invalid("Rolling code requires an encryption key")
-    if config[CONF_PING_PONG_ENABLE]:
-        if not any(CONF_ENCRYPTION in p for p in config.get(CONF_PROVIDERS) or ()):
-            raise cv.Invalid("Ping-pong requires at least one encrypted provider")
+    if config[CONF_PING_PONG_ENABLE] and not any(
+        CONF_ENCRYPTION in p for p in config.get(CONF_PROVIDERS) or ()
+    ):
+        raise cv.Invalid("Ping-pong requires at least one encrypted provider")
     return config
 
 

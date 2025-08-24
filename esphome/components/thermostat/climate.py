@@ -477,11 +477,11 @@ def validate_thermostat(config):
     if (
         CONF_ON_BOOT_RESTORE_FROM in config
         and config[CONF_ON_BOOT_RESTORE_FROM] is OnBootRestoreFrom.DEFAULT_PRESET
+        and CONF_DEFAULT_PRESET not in config
     ):
-        if CONF_DEFAULT_PRESET not in config:
-            raise cv.Invalid(
-                f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_ON_BOOT_RESTORE_FROM} in DEFAULT_PRESET mode"
-            )
+        raise cv.Invalid(
+            f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_ON_BOOT_RESTORE_FROM} in DEFAULT_PRESET mode"
+        )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(

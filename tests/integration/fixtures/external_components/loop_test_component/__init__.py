@@ -72,8 +72,7 @@ DisableAction = loop_test_component_ns.class_("DisableAction", automation.Action
 )
 async def enable_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
@@ -87,8 +86,7 @@ async def enable_to_code(config, action_id, template_arg, args):
 )
 async def disable_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 async def to_code(config):

@@ -11,7 +11,6 @@ void TemplateSelect::setup() {
     return;
 
   std::string value;
-  ESP_LOGD(TAG, "Setting up");
   if (!this->restore_value_) {
     value = this->initial_option_;
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());

@@ -204,3 +204,9 @@ button:
           command: 0xEC
           rc_code_1: 0x0D
           rc_code_2: 0x0D
+  - platform: template
+    name: Digital Write
+    on_press:
+      - remote_transmitter.digital_write: true
+      - remote_transmitter.digital_write:
+          value: false

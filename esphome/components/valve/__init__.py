@@ -202,9 +202,9 @@ async def valve_stop_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action("valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA)
-def valve_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def valve_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -235,5 +235,4 @@ async def valve_control_to_code(config, action_id, template_arg, args):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_VALVE")
     cg.add_global(valve_ns.using)

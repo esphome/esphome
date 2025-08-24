@@ -33,7 +33,7 @@ def validate_printf(value):
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
     """  # noqa
-    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
+    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
