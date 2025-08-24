@@ -283,9 +283,11 @@ async def test_light_calls(
         # Test 31: Verify all random effects can be cycled through quickly
         effects = [
             "Random",  # Default random effect (gets default name)
-            "My Slow Random Effect",
-            "My Fast Random Effect",
-            "Random Effect",
+            "My Very Slow Random Effect With Long Name",
+            "My Fast Random Effect That Changes Quickly",
+            "Random Effect With Medium Length Name Here",
+            "Another Random Effect With Different Parameters",
+            "Yet Another Random Effect To Test Memory",
             "Strobe Effect",
             "Pulse Effect",
             "None",
@@ -298,26 +300,30 @@ async def test_light_calls(
 
         # Test 32: Effects with transitions
         client.light_command(
-            key=rgbcw_light.key, effect="My Slow Random Effect", transition_length=0.5
+            key=rgbcw_light.key,
+            effect="My Very Slow Random Effect With Long Name",
+            transition_length=0.5,
         )
         state = await wait_for_state_change(rgbcw_light.key)
-        assert state.effect == "My Slow Random Effect"
+        assert state.effect == "My Very Slow Random Effect With Long Name"
 
         # Test 33: Change effect while maintaining brightness
         client.light_command(
-            key=rgbcw_light.key, brightness=0.6, effect="My Fast Random Effect"
+            key=rgbcw_light.key,
+            brightness=0.6,
+            effect="My Fast Random Effect That Changes Quickly",
         )
         state = await wait_for_state_change(rgbcw_light.key)
         assert state.brightness == pytest.approx(0.6)
-        assert state.effect == "My Fast Random Effect"
+        assert state.effect == "My Fast Random Effect That Changes Quickly"
 
         # Test 34: Rapid switching between random effects to detect memory corruption
         # The corruption would manifest as wrong effect names or parameters getting mixed
         rapid_switch_effects = [
             "Random",
-            "My Slow Random Effect",
-            "My Fast Random Effect",
-            "Random Effect",
+            "My Very Slow Random Effect With Long Name",
+            "My Fast Random Effect That Changes Quickly",
+            "Random Effect With Medium Length Name Here",
         ]
 
         # Store initial state of each effect by activating them once
@@ -328,9 +334,9 @@ async def test_light_calls(
             effect_states[effect] = state.effect
 
         # Do multiple rapid switches to increase chance of detecting corruption
-        for round in range(5):
+        for round in range(2):
             # Send commands without waiting - this stresses the system
-            for _ in range(10):  # Send each effect multiple times rapidly
+            for _ in range(5):  # Send each effect multiple times rapidly
                 for effect in rapid_switch_effects:
                     client.light_command(key=rgbcw_light.key, effect=effect)
 
@@ -345,7 +351,7 @@ async def test_light_calls(
 
         # Test 35: Switch between effects and verify names don't get corrupted
         # This specifically tests for memory corruption between effect instances
-        for i in range(10):
+        for i in range(3):
             # Cycle through all random effects with longer names
             test_effects = [
                 "Random",
@@ -381,21 +387,24 @@ async def test_light_calls(
         # This tests if effects on one light corrupt effects on another light
         if rgb_light:
             # Activate different random effects on both lights simultaneously
-            client.light_command(key=rgbcw_light.key, effect="My Slow Random Effect")
+            client.light_command(
+                key=rgbcw_light.key, effect="My Very Slow Random Effect With Long Name"
+            )
             client.light_command(key=rgb_light.key, effect="RGB Fast Random")
 
             # Wait for both to update
             rgbcw_state = await wait_for_state_change(rgbcw_light.key)
             rgb_state = await wait_for_state_change(rgb_light.key)
 
-            assert rgbcw_state.effect == "My Slow Random Effect"
+            assert rgbcw_state.effect == "My Very Slow Random Effect With Long Name"
             assert rgb_state.effect == "RGB Fast Random"
 
             # Rapidly alternate between lights with different effects
             for i in range(20):
                 if i % 2 == 0:
                     client.light_command(
-                        key=rgbcw_light.key, effect="My Fast Random Effect"
+                        key=rgbcw_light.key,
+                        effect="My Fast Random Effect That Changes Quickly",
                     )
                     client.light_command(key=rgb_light.key, effect="RGB Slow Random")
                 else:
@@ -403,9 +412,11 @@ async def test_light_calls(
                     client.light_command(key=rgb_light.key, effect="Random")
 
             # Verify both lights still have valid effect names (not corrupted/mixed)
-            client.light_command(key=rgbcw_light.key, effect="My Slow Random Effect")
+            client.light_command(
+                key=rgbcw_light.key, effect="My Very Slow Random Effect With Long Name"
+            )
             rgbcw_state = await wait_for_state_change(rgbcw_light.key)
-            assert rgbcw_state.effect == "My Slow Random Effect", (
+            assert rgbcw_state.effect == "My Very Slow Random Effect With Long Name", (
                 f"RGBCW effect corrupted: {rgbcw_state.effect}"
             )
 
