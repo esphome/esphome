@@ -9,9 +9,9 @@ static const char *const TAG = "tee501";
 
 void TEE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
-  this->write(address, 2);
   uint8_t identification[9];
   this->read(identification, 9);
+  this->write_read(address, sizeof address, identification, sizeof identification);
   if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
     this->error_code_ = CRC_CHECK_FAILED;
     this->mark_failed();
