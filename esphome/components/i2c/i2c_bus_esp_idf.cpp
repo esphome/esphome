@@ -441,7 +441,7 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
 ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
   frequency_ = frequency;
   if (this->initialized_) {
-    ESP_LOGD(TAG, "Setting frequency to %" PRIu32 " Hz");
+    ESP_LOGD(TAG, "Setting frequency to %" PRIu32 " Hz", frequency_);
     return this->set_clock_();
   }
   return ERROR_OK;
