@@ -38,7 +38,7 @@ This document provides essential context for AI models interacting with this pro
     5.  **Dashboard** (`esphome/dashboard/`): A web-based interface for device configuration, management, and OTA updates.
 
 *   **Platform Support:**
-    1.  **ESP32** (`components/esp32/`): Espressif ESP32 family. Supports multiple variants (C2, C3, C5, C6, H2, P4, S2, S3) and both frameworks (ESP-IDF, Arduino).
+    1.  **ESP32** (`components/esp32/`): Espressif ESP32 family. Supports multiple variants (Original, C2, C3, C5, C6, H2, P4, S2, S3) with ESP-IDF framework. Arduino framework supports only a subset of the variants (Original, C3, S2, S3).
     2.  **ESP8266** (`components/esp8266/`): Espressif ESP8266. Arduino framework only, with memory constraints.
     3.  **RP2040** (`components/rp2040/`): Raspberry Pi Pico/RP2040. Arduino framework with PIO (Programmable I/O) support.
     4.  **LibreTiny** (`components/libretiny/`): Realtek and Beken chips. Supports multiple chip families and auto-generated components.
