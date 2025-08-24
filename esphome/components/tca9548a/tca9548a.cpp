@@ -50,7 +50,6 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel, uint32_t fr
     }
   }
 
-  // DAVe3283 ↓ I made this const, does that compile?
   const uint8_t channel_val = 1 << channel;
   return this->write(&channel_val, 1);
 }
