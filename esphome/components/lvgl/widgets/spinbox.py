@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_RANGE_FROM, CONF_RANGE_TO, CONF_VALUE
+from esphome.const import CONF_ID, CONF_RANGE_FROM, CONF_RANGE_TO, CONF_STEP, CONF_VALUE
 
 from ..automation import action_to_code, update_to_code
 from ..defines import (
@@ -66,7 +66,9 @@ SPINBOX_SCHEMA = cv.Schema(
         cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
         cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
         cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
-        cv.Optional(CONF_STEP): cv.invalid(f"{CONF_STEP} has been replaced by {CONF_SELECTED_DIGIT}"),
+        cv.Optional(CONF_STEP): cv.invalid(
+            f"{CONF_STEP} has been replaced by {CONF_SELECTED_DIGIT}"
+        ),
         cv.Optional(CONF_SELECTED_DIGIT, default=0): cv.positive_int,
         cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
         cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
