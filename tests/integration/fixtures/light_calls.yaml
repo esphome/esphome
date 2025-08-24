@@ -61,24 +61,24 @@ light:
       # Customize parameters - use longer names to potentially trigger buffer issues
       - random:
           name: "My Very Slow Random Effect With Long Name"
-          transition_length: 30s
-          update_interval: 30s
+          transition_length: 30ms
+          update_interval: 30ms
       - random:
           name: "My Fast Random Effect That Changes Quickly"
-          transition_length: 4s
-          update_interval: 5s
+          transition_length: 4ms
+          update_interval: 5ms
       - random:
           name: "Random Effect With Medium Length Name Here"
           transition_length: 100ms
           update_interval: 200ms
       - random:
           name: "Another Random Effect With Different Parameters"
-          transition_length: 2s
-          update_interval: 3s
+          transition_length: 2ms
+          update_interval: 3ms
       - random:
           name: "Yet Another Random Effect To Test Memory"
-          transition_length: 15s
-          update_interval: 20s
+          transition_length: 15ms
+          update_interval: 20ms
       - strobe:
           name: "Strobe Effect"
       - pulse:
@@ -97,12 +97,12 @@ light:
       - random:
       - random:
           name: "RGB Slow Random"
-          transition_length: 20s
-          update_interval: 25s
+          transition_length: 20ms
+          update_interval: 25ms
       - random:
           name: "RGB Fast Random"
-          transition_length: 2s
-          update_interval: 3s
+          transition_length: 2ms
+          update_interval: 3ms
 
   - platform: binary
     name: "Test Binary Light"
