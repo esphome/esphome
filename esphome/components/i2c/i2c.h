@@ -161,7 +161,7 @@ class I2CDevice {
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
-  ErrorCode read(uint8_t *data, size_t len) { return bus_->read(address_, data, len); }
+  ErrorCode read(uint8_t *data, size_t len) const { return bus_->read(this->address_, data, len); }
 
   /// @brief reads an array of bytes from a specific register in the I²C device
   /// @param a_register an 8 bits internal address of the I²C register to read from
@@ -181,21 +181,21 @@ class I2CDevice {
   /// @param data pointer to an array that contains the bytes to send
   /// @param len length of the buffer = number of bytes to write
   /// @return an i2c::ErrorCode
-  ErrorCode write(const uint8_t *data, size_t len) { return bus_->write(address_, data, len, true); }
+  ErrorCode write(const uint8_t *data, size_t len) const { return bus_->write(this->address_, data, len); }
 
   /// @brief writes an array of bytes to a specific register in the I²C device
   /// @param a_register the internal address of the register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
-  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len);
+  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len) const;
 
   /// @brief write an array of bytes to a specific register in the I²C device
   /// @param a_register the 16 bits internal address of the register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
-  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len);
+  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
 
   ///
   /// Compat APIs
@@ -207,7 +207,7 @@ class I2CDevice {
     return read_register(a_register, data, len) == ERROR_OK;
   }
 
-  bool read_bytes_raw(uint8_t *data, uint8_t len) { return read(data, len) == ERROR_OK; }
+  bool read_bytes_raw(uint8_t *data, uint8_t len) const { return read(data, len) == ERROR_OK; }
 
   template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
     std::array<uint8_t, N> res;
@@ -237,11 +237,11 @@ class I2CDevice {
 
   bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
-  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) {
+  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) const {
     return write_register(a_register, data, len) == ERROR_OK;
   }
 
-  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) {
+  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) const {
     return write_bytes(a_register, data.data(), data.size());
   }
 
@@ -249,11 +249,11 @@ class I2CDevice {
     return write_bytes(a_register, data.data(), data.size());
   }
 
-  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);
+  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const;
 
-  bool write_byte(uint8_t a_register, uint8_t data) { return write_bytes(a_register, &data, 1); }
+  bool write_byte(uint8_t a_register, uint8_t data) const { return write_bytes(a_register, &data, 1); }
 
-  bool write_byte_16(uint8_t a_register, uint16_t data) { return write_bytes_16(a_register, &data, 1); }
+  bool write_byte_16(uint8_t a_register, uint16_t data) const { return write_bytes_16(a_register, &data, 1); }
 
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus

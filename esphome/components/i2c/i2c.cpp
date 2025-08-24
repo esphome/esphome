@@ -1,4 +1,5 @@
 #include "i2c.h"
+
 #include "esphome/core/log.h"
 #include <memory>
 
@@ -8,37 +9,27 @@ namespace i2c {
 static const char *const TAG = "i2c";
 
 ErrorCode I2CDevice::read_register(uint8_t a_register, uint8_t *data, size_t len) {
-  ErrorCode err = this->write(&a_register, 1);
-  if (err != ERROR_OK)
-    return err;
-  return bus_->read(address_, data, len);
+  return bus_->write_readv(this->address_, &a_register, 1, data, len);
 }
 
 ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t len) {
   a_register = convert_big_endian(a_register);
-  ErrorCode const err = this->write(reinterpret_cast<const uint8_t *>(&a_register), 2);
-  if (err != ERROR_OK)
-    return err;
-  return bus_->read(address_, data, len);
+  return bus_->write_readv(this->address_, reinterpret_cast<const uint8_t *>(&a_register), 2, data, len);
 }
 
-ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) {
-  WriteBuffer buffers[2];
-  buffers[0].data = &a_register;
-  buffers[0].len = 1;
-  buffers[1].data = data;
-  buffers[1].len = len;
-  return bus_->writev(address_, buffers, 2, true);
+ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
+  std::vector<uint8_t> v(len + 1);
+  v.push_back(a_register);
+  v.insert(v.end(), data, data + len);
+  return bus_->write_readv(this->address_, v.data(), v.size(), nullptr, 0);
 }
 
-ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) {
-  a_register = convert_big_endian(a_register);
-  WriteBuffer buffers[2];
-  buffers[0].data = reinterpret_cast<const uint8_t *>(&a_register);
-  buffers[0].len = 2;
-  buffers[1].data = data;
-  buffers[1].len = len;
-  return bus_->writev(address_, buffers, 2, true);
+ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
+  std::vector<uint8_t> v(len + 2);
+  v.push_back(a_register >> 8);
+  v.push_back(a_register);
+  v.insert(v.end(), data, data + len);
+  return bus_->write_readv(this->address_, v.data(), v.size(), nullptr, 0);
 }
 
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
@@ -49,7 +40,7 @@ bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
   return true;
 }
 
-bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) {
+bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {
   // we have to copy in order to be able to change byte order
   std::unique_ptr<uint16_t[]> temp{new uint16_t[len]};
   for (size_t i = 0; i < len; i++)

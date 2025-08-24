@@ -14,11 +14,11 @@ i2c::ErrorCode TCA9548AChannel::readv(uint8_t address, i2c::ReadBuffer *buffers,
   this->parent_->disable_all_channels();
   return err;
 }
-i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt, bool stop) {
+i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt) {
   auto err = this->parent_->switch_to_channel(channel_);
   if (err != i2c::ERROR_OK)
     return err;
-  err = this->parent_->bus_->writev(address, buffers, cnt, stop);
+  err = this->parent_->bus_->writev(address, buffers, cnt);
   this->parent_->disable_all_channels();
   return err;
 }
