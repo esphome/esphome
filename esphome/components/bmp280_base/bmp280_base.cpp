@@ -188,9 +188,10 @@ void BMP280Component::update() {
 }
 
 float BMP280Component::read_temperature_(int32_t *t_fine) {
-  uint8_t data[3];
+  uint8_t data[3]{};
   if (!this->read_bytes_(BMP280_REGISTER_TEMPDATA, data, 3))
     return NAN;
+  ESP_LOGD(TAG, "Read temperature data, raw: %02X %02X %02X", data[0], data[1], data[2]);
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000) {

@@ -328,30 +328,44 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
   }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
-  std::vector<i2c_operation_job_t> jobs{};
+  i2c_operation_job_t jobs[8]{};
+  size_t num_jobs = 0;
+  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
+  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
   ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", write_count, read_count);
   if (write_count != 0) {
     ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty(write_buffer, write_count).c_str());
-    uint8_t write = (address << 1) | I2C_MASTER_WRITE;
-    jobs.push_back({.command = I2C_MASTER_CMD_START});
-    jobs.push_back({.command = I2C_MASTER_CMD_WRITE, .write = {.ack_check = true, .data = &write, .total_bytes = 1}});
-    jobs.push_back({.command = I2C_MASTER_CMD_WRITE,
-                    .write = {.ack_check = true, .data = (uint8_t *) write_buffer, .total_bytes = write_count}});
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+    jobs[num_jobs].write.ack_check = true;
+    jobs[num_jobs].write.data = &write_addr;
+    jobs[num_jobs++].write.total_bytes = 1;
+    jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+    jobs[num_jobs].write.ack_check = true;
+    jobs[num_jobs].write.data = (uint8_t *) write_buffer;
+    jobs[num_jobs++].write.total_bytes = write_count;
   }
   if (read_count != 0) {
-    uint8_t read = (address << 1) | I2C_MASTER_READ;
-    jobs.push_back({.command = I2C_MASTER_CMD_START});
-    jobs.push_back({.command = I2C_MASTER_CMD_WRITE, .write = {.ack_check = true, .data = &read, .total_bytes = 1}});
-    // if (read_count > 1) {
-    // jobs.push_back({.command = I2C_MASTER_CMD_READ, .read = {.ack_value = I2C_ACK_VAL, .data = read_buffer,
-    // .total_bytes = read_count - 1}});
-    //}
-    jobs.push_back({.command = I2C_MASTER_CMD_READ,
-                    .read = {.ack_value = I2C_NACK_VAL, .data = read_buffer, .total_bytes = read_count}});
+    ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+    jobs[num_jobs].write.ack_check = true;
+    jobs[num_jobs].write.data = &read_addr;
+    jobs[num_jobs++].write.total_bytes = 1;
+    if (read_count > 1) {
+      jobs[num_jobs].command = I2C_MASTER_CMD_READ;
+      jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
+      jobs[num_jobs].read.data = read_buffer;
+      jobs[num_jobs++].read.total_bytes = read_count - 1;
+    }
+    jobs[num_jobs].command = I2C_MASTER_CMD_READ;
+    jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
+    jobs[num_jobs].read.data = read_buffer + read_count - 1;
+    jobs[num_jobs++].read.total_bytes = 1;
   }
-  jobs.push_back({.command = I2C_MASTER_CMD_STOP});
-  ESP_LOGD(TAG, "Sending %d operations", (int) jobs.size());
-  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs.data(), jobs.size(), 20);
+  jobs[num_jobs++].command = I2C_MASTER_CMD_STOP;
+  ESP_LOGV(TAG, "Sending %zu jobs", num_jobs);
+  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num_jobs, 20);
   if (err == ESP_ERR_INVALID_STATE) {
     ESP_LOGV(TAG, "TX to %02X failed: not acked", address);
     return ERROR_NOT_ACKNOWLEDGED;
