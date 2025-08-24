@@ -39,7 +39,7 @@ def validate_spinbox(config):
     min_val = -1 - max_val
     range_from = int(config[CONF_RANGE_FROM])
     range_to = int(config[CONF_RANGE_TO])
-    step = config.get(CONF_SELECTED_DIGIT)
+    step = config[CONF_SELECTED_DIGIT]
     digits = config[CONF_DIGITS]
     if (
         range_from > max_val
@@ -52,7 +52,7 @@ def validate_spinbox(config):
         raise cv.Invalid(
             "Number of digits must exceed number of decimal places", path=[CONF_DIGITS]
         )
-    if step is not None and step >= digits:
+    if step >= digits:
         raise cv.Invalid(
             "Initial selected digit must be less than number of digits",
             path=[CONF_SELECTED_DIGIT],
@@ -100,14 +100,13 @@ class SpinboxType(WidgetType):
             scale = 10 ** config[CONF_DECIMAL_PLACES]
             range_from = int(config[CONF_RANGE_FROM]) * scale
             range_to = int(config[CONF_RANGE_TO]) * scale
-            step = config.get(CONF_SELECTED_DIGIT)
+            step = config[CONF_SELECTED_DIGIT]
             w.scale = scale
             w.range_to = range_to
             w.range_from = range_from
             lv.spinbox_set_range(w.obj, range_from, range_to)
-            if step is not None:
-                await w.set_property("step", 10**step)
-                w.step = 10**step
+            await w.set_property("step", 10**step)
+            w.step = 10**step
             await w.set_property(CONF_ROLLOVER, config)
             lv.spinbox_set_digit_format(
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
