@@ -11,7 +11,7 @@ static const char *const TAG = "nextion.upload";
 bool Nextion::upload_end_(bool successful) {
   if (successful) {
     ESP_LOGD(TAG, "Upload successful");
-    for (uint8_t i; i<=5; i++) {
+    for (uint8_t i=0; i<=5; i++) {
       delay(1000);  // NOLINT
       App.feed_wdt();  // Feed the watchdog timer.
     }
