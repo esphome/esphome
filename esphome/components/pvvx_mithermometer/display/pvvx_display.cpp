@@ -46,10 +46,32 @@ void PVVXDisplay::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
       }
       this->connection_established_ = true;
       this->char_handle_ = chr->handle;
-#ifdef USE_TIME
-      this->sync_time_();
-#endif
-      this->display();
+
+      // Attempt to write immediately
+      // For devices without security, this will work
+      // For devices with security that are already paired, this will work
+      // For devices that need pairing, the write will be retried after auth completes
+      this->sync_time_and_display_();
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void PVVXDisplay::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  switch (event) {
+    case ESP_GAP_BLE_AUTH_CMPL_EVT: {
+      if (!this->parent_->check_addr(param->ble_security.auth_cmpl.bd_addr))
+        return;
+
+      if (param->ble_security.auth_cmpl.success) {
+        ESP_LOGD(TAG, "[%s] Authentication successful, performing writes.", this->parent_->address_str().c_str());
+        // Now that pairing is complete, perform the pending writes
+        this->sync_time_and_display_();
+      } else {
+        ESP_LOGW(TAG, "[%s] Authentication failed.", this->parent_->address_str().c_str());
+      }
       break;
     }
     default:
@@ -125,6 +147,13 @@ void PVVXDisplay::delayed_disconnect_() {
     return;
   this->cancel_timeout("disconnect");
   this->set_timeout("disconnect", this->disconnect_delay_ms_, [this]() { this->parent_->set_enabled(false); });
+}
+
+void PVVXDisplay::sync_time_and_display_() {
+#ifdef USE_TIME
+  this->sync_time_();
+#endif
+  this->display();
 }
 
 #ifdef USE_TIME
