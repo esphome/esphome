@@ -41,11 +41,8 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel, uint32_t fr
   if (this->is_failed())
     return i2c::ERROR_NOT_INITIALIZED;
 
-  ESP_LOGD(TAG, "Switching to channel %d", channel);  // DAVe3283: debug only, remove for final
   if (frequency) {
     this->original_frequency_ = this->bus_->get_frequency();
-    ESP_LOGD(TAG, "Switching frequency from %" PRIu32 " Hz to %" PRIu32 " Hz", this->original_frequency_,
-             frequency);  // DAVe3283: debug only, remove for final
     i2c::ErrorCode err = this->bus_->set_frequency(frequency);
     if (err != i2c::ERROR_OK) {
       this->status_set_error("Failed to change frequency.");
@@ -59,7 +56,6 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel, uint32_t fr
 }
 
 void TCA9548AComponent::disable_all_channels(bool restore_original_frequency) {
-  ESP_LOGD(TAG, "Disabling all channels");  // DAVe3283: debug only, remove for final
   if (this->write(&TCA9548A_DISABLE_CHANNELS_COMMAND, 1) != i2c::ERROR_OK) {
     this->status_set_error("Failed to disable all channels.");
   }
