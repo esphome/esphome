@@ -8,6 +8,22 @@ namespace i2c {
 
 static const char *const TAG = "i2c";
 
+void I2CBus::i2c_scan() {
+  // suppress logs from the IDF I2C library during the scan
+  auto previous = esp_log_level_get("*");
+  esp_log_level_set("*", ESP_LOG_NONE);
+
+  for (uint8_t address = 8; address != 120; address++) {
+    auto err = write_readv(address, nullptr, 0, nullptr, 0);
+    if (err == ERROR_OK) {
+      scan_results_.emplace_back(address, true);
+    } else if (err == ERROR_UNKNOWN) {
+      scan_results_.emplace_back(address, false);
+    }
+  }
+  esp_log_level_set("*", previous);
+}
+
 ErrorCode I2CDevice::read_register(uint8_t a_register, uint8_t *data, size_t len) {
   return bus_->write_readv(this->address_, &a_register, 1, data, len);
 }
