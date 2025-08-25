@@ -140,6 +140,12 @@ def choose_upload_log_host(
                     resolved.append("MQTT")
             else:
                 resolved.append(device)
+
+        resolved = [i for i in resolved if i]
+
+        if not resolved:
+            raise EsphomeError("No valid address for the device found. Is it online?")
+
         return resolved
 
     # No devices specified, show interactive chooser
