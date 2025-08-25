@@ -8,7 +8,7 @@ namespace i2c {
 
 static const char *const TAG = "i2c";
 
-void I2CBus::i2c_scan() {
+void I2CBus::i2c_scan_() {
   // suppress logs from the IDF I2C library during the scan
 #if defined(ESP32) && defined(USE_LOGGER)
   auto previous = esp_log_level_get("*");

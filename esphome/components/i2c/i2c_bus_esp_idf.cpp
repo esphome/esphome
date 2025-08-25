@@ -73,7 +73,7 @@ void IDFI2CBus::setup() {
 
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning for devices");
-    this->i2c_scan();
+    this->i2c_scan_();
   }
 }
 
