@@ -43,7 +43,7 @@ def iter_components(config: ConfigType, platform_counts: defaultdict[str, int]):
         component = get_component(domain)
         yield domain, component
         if component.is_platform_component:
-            if not platform_counts.get(domain):
+            if not platform_counts[domain]:
                 continue
             for p_config in conf:
                 p_name = f"{domain}.{p_config[CONF_PLATFORM]}"
