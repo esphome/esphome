@@ -1,6 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -63,10 +69,7 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 def validate_config(config):
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
-        if variant in (esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S2):
-            max_idle = 65535
-        else:
-            max_idle = 32767
+        max_idle = 65535 if variant in (VARIANT_ESP32, VARIANT_ESP32S2) else 32767
         if CONF_CLOCK_RESOLUTION in config:
             max_idle = int(max_idle * 1000000 / config[CONF_CLOCK_RESOLUTION])
         if config[CONF_IDLE].total_microseconds > max_idle:
@@ -144,9 +147,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 esp32=192,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_USE_DMA): cv.All(
-                esp32.only_on_variant(
-                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
-                ),
+                esp32.only_on_variant(supported=[VARIANT_ESP32P4, VARIANT_ESP32S3]),
                 cv.boolean,
             ),
         }

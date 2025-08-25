@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, media_player
+from esphome.components.esp32.const import VARIANT_ESP32S2
 import esphome.config_validation as cv
 from esphome.const import CONF_MODE
 
@@ -40,7 +41,7 @@ INTERNAL_DAC_OPTIONS = {
 
 EXTERNAL_DAC_OPTIONS = [CONF_MONO, CONF_STEREO]
 
-NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
+NO_INTERNAL_DAC_VARIANTS = [VARIANT_ESP32S2]
 
 I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
 

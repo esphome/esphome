@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
+from esphome.components.esp32.const import VARIANT_ESP32
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -62,7 +63,7 @@ I2C_COMM_FMT_OPTIONS = {
     "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
 }
 
-INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32]
+INTERNAL_DAC_VARIANTS = [VARIANT_ESP32]
 
 
 def _set_num_channels_from_config(config):

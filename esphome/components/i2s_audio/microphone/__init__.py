@@ -2,6 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, microphone
 from esphome.components.adc import ESP32_VARIANT_ADC1_PIN_TO_CHANNEL, validate_adc_pin
+from esphome.components.esp32.const import VARIANT_ESP32, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -37,8 +38,8 @@ I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
 
-INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
-PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
+INTERNAL_ADC_VARIANTS = [VARIANT_ESP32]
+PDM_VARIANTS = [VARIANT_ESP32, VARIANT_ESP32S3]
 
 
 def _validate_esp32_variant(config):

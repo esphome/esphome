@@ -5,7 +5,7 @@ from collections.abc import Callable, Generator
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANTS
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANTS
 from esphome.components.esp32.gpio import validate_gpio_pin
 from esphome.const import CONF_INPUT, CONF_OUTPUT
 from esphome.core import CORE

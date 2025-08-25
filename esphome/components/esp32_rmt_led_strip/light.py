@@ -5,6 +5,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, light
 from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.esp32.const import VARIANT_ESP32P4, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -90,9 +91,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
             cv.Optional(CONF_USE_DMA): cv.All(
-                esp32.only_on_variant(
-                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
-                ),
+                esp32.only_on_variant(supported=[VARIANT_ESP32P4, VARIANT_ESP32S3]),
                 cv.boolean,
             ),
             cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,

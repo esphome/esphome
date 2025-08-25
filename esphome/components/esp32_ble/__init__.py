@@ -3,7 +3,8 @@ import re
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32S2
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ESPHOME, CONF_ID, CONF_NAME
 from esphome.core import CORE, TimePeriod
@@ -122,7 +123,7 @@ CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
 
-NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
+NO_BLUETOOTH_VARIANTS = [VARIANT_ESP32S2]
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
