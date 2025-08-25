@@ -181,7 +181,7 @@ the custom_components folder or the external_components feature.
 
 def copy_src_tree():
     source_files: list[loader.FileResource] = []
-    for _, component in iter_components(CORE.config):
+    for _, component in iter_components(CORE.config, CORE.platform_counts):
         source_files += component.resources
     source_files_map = {
         Path(x.package.replace(".", "/") + "/" + x.resource): x for x in source_files
