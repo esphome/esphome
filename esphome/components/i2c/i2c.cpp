@@ -10,8 +10,10 @@ static const char *const TAG = "i2c";
 
 void I2CBus::i2c_scan() {
   // suppress logs from the IDF I2C library during the scan
+#if defined(ESP32) && defined(USE_LOGGER)
   auto previous = esp_log_level_get("*");
   esp_log_level_set("*", ESP_LOG_NONE);
+#endif
 
   for (uint8_t address = 8; address != 120; address++) {
     auto err = write_readv(address, nullptr, 0, nullptr, 0);
@@ -21,7 +23,9 @@ void I2CBus::i2c_scan() {
       scan_results_.emplace_back(address, false);
     }
   }
+#if defined(ESP32) && defined(USE_LOGGER)
   esp_log_level_set("*", previous);
+#endif
 }
 
 ErrorCode I2CDevice::read_register(uint8_t a_register, uint8_t *data, size_t len) {
