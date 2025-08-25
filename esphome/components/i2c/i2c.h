@@ -161,7 +161,7 @@ class I2CDevice {
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
-  ErrorCode read(uint8_t *data, size_t len) const { return bus_->read(this->address_, data, len); }
+  ErrorCode read(uint8_t *data, size_t len) const { return bus_->write_readv(this->address_, nullptr, 0, data, len); }
 
   /// @brief reads an array of bytes from a specific register in the I²C device
   /// @param a_register an 8 bits internal address of the I²C register to read from
@@ -181,7 +181,9 @@ class I2CDevice {
   /// @param data pointer to an array that contains the bytes to send
   /// @param len length of the buffer = number of bytes to write
   /// @return an i2c::ErrorCode
-  ErrorCode write(const uint8_t *data, size_t len) const { return bus_->write(this->address_, data, len); }
+  ErrorCode write(const uint8_t *data, size_t len) const {
+    return bus_->write_readv(this->address_, data, len, nullptr, 0);
+  }
 
   /// @brief writes an array of bytes to a device, then reads an array, as a single transaction
   /// @param write_data pointer to an array that contains the bytes to send

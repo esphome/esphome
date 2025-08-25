@@ -28,24 +28,6 @@ enum ErrorCode {
 class I2CBus {
  public:
   virtual ~I2CBus() = default;
-  /// @brief Creates a ReadBuffer and calls the virtual readv() method to read bytes into this buffer
-  /// @param address address of the I²C device on the i2c bus
-  /// @param buffer pointer to an array of bytes that will be used to store the data received
-  /// @param len length of the buffer = number of bytes to read
-  /// @return an i2c::ErrorCode
-  virtual ErrorCode read(uint8_t address, uint8_t *buffer, size_t len) {
-    return write_readv(address, nullptr, 0, buffer, len);
-  }
-
-  /// @brief Creates a WriteBuffer and calls the writev() method to send the bytes from this buffer
-  /// @param address address of the I²C device on the i2c bus
-  /// @param buffer pointer to an array of bytes that contains the data to be sent
-  /// @param len length of the buffer = number of bytes to write
-  /// transmission. False will send a restart, keeping the connection active.
-  /// @return an i2c::ErrorCode
-  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len) {
-    return write_readv(address, buffer, len, nullptr, 0);
-  }
 
   /// @brief This virtual method writes bytes to an I2CBus from an array of WriteBuffer,
   /// then reads bytes into an array of ReadBuffer.
