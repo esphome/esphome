@@ -1,5 +1,6 @@
 #include "i2c.h"
 
+#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include <memory>
 
@@ -10,7 +11,7 @@ static const char *const TAG = "i2c";
 
 void I2CBus::i2c_scan_() {
   // suppress logs from the IDF I2C library during the scan
-#if defined(ESP32) && defined(USE_LOGGER)
+#if defined(USE_ESP32) && defined(USE_LOGGER)
   auto previous = esp_log_level_get("*");
   esp_log_level_set("*", ESP_LOG_NONE);
 #endif
