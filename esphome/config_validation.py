@@ -393,9 +393,12 @@ def icon(value):
     )
 
 
-def sub_device_id(value: str | None) -> core.ID:
+def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if not value:
+        return None
 
     return use_id(Device)(value)
 
@@ -1109,8 +1112,8 @@ voltage = float_with_unit("voltage", "(v|V|volt|Volts)?")
 distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
-_temperature_c = float_with_unit("temperature", "(°C|° C|°|C)?")
-_temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
+_temperature_c = float_with_unit("temperature", "(°C|° C|C|°)?")
+_temperature_k = float_with_unit("temperature", "(°K|° K|K)?")
 _temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
