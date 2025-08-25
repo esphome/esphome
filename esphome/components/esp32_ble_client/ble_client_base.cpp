@@ -495,6 +495,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
 
+    case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
+      this->log_gattc_event_("UNREG_FOR_NOTIFY");
+      break;
+    }
+
     default:
       // ideally would check all other events for matching conn_id
       ESP_LOGD(TAG, "[%d] [%s] Event %d", this->connection_index_, this->address_str_.c_str(), event);
