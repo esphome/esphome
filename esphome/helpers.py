@@ -9,6 +9,8 @@ import re
 import tempfile
 from urllib.parse import urlparse
 
+from esphome.const import __version__ as ESPHOME_VERSION
+
 _LOGGER = logging.getLogger(__name__)
 
 IS_MACOS = platform.system() == "Darwin"
@@ -27,6 +29,53 @@ def ensure_unique_string(preferred_string, current_strings):
         test_string = f"{preferred_string}_{tries}"
 
     return test_string
+
+
+def fnv1a_32bit_hash(string: str) -> int:
+    """FNV-1a 32-bit hash function.
+
+    Note: This uses 32-bit hash instead of 64-bit for several reasons:
+    1. ESPHome targets 32-bit microcontrollers with limited RAM (often <320KB)
+    2. Using 64-bit hashes would double the RAM usage for storing IDs
+    3. 64-bit operations are slower on 32-bit processors
+
+    While there's a ~50% collision probability at ~77,000 unique IDs,
+    ESPHome validates for collisions at compile time, preventing any
+    runtime issues. In practice, most ESPHome installations only have
+    a handful of area_ids and device_ids (typically <10 areas and <100
+    devices), making collisions virtually impossible.
+    """
+    hash_value = 2166136261
+    for char in string:
+        hash_value ^= ord(char)
+        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+    return hash_value
+
+
+def strip_accents(value: str) -> str:
+    """Remove accents from a string."""
+    import unicodedata
+
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", str(value))
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def slugify(value: str) -> str:
+    """Convert a string to a valid C++ identifier slug."""
+    from esphome.const import ALLOWED_NAME_CHARS
+
+    value = (
+        strip_accents(value)
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace("__", "_")
+        .strip("_")
+    )
+    return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
 
 
 def indent_all_but_first_and_last(text, padding="  "):
@@ -49,9 +98,7 @@ def cpp_string_escape(string, encoding="utf-8"):
     def _should_escape(byte: int) -> bool:
         if not 32 <= byte < 127:
             return True
-        if byte in (ord("\\"), ord('"')):
-            return True
-        return False
+        return byte in (ord("\\"), ord('"'))
 
     if isinstance(string, str):
         string = string.encode(encoding)
@@ -67,7 +114,9 @@ def cpp_string_escape(string, encoding="utf-8"):
 def run_system_command(*args):
     import subprocess
 
-    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+    with subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=False
+    ) as p:
         stdout, stderr = p.communicate()
         rc = p.returncode
         return rc, stdout, stderr
@@ -458,3 +507,20 @@ _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
+
+
+def docs_url(path: str) -> str:
+    """Return the URL to the documentation for a given path."""
+    # Local import to avoid circular import
+    from esphome.config_validation import Version
+
+    version = Version.parse(ESPHOME_VERSION)
+    if version.is_beta:
+        docs_format = "https://beta.esphome.io/{path}"
+    elif version.is_dev:
+        docs_format = "https://next.esphome.io/{path}"
+    else:
+        docs_format = "https://esphome.io/{path}"
+
+    path = path.removeprefix("/")
+    return docs_format.format(path=path)

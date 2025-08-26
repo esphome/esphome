@@ -22,7 +22,7 @@ runs:
         python-version: ${{ inputs.python-version }}
     - name: Restore Python virtual environment
       id: cache-venv
-      uses: actions/cache/restore@v4.2.3
+      uses: actions/cache/restore@v4.2.4
       with:
         path: venv
         # yamllint disable-line rule:line-length
@@ -41,7 +41,7 @@ runs:
       shell: bash
       run: |
         python -m venv venv
-        ./venv/Scripts/activate
+        source ./venv/Scripts/activate
         python --version
         pip install -r requirements.txt -r requirements_test.txt
         pip install -e .

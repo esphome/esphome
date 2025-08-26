@@ -1,24 +1,30 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import esp32
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_FREQUENCY,
     CONF_I2C_ID,
     CONF_ID,
-    CONF_INPUT,
-    CONF_OUTPUT,
     CONF_SCAN,
     CONF_SCL,
     CONF_SDA,
     CONF_TIMEOUT,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
 
+LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 i2c_ns = cg.esphome_ns.namespace("i2c")
 I2CBus = i2c_ns.class_("I2CBus")
@@ -41,20 +47,41 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
-pin_with_input_and_output_support = pins.internal_gpio_pin_number(
-    {CONF_OUTPUT: True, CONF_INPUT: True}
-)
+def validate_config(config):
+    if (
+        config[CONF_SCAN]
+        and CORE.is_esp32
+        and CORE.using_esp_idf
+        and esp32.get_esp32_variant()
+        in [
+            esp32.const.VARIANT_ESP32C5,
+            esp32.const.VARIANT_ESP32C6,
+            esp32.const.VARIANT_ESP32P4,
+        ]
+    ):
+        version: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+        if version.major == 5 and (
+            (version.minor == 3 and version.patch <= 3)
+            or (version.minor == 4 and version.patch <= 1)
+        ):
+            LOGGER.warning(
+                "There is a bug in esp-idf version %s that breaks I2C scan, I2C scan "
+                "has been disabled, see https://github.com/esphome/issues/issues/7128",
+                str(version),
+            )
+            config[CONF_SCAN] = False
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): _bus_declare_type,
-            cv.Optional(CONF_SDA, default="SDA"): pin_with_input_and_output_support,
+            cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
                 cv.only_with_esp_idf, cv.boolean
             ),
-            cv.Optional(CONF_SCL, default="SCL"): pin_with_input_and_output_support,
+            cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
                 cv.only_with_esp_idf, cv.boolean
             ),
@@ -66,6 +93,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+    validate_config,
 )
 
 
@@ -179,3 +207,18 @@ def final_validate_device_schema(
         {cv.Required(CONF_I2C_ID): fv.id_declaration_match_schema(hub_schema)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "i2c_bus_arduino.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "i2c_bus_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+    }
+)

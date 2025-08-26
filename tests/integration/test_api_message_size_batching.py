@@ -177,7 +177,7 @@ async def test_api_message_size_batching(
         # Wait for states with timeout
         try:
             await asyncio.wait_for(states_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             missing_keys = expected_keys - received_keys
             pytest.fail(
                 f"Did not receive states from all entities within 5 seconds. "

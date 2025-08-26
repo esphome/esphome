@@ -239,8 +239,6 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     this->play_next_tuple_(this->var_);
   }
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 

@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CARRIER_DUTY_PERCENT,
@@ -12,6 +13,8 @@ from esphome.const import (
     CONF_PIN,
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
+    CONF_VALUE,
+    PlatformFramework,
 )
 from esphome.core import CORE
 
@@ -20,10 +23,16 @@ AUTO_LOAD = ["remote_base"]
 CONF_EOT_LEVEL = "eot_level"
 CONF_ON_TRANSMIT = "on_transmit"
 CONF_ON_COMPLETE = "on_complete"
+CONF_TRANSMITTER_ID = remote_base.CONF_TRANSMITTER_ID
 
 remote_transmitter_ns = cg.esphome_ns.namespace("remote_transmitter")
 RemoteTransmitterComponent = remote_transmitter_ns.class_(
     "RemoteTransmitterComponent", remote_base.RemoteTransmitterBase, cg.Component
+)
+DigitalWriteAction = remote_transmitter_ns.class_(
+    "DigitalWriteAction",
+    automation.Action,
+    cg.Parented.template(RemoteTransmitterComponent),
 )
 
 MULTI_CONF = True
@@ -61,6 +70,25 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterComponent),
+        cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "remote_transmitter.digital_write", DigitalWriteAction, DIGITAL_WRITE_ACTION_SCHEMA
+)
+async def digital_write_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_TRANSMITTER_ID])
+    template_ = await cg.templatable(config[CONF_VALUE], args, bool)
+    cg.add(var.set_value(template_))
+    return var
+
 
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
@@ -95,3 +123,19 @@ async def to_code(config):
         await automation.build_automation(
             var.get_complete_trigger(), [], on_complete_config
         )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "remote_transmitter_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "remote_transmitter_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "remote_transmitter_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

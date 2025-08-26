@@ -1,0 +1,124 @@
+esphome:
+  name: areas-devices-test
+  # Define top-level area
+  area:
+    id: living_room_area
+    name: Living Room
+  # Define additional areas
+  areas:
+    - id: bedroom_area
+      name: Bedroom
+    - id: kitchen_area
+      name: Kitchen
+  # Define devices with area assignments
+  devices:
+    - id: light_controller_device
+      name: Light Controller
+      area_id: living_room_area  # Uses top-level area
+    - id: temp_sensor_device
+      name: Temperature Sensor
+      area_id: bedroom_area
+    - id: motion_detector_device
+      name: Motion Detector
+      area_id: living_room_area  # Reuses top-level area
+    - id: smart_switch_device
+      name: Smart Switch
+      area_id: kitchen_area
+
+host:
+api:
+logger:
+
+# Sensors assigned to different devices
+sensor:
+  - platform: template
+    name: Light Controller Sensor
+    device_id: light_controller_device
+    lambda: return 1.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Temperature Sensor Reading
+    device_id: temp_sensor_device
+    lambda: return 2.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Motion Detector Status
+    device_id: motion_detector_device
+    lambda: return 3.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Smart Switch Power
+    device_id: smart_switch_device
+    lambda: return 4.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Living Room Sensor
+    device_id: ""
+    lambda: return 5.0;
+    update_interval: 0.1s
+
+# Switches with the same name on different devices to test device_id lookup
+switch:
+  # Switch with no device_id (defaults to 0)
+  - platform: template
+    name: Test Switch
+    id: test_switch_main
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Main Device (no device_id)"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Main Device (no device_id)"
+
+  - platform: template
+    name: Test Switch
+    device_id: light_controller_device
+    id: test_switch_light_controller
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Light Controller"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Light Controller"
+
+  - platform: template
+    name: Test Switch
+    device_id: temp_sensor_device
+    id: test_switch_temp_sensor
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Temperature Sensor"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Temperature Sensor"
+
+  - platform: template
+    name: Test Switch
+    device_id: motion_detector_device
+    id: test_switch_motion_detector
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Motion Detector"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Motion Detector"
+
+  - platform: template
+    name: Living Room Blank Switch
+    device_id: ""
+    id: test_switch_blank_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room Blank Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room Blank Switch"
+
+  - platform: template
+    name: Living Room None Switch
+    device_id:
+    id: test_switch_none_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room None Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room None Switch"

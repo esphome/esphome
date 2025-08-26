@@ -60,8 +60,8 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -148,6 +148,7 @@ BinarySensorCondition = binary_sensor_ns.class_("BinarySensorCondition", Conditi
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
+TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter, cg.Component)
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter, cg.Component)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Component)
@@ -169,6 +170,19 @@ def register_filter(name, filter_type, schema):
 @register_filter("invert", InvertFilter, {})
 async def invert_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id)
+
+
+@register_filter(
+    "timeout",
+    TimeoutFilter,
+    cv.templatable(cv.positive_time_period_milliseconds),
+)
+async def timeout_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id)
+    await cg.register_component(var, {})
+    template_ = await cg.templatable(config, [], cg.uint32)
+    cg.add(var.set_timeout_value(template_))
+    return var
 
 
 @register_filter(
@@ -252,8 +266,10 @@ async def delayed_off_filter_to_code(config, filter_id):
 async def autorepeat_filter_to_code(config, filter_id):
     timings = []
     if len(config) > 0:
-        for conf in config:
-            timings.append((conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON]))
+        timings.extend(
+            (conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON])
+            for conf in config
+        )
     else:
         timings.append(
             (
@@ -491,12 +507,16 @@ _BINARY_SENSOR_SCHEMA = (
 )
 
 
+_BINARY_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("binary_sensor"))
+
+
 def binary_sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
     icon: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
     device_class: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
@@ -508,6 +528,7 @@ def binary_sensor_schema(
         (CONF_ICON, icon, cv.icon),
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
@@ -521,7 +542,7 @@ BINARY_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("binary_sensor"))
 
 
 async def setup_binary_sensor_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "binary_sensor")
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
@@ -556,16 +577,15 @@ async def setup_binary_sensor_core_(var, config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_MULTI_CLICK, []):
-        timings = []
-        for tim in conf[CONF_TIMING]:
-            timings.append(
-                cg.StructInitializer(
-                    MultiClickTriggerEvent,
-                    ("state", tim[CONF_STATE]),
-                    ("min_length", tim[CONF_MIN_LENGTH]),
-                    ("max_length", tim.get(CONF_MAX_LENGTH, 4294967294)),
-                )
+        timings = [
+            cg.StructInitializer(
+                MultiClickTriggerEvent,
+                ("state", tim[CONF_STATE]),
+                ("min_length", tim[CONF_MIN_LENGTH]),
+                ("max_length", tim.get(CONF_MAX_LENGTH, 4294967294)),
             )
+            for tim in conf[CONF_TIMING]
+        ]
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
@@ -634,7 +654,6 @@ async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args)
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_BINARY_SENSOR")
     cg.add_global(binary_sensor_ns.using)
 
 

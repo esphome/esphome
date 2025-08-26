@@ -14,7 +14,6 @@ static const uint8_t CH422G_REG_OUT_UPPER = 0x23;    // write reg for output bit
 static const char *const TAG = "ch422g";
 
 void CH422GComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // set outputs before mode
   this->write_outputs_();
   // Set mode and check for errors

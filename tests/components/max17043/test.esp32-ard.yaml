@@ -3,4 +3,3 @@ substitutions:
   scl_pin: GPIO22
 
 <<: !include common.yaml
-
