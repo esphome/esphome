@@ -258,6 +258,7 @@ class SensorItem {
 
 class ServerRegister {
   using ReadLambda = std::function<int64_t()>;
+  using WriteLambda = std::function<bool(int64_t value)>;
 
  public:
   ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count) {
@@ -274,6 +275,17 @@ class ServerRegister {
       } else {
         return static_cast<int64_t>(user_value);
       }
+    };
+  }
+
+  template<typename T>
+  void set_write_lambda(const std::function<bool(uint16_t address, const T v)> &&user_write_lambda) {
+    this->write_lambda = [this, user_write_lambda](int64_t number) {
+      if constexpr (std::is_same_v<T, float>) {
+        float float_value = bit_cast<float>(static_cast<uint32_t>(number));
+        return user_write_lambda(this->address, float_value);
+      }
+      return user_write_lambda(this->address, static_cast<T>(number));
     };
   }
 
@@ -304,6 +316,7 @@ class ServerRegister {
   SensorValueType value_type{SensorValueType::RAW};
   uint8_t register_count{0};
   ReadLambda read_lambda;
+  WriteLambda write_lambda;
 };
 
 // ModbusController::create_register_ranges_ tries to optimize register range
@@ -485,6 +498,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
   /// called when a modbus request (function code 0x03 or 0x04) was parsed without errors
   void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers) final;
+  /// called when a modbus request (function code 0x06 or 0x10) was parsed without errors
+  void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) final;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
   void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the

@@ -90,15 +90,24 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
-    if (this->role == ModbusRole::SERVER && (function_code == 0x1 || function_code == 0x3 || function_code == 0x4)) {
-      data_offset = 2;
-      data_len = 4;
-    }
-
-    // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
-    if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
-      data_offset = 2;
-      data_len = 4;
+    if (this->role == ModbusRole::SERVER) {
+      if (function_code == 0x1 || function_code == 0x3 || function_code == 0x4 || function_code == 0x6) {
+        data_offset = 2;
+        data_len = 4;
+      } else if (function_code == 0x10) {
+        if (at < 6) {
+          return true;
+        }
+        data_offset = 2;
+        // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
+        data_len = 2 + 2 + 1 + raw[6];
+      }
+    } else {
+      // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
+      if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
+        data_offset = 2;
+        data_len = 4;
+      }
     }
 
     // Error ( msb indicates error )
@@ -132,6 +141,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   bool found = false;
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
+      found = true;
       // Is it an error response?
       if ((function_code & 0x80) == 0x80) {
         ESP_LOGD(TAG, "Modbus error function code: 0x%X exception: %d", function_code, raw[2]);
@@ -141,13 +151,21 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
           // Ignore modbus exception not related to a pending command
           ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response");
         }
-      } else if (this->role == ModbusRole::SERVER && (function_code == 0x3 || function_code == 0x4)) {
-        device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
-                                         uint16_t(data[3]) | (uint16_t(data[2]) << 8));
-      } else {
-        device->on_modbus_data(data);
+        continue;
       }
-      found = true;
+      if (this->role == ModbusRole::SERVER) {
+        if (function_code == 0x3 || function_code == 0x4) {
+          device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
+                                           uint16_t(data[3]) | (uint16_t(data[2]) << 8));
+          continue;
+        }
+        if (function_code == 0x6 || function_code == 0x10) {
+          device->on_modbus_write_registers(function_code, data);
+          continue;
+        }
+      }
+      // fallthrough for other function codes
+      device->on_modbus_data(data);
     }
   }
   waiting_for_response = 0;

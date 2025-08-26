@@ -151,7 +151,6 @@ async def new_text(
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_TEXT")
     cg.add_global(text_ns.using)
 
 

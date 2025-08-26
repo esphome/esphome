@@ -126,7 +126,6 @@ async def new_update(config):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_UPDATE")
     cg.add_global(update_ns.using)
 
 

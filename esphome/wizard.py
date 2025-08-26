@@ -83,6 +83,11 @@ bk72xx:
   board: {board}
 """
 
+LN882X_CONFIG = """
+ln882x:
+  board: {board}
+"""
+
 RTL87XX_CONFIG = """
 rtl87xx:
   board: {board}
@@ -93,6 +98,7 @@ HARDWARE_BASE_CONFIGS = {
     "ESP32": ESP32_CONFIG,
     "RP2040": RP2040_CONFIG,
     "BK72XX": BK72XX_CONFIG,
+    "LN882X": LN882X_CONFIG,
     "RTL87XX": RTL87XX_CONFIG,
 }
 
@@ -110,10 +116,7 @@ def wizard_file(**kwargs):
     kwargs["fallback_name"] = ap_name
     kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
 
-    if kwargs.get("friendly_name"):
-        base = BASE_CONFIG_FRIENDLY
-    else:
-        base = BASE_CONFIG
+    base = BASE_CONFIG_FRIENDLY if kwargs.get("friendly_name") else BASE_CONFIG
 
     config = base.format(**kwargs)
 
@@ -157,7 +160,7 @@ def wizard_file(**kwargs):
 """
 
     # pylint: disable=consider-using-f-string
-    if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "RTL87XX"]:
+    if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "LN882X", "RTL87XX"]:
         config += """
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
@@ -181,6 +184,7 @@ def wizard_write(path, **kwargs):
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.ln882x import boards as ln882x_boards
     from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
@@ -200,6 +204,8 @@ def wizard_write(path, **kwargs):
             platform = "RP2040"
         elif board in bk72xx_boards.BOARDS:
             platform = "BK72XX"
+        elif board in ln882x_boards.BOARDS:
+            platform = "LN882X"
         elif board in rtl87xx_boards.BOARDS:
             platform = "RTL87XX"
         else:
@@ -253,6 +259,7 @@ def wizard(path):
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.ln882x import boards as ln882x_boards
     from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
@@ -325,7 +332,7 @@ def wizard(path):
         "firmwares for it."
     )
 
-    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "RTL87XX", "RP2040"]
+    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "LN882X", "RTL87XX", "RP2040"]
     safe_print(
         "Please choose one of the supported microcontrollers "
         "(Use ESP8266 for Sonoff devices)."
@@ -361,7 +368,7 @@ def wizard(path):
         board_link = (
             "https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html"
         )
-    elif platform in ["BK72XX", "RTL87XX"]:
+    elif platform in ["BK72XX", "LN882X", "RTL87XX"]:
         board_link = "https://docs.libretiny.eu/docs/status/supported/"
     else:
         raise NotImplementedError("Unknown platform!")
@@ -384,6 +391,9 @@ def wizard(path):
     elif platform == "BK72XX":
         safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "cb2s")}".')
         boards_list = bk72xx_boards.BOARDS.items()
+    elif platform == "LN882X":
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "wl2s")}".')
+        boards_list = ln882x_boards.BOARDS.items()
     elif platform == "RTL87XX":
         safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "wr3")}".')
         boards_list = rtl87xx_boards.BOARDS.items()
@@ -398,7 +408,7 @@ def wizard(path):
     safe_print("Options:")
     for board_id, board_data in boards_list:
         safe_print(f" - {board_id} - {board_data['name']}")
-        boards.append(board_id)
+        boards.append(board_id.lower())
 
     while True:
         board = safe_input(color(AnsiFore.BOLD_WHITE, "(board): "))

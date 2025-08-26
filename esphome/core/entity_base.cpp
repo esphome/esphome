@@ -1,6 +1,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 
@@ -27,12 +28,22 @@ void EntityBase::set_name(const char *name) {
 
 // Entity Icon
 std::string EntityBase::get_icon() const {
+#ifdef USE_ENTITY_ICON
   if (this->icon_c_str_ == nullptr) {
     return "";
   }
   return this->icon_c_str_;
+#else
+  return "";
+#endif
 }
-void EntityBase::set_icon(const char *icon) { this->icon_c_str_ = icon; }
+void EntityBase::set_icon(const char *icon) {
+#ifdef USE_ENTITY_ICON
+  this->icon_c_str_ = icon;
+#else
+  // No-op when USE_ENTITY_ICON is not defined
+#endif
+}
 
 // Entity Object ID
 std::string EntityBase::get_object_id() const {
@@ -40,13 +51,18 @@ std::string EntityBase::get_object_id() const {
   if (!this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled()) {
     // `App.get_friendly_name()` is dynamic.
     return str_sanitize(str_snake_case(App.get_friendly_name()));
-  } else {
-    // `App.get_friendly_name()` is constant.
-    if (this->object_id_c_str_ == nullptr) {
-      return "";
-    }
-    return this->object_id_c_str_;
   }
+  // `App.get_friendly_name()` is constant.
+  return this->object_id_c_str_ == nullptr ? "" : this->object_id_c_str_;
+}
+StringRef EntityBase::get_object_id_ref_for_api_() const {
+  static constexpr auto EMPTY_STRING = StringRef::from_lit("");
+  // Return empty for dynamic case (MAC suffix)
+  if (!this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled()) {
+    return EMPTY_STRING;
+  }
+  // For static case, return the string or empty if null
+  return this->object_id_c_str_ == nullptr ? EMPTY_STRING : StringRef(this->object_id_c_str_);
 }
 void EntityBase::set_object_id(const char *object_id) {
   this->object_id_c_str_ = object_id;

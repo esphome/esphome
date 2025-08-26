@@ -327,7 +327,7 @@ void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callb
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^
+  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_preference_hash() ^
                                                                               RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))

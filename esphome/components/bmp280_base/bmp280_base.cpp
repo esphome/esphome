@@ -2,6 +2,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+
 namespace esphome {
 namespace bmp280_base {
 
@@ -57,30 +59,29 @@ static const char *iir_filter_to_str(BMP280IIRFilter filter) {
 }
 
 void BMP280Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t chip_id = 0;
 
   // Read the chip id twice, to work around a bug where the first read is 0.
   // https://community.st.com/t5/stm32-mcus-products/issue-with-reading-bmp280-chip-id-using-spi/td-p/691855
   if (!this->read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   if (!this->read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   if (chip_id != 0x58) {
     this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed();
+    this->mark_failed(BMP280_ERROR_WRONG_CHIP_ID);
     return;
   }
 
   // Send a soft reset.
   if (!this->write_byte(BMP280_REGISTER_RESET, BMP280_SOFT_RESET)) {
-    this->mark_failed();
+    this->mark_failed("Reset failed");
     return;
   }
   // Wait until the NVM data has finished loading.
@@ -89,14 +90,12 @@ void BMP280Component::setup() {
   do {
     delay(2);
     if (!this->read_byte(BMP280_REGISTER_STATUS, &status)) {
-      ESP_LOGW(TAG, "Error reading status register.");
-      this->mark_failed();
+      this->mark_failed("Error reading status register");
       return;
     }
   } while ((status & BMP280_STATUS_IM_UPDATE) && (--retry));
   if (status & BMP280_STATUS_IM_UPDATE) {
-    ESP_LOGW(TAG, "Timeout loading NVM.");
-    this->mark_failed();
+    this->mark_failed("Timeout loading NVM");
     return;
   }
 
@@ -117,14 +116,14 @@ void BMP280Component::setup() {
 
   uint8_t config_register = 0;
   if (!this->read_byte(BMP280_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed();
+    this->mark_failed("Read config");
     return;
   }
   config_register &= ~0b11111100;
   config_register |= 0b000 << 5;  // 0.5 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BMP280_REGISTER_CONFIG, config_register)) {
-    this->mark_failed();
+    this->mark_failed("Write config");
     return;
   }
 }
@@ -135,7 +134,7 @@ void BMP280Component::dump_config() {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "BMP280 has wrong chip ID! Is it a BME280?");
+      ESP_LOGE(TAG, BMP280_ERROR_WRONG_CHIP_ID);
       break;
     case NONE:
     default:
@@ -173,13 +172,13 @@ void BMP280Component::update() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
     if (std::isnan(temperature)) {
-      ESP_LOGW(TAG, "Invalid temperature, cannot read pressure values.");
+      ESP_LOGW(TAG, "Invalid temperature");
       this->status_set_warning();
       return;
     }
     float pressure = this->read_pressure_(t_fine);
 
-    ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa", temperature, pressure);
+    ESP_LOGV(TAG, "Temperature=%.1f°C Pressure=%.1fhPa", temperature, pressure);
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
     if (this->pressure_sensor_ != nullptr)

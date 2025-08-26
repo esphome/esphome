@@ -88,10 +88,7 @@ def recv_decode(sock, amount, decode=True):
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):
-    if decode:
-        data = []
-    else:
-        data = b""
+    data = [] if decode else b""
 
     try:
         data += recv_decode(sock, 1, decode=decode)

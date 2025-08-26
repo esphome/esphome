@@ -17,7 +17,9 @@ _LOGGER = logging.getLogger(__name__)
 def run_git_command(cmd, cwd=None) -> str:
     _LOGGER.debug("Running git command: %s", " ".join(cmd))
     try:
-        ret = subprocess.run(cmd, cwd=cwd, capture_output=True, check=False)
+        ret = subprocess.run(
+            cmd, cwd=cwd, capture_output=True, check=False, close_fds=False
+        )
     except FileNotFoundError as err:
         raise cv.Invalid(
             "git is not installed but required for external_components.\n"

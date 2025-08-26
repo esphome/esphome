@@ -11,6 +11,7 @@
 #include "esp_eth_mac.h"
 #include "esp_netif.h"
 #include "esp_mac.h"
+#include "esp_idf_version.h"
 
 namespace esphome {
 namespace ethernet {
@@ -26,6 +27,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_KSZ8081RNA,
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
+  ETHERNET_TYPE_DM9051,
 };
 
 struct ManualIP {
@@ -75,7 +77,8 @@ class EthernetComponent : public Component {
   void set_power_pin(int power_pin);
   void set_mdc_pin(uint8_t mdc_pin);
   void set_mdio_pin(uint8_t mdio_pin);
-  void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
+  void set_clk_pin(uint8_t clk_pin);
+  void set_clk_mode(emac_rmii_clock_mode_t clk_mode);
   void add_phy_register(PHYRegister register_value);
 #endif
   void set_type(EthernetType type);
@@ -122,10 +125,10 @@ class EthernetComponent : public Component {
   // Group all 32-bit members first
   int power_pin_{-1};
   emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
-  emac_rmii_clock_gpio_t clk_gpio_{EMAC_CLK_IN_GPIO};
   std::vector<PHYRegister> phy_registers_{};
 
   // Group all 8-bit members together
+  uint8_t clk_pin_{0};
   uint8_t phy_addr_{0};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
@@ -151,7 +154,10 @@ class EthernetComponent : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
+
+#if defined(USE_ARDUINO) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
+#endif
 
 }  // namespace ethernet
 }  // namespace esphome
