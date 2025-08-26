@@ -24,9 +24,8 @@ VERTICAL_DIRECTIONS = {
     "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
 }
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(AirtonClimate).extend(
     {
-        cv.GenerateID(): cv.declare_id(AirtonClimate),
         cv.Optional(CONF_VERTICAL_DIRECTION, default="off"): cv.enum(
             VERTICAL_DIRECTIONS
         ),
