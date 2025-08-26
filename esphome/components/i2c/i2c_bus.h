@@ -42,7 +42,7 @@ class I2CBus {
  public:
   virtual ~I2CBus() = default;
 
-  /// @brief This virtual method writes bytes to an I2CBus from an array of WriteBuffer,
+  /// @brief This virtual method writes bytes to an I2CBus from an array,
   /// then reads bytes into an array of ReadBuffer.
   /// @param address address of the I²C device on the i2c bus
   /// @param write_buffer pointer to data
