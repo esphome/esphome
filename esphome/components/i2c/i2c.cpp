@@ -24,7 +24,7 @@ void I2CBus::i2c_scan_() {
       scan_results_.emplace_back(address, false);
     }
   }
-#if defined(ESP32) && defined(USE_LOGGER)
+#if defined(USE_ESP32) && defined(USE_LOGGER)
   esp_log_level_set("*", previous);
 #endif
 }
