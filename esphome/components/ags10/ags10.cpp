@@ -89,7 +89,7 @@ void AGS10Component::dump_config() {
 bool AGS10Component::new_i2c_address(uint8_t newaddress) {
   uint8_t rev_newaddress = ~newaddress;
   std::array<uint8_t, 5> data{newaddress, rev_newaddress, newaddress, rev_newaddress, 0};
-  data[4] = calc_crc8_(data, 4);
+  data[4] = crc8(data.data(), 4, 0xFF, 0x31, true);
   if (!this->write_bytes(REG_ADDRESS, data)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->status_set_warning();
@@ -109,7 +109,7 @@ bool AGS10Component::set_zero_point_with_current_resistance() { return this->set
 
 bool AGS10Component::set_zero_point_with(uint16_t value) {
   std::array<uint8_t, 5> data{0x00, 0x0C, (uint8_t) ((value >> 8) & 0xFF), (uint8_t) (value & 0xFF), 0};
-  data[4] = calc_crc8_(data, 4);
+  data[4] = crc8(data.data(), 4, 0xFF, 0x31, true);
   if (!this->write_bytes(REG_CALIBRATION, data)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->status_set_warning();
@@ -184,28 +184,13 @@ template<size_t N> optional<std::array<uint8_t, N>> AGS10Component::read_and_che
   auto res = *data;
   auto crc_byte = res[len];
 
-  if (crc_byte != calc_crc8_(res, len)) {
+  if (crc_byte != crc8(res.data(), len, 0xFF, 0x31, true)) {
     this->error_code_ = CRC_CHECK_FAILED;
     ESP_LOGE(TAG, "Reading AGS10 version failed: crc error!");
     return optional<std::array<uint8_t, N>>();
   }
 
   return data;
-}
-
-template<size_t N> uint8_t AGS10Component::calc_crc8_(std::array<uint8_t, N> dat, uint8_t num) {
-  uint8_t i, byte1, crc = 0xFF;
-  for (byte1 = 0; byte1 < num; byte1++) {
-    crc ^= (dat[byte1]);
-    for (i = 0; i < 8; i++) {
-      if (crc & 0x80) {
-        crc = (crc << 1) ^ 0x31;
-      } else {
-        crc = (crc << 1);
-      }
-    }
-  }
-  return crc;
 }
 }  // namespace ags10
 }  // namespace esphome
