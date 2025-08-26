@@ -298,7 +298,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         // This should not happen but lets log it in case it does
         // because it means we have a bad assumption about how the
         // ESP BT stack works.
-        ESP_LOGE(TAG, "[%d] [%s] Got ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
+        ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
                  this->address_str_.c_str(), espbt::client_state_to_string(this->state_), param->open.status);
       }
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
