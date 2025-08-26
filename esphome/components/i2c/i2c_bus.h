@@ -42,6 +42,18 @@ class I2CBus {
   virtual ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
                                 size_t read_count) = 0;
 
+  // Legacy functions for compatibility
+
+  [[deprecated("Use write_readv() instead. This will be removed from ESPHome v2026.3.0")]] ErrorCode read(
+      uint8_t address, uint8_t *buffer, size_t len) {
+    return this->write_readv(address, nullptr, 0, buffer, len);
+  }
+
+  [[deprecated("Use write_readv() instead. This will be removed from ESPHome v2026.3.0")]] ErrorCode write(
+      uint8_t address, const uint8_t *buffer, size_t len, bool stop = true) {
+    return this->write_readv(address, buffer, len, nullptr, 0);
+  }
+
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
   /// that contains the address and the corresponding bool presence flag.
