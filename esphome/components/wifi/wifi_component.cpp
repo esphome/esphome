@@ -151,6 +151,8 @@ void WiFiComponent::loop() {
         this->status_set_warning("waiting to reconnect");
         if (millis() - this->action_started_ > 5000) {
           if (this->fast_connect_ || this->retry_hidden_) {
+            if (!this->selected_ap_.get_bssid().has_value())
+              this->selected_ap_ = this->sta_[0];
             this->start_connecting(this->selected_ap_, false);
           } else {
             this->start_scanning();
