@@ -382,7 +382,7 @@ jobs:
               const labels = new Set();
 
               // Check for missing tests
-              if ((allLabels.has('new-component') || allLabels.has('new-platform')) && !allLabels.has('has-tests')) {
+              if ((allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) && !allLabels.has('has-tests')) {
                 labels.add('needs-tests');
               }
 
