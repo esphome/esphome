@@ -2188,7 +2188,8 @@ void GDEW029T5::dump_config() {
 //     Good Display 2.13in black/white
 // Datasheet:
 //  - https://github.com/ZinggJM/GxEPD2/blob/master/src/epd/GxEPD2_213_T5D.cpp
-//  - https://www.good-display.com/public/html/pdfjs/viewer/viewernew.html?file=https://v4.cecdn.yun300.cn/100001_1909185148/GDEW0213T5D.pdf
+//  -
+//  https://www.good-display.com/public/html/pdfjs/viewer/viewernew.html?file=https://v4.cecdn.yun300.cn/100001_1909185148/GDEW0213T5D.pdf
 //  - https://www.good-display.com/product/229.html
 // ========================================================
 
