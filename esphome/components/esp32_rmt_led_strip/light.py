@@ -53,6 +53,7 @@ class LEDStripTimings:
 CHIPSETS = {
     "WS2811": LEDStripTimings(300, 1090, 1090, 320, 0, 300000),
     "WS2812": LEDStripTimings(400, 1000, 1000, 400, 0, 0),
+    "SK6112": LEDStripTimings(300, 900, 900, 300, 0, 250000),
     "SK6812": LEDStripTimings(300, 900, 600, 600, 0, 0),
     "APA106": LEDStripTimings(350, 1360, 1360, 350, 0, 0),
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
