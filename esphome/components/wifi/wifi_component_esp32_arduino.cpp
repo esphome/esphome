@@ -547,8 +547,6 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
-      // Clear the STA interface handle to prevent use-after-free
-      s_sta_netif = nullptr;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
@@ -638,10 +636,6 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STOP: {
       ESP_LOGV(TAG, "AP stop");
-#ifdef USE_WIFI_AP
-      // Clear the AP interface handle to prevent use-after-free
-      s_ap_netif = nullptr;
-#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {

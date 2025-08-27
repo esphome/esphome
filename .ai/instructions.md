@@ -9,7 +9,7 @@ This document provides essential context for AI models interacting with this pro
 
 ## 2. Core Technologies & Stack
 
-*   **Languages:** Python (>=3.10), C++ (gnu++20)
+*   **Languages:** Python (>=3.11), C++ (gnu++20)
 *   **Frameworks & Runtimes:** PlatformIO, Arduino, ESP-IDF.
 *   **Build Systems:** PlatformIO is the primary build system. CMake is used as an alternative.
 *   **Configuration:** YAML.
@@ -38,7 +38,7 @@ This document provides essential context for AI models interacting with this pro
     5.  **Dashboard** (`esphome/dashboard/`): A web-based interface for device configuration, management, and OTA updates.
 
 *   **Platform Support:**
-    1.  **ESP32** (`components/esp32/`): Espressif ESP32 family. Supports multiple variants (S2, S3, C3, etc.) and both IDF and Arduino frameworks.
+    1.  **ESP32** (`components/esp32/`): Espressif ESP32 family. Supports multiple variants (Original, C2, C3, C5, C6, H2, P4, S2, S3) with ESP-IDF framework. Arduino framework supports only a subset of the variants (Original, C3, S2, S3).
     2.  **ESP8266** (`components/esp8266/`): Espressif ESP8266. Arduino framework only, with memory constraints.
     3.  **RP2040** (`components/rp2040/`): Raspberry Pi Pico/RP2040. Arduino framework with PIO (Programmable I/O) support.
     4.  **LibreTiny** (`components/libretiny/`): Realtek and Beken chips. Supports multiple chip families and auto-generated components.
@@ -60,7 +60,7 @@ This document provides essential context for AI models interacting with this pro
         ├── __init__.py          # Component configuration schema and code generation
         ├── [component].h        # C++ header file (if needed)
         ├── [component].cpp      # C++ implementation (if needed)
-        └── [platform]/         # Platform-specific implementations
+        └── [platform]/          # Platform-specific implementations
             ├── __init__.py      # Platform-specific configuration
             ├── [platform].h     # Platform C++ header
             └── [platform].cpp   # Platform C++ implementation
@@ -150,7 +150,8 @@ This document provides essential context for AI models interacting with this pro
 *   **Configuration Validation:**
     *   **Common Validators:** `cv.int_`, `cv.float_`, `cv.string`, `cv.boolean`, `cv.int_range(min=0, max=100)`, `cv.positive_int`, `cv.percentage`.
     *   **Complex Validation:** `cv.All(cv.string, cv.Length(min=1, max=50))`, `cv.Any(cv.int_, cv.string)`.
-    *   **Platform-Specific:** `cv.only_on(["esp32", "esp8266"])`, `cv.only_with_arduino`.
+    *   **Platform-Specific:** `cv.only_on(["esp32", "esp8266"])`, `esp32.only_on_variant(...)`, `cv.only_on_esp32`, `cv.only_on_esp8266`, `cv.only_on_rp2040`.
+    *   **Framework-Specific:** `cv.only_with_framework(...)`, `cv.only_with_arduino`, `cv.only_with_esp_idf`.
     *   **Schema Extensions:**
         ```python
         CONFIG_SCHEMA = cv.Schema({ ... })

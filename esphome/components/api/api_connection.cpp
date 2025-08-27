@@ -465,9 +465,7 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
   resp.cold_white = values.get_cold_white();
   resp.warm_white = values.get_warm_white();
   if (light->supports_effects()) {
-    // get_effect_name() returns temporary std::string - must store it
-    std::string effect_name = light->get_effect_name();
-    resp.set_effect(StringRef(effect_name));
+    resp.set_effect(light->get_effect_name_ref());
   }
   return fill_and_encode_entity_state(light, resp, LightStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -1425,9 +1423,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
-  // get_compilation_time() returns temporary std::string - must store it
-  std::string compilation_time = App.get_compilation_time();
-  resp.set_compilation_time(StringRef(compilation_time));
+  resp.set_compilation_time(App.get_compilation_time_ref());
 
   // Compile-time StringRef constants for manufacturers
 #if defined(USE_ESP8266) || defined(USE_ESP32)
