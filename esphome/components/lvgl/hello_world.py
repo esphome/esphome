@@ -10,16 +10,9 @@ CONFIG = """
     height: 100%
     width: 100%
     scrollable: false
-    layout:
-        type: flex
-        flex_flow: column
-        flex_align_cross: center
-        flex_align_main: space_between
-        flex_align_track: center
-        pad_column: 4
     widgets:
     - obj:
-        flex_grow: 3
+        align: top_mid
         outline_width: 0
         border_width: 0
         pad_all: 4
@@ -56,17 +49,24 @@ CONFIG = """
                 return lv_obj_get_width(lv_scr_act()) < 400;
         - checkbox:
             text: Checkbox
+            id: hello_world_checkbox_
+            on_boot:
+                lvgl.widget.refresh: hello_world_checkbox_
+            hidden: !lambda |-
+                return lv_obj_get_width(lv_scr_act()) < 240;
             on_click:
               lvgl.label.update:
                 id: hello_world_label_
                 text: "Checked!"
     - obj:
         id: hello_world_container_
-        flex_grow: 8
+        align: center
+        y: 14
         pad_all: 0
         outline_width: 0
         border_width: 0
         width: 100%
+        height: size_content
         scrollable: false
         on_click:
             lvgl.spinner.update:
@@ -92,32 +92,33 @@ CONFIG = """
                         id: hello_world_label_
                         text: "Hello World!"
                         align: center
-            - qrcode:
-                text: "https://esphome.io"
+            - obj:
                 id: hello_world_qrcode_
-                size: 80
-                on_boot:
-                    lvgl.widget.refresh: hello_world_qrcode_
+                outline_width: 0
+                border_width: 0
                 hidden: !lambda |-
-                    return lv_obj_get_width(lv_scr_act()) < 240;
+                    return lv_obj_get_width(lv_scr_act()) < 300 && lv_obj_get_height(lv_scr_act()) < 400;
+                widgets:
+                - label:
+                    text_font: montserrat_14
+                    text: esphome.io
+                    align: top_mid
+                - qrcode:
+                    text: "https://esphome.io"
+                    size: 80
+                    align: bottom_mid
+                    on_boot:
+                        lvgl.widget.refresh: hello_world_qrcode_
 
-    - obj:
-        outline_width: 0
-        border_width: 0
-        flex_grow: 2
-        pad_all: 8
-        scrollable: false
-        width: 100%
-        widgets:
-            - slider:
-                width: 80%
-                align: bottom_mid
-                on_value:
-                  lvgl.label.update:
-                    id: hello_world_label_
-                    text:
-                      format: "%.0f%%"
-                      args: [x]
+    - slider:
+        width: 80%
+        align: bottom_mid
+        on_value:
+          lvgl.label.update:
+            id: hello_world_label_
+            text:
+              format: "%.0f%%"
+              args: [x]
 """
 
 
