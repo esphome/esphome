@@ -21,14 +21,14 @@ class SplitBuffer {
   const uint8_t &operator[](size_t index) const;
 
   // Get the total length
-  size_t size() const { return total_length_; }
+  size_t size() const { return this->total_length_; }
 
   // Get buffer information
-  size_t get_buffer_count() const { return buffer_count_; }
-  size_t get_buffer_size() const { return buffer_size_; }
+  size_t get_buffer_count() const { return this->buffer_count_; }
+  size_t get_buffer_size() const { return this->buffer_size_; }
 
   // Check if successfully initialized
-  bool is_valid() const { return buffers_ != nullptr && buffer_count_ > 0; }
+  bool is_valid() const { return this->buffers_ != nullptr && this->buffer_count_ > 0; }
 
  private:
   uint8_t **buffers_{nullptr};
