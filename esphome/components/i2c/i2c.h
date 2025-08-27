@@ -1,10 +1,10 @@
 #pragma once
 
-#include "i2c_bus.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/optional.h"
 #include <array>
 #include <vector>
+#include "esphome/core/helpers.h"
+#include "esphome/core/optional.h"
+#include "i2c_bus.h"
 
 namespace esphome {
 namespace i2c {
@@ -269,31 +269,32 @@ class I2CDevice {
 
   // Deprecated functions
 
-  [[deprecated("The stop argument is no longer used. This will be removed from ESPHome v2026.3.0")]] ErrorCode
-  read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop) {
+  ESPDEPRECATED("The stop argument is no longer used. This will be removed from ESPHome 2026.3.0", "2025.9.0")
+  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop) {
     return this->read_register(a_register, data, len);
   }
 
-  [[deprecated("The stop argument is no longer used. This will be removed from ESPHome v2026.3.0")]] ErrorCode
-  read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop) {
+  ESPDEPRECATED("The stop argument is no longer used. This will be removed from ESPHome 2026.3.0", "2025.9.0")
+  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop) {
     return this->read_register16(a_register, data, len);
   }
 
-  [[deprecated("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
-               "removed from ESPHome v2026.3.0")]] ErrorCode
-  write(const uint8_t *data, size_t len, bool stop) const {
-    return this->write(data, len);
-  }
+  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
+                "removed from ESPHome 2026.3.0",
+                "2025.9.0")
+  ErrorCode write(const uint8_t *data, size_t len, bool stop) const { return this->write(data, len); }
 
-  [[deprecated("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
-               "removed from ESPHome v2026.3.0")]] ErrorCode
-  write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop) const {
+  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
+                "removed from ESPHome 2026.3.0",
+                "2025.9.0")
+  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop) const {
     return this->write_register(a_register, data, len);
   }
 
-  [[deprecated("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
-               "removed from ESPHome v2026.3.0")]] ErrorCode
-  write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop) const {
+  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
+                "removed from ESPHome 2026.3.0",
+                "2025.9.0")
+  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop) const {
     return this->write_register16(a_register, data, len);
   }
 
