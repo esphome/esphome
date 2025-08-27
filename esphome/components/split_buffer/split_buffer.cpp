@@ -106,8 +106,8 @@ uint8_t &SplitBuffer::operator[](size_t index) {
   if (index >= this->total_length_) {
     ESP_LOGE(TAG, "SplitBuffer index %zu out of bounds (size: %zu)", index, this->total_length_);
     // Return reference to a static dummy byte to avoid crash
-    static uint8_t DUMMY = 0;
-    return DUMMY;
+    static uint8_t dummy = 0;
+    return dummy;
   }
 
   size_t buffer_index = index / this->buffer_size_;
