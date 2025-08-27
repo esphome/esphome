@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 
+#include "esphome/core/helpers.h"
+
 namespace esphome {
 namespace i2c {
 
@@ -65,8 +67,9 @@ class I2CBus {
     return this->write_readv(address, buffer, len, nullptr, 0);
   }
 
-  [[deprecated("Use write_readv() instead. This will be removed from ESPHome v2026.3.0")]] ErrorCode readv(
-      uint8_t address, ReadBuffer *read_buffers, size_t count) {
+  ESPDEPRECATED("This method is deprecated and will be removed in ESPHome 2026.3.0. Use write_readv() instead.",
+                "2025.9.0")
+  ErrorCode readv(uint8_t address, ReadBuffer *read_buffers, size_t count) {
     size_t total_len = 0;
     for (size_t i = 0; i != count; i++) {
       total_len += read_buffers[i].len;
@@ -85,8 +88,9 @@ class I2CBus {
     return ERROR_OK;
   }
 
-  [[deprecated("Use write_readv() instead. This will be removed from ESPHome v2026.3.0")]] ErrorCode writev(
-      uint8_t address, const WriteBuffer *write_buffers, size_t count, bool stop = true) {
+  ESPDEPRECATED("This method is deprecated and will be removed in ESPHome 2026.3.0. Use write_readv() instead.",
+                "2025.9.0")
+  ErrorCode writev(uint8_t address, const WriteBuffer *write_buffers, size_t count, bool stop = true) {
     std::vector<uint8_t> buffer{};
     for (size_t i = 0; i != count; i++) {
       buffer.insert(buffer.end(), write_buffers[i].data, write_buffers[i].data + write_buffers[i].len);
