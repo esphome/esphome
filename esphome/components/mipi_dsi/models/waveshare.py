@@ -17,9 +17,9 @@ DriverChip(
     swap_xy=cv.UNDEFINED,
     color_order="RGB",
     reset_pin=27,
-    i2c_sda_pin=7,
-    i2c_scl_pin=8,
-    i2c_clock_speed=100000,
+    # i2c_sda_pin=7,
+    # i2c_scl_pin=8,
+    # i2c_clock_speed=100000,
     initsequence=[
         (0xE0, 0x00),
         (0xE1, 0x93), (0xE2, 0x65), (0xE3, 0xF8),
