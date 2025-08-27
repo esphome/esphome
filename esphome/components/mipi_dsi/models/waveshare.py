@@ -22,8 +22,6 @@ DriverChip(
     lane_bit_rate="1.5Gbps",
     swap_xy=cv.UNDEFINED,
     color_order="RGB",
-    lcd_rst=27,
-    rst_pin=-1,
     initsequence=[
         (0xE0, 0x00),
         (0xE1, 0x93), (0xE2, 0x65), (0xE3, 0xF8),
