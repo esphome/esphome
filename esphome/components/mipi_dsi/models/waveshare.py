@@ -2,6 +2,12 @@ from esphome.components.mipi import DriverChip
 import esphome.config_validation as cv
 
 # fmt: off
+# note: this currently only works with 
+#  framework:
+#    type: esp-idf
+#    advanced:
+#      enable_idf_experimental_features: yes
+
 DriverChip(
     "WAVESHARE-P4-TOUCH-3.4C",
     height=800,
