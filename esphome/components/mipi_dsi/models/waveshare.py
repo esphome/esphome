@@ -2,7 +2,7 @@ from esphome.components.mipi import DriverChip
 import esphome.config_validation as cv
 
 # fmt: off
-# note: this currently only works with 
+# note: this currently only works with
 #  framework:
 #    type: esp-idf
 #    advanced:
