@@ -9,6 +9,7 @@
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "espnow_packet.h"
+#include "espnow_findpeer.h"
 
 #include <esp_idf_version.h>
 
@@ -132,6 +133,25 @@ class ESPNowComponent : public Component {
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
   bool is_wifi_enabled();
 
+  bool find(const uint8_t *address, const uint8_t *data, size_t size) {
+    if (this->find_peer_ == nullptr) {
+      this->find_peer_ new ESPNowFindPeer();
+    }
+    return this->find_peer_->find(address, data, size);
+  }
+  bool find(const uint8_t *mac) { return this->find(mac, nullptr, 0); }
+  ESPNowFindPeerState find_status() {
+    if (this->find_peer_ != nullptr) {
+      return this->find_peer_->get_status();
+    }
+    return FIND_PEER_IDLE;
+  }
+  void find_reset() {
+    if (this->find_peer_ != nullptr) {
+      this->find_peer_->reset();
+    }
+  }
+
   /// @brief Queue a packet to be sent to a specific peer address.
   /// This method will add the packet to the internal queue and
   /// call the callback when the packet is sent.
@@ -168,6 +188,8 @@ class ESPNowComponent : public Component {
   void send_();
   void load_prefs_();
   void save_prefs_();
+
+  ESPNowFindStatus find_peer(uint8_t *address);
 
   ESPPreferenceObject pref_;
 

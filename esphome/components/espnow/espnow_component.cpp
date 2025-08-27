@@ -56,7 +56,8 @@ static const LogString *espnow_error_to_str(esp_err_t error) {
     case ESP_OK:
       return LOG_STR("OK");
     case ESP_NOW_SEND_FAIL:
-      return LOG_STR("Failed");
+    case ESP_ERR_ESPNOW_FAILED_TO_SEND:
+      return LOG_STR("Send failed");
     default:
       return LOG_STR("Unknown Error");
   }
@@ -326,6 +327,10 @@ void ESPNowComponent::loop() {
     // Return the packet to the pool
     this->receive_packet_pool_.release(packet);
     packet = this->receive_packet_queue_.pop();
+
+    if (this->find_peer_ != nullptr && this->find_peer_->get_status() == FIND_PEER_WAITING) {
+      return this->find_peer_->loop();
+    }
   }
   App.feed_wdt();
 
