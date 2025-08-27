@@ -182,7 +182,7 @@ void EPaperBase::initialize_() {
     }
     const auto *ptr = sequence + index;
     const uint8_t length = ptr[1];
-    if (sequence_size - index < length) {
+    if (sequence_size - index < length + 2) {
       this->mark_failed("Malformed init sequence");
       return;
     }
