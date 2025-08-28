@@ -71,13 +71,33 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 #if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
     txt_count++;  // network
+
+    const std::string &friendly_name = App.get_friendly_name();
+    bool friendly_name_empty = friendly_name.empty();
+
+    // Calculate exact capacity for txt_records
+    size_t txt_count = 3;  // version, mac, board (always present)
+    if (!friendly_name_empty) {
+      txt_count++;  // friendly_name
+    }
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+    txt_count++;  // platform
 #endif
+#if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
+    txt_count++;  // network
+#endif
+#ifdef USE_API_NOISE
+    txt_count++;  // api_encryption or api_encryption_supported
 #ifdef USE_API_NOISE
     txt_count++;  // api_encryption or api_encryption_supported
 #endif
 #ifdef ESPHOME_PROJECT_NAME
     txt_count += 2;  // project_name and project_version
+#ifdef ESPHOME_PROJECT_NAME
+    txt_count += 2;  // project_name and project_version
 #endif
+#ifdef USE_DASHBOARD_IMPORT
+    txt_count++;  // package_import_url
 #ifdef USE_DASHBOARD_IMPORT
     txt_count++;  // package_import_url
 #endif
@@ -90,6 +110,30 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
     txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->add_dynamic_txt_value(get_mac_address()))});
+
+#ifdef USE_ESP8266
+    MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP8266)});
+#elif defined(USE_ESP32)
+    MDNS_STATIC_CONST_CHAR(PLATFORM_ESP32, "ESP32");
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP32)});
+#elif defined(USE_RP2040)
+    MDNS_STATIC_CONST_CHAR(PLATFORM_RP2040, "RP2040");
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_RP2040)});
+#elif defined(USE_LIBRETINY)
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(lt_cpu_get_model_name())});
+#endif
+
+    txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
+
+    auto &txt_records = service.txt_records;
+    txt_records.reserve(txt_count);
+
+    if (!friendly_name_empty) {
+      txt_records.emplace_back(MDNSTXTRecord{"friendly_name", friendly_name});
+    }
+    txt_records.emplace_back(MDNSTXTRecord{"version", ESPHOME_VERSION});
+    txt_records.emplace_back(MDNSTXTRecord{"mac", get_mac_address()});
 
 #ifdef USE_ESP8266
     MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
@@ -173,6 +217,18 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   fallback_service.port = USE_WEBSERVER_PORT;
   fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
 #endif
+#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
+  MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
+  MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
+
+  // Publish "http" service if not using native API or any other services
+  // This is just to have *some* mDNS service so that .local resolution works
+  auto &fallback_service = services.emplace_next();
+  fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
+  fallback_service.proto = MDNS_STR(SERVICE_TCP);
+  fallback_service.port = USE_WEBSERVER_PORT;
+  fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
+#endif
 }
 
 void MDNSComponent::dump_config() {
@@ -189,6 +245,7 @@ void MDNSComponent::dump_config() {
       ESP_LOGV(TAG, "    TXT: %s = %s", MDNS_STR_ARG(record.key), MDNS_STR_ARG(record.value));
     }
   }
+#endif
 #endif
 }
 

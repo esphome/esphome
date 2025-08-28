@@ -14,9 +14,9 @@ ResonateServerToPlayerMessageType determine_message_type(const std::string &mess
   ResonateServerToPlayerMessageType type = ResonateServerToPlayerMessageType::UNKNOWN;
   if (json::parse_json(message, [&type](JsonObject root) -> bool {
         if (root["type"].is<JsonVariant>()) {
-          if (root["type"].as<std::string>() == "source/hello") {
+          if (root["type"].as<std::string>() == "server/hello") {
             type = ResonateServerToPlayerMessageType::SERVER_HELLO;
-          } else if (root["type"].as<std::string>() == "source/time") {
+          } else if (root["type"].as<std::string>() == "server/time") {
             type = ResonateServerToPlayerMessageType::SERVER_TIME;
           } else if (root["type"].as<std::string>() == "session/start") {
             type = ResonateServerToPlayerMessageType::SESSION_START;
@@ -43,15 +43,15 @@ ResonateServerToPlayerMessageType determine_message_type(const std::string &mess
 }
 
 bool process_server_hello_message(const std::string &message, std::string *server_id, std::string *server_name) {
-  return (json::parse_json(message, [&server_id, &server_name](JsonObject root) -> bool {
-    if ((root["type"].as<std::string>() != "source/hello") || !root["payload"]["source_id"].is<JsonVariant>() ||
+  return (json::parse_json(message, [&server_id, &server_name, message](JsonObject root) -> bool {
+    if ((root["type"].as<std::string>() != "server/hello") || !root["payload"]["server_id"].is<JsonVariant>() ||
         !root["payload"]["name"].is<JsonVariant>()) {
-      ESP_LOGE(TAG, "Invalid server/hello message");
+      ESP_LOGE(TAG, "Invalid server/hello message: %s", message.c_str());
       return false;
     }
 
     if (server_id != nullptr) {
-      *server_id = root["payload"]["source_id"].as<std::string>();
+      *server_id = root["payload"]["server_id"].as<std::string>();
     }
     if (server_name != nullptr) {
       *server_name = root["payload"]["name"].as<std::string>();
@@ -64,31 +64,31 @@ bool process_server_hello_message(const std::string &message, std::string *serve
 bool process_server_time_message(const std::string &message, int64_t timestamp,
                                  TimeTransmittedReplacement time_replacement, int64_t *offset, int64_t *max_error) {
   return (json::parse_json(message, [timestamp, time_replacement, offset, max_error](JsonObject root) -> bool {
-    if ((root["type"].as<std::string>() != "source/time") || !root["payload"]["player_transmitted"].is<JsonVariant>() ||
-        !root["payload"]["source_received"].is<JsonVariant>() ||
-        !root["payload"]["source_transmitted"].is<JsonVariant>()) {
+    if ((root["type"].as<std::string>() != "server/time") || !root["payload"]["client_transmitted"].is<JsonVariant>() ||
+        !root["payload"]["server_received"].is<JsonVariant>() ||
+        !root["payload"]["server_transmitted"].is<JsonVariant>()) {
       ESP_LOGE(TAG, "Invalid server/time message");
       return false;
     }
 
-    int64_t player_transmitted = root["payload"]["player_transmitted"];
+    int64_t client_transmitted = root["payload"]["client_transmitted"];
 
-    if (player_transmitted == time_replacement.transmitted_time) {
-      player_transmitted = time_replacement.actual_transmit_time;
+    if (client_transmitted == time_replacement.transmitted_time) {
+      client_transmitted = time_replacement.actual_transmit_time;
     } else {
       ESP_LOGW(TAG, "Mismatched time message history");
     }
 
-    const int64_t source_received = root["payload"]["source_received"];
-    const int64_t source_transmitted = root["payload"]["source_transmitted"];
-    const int64_t player_received = timestamp;
+    const int64_t server_received = root["payload"]["server_received"];
+    const int64_t server_transmitted = root["payload"]["server_transmitted"];
+    const int64_t client_received = timestamp;
 
     if (offset != nullptr) {
-      *offset = ((source_received - player_transmitted) + (source_transmitted - player_received)) / 2;
+      *offset = ((server_received - client_transmitted) + (server_transmitted - client_received)) / 2;
     }
 
     if (max_error != nullptr) {
-      const int64_t delay = (player_received - player_transmitted) - (source_transmitted - source_received);
+      const int64_t delay = (client_received - client_transmitted) - (server_transmitted - server_received);
       *max_error = delay / 2;
     }
 
@@ -96,7 +96,7 @@ bool process_server_time_message(const std::string &message, int64_t timestamp,
   }));
 }
 
-#ifdef USE_AUDIO
+#ifdef USE_RESONATE_AUDIO
 bool process_session_start_message(const std::string &message, audio::AudioStreamInfo *stream_info,
                                    ResonateCodecFormat *codec_format, std::string *codec_header) {
   return (json::parse_json(message, [stream_info, codec_format, &codec_header](JsonObject root) -> bool {
@@ -118,18 +118,18 @@ bool process_session_start_message(const std::string &message, audio::AudioStrea
       std::string codec_type = root["payload"]["codec"].as<std::string>();
 
       if (codec_type == "pcm") {
-        *codec_format = ResonateCodecFormat::RESONATE_CODEC_PCM;
+        *codec_format = ResonateCodecFormat::PCM;
       } else if (codec_type == "opus") {
-        *codec_format = ResonateCodecFormat::RESONATE_CODEC_OPUS;
+        *codec_format = ResonateCodecFormat::OPUS;
       } else if (codec_type == "flac") {
         if (!root["payload"]["codec_header"].is<JsonVariant>()) {
           ESP_LOGE(TAG, "Invalid session/start message");
           return false;
         }
-        *codec_format = ResonateCodecFormat::RESONATE_CODEC_FLAC;
+        *codec_format = ResonateCodecFormat::FLAC;
         *codec_header = root["payload"]["codec_header"].as<std::string>();
       } else {
-        *codec_format = ResonateCodecFormat::RESONATE_CODEC_UNSUPPORTED;
+        *codec_format = ResonateCodecFormat::UNSUPPORTED;
       }
     }
     return true;
@@ -160,7 +160,7 @@ bool process_volume_set_message(const std::string &message, uint8_t *volume) {
     }
 
     if (volume != nullptr) {
-      *volume = root["payload"]["volume"].as<bool>();
+      *volume = root["payload"]["volume"].as<uint8_t>();
     }
 
     return true;
@@ -198,11 +198,11 @@ bool process_metadata_update_message(const std::string &message, ResonateMetadat
 }
 #endif
 
-std::string format_player_hello_message(const PlayerHelloMessage *msg) {
+std::string format_player_hello_message(const ClientHelloMessage *msg) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([msg](JsonObject root) {
-    root["type"] = "player/hello";
-    root["payload"]["player_id"] = msg->player_id;
+    root["type"] = "client/hello";
+    root["payload"]["client_id"] = msg->client_id;
     root["payload"]["name"] = msg->name;
     root["payload"]["role"] = "play";
     JsonArray codec_list = root["payload"]["support_codecs"].to<JsonArray>();

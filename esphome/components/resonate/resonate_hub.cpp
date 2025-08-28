@@ -19,7 +19,7 @@ namespace resonate {
 static const char *const TAG = "resonate.hub";
 
 #ifdef USE_RESONATE_AUDIO
-static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 100;
+static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 200;
 
 static const size_t DECODE_TASK_STACK_SIZE = 6 * 1024;
 static const UBaseType_t DECODE_TASK_PRIORITY = 2;
@@ -104,8 +104,8 @@ void ResonateHub::loop() {
   }
 
   if (network::is_connected() && !this->resonate_websocket_->is_started()) {
-    this->resonate_websocket_->start_server(websocket_server_handler, (void *) this, this->task_stack_in_psram_,
-                                            WEBSOCKET_TASK_PRIORITY);
+    this->resonate_websocket_->start_server(websocket_server_handler, websocket_close_callback, (void *) this,
+                                            this->task_stack_in_psram_, WEBSOCKET_TASK_PRIORITY);
 #ifdef USE_RESONATE_AUDIO
     if (this->decode_task_stack_buffer_ == nullptr) {
       if (this->task_stack_in_psram_) {
@@ -125,9 +125,9 @@ void ResonateHub::loop() {
 
 void ResonateHub::start() {
   // TODO: Don't hardcode supported settings, it should be configured in yaml
-  PlayerHelloMessage msg = {.player_id = get_mac_address_pretty(),
+  ClientHelloMessage msg = {.client_id = get_mac_address_pretty(),
                             .name = App.get_friendly_name(),
-                            .support_codecs = {"pcm"},
+                            .support_codecs = {"flac", "opus", "pcm"},
                             .support_channels = {2, 1},
                             .support_sample_rates = {48000},
                             .support_bit_depth = {16},
@@ -146,6 +146,14 @@ void ResonateHub::send_stream_command(const media_player::MediaPlayerCall &call)
   }
 }
 #endif
+
+void ResonateHub::websocket_close_callback(void *context) {
+  ResonateHub *this_resonate = (ResonateHub *) context;
+  xEventGroupSetBits(this_resonate->event_group_, COMMAND_STOP);  // Handles stopping in the hub component
+  this_resonate->controls_callbacks_.call(ResonateControls::STOP);
+
+  ESP_LOGD(TAG, "Connection closed");
+}
 
 esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
   int64_t timestamp = esp_timer_get_time();
@@ -176,99 +184,175 @@ esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
   bool is_text = (ws_pkt.type == HTTPD_WS_TYPE_TEXT);
   bool is_binary = (ws_pkt.type == HTTPD_WS_TYPE_BINARY);
 
+  bool is_fin = ws_pkt.final;
+
+  if (!is_fin) {
+    ESP_LOGD(TAG, "FIN flag not set on packet, this may not be properly handled");
+  }
+
   if (ws_pkt.len) {
     auto allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE);
 
-    size_t ws_packet_length = ws_pkt.len;
-    if (is_text) {
-      ++ws_packet_length;  // will append null chracter
-    }
+    size_t new_length = ws_pkt.len;
 
-    if (this_resonate->websocket_payload_ != nullptr) {
-      ESP_LOGE(TAG, "websocket payload wasn't deallocated, closing connection");
-      return ESP_FAIL;
+    if (this_resonate->websocket_offset_ == 0) {
+      if (this_resonate->websocket_payload_ != nullptr) {
+        ESP_LOGE(TAG, "websocket payload wasn't deallocated, closing connection");
+        this_resonate->deallocate_websocket_payload_();
+        return ESP_FAIL;
+      }
+      this_resonate->websocket_payload_ = allocator.allocate(this_resonate->websocket_len_ + new_length);
+    } else {
+      uint8_t *new_payload =
+          allocator.reallocate(this_resonate->websocket_payload_, this_resonate->websocket_len_ + new_length);
+      if (new_payload == nullptr) {
+        this_resonate->deallocate_websocket_payload_();
+      }
+      this_resonate->websocket_payload_ = new_payload;
     }
-    this_resonate->websocket_payload_ = allocator.allocate(ws_packet_length);
 
     if (this_resonate->websocket_payload_ == nullptr) {
       ESP_LOGE(TAG, "Failed to calloc memory for buffer");
       return ESP_ERR_NO_MEM;
     }
 
-    ws_pkt.payload = this_resonate->websocket_payload_;
+    this_resonate->websocket_len_ += new_length;  // Successfully allocated, update length
+
+    ws_pkt.payload = this_resonate->websocket_payload_ + this_resonate->websocket_offset_;
 
     /* Set max_len = ws_pkt.len to get the frame payload */
     ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
     if (ret != ESP_OK) {
       ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
-      allocator.deallocate(this_resonate->websocket_payload_, ws_packet_length);
-      this_resonate->websocket_payload_ = nullptr;
+      this_resonate->deallocate_websocket_payload_();
       return ret;
     }
+    this_resonate->websocket_offset_ += ws_pkt.len;
 
-    if (is_text) {
-      this_resonate->websocket_payload_[ws_pkt.len] = '\0';
-
-      this_resonate->handle_json_message_((char *) this_resonate->websocket_payload_, timestamp);
-      // Deallocate payload
-      allocator.deallocate(this_resonate->websocket_payload_, ws_packet_length);
-      this_resonate->websocket_payload_ = nullptr;
-    } else if (is_binary) {
-      // TODO: Check the binary type and handle cover art
-#ifdef USE_RESONATE_AUDIO
-      if (this_resonate->time_filter_->get_covariance() > MINIMUM_TIME_SYNC_ERROR_US * MINIMUM_TIME_SYNC_ERROR_US) {
-        // Time sync isn't accurate, don't forward chunk to decoder
-        allocator.deallocate(this_resonate->websocket_payload_, ws_packet_length);
-        this_resonate->websocket_payload_ = nullptr;
+    if (is_fin) {
+      if (is_text) {
+        // Create string from payload for JSON processing
+        const std::string message(this_resonate->websocket_payload_,
+                                  this_resonate->websocket_payload_ + this_resonate->websocket_len_);
+        this_resonate->process_json_message_(message, timestamp);
+        // Always deallocate after JSON processing
+        this_resonate->deallocate_websocket_payload_();
+      } else if (is_binary) {
+        if (this_resonate->process_binary_message_(this_resonate->websocket_payload_, this_resonate->websocket_len_)) {
+          // Ownership was transferred, just clear the pointer
+          this_resonate->websocket_payload_ = nullptr;
+        } else {
+          // Ownership not transferred, we must deallocate
+          this_resonate->deallocate_websocket_payload_();
+        }
       } else {
-        // Use the big endian datatype helpers for converting to host format
-        int64_be_t server_timestamp;
-        uint32_be_t frame_count;
-
-        std::memcpy((void *) &server_timestamp, (void *) (this_resonate->websocket_payload_ + 1),
-                    sizeof(server_timestamp));
-        std::memcpy((void *) &frame_count, (void *) (this_resonate->websocket_payload_ + 9), sizeof(frame_count));
-
-        AudioChunk audio_chunk;
-        audio_chunk.server_timestamp = server_timestamp;
-        audio_chunk.frame_count = frame_count;
-
-        // TODO: Remove this extra debug logging from final version
-        static int64_t previous_timestamp = 0;
-        if ((audio_chunk.server_timestamp - previous_timestamp) < 0) {
-          printf("server corrected timestamps are not monotonic!\n");
-        }
-        previous_timestamp = audio_chunk.server_timestamp;
-
-        audio_chunk.data = this_resonate->websocket_payload_;
-        audio_chunk.offset = 13;
-        audio_chunk.size = ws_packet_length - 13;
-
-        audio_chunk.chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
-        if (!this_resonate->encoded_chunk_queue_->add_chunk(&audio_chunk, 0)) {
-          // failed
-          ESP_LOGE(TAG, "Failed to send audio chunk");
-          allocator.deallocate(this_resonate->websocket_payload_, ws_packet_length);
-        }
-        this_resonate->websocket_payload_ = nullptr;  // The audio_chunk in the queue will manage the pointer now
+        // Unknown type - deallocate payload
+        this_resonate->deallocate_websocket_payload_();
       }
-#else
-      // Not built with audio, just deallocate it and ignore
-      allocator.deallocate(this_resonate->websocket_payload_, ws_packet_length);
-      this_resonate->websocket_payload_ = nullptr;
-#endif
-    } else {
-      // Unknown type?
-      // Deallocate payload
-      allocator.deallocate(this_resonate->websocket_payload_, ws_packet_length);
-      this_resonate->websocket_payload_ = nullptr;
+      this_resonate->websocket_offset_ = 0;
+      this_resonate->websocket_len_ = 0;
     }
   }
 
   return err;
 }
 
-void ResonateHub::handle_json_message_(const std::string &message, int64_t timestamp) {
+bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
+  ResonateBinaryType binary_type;
+  std::memcpy((void *) &binary_type, (void *) payload, 1);
+
+  switch (binary_type) {
+    case RESONATE_AUDIO_BINARY: {
+#ifdef USE_RESONATE_AUDIO
+      if ((this->time_filter_->get_covariance() > MINIMUM_TIME_SYNC_ERROR_US * MINIMUM_TIME_SYNC_ERROR_US) ||
+          (len < 13)) {
+        // Time sync isn't accurate, don't forward chunk to decoder
+        // Or the total packet length is too short to match the resonate binary audio chunk header size
+        return false;  // deallocate payload
+      } else {
+        // Use the big endian datatype helpers for converting to host format
+        int64_be_t server_timestamp;
+        uint32_be_t frame_count;
+
+        std::memcpy((void *) &server_timestamp, (void *) (payload + 1), sizeof(server_timestamp));
+        std::memcpy((void *) &frame_count, (void *) (payload + 9), sizeof(frame_count));
+
+        // Create a heap-allocated chunk that takes ownership of the payload
+        AudioChunk *audio_chunk = create_audio_chunk_from_buffer(payload, len);
+        if (audio_chunk == nullptr) {
+          ESP_LOGE(TAG, "Failed to allocate AudioChunk");
+          return false;  // deallocate payload
+        }
+        audio_chunk->offset = 13;
+        audio_chunk->size = len - 13;
+        audio_chunk->server_timestamp = server_timestamp;
+        audio_chunk->frame_count = frame_count;
+        audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
+
+        // TODO: Remove this extra debug logging from final version
+        static int64_t previous_timestamp = 0;
+        if ((audio_chunk->server_timestamp - previous_timestamp) < 0) {
+          printf("server corrected timestamps are not monotonic!\n");
+        }
+        previous_timestamp = audio_chunk->server_timestamp;
+
+        if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
+          // Failed to add
+          ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
+          this->encoded_chunk_queue_->reset();
+
+          audio_chunk->release();  // release our reference, buffer was deallocated
+          return false;            // deallocate payload
+        }
+        // Successfully added to queue - release our reference (queue has its own)
+        audio_chunk->release();
+        return true;  // don't deallocate payload, just clear pointer
+      }
+#else
+      // Not built with audio, so ownership not transferred
+      return false;  // deallocate payload
+#endif
+      break;
+    }
+    case RESONATE_IMAGE_BINARY: {
+#ifdef USE_RESONATE_IMAGE
+      ResonateImageFormat image_format;
+      std::memcpy((void *) &image_format, (void *) payload + 1, 1);
+
+      runtime_image::ImageFormat runtime_image_format;
+      switch (image_format) {
+        case RESONATE_IMAGE_BMP:
+          runtime_image_format = runtime_image::BMP;
+          break;
+        case RESONATE_IMAGE_JPG:
+          runtime_image_format = runtime_image::JPEG;
+          break;
+        case RESONATE_IMAGE_PNG:
+          runtime_image_format = runtime_image::PNG;
+          break;
+      }
+
+      for (auto image = this->images_.begin(); image != this->images_.end(); ++image) {
+        image->begin_decode(runtime_image_format, len - 2);
+        image->feed_data(payload + 1, len - 2);
+        if (!image->end_decode()) {
+          ESP_LOGE(TAG, "Failed to decoded image");
+        }
+      }
+#endif
+      return false;  // deallocate payload
+      break;
+    }
+    default: {
+      ESP_LOGW(TAG, "Unknown binary type %d", binary_type);
+      break;
+    }
+  }
+
+  return false;  // default to deallocate payload
+}
+
+bool ResonateHub::process_json_message_(const std::string &message, int64_t timestamp) {
   ResonateServerToPlayerMessageType message_type = determine_message_type(message);
 
   switch (message_type) {
@@ -279,43 +363,52 @@ void ResonateHub::handle_json_message_(const std::string &message, int64_t times
       ResonateCodecFormat codec_format;
       std::string codec_header;
       if (process_session_start_message(message, &session_audio_stream_info, &codec_format, &codec_header)) {
-        AudioChunk header_chunk;
-        header_chunk.offset = 0;
-        header_chunk.server_timestamp = 0;
+        AudioChunk *header_chunk = nullptr;
 
-        if ((codec_format == ResonateCodecFormat::RESONATE_CODEC_PCM) ||
-            (codec_format == ResonateCodecFormat::RESONATE_CODEC_OPUS)) {
-          if (!allocate_audio_chunk(sizeof(DummyHeader), &header_chunk)) {
+        if ((codec_format == ResonateCodecFormat::PCM) || (codec_format == ResonateCodecFormat::OPUS)) {
+          header_chunk = create_audio_chunk(sizeof(DummyHeader));
+          if (header_chunk == nullptr) {
             ESP_LOGE(TAG, "Memory allocation failed");
-            return;
+            return false;
           }
-          DummyHeader *header = reinterpret_cast<DummyHeader *>(header_chunk.data);
+          DummyHeader *header = reinterpret_cast<DummyHeader *>(header_chunk->get_data());
           header->sample_rate = session_audio_stream_info.get_sample_rate();
           header->bits_per_sample = session_audio_stream_info.get_bits_per_sample();
           header->channels = session_audio_stream_info.get_channels();
 
-          header_chunk.size = sizeof(DummyHeader);
+          header_chunk->offset = 0;
+          header_chunk->size = sizeof(DummyHeader);
+          header_chunk->server_timestamp = 0;
+          header_chunk->frame_count = 0;
 
-          if (codec_format == ResonateCodecFormat::RESONATE_CODEC_PCM) {
-            header_chunk.chunk_type = CHUNK_TYPE_PCM_DUMMY_HEADER;
-          } else if (codec_format == ResonateCodecFormat::RESONATE_CODEC_OPUS) {
-            header_chunk.chunk_type = CHUNK_TYPE_OPUS_DUMMY_HEADER;
+          if (codec_format == ResonateCodecFormat::PCM) {
+            header_chunk->chunk_type = CHUNK_TYPE_PCM_DUMMY_HEADER;
+          } else if (codec_format == ResonateCodecFormat::OPUS) {
+            header_chunk->chunk_type = CHUNK_TYPE_OPUS_DUMMY_HEADER;
           }
-        } else if (codec_format == ResonateCodecFormat::RESONATE_CODEC_FLAC) {
-          if (!allocate_audio_chunk(codec_header.size(), &header_chunk)) {
+        } else if (codec_format == ResonateCodecFormat::FLAC) {
+          std::vector<uint8_t> flac_header = base64_decode(codec_header);
+          header_chunk = create_audio_chunk(flac_header.size());
+          if (header_chunk == nullptr) {
             ESP_LOGE(TAG, "Memory allocation failed");
-            return;
+            return false;
           }
-
-          header_chunk.size = codec_header.size();
-          header_chunk.chunk_type = CHUNK_TYPE_FLAC_HEADER;
+          std::memcpy((void *) header_chunk->get_data(), (void *) flac_header.data(), flac_header.size());
+          header_chunk->offset = 0;
+          header_chunk->size = flac_header.size();
+          header_chunk->chunk_type = CHUNK_TYPE_FLAC_HEADER;
+          header_chunk->server_timestamp = 0;
+          header_chunk->frame_count = 0;
         }
 
-        if (!this->encoded_chunk_queue_->add_chunk(&header_chunk, 0)) {
+        if (!this->encoded_chunk_queue_->add_chunk(header_chunk, 0)) {
           // failed
           ESP_LOGE(TAG, "Failed to send codec header");
-          deallocate_audio_chunk(&header_chunk);
+        } else {
+          this->controls_callbacks_.call(ResonateControls::START);
         }
+        // Always release our reference (queue has its own if successful)
+        header_chunk->release();
       }
 #endif
       break;
@@ -334,7 +427,6 @@ void ResonateHub::handle_json_message_(const std::string &message, int64_t times
         this->server_id_ = std::move(server_id);
         this->server_name_ = std::move(server_name);
         xEventGroupSetBits(this->event_group_, CONTROL_START);
-        this->controls_callbacks_.call(ResonateControls::START);
         ESP_LOGD(TAG, "Connected to server %s with id %s", this->server_name_.c_str(), this->server_id_.c_str());
       }
       break;
@@ -357,54 +449,88 @@ void ResonateHub::handle_json_message_(const std::string &message, int64_t times
 #endif
       break;
     }
+    case ResonateServerToPlayerMessageType::VOLUME_SET: {
+#ifdef USE_RESONATE_AUDIO
+      uint8_t volume;
+      if (process_volume_set_message(message, &volume)) {
+        this->update_volume(volume);
+        this->controls_callbacks_.call(ResonateControls::VOLUME_UPDATE);
+      }
+#endif
+      break;
+    }
+    case ResonateServerToPlayerMessageType::MUTE_SET: {
+#ifdef USE_RESONATE_AUDIO
+      bool is_muted;
+      if (process_mute_set_message(message, &is_muted)) {
+        this->update_muted(is_muted);
+        this->controls_callbacks_.call(ResonateControls::MUTE_UPDATE);
+      }
+#endif
+      break;
+    }
     default:
       ESP_LOGW(TAG, "Unhandled server message: %s", message.c_str());
   }
+
+  return true;  // Successfully processed message
+}
+
+void ResonateHub::deallocate_websocket_payload_() {
+  auto allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE);
+  allocator.deallocate(this->websocket_payload_, this->websocket_len_);
+  this->websocket_payload_ = nullptr;
 }
 
 #ifdef USE_RESONATE_AUDIO
-bool ResonateHub::send_audio_chunk_(AudioChunk &audio_chunk, TickType_t ticks_to_wait,
+void ResonateHub::update_muted(bool is_muted) {
+  this->muted_ = is_muted;
+  this->publish_client_state();
+}
+void ResonateHub::update_state(std::string state) {
+  // TODO: Use an enum, not a string for the state
+  this->state_ = std::move(state);
+  this->publish_client_state();
+}
+void ResonateHub::update_volume(uint8_t volume) {
+  this->volume_ = volume;
+  this->publish_client_state();
+}
+
+void ResonateHub::publish_client_state() {
+  const PlayerStateMessage state = {.state = this->state_, .volume = this->volume_, .muted = this->muted_};
+  this->resonate_websocket_->send_player_state_message(&state);
+}
+
+bool ResonateHub::send_audio_chunk_(AudioChunk *audio_chunk, TickType_t ticks_to_wait,
                                     const audio::AudioStreamInfo &stream_info) {
-  if (this->audio_chunk_callback_functions_.empty()) {
-    // No callbacks registered, free the memory used for the data
-    deallocate_audio_chunk(&audio_chunk);
+  if (audio_chunk == nullptr) {
+    ESP_LOGE(TAG, "Null audio chunk passed to send_audio_chunk_");
+    return false;
+  }
+
+  if (this->audio_chunk_callbacks_.empty()) {
+    // No callbacks registered, return true so caller releases the chunk
     return true;
   }
 
-  if (this->successful_receivers_ == -1) {
-    this->successful_receivers_ = this->audio_chunk_callback_functions_.size() - 1;
-  }
-
-  for (int8_t i = this->successful_receivers_; i > 0; --i) {
-    // Copy the data into a new audio chunk so one caller can't deallocate the data before another caller uses it
-    AudioChunk copied_chunk = audio_chunk;
-    allocate_audio_chunk(audio_chunk.offset + audio_chunk.size, &copied_chunk);
-    std::memcpy((void *) copied_chunk.data, (void *) audio_chunk.data, audio_chunk.offset + audio_chunk.size);
-    if (this->audio_chunk_callback_functions_[i](copied_chunk, ticks_to_wait, stream_info)) {
-      --this->successful_receivers_;
-    } else {
-      // Deallocate the copy
-      deallocate_audio_chunk(&copied_chunk);
-      break;
+  // Simple distribution to all consumers
+  // Each consumer gets the pointer and must call add_ref() if they keep it
+  for (auto &callback : this->audio_chunk_callbacks_) {
+    if (!callback(audio_chunk, ticks_to_wait, stream_info)) {
+      // TODO : properly handle if one consumer fails to receive and another succeeds
+      return false;
     }
   }
 
-  if (this->successful_receivers_ == 0) {
-    if (this->audio_chunk_callback_functions_[0](audio_chunk, ticks_to_wait, stream_info)) {
-      this->successful_receivers_ = -1;
-      return true;
-    }
-  }
-
-  return false;
+  return true;
 }
 
 void ResonateHub::decode_task(void *params) {
   ResonateHub *this_resonate = (ResonateHub *) params;
 
-  AudioChunk encoded_chunk;
-  AudioChunk decoded_chunk;
-  decoded_chunk.data = nullptr;
+  AudioChunk *encoded_chunk = nullptr;
+  AudioChunk *decoded_chunk = nullptr;
 
   std::unique_ptr<ResonateDecoder> decoder = std::make_unique<ResonateDecoder>();
   audio::AudioStreamInfo current_stream_info;
@@ -417,28 +543,26 @@ void ResonateHub::decode_task(void *params) {
 
       decoder->reset_decoders();
       this_resonate->encoded_chunk_queue_->reset();
-      if (decoded_chunk.data != nullptr) {
+      if (decoded_chunk != nullptr) {
         // Haven't sent a decoded chunk, so manually deallocate it
-        deallocate_audio_chunk(&decoded_chunk);
-        decoded_chunk.data = nullptr;
+        decoded_chunk->release();
+        decoded_chunk = nullptr;
       }
-
-      // Reset the send_audio_chunk counter to make sure all receivers get the next chunk after starting again
-      this_resonate->successful_receivers_ = -1;
 
       vTaskDelay(pdMS_TO_TICKS(50));
 
       xEventGroupClearBits(this_resonate->event_group_, COMMAND_STOP);
     }
 
-    if (decoded_chunk.data != nullptr) {
+    if (decoded_chunk != nullptr) {
       // Add decoded chunk to the queue
-      uint32_t new_frames = decoded_chunk.frame_count;
+      uint32_t new_frames = decoded_chunk->frame_count;
 
       if (this_resonate->send_audio_chunk_(
               decoded_chunk, pdMS_TO_TICKS(current_stream_info.frames_to_milliseconds_with_remainder(&new_frames)),
               current_stream_info)) {
-        decoded_chunk.data = nullptr;
+        decoded_chunk->release();
+        decoded_chunk = nullptr;  // Chunk released, clear pointer
       } else {
         // Try adding again
         continue;
@@ -446,24 +570,31 @@ void ResonateHub::decode_task(void *params) {
     }
 
     if (this_resonate->encoded_chunk_queue_->peek_chunk(&encoded_chunk, pdMS_TO_TICKS(50))) {
-      if ((encoded_chunk.chunk_type != CHUNK_TYPE_ENCODED_AUDIO) &&
-          (encoded_chunk.chunk_type != CHUNK_TYPE_DECODED_AUDIO)) {
-        if (!decoder->process_header(&encoded_chunk, &current_stream_info)) {
+      if ((encoded_chunk->chunk_type != CHUNK_TYPE_ENCODED_AUDIO) &&
+          (encoded_chunk->chunk_type != CHUNK_TYPE_DECODED_AUDIO)) {
+        decoder->reset_decoders();
+        if (!decoder->process_header(encoded_chunk, &current_stream_info)) {
           ESP_LOGE(TAG, "Failed to process audio codec header");
           continue;
         }
         xEventGroupClearBits(this_resonate->event_group_, COMMAND_STOP);  // Where the hell is this getting set?
-      } else if ((decoder->get_current_codec() != ResonateCodecFormat::RESONATE_CODEC_UNSUPPORTED) &&
-                 (encoded_chunk.chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
-        if (!decoder->decode_audio_chunk(&encoded_chunk, &decoded_chunk)) {
+      } else if ((decoder->get_current_codec() != ResonateCodecFormat::UNSUPPORTED) &&
+                 (encoded_chunk->chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
+        if (!decoder->decode_audio_chunk(encoded_chunk, &decoded_chunk)) {
           ESP_LOGE(TAG, "Failed to decode audio chunk");
           continue;
         }
-        decoded_chunk.server_timestamp =
-            this_resonate->convert_server_to_client_timestamp(encoded_chunk.server_timestamp);
+        decoded_chunk->server_timestamp =
+            this_resonate->convert_server_to_client_timestamp(encoded_chunk->server_timestamp);
       }
 
-      this_resonate->encoded_chunk_queue_->receive_chunk(false);
+      // Remove chunk from queue and release the queue's reference
+      // Note: For PCM, decoded_chunk may be the same as encoded_chunk (with added ref)
+      // For other codecs, they are separate chunks
+      // In both cases, we release the encoded_chunk received from the queue
+      if (this_resonate->encoded_chunk_queue_->receive_chunk(&encoded_chunk, false, 0)) {
+        encoded_chunk->release();
+      }
     }
 
     static uint32_t high_water_mark = 8192;

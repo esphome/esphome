@@ -33,7 +33,11 @@ static const UBaseType_t SYNC_TASK_PRIORITY = 5;
 enum EventGroupBits : uint32_t {
   CONTROL_START = (1 << 0),
   CONTROL_STOP = (1 << 1),
-  WARNING_ENCODED_CHUNK_FULL = (1 << 11),
+
+  TASK_STARTING = (1 << 10),
+  TASK_RUNNING = (1 << 11),
+  TASK_STOPPING = (1 << 12),
+  TASK_STOPPED = (1 << 13),
 };
 
 void ResonateMediaPlayer::setup() {
@@ -46,6 +50,12 @@ void ResonateMediaPlayer::setup() {
   this->playback_progress_queue_ = xQueueCreateWithCaps(50, sizeof(PlaybackProgress), MALLOC_CAP_SPIRAM);
   if (this->playback_progress_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create playback progress queue.");
+    this->mark_failed();
+  }
+
+  this->resonate_controls_queue_ = xQueueCreate(3, sizeof(ResonateControls));
+  if (this->resonate_controls_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Couldn't create resonate controls queue.");
     this->mark_failed();
   }
 
@@ -63,20 +73,37 @@ void ResonateMediaPlayer::setup() {
   });
 
   this->parent_->add_audio_chunk_callback(
-      [this](AudioChunk &audio_chunk, TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info) {
+      [this](AudioChunk *audio_chunk, TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info) {
         this->audio_stream_info_ = stream_info;
 
-        return this->decoded_chunk_queue_->add_chunk(&audio_chunk, ticks_to_wait);
+        // add_chunk adds its own reference to the chunk
+        return this->decoded_chunk_queue_->add_chunk(audio_chunk, ticks_to_wait);
       });
 
   this->parent_->add_controls_callback([this](const ResonateControls &control_type) {
     switch (control_type) {
       case ResonateControls::START: {
-        xEventGroupSetBits(this->event_group_, CONTROL_START);
+        // Add to queue to carefully process in loop() at the appropriate time
+        xQueueSend(this->resonate_controls_queue_, &control_type, 0);
         break;
       }
       case ResonateControls::STOP: {
-        xEventGroupSetBits(this->event_group_, CONTROL_STOP);
+        // Add to queue to carefully process in loop() at the appropriate time
+        xQueueSend(this->resonate_controls_queue_, &control_type, 0);
+        break;
+      }
+      case ResonateControls::VOLUME_UPDATE: {
+        // Process immediately
+        this->volume_ = this->parent_->get_volume();
+        break;
+      }
+      case ResonateControls::MUTE_UPDATE: {
+        // Process immediately
+        if (this->parent_->get_muted()) {
+          this->make_call().set_command(media_player::MEDIA_PLAYER_COMMAND_MUTE).perform();
+        } else {
+          this->make_call().set_command(media_player::MEDIA_PLAYER_COMMAND_UNMUTE).perform();
+        }
         break;
       }
     }
@@ -87,8 +114,77 @@ void ResonateMediaPlayer::setup() {
 }
 
 void ResonateMediaPlayer::loop() {
+  ResonateControls incoming_control;
+  if (xQueuePeek(this->resonate_controls_queue_, &incoming_control, 0)) {
+    switch (incoming_control) {
+      case ResonateControls::START: {
+        if (this->sync_task_handle_ == nullptr) {
+          // The task is not running in any state
+          if (xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0)) {
+            xEventGroupSetBits(this->event_group_, EventGroupBits::CONTROL_START);
+          }
+        } else if (this->task_processing_) {
+          // Already fully running and processing audio, discard the control message
+          xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0);
+        }
+        // If neither of these conditions hold, then we must be starting, as we set task_procesing_ to false once we
+        // start stopping. Leave this command in the queue. If we're starting, eventually the task_processing_ variable
+        // will be true and we'll discard the command then.
+        break;
+      }
+      case ResonateControls::STOP: {
+        if (this->sync_task_handle_ == nullptr) {
+          // The task is not running in any state - discard the control message
+          xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0);
+        } else if (!this->task_processing_) {
+          // Task is transitioning (starting or stopping), leave command in queue
+          // If we're already stopping, eventually sync_task_handle_ will be null and we'll discard it
+          // If we're starting, eventually task_processing_ will be true and we'll process it
+        } else {
+          // Task is fully running and processing audio, process the stop command
+          if (xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0)) {
+            xEventGroupSetBits(this->event_group_, EventGroupBits::CONTROL_STOP);
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   // Determine state of the media player
   media_player::MediaPlayerState old_state = this->state;
+
+  // Handle the task's state
+  uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
+  if (event_group_bits & EventGroupBits::TASK_STARTING) {
+    ESP_LOGD(TAG, "Starting");
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STARTING);
+  }
+  if (event_group_bits & EventGroupBits::TASK_RUNNING) {
+    ESP_LOGD(TAG, "Started");
+    this->parent_->update_state("playing");
+    this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+    this->task_processing_ = true;
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_RUNNING);
+  }
+  if (event_group_bits & EventGroupBits::TASK_STOPPING) {
+    ESP_LOGD(TAG, "Stopping");
+    this->task_processing_ = false;
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPING);
+  }
+  if (event_group_bits & EventGroupBits::TASK_STOPPED) {
+    ESP_LOGD(TAG, "Stopped");
+    this->parent_->update_state("idle");
+    this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+
+    vTaskDelete(this->sync_task_handle_);
+    this->sync_task_handle_ = nullptr;
+
+    xEventGroupClearBits(this->event_group_, EventGroupBits::CONTROL_STOP);
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPED);
+  }
 
   if (xEventGroupGetBits(this->event_group_) & CONTROL_START) {
     if (this->sync_task_stack_buffer_ == nullptr) {
@@ -99,9 +195,16 @@ void ResonateMediaPlayer::loop() {
         RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
         this->sync_task_stack_buffer_ = stack_allocator.allocate(SYNC_TASK_STACK_SIZE);
       }
+    }
+    if (this->sync_task_handle_ == nullptr) {
+      // Reset the relevant queues
+      xQueueReset(this->playback_progress_queue_);
+      this->decoded_chunk_queue_->reset();  // TODO: It's possible we throw away the initial chunks
+
       this->sync_task_handle_ =
           xTaskCreateStatic(sync_task, "resonate_sync", SYNC_TASK_STACK_SIZE, (void *) this, SYNC_TASK_PRIORITY,
                             this->sync_task_stack_buffer_, &this->sync_task_stack_);
+      xEventGroupClearBits(this->event_group_, EventGroupBits::CONTROL_START);
     }
   }
 
@@ -154,6 +257,7 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 
   if (call.get_volume().has_value()) {
     this->volume_ = std::roundf(call.get_volume().value() * 100.0f);
+    this->parent_->update_volume(this->volume_.value());
   }
 
   if (call.get_command().has_value()) {
@@ -169,14 +273,16 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         this->parent_->send_stream_command(call);  // Forward commands to the resonate server
         break;
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
-        this->speaker_->set_mute_state(true);
         this->is_muted_ = true;
+        this->speaker_->set_mute_state(this->is_muted_);
         this->force_publish_state_ = true;
+        this->parent_->update_muted(this->is_muted_);
         break;
       case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
-        this->speaker_->set_mute_state(false);
         this->is_muted_ = false;
+        this->speaker_->set_mute_state(this->is_muted_);
         this->force_publish_state_ = true;
+        this->parent_->update_muted(this->is_muted_);
         break;
       default:
         break;
@@ -191,257 +297,340 @@ void ResonateMediaPlayer::sync_task(void *params) {
    */
   ResonateMediaPlayer *this_resonate = (ResonateMediaPlayer *) params;
 
-  AudioChunk decoded_chunk;
-  decoded_chunk.data = nullptr;
+  xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_STARTING);
+  {
+    AudioChunk *decoded_chunk = nullptr;
 
-  audio::AudioStreamInfo current_stream_info;
-  size_t bytes_per_frame = current_stream_info.frames_to_bytes(1);
+    audio::AudioStreamInfo current_stream_info;
+    size_t bytes_per_frame = current_stream_info.frames_to_bytes(1);
 
-  std::unique_ptr<audio::AudioSinkTransferBuffer> output_transfer_buffer =
-      audio::AudioSinkTransferBuffer::create_inplace();
-  std::unique_ptr<audio::AudioSinkTransferBuffer> interpolation_transfer_buffer =
-      audio::AudioSinkTransferBuffer::create(current_stream_info.ms_to_bytes(INITIAL_SYNC_ZEROS_DURATION_MS));
-  output_transfer_buffer->set_sink(this_resonate->speaker_);
-  interpolation_transfer_buffer->set_sink(this_resonate->speaker_);
+    std::unique_ptr<audio::AudioSinkTransferBuffer> output_transfer_buffer =
+        audio::AudioSinkTransferBuffer::create_inplace();
+    std::unique_ptr<audio::AudioSinkTransferBuffer> interpolation_transfer_buffer =
+        audio::AudioSinkTransferBuffer::create(current_stream_info.ms_to_bytes(INITIAL_SYNC_ZEROS_DURATION_MS));
+    output_transfer_buffer->set_sink(this_resonate->speaker_);
+    interpolation_transfer_buffer->set_sink(this_resonate->speaker_);
 
-  bool receive_chunk = true;
-  bool initial_decode = true;
+    bool receive_chunk = true;
+    bool initial_decode = true;
 
-  int64_t pending_frame_corrections = 0;
+    int64_t pending_frame_corrections = 0;
 
-  int synced_chunks = 0;
+    int synced_chunks = 0;
 
-  std::deque<InternalAudioTiming> chunk_timings;
+    std::deque<InternalAudioTiming> chunk_timings;
 
-  this_resonate->pending_frames_ = 0;
+    this_resonate->pending_frames_ = 0;
 
-  std::optional<int64_t> last_error;
+    std::optional<int64_t> last_error;
 
-  int64_t temporary_hard_sync_threshold = HARD_SYNC_THRESHOLD_US;
+    int64_t temporary_hard_sync_threshold = HARD_SYNC_THRESHOLD_US;
 
-  while (true) {
-    EventBits_t event_bits = xEventGroupGetBits(this_resonate->event_group_);
-    if (event_bits & CONTROL_STOP) {
-      // Processes the stop command by stopping the speaker and resetting all states
-      this_resonate->speaker_->stop();
+    this_resonate->pending_frames_ = 0;
 
-      while (!this_resonate->speaker_->is_stopped()) {
-        vTaskDelay(pdMS_TO_TICKS(15));
+    this_resonate->single_frames_added_ = 0;
+    this_resonate->single_frames_removed_ = 0;
+    this_resonate->hard_sync_added_frames_ = 0;
+    this_resonate->hard_sync_removed_frames_ = 0;
+
+    xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_RUNNING);
+    while (!(xEventGroupGetBits(this_resonate->event_group_) & CONTROL_STOP)) {
+      const uint32_t duration_in_transfer_buffers = current_stream_info.bytes_to_ms(
+          output_transfer_buffer->available() + interpolation_transfer_buffer->available());
+
+      size_t bytes_written =
+          interpolation_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(duration_in_transfer_buffers / 2), false);
+
+      if ((bytes_written > 0) && initial_decode) {
+        // Sent initial zeros, delay slightly to give it some time to work through the audio stack
+        vTaskDelay(pdMS_TO_TICKS(current_stream_info.bytes_to_ms(bytes_written) / 2));
       }
 
-      interpolation_transfer_buffer->decrease_buffer_length(interpolation_transfer_buffer->available());
-      output_transfer_buffer->decrease_buffer_length(output_transfer_buffer->available());
+      if (interpolation_transfer_buffer->available() == 0) {
+        // No interpolation bytes available, send main audio data
+        output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(3 * duration_in_transfer_buffers / 2), false);
+      }
 
-      last_error.reset();
-      pending_frame_corrections = 0;
-      chunk_timings.clear();
-      xQueueReset(this_resonate->playback_progress_queue_);
+      if ((output_transfer_buffer->available() == 0) && (decoded_chunk != nullptr) && receive_chunk) {
+        if (this_resonate->decoded_chunk_queue_->receive_chunk(true)) {
+          // Released the current chunk
+          decoded_chunk = nullptr;
+          receive_chunk = false;
+        } else {
+          // Failed to remove the chunk from the queue, try again
+          continue;
+        }
+      }
 
-      // Clear the current chunk, if any is pending
-      this_resonate->decoded_chunk_queue_->receive_chunk(true);
-      decoded_chunk.data = nullptr;
-      receive_chunk = false;
-
-      this_resonate->decoded_chunk_queue_->reset();
-
-      this_resonate->pending_frames_ = 0;
-
-      this_resonate->single_frames_added_ = 0;
-      this_resonate->single_frames_removed_ = 0;
-      this_resonate->hard_sync_added_frames_ = 0;
-      this_resonate->hard_sync_removed_frames_ = 0;
-
-      initial_decode = true;
-
-      // Ensure we restore the proper mute state in case the stream was out of sync at the end
-      this_resonate->speaker_->set_mute_state(this_resonate->is_muted_);
-
-      xEventGroupClearBits(this_resonate->event_group_, CONTROL_STOP);
-    }
-
-    const uint32_t duration_in_transfer_buffers = current_stream_info.bytes_to_ms(
-        output_transfer_buffer->available() + interpolation_transfer_buffer->available());
-
-    size_t bytes_written =
-        interpolation_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(duration_in_transfer_buffers / 2), false);
-
-    if ((bytes_written > 0) && initial_decode) {
-      // Sent initial zeros, delay slightly to give it some time to work through the audio stack
-      vTaskDelay(pdMS_TO_TICKS(current_stream_info.bytes_to_ms(bytes_written) / 2));
-    }
-
-    if (interpolation_transfer_buffer->available() == 0) {
-      // No interpolation bytes available, send main audio data
-      output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(3 * duration_in_transfer_buffers / 2), false);
-    }
-
-    if ((output_transfer_buffer->available() == 0) && (decoded_chunk.data != nullptr) && receive_chunk) {
-      if (this_resonate->decoded_chunk_queue_->receive_chunk(true)) {
-        // Deallocated the current chunk
-        decoded_chunk.data = nullptr;
-        receive_chunk = false;
-      } else {
-        // Failed to remove the chunk from the queue, try again
+      if (interpolation_transfer_buffer->available() + output_transfer_buffer->available() > 0) {
+        // Some audio still needs to be sent, loop back around
         continue;
       }
-    }
 
-    if (interpolation_transfer_buffer->available() + output_transfer_buffer->available() > 0) {
-      // Some audio still needs to be sent, loop back around
-      continue;
-    }
-
-    if (!this_resonate->decoded_chunk_queue_->peek_chunk(&decoded_chunk, pdMS_TO_TICKS(15))) {
-      // No new chunks available to process
-      continue;
-    }
-
-    // Loaded a new chunk of audio into decoded_chunk
-
-    if (current_stream_info != this_resonate->audio_stream_info_) {
-      // This shouldn't change in the middle of a session...
-      current_stream_info = this_resonate->audio_stream_info_;
-      this_resonate->speaker_->set_audio_stream_info(current_stream_info);
-
-      bytes_per_frame = current_stream_info.frames_to_bytes(1);
-      if (interpolation_transfer_buffer->capacity() < current_stream_info.ms_to_bytes(INITIAL_SYNC_ZEROS_DURATION_MS)) {
-        interpolation_transfer_buffer->reallocate(current_stream_info.ms_to_bytes(INITIAL_SYNC_ZEROS_DURATION_MS));
-      }
-    }
-
-    if (esp_timer_get_time() - decoded_chunk.server_timestamp > 0) {
-      // Chunk was already supposed to play, skip it!
-      if (this_resonate->decoded_chunk_queue_->receive_chunk(true)) {
-        ESP_LOGE(TAG, "Chunk was already supposed to play, skipping it");
-        decoded_chunk.data = nullptr;
-        receive_chunk = false;
+      if (!this_resonate->decoded_chunk_queue_->peek_chunk(&decoded_chunk, pdMS_TO_TICKS(15))) {
+        // No new chunks available to process
         continue;
       }
-    }
 
-    /*
-     * Determine the current sync error using the playback information from the speaker.
-     */
-    PlaybackProgress playback_progress;
+      // Loaded a new chunk of audio into decoded_chunk
 
-    if (this_resonate->decoded_chunk_queue_->size() == 1) {
-      ESP_LOGW(TAG, "Potential buffer underflow incoming");
-    }
+      if (current_stream_info != this_resonate->audio_stream_info_) {
+        // This shouldn't change in the middle of a session...
+        current_stream_info = this_resonate->audio_stream_info_;
+        this_resonate->speaker_->set_audio_stream_info(current_stream_info);
 
-    int64_t finish_timestamp = 0;
-    while (!chunk_timings.empty() &&
-           (xQueueReceive(this_resonate->playback_progress_queue_, &playback_progress, 0) == pdTRUE)) {
-      if (initial_decode) {
-        // Some sent audio chunks have now been played by the speaker
-        initial_decode = false;
+        bytes_per_frame = current_stream_info.frames_to_bytes(1);
+        if (interpolation_transfer_buffer->capacity() <
+            current_stream_info.ms_to_bytes(INITIAL_SYNC_ZEROS_DURATION_MS)) {
+          interpolation_transfer_buffer->reallocate(current_stream_info.ms_to_bytes(INITIAL_SYNC_ZEROS_DURATION_MS));
+        }
       }
 
-      uint32_t frames_played = playback_progress.frames_played;
-      finish_timestamp = playback_progress.finish_timestamp;
-      // this_resonate->pending_frames_ -= std::max(frames_played, this_resonate->pending_frames_);
-      InternalAudioTiming *front_chunk = &chunk_timings.front();
+      // if (esp_timer_get_time() - decoded_chunk->server_timestamp > 0) {
+      //   // Chunk was already supposed to play, skip it!
+      //   if (this_resonate->decoded_chunk_queue_->receive_chunk(true)) {
+      //     ESP_LOGE(TAG, "Chunk was already supposed to play at %" PRId64 " and its %" PRId64 ", so skipping it",
+      //              decoded_chunk->server_timestamp, esp_timer_get_time());
+      //     decoded_chunk = nullptr;
+      //     receive_chunk = false;
+      //     continue;
+      //   }
+      // }
 
-      pending_frame_corrections -= front_chunk->frame_corrections;
-      front_chunk->frame_corrections = 0;
+      /*
+       * Determine the current sync error using the playback information from the speaker.
+       */
+      PlaybackProgress playback_progress;
 
-      while (front_chunk->total_frames < frames_played) {
-        frames_played -= front_chunk->total_frames;
+      if (this_resonate->decoded_chunk_queue_->size() == 1) {
+        ESP_LOGW(TAG, "Potential buffer underflow incoming");
+      }
 
-        chunk_timings.pop_front();
-        front_chunk = &chunk_timings.front();
+      int64_t finish_timestamp = 0;
+      while (!chunk_timings.empty() &&
+             (xQueueReceive(this_resonate->playback_progress_queue_, &playback_progress, 0) == pdTRUE)) {
+        uint32_t frames_played = playback_progress.frames_played;
+
+        if (frames_played && initial_decode) {
+          // Some sent audio chunks have now been played by the speaker
+          initial_decode = false;
+        }
+
+        finish_timestamp = playback_progress.finish_timestamp;
+        // this_resonate->pending_frames_ -= std::max(frames_played, this_resonate->pending_frames_);
+        InternalAudioTiming *front_chunk = &chunk_timings.front();
 
         pending_frame_corrections -= front_chunk->frame_corrections;
         front_chunk->frame_corrections = 0;
+
+        while (front_chunk->total_frames < frames_played) {
+          frames_played -= front_chunk->total_frames;
+
+          chunk_timings.pop_front();
+          front_chunk = &chunk_timings.front();
+
+          pending_frame_corrections -= front_chunk->frame_corrections;
+          front_chunk->frame_corrections = 0;
+        }
+
+        // Now we are in the middle of the current audio chunk
+        if (chunk_timings.empty()) {
+          // Catastrophic error, queue a stop and start control
+          ResonateControls control_type = ResonateControls::STOP;
+          xQueueSend(this_resonate->resonate_controls_queue_, &control_type, portMAX_DELAY);
+          control_type = ResonateControls::START;
+          xQueueSend(this_resonate->resonate_controls_queue_, &control_type, portMAX_DELAY);
+          ESP_LOGE(TAG, "Catastrophic sync error. Restarting sync task");
+        } else {
+          chunk_timings.front().total_frames -= frames_played;
+        }
+      }
+      if (!chunk_timings.empty() && (finish_timestamp != 0)) {
+        uint32_t unplayed_frames = chunk_timings.front().total_frames;
+
+        int64_t unplayed_ms = current_stream_info.frames_to_milliseconds_with_remainder(&unplayed_frames);
+        int64_t unplayed_us =
+            1000LL * unplayed_ms + static_cast<int64_t>(current_stream_info.frames_to_microseconds(unplayed_frames));
+
+        int64_t timestamp_finished = chunk_timings.front().timestamp - unplayed_us;
+
+        last_error = timestamp_finished - finish_timestamp;
       }
 
-      // Now we are in the middle of the current audio chunk
-
-      chunk_timings.front().total_frames -= frames_played;
-    }
-    if (!chunk_timings.empty() && (finish_timestamp != 0)) {
-      uint32_t unplayed_frames = chunk_timings.front().total_frames;
-
-      int64_t unplayed_ms = current_stream_info.frames_to_milliseconds_with_remainder(&unplayed_frames);
-      int64_t unplayed_us =
-          1000LL * unplayed_ms + static_cast<int64_t>(current_stream_info.frames_to_microseconds(unplayed_frames));
-
-      int64_t timestamp_finished = chunk_timings.front().timestamp - unplayed_us;
-
-      last_error = timestamp_finished - finish_timestamp;
-    }
-
-    if (!last_error.has_value() && !initial_decode) {
-      // Unless we are just starting (initial_decode), always wait until a new error measurement is available
-      // before trying to process more audio. This way we don't correct for an error twice
-      vTaskDelay(pdMS_TO_TICKS(15));
-      continue;
-    }
-
-    int64_t signed_pending_duration_corrections =
-        (pending_frame_corrections * 1000000LL) / static_cast<int64_t>(current_stream_info.get_sample_rate());
-
-    // Takes into account the pending error
-    int64_t recent_error_us = last_error.value_or(0) - signed_pending_duration_corrections;
-
-    if (abs(last_error.value_or(0)) < HARD_SYNC_THRESHOLD_US) {
-      synced_chunks = std::min(synced_chunks + 1, GOOD_SYNCS_BEFORE_UNMUTE);
-      temporary_hard_sync_threshold = HARD_SYNC_THRESHOLD_US;  // go back to large threshold
-    } else if (abs(recent_error_us) > HARD_SYNC_THRESHOLD_US) {
-      // Even with the upcoming adjustments we are out of sync, reset the count
-      synced_chunks = 0;
-      temporary_hard_sync_threshold = HARD_RESYNC_THRESHOLD_US;
-    }
-
-    // Only mute/unmute for out of sync if we are receiving audio data
-    if ((synced_chunks < GOOD_SYNCS_BEFORE_UNMUTE) && (!this_resonate->speaker_->get_mute_state())) {
-      ESP_LOGD(TAG, "Out of sync, muting output until corrected");
-      ++this_resonate->audible_syncs_;
-      this_resonate->speaker_->set_mute_state(true);
-    } else if ((synced_chunks >= GOOD_SYNCS_BEFORE_UNMUTE) &&
-               (this_resonate->is_muted_ != this_resonate->speaker_->get_mute_state())) {
-      ESP_LOGD(TAG, "In sync with server, setting mute state to existing setting");
-      this_resonate->speaker_->set_mute_state(this_resonate->is_muted_);
-    }
-
-    InternalAudioTiming timings;
-    int32_t frame_corrections = 0;
-
-    if (initial_decode || (recent_error_us > temporary_hard_sync_threshold)) {
-      // Audio hasn't started or we are too far ahead, so insert many zeros
-
-      decoded_chunk.data = nullptr;  // Ensure we do not deallocate the chunk's data
-      receive_chunk = false;
-
-      // Remove any new chunk data from the transfer buffer and zero out the transfer buffer
-      interpolation_transfer_buffer->decrease_buffer_length(interpolation_transfer_buffer->available());
-      const size_t zeroed_bytes = interpolation_transfer_buffer->free();
-      std::memset((void *) interpolation_transfer_buffer->get_buffer_end(), 0, zeroed_bytes);
-
-      size_t silence_bytes_for_correction =
-          current_stream_info.ms_to_bytes(static_cast<uint32_t>(abs(recent_error_us)) / 1000);
-
-      if (silence_bytes_for_correction < zeroed_bytes) {
-        // Silencing this chunk will get us precisely in sync, so correct in microseconds
-        const uint32_t frames_to_silence = (abs(recent_error_us) * current_stream_info.get_sample_rate()) / 1000000;
-        silence_bytes_for_correction = current_stream_info.frames_to_bytes(frames_to_silence);
+      if (!last_error.has_value() && !initial_decode) {
+        // Unless we are just starting (initial_decode), always wait until a new error measurement is available
+        // before trying to process more audio. This way we don't correct for an error twice
+        vTaskDelay(pdMS_TO_TICKS(15));
+        continue;
       }
 
-      size_t actual_bytes_of_silence = std::min(silence_bytes_for_correction, zeroed_bytes);
-      if (initial_decode) {
-        // Always send a full set of zeros when starting a new stream
-        actual_bytes_of_silence = zeroed_bytes;
+      int64_t signed_pending_duration_corrections =
+          (pending_frame_corrections * 1000000LL) / static_cast<int64_t>(current_stream_info.get_sample_rate());
+
+      // Takes into account the pending error
+      int64_t recent_error_us = last_error.value_or(0) - signed_pending_duration_corrections;
+
+      if (abs(last_error.value_or(0)) < HARD_SYNC_THRESHOLD_US) {
+        synced_chunks = std::min(synced_chunks + 1, GOOD_SYNCS_BEFORE_UNMUTE);
+        temporary_hard_sync_threshold = HARD_SYNC_THRESHOLD_US;  // go back to large threshold
+      } else if (abs(recent_error_us) > HARD_SYNC_THRESHOLD_US) {
+        // Even with the upcoming adjustments we are out of sync, reset the count
+        synced_chunks = 0;
+        temporary_hard_sync_threshold = HARD_RESYNC_THRESHOLD_US;
       }
-      interpolation_transfer_buffer->increase_buffer_length(actual_bytes_of_silence);
-      frame_corrections = current_stream_info.bytes_to_frames(actual_bytes_of_silence);
 
-      ESP_LOGD(TAG,
-               "Hard sync: adding %" PRId32 " frames of silence. Current error is %" PRId64 "us. There are %" PRId64
-               " pending frames for correction, and the deque has %zu entries",
-               frame_corrections, recent_error_us, pending_frame_corrections, chunk_timings.size());
-      ++this_resonate->hard_sync_added_frames_;
+      // Only mute/unmute for out of sync if we are receiving audio data
+      if ((synced_chunks < GOOD_SYNCS_BEFORE_UNMUTE) && (!this_resonate->speaker_->get_mute_state())) {
+        ESP_LOGD(TAG, "Out of sync, muting output until corrected");
+        ++this_resonate->audible_syncs_;
+        this_resonate->speaker_->set_mute_state(true);
+      } else if ((synced_chunks >= GOOD_SYNCS_BEFORE_UNMUTE) &&
+                 (this_resonate->is_muted_ != this_resonate->speaker_->get_mute_state())) {
+        ESP_LOGD(TAG, "In sync with server, setting mute state to existing setting");
+        this_resonate->speaker_->set_mute_state(this_resonate->is_muted_);
+      }
 
-      timings.timestamp = decoded_chunk.server_timestamp;
-      timings.total_frames = frame_corrections;
+      InternalAudioTiming timings;
+      int32_t frame_corrections = 0;
+
+      if (initial_decode || (recent_error_us > temporary_hard_sync_threshold)) {
+        // Audio hasn't started or we are too far ahead, so insert many zeros
+
+        // Keep the chunk for later processing (don't release yet)
+        receive_chunk = false;
+
+        // Remove any new chunk data from the transfer buffer and zero out the transfer buffer
+        interpolation_transfer_buffer->decrease_buffer_length(interpolation_transfer_buffer->available());
+        const size_t zeroed_bytes = interpolation_transfer_buffer->free();
+        std::memset((void *) interpolation_transfer_buffer->get_buffer_end(), 0, zeroed_bytes);
+
+        size_t silence_bytes_for_correction =
+            current_stream_info.ms_to_bytes(static_cast<uint32_t>(abs(recent_error_us)) / 1000);
+
+        if (silence_bytes_for_correction < zeroed_bytes) {
+          // Silencing this chunk will get us precisely in sync, so correct in microseconds
+          const uint32_t frames_to_silence = (abs(recent_error_us) * current_stream_info.get_sample_rate()) / 1000000;
+          silence_bytes_for_correction = current_stream_info.frames_to_bytes(frames_to_silence);
+        }
+
+        size_t actual_bytes_of_silence = std::min(silence_bytes_for_correction, zeroed_bytes);
+        if (initial_decode) {
+          // Always send a full set of zeros when starting a new stream
+          actual_bytes_of_silence = zeroed_bytes;
+        }
+        interpolation_transfer_buffer->increase_buffer_length(actual_bytes_of_silence);
+        frame_corrections = current_stream_info.bytes_to_frames(actual_bytes_of_silence);
+
+        ESP_LOGD(TAG,
+                 "Hard sync: adding %" PRId32 " frames of silence. Current error is %" PRId64 "us. There are %" PRId64
+                 " pending frames for correction, and the deque has %zu entries",
+                 frame_corrections, recent_error_us, pending_frame_corrections, chunk_timings.size());
+        ++this_resonate->hard_sync_added_frames_;
+
+        timings.timestamp = decoded_chunk->server_timestamp;
+        timings.total_frames = frame_corrections;
+        timings.frame_corrections = frame_corrections;
+        pending_frame_corrections += frame_corrections;
+
+        this_resonate->pending_frames_ += timings.total_frames;
+
+        chunk_timings.push_back(timings);
+        last_error.reset();  // We're accounted for the most recent error
+        continue;
+      }
+
+      receive_chunk = true;
+      output_transfer_buffer->change_inplace_buffer(decoded_chunk->get_data(), decoded_chunk->size);
+
+      if (recent_error_us < -temporary_hard_sync_threshold) {
+        // Hard sync because we have gotten ahead and need to skip some audio to get in sync
+        // Removes newly decoded frames (but will always leave a minimum of 1 frame)
+
+        size_t bytes_to_remove = current_stream_info.ms_to_bytes(abs(recent_error_us) / 1000);
+        if (bytes_to_remove < decoded_chunk->size - bytes_per_frame) {
+          // Trimming this chunk will get us precisely in sync, so correct in microseconds
+          const uint32_t frames_to_remove = (abs(recent_error_us) * current_stream_info.get_sample_rate()) / 1000000;
+          bytes_to_remove = current_stream_info.frames_to_bytes(frames_to_remove);
+        }
+
+        size_t actual_bytes_to_remove = std::min(bytes_to_remove, decoded_chunk->size - bytes_per_frame);
+
+        output_transfer_buffer->decrease_buffer_length(actual_bytes_to_remove);
+
+        // TODO: Is this right? Coudln't I just use get_buffer_start?
+        size_t bytes_to_silence = decoded_chunk->size - actual_bytes_to_remove;
+        std::memset((void *) (output_transfer_buffer->get_buffer_end() - bytes_to_silence), 0, bytes_to_silence);
+
+        frame_corrections = -current_stream_info.bytes_to_frames(actual_bytes_to_remove);
+
+        uint32_t total_frames_kept = current_stream_info.bytes_to_frames(decoded_chunk->size) + frame_corrections;
+
+        ESP_LOGD(TAG,
+                 "Hard sync: removing %" PRId32 " frames and keeping %" PRIu32 " frames. Current error is %" PRId64
+                 "us. There are %" PRId64 " pending frames for correction, and the deque has %zu entries",
+                 frame_corrections, total_frames_kept, recent_error_us, pending_frame_corrections,
+                 chunk_timings.size());
+        ++this_resonate->hard_sync_removed_frames_;
+      } else if (recent_error_us < -SOFT_SYNC_THRESHOLD_US) {
+        // Small sync adjustment after getting slightly ahead.
+        // Removes the last frame in the chunk to get in sync. The second to last frame is replaced with the average
+        // of it and the removed frame to minimize audible glitches.
+
+        const uint32_t num_channels = current_stream_info.get_channels();
+        const uint32_t bytes_per_sample = bytes_per_frame / num_channels;
+
+        if (output_transfer_buffer->available() >= 2 * bytes_per_frame) {
+          for (uint32_t chan = 0; chan < num_channels; ++chan) {
+            const int32_t first_sample = audio::unpack_audio_sample_to_q31(
+                output_transfer_buffer->get_buffer_end() - 2 * bytes_per_frame + chan * bytes_per_sample,
+                bytes_per_sample);
+            const int32_t second_sample = audio::unpack_audio_sample_to_q31(
+                output_transfer_buffer->get_buffer_end() - bytes_per_frame + chan * bytes_per_sample, bytes_per_sample);
+            int32_t replacement_sample = (first_sample + second_sample) / 2;
+            audio::pack_q31_as_audio_sample(
+                replacement_sample,
+                output_transfer_buffer->get_buffer_end() - 2 * bytes_per_frame + chan * bytes_per_sample,
+                bytes_per_sample);
+          }
+
+          output_transfer_buffer->decrease_buffer_length(bytes_per_frame);
+          frame_corrections = -1;
+          ++this_resonate->single_frames_removed_;
+        }
+      } else if (recent_error_us > SOFT_SYNC_THRESHOLD_US) {
+        // Small sync adjustment after getting slightly behind.
+        // Adds one new frame to get in sync. The new frame is inserted between the first and second frames.
+        // The new frame is the average of the first two frames in the chunk to minimize audible glitches.
+
+        if ((interpolation_transfer_buffer->free() >= bytes_per_frame) &&
+            (output_transfer_buffer->available() >= 2 * bytes_per_frame)) {
+          const uint32_t num_channels = current_stream_info.get_channels();
+          const uint32_t bytes_per_sample = bytes_per_frame / num_channels;
+
+          for (uint32_t chan = 0; chan < num_channels; ++chan) {
+            const int32_t first_sample = audio::unpack_audio_sample_to_q31(
+                output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample, bytes_per_sample);
+            const int32_t second_sample = audio::unpack_audio_sample_to_q31(
+                output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample + bytes_per_frame,
+                bytes_per_sample);
+            int32_t new_sample = (first_sample + second_sample) / 2;
+            audio::pack_q31_as_audio_sample(
+                new_sample, output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample, bytes_per_sample);
+            audio::pack_q31_as_audio_sample(first_sample,
+                                            interpolation_transfer_buffer->get_buffer_start() + chan * bytes_per_sample,
+                                            bytes_per_sample);
+          }
+          interpolation_transfer_buffer->increase_buffer_length(bytes_per_frame);
+          frame_corrections = 1;
+          ++this_resonate->single_frames_added_;
+        }
+      }
+      uint32_t new_frames = decoded_chunk->frame_count;
+      const int64_t new_duration_ms = current_stream_info.frames_to_milliseconds_with_remainder(&new_frames);
+      const int64_t new_duration_us = new_duration_ms * 1000LL + current_stream_info.frames_to_microseconds(new_frames);
+
+      timings.timestamp = decoded_chunk->server_timestamp + new_duration_us;
+      timings.total_frames = decoded_chunk->frame_count + frame_corrections;
       timings.frame_corrections = frame_corrections;
       pending_frame_corrections += frame_corrections;
 
@@ -449,113 +638,32 @@ void ResonateMediaPlayer::sync_task(void *params) {
 
       chunk_timings.push_back(timings);
       last_error.reset();  // We're accounted for the most recent error
-      continue;
-    }
 
-    receive_chunk = true;
-    output_transfer_buffer->change_inplace_buffer(decoded_chunk.data + decoded_chunk.offset, decoded_chunk.size);
-
-    if (recent_error_us < -temporary_hard_sync_threshold) {
-      // Hard sync because we have gotten ahead and need to skip some audio to get in sync
-      // Removes newly decoded frames (but will always leave a minimum of 1 frame)
-
-      size_t bytes_to_remove = current_stream_info.ms_to_bytes(abs(recent_error_us) / 1000);
-      if (bytes_to_remove < decoded_chunk.size - bytes_per_frame) {
-        // Trimming this chunk will get us precisely in sync, so correct in microseconds
-        const uint32_t frames_to_remove = (abs(recent_error_us) * current_stream_info.get_sample_rate()) / 1000000;
-        bytes_to_remove = current_stream_info.frames_to_bytes(frames_to_remove);
-      }
-
-      size_t actual_bytes_to_remove = std::min(bytes_to_remove, decoded_chunk.size - bytes_per_frame);
-
-      output_transfer_buffer->decrease_buffer_length(actual_bytes_to_remove);
-
-      // TODO: Is this right? Coudln't I just use get_buffer_start?
-      size_t bytes_to_silence = decoded_chunk.size - actual_bytes_to_remove;
-      std::memset((void *) (output_transfer_buffer->get_buffer_end() - bytes_to_silence), 0, bytes_to_silence);
-
-      frame_corrections = -current_stream_info.bytes_to_frames(actual_bytes_to_remove);
-
-      uint32_t total_frames_kept = current_stream_info.bytes_to_frames(decoded_chunk.size) + frame_corrections;
-
-      ESP_LOGD(TAG,
-               "Hard sync: removing %" PRId32 " frames and keeping %" PRIu32 " frames. Current error is %" PRId64
-               "us. There are %" PRId64 " pending frames for correction, and the deque has %zu entries",
-               frame_corrections, total_frames_kept, recent_error_us, pending_frame_corrections, chunk_timings.size());
-      ++this_resonate->hard_sync_removed_frames_;
-    } else if (recent_error_us < -SOFT_SYNC_THRESHOLD_US) {
-      // Small sync adjustment after getting slightly ahead.
-      // Removes the last frame in the chunk to get in sync. The second to last frame is replaced with the average
-      // of it and the removed frame to minimize audible glitches.
-
-      const uint32_t num_channels = current_stream_info.get_channels();
-      const uint32_t bytes_per_sample = bytes_per_frame / num_channels;
-
-      if (output_transfer_buffer->available() >= 2 * bytes_per_frame) {
-        for (uint32_t chan = 0; chan < num_channels; ++chan) {
-          const int32_t first_sample = audio::unpack_audio_sample_to_q31(
-              output_transfer_buffer->get_buffer_end() - 2 * bytes_per_frame + chan * bytes_per_sample,
-              bytes_per_sample);
-          const int32_t second_sample = audio::unpack_audio_sample_to_q31(
-              output_transfer_buffer->get_buffer_end() - bytes_per_frame + chan * bytes_per_sample, bytes_per_sample);
-          int32_t replacement_sample = (first_sample + second_sample) / 2;
-          audio::pack_q31_as_audio_sample(
-              replacement_sample,
-              output_transfer_buffer->get_buffer_end() - 2 * bytes_per_frame + chan * bytes_per_sample,
-              bytes_per_sample);
-        }
-
-        output_transfer_buffer->decrease_buffer_length(bytes_per_frame);
-        frame_corrections = -1;
-        ++this_resonate->single_frames_removed_;
-      }
-    } else if (recent_error_us > SOFT_SYNC_THRESHOLD_US) {
-      // Small sync adjustment after getting slightly behind.
-      // Adds one new frame to get in sync. The new frame is inserted between the first and second frames.
-      // The new frame is the average of the first two frames in the chunk to minimize audible glitches.
-
-      if ((interpolation_transfer_buffer->free() >= bytes_per_frame) &&
-          (output_transfer_buffer->available() >= 2 * bytes_per_frame)) {
-        const uint32_t num_channels = current_stream_info.get_channels();
-        const uint32_t bytes_per_sample = bytes_per_frame / num_channels;
-
-        for (uint32_t chan = 0; chan < num_channels; ++chan) {
-          const int32_t first_sample = audio::unpack_audio_sample_to_q31(
-              output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample, bytes_per_sample);
-          const int32_t second_sample = audio::unpack_audio_sample_to_q31(
-              output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample + bytes_per_frame, bytes_per_sample);
-          int32_t new_sample = (first_sample + second_sample) / 2;
-          audio::pack_q31_as_audio_sample(
-              new_sample, output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample, bytes_per_sample);
-          audio::pack_q31_as_audio_sample(first_sample,
-                                          interpolation_transfer_buffer->get_buffer_start() + chan * bytes_per_sample,
-                                          bytes_per_sample);
-        }
-        interpolation_transfer_buffer->increase_buffer_length(bytes_per_frame);
-        frame_corrections = 1;
-        ++this_resonate->single_frames_added_;
+      static uint32_t high_water_mark = 8192;
+      uint32_t new_high_water_mark = uxTaskGetStackHighWaterMark(nullptr);
+      if (new_high_water_mark < high_water_mark) {
+        ESP_LOGD(TAG, "Sync task - High water mark changed from %d to %d.", high_water_mark, new_high_water_mark);
+        high_water_mark = new_high_water_mark;
       }
     }
-    uint32_t new_frames = decoded_chunk.frame_count;
-    const int64_t new_duration_ms = current_stream_info.frames_to_milliseconds_with_remainder(&new_frames);
-    const int64_t new_duration_us = new_duration_ms * 1000LL + current_stream_info.frames_to_microseconds(new_frames);
+  }
 
-    timings.timestamp = decoded_chunk.server_timestamp + new_duration_us;
-    timings.total_frames = decoded_chunk.frame_count + frame_corrections;
-    timings.frame_corrections = frame_corrections;
-    pending_frame_corrections += frame_corrections;
+  xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_STOPPING);
+  // Processes the stop command by stopping the speaker and resetting all states
+  this_resonate->speaker_->stop();
 
-    this_resonate->pending_frames_ += timings.total_frames;
+  while (!this_resonate->speaker_->is_stopped()) {
+    vTaskDelay(pdMS_TO_TICKS(15));
+  }
 
-    chunk_timings.push_back(timings);
-    last_error.reset();  // We're accounted for the most recent error
+  // Ensure we restore the proper mute state in case the stream was out of sync at the end
+  this_resonate->speaker_->set_mute_state(this_resonate->is_muted_);
 
-    static uint32_t high_water_mark = 8192;
-    uint32_t new_high_water_mark = uxTaskGetStackHighWaterMark(nullptr);
-    if (new_high_water_mark < high_water_mark) {
-      ESP_LOGD(TAG, "Sync task - High water mark changed from %d to %d.", high_water_mark, new_high_water_mark);
-      high_water_mark = new_high_water_mark;
-    }
+  xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_STOPPED);
+
+  while (true) {
+    // Continuously delay until the loop method deletes the task
+    vTaskDelay(pdMS_TO_TICKS(25));
   }
 }
 

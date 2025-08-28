@@ -14,6 +14,10 @@
 #include <vector>
 #endif
 
+#ifdef USE_RESONATE_IMAGE
+#include "esphome/components/runtime_image/runtime_image.h"
+#endif
+
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
@@ -52,6 +56,8 @@ struct ResonateSensorUpdate {
 enum class ResonateControls {
   START,
   STOP,
+  MUTE_UPDATE,
+  VOLUME_UPDATE,
 };
 
 class ResonateHub : public Component {
@@ -91,10 +97,18 @@ class ResonateHub : public Component {
   }
 
 #ifdef USE_RESONATE_AUDIO
+  // Simple audio chunk callback registration
   void add_audio_chunk_callback(
-      std::function<bool(AudioChunk &, TickType_t, const audio::AudioStreamInfo &)> &&callback) {
-    this->audio_chunk_callback_functions_.push_back(std::move(callback));
+      std::function<bool(AudioChunk *, TickType_t, const audio::AudioStreamInfo &)> &&callback) {
+    this->audio_chunk_callbacks_.push_back(std::move(callback));
   }
+
+  uint8_t get_volume() { return this->volume_; }
+  bool get_muted() { return this->muted_; }
+  void update_muted(bool is_muted);
+  void update_volume(uint8_t volume);
+  void update_state(std::string state);
+  void publish_client_state();
 #endif
 
   void add_controls_callback(std::function<void(const ResonateControls &)> &&callback) {
@@ -122,31 +136,47 @@ class ResonateHub : public Component {
   void set_kalman_process_error(double process_error) { this->kalman_process_error_ = process_error; }
   void set_kalman_forget_factor(double forget_factor) { this->kalman_forget_factor_ = forget_factor; }
 
+#ifdef USE_RESONATE_IMAGE
+  void add_image(runtime_image::RuntimeImage *image) { this->images_.push_back(image); }
+#endif
+
  protected:
 #ifdef USE_RESONATE_AUDIO
-  bool send_audio_chunk_(AudioChunk &audio_chunk, TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info);
-  int8_t successful_receivers_{-1};
+  bool send_audio_chunk_(AudioChunk *audio_chunk, TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info);
 
-  // Manually manage audio chunk callbacks as each caller needs an individual copy of the data chunk
-  std::vector<std::function<bool(AudioChunk &, TickType_t, const audio::AudioStreamInfo &)>>
-      audio_chunk_callback_functions_{};
+  // Simplified audio consumer management with pointer-based approach
+  std::vector<std::function<bool(AudioChunk *, TickType_t, const audio::AudioStreamInfo &)>> audio_chunk_callbacks_;
+
   std::unique_ptr<ResonateChunkQueue> encoded_chunk_queue_;
 
   static void decode_task(void *params);
   TaskHandle_t decode_task_handle_{nullptr};
   StaticTask_t decode_task_stack_;
   StackType_t *decode_task_stack_buffer_{nullptr};
+
+  uint8_t volume_;
+  bool muted_;
+  std::string state_{"idle"};
 #endif
 
-  void handle_json_message_(const std::string &message, int64_t timestamp);
+  /// @brief Processes resonate binary message
+  /// If it returns true, the caller needs to deallocate the payload
+  bool process_binary_message_(uint8_t *payload, size_t len);
+
+  // Process JSON message
+  // Returns true if message was successfully processed, false otherwise
+  bool process_json_message_(const std::string &message, int64_t timestamp);
+
+  void deallocate_websocket_payload_();
 
   static esp_err_t websocket_server_handler(httpd_req_t *req);
-
-  optional<uint16_t> volume_;
+  static void websocket_close_callback(void *context);
 
   int64_t last_sent_time_message_{std::numeric_limits<int64_t>::max()};
 
   uint8_t *websocket_payload_{nullptr};
+  size_t websocket_offset_{0};
+  size_t websocket_len_{0};
 
   bool task_stack_in_psram_{false};
 
@@ -166,6 +196,10 @@ class ResonateHub : public Component {
   std::string server_name_{};
 
   CallbackManager<void(const ResonateControls &)> controls_callbacks_{};
+
+#ifdef USE_RESONATE_IMAGE
+  std::vector<runtime_image::RuntimeImage *> images_;
+#endif
 
 #ifdef USE_RESONATE_METADATA
   CallbackManager<void(const ResonateMetadata &)> metadata_callbacks_{};

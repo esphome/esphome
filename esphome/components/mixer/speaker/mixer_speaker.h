@@ -10,12 +10,14 @@
 
 #include <freertos/event_groups.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 namespace esphome {
 namespace mixer_speaker {
 
 /* Classes for mixing several source speaker audio streams and writing it to another speaker component.
  *  - Volume controls are passed through to the output speaker
+ *  - Source speaker commands are added to a queue and processed in its loop function to ensure thread safety
  *  - Directly handles pausing at the SourceSpeaker level; pause state is not passed through to the output speaker.
  *  - Audio sent to the SourceSpeaker's must have 16 bits per sample.
  *  - Audio sent to the SourceSpeaker can have any number of channels. They are duplicated or ignored as needed to match
@@ -115,6 +117,9 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   uint32_t samples_per_ducking_step_{0};
 
   uint32_t pending_playback_frames_{0};
+
+  QueueHandle_t controls_queue_{nullptr};
+  uint32_t stopping_start_ms_{0};
 };
 
 class MixerSpeaker : public Component {
@@ -191,8 +196,6 @@ class MixerSpeaker : public Component {
   uint8_t output_channels_;
   bool queue_mode_;
   bool task_stack_in_psram_{false};
-
-  bool task_created_{false};
 
   TaskHandle_t task_handle_{nullptr};
   StaticTask_t task_stack_;

@@ -25,30 +25,31 @@ class ResonateDecoder {
   // Reset the state of the FLAC and Opus decoders
   void reset_decoders();
 
-  /// @brief Setups the appropriate decoder and then processs the codec header (which may be a dummy header). If
-  /// successfully parsed, the header_chunk data is deallocated.
-  /// @param header_chunk AudioChunk with header
+  /// @brief Setups the appropriate decoder and then processs the codec header (which may be a dummy header).
+  /// @param header_chunk AudioChunk with header (caller retains ownership)
   /// @param stream_info Pointer to AudioStreamInfo that will be filled out when decoding the header
   /// @return True if successful, false otherwise
   bool process_header(AudioChunk *header_chunk, audio::AudioStreamInfo *stream_info);
 
-  /// @brief Decodes an encoded audio chunk. If succesful, the encoded_chunk is deallocated.
-  /// @param encoded_chunk AudioChunk pointer with encoded audio
-  /// @param decoded_chunk AudioChunk pointer to store decoded audio
+  /// @brief Decodes an encoded audio chunk.
+  /// @param encoded_chunk AudioChunk pointer with encoded audio (caller retains ownership)
+  /// @param decoded_chunk Pointer to AudioChunk pointer to store decoded audio
+  ///                      For PCM: shares the same chunk with added reference
+  ///                      For other codecs: new allocation
   /// @return True if successful, false otherwise
-  bool decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk *decoded_chunk);
+  bool decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk **decoded_chunk);
 
   ResonateCodecFormat get_current_codec() const { return this->current_codec_; }
 
  protected:
-  bool decode_dummy_header_(const AudioChunk &header_chunk, audio::AudioStreamInfo *stream_info);
+  bool decode_dummy_header_(const AudioChunk *header_chunk, audio::AudioStreamInfo *stream_info);
 
   std::unique_ptr<esp_audio_libs::flac::FLACDecoder> flac_decoder_;
   OpusDecoder *opus_decoder_{nullptr};
   size_t opus_decoder_size_{0};
 
   audio::AudioStreamInfo current_stream_info_;
-  ResonateCodecFormat current_codec_ = ResonateCodecFormat::RESONATE_CODEC_UNSUPPORTED;
+  ResonateCodecFormat current_codec_ = ResonateCodecFormat::UNSUPPORTED;
 };
 
 }  // namespace resonate

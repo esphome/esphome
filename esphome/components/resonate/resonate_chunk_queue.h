@@ -9,6 +9,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
+#include <atomic>
 #include <cstdint>
 
 namespace esphome {
@@ -22,16 +23,42 @@ enum ChunkType : uint8_t {
   CHUNK_TYPE_FLAC_HEADER,
 };
 
-// Stores encoded audio chunks sent from the server
-// TODO: We have generalized this. Encoded audio using the server timestamps, but once decoded they are in reference to
-// client timestamps
+// Audio chunk structure - heap allocated with reference counting
+// OWNERSHIP MODEL:
+// - Creator allocates chunk with create_audio_chunk() (ref_count = 1)
+// - Passing to a queue or storing: call add_ref() before storing
+// - Receiving from queue or done using: call release()
+// - Last release() deallocates the chunk and its buffer
+//
+// WHY CUSTOM REFERENCE COUNTING:
+// FreeRTOS queues only support copy semantics (xQueueSend/Receive copy data by value).
+// Smart pointers like std::shared_ptr cannot be safely copied through FreeRTOS queues
+// as they require move semantics or proper copy constructors. By using raw pointers
+// with manual reference counting, we achieve zero-copy audio streaming while maintaining
+// memory safety across different tasks(threads)/components.
 struct AudioChunk {
-  uint8_t *data{nullptr};    // Pointer to encoded audio data. Must be deallocated after receiving
-  size_t offset;             // Number of bytes to skip in the data pointer to skip
-  size_t size;               // Number of bytes to read from the data pointer after the offset
-  int64_t server_timestamp;  // Server timestamp when this part of the stream was recorded
-  uint32_t frame_count;
-  ChunkType chunk_type;  // Describes the audio codec header in this packet/its only an encoded chunk
+  uint8_t *buffer{nullptr};            // Pointer to actual audio data
+  std::atomic<uint16_t> ref_count{1};  // Reference count (starts at 1)
+  size_t allocated_size{0};            // Total allocated size of buffer
+  size_t offset{0};                    // Number of bytes to skip in the buffer
+  size_t size{0};                      // Number of bytes to read from the buffer after offset
+  int64_t server_timestamp{0};         // Server timestamp when this part of the stream was recorded
+  uint32_t frame_count{0};
+  ChunkType chunk_type;  // Describes the audio codec header in this packet
+
+  // Add reference to this chunk
+  void add_ref() { ref_count.fetch_add(1, std::memory_order_relaxed); }
+
+  // Release reference and deallocate if last reference
+  void release();
+
+  // Get pointer to actual audio buffer (with offset applied)
+  uint8_t *get_data() const {
+    if (buffer != nullptr) {
+      return buffer + offset;
+    }
+    return nullptr;
+  }
 };
 
 struct DummyHeader {
@@ -40,35 +67,47 @@ struct DummyHeader {
   uint8_t channels;
 };
 
-// Creates a new chunk and allocates memory for the data
-bool allocate_audio_chunk(size_t data_size, AudioChunk *chunk);
+// Creates a new heap-allocated chunk with buffer
+AudioChunk *create_audio_chunk(size_t data_size);
 
-// Deallocates the data in the chunk
+// Creates a new heap-allocated chunk that takes ownership of existing buffer
+// The buffer must have been allocated with RAMAllocator<uint8_t>
+AudioChunk *create_audio_chunk_from_buffer(uint8_t *existing_buffer, size_t buffer_size);
+
+// Legacy compatibility - allocates chunk and assigns to pointer
+bool allocate_audio_chunk(size_t data_size, AudioChunk **chunk);
+
+// Legacy compatibility - releases chunk
 void deallocate_audio_chunk(AudioChunk *chunk);
 
 class ResonateChunkQueue {
-  // TODO: Generalize this and make it part of the audio component. Then any other synced audio component can use this
-  // approach
+  // Queue of AudioChunk* pointers - simpler memory management with FreeRTOS queues
  public:
   static std::unique_ptr<ResonateChunkQueue> create(size_t length);
 
   // Clears and deallocates all elements in the queue
   void reset();
 
-  // Peeks at the chunk at the front of the queue
-  bool peek_chunk(AudioChunk *chunk, TickType_t ticks_to_wait);
+  // Peeks at the chunk pointer at the front of the queue (does not affect reference count)
+  bool peek_chunk(AudioChunk **chunk, TickType_t ticks_to_wait);
 
-  // Receives and optionally deallocates the chunk at the frontof the queue
+  // Receives chunk pointer from the front of the queue and releases it
   bool receive_chunk(bool deallocate);
 
-  // Add chunk to back of queue
-  bool add_chunk(const AudioChunk *chunk, TickType_t ticks_to_wait);
+  // Receives chunk pointer and stores it in provided pointer
+  // If auto_release is true, automatically releases the reference when done
+  bool receive_chunk(AudioChunk **chunk, bool auto_release, TickType_t ticks_to_wait = 0);
+
+  // Add chunk pointer to back of queue
+  // OWNERSHIP: The queue adds its own reference to the chunk
+  // Caller retains their reference and must release it when done
+  bool add_chunk(AudioChunk *chunk, TickType_t ticks_to_wait);
 
   // Return number of elements in queue
   uint32_t size() const { return uxQueueMessagesWaiting(this->queue_); }
 
  protected:
-  QueueHandle_t queue_;
+  QueueHandle_t queue_;  // Queue of AudioChunk* pointers
 };
 
 }  // namespace resonate

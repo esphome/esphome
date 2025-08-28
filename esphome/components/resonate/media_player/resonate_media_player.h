@@ -59,9 +59,9 @@ class ResonateMediaPlayer : public Component, public media_player::MediaPlayer, 
   EventGroupHandle_t event_group_{nullptr};
 
   audio::AudioStreamInfo audio_stream_info_;
-  ResonateCodecFormat codec_format_{ResonateCodecFormat::RESONATE_CODEC_UNSUPPORTED};
+  ResonateCodecFormat codec_format_{ResonateCodecFormat::UNSUPPORTED};
 
-  optional<uint16_t> volume_;
+  optional<uint8_t> volume_;
 
   bool task_stack_in_psram_{false};
 
@@ -69,11 +69,14 @@ class ResonateMediaPlayer : public Component, public media_player::MediaPlayer, 
 
   bool force_publish_state_{false};
 
+  bool task_processing_{false};  // Indicates sync task is finished starting and processing audio
+
   int32_t pending_frames_;  // Number of frames sent to the speaker but not played
 
   speaker::Speaker *speaker_{nullptr};
 
   QueueHandle_t playback_progress_queue_;
+  QueueHandle_t resonate_controls_queue_;
 
   std::unique_ptr<ResonateChunkQueue> decoded_chunk_queue_;
 

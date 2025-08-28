@@ -26,7 +26,8 @@ struct AsyncRespArg {
   TimeTransmittedReplacement *time_transmitted = nullptr;
 };
 
-void ResonateWebsocket::start_server(std::function<esp_err_t((httpd_req_t *) )> &&callback, void *context,
+void ResonateWebsocket::start_server(std::function<esp_err_t((httpd_req_t *) )> &&callback,
+                                     std::function<void((void *) )> &&close_callback, void *context,
                                      bool task_stack_in_psram, unsigned task_priority) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   if (task_stack_in_psram) {
@@ -53,12 +54,17 @@ void ResonateWebsocket::start_server(std::function<esp_err_t((httpd_req_t *) )> 
     ESP_LOGI(TAG, "Registering URI handlers");
     httpd_register_uri_handler(this->server_, &resonate_ws_uri);
     this->is_started_ = true;
+
+    // Prepare the hub's close callback function to be called with the provided context
+    std::function<void()> hub_close_callback_with_context = [close_callback, context]() { close_callback(context); };
+    this->hub_close_callback_ = std::move(hub_close_callback_with_context);
+
     return;
   }
   ESP_LOGE(TAG, "Error starting server!");
 }
 
-void ResonateWebsocket::send_hello_message(const PlayerHelloMessage *msg) {
+void ResonateWebsocket::send_hello_message(const ClientHelloMessage *msg) {
   this->send_text_message_(format_player_hello_message(msg));
 }
 
@@ -76,8 +82,8 @@ void ResonateWebsocket::send_time_message() {
   int64_t now = esp_timer_get_time();
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   std::string serialized_text = json::build_json([now](JsonObject root) {
-    root["type"] = "player/time";
-    root["payload"]["player_transmitted"] = now;
+    root["type"] = "client/time";
+    root["payload"]["client_transmitted"] = now;
   });
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   this->last_time_message_.transmitted_time = now;
@@ -123,18 +129,21 @@ esp_err_t ResonateWebsocket::open_callback(httpd_handle_t handle, int sockfd) {
     nodelay = 0;
   }
 
-  // TODO: Documentation ssays this disables AMPDU. Verify that it doesn't cause issues with throughput
-  int priority = IPTOS_LOWDELAY;
-  setsockopt(sockfd, IPPROTO_IP, IP_TOS, &priority, sizeof(priority));
+  // // TODO: Documentation ssays this disables AMPDU. Verify that it doesn't cause issues with throughput
+  // int priority = IPTOS_LOWDELAY;
+  // setsockopt(sockfd, IPPROTO_IP, IP_TOS, &priority, sizeof(priority));
 
   return ESP_OK;
 }
 
 void ResonateWebsocket::close_callback(httpd_handle_t handle, int sockfd) {
-  ESP_LOGI(TAG, "client closed a connection");
+  ESP_LOGI(TAG, "Websocket client closed a connection");
   ResonateWebsocket *this_client = (ResonateWebsocket *) httpd_get_global_user_ctx(handle);
   this_client->current_client_.reset();
   close(sockfd);
+
+  // Call the hub's connection closed callback
+  this_client->hub_close_callback_();
 }
 
 void ResonateWebsocket::async_send_text(void *arg) {

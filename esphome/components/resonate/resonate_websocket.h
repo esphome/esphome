@@ -22,7 +22,7 @@ namespace resonate {
 class ResonateWebsocket {
  public:
   /// @brief Sends an inital hello message to the server describing the client.
-  void send_hello_message(const PlayerHelloMessage *msg);
+  void send_hello_message(const ClientHelloMessage *msg);
 
   void send_player_state_message(const PlayerStateMessage *msg);
 
@@ -32,7 +32,8 @@ class ResonateWebsocket {
 
   void send_time_message();
 
-  void start_server(std::function<esp_err_t((httpd_req_t *) )> &&callback, void *context, bool task_stack_in_psram,
+  void start_server(std::function<esp_err_t((httpd_req_t *) )> &&callback,
+                    std::function<void((void *) )> &&close_callback, void *context, bool task_stack_in_psram,
                     unsigned task_priority);
 
   TimeTransmittedReplacement get_last_time_message() { return this->last_time_message_; }
@@ -47,6 +48,8 @@ class ResonateWebsocket {
 
   esp_err_t send_text_message_(const std::string &message, TimeTransmittedReplacement *time_transmitted);
   esp_err_t send_text_message_(const std::string &message) { return this->send_text_message_(message, nullptr); };
+
+  std::function<void()> hub_close_callback_;
 
   httpd_handle_t server_;
   TimeTransmittedReplacement last_time_message_;
