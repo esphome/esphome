@@ -560,11 +560,14 @@ void ResonateHub::decode_task(void *params) {
       // Add decoded chunk to the queue
       uint32_t new_frames = decoded_chunk->frame_count;
 
-      if (this_resonate->send_audio_chunk_(
+      if ((esp_timer_get_time() > decoded_chunk->server_timestamp) ||
+          this_resonate->send_audio_chunk_(
               decoded_chunk, pdMS_TO_TICKS(current_stream_info.frames_to_milliseconds_with_remainder(&new_frames)),
               current_stream_info)) {
+        // Release chunk ownership if it was already supposed to start playing (skipping it) or if successfully sent to
+        // consumers
         decoded_chunk->release();
-        decoded_chunk = nullptr;  // Chunk released, clear pointer
+        decoded_chunk = nullptr;  // chunk released, clear pointer
       } else {
         // Try adding again
         continue;
@@ -582,12 +585,22 @@ void ResonateHub::decode_task(void *params) {
         xEventGroupClearBits(this_resonate->event_group_, COMMAND_STOP);  // Where the hell is this getting set?
       } else if ((decoder->get_current_codec() != ResonateCodecFormat::UNSUPPORTED) &&
                  (encoded_chunk->chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
+        int64_t client_timestamp = this_resonate->convert_server_to_client_timestamp(encoded_chunk->server_timestamp);
+        if (esp_timer_get_time() > client_timestamp) {
+          // Chunk was already supposed to play, don't bother decoding it, just release it and move onto the next one
+          if (this_resonate->encoded_chunk_queue_->receive_chunk(&encoded_chunk, true, 0)) {
+            encoded_chunk->release();
+            encoded_chunk = nullptr;
+          }
+          // Continue regardless of whether we successfully removed the chunk from the queue or not
+          continue;
+        }
+
         if (!decoder->decode_audio_chunk(encoded_chunk, &decoded_chunk)) {
           ESP_LOGE(TAG, "Failed to decode audio chunk");
           continue;
         }
-        decoded_chunk->server_timestamp =
-            this_resonate->convert_server_to_client_timestamp(encoded_chunk->server_timestamp);
+        decoded_chunk->server_timestamp = client_timestamp;
       }
 
       // Remove chunk from queue and release the queue's reference
