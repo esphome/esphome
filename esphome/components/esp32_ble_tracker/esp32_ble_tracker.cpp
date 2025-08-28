@@ -49,8 +49,6 @@ const char *client_state_to_string(ClientState state) {
       return "DISCONNECTING";
     case ClientState::IDLE:
       return "IDLE";
-    case ClientState::SEARCHING:
-      return "SEARCHING";
     case ClientState::DISCOVERED:
       return "DISCOVERED";
     case ClientState::READY_TO_CONNECT:
@@ -136,9 +134,8 @@ void ESP32BLETracker::loop() {
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
-    ESP_LOGD(TAG, "connecting: %d, discovered: %d, searching: %d, disconnecting: %d",
-             this->client_state_counts_.connecting, this->client_state_counts_.discovered,
-             this->client_state_counts_.searching, this->client_state_counts_.disconnecting);
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
+             this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
   }
 
   if (this->scanner_state_ == ScannerState::FAILED ||
@@ -158,10 +155,8 @@ void ESP32BLETracker::loop() {
     https://github.com/espressif/esp-idf/issues/6688
 
   */
-  bool promote_to_connecting = counts.discovered && !counts.searching && !counts.connecting;
 
-  if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting &&
-      !promote_to_connecting) {
+  if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     this->update_coex_preference_(false);
 #endif
@@ -170,12 +165,11 @@ void ESP32BLETracker::loop() {
     }
   }
   // If there is a discovered client and no connecting
-  // clients and no clients using the scanner to search for
-  // devices, then promote the discovered client to ready to connect.
+  // clients, then promote the discovered client to ready to connect.
   // We check both RUNNING and IDLE states because:
   // - RUNNING: gap_scan_event_handler initiates stop_scan_() but promotion can happen immediately
   // - IDLE: Scanner has already stopped (naturally or by gap_scan_event_handler)
-  if (promote_to_connecting &&
+  if (counts.discovered && !counts.connecting &&
       (this->scanner_state_ == ScannerState::RUNNING || this->scanner_state_ == ScannerState::IDLE)) {
     this->try_promote_discovered_clients_();
   }
@@ -633,9 +627,8 @@ void ESP32BLETracker::dump_config() {
                 this->scan_duration_, this->scan_interval_ * 0.625f, this->scan_window_ * 0.625f,
                 this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
   ESP_LOGCONFIG(TAG, "  Scanner State: %s", this->scanner_state_to_string_(this->scanner_state_));
-  ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, searching: %d, disconnecting: %d",
-                this->client_state_counts_.connecting, this->client_state_counts_.discovered,
-                this->client_state_counts_.searching, this->client_state_counts_.disconnecting);
+  ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
+                this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
   }

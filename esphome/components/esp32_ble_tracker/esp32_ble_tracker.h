@@ -141,12 +141,10 @@ class ESPBTDeviceListener {
 struct ClientStateCounts {
   uint8_t connecting = 0;
   uint8_t discovered = 0;
-  uint8_t searching = 0;
   uint8_t disconnecting = 0;
 
   bool operator==(const ClientStateCounts &other) const {
-    return connecting == other.connecting && discovered == other.discovered && searching == other.searching &&
-           disconnecting == other.disconnecting;
+    return connecting == other.connecting && discovered == other.discovered && disconnecting == other.disconnecting;
   }
 
   bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
@@ -159,8 +157,6 @@ enum class ClientState : uint8_t {
   DISCONNECTING,
   // Connection is idle, no device detected.
   IDLE,
-  // Searching for device.
-  SEARCHING,
   // Device advertisement found.
   DISCOVERED,
   // Device is discovered and the scanner is stopped
@@ -315,9 +311,6 @@ class ESP32BLETracker : public Component,
           break;
         case ClientState::DISCOVERED:
           counts.discovered++;
-          break;
-        case ClientState::SEARCHING:
-          counts.searching++;
           break;
         case ClientState::CONNECTING:
         case ClientState::READY_TO_CONNECT:
