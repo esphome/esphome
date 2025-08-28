@@ -201,7 +201,7 @@ def _validate_manifest_version(manifest_data):
         else:
             raise cv.Invalid("Invalid manifest version")
     else:
-        raise cv.Invalid("Invalid manifest file, missing 'version' key.")
+        raise cv.Invalid("Invalid manifest file, missing 'version' key")
 
 
 def _process_http_source(config):
@@ -421,7 +421,7 @@ def _feature_step_size_validate(config):
         if features_step_size is None:
             features_step_size = model_step_size
         elif features_step_size != model_step_size:
-            raise cv.Invalid("Cannot load models with different features step sizes.")
+            raise cv.Invalid("Cannot load models with different features step sizes")
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(

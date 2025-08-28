@@ -8,6 +8,17 @@
 namespace esphome {
 namespace senseair {
 
+enum SenseAirStatus : uint8_t {
+  FATAL_ERROR = 1 << 0,
+  OFFSET_ERROR = 1 << 1,
+  ALGORITHM_ERROR = 1 << 2,
+  OUTPUT_ERROR = 1 << 3,
+  SELF_DIAGNOSTIC_ERROR = 1 << 4,
+  OUT_OF_RANGE_ERROR = 1 << 5,
+  MEMORY_ERROR = 1 << 6,
+  RESERVED = 1 << 7
+};
+
 class SenseAirComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
