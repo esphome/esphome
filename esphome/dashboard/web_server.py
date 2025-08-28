@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 from collections.abc import Callable, Iterable
 import datetime
 import functools
@@ -503,7 +504,19 @@ class WizardRequestHandler(BaseHandler):
             kwargs["ota_password"] = secrets.token_hex(16)
             noise_psk = secrets.token_bytes(32)
             kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
-        elif kwargs["type"] not in ("empty", "upload"):
+        elif kwargs["type"] == "upload":
+            try:
+                kwargs["file_text"] = base64.b64decode(kwargs["file_content"]).decode(
+                    "utf-8"
+                )
+            except (binascii.Error, UnicodeDecodeError):
+                self.set_status(422)
+                self.set_header("content-type", "application/json")
+                self.write(
+                    json.dumps({"error": "The uploaded file is not correctly encoded."})
+                )
+                return
+        elif kwargs["type"] != "empty":
             self.set_status(422)
             self.set_header("content-type", "application/json")
             self.write(

@@ -154,7 +154,7 @@ def test_wizard_upload_config(tmp_path, monkeypatch):
     empty_config = {
         "type": "upload",
         "name": "test-upload",
-        "file_content": "IyBpbXBvcnRlZCBmaWxlIPCfk4EKCg==",
+        "file_text": "# imported file 📁\n\n",
     }
     monkeypatch.setattr(wz, "write_file", MagicMock())
     monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
