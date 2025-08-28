@@ -71,33 +71,13 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 #if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
     txt_count++;  // network
-
-    const std::string &friendly_name = App.get_friendly_name();
-    bool friendly_name_empty = friendly_name.empty();
-
-    // Calculate exact capacity for txt_records
-    size_t txt_count = 3;  // version, mac, board (always present)
-    if (!friendly_name_empty) {
-      txt_count++;  // friendly_name
-    }
-#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETINY)
-    txt_count++;  // platform
 #endif
-#if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
-    txt_count++;  // network
-#endif
-#ifdef USE_API_NOISE
-    txt_count++;  // api_encryption or api_encryption_supported
 #ifdef USE_API_NOISE
     txt_count++;  // api_encryption or api_encryption_supported
 #endif
 #ifdef ESPHOME_PROJECT_NAME
     txt_count += 2;  // project_name and project_version
-#ifdef ESPHOME_PROJECT_NAME
-    txt_count += 2;  // project_name and project_version
 #endif
-#ifdef USE_DASHBOARD_IMPORT
-    txt_count++;  // package_import_url
 #ifdef USE_DASHBOARD_IMPORT
     txt_count++;  // package_import_url
 #endif
@@ -245,7 +225,6 @@ void MDNSComponent::dump_config() {
       ESP_LOGV(TAG, "    TXT: %s = %s", MDNS_STR_ARG(record.key), MDNS_STR_ARG(record.value));
     }
   }
-#endif
 #endif
 }
 
