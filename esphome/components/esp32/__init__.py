@@ -824,8 +824,9 @@ async def to_code(config):
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
-    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
+    variant = config[CONF_VARIANT]
+    cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.MULTI_ATOMICS)
 
     cg.add_platformio_option("lib_ldf_mode", "off")
@@ -859,6 +860,7 @@ async def to_code(config):
         cg.add_platformio_option(
             "platform_packages", ["espressif/toolchain-esp32ulp@2.35.0-20220830"]
         )
+        add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
         )

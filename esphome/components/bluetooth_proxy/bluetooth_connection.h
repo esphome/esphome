@@ -8,7 +8,7 @@ namespace esphome::bluetooth_proxy {
 
 class BluetoothProxy;
 
-class BluetoothConnection : public esp32_ble_client::BLEClientBase {
+class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
  public:
   void dump_config() override;
   void loop() override;
