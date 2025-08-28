@@ -289,13 +289,6 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
         audio_chunk->frame_count = frame_count;
         audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
 
-        // TODO: Remove this extra debug logging from final version
-        static int64_t previous_timestamp = 0;
-        if ((audio_chunk->server_timestamp - previous_timestamp) < 0) {
-          printf("server corrected timestamps are not monotonic!\n");
-        }
-        previous_timestamp = audio_chunk->server_timestamp;
-
         if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
           // Failed to add
           ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
