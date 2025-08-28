@@ -14,7 +14,7 @@ namespace mixer_speaker {
 
 static const UBaseType_t MIXER_TASK_PRIORITY = 10;
 
-static const uint32_t STOPPING_TIMEOUT_MS = 1000;
+static const uint32_t STOPPING_TIMEOUT_MS = 5000;
 static const uint32_t TRANSFER_BUFFER_DURATION_MS = 50;
 static const uint32_t TASK_DELAY_MS = 25;
 
@@ -85,41 +85,47 @@ void SourceSpeaker::setup() {
 void SourceSpeaker::loop() {
   SourceSpeakerControls incoming_control;
   if (xQueuePeek(this->controls_queue_, &incoming_control, 0)) {
-    // Process control commands from the queue to ensure the state machine is thread safe
+    // Process control commands from the queue to ensure the state machine is thread safe and order is preserved
     switch (incoming_control) {
       case SourceSpeakerControls::START: {
-        // Only process START if we're stopped
         if ((this->state_ == speaker::STATE_STOPPED) && xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
+          // Only process if stopped
           this->state_ = speaker::STATE_STARTING;
-        } else if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING)) {
-          // Already starting or running, just ignore the command
+        } else if (this->state_ == speaker::STATE_RUNNING) {
+          // Already running, just ignore the command
           xQueueReceive(this->controls_queue_, &incoming_control, 0);
         }
+        // Leave command in queue if transitioning states. It will be processed or discarded once fully stopped or
+        // started.
         break;
       }
       case SourceSpeakerControls::STOP: {
-        // Process STOP if we're not already stopped or stopping
-        if ((this->state_ != speaker::STATE_STOPPED) && (this->state_ != speaker::STATE_STOPPING)) {
+        if (this->state_ == speaker::STATE_RUNNING) {
           if (xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
+            // Only process if running
             this->state_ = speaker::STATE_STOPPING;
             this->stopping_start_ms_ = millis();
           }
-        } else if ((this->state_ == speaker::STATE_STOPPING) || (this->state_ == speaker::STATE_STOPPED)) {
-          // Already stopping or stopped, just ignore the command
+        } else if (this->state_ == speaker::STATE_STOPPED) {
+          // Already stopped, discard the command
           xQueueReceive(this->controls_queue_, &incoming_control, 0);
         }
+        // Leave command in queue if transitioning states. It will be processed or discarded once fully started or
+        // stopped.
         break;
       }
       case SourceSpeakerControls::FINISH: {
-        // Process FINISH if we're running
         if (this->state_ == speaker::STATE_RUNNING) {
+          // Only process if running
           if (xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
             this->stop_gracefully_ = true;
           }
-        } else if ((this->state_ == speaker::STATE_STOPPING) || (this->state_ == speaker::STATE_STOPPED)) {
-          // Already stopping or stopped, just ignore the command
+        } else if (this->state_ == speaker::STATE_STOPPED) {
+          // Already stopped, discard the command
           xQueueReceive(this->controls_queue_, &incoming_control, 0);
         }
+        // Leave command in queue if transitioning states. It will be processed or discarded once fully started or
+        // stopped.
         break;
       }
     }
@@ -129,6 +135,7 @@ void SourceSpeaker::loop() {
     case speaker::STATE_STARTING: {
       esp_err_t err = this->start_();
       if (err == ESP_OK) {
+        this->pending_playback_frames_ = 0;  // reset pending playback frames
         this->state_ = speaker::STATE_RUNNING;
         this->stop_gracefully_ = false;
         this->last_seen_data_ms_ = millis();
@@ -158,29 +165,35 @@ void SourceSpeaker::loop() {
       break;
     }
     case speaker::STATE_RUNNING:
-      if (!this->transfer_buffer_->has_buffered_data()) {
+      if (!this->transfer_buffer_->has_buffered_data() && (this->pending_playback_frames_ == 0)) {
+        // No audio data in buffer waiting to get mixed and no frames are pending playback
         if ((this->timeout_ms_.has_value() && ((millis() - this->last_seen_data_ms_) > this->timeout_ms_.value())) ||
             this->stop_gracefully_) {
+          // Timeout exceeded or graceful stop requested
           this->state_ = speaker::STATE_STOPPING;
           this->stopping_start_ms_ = millis();
         }
       }
       break;
     case speaker::STATE_STOPPING: {
-      if (this->transfer_buffer_.use_count() > 0) {
-        this->stop_();
-        this->stop_gracefully_ = false;
-      }
-
       if ((this->parent_->get_output_speaker()->get_pause_state()) ||
           ((millis() - this->stopping_start_ms_) > STOPPING_TIMEOUT_MS)) {
-        // If parent speaker is paused or if we've exceeded the stopping timeout, force stop the output speaker
+        // If parent speaker is paused or if the stopping timeout is exceeded, force stop the output speaker
         this->parent_->get_output_speaker()->stop();
       }
 
-      if (this->parent_->get_output_speaker()->is_stopped() || (this->pending_playback_frames_ == 0)) {
-        // Output speaker is stopped or all pending playback frames have played
+      if (this->parent_->get_output_speaker()->is_stopped() ||
+          ((this->pending_playback_frames_ == 0) && (this->transfer_buffer_.use_count() == 1) &&
+           (this->transfer_buffer_->available() == 0))) {
+        // Output speaker is stopped OR
+        // (all pending playback frames have played AND the mixer task doesn't own the transfer buffer AND the transfer
+        // buffer has no data)
         this->pending_playback_frames_ = 0;
+
+        this->transfer_buffer_.reset();  // deallocate the transfer buffer
+        this->stop_gracefully_ = false;
+
+        ESP_LOGD(TAG, "Source speaker stopped");
         this->state_ = speaker::STATE_STOPPED;
       }
       break;
@@ -241,10 +254,6 @@ void SourceSpeaker::stop() {
   xQueueSend(this->controls_queue_, &control, 0);
 }
 
-void SourceSpeaker::stop_() {
-  this->transfer_buffer_.reset();  // deallocates the transfer buffer
-}
-
 void SourceSpeaker::finish() {
   SourceSpeakerControls control = SourceSpeakerControls::FINISH;
   xQueueSend(this->controls_queue_, &control, 0);
@@ -292,6 +301,7 @@ size_t SourceSpeaker::process_data_from_source(TickType_t ticks_to_wait) {
 
 void SourceSpeaker::apply_ducking(uint8_t decibel_reduction, uint32_t duration) {
   if (this->target_ducking_db_reduction_ != decibel_reduction) {
+    // Start transition from the previous target (which becomes the new current level)
     this->current_ducking_db_reduction_ = this->target_ducking_db_reduction_;
 
     this->target_ducking_db_reduction_ = decibel_reduction;
@@ -311,7 +321,7 @@ void SourceSpeaker::apply_ducking(uint8_t decibel_reduction, uint32_t duration) 
 
       this->samples_per_ducking_step_ = this->ducking_transition_samples_remaining_ / total_ducking_steps;
       this->ducking_transition_samples_remaining_ =
-          this->samples_per_ducking_step_ * total_ducking_steps;  // Adjust for integer division rounding
+          this->samples_per_ducking_step_ * total_ducking_steps;  // adjust for integer division rounding
 
       this->current_ducking_db_reduction_ += this->db_change_per_ducking_step_;
     } else {
@@ -400,7 +410,6 @@ void MixerSpeaker::loop() {
           xEventGroupClearBits(this->event_group_, MixerEventGroupBits::COMMAND_START);
           break;
         case ESP_ERR_NO_MEM:
-          // TODO: Use a momentary delay and retry again
           ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
           this->status_momentary_error("memory-failure", 1000);
           return;
@@ -417,7 +426,7 @@ void MixerSpeaker::loop() {
   }
 
   if (event_group_bits & MixerEventGroupBits::STATE_STARTING) {
-    ESP_LOGD(TAG, "Starting speaker mixer");
+    ESP_LOGD(TAG, "Starting");
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::STATE_STARTING);
   }
   if (event_group_bits & MixerEventGroupBits::ERR_ESP_NO_MEM) {
@@ -425,34 +434,31 @@ void MixerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::ERR_ESP_NO_MEM);
   }
   if (event_group_bits & MixerEventGroupBits::STATE_RUNNING) {
-    ESP_LOGD(TAG, "Started speaker mixer");
+    ESP_LOGD(TAG, "Started");
     this->status_clear_error();
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::STATE_RUNNING);
   }
   if (event_group_bits & MixerEventGroupBits::STATE_STOPPING) {
-    ESP_LOGD(TAG, "Stopping speaker mixer");
+    ESP_LOGD(TAG, "Stopping");
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::STATE_STOPPING);
   }
   if (event_group_bits & MixerEventGroupBits::STATE_STOPPED) {
-    if (this->task_handle_ != nullptr) {
-      TaskHandle_t temp_handle = this->task_handle_;
-      this->task_handle_ = nullptr;
-      vTaskDelete(temp_handle);
-    }
     if (this->delete_task_() == ESP_OK) {
       xEventGroupClearBits(this->event_group_, MixerEventGroupBits::ALL_BITS);
     }
   }
 
   if (this->task_handle_ != nullptr) {
-    bool all_stopped = true;
+    // If the mixer task is running, check if all source speakers are stopped
 
+    bool all_stopped = true;
     for (auto &speaker : this->source_speakers_) {
       all_stopped &= speaker->is_stopped();
     }
 
     if (all_stopped) {
-      this->stop();
+      // Send stop command signal to the mixer task since no source speakers are active
+      xEventGroupSetBits(this->event_group_, MixerEventGroupBits::COMMAND_STOP);
     }
   }
 }
@@ -507,7 +513,14 @@ esp_err_t MixerSpeaker::start_task_() {
 }
 
 esp_err_t MixerSpeaker::delete_task_() {
-  if (this->task_stack_buffer_ != nullptr) {
+  if (this->task_handle_ != nullptr) {
+    // Delete the task
+    vTaskDelete(this->task_handle_);
+    this->task_handle_ = nullptr;
+  }
+
+  if ((this->task_handle_ == nullptr) && (this->task_stack_buffer_ != nullptr)) {
+    // Deallocate the task stack buffer
     if (this->task_stack_in_psram_) {
       RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
       stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
@@ -519,10 +532,12 @@ esp_err_t MixerSpeaker::delete_task_() {
     this->task_stack_buffer_ = nullptr;
   }
 
+  if ((this->task_handle_ != nullptr) || (this->task_stack_buffer_ != nullptr)) {
+    return ESP_ERR_INVALID_STATE;
+  }
+
   return ESP_OK;
 }
-
-void MixerSpeaker::stop() { xEventGroupSetBits(this->event_group_, MixerEventGroupBits::COMMAND_STOP); }
 
 void MixerSpeaker::copy_frames(const int16_t *input_buffer, audio::AudioStreamInfo input_stream_info,
                                int16_t *output_buffer, audio::AudioStreamInfo output_stream_info,
@@ -576,7 +591,7 @@ void MixerSpeaker::mix_audio_samples(const int16_t *primary_buffer, audio::Audio
 }
 
 void MixerSpeaker::audio_mixer_task(void *params) {
-  MixerSpeaker *this_mixer = (MixerSpeaker *) params;
+  MixerSpeaker *this_mixer = static_cast<MixerSpeaker *>(params);
 
   xEventGroupSetBits(this_mixer->event_group_, MixerEventGroupBits::STATE_STARTING);
 
@@ -704,7 +719,6 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       for (size_t i = 0; i < transfer_buffers_with_data.size(); ++i) {
         transfer_buffers_with_data[i]->decrease_buffer_length(
             speakers_with_data[i]->get_audio_stream_info().frames_to_bytes(frames_to_mix));
-        speakers_with_data[i]->pending_playback_frames_ += frames_to_mix;
       }
 
       // Update output transfer buffer length
