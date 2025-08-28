@@ -103,7 +103,7 @@ class I2CBus {
   virtual ErrorCode set_frequency(uint32_t frequency) = 0;
 
   /// @brief Returns the I2C bus frequency.
-  /// @return the current frequency of the internal I2C bus
+  /// @return the current frequency of the I2C bus
   virtual uint32_t get_frequency() const = 0;
 
  protected:
