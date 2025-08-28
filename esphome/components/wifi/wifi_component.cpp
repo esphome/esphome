@@ -151,6 +151,8 @@ void WiFiComponent::loop() {
         this->status_set_warning("waiting to reconnect");
         if (millis() - this->action_started_ > 5000) {
           if (this->fast_connect_ || this->retry_hidden_) {
+            if (!this->selected_ap_.get_bssid().has_value())
+              this->selected_ap_ = this->sta_[0];
             this->start_connecting(this->selected_ap_, false);
           } else {
             this->start_scanning();
@@ -670,10 +672,12 @@ void WiFiComponent::check_connecting_finished() {
       return;
     }
 
+    ESP_LOGI(TAG, "Connected");
     // We won't retry hidden networks unless a reconnect fails more than three times again
+    if (this->retry_hidden_ && !this->selected_ap_.get_hidden())
+      ESP_LOGW(TAG, "Network '%s' should be marked as hidden", this->selected_ap_.get_ssid().c_str());
     this->retry_hidden_ = false;
 
-    ESP_LOGI(TAG, "Connected");
     this->print_connect_params_();
 
     if (this->has_ap()) {
