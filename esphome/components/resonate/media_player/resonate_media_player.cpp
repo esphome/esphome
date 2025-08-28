@@ -425,6 +425,10 @@ void ResonateMediaPlayer::sync_task(void *params) {
           frames_played -= front_chunk->total_frames;
 
           chunk_timings.pop_front();
+          if (chunk_timings.empty()) {
+            // This should never happen if the output speaker was fully stopped with all audio
+            break;
+          }
           front_chunk = &chunk_timings.front();
 
           pending_frame_corrections -= front_chunk->frame_corrections;
