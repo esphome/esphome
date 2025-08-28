@@ -1,18 +1,17 @@
 {
   "name": "ESPHome Dev",
-  "image": "ghcr.io/esphome/esphome-lint:dev",
+  "context": "..",
+  "dockerFile": "Dockerfile",
   "postCreateCommand": [
     "script/devcontainer-post-create"
   ],
-  "containerEnv": {
-    "DEVCONTAINER": "1",
-    "PIP_BREAK_SYSTEM_PACKAGES": "1",
-    "PIP_ROOT_USER_ACTION": "ignore"
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "runArgs": [
     "--privileged",
     "-e",
-    "ESPHOME_DASHBOARD_USE_PING=1"
+    "GIT_EDITOR=code --wait"
     // uncomment and edit the path in order to pass though local USB serial to the conatiner
     // , "--device=/dev/ttyACM0"
   ],

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import fnmatch
 import functools
 import inspect
-from io import TextIOWrapper
-from ipaddress import _BaseAddress
+from io import BytesIO, TextIOBase, TextIOWrapper
+from ipaddress import _BaseAddress, _BaseNetwork
 import logging
 import math
 import os
@@ -55,9 +56,12 @@ class ESPHomeDataBase:
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if isinstance(node, yaml.ScalarNode):
-            if node.style is not None and node.style in "|>":
-                self._content_offset = 1
+        if (
+            isinstance(node, yaml.ScalarNode)
+            and node.style is not None
+            and node.style in "|>"
+        ):
+            self._content_offset = 1
 
     def from_database(self, database):
         # pylint: disable=attribute-defined-outside-init
@@ -69,7 +73,10 @@ class ESPForceValue:
     pass
 
 
-def make_data_base(value, from_database: ESPHomeDataBase = None):
+def make_data_base(
+    value, from_database: ESPHomeDataBase = None
+) -> ESPHomeDataBase | Any:
+    """Wrap a value in a ESPHomeDataBase object."""
     try:
         value = add_class_to_obj(value, ESPHomeDataBase)
         if from_database is not None:
@@ -102,6 +109,11 @@ def _add_data_ref(fn):
 class ESPHomeLoaderMixin:
     """Loader class that keeps track of line numbers."""
 
+    def __init__(self, name: str, yaml_loader: Callable[[str], dict[str, Any]]) -> None:
+        """Initialize the loader."""
+        self.name = name
+        self.yaml_loader = yaml_loader
+
     @_add_data_ref
     def construct_yaml_int(self, node):
         return super().construct_yaml_int(node)
@@ -127,7 +139,7 @@ class ESPHomeLoaderMixin:
         return super().construct_yaml_seq(node)
 
     @_add_data_ref
-    def construct_yaml_map(self, node):
+    def construct_yaml_map(self, node: yaml.MappingNode) -> OrderedDict[str, Any]:
         """Traverses the given mapping node and returns a list of constructed key-value pairs."""
         assert isinstance(node, yaml.MappingNode)
         # A list of key-value pairs we find in the current mapping
@@ -231,7 +243,7 @@ class ESPHomeLoaderMixin:
         return OrderedDict(pairs)
 
     @_add_data_ref
-    def construct_env_var(self, node):
+    def construct_env_var(self, node: yaml.Node) -> str:
         args = node.value.split()
         # Check for a default value
         if len(args) > 1:
@@ -243,23 +255,23 @@ class ESPHomeLoaderMixin:
         )
 
     @property
-    def _directory(self):
+    def _directory(self) -> str:
         return os.path.dirname(self.name)
 
-    def _rel_path(self, *args):
+    def _rel_path(self, *args: str) -> str:
         return os.path.join(self._directory, *args)
 
     @_add_data_ref
-    def construct_secret(self, node):
+    def construct_secret(self, node: yaml.Node) -> str:
         try:
-            secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
+            secrets = self.yaml_loader(self._rel_path(SECRET_YAML))
         except EsphomeError as e:
             if self.name == CORE.config_path:
                 raise e
             try:
                 main_config_dir = os.path.dirname(CORE.config_path)
                 main_secret_yml = os.path.join(main_config_dir, SECRET_YAML)
-                secrets = _load_yaml_internal(main_secret_yml)
+                secrets = self.yaml_loader(main_secret_yml)
             except EsphomeError as er:
                 raise EsphomeError(f"{e}\n{er}") from er
 
@@ -272,7 +284,9 @@ class ESPHomeLoaderMixin:
         return val
 
     @_add_data_ref
-    def construct_include(self, node):
+    def construct_include(
+        self, node: yaml.Node
+    ) -> dict[str, Any] | OrderedDict[str, Any]:
         from esphome.const import CONF_VARS
 
         def extract_file_vars(node):
@@ -281,8 +295,6 @@ class ESPHomeLoaderMixin:
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
             vars = fields.get(CONF_VARS)
-            if vars:
-                vars = {k: str(v) for k, v in vars.items()}
             return file, vars
 
         if isinstance(node, yaml.nodes.MappingNode):
@@ -290,70 +302,91 @@ class ESPHomeLoaderMixin:
         else:
             file, vars = node.value, None
 
-        result = _load_yaml_internal(self._rel_path(file))
+        result = self.yaml_loader(self._rel_path(file))
         if not vars:
             vars = {}
-        result = substitute_vars(result, vars)
-        return result
+        return substitute_vars(result, vars)
 
     @_add_data_ref
-    def construct_include_dir_list(self, node):
+    def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
-        return [_load_yaml_internal(f) for f in files]
+        return [self.yaml_loader(f) for f in files]
 
     @_add_data_ref
-    def construct_include_dir_merge_list(self, node):
+    def construct_include_dir_merge_list(self, node: yaml.Node) -> list[dict[str, Any]]:
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         merged_list = []
         for fname in files:
-            loaded_yaml = _load_yaml_internal(fname)
+            loaded_yaml = self.yaml_loader(fname)
             if isinstance(loaded_yaml, list):
                 merged_list.extend(loaded_yaml)
         return merged_list
 
     @_add_data_ref
-    def construct_include_dir_named(self, node):
+    def construct_include_dir_named(
+        self, node: yaml.Node
+    ) -> OrderedDict[str, dict[str, Any]]:
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
             filename = os.path.splitext(os.path.basename(fname))[0]
-            mapping[filename] = _load_yaml_internal(fname)
+            mapping[filename] = self.yaml_loader(fname)
         return mapping
 
     @_add_data_ref
-    def construct_include_dir_merge_named(self, node):
+    def construct_include_dir_merge_named(
+        self, node: yaml.Node
+    ) -> OrderedDict[str, dict[str, Any]]:
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
-            loaded_yaml = _load_yaml_internal(fname)
+            loaded_yaml = self.yaml_loader(fname)
             if isinstance(loaded_yaml, dict):
                 mapping.update(loaded_yaml)
         return mapping
 
     @_add_data_ref
-    def construct_lambda(self, node):
+    def construct_lambda(self, node: yaml.Node) -> Lambda:
         return Lambda(str(node.value))
 
     @_add_data_ref
-    def construct_force(self, node):
+    def construct_force(self, node: yaml.Node) -> ESPForceValue:
         obj = self.construct_scalar(node)
         return add_class_to_obj(obj, ESPForceValue)
 
     @_add_data_ref
-    def construct_extend(self, node):
+    def construct_extend(self, node: yaml.Node) -> Extend:
         return Extend(str(node.value))
 
     @_add_data_ref
-    def construct_remove(self, node):
+    def construct_remove(self, node: yaml.Node) -> Remove:
         return Remove(str(node.value))
 
 
 class ESPHomeLoader(ESPHomeLoaderMixin, FastestAvailableSafeLoader):
     """Loader class that keeps track of line numbers."""
 
+    def __init__(
+        self,
+        stream: TextIOBase | BytesIO,
+        name: str,
+        yaml_loader: Callable[[str], dict[str, Any]],
+    ) -> None:
+        FastestAvailableSafeLoader.__init__(self, stream)
+        ESPHomeLoaderMixin.__init__(self, name, yaml_loader)
+
 
 class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
     """Loader class that keeps track of line numbers."""
+
+    def __init__(
+        self,
+        stream: TextIOBase | BytesIO,
+        name: str,
+        yaml_loader: Callable[[str], dict[str, Any]],
+    ) -> None:
+        PurePythonLoader.__init__(self, stream)
+        ESPHomeLoaderMixin.__init__(self, name, yaml_loader)
 
 
 for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
@@ -388,17 +421,30 @@ def load_yaml(fname: str, clear_secrets: bool = True) -> Any:
     return _load_yaml_internal(fname)
 
 
-def parse_yaml(file_name: str, file_handle: TextIOWrapper) -> Any:
+def _load_yaml_internal(fname: str) -> Any:
+    """Load a YAML file."""
+    try:
+        with open(fname, encoding="utf-8") as f_handle:
+            return parse_yaml(fname, f_handle)
+    except (UnicodeDecodeError, OSError) as err:
+        raise EsphomeError(f"Error reading file {fname}: {err}") from err
+
+
+def parse_yaml(
+    file_name: str, file_handle: TextIOWrapper, yaml_loader=_load_yaml_internal
+) -> Any:
     """Parse a YAML file."""
     try:
-        return _load_yaml_internal_with_type(ESPHomeLoader, file_name, file_handle)
+        return _load_yaml_internal_with_type(
+            ESPHomeLoader, file_name, file_handle, yaml_loader
+        )
     except EsphomeError:
         # Loading failed, so we now load with the Python loader which has more
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
         return _load_yaml_internal_with_type(
-            ESPHomePurePythonLoader, file_name, file_handle
+            ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
         )
 
 
@@ -435,23 +481,14 @@ def substitute_vars(config, vars):
     return result
 
 
-def _load_yaml_internal(fname: str) -> Any:
-    """Load a YAML file."""
-    try:
-        with open(fname, encoding="utf-8") as f_handle:
-            return parse_yaml(fname, f_handle)
-    except (UnicodeDecodeError, OSError) as err:
-        raise EsphomeError(f"Error reading file {fname}: {err}") from err
-
-
 def _load_yaml_internal_with_type(
     loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
     fname: str,
     content: TextIOWrapper,
+    yaml_loader: Any,
 ) -> Any:
     """Load a YAML file."""
-    loader = loader_type(content)
-    loader.name = fname
+    loader = loader_type(content, fname, yaml_loader)
     try:
         return loader.get_single_data() or OrderedDict()
     except yaml.YAMLError as exc:
@@ -470,7 +507,7 @@ def dump(dict_, show_secrets=False):
     )
 
 
-def _is_file_valid(name):
+def _is_file_valid(name: str) -> bool:
     """Decide if a file is valid."""
     return not name.startswith(".")
 
@@ -567,6 +604,10 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.id)
         return self.represent_stringify(value.id)
 
+    # The below override configures this dumper to indent output YAML properly:
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
 
 ESPHomeDumper.add_multi_representer(
     dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
@@ -580,6 +621,7 @@ ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(_BaseNetwork, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)

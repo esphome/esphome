@@ -13,7 +13,6 @@ const uint8_t CONFIG_REG = 3;
 static const char *const TAG = "pca9554";
 
 void PCA9554Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCA9554/PCA9554A...");
   this->reg_width_ = (this->pin_count_ + 7) / 8;
   // Test to see if device exists
   if (!this->read_inputs_()) {
@@ -45,11 +44,13 @@ void PCA9554Component::loop() {
 }
 
 void PCA9554Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "PCA9554:");
-  ESP_LOGCONFIG(TAG, "  I/O Pins: %d", this->pin_count_);
+  ESP_LOGCONFIG(TAG,
+                "PCA9554:\n"
+                "  I/O Pins: %d",
+                this->pin_count_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PCA9554 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 
@@ -95,7 +96,7 @@ bool PCA9554Component::read_inputs_() {
     return false;
   }
 
-  this->last_error_ = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_, true);
+  this->last_error_ = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
@@ -113,7 +114,7 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
   uint8_t outputs[2];
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
-  this->last_error_ = this->write_register(reg * this->reg_width_, outputs, this->reg_width_, true);
+  this->last_error_ = this->write_register(reg * this->reg_width_, outputs, this->reg_width_);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);

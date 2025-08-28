@@ -1,6 +1,14 @@
 from dataclasses import dataclass
 from typing import Any
+
 import esphome.codegen as cg
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -10,17 +18,9 @@ from esphome.const import (
     CONF_PIN,
     CONF_SPEED,
 )
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import (
-    VARIANT_ESP32,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-)
 from esphome.core import CORE
+
 from .const import (
-    CONF_ASYNC,
-    CONF_BUS,
     CHIP_400KBPS,
     CHIP_800KBPS,
     CHIP_APA106,
@@ -38,6 +38,8 @@ from .const import (
     CHIP_WS2812,
     CHIP_WS2812X,
     CHIP_WS2813,
+    CONF_ASYNC,
+    CONF_BUS,
     ONE_WIRE_CHIPS,
     TWO_WIRE_CHIPS,
 )

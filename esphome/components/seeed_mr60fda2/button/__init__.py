@@ -2,11 +2,11 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FACTORY_RESET,
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
-    CONF_FACTORY_RESET,
 )
 
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns

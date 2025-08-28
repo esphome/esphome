@@ -5,13 +5,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
     CONF_LAMBDA,
+    CONF_NOTIFY,
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
-    CONF_NOTIFY,
 )
 
 from .. import ble_client_ns

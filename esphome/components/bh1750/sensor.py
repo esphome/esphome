@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_RESOLUTION,
-    DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
-)
+from esphome.const import DEVICE_CLASS_ILLUMINANCE, STATE_CLASS_MEASUREMENT, UNIT_LUX
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@OttoWinter"]

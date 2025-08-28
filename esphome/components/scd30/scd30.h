@@ -26,7 +26,6 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
   void setup() override;
   void update();
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   bool is_data_ready_();

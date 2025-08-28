@@ -14,11 +14,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#ifdef USE_ESP32
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <deque>
-#endif
 
 #if USE_WEBSERVER_VERSION >= 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
@@ -40,12 +35,31 @@ namespace web_server {
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
-  std::string domain;  ///< The domain of the component, for example "sensor"
-  std::string id;      ///< The id of the device that's being accessed, for example "living_room_fan"
-  std::string method;  ///< The method that's being called, for example "turn_on"
+  const char *domain;  ///< Pointer to domain within URL, for example "sensor"
+  const char *id;      ///< Pointer to id within URL, for example "living_room_fan"
+  const char *method;  ///< Pointer to method within URL, for example "turn_on"
+  uint8_t domain_len;  ///< Length of domain string
+  uint8_t id_len;      ///< Length of id string
+  uint8_t method_len;  ///< Length of method string
   bool valid;          ///< Whether this match is valid
+
+  // Helper methods for string comparisons
+  bool domain_equals(const char *str) const {
+    return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
+  }
+
+  bool id_equals(const std::string &str) const {
+    return id && id_len == str.length() && memcmp(id, str.c_str(), id_len) == 0;
+  }
+
+  bool method_equals(const char *str) const {
+    return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
+  }
+
+  bool method_empty() const { return method_len == 0; }
 };
 
+#ifdef USE_WEBSERVER_SORTING
 struct SortingComponents {
   float weight;
   uint64_t group_id;
@@ -55,6 +69,7 @@ struct SortingGroup {
   std::string name;
   float weight;
 };
+#endif
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
@@ -63,7 +78,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred
   update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with
   multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's
-  implemented in a more straightforward way for ESP-IDF. Arudino platform will eventually go away and this workaround
+  implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
 #ifdef USE_ARDUINO
@@ -99,13 +114,15 @@ class DeferredUpdateEventSource : public AsyncEventSource {
  protected:
   // surface a couple methods from the base class
   using AsyncEventSource::handleRequest;
-  using AsyncEventSource::try_send;
+  using AsyncEventSource::send;
 
   ListEntitiesIterator entities_iterator_;
   // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory
   // footprint is more important than speed here)
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
+  uint16_t consecutive_send_failures_{0};
+  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 
   // helper for allowing only unique entries in the queue
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
@@ -156,14 +173,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 #if USE_WEBSERVER_VERSION == 1
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.css
+   * https://oi.esphome.io/v1/webserver-v1.min.css
    *
    * @param css_url The url to the web server stylesheet.
    */
   void set_css_url(const char *css_url);
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.js
+   * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
@@ -192,11 +209,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param include_internal Whether internal components should be displayed.
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
-  /** Set whether or not the webserver should expose the OTA form and handler.
-   *
-   * @param allow_ota.
-   */
-  void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
   /** Set whether or not the webserver should expose the Log.
    *
    * @param expose_log.
@@ -269,7 +281,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
 
   /// Handle a binary sensor request under '/binary_sensor/<id>'.
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -468,21 +480,84 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
   /// Override the web handler's canHandle method.
-  bool canHandle(AsyncWebServerRequest *request) override;
+  bool canHandle(AsyncWebServerRequest *request) const override;
   /// Override the web handler's handleRequest method.
   void handleRequest(AsyncWebServerRequest *request) override;
   /// This web handle is not trivial.
-  bool isRequestHandlerTrivial() override;  // NOLINT(readability-identifier-naming)
+  bool isRequestHandlerTrivial() const override;  // NOLINT(readability-identifier-naming)
 
+#ifdef USE_WEBSERVER_SORTING
   void add_entity_config(EntityBase *entity, float weight, uint64_t group);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
   std::map<EntityBase *, SortingComponents> sorting_entitys_;
   std::map<uint64_t, SortingGroup> sorting_groups_;
+#endif
+
   bool include_internal_{false};
 
  protected:
-  void schedule_(std::function<void()> &&f);
+  void add_sorting_info_(JsonObject &root, EntityBase *entity);
+
+#ifdef USE_LIGHT
+  // Helper to parse and apply a float parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float),
+                          float scale = 1.0f) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value / scale);
+      }
+    }
+  }
+
+  // Helper to parse and apply a uint32_t parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_uint_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                               Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value * scale);
+      }
+    }
+  }
+#endif
+
+  // Generic helper to parse and apply a float parameter
+  template<typename T, typename Ret>
+  void parse_float_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply an int parameter
+  template<typename T, typename Ret>
+  void parse_int_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(int)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply a string parameter
+  template<typename T, typename Ret>
+  void parse_string_param_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                           Ret (T::*setter)(const std::string &)) {
+    if (request->hasParam(param_name)) {
+      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
+      std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+      (call.*setter)(value);
+    }
+  }
+
   web_server_base::WebServerBase *base_;
 #ifdef USE_ARDUINO
   DeferredUpdateEventSourceList events_;
@@ -501,12 +576,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool allow_ota_{true};
   bool expose_log_{true};
-#ifdef USE_ESP32
-  std::deque<std::function<void()>> to_schedule_;
-  SemaphoreHandle_t to_schedule_lock_;
-#endif
 };
 
 }  // namespace web_server

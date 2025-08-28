@@ -4,11 +4,12 @@
 
 #ifdef USE_MQTT
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
-#include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #if defined(USE_ESP32)
 #include "mqtt_backend_esp32.h"
 #elif defined(USE_ESP8266)
@@ -267,6 +268,8 @@ class MQTTClientComponent : public Component {
   void set_publish_nan_as_none(bool publish_nan_as_none);
   bool is_publish_nan_as_none() const;
 
+  void set_wait_for_connection(bool wait_for_connection) { this->wait_for_connection_ = wait_for_connection; }
+
  protected:
   void send_device_info_();
 
@@ -332,8 +335,10 @@ class MQTTClientComponent : public Component {
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
+  CallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
 
   bool publish_nan_as_none_{false};
+  bool wait_for_connection_{false};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

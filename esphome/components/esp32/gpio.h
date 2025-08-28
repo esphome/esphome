@@ -29,9 +29,9 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
 
   gpio_num_t pin_;
-  bool inverted_;
   gpio_drive_cap_t drive_strength_;
   gpio::Flags flags_;
+  bool inverted_;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static bool isr_service_installed;
 };

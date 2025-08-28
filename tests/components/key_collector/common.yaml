@@ -26,3 +26,11 @@ key_collector:
       - logger.log:
           format: "input timeout: '%s', started by '%c'"
           args: ['x.c_str()', "(start == 0 ? '~' : start)"]
+    enable_on_boot: false
+
+button:
+  - platform: template
+    id: button0
+    on_press:
+      - key_collector.enable:
+      - key_collector.disable:
