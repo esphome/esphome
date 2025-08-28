@@ -191,6 +191,14 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
   return ERROR_OK;
 }
 
+ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
+  frequency_ = frequency;
+  if (this->initialized_) {
+    return this->set_clock_();
+  }
+  return ERROR_OK;
+}
+
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf

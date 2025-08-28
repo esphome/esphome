@@ -15,6 +15,10 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
   this->parent_->disable_all_channels(this->frequency_ > 0);
   return err;
 }
+i2c::ErrorCode TCA9548AChannel::set_frequency(uint32_t frequency) {
+  this->frequency_ = frequency;
+  return i2c::ERROR_OK;
+}
 void TCA9548AComponent::setup() {
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
@@ -35,7 +39,7 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel, uint32_t fr
 
   if (frequency) {
     this->original_frequency_ = this->bus_->get_frequency();
-    i2c::ErrorCode err = this->bus_->set_frequency(frequency);
+    const i2c::ErrorCode err = this->bus_->set_frequency(frequency);
     if (err != i2c::ERROR_OK) {
       this->status_set_error("Failed to change frequency.");
       return err;
