@@ -51,9 +51,12 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   bool can_proceed() override { return this->setup_complete_ || this->is_failed(); }
 
  protected:
-  bool read16_(uint16_t addr, uint8_t *data, size_t len, bool ok_to_fail = false);
+  void reset_device_();
   void continue_setup_();
   void update_button_state_(bool state);
+
+  i2c::ErrorCode write_touch_register_(uint16_t reg, const uint8_t *data, size_t len);
+  i2c::ErrorCode read_touch_register_(uint16_t reg, uint8_t *data, size_t len);
 
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{};
