@@ -82,11 +82,7 @@ void ResonateMediaPlayer::setup() {
 
   this->parent_->add_controls_callback([this](const ResonateControls &control_type) {
     switch (control_type) {
-      case ResonateControls::START: {
-        // Add to queue to carefully process in loop() at the appropriate time
-        xQueueSend(this->resonate_controls_queue_, &control_type, 0);
-        break;
-      }
+      case ResonateControls::START:  // Intentional fallthrough
       case ResonateControls::STOP: {
         // Add to queue to carefully process in loop() at the appropriate time
         xQueueSend(this->resonate_controls_queue_, &control_type, 0);

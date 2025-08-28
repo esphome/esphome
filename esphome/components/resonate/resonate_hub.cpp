@@ -408,7 +408,9 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
           this->controls_callbacks_.call(ResonateControls::START);
         }
         // Always release our reference (queue has its own if successful)
-        header_chunk->release();
+        if (header_chunk != nullptr) {
+          header_chunk->release();
+        }
       }
 #endif
       break;
@@ -477,9 +479,11 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
 }
 
 void ResonateHub::deallocate_websocket_payload_() {
-  auto allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE);
-  allocator.deallocate(this->websocket_payload_, this->websocket_len_);
-  this->websocket_payload_ = nullptr;
+  if (this->websocket_payload_ != nullptr) {
+    auto allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE);
+    allocator.deallocate(this->websocket_payload_, this->websocket_len_);
+    this->websocket_payload_ = nullptr;
+  }
 }
 
 #ifdef USE_RESONATE_AUDIO
