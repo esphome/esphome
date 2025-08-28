@@ -292,12 +292,7 @@ class ESP32BLETracker : public Component,
   /// Common cleanup logic when transitioning scanner to IDLE state
   void cleanup_scan_state_(bool is_stop_complete);
   /// Process a single scan result immediately
-  /// Returns true if a discovered client needs promotion to READY_TO_CONNECT
-  bool process_scan_result_(const BLEScanResult &scan_result);
-#ifdef USE_ESP32_BLE_DEVICE
-  /// Check if any clients are in connecting or ready to connect state
-  bool has_connecting_clients_() const;
-#endif
+  void process_scan_result_(const BLEScanResult &scan_result);
   /// Handle scanner failure states
   void handle_scanner_failure_();
   /// Try to promote discovered clients to ready to connect
