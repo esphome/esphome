@@ -222,7 +222,7 @@ def delay(ms):
 
 
 class DriverChip:
-    models = {}
+    models: dict[str, "DriverChip"] = {}
 
     def __init__(
         self,
