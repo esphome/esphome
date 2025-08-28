@@ -300,11 +300,9 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
           // Failed to add
           ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
           this->encoded_chunk_queue_->reset();
-
-          audio_chunk->release();  // release our reference, buffer was deallocated
-          return false;            // deallocate payload
         }
-        // Successfully added to queue - release our reference (queue has its own)
+        // Release our reference, queue has its own if successful. If unsuccessful, then this will deallocate the
+        // payload
         audio_chunk->release();
         return true;  // don't deallocate payload, just clear pointer
       }
