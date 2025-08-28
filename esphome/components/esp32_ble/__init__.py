@@ -5,13 +5,19 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ESPHOME, CONF_ID, CONF_NAME
+from esphome.const import (
+    CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
+    CONF_ID,
+    CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
+)
 from esphome.core import CORE, TimePeriod
-from esphome.core.config import CONF_NAME_ADD_MAC_SUFFIX
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
-CODEOWNERS = ["@jesserockz", "@Rapsssito"]
+CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
+DOMAIN = "esp32_ble"
 
 
 class BTLoggers(Enum):
@@ -115,9 +121,11 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
+CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
+CONF_MAX_NOTIFICATIONS = "max_notifications"
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
@@ -162,6 +170,7 @@ CONFIG_SCHEMA = cv.Schema(
             IO_CAPABILITY, lower=True
         ),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+        cv.Optional(CONF_ADVERTISING, default=False): cv.boolean,
         cv.Optional(
             CONF_ADVERTISING_CYCLE_TIME, default="10s"
         ): cv.positive_time_period_milliseconds,
@@ -172,6 +181,11 @@ CONFIG_SCHEMA = cv.Schema(
             cv.only_with_esp_idf,
             cv.positive_time_period_seconds,
             cv.Range(min=TimePeriod(seconds=10), max=TimePeriod(seconds=180)),
+        ),
+        cv.SplitDefault(CONF_MAX_NOTIFICATIONS, esp32_idf=12): cv.All(
+            cv.only_with_esp_idf,
+            cv.positive_int,
+            cv.Range(min=1, max=64),
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -271,8 +285,25 @@ async def to_code(config):
             add_idf_sdkconfig_option(
                 "CONFIG_BT_BLE_ESTAB_LINK_CONN_TOUT", timeout_seconds
             )
+            # Increase GATT client connection retry count for problematic devices
+            # Default in ESP-IDF is 3, we increase to 10 for better reliability with
+            # low-power/timing-sensitive devices
+            add_idf_sdkconfig_option("CONFIG_BT_GATTC_CONNECT_RETRY_COUNT", 10)
+
+        # Set the maximum number of notification registrations
+        # This controls how many BLE characteristics can have notifications enabled
+        # across all connections for a single GATT client interface
+        # https://github.com/esphome/issues/issues/6808
+        if CONF_MAX_NOTIFICATIONS in config:
+            add_idf_sdkconfig_option(
+                "CONFIG_BT_GATTC_NOTIF_REG_MAX", config[CONF_MAX_NOTIFICATIONS]
+            )
 
     cg.add_define("USE_ESP32_BLE")
+
+    if config[CONF_ADVERTISING]:
+        cg.add_define("USE_ESP32_BLE_ADVERTISING")
+        cg.add_define("USE_ESP32_BLE_UUID")
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))

@@ -1,6 +1,7 @@
 from esphome.components.mipi import DriverChip
 import esphome.config_validation as cv
 
+from .amoled import CO5300
 from .ili import ILI9488_A
 
 DriverChip(
@@ -139,4 +140,15 @@ ILI9488_A.extend(
     reset_pin=40,
     data_rate="20MHz",
     invert_colors=True,
+)
+
+CO5300.extend(
+    "WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.75",
+    width=466,
+    height=466,
+    pixel_mode="16bit",
+    offset_height=0,
+    offset_width=6,
+    cs_pin=12,
+    reset_pin=39,
 )

@@ -77,6 +77,7 @@ BRIGHTNESS = 0x51
 WRDISBV = 0x51
 RDDISBV = 0x52
 WRCTRLD = 0x53
+WCE = 0x58
 SWIRE1 = 0x5A
 SWIRE2 = 0x5B
 IFMODE = 0xB0
@@ -91,6 +92,7 @@ PWCTR2 = 0xC1
 PWCTR3 = 0xC2
 PWCTR4 = 0xC3
 PWCTR5 = 0xC4
+SPIMODESEL = 0xC4
 VMCTR1 = 0xC5
 IFCTR = 0xC6
 VMCTR2 = 0xC7
@@ -307,8 +309,12 @@ class DriverChip:
                 CONF_NATIVE_HEIGHT, height + offset_height * 2
             )
             offset_height = native_height - height - offset_height
-        # Swap default dimensions if swap_xy is set
-        if transform[CONF_SWAP_XY] is True:
+        # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
+        rotated = not requires_buffer(config) and config.get(CONF_ROTATION, 0) in (
+            90,
+            270,
+        )
+        if transform[CONF_SWAP_XY] is True or rotated:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
         return width, height, offset_width, offset_height
