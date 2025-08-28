@@ -119,8 +119,10 @@ void ResonateMediaPlayer::loop() {
           if (xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0)) {
             xEventGroupSetBits(this->event_group_, EventGroupBits::CONTROL_START);
           }
-        } else if (this->task_processing_) {
-          // Already fully running and processing audio, discard the control message
+        } else if ((this->task_processing_) &&
+                   !(xEventGroupGetBits(this->event_group_) & EventGroupBits::CONTROL_STOP)) {
+          // Already fully running and processing audio or the task hasn't processed a pending stop control, discard the
+          // control message
           xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0);
         }
         // If neither of these conditions hold, then we must be starting, as we set task_procesing_ to false once we
