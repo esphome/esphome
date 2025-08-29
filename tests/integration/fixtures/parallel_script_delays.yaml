@@ -1,0 +1,45 @@
+esphome:
+  name: test-parallel-delays
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  actions:
+    - action: test_parallel_delays
+      then:
+        # Start three parallel script instances with small delays between starts
+        - globals.set:
+            id: instance_counter
+            value: '1'
+        - script.execute: parallel_delay_script
+        - delay: 10ms
+        - globals.set:
+            id: instance_counter
+            value: '2'
+        - script.execute: parallel_delay_script
+        - delay: 10ms
+        - globals.set:
+            id: instance_counter
+            value: '3'
+        - script.execute: parallel_delay_script
+
+globals:
+  - id: instance_counter
+    type: int
+    initial_value: '0'
+
+script:
+  - id: parallel_delay_script
+    mode: parallel
+    then:
+      - lambda: !lambda |-
+          int instance = id(instance_counter);
+          ESP_LOGI("TEST", "Parallel script instance %d started", instance);
+      - delay: 1s
+      - lambda: !lambda |-
+          static int completed_counter = 0;
+          completed_counter++;
+          ESP_LOGI("TEST", "Parallel script instance %d completed after delay", completed_counter);
