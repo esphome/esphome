@@ -10,6 +10,7 @@
 
 #include <freertos/event_groups.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 namespace esphome {
 namespace resampler {
@@ -78,6 +79,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   static void resample_task(void *params);
 
   EventGroupHandle_t event_group_{nullptr};
+  QueueHandle_t controls_queue_{nullptr};
 
   std::weak_ptr<RingBuffer> ring_buffer_;
 
