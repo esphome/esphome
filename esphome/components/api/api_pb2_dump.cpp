@@ -1704,6 +1704,7 @@ void BluetoothScannerStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerStateResponse");
   dump_field(out, "state", static_cast<enums::BluetoothScannerState>(this->state));
   dump_field(out, "mode", static_cast<enums::BluetoothScannerMode>(this->mode));
+  dump_field(out, "configured_mode", static_cast<enums::BluetoothScannerMode>(this->configured_mode));
 }
 void BluetoothScannerSetModeRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerSetModeRequest");

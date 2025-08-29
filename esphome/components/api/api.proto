@@ -1712,6 +1712,7 @@ message BluetoothScannerStateResponse {
 
   BluetoothScannerState state = 1;
   BluetoothScannerMode mode = 2;
+  BluetoothScannerMode configured_mode = 3;
 }
 
 message BluetoothScannerSetModeRequest {
