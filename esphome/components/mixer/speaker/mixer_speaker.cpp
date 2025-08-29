@@ -667,8 +667,8 @@ void MixerSpeaker::audio_mixer_task(void *params) {
                     this_mixer->audio_stream_info_.value(), frames_to_mix);
 
         // Update source speaker buffer length
-        transfer_buffers_with_data[0]->decrease_buffer_length(active_stream_info.frames_to_bytes(frames_to_mix));
         speakers_with_data[0]->pending_playback_frames_ += frames_to_mix;
+        transfer_buffers_with_data[0]->decrease_buffer_length(active_stream_info.frames_to_bytes(frames_to_mix));
 
         // Update output transfer buffer length
         output_transfer_buffer->increase_buffer_length(
