@@ -198,7 +198,7 @@ uint16_t Mcp4461Component::get_wiper_level_(Mcp4461WiperIdx wiper) {
 
 uint16_t Mcp4461Component::read_wiper_level_(uint8_t wiper_idx) {
   uint8_t addr = this->get_wiper_address_(wiper_idx);
-  uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::INCREMENT);
+  uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::READ);
   if (wiper_idx > 3) {
     if (!this->is_eeprom_ready_for_writing_(true)) {
       return 0;
