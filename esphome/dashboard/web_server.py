@@ -542,6 +542,17 @@ class WizardRequestHandler(BaseHandler):
             return
         filename = f"{kwargs['name']}.yaml"
         destination = settings.rel_path(filename)
+
+        # Check if destination file already exists
+        if os.path.exists(destination):
+            self.set_status(409)  # Conflict status code
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps({"error": f"Configuration file '{filename}' already exists"})
+            )
+            self.finish()
+            return
+
         success = wizard.wizard_write(path=destination, **kwargs)
         if success:
             self.set_status(200)
@@ -552,7 +563,9 @@ class WizardRequestHandler(BaseHandler):
             self.set_status(500)
             self.set_header("content-type", "application/json")
             self.write(
-                json.dumps({"error": "Failed to write configuration, file exists"})
+                json.dumps(
+                    {"error": "Failed to write configuration, see logs for details"}
+                )
             )
             self.finish()
 
