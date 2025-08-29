@@ -71,7 +71,7 @@ void IDFI2CBus::setup() {
 
 ErrorCode IDFI2CBus::set_clock_() {
   if (this->dev_ != nullptr) {
-    ESP_LOGV(TAG, "Removing existing i2c_master_dev prior to changing frequency");
+    ESP_LOGD(TAG, "Removing existing i2c_master_dev prior to changing frequency");
     const esp_err_t err = i2c_master_bus_rm_device(this->dev_);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "i2c_master_bus_rm_device failed: %s", esp_err_to_name(err));
