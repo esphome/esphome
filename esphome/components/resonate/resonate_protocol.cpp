@@ -169,26 +169,26 @@ bool process_volume_set_message(const std::string &message, uint8_t *volume) {
 
 #ifdef USE_RESONATE_METADATA
 bool process_metadata_update_message(const std::string &message, ResonateMetadata *metadata) {
-  return (json::parse_json(message, [metadata](JsonObject root) -> bool {
+  return (json::parse_json(message, [&metadata](JsonObject root) -> bool {
     if (root["type"].as<std::string>() != "metadata/update") {
       ESP_LOGE(TAG, "Invalid metadata/update message");
       return false;
     }
 
     if (metadata != nullptr) {
-      if (!root["payload"]["title"].is<const char *>()) {
+      if (root["payload"]["title"].is<const char *>()) {
         metadata->title = root["payload"]["title"].as<std::string>();
       }
-      if (!root["payload"]["artist"].is<const char *>()) {
+      if (root["payload"]["artist"].is<const char *>()) {
         metadata->artist = root["payload"]["artist"].as<std::string>();
       }
-      if (!root["payload"]["album"].is<const char *>()) {
+      if (root["payload"]["album"].is<const char *>()) {
         metadata->album = root["payload"]["album"].as<std::string>();
       }
-      if (!root["payload"]["year"].is<uint16_t>()) {
+      if (root["payload"]["year"].is<uint16_t>()) {
         metadata->year = root["payload"]["year"].as<uint16_t>();
       }
-      if (!root["payload"]["track"].is<uint16_t>()) {
+      if (root["payload"]["track"].is<uint16_t>()) {
         metadata->track = root["payload"]["track"].as<uint16_t>();
       }
     }
