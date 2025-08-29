@@ -146,6 +146,7 @@ def _gas_sensor(
         }
     )
 
+
 CO2_SENSOR = cv.Schema(
     {
         cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
