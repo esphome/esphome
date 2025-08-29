@@ -22,7 +22,7 @@ runs:
         python-version: ${{ inputs.python-version }}
     - name: Restore Python virtual environment
       id: cache-venv
-      uses: actions/cache/restore@v4.2.3
+      uses: actions/cache/restore@v4.2.4
       with:
         path: venv
         # yamllint disable-line rule:line-length

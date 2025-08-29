@@ -7,6 +7,19 @@ namespace binary_sensor {
 
 static const char *const TAG = "binary_sensor";
 
+// Function implementation of LOG_BINARY_SENSOR macro to reduce code size
+void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj) {
+  if (obj == nullptr) {
+    return;
+  }
+
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+
+  if (!obj->get_device_class().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
+  }
+}
+
 void BinarySensor::publish_state(bool new_state) {
   if (this->filter_list_ == nullptr) {
     this->send_state_internal(new_state);

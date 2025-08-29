@@ -118,6 +118,12 @@ async def to_code(config):
     connection_count = len(config.get(CONF_CONNECTIONS, []))
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", connection_count)
 
+    # Define batch size for BLE advertisements
+    # Each advertisement is up to 80 bytes when packaged (including protocol overhead)
+    # 16 advertisements × 80 bytes (worst case) = 1280 bytes out of ~1320 bytes usable payload
+    # This achieves ~97% WiFi MTU utilization while staying under the limit
+    cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
+
     for connection_conf in config.get(CONF_CONNECTIONS, []):
         connection_var = cg.new_Pvariable(connection_conf[CONF_ID])
         await cg.register_component(connection_var, connection_conf)

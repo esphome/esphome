@@ -8,7 +8,7 @@ namespace esphome::bluetooth_proxy {
 
 class BluetoothProxy;
 
-class BluetoothConnection : public esp32_ble_client::BLEClientBase {
+class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
  public:
   void dump_config() override;
   void loop() override;
@@ -37,13 +37,14 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
   void log_connection_warning_(const char *operation, esp_err_t err);
   void log_gatt_not_connected_(const char *action, const char *type);
   void log_gatt_operation_error_(const char *operation, uint16_t handle, esp_gatt_status_t status);
+  esp_err_t check_and_log_error_(const char *operation, esp_err_t err);
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
   BluetoothProxy *proxy_;
 
   // Group 2: 2-byte types
-  int16_t send_service_{-2};  // Needs to handle negative values and service count
+  int16_t send_service_{-3};  // -3 = INIT_SENDING_SERVICES, -2 = DONE_SENDING_SERVICES, >=0 = service index
 
   // Group 3: 1-byte types
   bool seen_mtu_or_services_{false};
