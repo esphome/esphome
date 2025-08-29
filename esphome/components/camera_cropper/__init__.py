@@ -87,11 +87,11 @@ async def to_code(config):
                     ("format", conf[CONF_IMAGE_FORMAT]),
                 ),
             )
-            
+
             # Create image and set data length
             image = cg.new_Pvariable(conf[CONF_IMAGE_ID])
             cg.add(image.set_data_length(spec.bytes_per_image()))
-            
+
             # Create cropper with all required parameters
             cropper = cg.new_Pvariable(
                 conf[CONF_ID],
@@ -100,7 +100,7 @@ async def to_code(config):
                 conf[CONF_CROP_X],
                 conf[CONF_CROP_Y],
                 conf[CONF_WIDTH],
-                conf[CONF_HEIGHT]
+                conf[CONF_HEIGHT],
             )
 
             # Set flip options if specified

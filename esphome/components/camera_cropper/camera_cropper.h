@@ -8,8 +8,9 @@ namespace camera_cropper {
 
 class CameraCropper : public camera::Processor {
  public:
-  CameraCropper(camera::CameraImageSpec *spec, camera::CameraImage *output, int crop_x, int crop_y, int crop_width, int crop_height);
-  
+  CameraCropper(camera::CameraImageSpec *spec, camera::CameraImage *output, int crop_x, int crop_y, int crop_width,
+                int crop_height);
+
   // Processor interface methods
   size_t process_pixels(camera::CameraImageSpec *input_spec, camera::CameraImage *input) override;
   camera::CameraImageSpec *get_output_image_spec() override { return this->output_spec_; }
