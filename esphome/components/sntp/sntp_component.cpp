@@ -80,7 +80,7 @@ void SNTPComponent::loop() {
 // component that set the time.
 // ESP-IDF and ESP8266 use callbacks from the SNTP task to trigger the
 // `on_time_sync` trigger on successful sync events.
-#if defined(USE_ESP_IDF) || defined(USE_ESP8266)
+#if defined(USE_ESP32) || defined(USE_ESP8266)
   this->disable_loop();
 #endif
 
