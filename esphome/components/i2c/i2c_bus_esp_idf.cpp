@@ -70,6 +70,15 @@ void IDFI2CBus::setup() {
 }
 
 ErrorCode IDFI2CBus::set_clock_() {
+  if (this->dev_ != nullptr) {
+    ESP_LOGV(TAG, "Removing existing i2c_master_dev prior to changing frequency");
+    const esp_err_t err = i2c_master_bus_rm_device(this->dev_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "i2c_master_bus_rm_device failed: %s", esp_err_to_name(err));
+      return ERROR_UNKNOWN;
+    }
+    this->dev_ = nullptr;
+  }
   i2c_device_config_t dev_conf{};
   memset(&dev_conf, 0, sizeof(dev_conf));
   dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
