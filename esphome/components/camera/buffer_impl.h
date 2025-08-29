@@ -13,8 +13,8 @@ class BufferImpl : public Buffer {
   explicit BufferImpl(size_t size);
   explicit BufferImpl(CameraImageSpec *spec);
   // -------- Buffer --------
-  virtual uint8_t *get_data_buffer() override { return data_; }
-  virtual size_t get_data_length() override { return size_; }
+  uint8_t *get_data_buffer() override { return data_; }
+  size_t get_data_length() override { return size_; }
   // ------------------------
   ~BufferImpl() override;
 

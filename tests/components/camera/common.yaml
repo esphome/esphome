@@ -49,9 +49,6 @@ camera:
     name: Test Camera
     camera_encoder_id: jpeg_encoder
     camera_sensor_id: camera_sensor_id
-    width: 256
-    height: 256
-    image_format: BGR888
     on_capture_image:
       - lambda: |-
           static uint8_t frame_count = 0;
