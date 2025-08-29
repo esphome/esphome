@@ -105,6 +105,7 @@ void SourceSpeaker::loop() {
             // Only process if running
             this->state_ = speaker::STATE_STOPPING;
             this->stopping_start_ms_ = millis();
+            this->transfer_buffer_.reset();  // deallocate the transfer buffer
           }
         } else if (this->state_ == speaker::STATE_STOPPED) {
           // Already stopped, discard the command
@@ -161,6 +162,7 @@ void SourceSpeaker::loop() {
 
         this->state_ = speaker::STATE_STOPPING;
         this->stopping_start_ms_ = millis();
+        this->transfer_buffer_.reset();  // deallocate the transfer buffer
       }
       break;
     }
@@ -172,6 +174,7 @@ void SourceSpeaker::loop() {
           // Timeout exceeded or graceful stop requested
           this->state_ = speaker::STATE_STOPPING;
           this->stopping_start_ms_ = millis();
+          this->transfer_buffer_.reset();  // deallocate the transfer buffer
         }
       }
       break;
@@ -182,18 +185,11 @@ void SourceSpeaker::loop() {
         this->parent_->get_output_speaker()->stop();
       }
 
-      if (this->parent_->get_output_speaker()->is_stopped() ||
-          ((this->pending_playback_frames_ == 0) && (this->transfer_buffer_.use_count() == 1) &&
-           (this->transfer_buffer_->available() == 0))) {
-        // Output speaker is stopped OR
-        // (all pending playback frames have played AND the mixer task doesn't own the transfer buffer AND the transfer
-        // buffer has no data)
+      if (this->parent_->get_output_speaker()->is_stopped() || (this->pending_playback_frames_ == 0)) {
+        // Output speaker is stopped OR all pending playback frames have played
         this->pending_playback_frames_ = 0;
-
-        this->transfer_buffer_.reset();  // deallocate the transfer buffer
         this->stop_gracefully_ = false;
 
-        ESP_LOGD(TAG, "Source speaker stopped");
         this->state_ = speaker::STATE_STOPPED;
       }
       break;
@@ -444,7 +440,8 @@ void MixerSpeaker::loop() {
   }
   if (event_group_bits & MixerEventGroupBits::STATE_STOPPED) {
     if (this->delete_task_() == ESP_OK) {
-      xEventGroupClearBits(this->event_group_, MixerEventGroupBits::ALL_BITS);
+      xEventGroupClearBits(this->event_group_, MixerEventGroupBits::STATE_STOPPED | MixerEventGroupBits::COMMAND_STOP |
+                                                   MixerEventGroupBits::ERR_ESP_NO_MEM);
     }
   }
 
@@ -630,11 +627,16 @@ void MixerSpeaker::audio_mixer_task(void *params) {
     std::vector<std::shared_ptr<audio::AudioSourceTransferBuffer>> transfer_buffers_with_data;
 
     for (auto &speaker : this_mixer->source_speakers_) {
-      if (speaker->get_transfer_buffer().use_count() > 0) {
+      if (speaker->is_running() && !speaker->get_pause_state()) {
+        // Speaker is running and not paused, so it possibly can provide audio data
         std::shared_ptr<audio::AudioSourceTransferBuffer> transfer_buffer = speaker->get_transfer_buffer().lock();
+        if (transfer_buffer.use_count() == 0) {
+          // No transfer buffer allocated, so skip processing this speaker
+          continue;
+        }
         speaker->process_data_from_source(0);  // Transfers and ducks audio from source ring buffers
 
-        if ((transfer_buffer->available() > 0) && !speaker->get_pause_state()) {
+        if (transfer_buffer->available() > 0) {
           // Store the locked transfer buffers in their own vector to avoid releasing ownership until after the loop
           transfer_buffers_with_data.push_back(transfer_buffer);
           speakers_with_data.push_back(speaker);
