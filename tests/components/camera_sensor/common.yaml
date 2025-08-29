@@ -1,0 +1,5 @@
+camera_sensor:
+  id: camera_sensor_id
+  width: 256
+  height: 256
+  image_format: BGR888

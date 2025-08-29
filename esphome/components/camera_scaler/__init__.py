@@ -33,7 +33,7 @@ camera_scaler_ns = cg.esphome_ns.namespace("camera_scaler")
 
 Processor = camera_ns.class_("Processor")
 Camera = camera_ns.class_("CameraImpl")
-CameraImageImpl = camera_ns.class_("CameraImageImpl")
+BufferImpl = camera_ns.class_("BufferImpl")
 DefaultScaler = camera_scaler_ns.class_("DefaultScaler", Processor)
 
 CameraImageSpec = camera_ns.struct("CameraImageSpec")
@@ -75,7 +75,7 @@ DEFAULT_SCALER_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_FLIP_Y, default=False): cv.boolean,
             cv.Optional(CONF_MARGINS): cv.ensure_list(margin_parameters),
             cv.Optional(CONF_CLEAR, default=False): cv.boolean,
-            cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(CameraImageImpl),
+            cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(BufferImpl),
             cv.GenerateID(CONF_IMAGE_FORMAT_ID): cv.declare_id(CameraImageSpec),
         }
     )
@@ -100,8 +100,7 @@ async def to_code(config):
                 ("format", config[CONF_IMAGE_FORMAT]),
             ),
         )
-        image = cg.new_Pvariable(config[CONF_IMAGE_ID])
-        cg.add(image.set_data_length(spec.bytes_per_image()))
+        image = cg.new_Pvariable(config[CONF_IMAGE_ID], spec)
         scaler = cg.new_Pvariable(config[CONF_ID], config[CONF_ALGORITHM], spec, image)
         if config[CONF_FLIP_X]:
             cg.add(scaler.set_flip_x(config[CONF_FLIP_X]))

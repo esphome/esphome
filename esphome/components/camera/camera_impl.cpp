@@ -10,12 +10,6 @@ static const char *const TAG = "camera";
 namespace esphome {
 namespace camera {
 
-void CameraImpl::set_camera_image_spec(int width, int height, ImageFormat format) {
-  this->camera_image_spec_.width = width;
-  this->camera_image_spec_.height = height;
-  this->camera_image_spec_.format = format;
-}
-
 CameraImageReader *CameraImpl::create_image_reader() {
   ESP_LOGV(TAG, "CameraImpl::create_image_reader.");
   return new CameraImageReaderImpl;
@@ -42,13 +36,6 @@ void CameraImpl::stop_stream(CameraRequester requester) {
 }
 
 void CameraImpl::setup() {
-  this->pixels_ = new CameraImageImpl();
-  if (!this->pixels_->set_data_length(this->camera_image_spec_.bytes_per_image())) {
-    this->status_set_error("Failed to allocate memory for image buffer.");
-    this->mark_failed();
-    return;
-  }
-
   this->jpeg_ = std::make_shared<CameraImageAdapter>(encoder_->get_output_buffer());
   if (this->jpeg_ == nullptr) {
     this->status_set_error("Missing set_encoder_buffer() call detected.");
@@ -61,7 +48,7 @@ bool CameraImpl::camera_loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
   if (state_ == CAMERA_STATE_INIT) {
-    if (!this->pixels_ || !this->jpeg_) {
+    if (!this->sensor_ || !this->jpeg_) {
       this->status_set_error(
           "Missing setup() call detected. Are you overriding setup() without calling CameraImpl::setup() ?");
       this->mark_failed();
@@ -92,20 +79,21 @@ bool CameraImpl::camera_loop() {
 
   if (state_ == CAMERA_STATE_CAPTURING) {
     this->camera_incremental_context_.done = true;
-    this->image_capture_callback_.call(*this->pixels_, this->camera_image_spec_, this->camera_incremental_context_);
+    this->image_capture_callback_.call(*this->sensor_->get_image_buffer(), *this->sensor_->get_image_spec(),
+                                       this->camera_incremental_context_);
     // Incremental image capture
     if (!this->camera_incremental_context_.done)
       return true;
 
     // Check that we have a valid image for the encoder
-    if (this->camera_image_spec_.bytes_per_image() != this->pixels_->get_data_length()) {
-      ESP_LOGE(TAG, "Spec bytes %d != %d image bytes!", this->camera_image_spec_.bytes_per_image(),
-               this->pixels_->get_data_length());
+    if (this->sensor_->get_image_spec()->bytes_per_image() != this->sensor_->get_image_buffer()->get_data_length()) {
+      ESP_LOGE(TAG, "Spec bytes %d != %d image bytes!", this->sensor_->get_image_spec()->bytes_per_image(),
+               this->sensor_->get_image_buffer()->get_data_length());
       state_ = CAMERA_STATE_CLEAR_REQUEST;
     } else {
       state_ = CAMERA_STATE_PROCESSING;
-      this->input_image_ = this->pixels_;
-      this->input_image_spec_ = &this->camera_image_spec_;
+      this->input_image_ = this->sensor_->get_image_buffer();
+      this->input_image_spec_ = this->sensor_->get_image_spec();
     }
   }
 
@@ -210,14 +198,13 @@ void CameraImpl::dump_config() {
                 "Camera:\n"
                 "  Name: %s\n"
                 "  Internal: %s\n"
-                "  Resolution: %dx%d\n"
-                "  %s\n"
                 "  Idle update: %d ms\n"
                 "  Max update: %d ms\n"
                 "  Encoder enabled: %s\n",
-                this->name_.c_str(), YESNO(this->is_internal()), camera_image_spec_.width, camera_image_spec_.height,
-                to_string(camera_image_spec_.format), idle_update_interval_, max_update_interval_,
+                this->name_.c_str(), YESNO(this->is_internal()), idle_update_interval_, max_update_interval_,
                 YESNO(this->encoder_));
+  if (this->sensor_)
+    this->sensor_->dump_config();
   if (this->encoder_)
     this->encoder_->dump_config();
 }

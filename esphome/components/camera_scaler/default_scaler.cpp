@@ -3,13 +3,13 @@
 namespace esphome {
 namespace camera_scaler {
 
-DefaultScaler::DefaultScaler(DefaultAlgorithm algorithm, camera::CameraImageSpec *spec, camera::CameraImage *output) {
+DefaultScaler::DefaultScaler(DefaultAlgorithm algorithm, camera::CameraImageSpec *spec, camera::Buffer *output) {
   this->algorithm_ = algorithm;
   this->output_spec_ = spec;
   this->output_image_ = output;
 }
 
-size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera::CameraImage *input) {
+size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) {
   if (clear_)
     memset(this->output_image_->get_data_buffer(), 0, this->output_spec_->bytes_per_image());
 
@@ -59,14 +59,14 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
   return 0;
 }
 
-uint8_t DefaultScaler::get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::CameraImage *input,
-                                                    float x, float y) {
+uint8_t DefaultScaler::get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
+                                                    float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   return input->get_data_buffer()[y0 * input_spec->width + x0];
 }
 
-uint8_t DefaultScaler::get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::CameraImage *input,
+uint8_t DefaultScaler::get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input,
                                                      float x, float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;

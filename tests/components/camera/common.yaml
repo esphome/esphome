@@ -38,10 +38,17 @@ camera_encoder:
   buffer_size: 4096
   buffer_expand_size: 1024
 
+camera_sensor:
+  id: camera_sensor_id
+  width: 256
+  height: 256
+  image_format: BGR888
+
 camera:
   - platform: template
     name: Test Camera
     camera_encoder_id: jpeg_encoder
+    camera_sensor_id: camera_sensor_id
     width: 256
     height: 256
     image_format: BGR888

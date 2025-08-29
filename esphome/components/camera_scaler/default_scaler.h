@@ -13,7 +13,7 @@ enum DefaultAlgorithm : uint8_t { NEAREST_NEIGHBOR = 0, BILINEAR };
 
 class DefaultScaler : public camera::Processor {
  public:
-  DefaultScaler(DefaultAlgorithm algorithm, camera::CameraImageSpec *spec, camera::CameraImage *output);
+  DefaultScaler(DefaultAlgorithm algorithm, camera::CameraImageSpec *spec, camera::Buffer *output);
   void set_flip_x(bool flip) { this->flip_x_ = flip; }
   void set_flip_y(bool flip) { this->flip_y_ = flip; }
   void set_clear(bool clear) { this->clear_ = clear; }
@@ -22,15 +22,13 @@ class DefaultScaler : public camera::Processor {
   void set_margin_top(uint16_t margin) { this->margin_top_ = margin; }
   void set_margin_bottom(uint16_t margin) { this->margin_bottom_ = margin; }
   // -------- Scaler --------
-  size_t process_pixels(camera::CameraImageSpec *input_spec, camera::CameraImage *input) override;
+  size_t process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) override;
   camera::CameraImageSpec *get_output_image_spec() override { return this->output_spec_; }
-  camera::CameraImage *get_output_image() override { return this->output_image_; }
+  camera::Buffer *get_output_image() override { return this->output_image_; }
   // ------------------------
  protected:
-  uint8_t get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::CameraImage *input, float x,
-                                       float y);
-  uint8_t get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::CameraImage *input, float x,
-                                        float y);
+  uint8_t get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
+  uint8_t get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
   void set_pixel_grayscale_(uint8_t pixel, uint16_t x, uint16_t y);
 
   uint16_t margin_left_{};
@@ -43,7 +41,7 @@ class DefaultScaler : public camera::Processor {
   bool flip_y_{};
   bool clear_{};
   camera::CameraImageSpec *output_spec_{};
-  camera::CameraImage *output_image_{};
+  camera::Buffer *output_image_{};
 };
 
 }  // namespace camera_scaler

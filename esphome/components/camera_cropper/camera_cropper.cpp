@@ -7,7 +7,7 @@ namespace camera_cropper {
 
 static const char *const TAG = "camera.cropper";
 
-CameraCropper::CameraCropper(camera::CameraImageSpec *spec, camera::CameraImage *output, int crop_x, int crop_y,
+CameraCropper::CameraCropper(camera::CameraImageSpec *spec, camera::Buffer *output, int crop_x, int crop_y,
                              int crop_width, int crop_height) {
   this->output_spec_ = spec;
   this->output_image_ = output;
@@ -17,7 +17,7 @@ CameraCropper::CameraCropper(camera::CameraImageSpec *spec, camera::CameraImage 
   this->crop_height_ = crop_height;
 }
 
-size_t CameraCropper::process_pixels(camera::CameraImageSpec *input_spec, camera::CameraImage *input) {
+size_t CameraCropper::process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) {
   // Validate crop region
   if (crop_x_ + crop_width_ > input_spec->width || crop_y_ + crop_height_ > input_spec->height) {
     ESP_LOGE(TAG, "Crop region exceeds source image dimensions!");

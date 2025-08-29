@@ -20,7 +20,7 @@ class CameraOverlayDisplay : public display::Display {
     this->set_auto_clear(false);
     this->disable_loop();
     Camera::instance()->add_overlay_callback(
-        [this](camera::CameraImage &image, camera::CameraImageSpec spec, camera::CameraIncrementalContext &context) {
+        [this](camera::Buffer &image, camera::CameraImageSpec spec, camera::CameraIncrementalContext &context) {
           this->context_ = &context;
           this->data_buffer_ = image.get_data_buffer();
           this->spec_ = spec;

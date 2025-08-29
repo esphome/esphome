@@ -29,7 +29,7 @@ camera_cropper_ns = cg.esphome_ns.namespace("camera_cropper")
 
 Processor = camera_ns.class_("Processor")
 Camera = camera_ns.class_("CameraImpl")
-CameraImageImpl = camera_ns.class_("CameraImageImpl")
+BufferImpl = camera_ns.class_("BufferImpl")
 CameraCropper = camera_cropper_ns.class_("CameraCropper", Processor)
 
 CameraImageSpec = camera_ns.struct("CameraImageSpec")
@@ -58,7 +58,7 @@ DEFAULT_CROPPER_SCHEMA = BASE_SCHEMA.extend(
             cv.Required(CONF_CROP_Y): cv.int_range(min=0),
             cv.Optional(CONF_FLIP_X, default=False): cv.boolean,
             cv.Optional(CONF_FLIP_Y, default=False): cv.boolean,
-            cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(CameraImageImpl),
+            cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(BufferImpl),
             cv.GenerateID(CONF_IMAGE_FORMAT_ID): cv.declare_id(CameraImageSpec),
         }
     )
@@ -89,8 +89,7 @@ async def to_code(config):
             )
 
             # Create image and set data length
-            image = cg.new_Pvariable(conf[CONF_IMAGE_ID])
-            cg.add(image.set_data_length(spec.bytes_per_image()))
+            image = cg.new_Pvariable(conf[CONF_IMAGE_ID], spec)
 
             # Create cropper with all required parameters
             cropper = cg.new_Pvariable(

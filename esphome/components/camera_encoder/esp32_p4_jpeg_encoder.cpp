@@ -24,7 +24,7 @@ ESP32P4JPEGEncoder::ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampli
   ESP_ERROR_CHECK(jpeg_new_encoder_engine(&encode_eng_cfg, &this->encoder_engine_));
 }
 
-camera::EncoderError ESP32P4JPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::CameraImage *pixels) {
+camera::EncoderError ESP32P4JPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {
   uint8_t *buffer = this->output_->get_data();
   size_t buffer_length = this->output_->get_max_size();
   uint32_t bytes_written = 0;

@@ -15,7 +15,7 @@ Bitbank2JPEGEncoder::Bitbank2JPEGEncoder(Bitbank2Quality quality, camera::Encode
   this->output_ = output;
 }
 
-camera::EncoderError Bitbank2JPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::CameraImage *pixels) {
+camera::EncoderError Bitbank2JPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {
   uint8_t *buffer = this->output_->get_data();
   size_t buffer_length = this->output_->get_max_size();
 

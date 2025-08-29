@@ -1,8 +1,8 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import camera_encoder
+from esphome.components import camera_encoder, camera_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_HEIGHT, CONF_ID, CONF_TRIGGER_ID, CONF_WIDTH
+from esphome.const import CONF_ID, CONF_TRIGGER_ID
 from esphome.core import coroutine_with_priority
 from esphome.core.entity_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
@@ -12,6 +12,7 @@ CODEOWNERS = ["@DT-art1", "@bdraco"]
 CONF_IDLE_UPDATE_INTERVAL = "idle_update_interval"
 CONF_MAX_UPDATE_INTERVAL = "max_update_interval"
 CONF_CAMERA_ENCODER_ID = "camera_encoder_id"
+CONF_CAMERA_SENSOR_ID = "camera_sensor_id"
 
 CONF_ON_STREAM_START = "on_stream_start"
 CONF_ON_STREAM_STOP = "on_stream_stop"
@@ -45,16 +46,6 @@ CameraCaptureImageTrigger = camera_ns.class_(
 CameraOverlayTrigger = camera_ns.class_(
     "CameraOverlayTrigger", automation.Trigger.template()
 )
-
-ImageFormat = camera_ns.enum("ImageFormat")
-
-CONF_IMAGE_FORMAT = "image_format"
-
-CONF_IMAGE_FORMAT_SELECTS = {
-    "GRAYSCALE": ImageFormat.IMAGE_FORMAT_GRAYSCALE,
-    "RGB565": ImageFormat.IMAGE_FORMAT_RGB565,
-    "BGR888": ImageFormat.IMAGE_FORMAT_BGR888,
-}
 
 IS_PLATFORM_COMPONENT = True
 MULTI_CONF = True
@@ -97,11 +88,7 @@ _CAMERA_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Camera),
             cv.Required(CONF_CAMERA_ENCODER_ID): cv.use_id(camera_encoder.Encoder),
-            cv.Required(CONF_HEIGHT): cv.int_range(0),
-            cv.Required(CONF_WIDTH): cv.int_range(0),
-            cv.Required(CONF_IMAGE_FORMAT): cv.enum(
-                CONF_IMAGE_FORMAT_SELECTS, upper=True
-            ),
+            cv.Required(CONF_CAMERA_SENSOR_ID): cv.use_id(camera_sensor.Sensor),
             cv.Optional(CONF_IDLE_UPDATE_INTERVAL, default=0): cv.int_range(0),
             cv.Optional(CONF_MAX_UPDATE_INTERVAL, default=100): cv.int_range(0),
         }
@@ -127,15 +114,13 @@ def camera_schema(
 async def setup_camera(var, config):
     cg.add(var.set_idle_update_interval(config[CONF_IDLE_UPDATE_INTERVAL]))
     cg.add(var.set_max_update_interval(config[CONF_MAX_UPDATE_INTERVAL]))
-    cg.add(
-        var.set_camera_image_spec(
-            config[CONF_WIDTH], config[CONF_HEIGHT], config[CONF_IMAGE_FORMAT]
-        )
-    )
 
     await setup_entity(var, config, "camera")
     await setup_camera_automation(var, config)
     await cg.register_component(var, config)
+    if CONF_CAMERA_SENSOR_ID in config:
+        sensor = await cg.get_variable(config[CONF_CAMERA_SENSOR_ID])
+        cg.add(var.set_sensor(sensor))
     if CONF_CAMERA_ENCODER_ID in config:
         encoder = await cg.get_variable(config[CONF_CAMERA_ENCODER_ID])
         cg.add(var.set_encoder(encoder))

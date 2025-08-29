@@ -5,6 +5,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
+#include "buffer.h"
 #include "camera_incremental_context.h"
 
 namespace esphome {
@@ -116,10 +117,10 @@ class Camera : public EntityBase, public Component {
   Camera();
   // Camera implementation invokes callback to capture a new image.
   virtual void add_capture_callback(
-      std::function<void(CameraImage &, CameraImageSpec, CameraIncrementalContext &)> &&callback);
+      std::function<void(Buffer &, CameraImageSpec, CameraIncrementalContext &)> &&callback);
   // Camera implementation invokes callback to render overlays on the captured image.
   virtual void add_overlay_callback(
-      std::function<void(CameraImage &, CameraImageSpec, CameraIncrementalContext &)> &&callback);
+      std::function<void(Buffer &, CameraImageSpec, CameraIncrementalContext &)> &&callback);
   // Camera implementation invokes callback to publish a new image.
   virtual void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback);
   // Camera implementation invokes callback when start_stream is called.
@@ -139,8 +140,8 @@ class Camera : public EntityBase, public Component {
   static Camera *instance();
 
  protected:
-  CallbackManager<void(camera::CameraImage &, CameraImageSpec, CameraIncrementalContext &)> image_capture_callback_{};
-  CallbackManager<void(camera::CameraImage &, CameraImageSpec, CameraIncrementalContext &)> overlay_callback_{};
+  CallbackManager<void(camera::Buffer &, CameraImageSpec, CameraIncrementalContext &)> image_capture_callback_{};
+  CallbackManager<void(camera::Buffer &, CameraImageSpec, CameraIncrementalContext &)> overlay_callback_{};
   CallbackManager<void(std::shared_ptr<camera::CameraImage>)> new_image_callback_{};
   CallbackManager<void()> stream_start_callback_{};
   CallbackManager<void()> stream_stop_callback_{};
@@ -154,13 +155,12 @@ class Camera : public EntityBase, public Component {
 class CameraCaptureImageTrigger : public Trigger<CameraImageData, CameraImageSpec, CameraIncrementalContext &> {
  public:
   explicit CameraCaptureImageTrigger(Camera *camera) {
-    camera->add_capture_callback(
-        [this](camera::CameraImage &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
-          CameraImageData camera_image_data{};
-          camera_image_data.length = image.get_data_length();
-          camera_image_data.data = image.get_data_buffer();
-          this->trigger(camera_image_data, spec, context);
-        });
+    camera->add_capture_callback([this](Buffer &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
+      CameraImageData camera_image_data{};
+      camera_image_data.length = image.get_data_length();
+      camera_image_data.data = image.get_data_buffer();
+      this->trigger(camera_image_data, spec, context);
+    });
   }
 };
 
@@ -171,7 +171,7 @@ class CameraOverlayTrigger : public Trigger<CameraImageData, CameraImageSpec, Ca
  public:
   explicit CameraOverlayTrigger(Camera *camera) {
     camera->add_overlay_callback(
-        [this](camera::CameraImage &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
+        [this](camera::Buffer &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
           CameraImageData camera_image_data{};
           camera_image_data.length = image.get_data_length();
           camera_image_data.data = image.get_data_buffer();

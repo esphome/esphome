@@ -4,6 +4,7 @@
 #include "camera_image_impl.h"
 #include "encoder.h"
 #include "processor.h"
+#include "sensor.h"
 
 namespace esphome {
 namespace camera {
@@ -27,12 +28,12 @@ class CameraImpl : public Camera {
     CAMERA_STATE_CLEAR_REQUEST,
   };
 
-  // Sets the camera's image specifications
-  void set_camera_image_spec(int width, int height, ImageFormat format);
   // Sets the update interval in milliseconds for images without requests
   void set_idle_update_interval(uint32_t idle_update_interval) { this->idle_update_interval_ = idle_update_interval; }
   // Sets the number of milliseconds between two consecutive images
   void set_max_update_interval(uint32_t max_update_interval) { this->max_update_interval_ = max_update_interval; }
+  // Sets sensor implementation
+  void set_sensor(Sensor *sensor) { this->sensor_ = sensor; }
   // Sets encoder implementation
   void set_encoder(Encoder *encoder) { this->encoder_ = encoder; }
   // Performs camera processing tasks such as image capture and JPEG encoding spread
@@ -59,14 +60,13 @@ class CameraImpl : public Camera {
   void append_processor(Processor *processor) { this->processors_.push_back(processor); }
 
  protected:
-  CameraImageImpl *pixels_{};
-  CameraImage *input_image_{};
+  Buffer *input_image_{};
   CameraImageSpec *input_image_spec_{};
   std::shared_ptr<CameraImageAdapter> jpeg_;
-  CameraImageSpec camera_image_spec_{};
   CameraIncrementalContext camera_incremental_context_;
   CameraState state_{CAMERA_STATE_INIT};
   std::vector<Processor *> processors_;
+  Sensor *sensor_{};
   Encoder *encoder_{};
   uint8_t image_requesters_{};
   uint8_t stream_requesters_{};
