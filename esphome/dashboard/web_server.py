@@ -542,11 +542,19 @@ class WizardRequestHandler(BaseHandler):
             return
         filename = f"{kwargs['name']}.yaml"
         destination = settings.rel_path(filename)
-        wizard.wizard_write(path=destination, **kwargs)
-        self.set_status(200)
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps({"configuration": filename}))
-        self.finish()
+        success = wizard.wizard_write(path=destination, **kwargs)
+        if success:
+            self.set_status(200)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"configuration": filename}))
+            self.finish()
+        else:
+            self.set_status(500)
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps({"error": "Failed to write configuration, file exists"})
+            )
+            self.finish()
 
 
 class ImportRequestHandler(BaseHandler):
