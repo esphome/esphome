@@ -183,6 +183,12 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_device_connection(msg.address, false);
         return;
       }
+      if (!msg.has_address_type) {
+        ESP_LOGE(TAG, "[%d] [%s] Missing address type in connect request", connection->get_connection_index(),
+                 connection->address_str().c_str());
+        this->send_device_connection(msg.address, false);
+        return;
+      }
       if (connection->state() == espbt::ClientState::CONNECTED ||
           connection->state() == espbt::ClientState::ESTABLISHED) {
         this->log_connection_request_ignored_(connection, connection->state());
@@ -209,13 +215,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
       }
-      if (msg.has_address_type) {
-        uint64_to_bd_addr(msg.address, connection->remote_bda_);
-        connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
-        connection->set_state(espbt::ClientState::DISCOVERED);
-      } else {
-        connection->set_state(espbt::ClientState::SEARCHING);
-      }
+      uint64_to_bd_addr(msg.address, connection->remote_bda_);
+      connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
+      connection->set_state(espbt::ClientState::DISCOVERED);
       this->send_connections_free();
       break;
     }
