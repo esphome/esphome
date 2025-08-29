@@ -222,6 +222,11 @@ def wizard_write(path, **kwargs):
         hardware = kwargs["platform"]
         file_text = wizard_file(**kwargs)
 
+    # Check if file already exists to prevent overwriting
+    if os.path.exists(path) and os.path.isfile(path):
+        safe_print(color(AnsiFore.RED, f'The file "{path}" already exists.'))
+        return False
+
     write_file(path, file_text)
     storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
     storage_path = ext_storage_path(os.path.basename(path))
