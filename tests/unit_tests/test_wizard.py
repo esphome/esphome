@@ -513,3 +513,22 @@ def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
 
     # Then
     assert retval == 0
+
+
+def test_wizard_write_protects_existing_config(tmpdir, default_config, monkeypatch):
+    """
+    The wizard_write function should not overwrite existing config files and return False
+    """
+    # Given
+    config_file = tmpdir.join("test.yaml")
+    original_content = "# Original config content\n"
+    config_file.write(original_content)
+
+    monkeypatch.setattr(CORE, "config_path", str(tmpdir))
+
+    # When
+    result = wz.wizard_write(str(config_file), **default_config)
+
+    # Then
+    assert result is False  # Should return False when file exists
+    assert config_file.read() == original_content
