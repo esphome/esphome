@@ -3,8 +3,7 @@
 #include "buffer.h"
 #include "camera.h"
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 /// Result codes from the encoder used to control camera pipeline flow.
 enum EncoderError : uint8_t {
@@ -67,5 +66,4 @@ class Encoder {
   virtual ~Encoder() = default;
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

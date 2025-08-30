@@ -3,6 +3,7 @@ from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TYPE
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@DT-art1"]
 
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     buffer = cg.new_Pvariable(config[CONF_ENCODER_BUFFER_ID])
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
     if config[CONF_TYPE] == ESP32_CAMERA_ENCODER:

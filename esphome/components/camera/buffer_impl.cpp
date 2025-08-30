@@ -1,7 +1,6 @@
 #include "buffer_impl.h"
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 BufferImpl::BufferImpl(size_t size) {
   this->data_ = this->allocator_.allocate(size);
@@ -18,5 +17,4 @@ BufferImpl::~BufferImpl() {
     this->allocator_.deallocate(this->data_, this->size_);
 }
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera
