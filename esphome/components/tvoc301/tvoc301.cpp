@@ -11,7 +11,6 @@ static const size_t TVOC301_RESPONSE_LENGTH = 9;
 
 void TVOC301Component::setup() {
   // because this implementation is currently rx-only, there is nothing to setup
-  ESP_LOGV(TAG, "SETUP");
 }
 
 void TVOC301Component::dump_config() {
