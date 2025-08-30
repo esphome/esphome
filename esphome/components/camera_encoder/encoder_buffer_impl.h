@@ -3,8 +3,7 @@
 #include "esphome/components/camera/encoder.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace camera_encoder {
+namespace esphome::camera_encoder {
 
 class EncoderBufferImpl : public camera::EncoderBuffer {
  public:
@@ -23,5 +22,4 @@ class EncoderBufferImpl : public camera::EncoderBuffer {
   size_t size_{};
 };
 
-}  // namespace camera_encoder
-}  // namespace esphome
+}  // namespace esphome::camera_encoder
