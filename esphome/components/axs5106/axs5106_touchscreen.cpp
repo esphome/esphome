@@ -28,19 +28,16 @@ void AXS5106Touchscreen::setup() {
     return;
   }
   this->reset_pin_->setup();
-  this->reset_pin_->digital_write(true);
-  delay(10);
-
   this->reset_pin_->digital_write(false);
-  delay(10);
-  this->reset_pin_->digital_write(true);
-  delay(10);
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
+
+  // Take out of reset off the main loop
+  this->set_timeout(10, [this]() { this->reset_pin_->digital_write(true); });
 }
 
 void AXS5106Touchscreen::update_touches() {
