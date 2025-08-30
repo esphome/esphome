@@ -3,8 +3,7 @@
 #include <cinttypes>
 #include <cstddef>
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 /// Interface for a generic buffer that stores image data.
 class Buffer {
@@ -16,5 +15,4 @@ class Buffer {
   virtual ~Buffer() = default;
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera
