@@ -87,19 +87,15 @@ void EthernetComponent::setup() {
       .intr_flags = 0,
   };
 
-  spi_host_device_t host;
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6)
+  auto host = SPI2_HOST;
+#else
+  auto host = SPI3_HOST;
+#endif
 #ifdef USE_ESP_IDF
   if (this->interface_ != SPI_HOST_MAX) {
     host = this->interface_;
-  } else {
-#endif
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32C6)
-    host = SPI2_HOST;
-#else
-  host = SPI3_HOST;
-#endif
-#if USE_ESP_IDF
   }
 #endif
 
