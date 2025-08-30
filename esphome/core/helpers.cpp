@@ -41,17 +41,28 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
 
 // Mathematics
 
-uint8_t crc8(const uint8_t *data, uint8_t len) {
-  uint8_t crc = 0;
-
+uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc, uint8_t poly, bool msb_first) {
   while ((len--) != 0u) {
     uint8_t inbyte = *data++;
-    for (uint8_t i = 8; i != 0u; i--) {
-      bool mix = (crc ^ inbyte) & 0x01;
-      crc >>= 1;
-      if (mix)
-        crc ^= 0x8C;
-      inbyte >>= 1;
+    if (msb_first) {
+      // MSB first processing (for polynomials like 0x31, 0x07)
+      crc ^= inbyte;
+      for (uint8_t i = 8; i != 0u; i--) {
+        if (crc & 0x80) {
+          crc = (crc << 1) ^ poly;
+        } else {
+          crc <<= 1;
+        }
+      }
+    } else {
+      // LSB first processing (default for Dallas/Maxim 0x8C)
+      for (uint8_t i = 8; i != 0u; i--) {
+        bool mix = (crc ^ inbyte) & 0x01;
+        crc >>= 1;
+        if (mix)
+          crc ^= poly;
+        inbyte >>= 1;
+      }
     }
   }
   return crc;

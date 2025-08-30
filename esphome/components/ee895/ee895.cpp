@@ -83,7 +83,7 @@ void EE895Component::write_command_(uint16_t addr, uint16_t reg_cnt) {
   crc16 = calc_crc16_(address, 6);
   address[5] = crc16 & 0xFF;
   address[6] = (crc16 >> 8) & 0xFF;
-  this->write(address, 7, true);
+  this->write(address, 7);
 }
 
 float EE895Component::read_float_() {
