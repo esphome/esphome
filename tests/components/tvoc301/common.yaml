@@ -1,0 +1,14 @@
+uart:
+  - id: uart_tvoc301
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+sensor:
+  - platform: tvoc301
+    tvoc:
+      name: TVOC
+    eco2:
+      name: eCO₂
+    formaldehyde:
+      name: Formaldehyde
