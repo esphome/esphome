@@ -8,7 +8,7 @@ static const char *const TAG = "tuya.number";
 
 void TuyaNumber::setup() {
   if (this->restore_value_) {
-    this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
   }
 
   this->parent_->register_listener(this->number_id_, [this](const TuyaDatapoint &datapoint) {

@@ -41,11 +41,13 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   std::string password_;
 #endif  // USE_OTA_PASSWORD
 
-  uint16_t port_;
-  uint32_t client_connect_time_{0};
-
   std::unique_ptr<socket::Socket> server_;
   std::unique_ptr<socket::Socket> client_;
+
+  uint32_t client_connect_time_{0};
+  uint16_t port_;
+  uint8_t magic_buf_[5];
+  uint8_t magic_buf_pos_{0};
 };
 
 }  // namespace esphome
