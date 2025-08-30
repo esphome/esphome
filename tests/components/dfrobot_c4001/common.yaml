@@ -51,8 +51,10 @@ number:
 switch:
   - platform: dfrobot_c4001
     dfrobot_c4001_id: mmwave_sensor
-    led_enable:
-      name: Enable LED
+    out_led_enable:
+      name: Enable OUT LED
+    run_led_enable:
+      name: Enable RUN LED
 
 text_sensor:
   - platform: dfrobot_c4001

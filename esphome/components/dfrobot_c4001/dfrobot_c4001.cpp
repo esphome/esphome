@@ -214,11 +214,23 @@ void DFRobotC4001Hub::set_threshold_factor(float value, bool needs_save) {
   }
 }
 
-void DFRobotC4001Hub::set_led_enable(bool value, bool needs_save) {
-  this->led_enable_ = value;
+void DFRobotC4001Hub::set_out_led_enable(bool value, bool needs_save) {
+  this->out_led_enable_ = value;
 #ifdef USE_SWITCH
-  if (this->led_enable_switch_ != nullptr) {
-    this->led_enable_switch_->publish_state(value);
+  if (this->out_led_enable_switch_ != nullptr) {
+    this->out_led_enable_switch_->publish_state(value);
+  }
+#endif
+  if (needs_save) {
+    this->set_needs_save(true);
+  }
+}
+
+void DFRobotC4001Hub::set_run_led_enable(bool value, bool needs_save) {
+  this->run_led_enable_ = value;
+#ifdef USE_SWITCH
+  if (this->run_led_enable_switch_ != nullptr) {
+    this->run_led_enable_switch_->publish_state(value);
   }
 #endif
   if (needs_save) {
@@ -265,12 +277,12 @@ void DFRobotC4001Hub::set_hardware_version(char *version) {
   this->hw_version_ = std::move(new_string);
 }
 
-void DFRobotC4001Hub::flash_led_enable() {
+void DFRobotC4001Hub::flash_run_led_enable() {
 #ifdef USE_SWITCH
   // Save LED Enable preferences (to flash storage)
-  if (this->led_enable_switch_ != nullptr) {
-    ESP_LOGD(TAG, "Writing LED Enable setting to flash");
-    this->pref_.save(&this->led_enable_);
+  if (this->run_led_enable_switch_ != nullptr) {
+    ESP_LOGD(TAG, "Writing RUN LED Enable setting to flash");
+    this->pref_.save(&this->run_led_enable_);
   }
 #endif
 }
@@ -307,9 +319,10 @@ void DFRobotC4001Hub::setup_module() {
   this->enqueue(make_unique<PowerCommand>(false));
   // put the module is the requested mode
   this->enqueue(make_unique<SetRunAppCommand>(this->mode_));
-  // set the leds to the current led_enable state
-  this->enqueue(make_unique<SetLedModeCommand1>(this->led_enable_));
-  this->enqueue(make_unique<SetLedModeCommand2>(this->led_enable_));
+  // the module doesn't remember the RUN led state so it need to be set here
+  // this->run_led_enable_ comes from flash which does remember between power cycles
+  this->enqueue(make_unique<SetLedModeCommand>(this->run_led_enable_));
+  // the module remembers the OUT led state so it does not need to be set here
   // make sure the module output presence via uart
   if (this->mode_ == MODE_PRESENCE) {
     this->enqueue(make_unique<SetUartOutputCommand>(true));
@@ -323,6 +336,9 @@ void DFRobotC4001Hub::config_load() {
   // have to be in the right mode to read that mode's parameters
   this->enqueue(make_unique<GetHWVCommand>());
   this->enqueue(make_unique<GetSWVCommand>());
+  // the module doesn't remember the RUN led state (controlled by LedMode command) so loading from module won't work
+  // the OUT led state is controlled by GpioMode command and it is remembered by the module so loading does work
+  this->enqueue(make_unique<GetGpioModeCommand>());
 #ifdef USE_NUMBER
   if (this->min_range_number_ != nullptr)
     this->enqueue(make_unique<GetRangeCommand>());
@@ -353,10 +369,10 @@ void DFRobotC4001Hub::config_load() {
 
 void DFRobotC4001Hub::config_save() {
   if (this->needs_save_) {
-    this->flash_led_enable();
+    this->flash_run_led_enable();
     this->enqueue(make_unique<PowerCommand>(false));
-    this->enqueue(make_unique<SetLedModeCommand1>(this->led_enable_));
-    this->enqueue(make_unique<SetLedModeCommand2>(this->led_enable_));
+    this->enqueue(make_unique<SetLedModeCommand>(this->run_led_enable_));
+    this->enqueue(make_unique<SetGpioModeCommand>(this->out_led_enable_));
 #ifdef USE_NUMBER
     if (this->min_range_number_ != nullptr)
       this->enqueue(make_unique<SetRangeCommand>(this->min_range_, this->max_range_));
@@ -383,6 +399,7 @@ void DFRobotC4001Hub::config_save() {
 #endif
     }
     this->enqueue(make_unique<SaveCfgCommand>());
+    this->enqueue(make_unique<ResetSystemCommand>(true));
     this->enqueue(make_unique<PowerCommand>(true));
     this->set_needs_save(false);
   }
@@ -441,7 +458,8 @@ void DFRobotC4001Hub::dump_config() {
 #endif
 #ifdef USE_SWITCH
   ESP_LOGCONFIG(TAG, "Switches:");
-  LOG_SWITCH("  ", "LED Enable", this->led_enable_switch_);
+  LOG_SWITCH("  ", "RUN LED Enable", this->run_led_enable_switch_);
+  LOG_SWITCH("  ", "OUT LED Enable", this->out_led_enable_switch_);
   LOG_SWITCH("  ", "Micro Motion Enable", this->micro_motion_enable_switch_);
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -455,19 +473,18 @@ void DFRobotC4001Hub::setup() {
   bool value;
 
 #ifdef USE_SWITCH
-  if (this->led_enable_switch_ != nullptr) {
+  if (this->run_led_enable_switch_ != nullptr) {
     // Restore LED Enable preferences (from flash storage)
-    this->pref_ = global_preferences->make_preference<bool>(this->led_enable_switch_->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<bool>(this->run_led_enable_switch_->get_object_id_hash());
     if (!this->pref_.load(&value)) {
       ESP_LOGCONFIG(TAG, "Defaulting flash settings");
       value = false;
     } else {
       ESP_LOGCONFIG(TAG, "Load flash settings");
     }
-    this->set_led_enable(value, false);
+    this->set_run_led_enable(value, false);
   }
 #endif
-  ESP_LOGCONFIG(TAG, "Running setup");
   // setup the module
   this->enqueue(make_unique<ResetSystemCommand>(false));
   this->setup_module();
@@ -482,7 +499,6 @@ void DFRobotC4001Hub::loop() {
     // Command queue empty, first time this happens setup is complete
     if (!this->is_setup_) {
       this->is_setup_ = true;
-      ESP_LOGCONFIG(TAG, "Setup complete");
       if (this->ts_cmd_error_cnt_ > 3) {
         this->mark_failed("Too many errors");
       }

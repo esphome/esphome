@@ -322,29 +322,28 @@ SetThrFactorCommand::SetThrFactorCommand(float threshold_factor) {
   this->cmd_ = str_sprintf("setThrFactor %.3f", threshold_factor);
 };
 
-SetLedModeCommand1::SetLedModeCommand1(bool led_mode) {
-  this->led_enable_ = led_mode;
-  this->cmd_ = led_mode ? "setLedMode 1 0" : "setLedMode 1 1";
-};
+SetLedModeCommand::SetLedModeCommand(bool value) { this->cmd_ = str_sprintf("setLedMode 1 %d", value ? 0 : 1); };
 
-void SetLedModeCommand1::on_message() {
-  // this command is not in Communication Protocol document it appears to be a leftover from similar products
-  // this command only controls the green LED which flashes when the sensor is running the blue LED is always on when
-  // powered
-  if (strcmp(this->read_buffer_, "Done") == 0) {
-    this->parent_->set_led_enable(this->led_enable_, false);
-    this->done_ = true;  // command is done
-  }
-}
+SetGpioModeCommand::SetGpioModeCommand(bool value) { this->cmd_ = str_sprintf("setGpioMode 1 %d", value ? 1 : 2); };
 
-SetLedModeCommand2::SetLedModeCommand2(bool led_mode) { this->cmd_ = led_mode ? "setLedMode 2 0" : "setLedMode 2 1"; };
+GetGpioModeCommand::GetGpioModeCommand() { this->cmd_ = "getGpioMode 1"; }
 
-void SetLedModeCommand2::on_message() {
-  // this command is not in Communication Protocol document it appears to be a leftover from similar products
-  // this command only controls the green LED which flashes when the sensor is running the blue LED is always on when
-  // powered
-  if (strcmp(this->read_buffer_, "Done") == 0) {
-    this->done_ = true;  // command is done
+void GetGpioModeCommand::on_message() {
+  char *token;
+
+  token = strtok(this->read_buffer_, " ");
+  if (strcmp(token, "Done") == 0) {
+    if (!this->value_.has_value()) {
+      ESP_LOGD(TAG, "Failed to parse response");
+      this->error_ = true;  // command is done
+    } else {
+      this->parent_->set_out_led_enable(this->value_.value() == 1, false);
+      this->done_ = true;  // command is done
+    }
+  } else if (strcmp(token, "Response") == 0) {
+    strtok(NULL, " ");  // ignore this value, always '1'
+    token = strtok(NULL, " ");
+    this->value_ = parse_number<uint8_t>(token);
   }
 }
 
@@ -385,7 +384,8 @@ FactoryResetCommand::FactoryResetCommand() { this->cmd_ = "resetCfg"; }
 void FactoryResetCommand::on_message() {
   if (strstr(this->read_buffer_, "Done")) {
     // reload settings
-    this->parent_->flash_led_enable();
+    this->parent_->set_run_led_enable(true);
+    this->parent_->flash_run_led_enable();
     this->parent_->setup_module();
     this->parent_->config_load();
     this->done_ = true;  // command is done

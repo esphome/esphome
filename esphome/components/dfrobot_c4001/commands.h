@@ -140,19 +140,23 @@ class SetUartOutputCommand : public Command {
   SetUartOutputCommand(bool enable);
 };
 
-class SetLedModeCommand1 : public Command {
+class SetLedModeCommand : public Command {
  public:
-  SetLedModeCommand1(bool led_mode);
+  SetLedModeCommand(bool value);
+};
+
+class SetGpioModeCommand : public Command {
+ public:
+  SetGpioModeCommand(bool value);
+};
+
+class GetGpioModeCommand : public Command {
+ public:
+  GetGpioModeCommand();
   void on_message() override;
 
  protected:
-  bool led_enable_;
-};
-
-class SetLedModeCommand2 : public Command {
- public:
-  SetLedModeCommand2(bool led_mode);
-  void on_message() override;
+  optional<uint8_t> value_;
 };
 
 class GetMicroMotionCommand : public Command {

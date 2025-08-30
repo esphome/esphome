@@ -92,7 +92,8 @@ class DFRobotC4001Hub : public uart::UARTDevice, public Component {
 #endif
 
 #ifdef USE_SWITCH
-  SUB_SWITCH(led_enable)
+  SUB_SWITCH(out_led_enable)
+  SUB_SWITCH(run_led_enable)
   SUB_SWITCH(micro_motion_enable)
 #endif
 
@@ -115,9 +116,10 @@ class DFRobotC4001Hub : public uart::UARTDevice, public Component {
   void set_off_latency(float value, bool needs_save = true);
   void set_inhibit_time(float value, bool needs_save = true);
   void set_threshold_factor(float value, bool needs_save = true);
-  void set_led_enable(bool value, bool needs_save = true);
+  void set_out_led_enable(bool value, bool needs_save = true);
+  void set_run_led_enable(bool value, bool needs_save = true);
   void set_micro_motion_enable(bool enable, bool needs_save = true);
-  void flash_led_enable();
+  void flash_run_led_enable();
   void set_mode(DFRobotMode value);
   void set_model(DFRobotModel value);
   void set_software_version(char *version);
@@ -146,7 +148,8 @@ class DFRobotC4001Hub : public uart::UARTDevice, public Component {
   float inhibit_time_{1.0};
   float threshold_factor_{5};
   bool micro_motion_enable_{false};
-  bool led_enable_{true};
+  bool out_led_enable_{true};
+  bool run_led_enable_{true};
   bool needs_save_{false};
   bool occupancy_{false};
   float target_distance_;
