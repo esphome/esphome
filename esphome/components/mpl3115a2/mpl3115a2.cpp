@@ -10,7 +10,7 @@ static const char *const TAG = "mpl3115a2";
 
 void MPL3115A2Component::setup() {
   uint8_t whoami = 0xFF;
-  if (!this->read_byte(MPL3115A2_WHOAMI, &whoami, false)) {
+  if (!this->read_byte(MPL3115A2_WHOAMI, &whoami)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
@@ -54,24 +54,24 @@ void MPL3115A2Component::dump_config() {
 
 void MPL3115A2Component::update() {
   uint8_t mode = MPL3115A2_CTRL_REG1_OS128;
-  this->write_byte(MPL3115A2_CTRL_REG1, mode, true);
+  this->write_byte(MPL3115A2_CTRL_REG1, mode);
   // Trigger a new reading
   mode |= MPL3115A2_CTRL_REG1_OST;
   if (this->altitude_ != nullptr)
     mode |= MPL3115A2_CTRL_REG1_ALT;
-  this->write_byte(MPL3115A2_CTRL_REG1, mode, true);
+  this->write_byte(MPL3115A2_CTRL_REG1, mode);
 
   // Wait until status shows reading available
   uint8_t status = 0;
-  if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status, false) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
+  if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
     delay(10);
-    if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status, false) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
+    if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
       return;
     }
   }
 
   uint8_t buffer[5] = {0, 0, 0, 0, 0};
-  this->read_register(MPL3115A2_REGISTER_PRESSURE_MSB, buffer, 5, false);
+  this->read_register(MPL3115A2_REGISTER_PRESSURE_MSB, buffer, 5);
 
   float altitude = 0, pressure = 0;
   if (this->altitude_ != nullptr) {

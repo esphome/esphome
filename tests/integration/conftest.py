@@ -105,6 +105,7 @@ logger:
                     check=True,
                     cwd=init_dir,
                     env=env,
+                    close_fds=False,
                 )
 
         # Lock is held until here, ensuring cache is fully populated before any test proceeds
@@ -245,6 +246,7 @@ async def compile_esphome(
                 # Start in a new process group to isolate signal handling
                 start_new_session=True,
                 env=env,
+                close_fds=False,
             )
             await proc.wait()
 
@@ -477,6 +479,7 @@ async def run_binary_and_wait_for_port(
         # Start in a new process group to isolate signal handling
         start_new_session=True,
         pass_fds=(device_fd,),
+        close_fds=False,
     )
 
     # Close the device end in the parent process

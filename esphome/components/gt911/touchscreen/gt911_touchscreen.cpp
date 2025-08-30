@@ -20,12 +20,11 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning("Communication failure"); \
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL); \
     return; \
   }
 
 void GT911Touchscreen::setup() {
-  i2c::ErrorCode err;
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
@@ -35,9 +34,14 @@ void GT911Touchscreen::setup() {
       this->interrupt_pin_->digital_write(false);
     }
     delay(2);
-    this->reset_pin_->digital_write(true);
-    delay(50);  // NOLINT
+    this->reset_pin_->digital_write(true);  // wait 50ms after reset
+    this->set_timeout(50, [this] { this->setup_internal_(); });
+    return;
   }
+  this->setup_internal_();
+}
+
+void GT911Touchscreen::setup_internal_() {
   if (this->interrupt_pin_ != nullptr) {
     // set pre-configured input mode
     this->interrupt_pin_->setup();
@@ -45,7 +49,7 @@ void GT911Touchscreen::setup() {
 
   // check the configuration of the int line.
   uint8_t data[4];
-  err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
+  i2c::ErrorCode err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
   if (err != i2c::ERROR_OK && this->address_ == PRIMARY_ADDRESS) {
     this->address_ = SECONDARY_ADDRESS;
     err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
@@ -53,7 +57,7 @@ void GT911Touchscreen::setup() {
   if (err == i2c::ERROR_OK) {
     err = this->read(data, 1);
     if (err == i2c::ERROR_OK) {
-      ESP_LOGD(TAG, "Read from switches at address 0x%02X: 0x%02X", this->address_, data[0]);
+      ESP_LOGD(TAG, "Switches ADDR: 0x%02X DATA: 0x%02X", this->address_, data[0]);
       if (this->interrupt_pin_ != nullptr) {
         this->attach_interrupt_(this->interrupt_pin_,
                                 (data[0] & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
@@ -75,16 +79,24 @@ void GT911Touchscreen::setup() {
       }
     }
     if (err != i2c::ERROR_OK) {
-      this->mark_failed("Failed to read calibration");
+      this->mark_failed("Calibration error");
       return;
     }
   }
+
   if (err != i2c::ERROR_OK) {
-    this->mark_failed("Failed to communicate");
+    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    return;
   }
+  this->setup_done_ = true;
 }
 
 void GT911Touchscreen::update_touches() {
+  this->skip_update_ = true;  // skip send touch events by default, set to false after successful error checks
+  if (!this->setup_done_) {
+    return;
+  }
+
   i2c::ErrorCode err;
   uint8_t touch_state = 0;
   uint8_t data[MAX_TOUCHES + 1][8];  // 8 bytes each for each point, plus extra space for the key byte
@@ -97,7 +109,6 @@ void GT911Touchscreen::update_touches() {
   uint8_t num_of_touches = touch_state & 0x07;
 
   if ((touch_state & 0x80) == 0 || num_of_touches > MAX_TOUCHES) {
-    this->skip_update_ = true;  // skip send touch events, touchscreen is not ready yet.
     return;
   }
 
@@ -107,6 +118,7 @@ void GT911Touchscreen::update_touches() {
   err = this->read(data[0], sizeof(data[0]) * num_of_touches + 1);
   ERROR_CHECK(err);
 
+  this->skip_update_ = false;  // All error checks passed, send touch events
   for (uint8_t i = 0; i != num_of_touches; i++) {
     uint16_t id = data[i][0];
     uint16_t x = encode_uint16(data[i][2], data[i][1]);

@@ -2,14 +2,9 @@
 
 #ifdef USE_ESP_IDF
 
-#include "esp_idf_version.h"
 #include "esphome/core/component.h"
 #include "i2c_bus.h"
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
 #include <driver/i2c_master.h>
-#else
-#include <driver/i2c.h>
-#endif
 
 namespace esphome {
 namespace i2c {
@@ -24,36 +19,33 @@ class IDFI2CBus : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t cnt) override;
-  ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) override;
+  ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                        size_t read_count) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
-  void set_scan(bool scan) { scan_ = scan; }
-  void set_sda_pin(uint8_t sda_pin) { sda_pin_ = sda_pin; }
-  void set_sda_pullup_enabled(bool sda_pullup_enabled) { sda_pullup_enabled_ = sda_pullup_enabled; }
-  void set_scl_pin(uint8_t scl_pin) { scl_pin_ = scl_pin; }
-  void set_scl_pullup_enabled(bool scl_pullup_enabled) { scl_pullup_enabled_ = scl_pullup_enabled; }
-  void set_frequency(uint32_t frequency) { frequency_ = frequency; }
-  void set_timeout(uint32_t timeout) { timeout_ = timeout; }
+  void set_scan(bool scan) { this->scan_ = scan; }
+  void set_sda_pin(uint8_t sda_pin) { this->sda_pin_ = sda_pin; }
+  void set_sda_pullup_enabled(bool sda_pullup_enabled) { this->sda_pullup_enabled_ = sda_pullup_enabled; }
+  void set_scl_pin(uint8_t scl_pin) { this->scl_pin_ = scl_pin; }
+  void set_scl_pullup_enabled(bool scl_pullup_enabled) { this->scl_pullup_enabled_ = scl_pullup_enabled; }
+  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
+  void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
-  int get_port() const override { return static_cast<int>(this->port_); }
+  int get_port() const override { return this->port_; }
 
  private:
   void recover_();
-  RecoveryCode recovery_result_;
+  RecoveryCode recovery_result_{};
 
  protected:
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
-  i2c_master_dev_handle_t dev_;
-  i2c_master_bus_handle_t bus_;
-  void i2c_scan() override;
-#endif
-  i2c_port_t port_;
-  uint8_t sda_pin_;
-  bool sda_pullup_enabled_;
-  uint8_t scl_pin_;
-  bool scl_pullup_enabled_;
-  uint32_t frequency_;
+  i2c_master_dev_handle_t dev_{};
+  i2c_master_bus_handle_t bus_{};
+  i2c_port_t port_{};
+  uint8_t sda_pin_{};
+  bool sda_pullup_enabled_{};
+  uint8_t scl_pin_{};
+  bool scl_pullup_enabled_{};
+  uint32_t frequency_{};
   uint32_t timeout_ = 0;
   bool initialized_ = false;
 };

@@ -228,9 +228,9 @@ async def cover_stop_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action("cover.toggle", ToggleAction, COVER_ACTION_SCHEMA)
-def cover_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def cover_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
