@@ -143,21 +143,20 @@ def _final_validate(config):
             raise cv.Invalid(
                 f"When 'mode' is set to {mode}, {CONF_INHIBIT_TIME} number is not allowed."
             )
-    if CONF_TRIGGER_RANGE in config:
-        if (CONF_MIN_RANGE not in config) or (CONF_MAX_RANGE not in config):
-            raise cv.Invalid(
-                "When 'trigger_range' is defined, 'min_range' and 'max_range' must also be defined."
-            )
-    if CONF_MIN_RANGE in config:
-        if CONF_MAX_RANGE not in config:
-            raise cv.Invalid(
-                "When 'min_range' is defined, 'max_range' must also be defined."
-            )
-    if CONF_MAX_RANGE in config:
-        if CONF_MIN_RANGE not in config:
-            raise cv.Invalid(
-                "When 'max_range' is defined, 'min_range' must also be defined."
-            )
+    if CONF_TRIGGER_RANGE in config and (
+        (CONF_MIN_RANGE not in config) or (CONF_MAX_RANGE not in config)
+    ):
+        raise cv.Invalid(
+            "When 'trigger_range' is defined, 'min_range' and 'max_range' must also be defined."
+        )
+    if CONF_MIN_RANGE in config and CONF_MAX_RANGE not in config:
+        raise cv.Invalid(
+            "When 'min_range' is defined, 'max_range' must also be defined."
+        )
+    if CONF_MAX_RANGE in config and CONF_MIN_RANGE not in config:
+        raise cv.Invalid(
+            "When 'max_range' is defined, 'min_range' must also be defined."
+        )
 
     return config
 
