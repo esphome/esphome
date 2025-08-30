@@ -113,7 +113,6 @@ CLK_MODES_DEPRECATED = {
 }
 
 SPI_INTERFACE_MAP = {
-    "spi1": "SPI1_HOST",
     "spi2": "SPI2_HOST",
     "spi3": "SPI3_HOST",
 }
