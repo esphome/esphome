@@ -10,6 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
+#include "esphome/core/string_ref.h"
 
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
@@ -248,6 +249,8 @@ class Application {
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
   std::string get_compilation_time() const { return this->compilation_time_; }
+  /// Get the compilation time as StringRef (for API usage)
+  StringRef get_compilation_time_ref() const { return StringRef(this->compilation_time_); }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }

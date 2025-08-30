@@ -133,7 +133,7 @@ void BluetoothConnection::loop() {
 
   // Check if we should disable the loop
   // - For V3_WITH_CACHE: Services are never sent, disable after INIT state
-  // - For other connections: Disable only after service discovery is complete
+  // - For V3_WITHOUT_CACHE: Disable only after service discovery is complete
   //   (send_service_ == DONE_SENDING_SERVICES, which is only set after services are sent)
   if (this->state_ != espbt::ClientState::INIT && (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
                                                    this->send_service_ == DONE_SENDING_SERVICES)) {
@@ -160,10 +160,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   if (this->send_service_ >= this->service_count_) {
     this->send_service_ = DONE_SENDING_SERVICES;
     this->proxy_->send_gatt_services_done(this->address_);
-    if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-        this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-      this->release_services();
-    }
+    this->release_services();
     return;
   }
 
@@ -378,10 +375,19 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->reset_connection_(param->disconnect.reason);
+      // Don't reset connection yet - wait for CLOSE_EVT to ensure controller has freed resources
+      // This prevents race condition where we mark slot as free before controller cleanup is complete
+      ESP_LOGD(TAG, "[%d] [%s] Disconnect, reason=0x%02x", this->connection_index_, this->address_str_.c_str(),
+               param->disconnect.reason);
+      // Send disconnection notification but don't free the slot yet
+      this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
       break;
     }
     case ESP_GATTC_CLOSE_EVT: {
+      ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_.c_str(),
+               param->close.reason);
+      // Now the GATT connection is fully closed and controller resources are freed
+      // Safe to mark the connection slot as available
       this->reset_connection_(param->close.reason);
       break;
     }
