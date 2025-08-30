@@ -74,7 +74,7 @@ void SnapClientComponent::loop() {
   if (xQueueReceive(this->audio_q_hdl_, &dac_data, 0) == pdTRUE) {
     if (dac_data.mute != dac_data_old.mute) {
       if (this->mute_pin_ != nullptr) {
-        this->mute_pin_->digital_write(dac_data.mute);
+        this->mute_pin_->digital_write(!dac_data.mute);  // for most DACs mute = low
       }
 #ifdef USE_AUDIO_DAC
       if (this->audio_dac_) {
