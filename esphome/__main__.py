@@ -132,14 +132,17 @@ def choose_upload_log_host(
                 ]
                 resolved.append(choose_prompt(options, purpose=purpose))
             elif device == "OTA":
-                if (show_ota and "ota" in CORE.config) or (
-                    show_api and "api" in CORE.config
+                if CORE.address and (
+                    (show_ota and "ota" in CORE.config)
+                    or (show_api and "api" in CORE.config)
                 ):
                     resolved.append(CORE.address)
                 elif show_mqtt and has_mqtt_logging():
                     resolved.append("MQTT")
             else:
                 resolved.append(device)
+        if not resolved:
+            _LOGGER.error("All specified devices: %s could not be resolved.", defaults)
         return resolved
 
     # No devices specified, show interactive chooser
