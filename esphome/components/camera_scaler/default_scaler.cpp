@@ -40,7 +40,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
     for (uint16_t x = 0; x < dst_width; ++x) {
       uint16_t dst_x = this->margin_left_ + (this->flip_x_ ? (dst_width - 1 - x) : x);
       uint16_t dst_y = this->margin_top_ + (this->flip_y_ ? (dst_height - 1 - y) : y);
-      
+
       switch (input_spec->format) {
         case camera::IMAGE_FORMAT_GRAYSCALE: {
           uint8_t pixel = 0;
@@ -54,7 +54,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
           }
           this->set_pixel_grayscale_(pixel, dst_x, dst_y);
         } break;
-        
+
         case camera::IMAGE_FORMAT_RGB565: {
           uint16_t pixel = 0;
           switch (algorithm_) {
@@ -67,7 +67,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
           }
           this->set_pixel_rgb565_(pixel, dst_x, dst_y);
         } break;
-        
+
         case camera::IMAGE_FORMAT_BGR888: {
           Color pixel;
           switch (algorithm_) {
@@ -80,7 +80,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
           }
           this->set_pixel_bgr888_(pixel, dst_x, dst_y);
         } break;
-        
+
         default:
           break;
       }
@@ -149,8 +149,8 @@ uint16_t DefaultScaler::get_pixel_rgb565_nearest_(camera::CameraImageSpec *input
   return buffer[y0 * input_spec->width + x0];
 }
 
-uint16_t DefaultScaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input,
-                                                   float x, float y) {
+uint16_t DefaultScaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
+                                                   float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint16_t x1 = x + 1;
@@ -218,8 +218,8 @@ Color DefaultScaler::get_pixel_bgr888_nearest_(camera::CameraImageSpec *input_sp
   uint16_t y0 = y;
   uint8_t *buffer = input->get_data_buffer();
   uint32_t idx = (y0 * input_spec->width + x0) * 3;
-  
-  return Color(buffer[idx + 2], buffer[idx + 1], buffer[idx]); // Convert BGR to RGB
+
+  return Color(buffer[idx + 2], buffer[idx + 1], buffer[idx]);  // Convert BGR to RGB
 }
 
 Color DefaultScaler::get_pixel_bgr888_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
@@ -239,13 +239,13 @@ Color DefaultScaler::get_pixel_bgr888_bilinear_(camera::CameraImageSpec *input_s
     y1 = y;
 
   uint8_t *buffer = input->get_data_buffer();
-  
+
   auto get_bgr = [&](uint16_t x, uint16_t y) -> std::tuple<float, float, float> {
     uint32_t idx = (y * input_spec->width + x) * 3;
     float b = buffer[idx];
     float g = buffer[idx + 1];
     float r = buffer[idx + 2];
-    return {r, g, b}; // Return as RGB
+    return {r, g, b};  // Return as RGB
   };
 
   auto [r00, g00, b00] = get_bgr(x0, y0);
@@ -266,15 +266,13 @@ Color DefaultScaler::get_pixel_bgr888_bilinear_(camera::CameraImageSpec *input_s
   float g = g0 * (1.0f - dy) + g1 * dy;
   float b = b0 * (1.0f - dy) + b1 * dy;
 
-  return Color(static_cast<uint8_t>(lroundf(r)),
-               static_cast<uint8_t>(lroundf(g)),
-               static_cast<uint8_t>(lroundf(b)));
+  return Color(static_cast<uint8_t>(lroundf(r)), static_cast<uint8_t>(lroundf(g)), static_cast<uint8_t>(lroundf(b)));
 }
 
 void DefaultScaler::set_pixel_bgr888_(const Color &pixel, uint16_t x, uint16_t y) {
   uint8_t *buffer = this->output_image_->get_data_buffer();
   uint32_t idx = (y * this->output_spec_->width + x) * 3;
-  
+
   // Convert RGB to BGR
   buffer[idx] = pixel.b;      // Blue
   buffer[idx + 1] = pixel.g;  // Green

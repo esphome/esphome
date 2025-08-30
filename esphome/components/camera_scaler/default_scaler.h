@@ -30,12 +30,12 @@ class DefaultScaler : public camera::Processor {
   uint8_t get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
   uint8_t get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
   void set_pixel_grayscale_(uint8_t pixel, uint16_t x, uint16_t y);
-  
+
   // RGB565 methods
   uint16_t get_pixel_rgb565_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
   uint16_t get_pixel_rgb565_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
   void set_pixel_rgb565_(uint16_t pixel, uint16_t x, uint16_t y);
-  
+
   // BGR888 methods
   Color get_pixel_bgr888_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
   Color get_pixel_bgr888_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
