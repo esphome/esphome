@@ -12,7 +12,7 @@ ESP32CameraJPEGEncoder::ESP32CameraJPEGEncoder(uint8_t quality, camera::EncoderB
   this->output_ = output;
 }
 
-camera::EncoderError ESP32CameraJPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::CameraImage *pixels) {
+camera::EncoderError ESP32CameraJPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {
   this->bytes_written_ = 0;
   this->out_of_output_memory_ = false;
   bool success = fmt2jpg_cb(pixels->get_data_buffer(), pixels->get_data_length(), spec->width, spec->height,

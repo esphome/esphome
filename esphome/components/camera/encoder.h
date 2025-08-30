@@ -1,5 +1,6 @@
 #pragma once
 
+#include "buffer.h"
 #include "camera.h"
 
 namespace esphome {
@@ -55,7 +56,7 @@ class Encoder {
   /// @param spec Specification of the input pixel data.
   /// @param pixels Image pixels in RGB or grayscale format, as specified in @p spec.
   /// @return EncoderError Indicating the result of the encoding operation.
-  virtual EncoderError encode_pixels(CameraImageSpec *spec, CameraImage *pixels) = 0;
+  virtual EncoderError encode_pixels(CameraImageSpec *spec, Buffer *pixels) = 0;
 
   /// Returns the encoder's output buffer.
   /// @return Pointer to an EncoderBuffer containing encoded data.
