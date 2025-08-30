@@ -34,7 +34,7 @@ class TVOC301Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *tvoc_sensor_{nullptr};
   sensor::Sensor *ch2o_sensor_{nullptr};
 
-  uint8_t data_[20];
+  uint8_t data_[9];
   uint8_t data_index_{0};
   uint32_t last_transmission_{0};
 };
