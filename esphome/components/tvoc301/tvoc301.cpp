@@ -43,9 +43,7 @@ void TVOC301Component::update() {
   }
 }
 
-void TVOC301Component::loop() {
-
-}
+void TVOC301Component::loop() {}
 
 float TVOC301Component::get_setup_priority() const { return setup_priority::DATA; }
 
