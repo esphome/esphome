@@ -43,6 +43,8 @@ DefaultAlgorithm = camera_scaler_ns.enum("DefaultAlgorithm")
 
 CONF_IMAGE_FORMAT_SELECTS = {
     "GRAYSCALE": ImageFormat.IMAGE_FORMAT_GRAYSCALE,
+    "RGB565": ImageFormat.IMAGE_FORMAT_RGB565,
+    "BGR888": ImageFormat.IMAGE_FORMAT_BGR888,
 }
 
 CONF_ALGORITHM_SELECTS = {
