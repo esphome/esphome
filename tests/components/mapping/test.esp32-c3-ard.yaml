@@ -5,13 +5,13 @@ spi:
     miso_pin: 5
 
 display:
-  - platform: ili9xxx
-    id: main_lcd
-    model: ili9342
-    cs_pin: 8
-    dc_pin: 9
-    reset_pin: 10
-    invert_colors: false
+  platform: ili9xxx
+  id: main_lcd
+  model: ili9342
+  cs_pin: 8
+  dc_pin: 9
+  reset_pin: 10
+  invert_colors: false
 
 packages:
   map: !include common.yaml
