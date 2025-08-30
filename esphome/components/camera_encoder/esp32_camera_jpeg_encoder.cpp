@@ -2,8 +2,7 @@
 
 #include "esp32_camera_jpeg_encoder.h"
 
-namespace esphome {
-namespace camera_encoder {
+namespace esphome::camera_encoder {
 
 static const char *const TAG = "camera_encoder";
 
@@ -78,7 +77,6 @@ pixformat_t ESP32CameraJPEGEncoder::to_internal_(camera::ImageFormat format) {
   return PIXFORMAT_GRAYSCALE;
 }
 
-}  // namespace camera_encoder
-}  // namespace esphome
+}  // namespace esphome::camera_encoder
 
 #endif
