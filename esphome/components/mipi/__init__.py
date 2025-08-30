@@ -2,7 +2,7 @@
 # Various configuration constants for MIPI displays
 # Various utility functions for MIPI DBI configuration
 
-from typing import Any
+from typing import Any, Self
 
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
@@ -222,7 +222,7 @@ def delay(ms):
 
 
 class DriverChip:
-    models = {}
+    models: dict[str, Self] = {}
 
     def __init__(
         self,
