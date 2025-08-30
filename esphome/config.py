@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-from collections import defaultdict
 from contextlib import contextmanager
 import contextvars
 import functools
@@ -38,13 +37,11 @@ from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
 _LOGGER = logging.getLogger(__name__)
 
 
-def iter_components(config: ConfigType, platform_counts: defaultdict[str, int]):
+def iter_components(config):
     for domain, conf in config.items():
         component = get_component(domain)
         yield domain, component
         if component.is_platform_component:
-            if not platform_counts[domain]:
-                continue
             for p_config in conf:
                 p_name = f"{domain}.{p_config[CONF_PLATFORM]}"
                 platform = get_platform(domain, p_config[CONF_PLATFORM])
