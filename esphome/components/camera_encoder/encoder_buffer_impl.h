@@ -17,9 +17,9 @@ class EncoderBufferImpl : public camera::EncoderBuffer {
 
  protected:
   RAMAllocator<uint8_t> allocator_;
-  uint8_t *data_{};
   size_t capacity_{};
   size_t size_{};
+  uint8_t *data_{};
 };
 
 }  // namespace esphome::camera_encoder

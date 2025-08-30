@@ -27,11 +27,11 @@ class ESP32CameraJPEGEncoder : public camera::Encoder {
   static size_t callback_(void *arg, size_t index, const void *data, size_t len);
   pixformat_t to_internal_(camera::ImageFormat format);
 
-  size_t buffer_expand_size_{};
-  uint8_t quality_{};
-  size_t bytes_written_{};
-  bool out_of_output_memory_{};
   camera::EncoderBuffer *output_{};
+  size_t buffer_expand_size_{};
+  size_t bytes_written_{};
+  uint8_t quality_{};
+  bool out_of_output_memory_{};
 };
 
 }  // namespace esphome::camera_encoder
