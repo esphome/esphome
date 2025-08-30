@@ -8,7 +8,6 @@ from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
 
 LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@widget"]
 DEPENDENCIES = ["i2c"]
 
 axs5106_ns = cg.esphome_ns.namespace("axs5106")
