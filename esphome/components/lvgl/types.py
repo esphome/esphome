@@ -161,7 +161,7 @@ class WidgetType:
         """
         return []
 
-    def obj_creator(self, parent: MockObjClass, config: dict):
+    async def obj_creator(self, parent: MockObjClass, config: dict):
         """
         Create an instance of the widget type
         :param parent: The parent to which it should be attached

@@ -3,8 +3,7 @@
 #include "buffer.h"
 #include "camera.h"
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 /// Default implementation of Buffer Interface.
 /// Uses a RAMAllocator for memory reservation.
@@ -20,9 +19,8 @@ class BufferImpl : public Buffer {
 
  protected:
   RAMAllocator<uint8_t> allocator_;
-  uint8_t *data_{};
   size_t size_{};
+  uint8_t *data_{};
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

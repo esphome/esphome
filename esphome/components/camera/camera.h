@@ -44,6 +44,7 @@ inline const char *to_string(PixelFormat format) {
   }
   return "PIXEL_FORMAT_UNKNOWN";
 }
+
 /** Abstract camera image base class.
  *  Encapsulates the JPEG encoded data and it is shared among
  *  all connected clients.

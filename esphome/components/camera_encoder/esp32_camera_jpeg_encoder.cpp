@@ -2,8 +2,7 @@
 
 #include "esp32_camera_jpeg_encoder.h"
 
-namespace esphome {
-namespace camera_encoder {
+namespace esphome::camera_encoder {
 
 static const char *const TAG = "camera_encoder";
 
@@ -44,7 +43,7 @@ camera::EncoderError ESP32CameraJPEGEncoder::encode_pixels(camera::CameraImageSp
 void ESP32CameraJPEGEncoder::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ESP32 Camera JPEG Encoder:\n"
-                "  Size: %d\n"
+                "  Size: %zu\n"
                 "  Quality: %d\n"
                 "  Expand: %d\n",
                 this->output_->get_max_size(), this->quality_, this->buffer_expand_size_);
@@ -78,7 +77,6 @@ pixformat_t ESP32CameraJPEGEncoder::to_internal_(camera::PixelFormat format) {
   return PIXFORMAT_GRAYSCALE;
 }
 
-}  // namespace camera_encoder
-}  // namespace esphome
+}  // namespace esphome::camera_encoder
 
 #endif

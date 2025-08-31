@@ -417,12 +417,17 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
 
 // TimeoutFilter
 optional<float> TimeoutFilter::new_value(float value) {
-  this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_.value()); });
+  if (this->value_.has_value()) {
+    this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_.value().value()); });
+  } else {
+    this->set_timeout("timeout", this->time_period_, [this, value]() { this->output(value); });
+  }
   return value;
 }
 
-TimeoutFilter::TimeoutFilter(uint32_t time_period, TemplatableValue<float> new_value)
-    : time_period_(time_period), value_(std::move(new_value)) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value)
+    : time_period_(time_period), value_(new_value) {}
 float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // DebounceFilter

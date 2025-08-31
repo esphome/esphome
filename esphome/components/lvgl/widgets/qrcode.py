@@ -4,7 +4,7 @@ from esphome.const import CONF_SIZE, CONF_TEXT
 from esphome.cpp_generator import MockObjClass
 
 from ..defines import CONF_MAIN
-from ..lv_validation import color, color_retmapper, lv_text
+from ..lv_validation import lv_color, lv_text
 from ..lvcode import LocalVariable, lv, lv_expr
 from ..schemas import TEXT_SCHEMA
 from ..types import WidgetType, lv_obj_t
@@ -16,8 +16,8 @@ CONF_LIGHT_COLOR = "light_color"
 
 QRCODE_SCHEMA = TEXT_SCHEMA.extend(
     {
-        cv.Optional(CONF_DARK_COLOR, default="black"): color,
-        cv.Optional(CONF_LIGHT_COLOR, default="white"): color,
+        cv.Optional(CONF_DARK_COLOR, default="black"): lv_color,
+        cv.Optional(CONF_LIGHT_COLOR, default="white"): lv_color,
         cv.Required(CONF_SIZE): cv.int_,
     }
 )
@@ -34,11 +34,11 @@ class QrCodeType(WidgetType):
         )
 
     def get_uses(self):
-        return ("canvas", "img", "label")
+        return "canvas", "img", "label"
 
-    def obj_creator(self, parent: MockObjClass, config: dict):
-        dark_color = color_retmapper(config[CONF_DARK_COLOR])
-        light_color = color_retmapper(config[CONF_LIGHT_COLOR])
+    async def obj_creator(self, parent: MockObjClass, config: dict):
+        dark_color = await lv_color.process(config[CONF_DARK_COLOR])
+        light_color = await lv_color.process(config[CONF_LIGHT_COLOR])
         size = config[CONF_SIZE]
         return lv_expr.call("qrcode_create", parent, size, dark_color, light_color)
 

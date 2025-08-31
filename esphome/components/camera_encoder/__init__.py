@@ -7,6 +7,7 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TYPE
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@DT-art1"]
 
@@ -14,8 +15,8 @@ AUTO_LOAD = ["camera"]
 
 CONF_BUFFER_EXPAND_SIZE = "buffer_expand_size"
 CONF_ENCODER_BUFFER_ID = "encoder_buffer_id"
-CONF_MCU_COUNT = "mcu_count"
 CONF_QUALITY = "quality"
+CONF_MCU_COUNT = "mcu_count"
 CONF_SUBSAMPLING = "subsampling"
 
 ESP32_CAMERA_ENCODER = "esp32_camera"
@@ -38,13 +39,18 @@ ESP32P4EncoderBuffer = camera_encoder_ns.class_(
 
 Bitbank2Encoder = camera_encoder_ns.class_("Bitbank2JPEGEncoder", Encoder)
 Bitbank2Quality = camera_encoder_ns.enum("Bitbank2Quality")
+MAX_JPEG_BUFFER_SIZE_2MB = 2 * 1024 * 1024
 
 ESP32_CAMERA_ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32CameraJPEGEncoder),
         cv.Optional(CONF_QUALITY, default=80): cv.int_range(1, 100),
-        cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.int_range(1024),
-        cv.Optional(CONF_BUFFER_EXPAND_SIZE, default=1024): cv.int_range(0),
+        cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.int_range(
+            1024, MAX_JPEG_BUFFER_SIZE_2MB
+        ),
+        cv.Optional(CONF_BUFFER_EXPAND_SIZE, default=1024): cv.int_range(
+            0, MAX_JPEG_BUFFER_SIZE_2MB
+        ),
         cv.GenerateID(CONF_ENCODER_BUFFER_ID): cv.declare_id(EncoderBufferImpl),
     }
 )
@@ -61,7 +67,9 @@ P4_ENCODER_SCHEMA = cv.Schema(
         cv.Optional(CONF_SUBSAMPLING, default="444"): cv.enum(
             CONF_ESP32P4_SUBSAMPLING_SELECTS, upper=True
         ),
-        cv.Optional(CONF_BUFFER_SIZE, default=10240): cv.int_range(1024),
+        cv.Optional(CONF_BUFFER_SIZE, default=10240): cv.int_range(
+            1024, MAX_JPEG_BUFFER_SIZE_2MB
+        ),      
         cv.GenerateID(CONF_ENCODER_BUFFER_ID): cv.declare_id(ESP32P4EncoderBuffer),
     },
 )
@@ -86,8 +94,12 @@ BITBANK2_ENCODER_SCHEMA = cv.Schema(
             CONF_BITBANK2_SUBSAMPLING_SELECTS, upper=True
         ),
         cv.Optional(CONF_MCU_COUNT, default=0): cv.int_range(0),
-        cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.int_range(1024),
-        cv.Optional(CONF_BUFFER_EXPAND_SIZE, default=1024): cv.int_range(0),
+        cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.int_range(
+            1024, MAX_JPEG_BUFFER_SIZE_2MB
+        ),
+        cv.Optional(CONF_BUFFER_EXPAND_SIZE, default=1024): cv.int_range(
+            0, MAX_JPEG_BUFFER_SIZE_2MB
+        ),
         cv.GenerateID(CONF_ENCODER_BUFFER_ID): cv.declare_id(EncoderBufferImpl),
     }
 )
@@ -112,7 +124,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     buffer = cg.new_Pvariable(config[CONF_ENCODER_BUFFER_ID])
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
     if config[CONF_TYPE] == ESP32_CAMERA_ENCODER:

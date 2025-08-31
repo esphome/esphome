@@ -6,8 +6,7 @@
 
 #include "esphome/components/camera/encoder.h"
 
-namespace esphome {
-namespace camera_encoder {
+namespace esphome::camera_encoder {
 
 /// Encoder that uses the software-based JPEG implementation from Espressif's esp32-camera component.
 class ESP32CameraJPEGEncoder : public camera::Encoder {
@@ -28,14 +27,13 @@ class ESP32CameraJPEGEncoder : public camera::Encoder {
   static size_t callback_(void *arg, size_t index, const void *data, size_t len);
   pixformat_t to_internal_(camera::PixelFormat format);
 
-  size_t buffer_expand_size_{};
-  uint8_t quality_{};
-  size_t bytes_written_{};
-  bool out_of_output_memory_{};
   camera::EncoderBuffer *output_{};
+  size_t buffer_expand_size_{};
+  size_t bytes_written_{};
+  uint8_t quality_{};
+  bool out_of_output_memory_{};
 };
 
-}  // namespace camera_encoder
-}  // namespace esphome
+}  // namespace esphome::camera_encoder
 
 #endif

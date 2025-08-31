@@ -1,7 +1,6 @@
 #include "encoder_buffer_impl.h"
 
-namespace esphome {
-namespace camera_encoder {
+namespace esphome::camera_encoder {
 
 bool EncoderBufferImpl::set_buffer_size(size_t size) {
   if (size > this->capacity_) {
@@ -21,5 +20,4 @@ EncoderBufferImpl::~EncoderBufferImpl() {
     this->allocator_.deallocate(this->data_, this->capacity_);
 }
 
-}  // namespace camera_encoder
-}  // namespace esphome
+}  // namespace esphome::camera_encoder

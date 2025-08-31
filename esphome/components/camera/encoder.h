@@ -3,8 +3,7 @@
 #include "buffer.h"
 #include "camera.h"
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 /// Chroma subsampling modes used by the encoder.
 /// Defines the ratio of color (chroma) resolution to luma resolution.
@@ -88,5 +87,4 @@ class Encoder {
   virtual ~Encoder() = default;
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

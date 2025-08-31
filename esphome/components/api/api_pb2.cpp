@@ -1843,12 +1843,14 @@ void BluetoothLERawAdvertisement::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->data_len);
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer buffer) const {
-  for (auto &it : this->advertisements) {
-    buffer.encode_message(1, it, true);
+  for (uint16_t i = 0; i < this->advertisements_len; i++) {
+    buffer.encode_message(1, this->advertisements[i], true);
   }
 }
 void BluetoothLERawAdvertisementsResponse::calculate_size(ProtoSize &size) const {
-  size.add_repeated_message(1, this->advertisements);
+  for (uint16_t i = 0; i < this->advertisements_len; i++) {
+    size.add_message_object_force(1, this->advertisements[i]);
+  }
 }
 bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {

@@ -3,8 +3,7 @@
 #include "esphome/components/camera/encoder.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace camera_encoder {
+namespace esphome::camera_encoder {
 
 class EncoderBufferImpl : public camera::EncoderBuffer {
  public:
@@ -18,10 +17,9 @@ class EncoderBufferImpl : public camera::EncoderBuffer {
 
  protected:
   RAMAllocator<uint8_t> allocator_;
-  uint8_t *data_{};
   size_t capacity_{};
   size_t size_{};
+  uint8_t *data_{};
 };
 
-}  // namespace camera_encoder
-}  // namespace esphome
+}  // namespace esphome::camera_encoder
