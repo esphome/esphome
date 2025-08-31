@@ -327,7 +327,7 @@ void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callb
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^
+  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_preference_hash() ^
                                                                               RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
@@ -569,17 +569,22 @@ bool Climate::set_custom_preset_(const std::string &preset) {
 void Climate::dump_traits_(const char *tag) {
   auto traits = this->get_traits();
   ESP_LOGCONFIG(tag, "ClimateTraits:");
-  ESP_LOGCONFIG(tag, "  [x] Visual settings:");
-  ESP_LOGCONFIG(tag, "      - Min temperature: %.1f", traits.get_visual_min_temperature());
-  ESP_LOGCONFIG(tag, "      - Max temperature: %.1f", traits.get_visual_max_temperature());
-  ESP_LOGCONFIG(tag, "      - Temperature step:");
-  ESP_LOGCONFIG(tag, "          Target: %.1f", traits.get_visual_target_temperature_step());
+  ESP_LOGCONFIG(tag,
+                "  [x] Visual settings:\n"
+                "      - Min temperature: %.1f\n"
+                "      - Max temperature: %.1f\n"
+                "      - Temperature step:\n"
+                "          Target: %.1f",
+                traits.get_visual_min_temperature(), traits.get_visual_max_temperature(),
+                traits.get_visual_target_temperature_step());
   if (traits.get_supports_current_temperature()) {
     ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
   }
   if (traits.get_supports_target_humidity() || traits.get_supports_current_humidity()) {
-    ESP_LOGCONFIG(tag, "      - Min humidity: %.0f", traits.get_visual_min_humidity());
-    ESP_LOGCONFIG(tag, "      - Max humidity: %.0f", traits.get_visual_max_humidity());
+    ESP_LOGCONFIG(tag,
+                  "      - Min humidity: %.0f\n"
+                  "      - Max humidity: %.0f",
+                  traits.get_visual_min_humidity(), traits.get_visual_max_humidity());
   }
   if (traits.get_supports_two_point_target_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");

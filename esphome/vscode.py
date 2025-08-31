@@ -7,6 +7,7 @@ from typing import Any
 
 from esphome.config import Config, _format_vol_invalid, validate_config
 import esphome.config_validation as cv
+from esphome.const import __version__ as ESPHOME_VERSION
 from esphome.core import CORE, DocumentRange
 from esphome.yaml_util import parse_yaml
 
@@ -80,8 +81,7 @@ def _print_file_read_event(path: str) -> None:
 
 def _request_and_get_stream_on_stdin(fname: str) -> StringIO:
     _print_file_read_event(fname)
-    raw_yaml_stream = StringIO(_read_file_content_from_json_on_stdin())
-    return raw_yaml_stream
+    return StringIO(_read_file_content_from_json_on_stdin())
 
 
 def _vscode_loader(fname: str) -> dict[str, Any]:
@@ -97,7 +97,21 @@ def _ace_loader(fname: str) -> dict[str, Any]:
     return parse_yaml(fname, raw_yaml_stream)
 
 
+def _print_version():
+    """Print ESPHome version."""
+    print(
+        json.dumps(
+            {
+                "type": "version",
+                "value": ESPHOME_VERSION,
+            }
+        )
+    )
+
+
 def read_config(args):
+    _print_version()
+
     while True:
         CORE.reset()
         data = json.loads(input())

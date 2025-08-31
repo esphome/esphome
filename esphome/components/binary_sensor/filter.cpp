@@ -10,9 +10,6 @@ namespace binary_sensor {
 static const char *const TAG = "sensor.filter";
 
 void Filter::output(bool value) {
-  if (!this->dedup_.next(value))
-    return;
-
   if (this->next_ == nullptr) {
     this->parent_->send_state_internal(value);
   } else {
@@ -20,10 +17,18 @@ void Filter::output(bool value) {
   }
 }
 void Filter::input(bool value) {
+  if (!this->dedup_.next(value))
+    return;
   auto b = this->new_value(value);
   if (b.has_value()) {
     this->output(*b);
   }
+}
+
+void TimeoutFilter::input(bool value) {
+  this->set_timeout("timeout", this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
+  // we do not de-dup here otherwise changes from invalid to valid state will not be output
+  this->output(value);
 }
 
 optional<bool> DelayedOnOffFilter::new_value(bool value) {
@@ -101,7 +106,7 @@ void AutorepeatFilter::next_timing_() {
 
 void AutorepeatFilter::next_value_(bool val) {
   const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
-  this->output(val);
+  this->output(val);  // This is at least the second one so not initial
   this->set_timeout("ON_OFF", val ? timing.time_on : timing.time_off, [this, val]() { this->next_value_(!val); });
 }
 

@@ -136,8 +136,7 @@ RFBRIDGE_ID_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(RFBridgeComponent)})
 @automation.register_action("rf_bridge.learn", RFBridgeLearnAction, RFBRIDGE_ID_SCHEMA)
 async def rf_bridge_learnx_to_code(config, action_id, template_args, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_args, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_args, paren)
 
 
 @automation.register_action(
@@ -149,8 +148,7 @@ async def rf_bridge_start_advanced_sniffing_to_code(
     config, action_id, template_args, args
 ):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_args, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_args, paren)
 
 
 @automation.register_action(
@@ -162,8 +160,7 @@ async def rf_bridge_stop_advanced_sniffing_to_code(
     config, action_id, template_args, args
 ):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_args, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_args, paren)
 
 
 @automation.register_action(
@@ -175,8 +172,7 @@ async def rf_bridge_start_bucket_sniffing_to_code(
     config, action_id, template_args, args
 ):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_args, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_args, paren)
 
 
 RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(

@@ -1,0 +1,29 @@
+esphome:
+  name: test-web-server-ota-idf
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+packages:
+  device_base: !include common.yaml
+
+# Enable OTA for multipart upload testing
+ota:
+  - platform: esphome
+    password: "test_ota_password"
+  - platform: web_server
+
+# Web server configuration
+web_server:
+  port: 8080
+  version: 2
+  include_internal: true
+
+# Enable debug logging for OTA
+logger:
+  level: VERBOSE
+  logs:
+    web_server: VERBOSE
+    web_server_idf: VERBOSE

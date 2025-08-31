@@ -8,6 +8,7 @@ import pytest
 from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
 from esphome.components.esp32.boards import ESP32_BOARD_PINS
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
+from esphome.components.ln882x.boards import LN882X_BOARD_PINS
 from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
 from esphome.core import CORE
 import esphome.wizard as wz
@@ -185,6 +186,27 @@ def test_wizard_write_defaults_platform_from_board_bk72xx(
     # Then
     generated_config = wz.write_file.call_args.args[1]
     assert "bk72xx:" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_ln882x(
+    default_config, tmp_path, monkeypatch
+):
+    """
+    If the platform is not explicitly set, use "LN882X" if the board is one of LN882X boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*LN882X_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "ln882x:" in generated_config
 
 
 def test_wizard_write_defaults_platform_from_board_rtl87xx(

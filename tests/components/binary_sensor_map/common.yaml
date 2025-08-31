@@ -26,7 +26,7 @@ binary_sensor:
 
 sensor:
   - platform: binary_sensor_map
-    name: Binary Sensor Map
+    name: Binary Sensor Map Group
     type: group
     channels:
       - binary_sensor: bin1
@@ -36,7 +36,7 @@ sensor:
       - binary_sensor: bin3
         value: 100.0
   - platform: binary_sensor_map
-    name: Binary Sensor Map
+    name: Binary Sensor Map Sum
     type: sum
     channels:
       - binary_sensor: bin1
@@ -46,7 +46,7 @@ sensor:
       - binary_sensor: bin3
         value: 100.0
   - platform: binary_sensor_map
-    name: Binary Sensor Map
+    name: Binary Sensor Map Bayesian
     type: bayesian
     prior: 0.4
     observations:

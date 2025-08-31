@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import fnmatch
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
-from ipaddress import _BaseAddress
+from ipaddress import _BaseAddress, _BaseNetwork
 import logging
 import math
 import os
-from typing import Any, Callable
+from typing import Any
 import uuid
 
 import yaml
@@ -55,9 +56,12 @@ class ESPHomeDataBase:
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if isinstance(node, yaml.ScalarNode):
-            if node.style is not None and node.style in "|>":
-                self._content_offset = 1
+        if (
+            isinstance(node, yaml.ScalarNode)
+            and node.style is not None
+            and node.style in "|>"
+        ):
+            self._content_offset = 1
 
     def from_database(self, database):
         # pylint: disable=attribute-defined-outside-init
@@ -291,8 +295,6 @@ class ESPHomeLoaderMixin:
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
             vars = fields.get(CONF_VARS)
-            if vars:
-                vars = {k: str(v) for k, v in vars.items()}
             return file, vars
 
         if isinstance(node, yaml.nodes.MappingNode):
@@ -303,8 +305,7 @@ class ESPHomeLoaderMixin:
         result = self.yaml_loader(self._rel_path(file))
         if not vars:
             vars = {}
-        result = substitute_vars(result, vars)
-        return result
+        return substitute_vars(result, vars)
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
@@ -603,6 +604,10 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.id)
         return self.represent_stringify(value.id)
 
+    # The below override configures this dumper to indent output YAML properly:
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
 
 ESPHomeDumper.add_multi_representer(
     dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
@@ -616,6 +621,7 @@ ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(_BaseNetwork, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)

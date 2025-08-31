@@ -1,6 +1,14 @@
 from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.display_menu_base import CONF_LABEL
-from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_ID, CONF_TEXT, CONF_WIDTH
+from esphome.const import (
+    CONF_COLOR,
+    CONF_HEIGHT,
+    CONF_ID,
+    CONF_TEXT,
+    CONF_WIDTH,
+    CONF_X,
+    CONF_Y,
+)
 from esphome.cpp_generator import Literal, MockObj
 
 from ..automation import action_to_code
@@ -13,12 +21,10 @@ from ..defines import (
     CONF_POINTS,
     CONF_SRC,
     CONF_START_ANGLE,
-    CONF_X,
-    CONF_Y,
     literal,
 )
 from ..lv_validation import (
-    lv_angle,
+    lv_angle_degrees,
     lv_bool,
     lv_color,
     lv_image,
@@ -389,15 +395,15 @@ ARC_PROPS = {
     DRAW_OPA_SCHEMA.extend(
         {
             cv.Required(CONF_RADIUS): pixels,
-            cv.Required(CONF_START_ANGLE): lv_angle,
-            cv.Required(CONF_END_ANGLE): lv_angle,
+            cv.Required(CONF_START_ANGLE): lv_angle_degrees,
+            cv.Required(CONF_END_ANGLE): lv_angle_degrees,
         }
     ).extend({cv.Optional(prop): validator for prop, validator in ARC_PROPS.items()}),
 )
 async def canvas_draw_arc(config, action_id, template_arg, args):
     radius = await size.process(config[CONF_RADIUS])
-    start_angle = await lv_angle.process(config[CONF_START_ANGLE])
-    end_angle = await lv_angle.process(config[CONF_END_ANGLE])
+    start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+    end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
 
     async def do_draw_arc(w: Widget, x, y, dsc_addr):
         lv.canvas_draw_arc(w.obj, x, y, radius, start_angle, end_angle, dsc_addr)

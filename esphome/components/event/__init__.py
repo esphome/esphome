@@ -18,8 +18,8 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@nohat"]
 IS_PLATFORM_COMPONENT = True
@@ -41,7 +41,7 @@ EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-EVENT_SCHEMA = (
+_EVENT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
@@ -57,6 +57,9 @@ EVENT_SCHEMA = (
         }
     )
 )
+
+
+_EVENT_SCHEMA.add_extra(entity_duplicate_validator("event"))
 
 
 def event_schema(
@@ -79,11 +82,16 @@ def event_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return EVENT_SCHEMA.extend(schema)
+    return _EVENT_SCHEMA.extend(schema)
+
+
+# Remove before 2025.11.0
+EVENT_SCHEMA = event_schema()
+EVENT_SCHEMA.add_extra(cv.deprecated_schema_constant("event"))
 
 
 async def setup_event_core_(var, config, *, event_types: list[str]):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "event")
 
     for conf in config.get(CONF_ON_EVENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -108,6 +116,7 @@ async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_event(var))
+    CORE.register_platform_component("event", var)
     await setup_event_core_(var, config, event_types=event_types)
 
 
@@ -136,5 +145,4 @@ async def event_fire_to_code(config, action_id, template_arg, args):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_EVENT")
     cg.add_global(event_ns.using)

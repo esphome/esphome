@@ -30,6 +30,7 @@ DEPENDENCIES = ["i2s_audio"]
 
 CONF_ADC_PIN = "adc_pin"
 CONF_ADC_TYPE = "adc_type"
+CONF_CORRECT_DC_OFFSET = "correct_dc_offset"
 CONF_PDM = "pdm"
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
@@ -43,9 +44,8 @@ PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
 def _validate_esp32_variant(config):
     variant = esp32.get_esp32_variant()
     if config[CONF_ADC_TYPE] == "external":
-        if config[CONF_PDM]:
-            if variant not in PDM_VARIANTS:
-                raise cv.Invalid(f"{variant} does not support PDM")
+        if config[CONF_PDM] and variant not in PDM_VARIANTS:
+            raise cv.Invalid(f"{variant} does not support PDM")
         return config
     if config[CONF_ADC_TYPE] == "internal":
         if variant not in INTERNAL_ADC_VARIANTS:
@@ -88,9 +88,12 @@ BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
         default_sample_rate=16000,
         default_channel=CONF_RIGHT,
         default_bits_per_sample="32bit",
+    ).extend(
+        {
+            cv.Optional(CONF_CORRECT_DC_OFFSET, default=False): cv.boolean,
+        }
     )
 ).extend(cv.COMPONENT_SCHEMA)
-
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
@@ -118,9 +121,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    if not use_legacy():
-        if config[CONF_ADC_TYPE] == "internal":
-            raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver.")
+    if not use_legacy() and config[CONF_ADC_TYPE] == "internal":
+        raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -140,3 +142,5 @@ async def to_code(config):
     else:
         cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
         cg.add(var.set_pdm(config[CONF_PDM]))
+
+    cg.add(var.set_correct_dc_offset(config[CONF_CORRECT_DC_OFFSET]))

@@ -18,8 +18,11 @@ def _run_repl_test(input_data):
         vscode.read_config(args)
 
         # Capture printed output
-        full_output = "".join(call[0][0] for call in mock_stdout.write.call_args_list)
-        return full_output.strip().split("\n")
+        full_output = "".join(
+            call[0][0] for call in mock_stdout.write.call_args_list
+        ).strip()
+        splitted_output = full_output.split("\n")
+        return splitted_output[1:]  # remove first entry with version info
 
 
 def _validate(file_path: str):

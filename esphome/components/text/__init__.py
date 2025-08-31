@@ -1,5 +1,3 @@
-from typing import Optional
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
@@ -16,8 +14,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@mauritskorse"]
 IS_PLATFORM_COMPONENT = True
@@ -60,6 +58,9 @@ _TEXT_SCHEMA = (
 )
 
 
+_TEXT_SCHEMA.add_extra(entity_duplicate_validator("text"))
+
+
 def text_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -92,11 +93,11 @@ async def setup_text_core_(
     var,
     config,
     *,
-    min_length: Optional[int],
-    max_length: Optional[int],
-    pattern: Optional[str],
+    min_length: int | None,
+    max_length: int | None,
+    pattern: str | None,
 ):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "text")
 
     cg.add(var.traits.set_min_length(min_length))
     cg.add(var.traits.set_max_length(max_length))
@@ -121,13 +122,14 @@ async def register_text(
     var,
     config,
     *,
-    min_length: Optional[int] = 0,
-    max_length: Optional[int] = 255,
-    pattern: Optional[str] = None,
+    min_length: int | None = 0,
+    max_length: int | None = 255,
+    pattern: str | None = None,
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text(var))
+    CORE.register_platform_component("text", var)
     await setup_text_core_(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
     )
@@ -136,9 +138,9 @@ async def register_text(
 async def new_text(
     config,
     *,
-    min_length: Optional[int] = 0,
-    max_length: Optional[int] = 255,
-    pattern: Optional[str] = None,
+    min_length: int | None = 0,
+    max_length: int | None = 255,
+    pattern: str | None = None,
 ):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_text(
@@ -149,7 +151,6 @@ async def new_text(
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_TEXT")
     cg.add_global(text_ns.using)
 
 

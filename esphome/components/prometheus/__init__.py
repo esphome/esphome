@@ -31,7 +31,6 @@ CONFIG_SCHEMA = cv.Schema(
             }
         ),
     },
-    cv.only_with_arduino,
 ).extend(cv.COMPONENT_SCHEMA)
 
 

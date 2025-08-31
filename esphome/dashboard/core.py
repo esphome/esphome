@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 import contextlib
 from dataclasses import dataclass
 from functools import partial
@@ -9,7 +9,7 @@ import json
 import logging
 from pathlib import Path
 import threading
-from typing import Any, Callable
+from typing import Any
 
 from esphome.storage_json import ignored_devices_storage_path
 

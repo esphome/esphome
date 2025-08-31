@@ -286,10 +286,13 @@ void SonoffD1Output::write_state(light::LightState *state) {
 }
 
 void SonoffD1Output::dump_config() {
-  ESP_LOGCONFIG(TAG, "Sonoff D1 Dimmer: '%s'", this->light_state_ ? this->light_state_->get_name().c_str() : "");
-  ESP_LOGCONFIG(TAG, "  Use RM433 Remote: %s", ONOFF(this->use_rm433_remote_));
-  ESP_LOGCONFIG(TAG, "  Minimal brightness: %d", this->min_value_);
-  ESP_LOGCONFIG(TAG, "  Maximal brightness: %d", this->max_value_);
+  ESP_LOGCONFIG(TAG,
+                "Sonoff D1 Dimmer: '%s'\n"
+                "  Use RM433 Remote: %s\n"
+                "  Minimal brightness: %d\n"
+                "  Maximal brightness: %d",
+                this->light_state_ ? this->light_state_->get_name().c_str() : "", ONOFF(this->use_rm433_remote_),
+                this->min_value_, this->max_value_);
 }
 
 void SonoffD1Output::loop() {

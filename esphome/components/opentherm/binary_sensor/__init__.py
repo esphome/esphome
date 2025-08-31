@@ -11,10 +11,8 @@ COMPONENT_TYPE = const.BINARY_SENSOR
 
 def get_entity_validation_schema(entity: schema.BinarySensorSchema) -> cv.Schema:
     return binary_sensor.binary_sensor_schema(
-        device_class=(
-            entity.device_class or cv.UNDEFINED  # pylint: disable=protected-access
-        ),
-        icon=(entity.icon or cv.UNDEFINED),  # pylint: disable=protected-access
+        device_class=(entity.device_class or cv.UNDEFINED),
+        icon=(entity.icon or cv.UNDEFINED),
     )
 
 

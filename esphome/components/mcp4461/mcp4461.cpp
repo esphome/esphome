@@ -1,7 +1,7 @@
 #include "mcp4461.h"
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mcp4461 {
@@ -10,7 +10,6 @@ static const char *const TAG = "mcp4461";
 constexpr uint8_t EEPROM_WRITE_TIMEOUT_MS = 10;
 
 void Mcp4461Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up mcp4461 using address (0x%02X)...", this->address_);
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
@@ -199,7 +198,7 @@ uint16_t Mcp4461Component::get_wiper_level_(Mcp4461WiperIdx wiper) {
 
 uint16_t Mcp4461Component::read_wiper_level_(uint8_t wiper_idx) {
   uint8_t addr = this->get_wiper_address_(wiper_idx);
-  uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::INCREMENT);
+  uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::READ);
   if (wiper_idx > 3) {
     if (!this->is_eeprom_ready_for_writing_(true)) {
       return 0;
@@ -329,7 +328,7 @@ bool Mcp4461Component::increase_wiper_(Mcp4461WiperIdx wiper) {
   ESP_LOGV(TAG, "Increasing wiper %u", wiper_idx);
   uint8_t addr = this->get_wiper_address_(wiper_idx);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::INCREMENT);
-  auto err = this->write(&this->address_, reg, sizeof(reg));
+  auto err = this->write(&this->address_, reg);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
@@ -360,7 +359,7 @@ bool Mcp4461Component::decrease_wiper_(Mcp4461WiperIdx wiper) {
   ESP_LOGV(TAG, "Decreasing wiper %u", wiper_idx);
   uint8_t addr = this->get_wiper_address_(wiper_idx);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::DECREMENT);
-  auto err = this->write(&this->address_, reg, sizeof(reg));
+  auto err = this->write(&this->address_, reg);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();

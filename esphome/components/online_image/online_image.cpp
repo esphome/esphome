@@ -3,6 +3,10 @@
 #include "esphome/core/log.h"
 
 static const char *const TAG = "online_image";
+static const char *const ETAG_HEADER_NAME = "etag";
+static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
+static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
+static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 
 #include "image_decoder.h"
 
@@ -31,14 +35,15 @@ inline bool is_color_on(const Color &color) {
 }
 
 OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFormat format, ImageType type,
-                         image::Transparency transparency, uint32_t download_buffer_size)
+                         image::Transparency transparency, uint32_t download_buffer_size, bool is_big_endian)
     : Image(nullptr, 0, 0, type, transparency),
       buffer_(nullptr),
       download_buffer_(download_buffer_size),
       download_buffer_initial_size_(download_buffer_size),
       format_(format),
       fixed_width_(width),
-      fixed_height_(height) {
+      fixed_height_(height),
+      is_big_endian_(is_big_endian) {
   this->set_url(url);
 }
 
@@ -52,7 +57,7 @@ void OnlineImage::draw(int x, int y, display::Display *display, Color color_on, 
 
 void OnlineImage::release() {
   if (this->buffer_) {
-    ESP_LOGV(TAG, "Deallocating old buffer...");
+    ESP_LOGV(TAG, "Deallocating old buffer");
     this->allocator_.deallocate(this->buffer_, this->get_buffer_size_());
     this->data_start_ = nullptr;
     this->buffer_ = nullptr;
@@ -60,6 +65,8 @@ void OnlineImage::release() {
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
+    this->last_modified_ = "";
+    this->etag_ = "";
     this->end_connection_();
   }
 }
@@ -127,9 +134,21 @@ void OnlineImage::update() {
   }
   accept_header.value = accept_mime_type + ",*/*;q=0.8";
 
+  if (!this->etag_.empty()) {
+    headers.push_back(http_request::Header{IF_NONE_MATCH_HEADER_NAME, this->etag_});
+  }
+
+  if (!this->last_modified_.empty()) {
+    headers.push_back(http_request::Header{IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
+  }
+
   headers.push_back(accept_header);
 
-  this->downloader_ = this->parent_->get(this->url_, headers);
+  for (auto &header : this->request_headers_) {
+    headers.push_back(http_request::Header{header.first, header.second.value()});
+  }
+
+  this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME});
 
   if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
@@ -141,7 +160,9 @@ void OnlineImage::update() {
   int http_code = this->downloader_->status_code;
   if (http_code == HTTP_CODE_NOT_MODIFIED) {
     // Image hasn't changed on server. Skip download.
+    ESP_LOGI(TAG, "Server returned HTTP 304 (Not Modified). Download skipped.");
     this->end_connection_();
+    this->download_finished_callback_.call(true);
     return;
   }
   if (http_code != HTTP_CODE_OK) {
@@ -158,18 +179,21 @@ void OnlineImage::update() {
   if (this->format_ == ImageFormat::BMP) {
     ESP_LOGD(TAG, "Allocating BMP decoder");
     this->decoder_ = make_unique<BmpDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
 #ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
   if (this->format_ == ImageFormat::JPEG) {
     ESP_LOGD(TAG, "Allocating JPEG decoder");
     this->decoder_ = esphome::make_unique<JpegDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
   if (this->format_ == ImageFormat::PNG) {
     ESP_LOGD(TAG, "Allocating PNG decoder");
     this->decoder_ = make_unique<PngDecoder>(this);
+    this->enable_loop();
   }
 #endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
 
@@ -192,6 +216,7 @@ void OnlineImage::update() {
 void OnlineImage::loop() {
   if (!this->decoder_) {
     // Not decoding at the moment => nothing to do.
+    this->disable_loop();
     return;
   }
   if (!this->downloader_ || this->decoder_->is_finished()) {
@@ -200,9 +225,11 @@ void OnlineImage::loop() {
     this->height_ = buffer_height_;
     ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d", this->downloader_->get_bytes_read(),
              this->width_, this->height_);
-    ESP_LOGD(TAG, "Total time: %lds", ::time(nullptr) - this->start_time_);
+    ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
+    this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
+    this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+    this->download_finished_callback_.call(false);
     this->end_connection_();
-    this->download_finished_callback_.call();
     return;
   }
   if (this->downloader_ == nullptr) {
@@ -270,7 +297,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
       break;
     }
     case ImageType::IMAGE_TYPE_GRAYSCALE: {
-      uint8_t gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
+      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
       if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
         if (gray == 1) {
           gray = 0;
@@ -288,8 +315,13 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
     case ImageType::IMAGE_TYPE_RGB565: {
       this->map_chroma_key(color);
       uint16_t col565 = display::ColorUtil::color_to_565(color);
-      this->buffer_[pos + 0] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
-      this->buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
+      if (this->is_big_endian_) {
+        this->buffer_[pos + 0] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
+        this->buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
+      } else {
+        this->buffer_[pos + 0] = static_cast<uint8_t>(col565 & 0xFF);
+        this->buffer_[pos + 1] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
+      }
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
         this->buffer_[pos + 2] = color.w;
       }
@@ -318,14 +350,14 @@ void OnlineImage::end_connection_() {
 }
 
 bool OnlineImage::validate_url_(const std::string &url) {
-  if ((url.length() < 8) || (url.find("http") != 0) || (url.find("://") == std::string::npos)) {
+  if ((url.length() < 8) || !url.starts_with("http") || (url.find("://") == std::string::npos)) {
     ESP_LOGE(TAG, "URL is invalid and/or must be prefixed with 'http://' or 'https://'");
     return false;
   }
   return true;
 }
 
-void OnlineImage::add_on_finished_callback(std::function<void()> &&callback) {
+void OnlineImage::add_on_finished_callback(std::function<void(bool)> &&callback) {
   this->download_finished_callback_.add(std::move(callback));
 }
 
