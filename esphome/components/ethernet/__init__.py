@@ -112,7 +112,7 @@ def _is_framework_spi_polling_mode_supported():
             return True
         if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
             return True
-        if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):
+        if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):  # noqa: SIM103
             return True
         return False
     if CORE.using_arduino:
@@ -341,6 +341,12 @@ async def to_code(config):
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     cg.add_define("USE_ETHERNET")
+
+    # Disable WiFi when using Ethernet to save memory
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+        # Also disable WiFi/BT coexistence since WiFi is disabled
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)

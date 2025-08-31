@@ -22,8 +22,6 @@ static const char *const TAG = "es8311";
   }
 
 void ES8311::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Reset
   ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x1F));
   ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x00));

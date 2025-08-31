@@ -186,8 +186,7 @@ def _process_package(package_config, config):
         package_config = _process_base_package(package_config)
     if isinstance(package_config, dict):
         recursive_package = do_packages_pass(package_config)
-    config = merge_config(recursive_package, config)
-    return config
+    return merge_config(recursive_package, config)
 
 
 def do_packages_pass(config: dict):

@@ -27,8 +27,7 @@ SetDecelerationAction = stepper_ns.class_("SetDecelerationAction", automation.Ac
 def validate_acceleration(value):
     value = cv.string(value)
     for suffix in ("steps/s^2", "steps/s*s", "steps/s/s", "steps/ss", "steps/(s*s)"):
-        if value.endswith(suffix):
-            value = value[: -len(suffix)]
+        value = value.removesuffix(suffix)
 
     if value == "inf":
         return 1e6
@@ -48,8 +47,7 @@ def validate_acceleration(value):
 def validate_speed(value):
     value = cv.string(value)
     for suffix in ("steps/s", "steps/s"):
-        if value.endswith(suffix):
-            value = value[: -len(suffix)]
+        value = value.removesuffix(suffix)
 
     if value == "inf":
         return 1e6

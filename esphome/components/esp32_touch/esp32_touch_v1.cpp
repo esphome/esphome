@@ -16,6 +16,8 @@ namespace esp32_touch {
 
 static const char *const TAG = "esp32_touch";
 
+static const uint32_t SETUP_MODE_THRESHOLD = 0xFFFF;
+
 void ESP32TouchComponent::setup() {
   // Create queue for touch events
   // Queue size calculation: children * 4 allows for burst scenarios where ISR
@@ -44,7 +46,11 @@ void ESP32TouchComponent::setup() {
 
   // Configure each touch pad
   for (auto *child : this->children_) {
-    touch_pad_config(child->get_touch_pad(), child->get_threshold());
+    if (this->setup_mode_) {
+      touch_pad_config(child->get_touch_pad(), SETUP_MODE_THRESHOLD);
+    } else {
+      touch_pad_config(child->get_touch_pad(), child->get_threshold());
+    }
   }
 
   // Register ISR handler
@@ -109,12 +115,13 @@ void ESP32TouchComponent::loop() {
 
       // Only publish if state changed - this filters out repeated events
       if (new_state != child->last_state_) {
+        child->initial_state_published_ = true;
         child->last_state_ = new_state;
         child->publish_state(new_state);
         // Original ESP32: ISR only fires when touched, release is detected by timeout
         // Note: ESP32 v1 uses inverted logic - touched when value < threshold
-        ESP_LOGV(TAG, "Touch Pad '%s' state: ON (value: %" PRIu32 " < threshold: %" PRIu32 ")",
-                 child->get_name().c_str(), event.value, child->get_threshold());
+        ESP_LOGV(TAG, "Touch Pad '%s' state: %s (value: %" PRIu32 " < threshold: %" PRIu32 ")",
+                 child->get_name().c_str(), ONOFF(new_state), event.value, child->get_threshold());
       }
       break;  // Exit inner loop after processing matching pad
     }
@@ -175,6 +182,9 @@ void ESP32TouchComponent::on_shutdown() {
 void IRAM_ATTR ESP32TouchComponent::touch_isr_handler(void *arg) {
   ESP32TouchComponent *component = static_cast<ESP32TouchComponent *>(arg);
 
+  uint32_t mask = 0;
+  touch_ll_read_trigger_status_mask(&mask);
+  touch_ll_clear_trigger_status_mask();
   touch_pad_clear_status();
 
   // INTERRUPT BEHAVIOR: On ESP32 v1 hardware, the interrupt fires when ANY configured
@@ -191,20 +201,16 @@ void IRAM_ATTR ESP32TouchComponent::touch_isr_handler(void *arg) {
     touch_pad_t pad = child->get_touch_pad();
 
     // Read current value using ISR-safe API
-    uint32_t value;
-    if (component->iir_filter_enabled_()) {
-      uint16_t temp_value = 0;
-      touch_pad_read_filtered(pad, &temp_value);
-      value = temp_value;
-    } else {
-      // Use low-level HAL function when filter is not enabled
-      value = touch_ll_read_raw_data(pad);
-    }
+    // IMPORTANT: ESP-IDF v5.4 regression - touch_pad_read_filtered() is no longer ISR-safe
+    // In ESP-IDF v5.3 and earlier it was ISR-safe, but ESP-IDF v5.4 added mutex protection that causes:
+    // "assert failed: xQueueSemaphoreTake queue.c:1718"
+    // We must use raw values even when filter is enabled as a workaround.
+    // Users should adjust thresholds to compensate for the lack of IIR filtering.
+    // See: https://github.com/espressif/esp-idf/issues/17045
+    uint32_t value = touch_ll_read_raw_data(pad);
 
-    // Skip pads with 0 value - they haven't been measured in this cycle
-    // This is important: not all pads are measured every interrupt cycle,
-    // only those that the hardware has updated
-    if (value == 0) {
+    // Skip pads that aren’t in the trigger mask
+    if (((mask >> pad) & 1) == 0) {
       continue;
     }
 

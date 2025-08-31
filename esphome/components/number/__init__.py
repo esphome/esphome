@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WEB_SERVER,
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_AREA,
@@ -81,6 +82,7 @@ from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_AREA,
@@ -321,7 +323,6 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_define("USE_NUMBER")
     cg.add_global(number_ns.using)
 
 

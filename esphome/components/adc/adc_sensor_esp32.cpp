@@ -8,145 +8,313 @@ namespace adc {
 
 static const char *const TAG = "adc.esp32";
 
-static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
+adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
-#ifndef SOC_ADC_RTC_MAX_BITWIDTH
-#if USE_ESP32_VARIANT_ESP32S2
-static const int32_t SOC_ADC_RTC_MAX_BITWIDTH = 13;
-#else
-static const int32_t SOC_ADC_RTC_MAX_BITWIDTH = 12;
-#endif  // USE_ESP32_VARIANT_ESP32S2
-#endif  // SOC_ADC_RTC_MAX_BITWIDTH
-
-static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;
-static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;
-
-void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
-
-  if (this->channel1_ != ADC1_CHANNEL_MAX) {
-    adc1_config_width(ADC_WIDTH_MAX_SOC_BITS);
-    if (!this->autorange_) {
-      adc1_config_channel_atten(this->channel1_, this->attenuation_);
-    }
-  } else if (this->channel2_ != ADC2_CHANNEL_MAX) {
-    if (!this->autorange_) {
-      adc2_config_channel_atten(this->channel2_, this->attenuation_);
-    }
-  }
-
-  for (int32_t i = 0; i <= ADC_ATTEN_DB_12_COMPAT; i++) {
-    auto adc_unit = this->channel1_ != ADC1_CHANNEL_MAX ? ADC_UNIT_1 : ADC_UNIT_2;
-    auto cal_value = esp_adc_cal_characterize(adc_unit, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
-                                              1100,  // default vref
-                                              &this->cal_characteristics_[i]);
-    switch (cal_value) {
-      case ESP_ADC_CAL_VAL_EFUSE_VREF:
-        ESP_LOGV(TAG, "Using eFuse Vref for calibration");
-        break;
-      case ESP_ADC_CAL_VAL_EFUSE_TP:
-        ESP_LOGV(TAG, "Using two-point eFuse Vref for calibration");
-        break;
-      case ESP_ADC_CAL_VAL_DEFAULT_VREF:
-      default:
-        break;
-    }
+const LogString *attenuation_to_str(adc_atten_t attenuation) {
+  switch (attenuation) {
+    case ADC_ATTEN_DB_0:
+      return LOG_STR("0 dB");
+    case ADC_ATTEN_DB_2_5:
+      return LOG_STR("2.5 dB");
+    case ADC_ATTEN_DB_6:
+      return LOG_STR("6 dB");
+    case ADC_ATTEN_DB_12_COMPAT:
+      return LOG_STR("12 dB");
+    default:
+      return LOG_STR("Unknown Attenuation");
   }
 }
 
-void ADCSensor::dump_config() {
-  static const char *const ATTEN_AUTO_STR = "auto";
-  static const char *const ATTEN_0DB_STR = "0 db";
-  static const char *const ATTEN_2_5DB_STR = "2.5 db";
-  static const char *const ATTEN_6DB_STR = "6 db";
-  static const char *const ATTEN_12DB_STR = "12 db";
-  const char *atten_str = ATTEN_AUTO_STR;
+const LogString *adc_unit_to_str(adc_unit_t unit) {
+  switch (unit) {
+    case ADC_UNIT_1:
+      return LOG_STR("ADC1");
+    case ADC_UNIT_2:
+      return LOG_STR("ADC2");
+    default:
+      return LOG_STR("Unknown ADC Unit");
+  }
+}
 
-  LOG_SENSOR("", "ADC Sensor", this);
-  LOG_PIN("  Pin: ", this->pin_);
-
-  if (!this->autorange_) {
-    switch (this->attenuation_) {
-      case ADC_ATTEN_DB_0:
-        atten_str = ATTEN_0DB_STR;
-        break;
-      case ADC_ATTEN_DB_2_5:
-        atten_str = ATTEN_2_5DB_STR;
-        break;
-      case ADC_ATTEN_DB_6:
-        atten_str = ATTEN_6DB_STR;
-        break;
-      case ADC_ATTEN_DB_12_COMPAT:
-        atten_str = ATTEN_12DB_STR;
-        break;
-      default:  // This is to satisfy the unused ADC_ATTEN_MAX
-        break;
+void ADCSensor::setup() {
+  // Check if another sensor already initialized this ADC unit
+  if (ADCSensor::shared_adc_handles[this->adc_unit_] == nullptr) {
+    adc_oneshot_unit_init_cfg_t init_config = {};  // Zero initialize
+    init_config.unit_id = this->adc_unit_;
+    init_config.ulp_mode = ADC_ULP_MODE_DISABLE;
+#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32H2
+    init_config.clk_src = ADC_DIGI_CLK_SRC_DEFAULT;
+#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 ||
+        // USE_ESP32_VARIANT_ESP32H2
+    esp_err_t err = adc_oneshot_new_unit(&init_config, &ADCSensor::shared_adc_handles[this->adc_unit_]);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Error initializing %s: %d", LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)), err);
+      this->mark_failed();
+      return;
     }
   }
+  this->adc_handle_ = ADCSensor::shared_adc_handles[this->adc_unit_];
 
+  this->setup_flags_.handle_init_complete = true;
+
+  adc_oneshot_chan_cfg_t config = {
+      .atten = this->attenuation_,
+      .bitwidth = ADC_BITWIDTH_DEFAULT,
+  };
+  esp_err_t err = adc_oneshot_config_channel(this->adc_handle_, this->channel_, &config);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Error configuring channel: %d", err);
+    this->mark_failed();
+    return;
+  }
+  this->setup_flags_.config_complete = true;
+
+  // Initialize ADC calibration
+  if (this->calibration_handle_ == nullptr) {
+    adc_cali_handle_t handle = nullptr;
+
+#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+    // RISC-V variants and S3 use curve fitting calibration
+    adc_cali_curve_fitting_config_t cali_config = {};  // Zero initialize first
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    cali_config.chan = this->channel_;
+#endif  // ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    cali_config.unit_id = this->adc_unit_;
+    cali_config.atten = this->attenuation_;
+    cali_config.bitwidth = ADC_BITWIDTH_DEFAULT;
+
+    err = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+    if (err == ESP_OK) {
+      this->calibration_handle_ = handle;
+      this->setup_flags_.calibration_complete = true;
+      ESP_LOGV(TAG, "Using curve fitting calibration");
+    } else {
+      ESP_LOGW(TAG, "Curve fitting calibration failed with error %d, will use uncalibrated readings", err);
+      this->setup_flags_.calibration_complete = false;
+    }
+#else  // Other ESP32 variants use line fitting calibration
+    adc_cali_line_fitting_config_t cali_config = {
+      .unit_id = this->adc_unit_,
+      .atten = this->attenuation_,
+      .bitwidth = ADC_BITWIDTH_DEFAULT,
+#if !defined(USE_ESP32_VARIANT_ESP32S2)
+      .default_vref = 1100,  // Default reference voltage in mV
+#endif  // !defined(USE_ESP32_VARIANT_ESP32S2)
+    };
+    err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+    if (err == ESP_OK) {
+      this->calibration_handle_ = handle;
+      this->setup_flags_.calibration_complete = true;
+      ESP_LOGV(TAG, "Using line fitting calibration");
+    } else {
+      ESP_LOGW(TAG, "Line fitting calibration failed with error %d, will use uncalibrated readings", err);
+      this->setup_flags_.calibration_complete = false;
+    }
+#endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32S3 || ESP32H2
+  }
+
+  this->setup_flags_.init_complete = true;
+}
+
+void ADCSensor::dump_config() {
+  LOG_SENSOR("", "ADC Sensor", this);
+  LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG,
-                "  Attenuation: %s\n"
-                "  Samples: %i\n"
+                "  Channel:       %d\n"
+                "  Unit:          %s\n"
+                "  Attenuation:   %s\n"
+                "  Samples:       %i\n"
                 "  Sampling mode: %s",
-                atten_str, this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
+                this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
+                this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
+                LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
+
+  ESP_LOGCONFIG(
+      TAG,
+      "  Setup Status:\n"
+      "    Handle Init:  %s\n"
+      "    Config:       %s\n"
+      "    Calibration:  %s\n"
+      "    Overall Init: %s",
+      this->setup_flags_.handle_init_complete ? "OK" : "FAILED", this->setup_flags_.config_complete ? "OK" : "FAILED",
+      this->setup_flags_.calibration_complete ? "OK" : "FAILED", this->setup_flags_.init_complete ? "OK" : "FAILED");
+
   LOG_UPDATE_INTERVAL(this);
 }
 
 float ADCSensor::sample() {
-  if (!this->autorange_) {
-    auto aggr = Aggregator(this->sampling_mode_);
+  if (this->autorange_) {
+    return this->sample_autorange_();
+  } else {
+    return this->sample_fixed_attenuation_();
+  }
+}
 
-    for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
-      int raw = -1;
-      if (this->channel1_ != ADC1_CHANNEL_MAX) {
-        raw = adc1_get_raw(this->channel1_);
-      } else if (this->channel2_ != ADC2_CHANNEL_MAX) {
-        adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw);
-      }
-      if (raw == -1) {
-        return NAN;
-      }
+float ADCSensor::sample_fixed_attenuation_() {
+  auto aggr = Aggregator<uint32_t>(this->sampling_mode_);
 
-      aggr.add_sample(raw);
+  for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
+    int raw;
+    esp_err_t err = adc_oneshot_read(this->adc_handle_, this->channel_, &raw);
+
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "ADC read failed with error %d", err);
+      continue;
     }
-    if (this->output_raw_) {
-      return aggr.aggregate();
+
+    if (raw == -1) {
+      ESP_LOGW(TAG, "Invalid ADC reading");
+      continue;
     }
-    uint32_t mv =
-        esp_adc_cal_raw_to_voltage(aggr.aggregate(), &this->cal_characteristics_[(int32_t) this->attenuation_]);
-    return mv / 1000.0f;
+
+    aggr.add_sample(raw);
   }
 
-  int raw12 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
+  uint32_t final_value = aggr.aggregate();
 
-  if (this->channel1_ != ADC1_CHANNEL_MAX) {
-    adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_12_COMPAT);
-    raw12 = adc1_get_raw(this->channel1_);
-    if (raw12 < ADC_MAX) {
-      adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_6);
-      raw6 = adc1_get_raw(this->channel1_);
-      if (raw6 < ADC_MAX) {
-        adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_2_5);
-        raw2 = adc1_get_raw(this->channel1_);
-        if (raw2 < ADC_MAX) {
-          adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_0);
-          raw0 = adc1_get_raw(this->channel1_);
-        }
+  if (this->output_raw_) {
+    return final_value;
+  }
+
+  if (this->calibration_handle_ != nullptr) {
+    int voltage_mv;
+    esp_err_t err = adc_cali_raw_to_voltage(this->calibration_handle_, final_value, &voltage_mv);
+    if (err == ESP_OK) {
+      return voltage_mv / 1000.0f;
+    } else {
+      ESP_LOGW(TAG, "ADC calibration conversion failed with error %d, disabling calibration", err);
+      if (this->calibration_handle_ != nullptr) {
+#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+        adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
+#else   // Other ESP32 variants use line fitting calibration
+        adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
+#endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32S3 || ESP32H2
+        this->calibration_handle_ = nullptr;
       }
     }
-  } else if (this->channel2_ != ADC2_CHANNEL_MAX) {
-    adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_12_COMPAT);
-    adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw12);
-    if (raw12 < ADC_MAX) {
-      adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_6);
-      adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw6);
-      if (raw6 < ADC_MAX) {
-        adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_2_5);
-        adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw2);
-        if (raw2 < ADC_MAX) {
-          adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_0);
-          adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw0);
-        }
+  }
+
+  return final_value * 3.3f / 4095.0f;
+}
+
+float ADCSensor::sample_autorange_() {
+  // Auto-range mode
+  auto read_atten = [this](adc_atten_t atten) -> std::pair<int, float> {
+    // First reconfigure the attenuation for this reading
+    adc_oneshot_chan_cfg_t config = {
+        .atten = atten,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+
+    esp_err_t err = adc_oneshot_config_channel(this->adc_handle_, this->channel_, &config);
+
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error configuring ADC channel for autorange: %d", err);
+      return {-1, 0.0f};
+    }
+
+    // Need to recalibrate for the new attenuation
+    if (this->calibration_handle_ != nullptr) {
+      // Delete old calibration handle
+#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+      adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
+#else
+      adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
+#endif
+      this->calibration_handle_ = nullptr;
+    }
+
+    // Create new calibration handle for this attenuation
+    adc_cali_handle_t handle = nullptr;
+
+#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+    adc_cali_curve_fitting_config_t cali_config = {};
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    cali_config.chan = this->channel_;
+#endif
+    cali_config.unit_id = this->adc_unit_;
+    cali_config.atten = atten;
+    cali_config.bitwidth = ADC_BITWIDTH_DEFAULT;
+
+    err = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+#else
+    adc_cali_line_fitting_config_t cali_config = {
+      .unit_id = this->adc_unit_,
+      .atten = atten,
+      .bitwidth = ADC_BITWIDTH_DEFAULT,
+#if !defined(USE_ESP32_VARIANT_ESP32S2)
+      .default_vref = 1100,
+#endif
+    };
+    err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+#endif
+
+    int raw;
+    err = adc_oneshot_read(this->adc_handle_, this->channel_, &raw);
+
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "ADC read failed in autorange with error %d", err);
+      if (handle != nullptr) {
+#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+        adc_cali_delete_scheme_curve_fitting(handle);
+#else
+        adc_cali_delete_scheme_line_fitting(handle);
+#endif
+      }
+      return {-1, 0.0f};
+    }
+
+    float voltage = 0.0f;
+    if (handle != nullptr) {
+      int voltage_mv;
+      err = adc_cali_raw_to_voltage(handle, raw, &voltage_mv);
+      if (err == ESP_OK) {
+        voltage = voltage_mv / 1000.0f;
+      } else {
+        voltage = raw * 3.3f / 4095.0f;
+      }
+      // Clean up calibration handle
+#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+      adc_cali_delete_scheme_curve_fitting(handle);
+#else
+      adc_cali_delete_scheme_line_fitting(handle);
+#endif
+    } else {
+      voltage = raw * 3.3f / 4095.0f;
+    }
+
+    return {raw, voltage};
+  };
+
+  auto [raw12, mv12] = read_atten(ADC_ATTEN_DB_12);
+  if (raw12 == -1) {
+    ESP_LOGE(TAG, "Failed to read ADC in autorange mode");
+    return NAN;
+  }
+
+  int raw6 = 4095, raw2 = 4095, raw0 = 4095;
+  float mv6 = 0, mv2 = 0, mv0 = 0;
+
+  if (raw12 < 4095) {
+    auto [raw6_val, mv6_val] = read_atten(ADC_ATTEN_DB_6);
+    raw6 = raw6_val;
+    mv6 = mv6_val;
+
+    if (raw6 < 4095 && raw6 != -1) {
+      auto [raw2_val, mv2_val] = read_atten(ADC_ATTEN_DB_2_5);
+      raw2 = raw2_val;
+      mv2 = mv2_val;
+
+      if (raw2 < 4095 && raw2 != -1) {
+        auto [raw0_val, mv0_val] = read_atten(ADC_ATTEN_DB_0);
+        raw0 = raw0_val;
+        mv0 = mv0_val;
       }
     }
   }
@@ -155,19 +323,19 @@ float ADCSensor::sample() {
     return NAN;
   }
 
-  uint32_t mv12 = esp_adc_cal_raw_to_voltage(raw12, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_12_COMPAT]);
-  uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_6]);
-  uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_2_5]);
-  uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_0]);
-
-  uint32_t c12 = std::min(raw12, ADC_HALF);
-  uint32_t c6 = ADC_HALF - std::abs(raw6 - ADC_HALF);
-  uint32_t c2 = ADC_HALF - std::abs(raw2 - ADC_HALF);
-  uint32_t c0 = std::min(ADC_MAX - raw0, ADC_HALF);
+  const int adc_half = 2048;
+  uint32_t c12 = std::min(raw12, adc_half);
+  uint32_t c6 = adc_half - std::abs(raw6 - adc_half);
+  uint32_t c2 = adc_half - std::abs(raw2 - adc_half);
+  uint32_t c0 = std::min(4095 - raw0, adc_half);
   uint32_t csum = c12 + c6 + c2 + c0;
 
-  uint32_t mv_scaled = (mv12 * c12) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
-  return mv_scaled / (float) (csum * 1000U);
+  if (csum == 0) {
+    ESP_LOGE(TAG, "Invalid weight sum in autorange calculation");
+    return NAN;
+  }
+
+  return (mv12 * c12 + mv6 * c6 + mv2 * c2 + mv0 * c0) / csum;
 }
 
 }  // namespace adc

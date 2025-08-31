@@ -3,7 +3,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PORT
 
 CODEOWNERS = ["@ayufan"]
-DEPENDENCIES = ["esp32_camera", "network"]
+AUTO_LOAD = ["camera"]
+DEPENDENCIES = ["network"]
 MULTI_CONF = True
 
 esp32_camera_web_server_ns = cg.esphome_ns.namespace("esp32_camera_web_server")

@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32)
 
 #include <atomic>
 #include <cstddef>
@@ -78,4 +78,4 @@ template<class T, uint8_t SIZE> class EventPool {
 
 }  // namespace esphome
 
-#endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)
+#endif  // defined(USE_ESP32)

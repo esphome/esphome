@@ -314,6 +314,9 @@ void PacketTransport::send_data_(bool all) {
 }
 
 void PacketTransport::update() {
+  if (!this->ping_pong_enable_) {
+    return;
+  }
   auto now = millis() / 1000;
   if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
     this->resend_ping_key_ = this->ping_pong_enable_;

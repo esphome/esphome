@@ -99,7 +99,7 @@ async def test_host_mode_empty_string_options(
         # Wait for initial states with timeout
         try:
             await asyncio.wait_for(states_received_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"Did not receive states for all select entities. "
                 f"Expected keys: {expected_select_keys}, Received: {received_select_keys}"

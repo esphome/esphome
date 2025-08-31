@@ -3,6 +3,9 @@ i2c:
     scl: 16
     sda: 17
 
+esp32:
+  cpu_frequency: 240MHz
+
 display:
   - platform: inkplate6
     id: inkplate_display

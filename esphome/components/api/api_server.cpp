@@ -16,8 +16,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api";
 
@@ -31,7 +30,6 @@ APIServer::APIServer() {
 }
 
 void APIServer::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->setup_controller();
 
 #ifdef USE_API_NOISE
@@ -96,30 +94,30 @@ void APIServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
-      if (this->shutting_down_) {
-        // Don't try to send logs during shutdown
-        // as it could result in a recursion and
-        // we would be filling a buffer we are trying to clear
-        return;
-      }
-      for (auto &c : this->clients_) {
-        if (!c->flags_.remove)
-          c->try_send_log_message(level, tag, message);
-      }
-    });
+    logger::global_logger->add_on_log_callback(
+        [this](int level, const char *tag, const char *message, size_t message_len) {
+          if (this->shutting_down_) {
+            // Don't try to send logs during shutdown
+            // as it could result in a recursion and
+            // we would be filling a buffer we are trying to clear
+            return;
+          }
+          for (auto &c : this->clients_) {
+            if (!c->flags_.remove && c->get_log_subscription_level() >= level)
+              c->try_send_log_message(level, tag, message, message_len);
+          }
+        });
   }
 #endif
 
-#ifdef USE_ESP32_CAMERA
-  if (esp32_camera::global_esp32_camera != nullptr && !esp32_camera::global_esp32_camera->is_internal()) {
-    esp32_camera::global_esp32_camera->add_image_callback(
-        [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
-          for (auto &c : this->clients_) {
-            if (!c->flags_.remove)
-              c->set_camera_state(image);
-          }
-        });
+#ifdef USE_CAMERA
+  if (camera::Camera::instance() != nullptr && !camera::Camera::instance()->is_internal()) {
+    camera::Camera::instance()->add_image_callback([this](const std::shared_ptr<camera::CameraImage> &image) {
+      for (auto &c : this->clients_) {
+        if (!c->flags_.remove)
+          c->set_camera_state(image);
+      }
+    });
   }
 #endif
 }
@@ -185,9 +183,9 @@ void APIServer::loop() {
 
     // Rare case: handle disconnection
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    this->client_disconnected_trigger_->trigger(client->client_info_, client->client_peername_);
+    this->client_disconnected_trigger_->trigger(client->client_info_.name, client->client_info_.peername);
 #endif
-    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.c_str());
+    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name.c_str());
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
@@ -205,22 +203,20 @@ void APIServer::loop() {
 
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "API Server:\n"
+                "Server:\n"
                 "  Address: %s:%u",
                 network::get_use_address().c_str(), this->port_);
 #ifdef USE_API_NOISE
-  ESP_LOGCONFIG(TAG, "  Using noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
+  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
-    ESP_LOGCONFIG(TAG, "  Supports noise encryption: YES");
+    ESP_LOGCONFIG(TAG, "  Supports encryption: YES");
   }
 #else
-  ESP_LOGCONFIG(TAG, "  Using noise encryption: NO");
+  ESP_LOGCONFIG(TAG, "  Noise encryption: NO");
 #endif
 }
 
 #ifdef USE_API_PASSWORD
-bool APIServer::uses_password() const { return !this->password_.empty(); }
-
 bool APIServer::check_password(const std::string &password) const {
   // depend only on input password length
   const char *a = this->password_.c_str();
@@ -253,180 +249,114 @@ bool APIServer::check_password(const std::string &password) const {
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
+// Macro for entities without extra parameters
+#define API_DISPATCH_UPDATE(entity_type, entity_name) \
+  void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+    if (obj->is_internal()) \
+      return; \
+    for (auto &c : this->clients_) \
+      c->send_##entity_name##_state(obj); \
+  }
+
+// Macro for entities with extra parameters (but parameters not used in send)
+#define API_DISPATCH_UPDATE_IGNORE_PARAMS(entity_type, entity_name, ...) \
+  void APIServer::on_##entity_name##_update(entity_type *obj, __VA_ARGS__) { /* NOLINT(bugprone-macro-parentheses) */ \
+    if (obj->is_internal()) \
+      return; \
+    for (auto &c : this->clients_) \
+      c->send_##entity_name##_state(obj); \
+  }
+
 #ifdef USE_BINARY_SENSOR
-void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_binary_sensor_state(obj);
-}
+API_DISPATCH_UPDATE(binary_sensor::BinarySensor, binary_sensor)
 #endif
 
 #ifdef USE_COVER
-void APIServer::on_cover_update(cover::Cover *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_cover_state(obj);
-}
+API_DISPATCH_UPDATE(cover::Cover, cover)
 #endif
 
 #ifdef USE_FAN
-void APIServer::on_fan_update(fan::Fan *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_fan_state(obj);
-}
+API_DISPATCH_UPDATE(fan::Fan, fan)
 #endif
 
 #ifdef USE_LIGHT
-void APIServer::on_light_update(light::LightState *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_light_state(obj);
-}
+API_DISPATCH_UPDATE(light::LightState, light)
 #endif
 
 #ifdef USE_SENSOR
-void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_sensor_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(sensor::Sensor, sensor, float state)
 #endif
 
 #ifdef USE_SWITCH
-void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_switch_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(switch_::Switch, switch, bool state)
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_text_sensor_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(text_sensor::TextSensor, text_sensor, const std::string &state)
 #endif
 
 #ifdef USE_CLIMATE
-void APIServer::on_climate_update(climate::Climate *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_climate_state(obj);
-}
+API_DISPATCH_UPDATE(climate::Climate, climate)
 #endif
 
 #ifdef USE_NUMBER
-void APIServer::on_number_update(number::Number *obj, float state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_number_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(number::Number, number, float state)
 #endif
 
 #ifdef USE_DATETIME_DATE
-void APIServer::on_date_update(datetime::DateEntity *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_date_state(obj);
-}
+API_DISPATCH_UPDATE(datetime::DateEntity, date)
 #endif
 
 #ifdef USE_DATETIME_TIME
-void APIServer::on_time_update(datetime::TimeEntity *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_time_state(obj);
-}
+API_DISPATCH_UPDATE(datetime::TimeEntity, time)
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-void APIServer::on_datetime_update(datetime::DateTimeEntity *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_datetime_state(obj);
-}
+API_DISPATCH_UPDATE(datetime::DateTimeEntity, datetime)
 #endif
 
 #ifdef USE_TEXT
-void APIServer::on_text_update(text::Text *obj, const std::string &state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_text_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(text::Text, text, const std::string &state)
 #endif
 
 #ifdef USE_SELECT
-void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_select_state(obj);
-}
+API_DISPATCH_UPDATE_IGNORE_PARAMS(select::Select, select, const std::string &state, size_t index)
 #endif
 
 #ifdef USE_LOCK
-void APIServer::on_lock_update(lock::Lock *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_lock_state(obj);
-}
+API_DISPATCH_UPDATE(lock::Lock, lock)
 #endif
 
 #ifdef USE_VALVE
-void APIServer::on_valve_update(valve::Valve *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_valve_state(obj);
-}
+API_DISPATCH_UPDATE(valve::Valve, valve)
 #endif
 
 #ifdef USE_MEDIA_PLAYER
-void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_media_player_state(obj);
-}
+API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif
 
 #ifdef USE_EVENT
+// Event is a special case - it's the only entity that passes extra parameters to the send method
 void APIServer::on_event(event::Event *obj, const std::string &event_type) {
+  if (obj->is_internal())
+    return;
   for (auto &c : this->clients_)
     c->send_event(obj, event_type);
 }
 #endif
 
 #ifdef USE_UPDATE
+// Update is a special case - the method is called on_update, not on_update_update
 void APIServer::on_update(update::UpdateEntity *obj) {
+  if (obj->is_internal())
+    return;
   for (auto &c : this->clients_)
     c->send_update_state(obj);
 }
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_alarm_control_panel_state(obj);
-}
+API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
 
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
@@ -439,12 +369,15 @@ void APIServer::set_password(const std::string &password) { this->password_ = pa
 
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
   for (auto &client : this->clients_) {
     client->send_homeassistant_service_call(call);
   }
 }
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
@@ -468,6 +401,7 @@ void APIServer::get_home_assistant_state(std::string entity_id, optional<std::st
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
 }
+#endif
 
 uint16_t APIServer::get_port() const { return this->port_; }
 
@@ -494,10 +428,11 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   ESP_LOGD(TAG, "Noise PSK saved");
   if (make_active) {
     this->set_timeout(100, [this, psk]() {
-      ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
+      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       this->set_noise_psk(psk);
       for (auto &c : this->clients_) {
-        c->send_message(DisconnectRequest());
+        DisconnectRequest req;
+        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
       }
     });
   }
@@ -530,10 +465,12 @@ void APIServer::on_shutdown() {
 
   // Send disconnect requests to all connected clients
   for (auto &c : this->clients_) {
-    if (!c->send_message(DisconnectRequest())) {
+    DisconnectRequest req;
+    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE);
+      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
+                                 DisconnectRequest::ESTIMATED_SIZE);
     }
   }
 }
@@ -549,6 +486,5 @@ bool APIServer::teardown() {
   return this->clients_.empty();
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

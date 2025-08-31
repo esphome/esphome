@@ -22,7 +22,6 @@ static const size_t SERIAL_NUMBER_LENGTH = 8;
 static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
 
 void SPS30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->write_command(SPS30_CMD_SOFT_RESET);
   /// Deferred Sensor initialization
   this->set_timeout(500, [this]() {

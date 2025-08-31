@@ -87,12 +87,12 @@ class TabviewType(WidgetType):
             ) as content_obj:
                 await set_obj_properties(Widget(content_obj, obj_spec), content_style)
 
-    def obj_creator(self, parent: MockObjClass, config: dict):
+    async def obj_creator(self, parent: MockObjClass, config: dict):
         return lv_expr.call(
             "tabview_create",
             parent,
-            literal(config[CONF_POSITION]),
-            literal(config[CONF_SIZE]),
+            await DIRECTIONS.process(config[CONF_POSITION]),
+            await size.process(config[CONF_SIZE]),
         )
 
 

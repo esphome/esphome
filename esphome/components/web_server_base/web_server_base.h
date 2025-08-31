@@ -41,6 +41,7 @@ class MiddlewareHandler : public AsyncWebHandler {
   AsyncWebHandler *next_;
 };
 
+#ifdef USE_WEBSERVER_AUTH
 struct Credentials {
   std::string username;
   std::string password;
@@ -79,6 +80,7 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
  protected:
   Credentials *credentials_;
 };
+#endif
 
 }  // namespace internal
 
@@ -108,8 +110,10 @@ class WebServerBase : public Component {
   std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
   float get_setup_priority() const override;
 
+#ifdef USE_WEBSERVER_AUTH
   void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
   void set_auth_password(std::string auth_password) { credentials_.password = std::move(auth_password); }
+#endif
 
   void add_handler(AsyncWebHandler *handler);
 
@@ -121,7 +125,9 @@ class WebServerBase : public Component {
   uint16_t port_{80};
   std::shared_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
+#ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;
+#endif
 };
 
 }  // namespace web_server_base

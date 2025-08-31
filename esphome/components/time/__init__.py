@@ -6,6 +6,7 @@ import tzlocal
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
@@ -25,11 +26,11 @@ from esphome.const import (
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace("time")
@@ -235,7 +236,7 @@ def validate_time_at(value):
 
 def validate_cron_keys(value):
     if CONF_CRON in value:
-        for key in value.keys():
+        for key in value:
             if key in CRON_KEYS:
                 raise cv.Invalid(f"Cannot use option {key} when cron: is specified.")
         if CONF_AT in value:
@@ -245,7 +246,7 @@ def validate_cron_keys(value):
         value.update(cron_)
         return value
     if CONF_AT in value:
-        for key in value.keys():
+        for key in value:
             if key in CRON_KEYS:
                 raise cv.Invalid(f"Cannot use option {key} when at: is specified.")
         at_ = value[CONF_AT]
@@ -341,6 +342,8 @@ async def register_time(time_var, config):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("POSIX_CLOCK", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 
