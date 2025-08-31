@@ -69,7 +69,7 @@ P4_ENCODER_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_BUFFER_SIZE, default=10240): cv.int_range(
             1024, MAX_JPEG_BUFFER_SIZE_2MB
-        ),      
+        ),
         cv.GenerateID(CONF_ENCODER_BUFFER_ID): cv.declare_id(ESP32P4EncoderBuffer),
     },
 )
