@@ -20,8 +20,8 @@ CONF_SCROLL_DWELL = "scroll_dwell"
 CONF_SCROLL_DELAY = "scroll_delay"
 CONF_SECONDARY_DISPLAYS = "secondary_displays"
 
-CONF_CHAR_TO_ADD = "add_characters"
-CONF_CHAR_TO_REMOVE = "remove_characters"
+CONF_ADD_CHARACTERS = "add_characters"
+CONF_REMOVE_CHARACTERS = "remove_characters"
 
 CONFIG_SECONDARY = cv.Schema({cv.GenerateID(): cv.declare_id(i2c.I2CDevice)}).extend(
     i2c.i2c_device_schema(None)
@@ -62,10 +62,10 @@ def format_14seg_flip(input_code):
 
 def format_14seg_sparkfun(input_code):
     tempval = ((input_code & 0xFF80) << 1) | (input_code & 0x7F)
-    if ((tempval & 0x1000) != 0x0000) and not ((tempval & 0x4000) != 0x0000):
+    if ((tempval & 0x1000) != 0x0000) and ((tempval & 0x4000) == 0x0000):
         # Segment L is lit, need to switch to segment N
         tempval = (tempval | 0x4000) & ~(0x1000)
-    elif ((tempval & 0x4000) != 0x0000) and not ((tempval & 0x1000) != 0x0000):
+    elif ((tempval & 0x4000) != 0x0000) and ((tempval & 0x1000) == 0x0000):
         # Segment N is lit, need to switch to segment L
         tempval = (tempval | 0x1000) & ~(0x4000)
     return tempval
@@ -143,8 +143,8 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SCROLL_DELAY, default="5s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_CHAR_TO_ADD): cv.valid,
-            cv.Optional(CONF_CHAR_TO_REMOVE): cv.ensure_list(),
+            cv.Optional(CONF_ADD_CHARACTERS): cv.valid,
+            cv.Optional(CONF_REMOVE_CHARACTERS): cv.ensure_list(),
         }
     )
     .extend(cv.polling_component_schema("10s"))
@@ -186,8 +186,8 @@ async def to_code(config):
             await i2c.register_i2c_device(disp, conf)
             cg.add(var.add_secondary_display(disp))
 
-    if CONF_CHAR_TO_ADD in config:
-        for char_to_add, value_to_add in config[CONF_CHAR_TO_ADD].items():
+    if CONF_ADD_CHARACTERS in config:
+        for char_to_add, value_to_add in config[CONF_ADD_CHARACTERS].items():
             cg.add(
                 var.add_char(
                     char_to_add,
@@ -197,6 +197,6 @@ async def to_code(config):
                 )
             )
 
-    if CONF_CHAR_TO_REMOVE in config:
-        for char_to_remove in config[CONF_CHAR_TO_REMOVE]:
+    if CONF_REMOVE_CHARACTERS in config:
+        for char_to_remove in config[CONF_REMOVE_CHARACTERS]:
             cg.add(var.remove_char(char_to_remove))
