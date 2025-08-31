@@ -98,7 +98,7 @@ uint8_t Sparkfun14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position
     }
   }
 
-  display->write(this->buffer_, 16, true);
+  display->write(this->buffer_, 16);
   return char_buffer_location;
 }
 
@@ -184,7 +184,7 @@ uint8_t Sparkfun14SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t posi
     }
   }
 
-  display->write(this->buffer_, 16, true);
+  display->write(this->buffer_, 16);
   return char_buffer_location;
 }
 
