@@ -20,6 +20,9 @@ CONF_SCROLL_DWELL = "scroll_dwell"
 CONF_SCROLL_DELAY = "scroll_delay"
 CONF_SECONDARY_DISPLAYS = "secondary_displays"
 
+CONF_CHAR_TO_ADD = "add_characters"
+CONF_CHAR_TO_REMOVE = "remove_characters"
+
 CONFIG_SECONDARY = cv.Schema({cv.GenerateID(): cv.declare_id(i2c.I2CDevice)}).extend(
     i2c.i2c_device_schema(None)
 )
@@ -28,6 +31,58 @@ HT16k33Char_BaseClassType = ht16k33_char_ns.class_(
     "HT16k33CharComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
+
+# Formatting functions. These functions convert the input character codes to the proper format for the various devices.
+def format_none(input_code):
+    return input_code
+
+
+def format_7seg_flip(input_code):
+    return (
+        ((input_code & 0x0007) << 3)
+        | ((input_code & 0x0038) >> 3)
+        | (input_code & 0x0040)
+    )
+
+
+def format_14seg_flip(input_code):
+    return (
+        ((input_code & 0x0007) << 3)
+        | ((input_code & 0x0038) >> 3)
+        | ((input_code & 0x0040) << 1)
+        | ((input_code & 0x0080) >> 1)
+        | ((input_code & 0x0100) << 5)
+        | ((input_code & 0x0200) << 3)
+        | ((input_code & 0x0400) << 1)
+        | ((input_code & 0x0800) >> 1)
+        | ((input_code & 0x1000) >> 3)
+        | ((input_code & 0x2000) >> 5)
+    )
+
+
+def format_14seg_sparkfun(input_code):
+    tempval = ((input_code & 0xFF80) << 1) | (input_code & 0x7F)
+    if ((tempval & 0x1000) != 0x0000) and not ((tempval & 0x4000) != 0x0000):
+        # Segment L is lit, need to switch to segment N
+        tempval = (tempval | 0x4000) & ~(0x1000)
+    elif ((tempval & 0x4000) != 0x0000) and not ((tempval & 0x1000) != 0x0000):
+        # Segment N is lit, need to switch to segment L
+        tempval = (tempval | 0x1000) & ~(0x4000)
+    return tempval
+
+
+def format_14seg_sparkfun_flip(input_code):
+    tempval = format_14seg_sparkfun(input_code)
+    return (
+        ((tempval & 0x0007) << 3)
+        | ((tempval & 0x0038) >> 3)
+        | ((tempval & 0x0E00) << 3)
+        | ((tempval & 0x7000) >> 3)
+        | ((tempval & 0x0040) << 2)
+        | ((tempval & 0x0100) >> 2)
+    )
+
+
 # A dictionary for supported device types:
 #  -The key is what the user would put in the YAML file to select this device.
 #  -The value is a dictionary that contains the keys:
@@ -35,27 +90,35 @@ HT16k33Char_BaseClassType = ht16k33_char_ns.class_(
 HT16K33_DEVICE_TYPES = {
     "ADAFRUIT_7SEGMENT_1.2IN": {
         "CLASS_NAME": "Adafruit7SegLarge",
+        "FORMAT_FUNCTION": format_none,
     },
     "ADAFRUIT_7SEGMENT_1.2IN_FLIPPED": {
         "CLASS_NAME": "Adafruit7SegLargeFlip",
+        "FORMAT_FUNCTION": format_7seg_flip,
     },
     "ADAFRUIT_7SEGMENT_.56IN": {
         "CLASS_NAME": "Adafruit7Seg",
+        "FORMAT_FUNCTION": format_none,
     },
     "ADAFRUIT_7SEGMENT_.56IN_FLIPPED": {
         "CLASS_NAME": "Adafruit7SegFlip",
+        "FORMAT_FUNCTION": format_7seg_flip,
     },
     "ADAFRUIT_14_SEG": {
         "CLASS_NAME": "Adafruit14Seg",
+        "FORMAT_FUNCTION": format_none,
     },
     "ADAFRUIT_14_SEG_FLIPPED": {
         "CLASS_NAME": "Adafruit14SegFlip",
+        "FORMAT_FUNCTION": format_14seg_flip,
     },
     "SPARKFUN_14_SEG": {
         "CLASS_NAME": "Sparkfun14Seg",
+        "FORMAT_FUNCTION": format_14seg_sparkfun,
     },
     "SPARKFUN_14_SEG_FLIPPED": {
         "CLASS_NAME": "Sparkfun14SegFlip",
+        "FORMAT_FUNCTION": format_14seg_sparkfun_flip,
     },
 }
 
@@ -80,6 +143,8 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SCROLL_DELAY, default="5s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_CHAR_TO_ADD): cv.valid,
+            cv.Optional(CONF_CHAR_TO_REMOVE): cv.ensure_list(),
         }
     )
     .extend(cv.polling_component_schema("10s"))
@@ -120,3 +185,18 @@ async def to_code(config):
             disp = cg.new_Pvariable(conf[CONF_ID])
             await i2c.register_i2c_device(disp, conf)
             cg.add(var.add_secondary_display(disp))
+
+    if CONF_CHAR_TO_ADD in config:
+        for char_to_add, value_to_add in config[CONF_CHAR_TO_ADD].items():
+            cg.add(
+                var.add_char(
+                    char_to_add,
+                    HT16K33_DEVICE_TYPES[config[CONF_DEVICE]]["FORMAT_FUNCTION"](
+                        value_to_add
+                    ),
+                )
+            )
+
+    if CONF_CHAR_TO_REMOVE in config:
+        for char_to_remove in config[CONF_CHAR_TO_REMOVE]:
+            cg.add(var.remove_char(char_to_remove))

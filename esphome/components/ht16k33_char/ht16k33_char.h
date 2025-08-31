@@ -40,6 +40,9 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
   uint8_t update_display();
 
+  void add_char(const char* char_to_add, uint16_t char_code) { this->char_map_[char_to_add[0]] = char_code; };
+  void remove_char(const char* char_to_remove) { this->char_map_.erase(char_to_remove[0]); };
+
   // This needs to have the stub or it won't work. This function is replaced by the device specific functions in
   // the subclasses.
   virtual uint8_t send_to_display(i2c::I2CDevice *display, uint8_t position) { return 0; };
@@ -83,6 +86,8 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
 
  protected:
+  std::unordered_map<char, uint16_t> char_map_ = {{' ', 0b0000000000000000}};
+
   uint8_t scroll_state_;
 
   std::vector<i2c::I2CDevice *> displays_{this};
