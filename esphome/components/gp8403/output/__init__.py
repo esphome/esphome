@@ -1,10 +1,9 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-
 from esphome.components import i2c, output
-from esphome.const import CONF_ID, CONF_CHANNEL
+import esphome.config_validation as cv
+from esphome.const import CONF_CHANNEL, CONF_ID
 
-from .. import gp8403_ns, GP8403, CONF_GP8403_ID
+from .. import CONF_GP8403_ID, GP8403, gp8403_ns
 
 DEPENDENCIES = ["gp8403"]
 

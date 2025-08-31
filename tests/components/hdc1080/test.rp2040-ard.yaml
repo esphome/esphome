@@ -1,12 +1,5 @@
-i2c:
-  - id: i2c_hdc1080
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: hdc1080
-    temperature:
-      name: Temperature
-    humidity:
-      name: Humidity
-    update_interval: 15s
+<<: !include common.yaml

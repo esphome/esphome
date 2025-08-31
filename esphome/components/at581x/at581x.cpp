@@ -71,19 +71,22 @@ bool AT581XComponent::i2c_read_reg(uint8_t addr, uint8_t &data) {
   return this->read_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
 }
 
-void AT581XComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up AT581X..."); }
+void AT581XComponent::setup() {}
 void AT581XComponent::dump_config() { LOG_I2C_DEVICE(this); }
 #define ARRAY_SIZE(X) (sizeof(X) / sizeof((X)[0]))
 bool AT581XComponent::i2c_write_config() {
-  ESP_LOGCONFIG(TAG, "Writing new config for AT581X...");
-  ESP_LOGCONFIG(TAG, "Frequency: %dMHz", this->freq_);
-  ESP_LOGCONFIG(TAG, "Sensing distance: %d", this->delta_);
-  ESP_LOGCONFIG(TAG, "Power: %dµA", this->power_);
-  ESP_LOGCONFIG(TAG, "Gain: %d", this->gain_);
-  ESP_LOGCONFIG(TAG, "Trigger base time: %dms", this->trigger_base_time_ms_);
-  ESP_LOGCONFIG(TAG, "Trigger keep time: %dms", this->trigger_keep_time_ms_);
-  ESP_LOGCONFIG(TAG, "Protect time: %dms", this->protect_time_ms_);
-  ESP_LOGCONFIG(TAG, "Self check time: %dms", this->self_check_time_ms_);
+  ESP_LOGCONFIG(TAG,
+                "Writing new config for AT581X\n"
+                "Frequency: %dMHz\n"
+                "Sensing distance: %d\n"
+                "Power: %dµA\n"
+                "Gain: %d\n"
+                "Trigger base time: %dms\n"
+                "Trigger keep time: %dms\n"
+                "Protect time: %dms\n"
+                "Self check time: %dms",
+                this->freq_, this->delta_, this->power_, this->gain_, this->trigger_base_time_ms_,
+                this->trigger_keep_time_ms_, this->protect_time_ms_, this->self_check_time_ms_);
 
   // Set frequency point
   if (!this->i2c_write_reg(FREQ_ADDR, GAIN61_VALUE)) {

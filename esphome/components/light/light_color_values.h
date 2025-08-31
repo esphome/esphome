@@ -36,7 +36,7 @@ inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roun
  *   range as set in the traits, so the output needs to do this.
  *
  * For COLD_WARM_WHITE capability:
- * - cold_white, warm_white: The brightness of the cald and warm white channels of the light.
+ * - cold_white, warm_white: The brightness of the light's cold and warm white channels.
  *
  * All values (except color temperature) are represented using floats in the range 0.0 (off) to 1.0 (on), and are
  * automatically clamped to this range. Properties not used in the current color mode can still have (invalid) values
@@ -46,8 +46,7 @@ class LightColorValues {
  public:
   /// Construct the LightColorValues with all attributes enabled, but state set to off.
   LightColorValues()
-      : color_mode_(ColorMode::UNKNOWN),
-        state_(0.0f),
+      : state_(0.0f),
         brightness_(1.0f),
         color_brightness_(1.0f),
         red_(1.0f),
@@ -56,7 +55,8 @@ class LightColorValues {
         white_(1.0f),
         color_temperature_{0.0f},
         cold_white_{1.0f},
-        warm_white_{1.0f} {}
+        warm_white_{1.0f},
+        color_mode_(ColorMode::UNKNOWN) {}
 
   LightColorValues(ColorMode color_mode, float state, float brightness, float color_brightness, float red, float green,
                    float blue, float white, float color_temperature, float cold_white, float warm_white) {
@@ -84,18 +84,23 @@ class LightColorValues {
    * @return The linearly interpolated LightColorValues.
    */
   static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion) {
+    // Directly interpolate the raw values to avoid getter/setter overhead.
+    // This is safe because:
+    // - All LightColorValues have their values clamped when set via the setters
+    // - std::lerp guarantees output is in the same range as inputs
+    // - Therefore the output doesn't need clamping, so we can skip the setters
     LightColorValues v;
-    v.set_color_mode(end.color_mode_);
-    v.set_state(esphome::lerp(completion, start.get_state(), end.get_state()));
-    v.set_brightness(esphome::lerp(completion, start.get_brightness(), end.get_brightness()));
-    v.set_color_brightness(esphome::lerp(completion, start.get_color_brightness(), end.get_color_brightness()));
-    v.set_red(esphome::lerp(completion, start.get_red(), end.get_red()));
-    v.set_green(esphome::lerp(completion, start.get_green(), end.get_green()));
-    v.set_blue(esphome::lerp(completion, start.get_blue(), end.get_blue()));
-    v.set_white(esphome::lerp(completion, start.get_white(), end.get_white()));
-    v.set_color_temperature(esphome::lerp(completion, start.get_color_temperature(), end.get_color_temperature()));
-    v.set_cold_white(esphome::lerp(completion, start.get_cold_white(), end.get_cold_white()));
-    v.set_warm_white(esphome::lerp(completion, start.get_warm_white(), end.get_warm_white()));
+    v.color_mode_ = end.color_mode_;
+    v.state_ = std::lerp(start.state_, end.state_, completion);
+    v.brightness_ = std::lerp(start.brightness_, end.brightness_, completion);
+    v.color_brightness_ = std::lerp(start.color_brightness_, end.color_brightness_, completion);
+    v.red_ = std::lerp(start.red_, end.red_, completion);
+    v.green_ = std::lerp(start.green_, end.green_, completion);
+    v.blue_ = std::lerp(start.blue_, end.blue_, completion);
+    v.white_ = std::lerp(start.white_, end.white_, completion);
+    v.color_temperature_ = std::lerp(start.color_temperature_, end.color_temperature_, completion);
+    v.cold_white_ = std::lerp(start.cold_white_, end.cold_white_, completion);
+    v.warm_white_ = std::lerp(start.warm_white_, end.warm_white_, completion);
     return v;
   }
 
@@ -292,7 +297,6 @@ class LightColorValues {
   void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
 
  protected:
-  ColorMode color_mode_;
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
   float color_brightness_;
@@ -303,6 +307,7 @@ class LightColorValues {
   float color_temperature_;  ///< Color Temperature in Mired
   float cold_white_;
   float warm_white_;
+  ColorMode color_mode_;
 };
 
 }  // namespace light

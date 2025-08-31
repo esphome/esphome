@@ -23,10 +23,6 @@ if bashio::config.true 'streamer_mode'; then
     export ESPHOME_STREAMER_MODE=true
 fi
 
-if bashio::config.true 'status_use_ping'; then
-    export ESPHOME_DASHBOARD_USE_PING=true
-fi
-
 if bashio::config.has_value 'relative_url'; then
     export ESPHOME_DASHBOARD_RELATIVE_URL=$(bashio::config 'relative_url')
 fi

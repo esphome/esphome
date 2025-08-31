@@ -1,13 +1,7 @@
-spi:
-  - id: spi_max31865
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+  miso_pin: GPIO15
+  cs_pin: GPIO5
 
-sensor:
-  - platform: max31865
-    name: MAX31865 Temperature
-    cs_pin: 12
-    update_interval: 15s
-    reference_resistance: 430 Ω
-    rtd_nominal_resistance: 100 Ω
+<<: !include common.yaml

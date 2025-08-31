@@ -1,14 +1,6 @@
-binary_sensor:
-  - platform: gpio
-    pin: 2
-    id: gpio_binary_sensor
+substitutions:
+  binary_sensor_pin: GPIO2
+  output_pin: GPIO3
+  switch_pin: GPIO4
 
-output:
-  - platform: gpio
-    pin: 3
-    id: gpio_output
-
-switch:
-  - platform: gpio
-    pin: 4
-    id: gpio_switch
+<<: !include common.yaml

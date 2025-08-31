@@ -13,8 +13,10 @@ static const float MAX_VOLTAGE = 4.0f;
 
 void GP2Y1010AU0FSensor::dump_config() {
   LOG_SENSOR("", "Sharp GP2Y1010AU0F PM2.5 Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Sampling duration: %" PRId32 " ms", this->sample_duration_);
-  ESP_LOGCONFIG(TAG, "  ADC voltage multiplier: %.3f", this->voltage_multiplier_);
+  ESP_LOGCONFIG(TAG,
+                "  Sampling duration: %" PRId32 " ms\n"
+                "  ADC voltage multiplier: %.3f",
+                this->sample_duration_, this->voltage_multiplier_);
   LOG_UPDATE_INTERVAL(this);
 }
 

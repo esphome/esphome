@@ -1,6 +1,6 @@
 #include "ssd1331_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ssd1331_base {

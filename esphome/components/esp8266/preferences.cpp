@@ -12,7 +12,7 @@ extern "C" {
 #include "preferences.h"
 
 #include <cstring>
-#include <vector>
+#include <memory>
 
 namespace esphome {
 namespace esp8266 {
@@ -66,6 +66,8 @@ static uint32_t get_esp8266_flash_sector() {
   return (data.uint - 0x40200000) / SPI_FLASH_SEC_SIZE;
 }
 static uint32_t get_esp8266_flash_address() { return get_esp8266_flash_sector() * SPI_FLASH_SEC_SIZE; }
+
+static inline size_t bytes_to_words(size_t bytes) { return (bytes + 3) / 4; }
 
 template<class It> uint32_t calculate_crc(It first, It last, uint32_t type) {
   uint32_t crc = type;
@@ -123,41 +125,36 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
   size_t length_words = 0;
 
   bool save(const uint8_t *data, size_t len) override {
-    if ((len + 3) / 4 != length_words) {
+    if (bytes_to_words(len) != length_words) {
       return false;
     }
-    std::vector<uint32_t> buffer;
-    buffer.resize(length_words + 1);
-    memcpy(buffer.data(), data, len);
-    buffer[buffer.size() - 1] = calculate_crc(buffer.begin(), buffer.end() - 1, type);
+    size_t buffer_size = length_words + 1;
+    std::unique_ptr<uint32_t[]> buffer(new uint32_t[buffer_size]());  // Note the () for zero-initialization
+    memcpy(buffer.get(), data, len);
+    buffer[length_words] = calculate_crc(buffer.get(), buffer.get() + length_words, type);
 
     if (in_flash) {
-      return save_to_flash(offset, buffer.data(), buffer.size());
-    } else {
-      return save_to_rtc(offset, buffer.data(), buffer.size());
+      return save_to_flash(offset, buffer.get(), buffer_size);
     }
+    return save_to_rtc(offset, buffer.get(), buffer_size);
   }
   bool load(uint8_t *data, size_t len) override {
-    if ((len + 3) / 4 != length_words) {
+    if (bytes_to_words(len) != length_words) {
       return false;
     }
-    std::vector<uint32_t> buffer;
-    buffer.resize(length_words + 1);
-    bool ret;
-    if (in_flash) {
-      ret = load_from_flash(offset, buffer.data(), buffer.size());
-    } else {
-      ret = load_from_rtc(offset, buffer.data(), buffer.size());
-    }
+    size_t buffer_size = length_words + 1;
+    std::unique_ptr<uint32_t[]> buffer(new uint32_t[buffer_size]());
+    bool ret = in_flash ? load_from_flash(offset, buffer.get(), buffer_size)
+                        : load_from_rtc(offset, buffer.get(), buffer_size);
     if (!ret)
       return false;
 
-    uint32_t crc = calculate_crc(buffer.begin(), buffer.end() - 1, type);
-    if (buffer[buffer.size() - 1] != crc) {
+    uint32_t crc = calculate_crc(buffer.get(), buffer.get() + length_words, type);
+    if (buffer[length_words] != crc) {
       return false;
     }
 
-    memcpy(data, buffer.data(), len);
+    memcpy(data, buffer.get(), len);
     return true;
   }
 };
@@ -169,7 +166,7 @@ class ESP8266Preferences : public ESPPreferences {
 
   void setup() {
     s_flash_storage = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT
-    ESP_LOGVV(TAG, "Loading preferences from flash...");
+    ESP_LOGVV(TAG, "Loading preferences from flash");
 
     {
       InterruptLock lock;
@@ -178,7 +175,7 @@ class ESP8266Preferences : public ESPPreferences {
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
-    uint32_t length_words = (length + 3) / 4;
+    uint32_t length_words = bytes_to_words(length);
     if (in_flash) {
       uint32_t start = current_flash_offset;
       uint32_t end = start + length_words + 1;
@@ -235,7 +232,7 @@ class ESP8266Preferences : public ESPPreferences {
     if (s_prevent_write)
       return false;
 
-    ESP_LOGD(TAG, "Saving preferences to flash...");
+    ESP_LOGD(TAG, "Saving");
     SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
     {
       InterruptLock lock;
@@ -245,11 +242,11 @@ class ESP8266Preferences : public ESPPreferences {
       }
     }
     if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Erasing failed");
       return false;
     }
     if (write_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Write ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Writing failed");
       return false;
     }
 
@@ -258,14 +255,14 @@ class ESP8266Preferences : public ESPPreferences {
   }
 
   bool reset() override {
-    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    ESP_LOGD(TAG, "Erasing storage");
     SpiFlashOpResult erase_res;
     {
       InterruptLock lock;
       erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
     }
     if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Erasing failed");
       return false;
     }
 

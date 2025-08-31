@@ -1,0 +1,28 @@
+spi:
+  - id: spi_max7219digit
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}
+
+display:
+  - platform: max7219digit
+    cs_pin: ${cs_pin}
+    num_chips: 4
+    rotate_chip: 0
+    intensity: 10
+    scroll_mode: STOP
+    id: my_matrix
+    lambda: |-
+      it.printdigit("hello");
+
+esphome:
+  on_boot:
+    - priority: 100
+      then:
+        - max7129digit.invert_off:
+        - max7129digit.invert_on:
+        - max7129digit.turn_on:
+        - max7129digit.turn_off:
+        - max7129digit.reverse_on:
+        - max7129digit.reverse_off:
+        - max7129digit.intensity: 10

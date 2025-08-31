@@ -88,10 +88,7 @@ def recv_decode(sock, amount, decode=True):
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):
-    if decode:
-        data = []
-    else:
-        data = b""
+    data = [] if decode else b""
 
     try:
         data += recv_decode(sock, 1, decode=decode)
@@ -249,6 +246,9 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
+    # Set higher timeout during upload
+    sock.settimeout(30.0)
+
     upload_size = len(upload_contents)
     upload_size_encoded = [
         (upload_size >> 24) & 0xFF,
@@ -271,8 +271,6 @@ def perform_ota(
     # show the actual progress
 
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
-    # Set higher timeout during upload
-    sock.settimeout(30.0)
     start_time = time.perf_counter()
 
     offset = 0

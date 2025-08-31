@@ -1,0 +1,4 @@
+package_result:
+  - The value of A*B is ${A * B}, where A is a package var and B is a substitution in the root file
+  - Double substitution also works; the value of var7 is ${var$A}, where A is a package var
+  - key${var7}: Key should substitute to key79

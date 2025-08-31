@@ -36,20 +36,21 @@ DROPDOWN_BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_SYMBOL): lv_text,
         cv.Exclusive(CONF_SELECTED_INDEX, CONF_SELECTED_TEXT): lv_int,
         cv.Exclusive(CONF_SELECTED_TEXT, CONF_SELECTED_TEXT): lv_text,
-        cv.Optional(CONF_DIR, default="BOTTOM"): DIRECTIONS.one_of,
-        cv.Optional(CONF_DROPDOWN_LIST): part_schema(dropdown_list_spec),
+        cv.Optional(CONF_DROPDOWN_LIST): part_schema(dropdown_list_spec.parts),
     }
 )
 
 DROPDOWN_SCHEMA = DROPDOWN_BASE_SCHEMA.extend(
     {
         cv.Required(CONF_OPTIONS): cv.ensure_list(option_string),
+        cv.Optional(CONF_DIR, default="BOTTOM"): DIRECTIONS.one_of,
     }
 )
 
 DROPDOWN_UPDATE_SCHEMA = DROPDOWN_BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_OPTIONS): cv.ensure_list(option_string),
+        cv.Optional(CONF_DIR): DIRECTIONS.one_of,
     }
 )
 

@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER
-from .. import mcp3204_ns, MCP3204
+
+from .. import MCP3204, mcp3204_ns
 
 AUTO_LOAD = ["voltage_sampler"]
 

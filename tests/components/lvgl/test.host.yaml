@@ -7,7 +7,6 @@ display:
       height: 320
   - platform: sdl
     id: sdl1
-    auto_clear_enabled: false
     dimensions:
       width: 480
       height: 480
@@ -40,4 +39,3 @@ lvgl:
                 text: Click ME
           on_click:
             logger.log: Clicked
-

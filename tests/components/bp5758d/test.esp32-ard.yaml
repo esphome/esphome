@@ -1,25 +1,5 @@
-bp5758d:
-  clock_pin: 16
-  data_pin: 17
+substitutions:
+  clock_pin: GPIO16
+  data_pin: GPIO17
 
-output:
-  - platform: bp5758d
-    id: bp5758d_red
-    channel: 2
-    current: 10
-  - platform: bp5758d
-    id: bp5758d_green
-    channel: 3
-    current: 10
-  - platform: bp5758d
-    id: bp5758d_blue
-    channel: 1
-    current: 10
-  - platform: bp5758d
-    id: bp5758d_coldwhite
-    channel: 5
-    current: 10
-  - platform: bp5758d
-    id: bp5758d_warmwhite
-    channel: 4
-    current: 10
+<<: !include common.yaml

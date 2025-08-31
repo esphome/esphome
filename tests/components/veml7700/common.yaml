@@ -1,3 +1,8 @@
+i2c:
+  - id: i2c_veml7700
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
 sensor:
   - platform: veml7700
     address: 0x10

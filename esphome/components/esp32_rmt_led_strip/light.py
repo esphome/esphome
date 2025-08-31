@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32_rmt, light
+from esphome.components import esp32, light
+from esphome.components.const import CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -12,9 +14,11 @@ from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_PIN,
     CONF_RGB_ORDER,
-    CONF_RMT_CHANNEL,
     CONF_RMT_SYMBOLS,
+    CONF_USE_DMA,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
@@ -54,7 +58,6 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
-CONF_USE_PSRAM = "use_psram"
 CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
@@ -64,13 +67,6 @@ CONF_RESET_HIGH = "reset_high"
 CONF_RESET_LOW = "reset_low"
 
 
-def final_validation(config):
-    if not esp32_rmt.use_new_rmt_driver() and CONF_RMT_CHANNEL not in config:
-        raise cv.Invalid("rmt_channel is a required option.")
-
-
-FINAL_VALIDATE_SCHEMA = final_validation
-
 CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
@@ -78,22 +74,27 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
-            cv.Optional(CONF_RMT_CHANNEL): cv.All(
-                cv.only_with_arduino, esp32_rmt.validate_rmt_channel(tx=True)
-            ),
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
-                esp32_idf=64,
-                esp32_s2_idf=64,
-                esp32_s3_idf=48,
-                esp32_c3_idf=48,
-                esp32_c6_idf=48,
-                esp32_h2_idf=48,
-            ): cv.All(cv.only_with_esp_idf, cv.int_range(min=2)),
+                esp32=192,
+                esp32_s2=192,
+                esp32_s3=192,
+                esp32_p4=192,
+                esp32_c3=96,
+                esp32_c5=96,
+                esp32_c6=96,
+                esp32_h2=96,
+            ): cv.int_range(min=2),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
+            cv.Optional(CONF_USE_DMA): cv.All(
+                esp32.only_on_variant(
+                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                ),
+                cv.boolean,
+            ),
             cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
@@ -164,13 +165,6 @@ async def to_code(config):
     cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
     cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
-
-    if esp32_rmt.use_new_rmt_driver():
-        cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
-    else:
-        rmt_channel_t = cg.global_ns.enum("rmt_channel_t")
-        cg.add(
-            var.set_rmt_channel(
-                getattr(rmt_channel_t, f"RMT_CHANNEL_{config[CONF_RMT_CHANNEL]}")
-            )
-        )
+    cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
+    if CONF_USE_DMA in config:
+        cg.add(var.set_use_dma(config[CONF_USE_DMA]))
