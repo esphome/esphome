@@ -1038,6 +1038,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 ## Miscellaneous Components
 
 {{< imgtable >}}
+"Camera Encoder","components/camera/camera_encoder","camera.svg","dark-invert"
 "ESP32 Camera","components/esp32_camera","camera.svg","dark-invert"
 "Exposure Notifications","components/exposure_notifications","exposure_notifications.png",""
 "GPS","components/gps","crosshairs-gps.svg","dark-invert"
