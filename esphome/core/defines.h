@@ -240,6 +240,10 @@
 #define USE_SOCKET_SELECT_SUPPORT
 #endif
 
+#ifdef USE_NRF52
+#define USE_NRF52_DFU
+#endif
+
 // Disabled feature flags
 // #define USE_BSEC   // Requires a library with proprietary license
 // #define USE_BSEC2  // Requires a library with proprietary license
