@@ -42,6 +42,9 @@ void CameraImpl::setup() {
     this->mark_failed();
     return;
   }
+
+  if (this->sensor_)
+    this->sensor_->camera_sensor_setup();
 }
 
 bool CameraImpl::camera_loop() {
@@ -204,7 +207,7 @@ void CameraImpl::dump_config() {
                 this->name_.c_str(), YESNO(this->is_internal()), idle_update_interval_, max_update_interval_,
                 YESNO(this->encoder_));
   if (this->sensor_)
-    this->sensor_->dump_config();
+    this->sensor_->camera_sensor_dump_config();
   if (this->encoder_)
     this->encoder_->dump_config();
 }

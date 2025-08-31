@@ -38,8 +38,13 @@ class Sensor {
   /// Returns the camera's image specification.
   virtual CameraImageSpec *get_image_spec() = 0;
 
+  /// Sets up the camera sensor, configures resolution and applies
+  /// sensor-specific settings before image caputure can begin.
+  virtual void camera_sensor_setup() = 0;
+
   /// Prints the camera sensor's configuration to the log.
-  virtual void dump_config() = 0;
+  virtual void camera_sensor_dump_config() = 0;
+
   virtual ~Sensor() = default;
 };
 

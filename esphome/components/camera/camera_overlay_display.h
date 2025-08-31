@@ -25,7 +25,7 @@ class CameraOverlayDisplay : public display::Display {
           this->data_buffer_ = image.get_data_buffer();
           this->spec_ = spec;
           this->bpr_ = spec.bytes_per_row();
-          if (spec.format == camera::IMAGE_FORMAT_GRAYSCALE) {
+          if (spec.format == camera::PIXEL_FORMAT_GRAYSCALE) {
             this->display_type_ = display::DISPLAY_TYPE_GRAYSCALE;
           } else {
             this->display_type_ = display::DISPLAY_TYPE_COLOR;
@@ -41,15 +41,15 @@ class CameraOverlayDisplay : public display::Display {
       return;
 
     switch (spec_.format) {
-      case camera::IMAGE_FORMAT_GRAYSCALE: {
+      case camera::PIXEL_FORMAT_GRAYSCALE: {
         data_buffer_[y * this->bpr_ + x] = color.w;
       } break;
-      case camera::IMAGE_FORMAT_RGB565: {
+      case camera::PIXEL_FORMAT_RGB565: {
         int idx = y * this->spec_.width + x;
         reinterpret_cast<uint16_t *>(data_buffer_)[idx] =
             (color.r & 0xF8) << 8 | (color.g & 0xFC) << 3 | (color.b & 0xF8) >> 3;
       } break;
-      case camera::IMAGE_FORMAT_BGR888: {
+      case camera::PIXEL_FORMAT_BGR888: {
         int idx = (y * this->spec_.width + x) * 3;
         data_buffer_[idx] = color.b;
         data_buffer_[idx + 1] = color.g;

@@ -64,14 +64,14 @@ size_t ESP32CameraJPEGEncoder::callback_(void *arg, size_t index, const void *da
   return len;
 }
 
-pixformat_t ESP32CameraJPEGEncoder::to_internal_(camera::ImageFormat format) {
+pixformat_t ESP32CameraJPEGEncoder::to_internal_(camera::PixelFormat format) {
   switch (format) {
-    case camera::IMAGE_FORMAT_GRAYSCALE:
+    case camera::PIXEL_FORMAT_GRAYSCALE:
       return PIXFORMAT_GRAYSCALE;
-    case camera::IMAGE_FORMAT_RGB565:
+    case camera::PIXEL_FORMAT_RGB565:
       return PIXFORMAT_RGB565;
     // Internal representation for RGB is in byte order: B, G, R
-    case camera::IMAGE_FORMAT_BGR888:
+    case camera::PIXEL_FORMAT_BGR888:
       return PIXFORMAT_RGB888;
   }
 

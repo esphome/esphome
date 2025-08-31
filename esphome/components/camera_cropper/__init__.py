@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FLIP_X,
     CONF_FLIP_Y,
+    CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
     CONF_TYPE,
@@ -19,8 +20,7 @@ CONF_CROP_X = "crop_x"
 CONF_CROP_Y = "crop_y"
 
 CONF_IMAGE_ID = "image_id"
-CONF_IMAGE_FORMAT = "image_format"
-CONF_IMAGE_FORMAT_ID = "image_format_id"
+CONF_FORMAT_ID = "format_id"
 
 DEFAULT_CROPPER = "default"
 
@@ -33,12 +33,12 @@ BufferImpl = camera_ns.class_("BufferImpl")
 CameraCropper = camera_cropper_ns.class_("CameraCropper", Processor)
 
 CameraImageSpec = camera_ns.struct("CameraImageSpec")
-ImageFormat = camera_ns.enum("ImageFormat")
+PixelFormat = camera_ns.enum("PixelFormat")
 
-CONF_IMAGE_FORMAT_SELECTS = {
-    "GRAYSCALE": ImageFormat.IMAGE_FORMAT_GRAYSCALE,
-    "RGB565": ImageFormat.IMAGE_FORMAT_RGB565,
-    "BGR888": ImageFormat.IMAGE_FORMAT_BGR888,
+CONF_FORMAT_SELECTS = {
+    "GRAYSCALE": PixelFormat.PIXEL_FORMAT_GRAYSCALE,
+    "RGB565": PixelFormat.PIXEL_FORMAT_RGB565,
+    "BGR888": PixelFormat.PIXEL_FORMAT_BGR888,
 }
 
 BASE_SCHEMA = cv.Schema(
@@ -46,7 +46,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Required(CONF_CAMERA_ID): cv.use_id(Camera),
         cv.Required(CONF_HEIGHT): cv.int_range(min=1),
         cv.Required(CONF_WIDTH): cv.int_range(min=1),
-        cv.Required(CONF_IMAGE_FORMAT): cv.enum(CONF_IMAGE_FORMAT_SELECTS, upper=True),
+        cv.Required(CONF_FORMAT): cv.enum(CONF_FORMAT_SELECTS, upper=True),
     }
 )
 
@@ -59,7 +59,7 @@ DEFAULT_CROPPER_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_FLIP_X, default=False): cv.boolean,
             cv.Optional(CONF_FLIP_Y, default=False): cv.boolean,
             cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(BufferImpl),
-            cv.GenerateID(CONF_IMAGE_FORMAT_ID): cv.declare_id(CameraImageSpec),
+            cv.GenerateID(CONF_FORMAT_ID): cv.declare_id(CameraImageSpec),
         }
     )
 )
@@ -79,12 +79,12 @@ async def to_code(config):
         if conf[CONF_TYPE] == DEFAULT_CROPPER:
             # Create spec with the correct format (even though it will be overridden)
             spec = cg.new_Pvariable(
-                conf[CONF_IMAGE_FORMAT_ID],
+                conf[CONF_FORMAT_ID],
                 cg.StructInitializer(
                     CameraImageSpec,
                     ("width", conf[CONF_WIDTH]),
                     ("height", conf[CONF_HEIGHT]),
-                    ("format", conf[CONF_IMAGE_FORMAT]),
+                    ("format", conf[CONF_FORMAT]),
                 ),
             )
 

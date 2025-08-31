@@ -42,7 +42,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
       uint16_t dst_y = this->margin_top_ + (this->flip_y_ ? (dst_height - 1 - y) : y);
 
       switch (input_spec->format) {
-        case camera::IMAGE_FORMAT_GRAYSCALE: {
+        case camera::PIXEL_FORMAT_GRAYSCALE: {
           uint8_t pixel = 0;
           switch (algorithm_) {
             case NEAREST_NEIGHBOR:
@@ -55,7 +55,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
           this->set_pixel_grayscale_(pixel, dst_x, dst_y);
         } break;
 
-        case camera::IMAGE_FORMAT_RGB565: {
+        case camera::PIXEL_FORMAT_RGB565: {
           uint16_t pixel = 0;
           switch (algorithm_) {
             case NEAREST_NEIGHBOR:
@@ -68,7 +68,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
           this->set_pixel_rgb565_(pixel, dst_x, dst_y);
         } break;
 
-        case camera::IMAGE_FORMAT_BGR888: {
+        case camera::PIXEL_FORMAT_BGR888: {
           Color pixel;
           switch (algorithm_) {
             case NEAREST_NEIGHBOR:

@@ -12,7 +12,8 @@ class SoftwareSensor : public camera::Sensor {
   camera::SensorError capture_pixels() override { return camera::SensorError::SENSOR_ERROR_SUCCESS; }
   camera::Buffer *get_image_buffer() override { return this->buffer_; }
   camera::CameraImageSpec *get_image_spec() override { return this->image_spec_; }
-  void dump_config() override;
+  void camera_sensor_setup() override {}
+  void camera_sensor_dump_config() override;
   // -------------------------
 
  protected:

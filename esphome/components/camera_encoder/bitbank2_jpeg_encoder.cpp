@@ -105,13 +105,13 @@ int Bitbank2JPEGEncoder::to_internal_(Bitbank2Quality quality) {
   return JPEGE_Q_BEST;
 }
 
-int Bitbank2JPEGEncoder::to_internal_(camera::ImageFormat format) {
+int Bitbank2JPEGEncoder::to_internal_(camera::PixelFormat format) {
   switch (format) {
-    case camera::IMAGE_FORMAT_GRAYSCALE:
+    case camera::PIXEL_FORMAT_GRAYSCALE:
       return JPEGE_PIXEL_GRAYSCALE;
-    case camera::IMAGE_FORMAT_RGB565:
+    case camera::PIXEL_FORMAT_RGB565:
       return JPEGE_PIXEL_RGB565;
-    case camera::IMAGE_FORMAT_BGR888:
+    case camera::PIXEL_FORMAT_BGR888:
       return JPEGE_PIXEL_BGR888;
   }
 

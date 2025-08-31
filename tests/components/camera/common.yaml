@@ -42,7 +42,7 @@ camera_sensor:
   id: camera_sensor_id
   width: 256
   height: 256
-  image_format: BGR888
+  format: BGR888
 
 camera:
   - platform: template

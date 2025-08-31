@@ -19,7 +19,7 @@ class ESP32P4JPEGEncoder : public camera::Encoder {
   void dump_config() override;
   // -------------------------
  protected:
-  jpeg_enc_input_format_t to_internal_(camera::ImageFormat format);
+  jpeg_enc_input_format_t to_internal_(camera::PixelFormat format);
   jpeg_down_sampling_type_t to_internal_(camera::EncoderSubsampling subsampling);
   jpeg_encoder_handle_t encoder_engine_{};
 

@@ -55,14 +55,14 @@ void ESP32P4JPEGEncoder::dump_config() {
                 this->output_->get_max_size(), this->quality_, to_string(this->subsampling_));
 }
 
-jpeg_enc_input_format_t ESP32P4JPEGEncoder::to_internal_(camera::ImageFormat format) {
+jpeg_enc_input_format_t ESP32P4JPEGEncoder::to_internal_(camera::PixelFormat format) {
   switch (format) {
-    case camera::IMAGE_FORMAT_GRAYSCALE:
+    case camera::PIXEL_FORMAT_GRAYSCALE:
       return JPEG_ENCODE_IN_FORMAT_GRAY;
-    case camera::IMAGE_FORMAT_RGB565:
+    case camera::PIXEL_FORMAT_RGB565:
       return JPEG_ENCODE_IN_FORMAT_RGB565;
     // Internal representation for RGB is in byte order: B, G, R
-    case camera::IMAGE_FORMAT_BGR888:
+    case camera::PIXEL_FORMAT_BGR888:
       return JPEG_ENCODE_IN_FORMAT_RGB888;
   }
 

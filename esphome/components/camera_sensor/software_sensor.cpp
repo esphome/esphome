@@ -10,7 +10,7 @@ SoftwareSensor::SoftwareSensor(camera::CameraImageSpec *spec, camera::Buffer *bu
   this->buffer_ = buffer;
 }
 
-void SoftwareSensor::dump_config() {
+void SoftwareSensor::camera_sensor_dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Software Sensor:\n"
                 "  Resolution: %dx%d\n"

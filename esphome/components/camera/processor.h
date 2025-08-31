@@ -18,7 +18,7 @@ namespace camera {
  *  - A new CameraImage instance should be allocated during setup.
  *  - 'get_output_image_spec()' and 'get_output_image()' should return this new instance.
  *
- *  This base class enables chaining processors like: Camera->Scaler->Colorizer->Encoder.
+ *  This base class enables chaining processors like: Sensor->Scaler->Colorizer->Encoder.
  */
 class Processor {
  public:

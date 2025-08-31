@@ -29,7 +29,7 @@ Subsampling = camera_ns.enum("Subsampling")
 Encoder = camera_ns.class_("Encoder")
 EncoderBufferImpl = camera_encoder_ns.class_("EncoderBufferImpl")
 
-ESP32CAMERAJPEGEncoder = camera_encoder_ns.class_("ESP32CameraJPEGEncoder", Encoder)
+ESP32CameraJPEGEncoder = camera_encoder_ns.class_("ESP32CameraJPEGEncoder", Encoder)
 
 ESP32P4JPEGEncoder = camera_encoder_ns.class_("ESP32P4JPEGEncoder", Encoder)
 ESP32P4EncoderBuffer = camera_encoder_ns.class_(
@@ -41,7 +41,7 @@ Bitbank2Quality = camera_encoder_ns.enum("Bitbank2Quality")
 
 ESP32_CAMERA_ENCODER_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(ESP32CAMERAJPEGEncoder),
+        cv.GenerateID(): cv.declare_id(ESP32CameraJPEGEncoder),
         cv.Optional(CONF_QUALITY, default=80): cv.int_range(1, 100),
         cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.int_range(1024),
         cv.Optional(CONF_BUFFER_EXPAND_SIZE, default=1024): cv.int_range(0),

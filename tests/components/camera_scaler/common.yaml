@@ -5,7 +5,7 @@ camera_sensor:
   id: camera_sensor_id
   width: 256
   height: 256
-  image_format: BGR888
+  format: BGR888
 
 camera:
   - platform: template
@@ -21,7 +21,7 @@ camera_scaler:
   height: 64
   flip_x: True
   flip_y: True
-  image_format: GRAYSCALE
+  format: GRAYSCALE
   algorithm: BILINEAR
   clear: True
   margins: {left: 8, right: 8, top: 8, bottom: 8}

@@ -27,13 +27,8 @@ size_t CameraCropper::process_pixels(camera::CameraImageSpec *input_spec, camera
   // Set output spec based on input format (but keep the allocated dimensions)
   this->output_spec_->format = input_spec->format;
 
-  // Calculate bytes per pixel based on image type
-  size_t bytes_per_pixel = 1;  // Default for grayscale
-  if (input_spec->format == camera::IMAGE_FORMAT_BGR888) {
-    bytes_per_pixel = 3;
-  } else if (input_spec->format == camera::IMAGE_FORMAT_RGB565) {
-    bytes_per_pixel = 2;
-  }
+  // Set bytes per pixel based on image type
+  size_t bytes_per_pixel = input_spec->bytes_per_pixel();
 
   // Get source image data
   const uint8_t *source_data = input->get_data_buffer();

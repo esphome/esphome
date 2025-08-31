@@ -53,7 +53,7 @@ class Bitbank2JPEGEncoder : public camera::Encoder {
   // -------------------------
  protected:
   int to_internal_(Bitbank2Quality quality);
-  int to_internal_(camera::ImageFormat format);
+  int to_internal_(camera::PixelFormat format);
   int to_internal_(camera::EncoderSubsampling subsampling);
 
   Bitbank2Quality quality_{};

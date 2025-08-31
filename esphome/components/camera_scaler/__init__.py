@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FLIP_X,
     CONF_FLIP_Y,
+    CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
     CONF_TYPE,
@@ -17,8 +18,7 @@ CONF_ALGORITHM = "algorithm"
 CONF_CAMERA_ID = "camera_id"
 CONF_CLEAR = "clear"
 CONF_DEFAULT_SCALER_ID = "default_scaler_id"
-CONF_IMAGE_FORMAT = "image_format"
-CONF_IMAGE_FORMAT_ID = "image_format_id"
+CONF_FORMAT_ID = "format_id"
 CONF_IMAGE_ID = "image_id"
 CONF_MARGINS = "margins"
 CONF_LEFT = "left"
@@ -38,13 +38,13 @@ DefaultScaler = camera_scaler_ns.class_("DefaultScaler", Processor)
 
 CameraImageSpec = camera_ns.struct("CameraImageSpec")
 
-ImageFormat = camera_ns.enum("ImageFormat")
+PixelFormat = camera_ns.enum("PixelFormat")
 DefaultAlgorithm = camera_scaler_ns.enum("DefaultAlgorithm")
 
-CONF_IMAGE_FORMAT_SELECTS = {
-    "GRAYSCALE": ImageFormat.IMAGE_FORMAT_GRAYSCALE,
-    "RGB565": ImageFormat.IMAGE_FORMAT_RGB565,
-    "BGR888": ImageFormat.IMAGE_FORMAT_BGR888,
+CONF_FORMAT_SELECTS = {
+    "GRAYSCALE": PixelFormat.PIXEL_FORMAT_GRAYSCALE,
+    "RGB565": PixelFormat.PIXEL_FORMAT_RGB565,
+    "BGR888": PixelFormat.PIXEL_FORMAT_BGR888,
 }
 
 CONF_ALGORITHM_SELECTS = {
@@ -64,7 +64,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Required(CONF_CAMERA_ID): cv.use_id(Camera),
         cv.Required(CONF_HEIGHT): cv.int_range(0),
         cv.Required(CONF_WIDTH): cv.int_range(0),
-        cv.Required(CONF_IMAGE_FORMAT): cv.enum(CONF_IMAGE_FORMAT_SELECTS, upper=True),
+        cv.Required(CONF_FORMAT): cv.enum(CONF_FORMAT_SELECTS, upper=True),
     }
 )
 
@@ -78,7 +78,7 @@ DEFAULT_SCALER_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_MARGINS): cv.ensure_list(margin_parameters),
             cv.Optional(CONF_CLEAR, default=False): cv.boolean,
             cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(BufferImpl),
-            cv.GenerateID(CONF_IMAGE_FORMAT_ID): cv.declare_id(CameraImageSpec),
+            cv.GenerateID(CONF_FORMAT_ID): cv.declare_id(CameraImageSpec),
         }
     )
 )
@@ -94,12 +94,12 @@ CONFIG_SCHEMA = cv.typed_schema(
 async def to_code(config):
     if config[CONF_TYPE] == DEFAULT_SCALER:
         spec = cg.new_Pvariable(
-            config[CONF_IMAGE_FORMAT_ID],
+            config[CONF_FORMAT_ID],
             cg.StructInitializer(
                 CameraImageSpec,
                 ("width", config[CONF_WIDTH]),
                 ("height", config[CONF_HEIGHT]),
-                ("format", config[CONF_IMAGE_FORMAT]),
+                ("format", config[CONF_FORMAT]),
             ),
         )
         image = cg.new_Pvariable(config[CONF_IMAGE_ID], spec)
