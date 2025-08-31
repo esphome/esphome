@@ -39,7 +39,7 @@ void RX8130Component::setup() {
     return;
   }
   // Clear STOP bit
-  this->stop(false);
+  this->stop_(false);
 }
 
 void RX8130Component::update() { this->read_time(); }
@@ -69,14 +69,14 @@ void RX8130Component::read_time() {
     return;
   }
   ESPTime rtc_time{
-      .second = bcd2dec(date[0] & 0x7f),
-      .minute = bcd2dec(date[1] & 0x7f),
-      .hour = bcd2dec(date[2] & 0x3f),
-      .day_of_week = bcd2dec(date[3] & 0x7f),
-      .day_of_month = bcd2dec(date[4] & 0x3f),
+      .second = bcd2dec_(date[0] & 0x7f),
+      .minute = bcd2dec_(date[1] & 0x7f),
+      .hour = bcd2dec_(date[2] & 0x3f),
+      .day_of_week = bcd2dec_(date[3] & 0x7f),
+      .day_of_month = bcd2dec_(date[4] & 0x3f),
       .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
-      .month = bcd2dec(date[5] & 0x1f),
-      .year = static_cast<uint16_t>(bcd2dec(date[6]) + 2000),
+      .month = bcd2dec_(date[5] & 0x1f),
+      .year = static_cast<uint16_t>(bcd2dec_(date[6]) + 2000),
       .is_dst = false,  // not used
       .timestamp = 0    // overwritten by recalc_timestamp_utc(false)
   };
@@ -97,14 +97,14 @@ void RX8130Component::write_time() {
     return;
   }
   uint8_t buff[7];
-  buff[0] = dec2bcd(now.second);
-  buff[1] = dec2bcd(now.minute);
-  buff[2] = dec2bcd(now.hour);
-  buff[3] = dec2bcd(now.day_of_week);
-  buff[4] = dec2bcd(now.day_of_month);
-  buff[5] = dec2bcd(now.month);
-  buff[6] = dec2bcd(now.year % 100);
-  this->stop(true);
+  buff[0] = dec2bcd_(now.second);
+  buff[1] = dec2bcd_(now.minute);
+  buff[2] = dec2bcd_(now.hour);
+  buff[3] = dec2bcd_(now.day_of_week);
+  buff[4] = dec2bcd_(now.day_of_month);
+  buff[5] = dec2bcd_(now.month);
+  buff[6] = dec2bcd_(now.year % 100);
+  this->stop_(true);
   if (this->write_register(RX8130_REG_SEC, buff, 7) != ERROR_OK) {
     ESP_LOGE(TAG, "Can't write I2C data.");
     this->mark_failed();
@@ -112,14 +112,14 @@ void RX8130Component::write_time() {
     ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
              now.minute, now.second);
   }
-  this->stop(false);
+  this->stop_(false);
 }
 
-uint8_t RX8130Component::bcd2dec(uint8_t val) { return (val >> 4) * 10 + (val & 0x0f); }
+uint8_t RX8130Component::bcd2dec_(uint8_t val) { return (val >> 4) * 10 + (val & 0x0f); }
 
-uint8_t RX8130Component::dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); }
+uint8_t RX8130Component::dec2bcd_(uint8_t val) { return ((val / 10) << 4) + (val % 10); }
 
-void RX8130Component::stop(bool stop) { this->reg(RX8130_REG_CTRL0) = stop ? RX8130_BIT_CTRL_STOP : 0x00; }
+void RX8130Component::stop_(bool stop) { this->reg(RX8130_REG_CTRL0) = stop ? RX8130_BIT_CTRL_STOP : 0x00; }
 
 }  // namespace rx8130
 }  // namespace esphome
