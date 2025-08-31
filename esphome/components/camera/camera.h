@@ -15,24 +15,24 @@ namespace camera {
  */
 enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER };
 
-/// Enumeration of different image formats.
-enum ImageFormat : uint8_t {
-  IMAGE_FORMAT_GRAYSCALE = 0,  ///< 8-bit grayscale.
-  IMAGE_FORMAT_RGB565,         ///< 16-bit RGB (5-6-5).
-  IMAGE_FORMAT_BGR888,         ///< RGB pixel data in 8-bit format, stored as B, G, R (1 byte each).
+/// Enumeration of different pixel formats.
+enum PixelFormat : uint8_t {
+  PIXEL_FORMAT_GRAYSCALE = 0,  ///< 8-bit grayscale.
+  PIXEL_FORMAT_RGB565,         ///< 16-bit RGB (5-6-5).
+  PIXEL_FORMAT_BGR888,         ///< RGB pixel data in 8-bit format, stored as B, G, R (1 byte each).
 };
 
-/// Returns string name for a given ImageFormat.
-inline const char *to_string(ImageFormat format) {
+/// Returns string name for a given PixelFormat.
+inline const char *to_string(PixelFormat format) {
   switch (format) {
-    case IMAGE_FORMAT_GRAYSCALE:
-      return "IMAGE_FORMAT_GRAYSCALE";
-    case IMAGE_FORMAT_RGB565:
-      return "IMAGE_FORMAT_RGB565";
-    case IMAGE_FORMAT_BGR888:
-      return "IMAGE_FORMAT_BGR888";
+    case PIXEL_FORMAT_GRAYSCALE:
+      return "PIXEL_FORMAT_GRAYSCALE";
+    case PIXEL_FORMAT_RGB565:
+      return "PIXEL_FORMAT_RGB565";
+    case PIXEL_FORMAT_BGR888:
+      return "PIXEL_FORMAT_BGR888";
   }
-  return "IMAGE_FORMAT_UNKNOWN";
+  return "PIXEL_FORMAT_UNKNOWN";
 }
 
 /** Abstract camera image base class.
@@ -69,14 +69,14 @@ class CameraImageReader {
 struct CameraImageSpec {
   uint16_t width;
   uint16_t height;
-  ImageFormat format;
+  PixelFormat format;
   size_t bytes_per_pixel() {
     switch (format) {
-      case IMAGE_FORMAT_GRAYSCALE:
+      case PIXEL_FORMAT_GRAYSCALE:
         return 1;
-      case IMAGE_FORMAT_RGB565:
+      case PIXEL_FORMAT_RGB565:
         return 2;
-      case IMAGE_FORMAT_BGR888:
+      case PIXEL_FORMAT_BGR888:
         return 3;
     }
 
