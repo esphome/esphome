@@ -68,6 +68,7 @@ button:
           bool switch_value = false;
           float number_value = 0.0;
           uint32_t fake_value = 0;
+          int loaded_count = 0;
 
           // These should not exist and shouldn't create map entries
           fake_pref1.load(&fake_value);
@@ -76,6 +77,7 @@ button:
           if (switch_pref.load(&switch_value)) {
             id(test_switch).publish_state(switch_value);
             ESP_LOGI("test", "Preference loaded: key=switch, value=%.1f", switch_value ? 1.0 : 0.0);
+            loaded_count++;
           } else {
             ESP_LOGW("test", "Failed to load switch preference");
           }
@@ -83,9 +85,13 @@ button:
           if (number_pref.load(&number_value)) {
             id(test_number).publish_state(number_value);
             ESP_LOGI("test", "Preference loaded: key=number, value=%.1f", number_value);
+            loaded_count++;
           } else {
             ESP_LOGW("test", "Failed to load number preference");
           }
+
+          // Log completion message for the test to detect
+          ESP_LOGI("test", "Final load test: loaded %d preferences successfully", loaded_count);
 
   - platform: template
     name: "Verify Preferences"

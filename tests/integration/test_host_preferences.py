@@ -33,11 +33,15 @@ async def test_host_preferences_save_load(
     preferences_saved = loop.create_future()
     preferences_loaded = loop.create_future()
     values_match = loop.create_future()
+    final_load_complete = loop.create_future()
 
     # Patterns to match preference logs
     save_pattern = re.compile(r"Preference saved: key=(\w+), value=([0-9.]+)")
     load_pattern = re.compile(r"Preference loaded: key=(\w+), value=([0-9.]+)")
     verify_pattern = re.compile(r"Preferences verified: values match!")
+    final_load_success_pattern = re.compile(
+        r"Final load test: loaded \d+ preferences successfully"
+    )
 
     saved_values: dict[str, float] = {}
     loaded_values: dict[str, float] = {}
@@ -67,6 +71,10 @@ async def test_host_preferences_save_load(
         # Look for verification
         if verify_pattern.search(line) and not values_match.done():
             values_match.set_result(True)
+
+        # Look for final load test completion
+        if final_load_success_pattern.search(line) and not final_load_complete.done():
+            final_load_complete.set_result(True)
 
     async with (
         run_compiled(yaml_config, line_callback=check_output),
@@ -151,3 +159,9 @@ async def test_host_preferences_save_load(
         # This will trigger load attempts for keys that don't exist
         # Our fix should prevent map entries from being created
         client.button_command(load_button.key)
+
+        # Wait for the final load test to complete
+        try:
+            await asyncio.wait_for(final_load_complete, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Final load test did not complete within timeout")
