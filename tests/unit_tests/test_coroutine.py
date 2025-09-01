@@ -12,6 +12,7 @@ def test_coro_priority_enum_values() -> None:
     assert CoroPriority.NETWORK_TRANSPORT == 200
     assert CoroPriority.CORE == 100
     assert CoroPriority.DIAGNOSTICS == 90
+    assert CoroPriority.STATUS == 80
     assert CoroPriority.COMMUNICATION == 60
     assert CoroPriority.APPLICATION == 50
     assert CoroPriority.WEB == 40
@@ -68,6 +69,7 @@ def test_float_and_enum_are_interchangeable() -> None:
         (CoroPriority.NETWORK_TRANSPORT, 200.0),
         (CoroPriority.CORE, 100.0),
         (CoroPriority.DIAGNOSTICS, 90.0),
+        (CoroPriority.STATUS, 80.0),
         (CoroPriority.COMMUNICATION, 60.0),
         (CoroPriority.APPLICATION, 50.0),
         (CoroPriority.WEB, 40.0),
