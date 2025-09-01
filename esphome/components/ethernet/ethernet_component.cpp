@@ -385,7 +385,6 @@ void EthernetComponent::dump_config() {
                 "  MOSI Pin: %u\n"
                 "  CS Pin: %u",
                 this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
-#ifdef USE_ESP_IDF
   {
     constexpr std::array<char const *const, SPI_HOST_MAX> values{"spi1", "spi2", "spi3"};
     char const *const value{this->interface_ < values.size() ? values[this->interface_] : nullptr};
@@ -393,7 +392,6 @@ void EthernetComponent::dump_config() {
       ESP_LOGCONFIG(TAG, "  Interface: %s", value);
     }
   }
-#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
     ESP_LOGCONFIG(TAG, "  Polling Interval: %lu ms", this->polling_interval_);
@@ -678,9 +676,7 @@ void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
 void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
 void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
-#ifdef USE_ESP_IDF
-void EthernetComponent::set_interface(SPIInterface interface) { this->interface_ = interface; }
-#endif
+void EthernetComponent::set_interface(spi_host_device_t interface) { this->interface_ = interface; }
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
 void EthernetComponent::set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
 #endif

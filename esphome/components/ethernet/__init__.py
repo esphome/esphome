@@ -175,7 +175,7 @@ def _validate(config):
                     f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                     f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                 )
-        if CORE.using_esp_idf and CONF_INTERFACE not in config:
+        if CONF_INTERFACE not in config:
             variant = get_esp32_variant()
             if variant in (
                 VARIANT_ESP32C3,
@@ -262,10 +262,7 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
                 cv.frequency, cv.int_range(int(8e6), int(80e6))
             ),
-            cv.Optional(CONF_INTERFACE): cv.All(
-                cv.only_with_framework("esp-idf"),
-                cv.one_of(*SPI_INTERFACE_MAP.keys()),
-            ),
+            cv.Optional(CONF_INTERFACE): cv.one_of(*SPI_INTERFACE_MAP.keys()),
             # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
             cv.Optional(CONF_POLLING_INTERVAL): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -300,14 +297,7 @@ def _final_validate(config):
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
         return
     if spi_configs := fv.full_config.get().get(CONF_SPI):
-        if CORE.using_esp_idf and CONF_INTERFACE in config:
-            spi_host = SPI_INTERFACE_MAP[config[CONF_INTERFACE]]
-        else:
-            variant = get_esp32_variant()
-            if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
-                spi_host = "SPI2_HOST"
-            else:
-                spi_host = "SPI3_HOST"
+        spi_host = SPI_INTERFACE_MAP[config[CONF_INTERFACE]]
         for spi_conf in spi_configs:
             if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
                 interface = get_spi_interface(index)
