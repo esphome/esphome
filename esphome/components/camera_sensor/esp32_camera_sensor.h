@@ -13,8 +13,8 @@ class ESP32CameraSensorBuffer : public camera::Buffer {
  public:
   void set_frame_buffer(camera_fb_t *frame_buffer) { this->frame_buffer_ = frame_buffer; }
   // -------- Buffer --------
-  uint8_t *get_data_buffer() { return this->frame_buffer_->buf; }
-  size_t get_data_length() { return this->frame_buffer_->len; }
+  uint8_t *get_data_buffer() override { return this->frame_buffer_->buf; }
+  size_t get_data_length() override { return this->frame_buffer_->len; }
 
  protected:
   camera_fb_t *frame_buffer_{};

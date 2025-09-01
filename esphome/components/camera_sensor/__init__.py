@@ -192,23 +192,22 @@ async def to_code(config):
             config[CONF_ID],
             image_spec,
         )
-        pins = config[CONF_PINS]
         reset_pin = config.get(CONF_RESET, -1)
         pwdn_pin = config.get(CONF_PWDN, -1)
         cg.add(
             var.set_pins(
-                pins[CONF_D0],
-                pins[CONF_D1],
-                pins[CONF_D2],
-                pins[CONF_D3],
-                pins[CONF_D4],
-                pins[CONF_D5],
-                pins[CONF_D6],
-                pins[CONF_D7],
-                pins[CONF_XCLK],
-                pins[CONF_VSYNC],
-                pins[CONF_HREF],
-                pins[CONF_PCLK],
+                config[CONF_PINS][CONF_D0],
+                config[CONF_PINS][CONF_D1],
+                config[CONF_PINS][CONF_D2],
+                config[CONF_PINS][CONF_D3],
+                config[CONF_PINS][CONF_D4],
+                config[CONF_PINS][CONF_D5],
+                config[CONF_PINS][CONF_D6],
+                config[CONF_PINS][CONF_D7],
+                config[CONF_PINS][CONF_XCLK],
+                config[CONF_PINS][CONF_VSYNC],
+                config[CONF_PINS][CONF_HREF],
+                config[CONF_PINS][CONF_PCLK],
                 pwdn_pin,
                 reset_pin,
             )
