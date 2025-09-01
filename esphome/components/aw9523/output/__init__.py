@@ -1,12 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PIN
+from esphome.const import CONF_ID, CONF_MAX_CURRENT, CONF_PIN
 
 from .. import CONF_AW9523, AW9523Component, aw9523_ns
 
 CODEOWNERS = ["@beormund"]
-CONF_MAX_CURRENT = "max_current"
 DEPENDENCIES = ["aw9523"]
 
 AW9523FloatOutputChannel = aw9523_ns.class_(
