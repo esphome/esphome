@@ -13,6 +13,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32C6,
 )
 from esphome.components.network import IPAddress
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -174,6 +175,12 @@ def _validate(config):
                     f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                     f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                 )
+        if CORE.using_esp_idf and CONF_INTERFACE not in config:
+            variant = get_esp32_variant()
+            if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32C6):
+                config[CONF_INTERFACE] = "spi2"
+            else:
+                config[CONF_INTERFACE] = "spi3"
     elif config[CONF_TYPE] != "OPENETH":
         if CONF_CLK_MODE in config:
             LOGGER.warning(
@@ -357,11 +364,7 @@ async def to_code(config):
                     "spi2": spi_host_device_t.SPI2_HOST,
                     "spi3": spi_host_device_t.SPI3_HOST,
                 }
-                cg.add(
-                    var.set_interface(
-                        map[config[CONF_INTERFACE]]
-                    )
-                )
+                cg.add(var.set_interface(map[config[CONF_INTERFACE]]))
             add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
             add_idf_sdkconfig_option(
                 f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True

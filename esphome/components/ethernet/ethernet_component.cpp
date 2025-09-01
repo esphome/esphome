@@ -87,17 +87,7 @@ void EthernetComponent::setup() {
       .intr_flags = 0,
   };
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32C6)
-  auto host = SPI2_HOST;
-#else
-  auto host = SPI3_HOST;
-#endif
-#ifdef USE_ESP_IDF
-  if (this->interface_ != SPI_HOST_MAX) {
-    host = this->interface_;
-  }
-#endif
+  auto host = this->interface_;
 
   err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
   ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
