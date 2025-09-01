@@ -83,8 +83,12 @@ class CoroPriority(enum.IntEnum):
     CORE = 100
 
     # Diagnostic and debugging systems
-    # Examples: logger (90), status_led (80)
+    # Examples: logger (90)
     DIAGNOSTICS = 90
+
+    # Status and monitoring systems
+    # Examples: status_led (80)
+    STATUS = 80
 
     # Communication protocols and services
     # Examples: web_server_base (65), captive_portal (64), wifi (60), ethernet (60),

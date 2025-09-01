@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
+@coroutine_with_priority(CoroPriority.STATUS)
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     rhs = StatusLED.new(pin)
