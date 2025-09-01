@@ -2,11 +2,10 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
+from esphome.const import CONF_DIVIDER, CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
 
 CODEOWNERS = ["@beormund"]
 CONF_AW9523 = "aw9523"
-CONF_DIV = "divider"
 CONF_LATCH_INPUTS = "latch_inputs"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
@@ -19,7 +18,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(AW9523Component),
-            cv.Optional(CONF_DIV, default=0): cv.int_range(min=0, max=3),
+            cv.Optional(CONF_DIVIDER, default=0): cv.int_range(min=0, max=3),
             cv.Optional(CONF_LATCH_INPUTS, default=True): cv.boolean,
         }
     )
@@ -32,7 +31,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    cg.add(var.set_divider(config[CONF_DIV]))
+    cg.add(var.set_divider(config[CONF_DIVIDER]))
     cg.add(var.set_latch_inputs(config[CONF_LATCH_INPUTS]))
     return var
 
