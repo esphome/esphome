@@ -2214,12 +2214,13 @@ class BluetoothDeviceClearCacheResponse final : public ProtoMessage {
 class BluetoothScannerStateResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 126;
-  static constexpr uint8_t ESTIMATED_SIZE = 4;
+  static constexpr uint8_t ESTIMATED_SIZE = 6;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_scanner_state_response"; }
 #endif
   enums::BluetoothScannerState state{};
   enums::BluetoothScannerMode mode{};
+  enums::BluetoothScannerMode configured_mode{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
