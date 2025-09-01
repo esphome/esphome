@@ -101,6 +101,7 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 CONF_DFU = "dfu"
 
 CONFIG_SCHEMA = cv.All(
+    _detect_bootloader,
     set_core_data,
     cv.Schema(
         {
@@ -114,7 +115,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    _detect_bootloader,
 )
 
 
