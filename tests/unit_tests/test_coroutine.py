@@ -163,7 +163,8 @@ def test_enum_priority_comparison() -> None:
     assert CoroPriority.NETWORK > CoroPriority.NETWORK_TRANSPORT
     assert CoroPriority.NETWORK_TRANSPORT > CoroPriority.CORE
     assert CoroPriority.CORE > CoroPriority.DIAGNOSTICS
-    assert CoroPriority.DIAGNOSTICS > CoroPriority.COMMUNICATION
+    assert CoroPriority.DIAGNOSTICS > CoroPriority.STATUS
+    assert CoroPriority.STATUS > CoroPriority.COMMUNICATION
     assert CoroPriority.COMMUNICATION > CoroPriority.APPLICATION
     assert CoroPriority.APPLICATION > CoroPriority.WEB
     assert CoroPriority.WEB > CoroPriority.AUTOMATION
