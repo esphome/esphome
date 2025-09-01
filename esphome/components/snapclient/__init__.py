@@ -22,6 +22,8 @@ CONF_AUDIO_DAC = "audio_dac"
 CONF_MUTE_PIN = "mute_pin"
 CONF_WEBSERVER_PORT = "webserver_port"
 
+SNAPCLIENT_GIT_VERSION = "1adc5245012160c3c4eb312c962c7dc18b17231e"
+
 snapclient_ns = cg.esphome_ns.namespace("snapclient")
 SnapClientComponent = snapclient_ns.class_(
     "SnapClientComponent", cg.Component, I2SAudioOut
@@ -56,37 +58,37 @@ async def to_code(config):
     add_idf_component(name="espressif/mdns", ref=">1.2.3")
     add_idf_component(
         name="lightsnapcast",
-        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        ref=SNAPCLIENT_GIT_VERSION,
         repo="https://github.com/CarlosDerSeher/snapclient.git",
         path="components/lightsnapcast",
     )
     add_idf_component(
         name="libbuffer",
-        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        ref=SNAPCLIENT_GIT_VERSION,
         repo="https://github.com/CarlosDerSeher/snapclient.git",
         path="components/libbuffer",
     )
     add_idf_component(
         name="libmedian",
-        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        ref=SNAPCLIENT_GIT_VERSION,
         repo="https://github.com/CarlosDerSeher/snapclient.git",
         path="components/libmedian",
     )
     add_idf_component(
         name="opus",
-        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        ref=SNAPCLIENT_GIT_VERSION,
         repo="https://github.com/CarlosDerSeher/snapclient.git",
         path="components/opus",
     )
     add_idf_component(
         name="flac",
-        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        ref=SNAPCLIENT_GIT_VERSION,
         repo="https://github.com/CarlosDerSeher/snapclient.git",
         path="components/flac",
     )
     add_idf_component(
         name="dsp_processor",
-        ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+        ref=SNAPCLIENT_GIT_VERSION,
         repo="https://github.com/CarlosDerSeher/snapclient.git",
         path="components/dsp_processor",
     )
@@ -94,7 +96,7 @@ async def to_code(config):
         cg.add_build_flag(f"-DCONFIG_WEB_PORT={config[CONF_WEBSERVER_PORT]}")
         add_idf_component(
             name="ui_http_server",
-            ref="38d749e6cc305cddfc62241fc60ffcde8056cf55",
+            ref=SNAPCLIENT_GIT_VERSION,
             repo="https://github.com/CarlosDerSeher/snapclient.git",
             path="components/ui_http_server",
         )

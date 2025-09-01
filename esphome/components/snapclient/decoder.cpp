@@ -1941,7 +1941,7 @@ void http_get_task(void *pvParameters) {
                               dsp_processor_set_volome((double) server_settings_message.volume / 100);
                             }
 #endif
-                            audio_set_mute(server_settings_message.muted);
+                            // audio_set_mute(server_settings_message.muted);  //is set by player
                           }
 
                           if (scSet.volume != server_settings_message.volume) {
