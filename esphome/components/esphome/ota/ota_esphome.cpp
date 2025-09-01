@@ -100,8 +100,8 @@ void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the initial OTA handshake.
   ///
   /// This method is non-blocking and will return immediately if no data is available.
-  /// It waits for the first magic byte (0x6C) before proceeding to handle_data_().
-  /// A 10-second timeout is enforced from initial connection.
+  /// It reads all 5 magic bytes (0x6C, 0x26, 0xF7, 0x5C, 0x45) non-blocking
+  /// before proceeding to handle_data_(). A 10-second timeout is enforced from initial connection.
 
   if (this->client_ == nullptr) {
     // We already checked server_->ready() in loop(), so we can accept directly
@@ -126,6 +126,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
     }
     this->log_start_("handshake");
     this->client_connect_time_ = App.get_loop_component_start_time();
+    this->magic_buf_pos_ = 0;  // Reset magic buffer position
   }
 
   // Check for handshake timeout
@@ -136,34 +137,47 @@ void ESPHomeOTAComponent::handle_handshake_() {
     return;
   }
 
-  // Try to read first byte of magic bytes
-  uint8_t first_byte;
-  ssize_t read = this->client_->read(&first_byte, 1);
+  // Try to read remaining magic bytes
+  if (this->magic_buf_pos_ < 5) {
+    // Read as many bytes as available
+    uint8_t bytes_to_read = 5 - this->magic_buf_pos_;
+    ssize_t read = this->client_->read(this->magic_buf_ + this->magic_buf_pos_, bytes_to_read);
 
-  if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-    return;  // No data yet, try again next loop
-  }
-
-  if (read <= 0) {
-    // Error or connection closed
-    if (read == -1) {
-      this->log_socket_error_("reading first byte");
-    } else {
-      ESP_LOGW(TAG, "Remote closed during handshake");
+    if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      return;  // No data yet, try again next loop
     }
-    this->cleanup_connection_();
-    return;
+
+    if (read <= 0) {
+      // Error or connection closed
+      if (read == -1) {
+        this->log_socket_error_("reading magic bytes");
+      } else {
+        ESP_LOGW(TAG, "Remote closed during handshake");
+      }
+      this->cleanup_connection_();
+      return;
+    }
+
+    this->magic_buf_pos_ += read;
   }
 
-  // Got first byte, check if it's the magic byte
-  if (first_byte != 0x6C) {
-    ESP_LOGW(TAG, "Invalid initial byte: 0x%02X", first_byte);
-    this->cleanup_connection_();
-    return;
-  }
+  // Check if we have all 5 magic bytes
+  if (this->magic_buf_pos_ == 5) {
+    // Validate magic bytes
+    static const uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
+    if (memcmp(this->magic_buf_, MAGIC_BYTES, 5) != 0) {
+      ESP_LOGW(TAG, "Magic bytes mismatch! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", this->magic_buf_[0],
+               this->magic_buf_[1], this->magic_buf_[2], this->magic_buf_[3], this->magic_buf_[4]);
+      // Send error response (non-blocking, best effort)
+      uint8_t error = static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_MAGIC);
+      this->client_->write(&error, 1);
+      this->cleanup_connection_();
+      return;
+    }
 
-  // First byte is valid, continue with data handling
-  this->handle_data_();
+    // All 5 magic bytes are valid, continue with data handling
+    this->handle_data_();
+  }
 }
 
 void ESPHomeOTAComponent::handle_data_() {
@@ -185,18 +199,6 @@ void ESPHomeOTAComponent::handle_data_() {
 #if USE_OTA_VERSION == 2
   size_t size_acknowledged = 0;
 #endif
-
-  // Read remaining 4 bytes of magic (we already read the first byte 0x6C in handle_handshake_)
-  if (!this->readall_(buf, 4)) {
-    this->log_read_error_("magic bytes");
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
-  // Check remaining magic bytes: 0x26, 0xF7, 0x5C, 0x45
-  if (buf[0] != 0x26 || buf[1] != 0xF7 || buf[2] != 0x5C || buf[3] != 0x45) {
-    ESP_LOGW(TAG, "Magic bytes mismatch! 0x6C-0x%02X-0x%02X-0x%02X-0x%02X", buf[0], buf[1], buf[2], buf[3]);
-    error_code = ota::OTA_RESPONSE_ERROR_MAGIC;
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
 
   // Send OK and version - 2 bytes
   buf[0] = ota::OTA_RESPONSE_OK;
@@ -487,6 +489,7 @@ void ESPHomeOTAComponent::cleanup_connection_() {
   this->client_->close();
   this->client_ = nullptr;
   this->client_connect_time_ = 0;
+  this->magic_buf_pos_ = 0;
 }
 
 void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
