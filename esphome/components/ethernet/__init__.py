@@ -11,9 +11,9 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32P4,
+    VARIANT_ESP32C6,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
-    VARIANT_ESP32C6,
 )
 from esphome.components.network import IPAddress
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -177,7 +177,12 @@ def _validate(config):
                 )
         if CORE.using_esp_idf and CONF_INTERFACE not in config:
             variant = get_esp32_variant()
-            if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32C6):
+            if variant in (
+                VARIANT_ESP32C3,
+                VARIANT_ESP32S2,
+                VARIANT_ESP32S3,
+                VARIANT_ESP32C6,
+            ):
                 config[CONF_INTERFACE] = "spi2"
             else:
                 config[CONF_INTERFACE] = "spi3"
