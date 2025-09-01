@@ -28,6 +28,7 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
   dte_config.uart_config.rx_buffer_size = this->rx_buffer_size;
   dte_config.uart_config.tx_buffer_size = this->tx_buffer_size;
   dte_config.uart_config.event_queue_size = this->uart_event_queue_size;
+  dte_config.uart_config.port_num = this->uart_port_num;
   if (baud_rate != 0) {
     ESP_LOGD(TAG, "DTE baud rate: %d", baud_rate);
     dte_config.uart_config.baud_rate = baud_rate;

@@ -101,6 +101,19 @@ void ModemComponent::setup() {
     this->modem_handler->status_pin->pin_mode(gpio::Flags::FLAG_INPUT | gpio::Flags::FLAG_PULLUP);
   }
 
+  // find an available UART
+  for (auto p : {UART_NUM_2, UART_NUM_1}) {
+    if (!uart_is_driver_installed(p)) {
+      this->modem_handler->uart_port_num = p;
+      break;
+    }
+  }
+  if (this->modem_handler->uart_port_num == UART_NUM_MAX) {
+    ESP_LOGE(TAG, "No free UART port for modem");
+    this->mark_failed("No free UART port for modem");
+    return;
+  }
+
   ESP_LOGCONFIG(TAG, "Config Modem:");
   ESP_LOGCONFIG(TAG, "  Model     : %s", this->modem_handler->model.c_str());
   ESP_LOGCONFIG(TAG, "  APN       : %s", this->modem_handler->apn.c_str());
@@ -127,6 +140,7 @@ void ModemComponent::setup() {
   ESP_LOGCONFIG(TAG, "  Use CMUX  : %s", this->modem_handler->cmux ? "Yes" : "No");
   if (this->modem_handler->baud_rate != 0)
     ESP_LOGCONFIG(TAG, "  Baud rate : %d", this->modem_handler->baud_rate);
+  ESP_LOGCONFIG(TAG, "  UART port : %d", this->modem_handler->uart_port_num);
   ESP_LOGCONFIG(TAG, "  TX  buffer size     : %d", this->modem_handler->tx_buffer_size);
   ESP_LOGCONFIG(TAG, "  RX  buffer size     : %d", this->modem_handler->rx_buffer_size);
   ESP_LOGCONFIG(TAG, "  DTE buffer size     : %d", this->modem_handler->dte_buffer_size);

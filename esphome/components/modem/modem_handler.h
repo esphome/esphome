@@ -57,14 +57,6 @@ class ModemHandler {
 
   // Internal state attributes
   int current_baud_rate{0};
-  // float rssi{NAN};
-  // float ber{NAN};
-  // int network_attached{0};
-  // int network_mode{0};
-  // bool modem_connected{false};
-  // int cfun{0};
-  // std::string sim_status = "None";
-  // bool synced{false};
   NetworkInfos network_infos{};
 
   // UART config
@@ -73,6 +65,7 @@ class ModemHandler {
   uint8_t uart_event_task_priority = 5;
   uint32_t command_delay = 1000;
   uint32_t connect_retry_delay = 5000;
+  uart_port_t uart_port_num = UART_NUM_MAX;
 
   // Methods
   void modem_create_dte_dce(int baud_rate);
