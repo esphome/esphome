@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_RESOLUTION
+from esphome.const import CONF_DIVIDER, CONF_ID, CONF_INVERTED, CONF_RESOLUTION
 
 CODEOWNERS = ["@ellull"]
 
@@ -10,7 +10,6 @@ DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 CONF_PWM = "pwm"
-CONF_DIVIDER = "divider"
 CONF_DAC = "dac"
 CONF_CONVERSION_RATE = "conversion_rate"
 

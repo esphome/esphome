@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import number, switch
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DIVIDER,
     CONF_ID,
     CONF_INITIAL_VALUE,
     CONF_MAX_VALUE,
@@ -24,7 +25,6 @@ AUTO_LOAD = ["number", "switch"]
 CODEOWNERS = ["@kbx81"]
 
 CONF_AUTO_ADVANCE_SWITCH = "auto_advance_switch"
-CONF_DIVIDER = "divider"
 CONF_ENABLE_SWITCH = "enable_switch"
 CONF_MAIN_SWITCH = "main_switch"
 CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
