@@ -65,11 +65,10 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
-
-  //TODO: Look into getting rid of the assumption of fixed length for the message to display.
-  //      Resize the buffer when a new message is added. I am not sure of the memory implications of doing that...
-  //ESP_LOGD("dbg", "Max Size: %d", this->char_buffer_.max_size());
-  //      -Max Size: 2147483647
+  // TODO: Look into getting rid of the assumption of fixed length for the message to display.
+  //       Resize the buffer when a new message is added. I am not sure of the memory implications of doing that...
+  // ESP_LOGD("dbg", "Max Size: %d", this->char_buffer_.max_size());
+  //       -Max Size: 2147483647
 
   ESP_LOGD("dbg", "String is: |%s|", this->char_buffer_.c_str());
   ESP_LOGD("dbg", "Size is: %d", this->char_buffer_.size());
