@@ -352,9 +352,14 @@ async def to_code(config):
         cg.add_define("USE_ETHERNET_SPI")
         if CORE.using_esp_idf:
             if CONF_INTERFACE in config:
+                spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
+                map = {
+                    "spi2": spi_host_device_t.SPI2_HOST,
+                    "spi3": spi_host_device_t.SPI3_HOST,
+                }
                 cg.add(
                     var.set_interface(
-                        cg.RawExpression(SPI_INTERFACE_MAP[config[CONF_INTERFACE]])
+                        map[config[CONF_INTERFACE]]
                     )
                 )
             add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
