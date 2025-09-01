@@ -303,11 +303,13 @@ class APIConnection final : public APIServerConnection {
     msg.key = entity->get_object_id_hash();
     // Try to use static reference first to avoid allocation
     StringRef static_ref = entity->get_object_id_ref_for_api_();
+    // Store dynamic string outside the if-else to maintain lifetime
+    std::string object_id;
     if (!static_ref.empty()) {
       msg.set_object_id(static_ref);
     } else {
       // Dynamic case - need to allocate
-      std::string object_id = entity->get_object_id();
+      object_id = entity->get_object_id();
       msg.set_object_id(StringRef(object_id));
     }
 
