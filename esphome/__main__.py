@@ -458,6 +458,13 @@ def upload_program(config: ConfigType, args: ArgsProtocol, host: str) -> int | s
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        if getattr(module, "show_logs")(config, args, devices):
+            return 0
+    except AttributeError:
+        pass
+
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
 
