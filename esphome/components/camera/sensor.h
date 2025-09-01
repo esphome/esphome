@@ -9,6 +9,7 @@ namespace camera {
 /// Result codes from the sensor used to control camera pipeline flow.
 enum SensorError : uint8_t {
   SENSOR_ERROR_SUCCESS = 0,   ///< Capture succeeded, continue pipeline normally.
+  SENSOR_ERROR_RETRY,         ///< Camera has not captured a new image yet, retry later.
   SENSOR_ERROR_CONFIGURATION  ///< Fatal config error, shut down pipeline.
 };
 
@@ -40,7 +41,8 @@ class Sensor {
 
   /// Sets up the camera sensor, configures resolution and applies
   /// sensor-specific settings before image caputure can begin.
-  virtual void camera_sensor_setup() = 0;
+  /// @return `true` if camera setup succeeded, `false` otherwise.
+  virtual bool camera_sensor_setup() = 0;
 
   /// Prints the camera sensor's configuration to the log.
   virtual void camera_sensor_dump_config() = 0;

@@ -43,8 +43,17 @@ void CameraImpl::setup() {
     return;
   }
 
-  if (this->sensor_)
-    this->sensor_->camera_sensor_setup();
+  if (this->sensor_ == nullptr) {
+    this->status_set_error("Missing set_sensor() call detected.");
+    this->mark_failed();
+    return;
+  }
+
+  if (!this->sensor_->camera_sensor_setup()) {
+    this->status_set_error("Camera Sensor Setup failed!");
+    this->mark_failed();
+    return;
+  }
 }
 
 bool CameraImpl::camera_loop() {
@@ -77,7 +86,19 @@ bool CameraImpl::camera_loop() {
 
   if (state_ == CAMERA_STATE_CAPTURE_BEGIN) {
     this->camera_incremental_context_.reset();
-    state_ = CAMERA_STATE_CAPTURING;
+    SensorError error = this->sensor_->capture_pixels();
+    switch (error) {
+      case SENSOR_ERROR_SUCCESS: {
+        state_ = CAMERA_STATE_CAPTURING;
+      } break;
+      case SENSOR_ERROR_RETRY: {
+      } break;
+      case SENSOR_ERROR_CONFIGURATION: {
+        this->status_set_error("SENSOR_ERROR_CONFIGURATION");
+        this->mark_failed();
+        return false;
+      } break;
+    }
   }
 
   if (state_ == CAMERA_STATE_CAPTURING) {
@@ -149,7 +170,6 @@ bool CameraImpl::camera_loop() {
         retry_frame_counter_ = 0;
         state_ = CAMERA_STATE_RATE_LIMITING;
       } break;
-        break;
       case ENCODER_ERROR_SKIP_FRAME: {
         if (skip_frame_counter_ == 0)
           ESP_LOGW(TAG, "ENCODER_ERROR_SKIP_FRAME.");
