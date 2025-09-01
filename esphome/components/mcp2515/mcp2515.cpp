@@ -258,7 +258,7 @@ canbus::Error MCP2515::send_message(struct canbus::CanFrame *frame) {
     }
   }
 
-  return canbus::ERROR_FAILTX;
+  return canbus::ERROR_ALLTXBUSY;
 }
 
 canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) {
