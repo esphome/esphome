@@ -101,7 +101,7 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   uint32_t scroll_delay_{750};
   uint32_t last_scroll_{0};
 
-  uint8_t brightness_{15};  // Intensity of the display from 0 to 15 (most) TODO: Change to brightness?
+  uint8_t brightness_{15};    // Brightness of the display from 0 (off) to 15 (brightest)
 
   std::string char_buffer_;   // This buffer holds the entire character message to display.
   uint8_t buffer_[20];        // This buffer is used to send the raw bytes to the HT16k33 device. TODO: Make this 17?

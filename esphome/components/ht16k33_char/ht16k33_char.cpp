@@ -38,10 +38,10 @@ void HT16k33CharComponent::setup() {
 
   for (auto *display : this->displays_) {
     setup_buffer = HT16K33_SYSTEM_SETUP | HT16K33_MODE_NORMAL;
-    display->write(&setup_buffer, 1, true);
+    display->write(&setup_buffer, 1);
 
     setup_buffer = HT16K33_DISPLAY_SETUP | HT16K33_DISPLAY_ON;
-    display->write(&setup_buffer, 1, true);
+    display->write(&setup_buffer, 1);
   }
 
   this->brightness(this->brightness_);
@@ -65,6 +65,15 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
+
+  //TODO: Look into getting rid of the assumption of fixed length for the message to display.
+  //      Resize the buffer when a new message is added. I am not sure of the memory implications of doing that...
+  //ESP_LOGD("dbg", "Max Size: %d", this->char_buffer_.max_size());
+  //      -Max Size: 2147483647
+
+  ESP_LOGD("dbg", "String is: |%s|", this->char_buffer_.c_str());
+  ESP_LOGD("dbg", "Size is: %d", this->char_buffer_.size());
+
   // This checks if the lambda function is defined. If it is not defined, we don't do anything.
   if (this->writer_.has_value()) {
     // This line is responsible for calling the lambda code.
@@ -206,7 +215,7 @@ void HT16k33CharComponent::blank() {
     for (int i = 1; i < 16; i++) {
       this->buffer_[i] = 0x00;
     }
-    display->write(this->buffer_, 16, true);
+    display->write(this->buffer_, 16);
   }
 }
 
@@ -247,7 +256,7 @@ void HT16k33CharComponent::brightness(uint8_t brightness_to_set) {
     }
 
     for (auto *display : this->displays_) {
-      display->write(&buffer, 1, true);
+      display->write(&buffer, 1);
     }
   }
 }
@@ -273,7 +282,7 @@ void HT16k33CharComponent::set_blink(uint8_t blink_state) {
   }
 
   for (auto *display : this->displays_) {
-    display->write(&buffer, 1, true);
+    display->write(&buffer, 1);
   }
 }
 
@@ -294,7 +303,7 @@ void HT16k33CharComponent::display_off(bool turn_off) {
   }
 
   for (auto *display : this->displays_) {
-    display->write(&buffer, 1, true);
+    display->write(&buffer, 1);
   }
 }
 
@@ -314,7 +323,7 @@ void HT16k33CharComponent::display_standby(bool standby) {
   }
 
   for (auto *display : this->displays_) {
-    display->write(&buffer, 1, true);
+    display->write(&buffer, 1);
   }
 }
 
