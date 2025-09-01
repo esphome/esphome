@@ -66,8 +66,12 @@ class CoroPriority(enum.IntEnum):
     HARDWARE = 1000
 
     # Network infrastructure setup
-    # Examples: network (201), async_tcp (200)
-    NETWORK = 200
+    # Examples: network (201)
+    NETWORK = 201
+
+    # Network transport layer
+    # Examples: async_tcp (200)
+    NETWORK_TRANSPORT = 200
 
     # Core system components
     # Examples: esphome core, most entity base components (cover, update, datetime,

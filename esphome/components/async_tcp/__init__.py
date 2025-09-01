@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(CoroPriority.NETWORK)
+@coroutine_with_priority(CoroPriority.NETWORK_TRANSPORT)
 async def to_code(config):
     if CORE.is_esp32 or CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
