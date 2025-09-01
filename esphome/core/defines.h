@@ -241,6 +241,7 @@
 #endif
 
 #ifdef USE_NRF52
+#define USE_NRF52_DFU
 #define USE_ZIGBEE
 #define USE_ZIGBEE_WIPE_ON_BOOT
 #endif
