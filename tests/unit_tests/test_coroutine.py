@@ -174,7 +174,7 @@ def test_custom_priority_between_enum_values() -> None:
     execution_order: list[str] = []
 
     @coroutine_with_priority(CoroPriority.CORE)  # 100
-    async def core_func():
+    async def core_func() -> None:
         execution_order.append("core")
 
     @coroutine_with_priority(95.0)  # Between CORE and DIAGNOSTICS
