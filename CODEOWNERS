@@ -89,6 +89,7 @@ esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @DT-art1 @bdraco
+esphome/components/camera_encoder/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @esphome/core

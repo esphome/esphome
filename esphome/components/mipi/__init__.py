@@ -2,7 +2,7 @@
 # Various configuration constants for MIPI displays
 # Various utility functions for MIPI DBI configuration
 
-from typing import Any
+from typing import Any, Self
 
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
@@ -228,7 +228,7 @@ class DriverChip:
     Setting swap_xy to cv.UNDEFINED will indicate that the model does not support swapping X and Y axes.
     """
 
-    models = {}
+    models: dict[str, Self] = {}
 
     def __init__(
         self,
@@ -342,8 +342,12 @@ class DriverChip:
                 CONF_NATIVE_HEIGHT, height + offset_height * 2
             )
             offset_height = native_height - height - offset_height
-        # Swap default dimensions if swap_xy is set
-        if transform.get(CONF_SWAP_XY) is True:
+        # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
+        rotated = not requires_buffer(config) and config.get(CONF_ROTATION, 0) in (
+            90,
+            270,
+        )
+        if transform.get(CONF_SWAP_XY) is True or rotated:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
         return width, height, offset_width, offset_height
