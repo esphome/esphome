@@ -44,7 +44,7 @@ from esphome.const import (
     CONF_USERNAME,
     PlatformFramework,
 )
-from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
 
 from . import wpa2_eap
@@ -370,7 +370,7 @@ def wifi_network(config, ap, static_ip):
     return ap
 
 
-@coroutine_with_priority(60.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))

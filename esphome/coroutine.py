@@ -43,6 +43,7 @@ the last `yield` expression defines what is returned.
 """
 
 from collections.abc import Awaitable, Callable, Generator, Iterator
+import enum
 import functools
 import heapq
 import inspect
@@ -51,6 +52,71 @@ import types
 from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class CoroPriority(enum.IntEnum):
+    """Execution priority stages for ESPHome code generation.
+
+    Higher values run first. These stages ensure proper dependency
+    resolution during code generation.
+    """
+
+    # Hardware initialization - must run first
+    # Examples: esp32, esp8266, rp2040
+    HARDWARE = 1000
+
+    # Network infrastructure setup
+    # Examples: network (201), async_tcp (200)
+    NETWORK = 200
+
+    # Core system components
+    # Examples: esphome core, most entity base components (cover, update, datetime,
+    # valve, alarm_control_panel, lock, event, binary_sensor, button, climate, fan,
+    # light, media_player, number, select, sensor, switch, text_sensor, text),
+    # microphone, speaker, audio_dac, touchscreen, stepper
+    CORE = 100
+
+    # Diagnostic and debugging systems
+    # Examples: logger (90), status_led (80)
+    DIAGNOSTICS = 90
+
+    # Communication protocols and services
+    # Examples: web_server_base (65), captive_portal (64), wifi (60), ethernet (60),
+    # mdns (55), ota_updates (54), web_server_ota (52)
+    COMMUNICATION = 60
+
+    # Application-level services
+    # Examples: safe_mode (50)
+    APPLICATION = 50
+
+    # Web and UI services
+    # Examples: web_server (40)
+    WEB = 40
+
+    # Automations and user logic
+    # Examples: esphome core automations (30)
+    AUTOMATION = 30
+
+    # Bus and peripheral setup
+    # Examples: i2c (1)
+    BUS = 1
+
+    # Standard component priority (default)
+    # Components without explicit priority run at 0
+    COMPONENT = 0
+
+    # Components that need others to be registered first
+    # Examples: globals (-100)
+    LATE = -100
+
+    # Platform-specific workarounds and fixes
+    # Examples: add_arduino_global_workaround (-999), esp8266 pin states (-999)
+    WORKAROUNDS = -999
+
+    # Final setup that requires all components to be registered
+    # Examples: add_includes, _add_platformio_options, _add_platform_defines (all -1000),
+    # esp32_ble_tracker feature defines (-1000)
+    FINAL = -1000
 
 
 def coroutine(func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
@@ -95,15 +161,16 @@ def coroutine(func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
     return coro
 
 
-def coroutine_with_priority(priority: float):
+def coroutine_with_priority(priority: float | CoroPriority):
     """Decorator to apply to functions to convert them to ESPHome coroutines.
 
     :param priority: priority with which to schedule the coroutine, higher priorities run first.
+                     Can be a float or a CoroPriority enum value.
     """
 
     def decorator(func):
         coro = coroutine(func)
-        coro.priority = priority
+        coro.priority = float(priority)
         return coro
 
     return decorator
