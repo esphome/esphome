@@ -315,6 +315,14 @@ canbus::Error MCP2515::read_message(struct canbus::CanFrame *frame) {
     rc = canbus::ERROR_NOMSG;
   }
 
+#ifdef ESPHOME_LOG_HAS_DEBUG
+  uint8_t err = get_error_flags_();
+  if (err & (EFLG_RX0OVR | EFLG_RX1OVR)) {
+    ESP_LOGD(TAG, "receive buffer overrun");
+    clear_rx_n_ovr_flags_();
+  }
+#endif
+
   return rc;
 }
 
