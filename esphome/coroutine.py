@@ -42,6 +42,8 @@ Here everything is combined in `yield` expressions. You await other coroutines u
 the last `yield` expression defines what is returned.
 """
 
+from __future__ import annotations
+
 from collections.abc import Awaitable, Callable, Generator, Iterator
 import enum
 import functools
@@ -244,7 +246,7 @@ class _Task:
         self.iterator = iterator
         self.original_function = original_function
 
-    def with_priority(self, priority: float) -> "_Task":
+    def with_priority(self, priority: float) -> _Task:
         return _Task(priority, self.id_number, self.iterator, self.original_function)
 
     @property

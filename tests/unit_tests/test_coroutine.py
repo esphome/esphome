@@ -8,7 +8,8 @@ from esphome.coroutine import CoroPriority, FakeEventLoop, coroutine_with_priori
 def test_coro_priority_enum_values() -> None:
     """Test that CoroPriority enum values match expected priorities."""
     assert CoroPriority.HARDWARE == 1000
-    assert CoroPriority.NETWORK == 200
+    assert CoroPriority.NETWORK == 201
+    assert CoroPriority.NETWORK_TRANSPORT == 200
     assert CoroPriority.CORE == 100
     assert CoroPriority.DIAGNOSTICS == 90
     assert CoroPriority.COMMUNICATION == 60
@@ -63,7 +64,8 @@ def test_float_and_enum_are_interchangeable() -> None:
     ("enum_value", "float_value"),
     [
         (CoroPriority.HARDWARE, 1000.0),
-        (CoroPriority.NETWORK, 200.0),
+        (CoroPriority.NETWORK, 201.0),
+        (CoroPriority.NETWORK_TRANSPORT, 200.0),
         (CoroPriority.CORE, 100.0),
         (CoroPriority.DIAGNOSTICS, 90.0),
         (CoroPriority.COMMUNICATION, 60.0),
@@ -156,7 +158,8 @@ def test_mixed_float_and_enum_priorities() -> None:
 def test_enum_priority_comparison() -> None:
     """Test that enum priorities can be compared directly."""
     assert CoroPriority.HARDWARE > CoroPriority.NETWORK
-    assert CoroPriority.NETWORK > CoroPriority.CORE
+    assert CoroPriority.NETWORK > CoroPriority.NETWORK_TRANSPORT
+    assert CoroPriority.NETWORK_TRANSPORT > CoroPriority.CORE
     assert CoroPriority.CORE > CoroPriority.DIAGNOSTICS
     assert CoroPriority.DIAGNOSTICS > CoroPriority.COMMUNICATION
     assert CoroPriority.COMMUNICATION > CoroPriority.APPLICATION
