@@ -63,9 +63,9 @@ class CoroPriority(enum.IntEnum):
     resolution during code generation.
     """
 
-    # Hardware initialization - must run first
+    # Platform initialization - must run first
     # Examples: esp32, esp8266, rp2040
-    HARDWARE = 1000
+    PLATFORM = 1000
 
     # Network infrastructure setup
     # Examples: network (201)

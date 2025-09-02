@@ -159,7 +159,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(CoroPriority.HARDWARE)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(rp2040_ns.setup_preferences())
 

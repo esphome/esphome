@@ -7,7 +7,7 @@ from esphome.coroutine import CoroPriority, FakeEventLoop, coroutine_with_priori
 
 def test_coro_priority_enum_values() -> None:
     """Test that CoroPriority enum values match expected priorities."""
-    assert CoroPriority.HARDWARE == 1000
+    assert CoroPriority.PLATFORM == 1000
     assert CoroPriority.NETWORK == 201
     assert CoroPriority.NETWORK_TRANSPORT == 200
     assert CoroPriority.CORE == 100
@@ -64,7 +64,7 @@ def test_float_and_enum_are_interchangeable() -> None:
 @pytest.mark.parametrize(
     ("enum_value", "float_value"),
     [
-        (CoroPriority.HARDWARE, 1000.0),
+        (CoroPriority.PLATFORM, 1000.0),
         (CoroPriority.NETWORK, 201.0),
         (CoroPriority.NETWORK_TRANSPORT, 200.0),
         (CoroPriority.CORE, 100.0),
@@ -103,9 +103,9 @@ def test_execution_order_with_enum_priorities() -> None:
     """Test that execution order is correct when using enum priorities."""
     execution_order: list[str] = []
 
-    @coroutine_with_priority(CoroPriority.HARDWARE)
-    async def hardware_func() -> None:
-        execution_order.append("hardware")
+    @coroutine_with_priority(CoroPriority.PLATFORM)
+    async def platform_func() -> None:
+        execution_order.append("platform")
 
     @coroutine_with_priority(CoroPriority.CORE)
     async def core_func() -> None:
@@ -117,7 +117,7 @@ def test_execution_order_with_enum_priorities() -> None:
 
     # Create event loop and add jobs
     loop = FakeEventLoop()
-    loop.add_job(hardware_func)
+    loop.add_job(platform_func)
     loop.add_job(core_func)
     loop.add_job(final_func)
 
@@ -125,14 +125,14 @@ def test_execution_order_with_enum_priorities() -> None:
     loop.flush_tasks()
 
     # Check execution order (higher priority runs first)
-    assert execution_order == ["hardware", "core", "final"]
+    assert execution_order == ["platform", "core", "final"]
 
 
 def test_mixed_float_and_enum_priorities() -> None:
     """Test that mixing float and enum priorities works correctly."""
     execution_order: list[str] = []
 
-    @coroutine_with_priority(1000.0)  # Same as HARDWARE
+    @coroutine_with_priority(1000.0)  # Same as PLATFORM
     async def func1() -> None:
         execution_order.append("func1")
 
@@ -159,7 +159,7 @@ def test_mixed_float_and_enum_priorities() -> None:
 
 def test_enum_priority_comparison() -> None:
     """Test that enum priorities can be compared directly."""
-    assert CoroPriority.HARDWARE > CoroPriority.NETWORK
+    assert CoroPriority.PLATFORM > CoroPriority.NETWORK
     assert CoroPriority.NETWORK > CoroPriority.NETWORK_TRANSPORT
     assert CoroPriority.NETWORK_TRANSPORT > CoroPriority.CORE
     assert CoroPriority.CORE > CoroPriority.DIAGNOSTICS

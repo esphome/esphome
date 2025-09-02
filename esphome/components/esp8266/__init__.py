@@ -176,7 +176,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(CoroPriority.HARDWARE)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
 

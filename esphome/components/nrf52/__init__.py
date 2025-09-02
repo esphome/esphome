@@ -132,7 +132,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-@coroutine_with_priority(CoroPriority.HARDWARE)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_platformio_option("board", config[CONF_BOARD])
