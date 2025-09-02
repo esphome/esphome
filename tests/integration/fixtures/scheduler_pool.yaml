@@ -1,0 +1,215 @@
+esphome:
+  name: scheduler-pool-test
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "Starting scheduler pool tests"
+  debug_scheduler: true  # Enable scheduler debug logging
+
+host:
+api:
+  services:
+    - service: run_phase_1
+      then:
+        - script.execute: test_pool_recycling
+    - service: run_phase_2
+      then:
+        - script.execute: test_sensor_polling
+    - service: run_phase_3
+      then:
+        - script.execute: test_communication_patterns
+    - service: run_phase_4
+      then:
+        - script.execute: test_defer_patterns
+    - service: run_phase_5
+      then:
+        - script.execute: test_pool_reuse_verification
+    - service: run_complete
+      then:
+        - script.execute: complete_test
+logger:
+  level: VERY_VERBOSE  # Need VERY_VERBOSE to see pool debug messages
+
+globals:
+  - id: create_count
+    type: int
+    initial_value: '0'
+  - id: cancel_count
+    type: int
+    initial_value: '0'
+  - id: interval_counter
+    type: int
+    initial_value: '0'
+  - id: pool_test_done
+    type: bool
+    initial_value: 'false'
+
+script:
+  - id: test_pool_recycling
+    then:
+      - logger.log: "Testing scheduler pool recycling with realistic usage patterns"
+      - lambda: |-
+          auto *component = id(test_sensor);
+
+          // Simulate realistic component behavior with timeouts that complete naturally
+          ESP_LOGI("test", "Phase 1: Simulating normal component lifecycle");
+
+          // Sensor update timeouts (common pattern)
+          App.scheduler.set_timeout(component, "sensor_init", 100, []() {
+            ESP_LOGD("test", "Sensor initialized");
+            id(create_count)++;
+          });
+
+          // Retry timeout (gets cancelled if successful)
+          App.scheduler.set_timeout(component, "retry_timeout", 500, []() {
+            ESP_LOGD("test", "Retry timeout executed");
+            id(create_count)++;
+          });
+
+          // Simulate successful operation - cancel retry
+          App.scheduler.set_timeout(component, "success_sim", 200, []() {
+            ESP_LOGD("test", "Operation succeeded, cancelling retry");
+            App.scheduler.cancel_timeout(id(test_sensor), "retry_timeout");
+            id(cancel_count)++;
+          });
+
+          id(create_count) += 3;
+          ESP_LOGI("test", "Phase 1 complete");
+
+  - id: test_sensor_polling
+    then:
+      - lambda: |-
+          // Simulate sensor polling pattern
+          ESP_LOGI("test", "Phase 2: Simulating sensor polling patterns");
+          auto *component = id(test_sensor);
+
+          // Multiple sensors with different update intervals
+          App.scheduler.set_interval(component, "temp_sensor", 1000, []() {
+            ESP_LOGD("test", "Temperature sensor update");
+            id(interval_counter)++;
+            if (id(interval_counter) >= 3) {
+              App.scheduler.cancel_interval(id(test_sensor), "temp_sensor");
+              ESP_LOGD("test", "Temperature sensor stopped");
+            }
+          });
+
+          App.scheduler.set_interval(component, "humidity_sensor", 1500, []() {
+            ESP_LOGD("test", "Humidity sensor update");
+            id(interval_counter)++;
+            if (id(interval_counter) >= 5) {
+              App.scheduler.cancel_interval(id(test_sensor), "humidity_sensor");
+              ESP_LOGD("test", "Humidity sensor stopped");
+            }
+          });
+
+          id(create_count) += 2;
+          ESP_LOGI("test", "Phase 2 complete");
+
+  - id: test_communication_patterns
+    then:
+      - lambda: |-
+          // Simulate communication patterns (WiFi/API reconnects, etc)
+          ESP_LOGI("test", "Phase 3: Simulating communication patterns");
+          auto *component = id(test_sensor);
+
+          // Connection timeout pattern
+          App.scheduler.set_timeout(component, "connect_timeout", 2000, []() {
+            ESP_LOGD("test", "Connection timeout - would retry");
+            id(create_count)++;
+
+            // Schedule retry
+            App.scheduler.set_timeout(id(test_sensor), "connect_retry", 1000, []() {
+              ESP_LOGD("test", "Retrying connection");
+              id(create_count)++;
+            });
+          });
+
+          // Heartbeat pattern
+          App.scheduler.set_interval(component, "heartbeat", 500, []() {
+            ESP_LOGD("test", "Heartbeat");
+            id(interval_counter)++;
+            if (id(interval_counter) >= 10) {
+              App.scheduler.cancel_interval(id(test_sensor), "heartbeat");
+              ESP_LOGD("test", "Heartbeat stopped");
+            }
+          });
+
+          id(create_count) += 2;
+          ESP_LOGI("test", "Phase 3 complete");
+
+  - id: test_defer_patterns
+    then:
+      - lambda: |-
+          // Simulate defer patterns (state changes, async operations)
+          ESP_LOGI("test", "Phase 4: Simulating defer patterns");
+
+          class TestComponent : public Component {
+          public:
+            void simulate_state_changes() {
+              // Defer state changes (common in switches, lights, etc)
+              this->defer("state_change_1", []() {
+                ESP_LOGD("test", "State change 1 applied");
+                id(create_count)++;
+              });
+
+              // Another state change
+              this->defer("state_change_2", []() {
+                ESP_LOGD("test", "State change 2 applied");
+                id(create_count)++;
+              });
+
+              // Cleanup operation
+              this->defer("cleanup", []() {
+                ESP_LOGD("test", "Cleanup executed");
+                id(create_count)++;
+              });
+            }
+          };
+
+          static TestComponent test_comp;
+          test_comp.simulate_state_changes();
+          ESP_LOGI("test", "Phase 4 complete");
+
+  - id: test_pool_reuse_verification
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Phase 5: Verifying pool reuse after everything settles");
+
+          // First, ensure any remaining intervals are cancelled to recycle to pool
+          auto *component = id(test_sensor);
+          App.scheduler.cancel_interval(component, "temp_sensor");
+          App.scheduler.cancel_interval(component, "humidity_sensor");
+          App.scheduler.cancel_interval(component, "heartbeat");
+
+          // Give a moment for items to be recycled
+          ESP_LOGD("test", "Cancelled any remaining intervals to build up pool");
+
+          // Now create 6 new timeouts - they should all reuse from pool
+          int reuse_test_count = 6;
+          int initial_pool_reused = 0;
+
+          for (int i = 0; i < reuse_test_count; i++) {
+            std::string name = "reuse_test_" + std::to_string(i);
+            App.scheduler.set_timeout(component, name, 100 + i * 50, [i]() {
+              ESP_LOGD("test", "Reuse test %d completed", i);
+            });
+          }
+
+          ESP_LOGI("test", "Created %d items for reuse verification", reuse_test_count);
+          id(create_count) += reuse_test_count;
+          ESP_LOGI("test", "Phase 5 complete");
+
+  - id: complete_test
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Pool recycling test complete - created %d items, cancelled %d, intervals %d",
+                   id(create_count), id(cancel_count), id(interval_counter));
+
+sensor:
+  - platform: template
+    name: Test Sensor
+    id: test_sensor
+    lambda: return 1.0;
+    update_interval: never
+
+# No interval - tests will be triggered from Python via API services
