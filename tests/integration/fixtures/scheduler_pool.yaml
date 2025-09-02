@@ -58,19 +58,19 @@ script:
           ESP_LOGI("test", "Phase 1: Simulating normal component lifecycle");
 
           // Sensor update timeouts (common pattern)
-          App.scheduler.set_timeout(component, "sensor_init", 100, []() {
+          App.scheduler.set_timeout(component, "sensor_init", 10, []() {
             ESP_LOGD("test", "Sensor initialized");
             id(create_count)++;
           });
 
           // Retry timeout (gets cancelled if successful)
-          App.scheduler.set_timeout(component, "retry_timeout", 500, []() {
+          App.scheduler.set_timeout(component, "retry_timeout", 50, []() {
             ESP_LOGD("test", "Retry timeout executed");
             id(create_count)++;
           });
 
           // Simulate successful operation - cancel retry
-          App.scheduler.set_timeout(component, "success_sim", 200, []() {
+          App.scheduler.set_timeout(component, "success_sim", 20, []() {
             ESP_LOGD("test", "Operation succeeded, cancelling retry");
             App.scheduler.cancel_timeout(id(test_sensor), "retry_timeout");
             id(cancel_count)++;
@@ -87,7 +87,7 @@ script:
           auto *component = id(test_sensor);
 
           // Multiple sensors with different update intervals
-          App.scheduler.set_interval(component, "temp_sensor", 1000, []() {
+          App.scheduler.set_interval(component, "temp_sensor", 100, []() {
             ESP_LOGD("test", "Temperature sensor update");
             id(interval_counter)++;
             if (id(interval_counter) >= 3) {
@@ -96,7 +96,7 @@ script:
             }
           });
 
-          App.scheduler.set_interval(component, "humidity_sensor", 1500, []() {
+          App.scheduler.set_interval(component, "humidity_sensor", 150, []() {
             ESP_LOGD("test", "Humidity sensor update");
             id(interval_counter)++;
             if (id(interval_counter) >= 5) {
@@ -116,19 +116,19 @@ script:
           auto *component = id(test_sensor);
 
           // Connection timeout pattern
-          App.scheduler.set_timeout(component, "connect_timeout", 2000, []() {
+          App.scheduler.set_timeout(component, "connect_timeout", 200, []() {
             ESP_LOGD("test", "Connection timeout - would retry");
             id(create_count)++;
 
             // Schedule retry
-            App.scheduler.set_timeout(id(test_sensor), "connect_retry", 1000, []() {
+            App.scheduler.set_timeout(id(test_sensor), "connect_retry", 100, []() {
               ESP_LOGD("test", "Retrying connection");
               id(create_count)++;
             });
           });
 
           // Heartbeat pattern
-          App.scheduler.set_interval(component, "heartbeat", 500, []() {
+          App.scheduler.set_interval(component, "heartbeat", 50, []() {
             ESP_LOGD("test", "Heartbeat");
             id(interval_counter)++;
             if (id(interval_counter) >= 10) {
@@ -203,7 +203,7 @@ script:
 
           for (int i = 0; i < reuse_test_count; i++) {
             std::string name = "reuse_test_" + std::to_string(i);
-            App.scheduler.set_timeout(component, name, 50 + i * 10, [i]() {
+            App.scheduler.set_timeout(component, name, 10 + i * 5, [i]() {
               ESP_LOGD("test", "Reuse test %d completed", i);
             });
           }
@@ -226,7 +226,7 @@ script:
 
           for (int i = 0; i < full_reuse_count; i++) {
             std::string name = "full_reuse_" + std::to_string(i);
-            App.scheduler.set_timeout(component, name, 50 + i * 10, [i]() {
+            App.scheduler.set_timeout(component, name, 10 + i * 5, [i]() {
               ESP_LOGD("test", "Full reuse test %d completed", i);
             });
           }
