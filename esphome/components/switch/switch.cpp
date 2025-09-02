@@ -100,8 +100,8 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
     if (obj->is_inverted()) {
       ESP_LOGCONFIG(tag, "%s  Inverted: YES", prefix);
     }
-    if (!obj->get_device_class().empty()) {
-      ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
+    if (!obj->get_device_class_ref().empty()) {
+      ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
     }
   }
 }
