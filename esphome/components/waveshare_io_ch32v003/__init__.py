@@ -17,21 +17,23 @@ AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
-waveshare_io_ns = cg.esphome_ns.namespace("waveshare_io")
+waveshare_io_ns = cg.esphome_ns.namespace("waveshare_io_ch32v003")
 
-WaveshareIOComponent = waveshare_io_ns.class_(
-    "WaveshareIOComponent", cg.Component, i2c.I2CDevice
+WaveshareIOCH32V003Component = waveshare_io_ns.class_(
+    "WaveshareIOCH32V003Component", cg.Component, i2c.I2CDevice
 )
-WaveshareIOGPIOPin = waveshare_io_ns.class_(
-    "WaveshareIOGPIOPin", cg.GPIOPin, cg.Parented.template(WaveshareIOComponent)
+WaveshareIOCH32V003GPIOPin = waveshare_io_ns.class_(
+    "WaveshareIOCH32V003GPIOPin",
+    cg.GPIOPin,
+    cg.Parented.template(WaveshareIOCH32V003Component),
 )
 
-CONF_WAVESHARE_IO = "waveshare_io"
-CONF_WAVESHARE_IO_ID = "waveshare_io_id"
+CONF_WAVESHARE_IO = "waveshare_io_ch32v003"
+CONF_WAVESHARE_IO_ID = "waveshare_io_ch32v003_id"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(CONF_ID): cv.declare_id(WaveshareIOComponent),
+            cv.GenerateID(CONF_ID): cv.declare_id(WaveshareIOCH32V003Component),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -54,14 +56,14 @@ def validate_mode(value):
 
 
 WAVESHARE_IO_PIN_SCHEMA = pins.gpio_base_schema(
-    WaveshareIOGPIOPin,
+    WaveshareIOCH32V003GPIOPin,
     cv.int_range(min=0, max=7),
     modes=[CONF_INPUT, CONF_OUTPUT],
     mode_validator=validate_mode,
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_WAVESHARE_IO): cv.use_id(WaveshareIOComponent),
+        cv.Required(CONF_WAVESHARE_IO): cv.use_id(WaveshareIOCH32V003Component),
     }
 )
 

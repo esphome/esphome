@@ -9,23 +9,22 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
-from .. import CONF_WAVESHARE_IO_ID, WaveshareIOComponent, waveshare_io_ns
+from .. import CONF_WAVESHARE_IO_ID, WaveshareIOCH32V003Component, waveshare_io_ns
 
 AUTO_LOAD = ["voltage_sampler"]
+DEPENDENCIES = ["waveshare_io_ch32v003"]
 
-DEPENDENCIES = ["waveshare_io"]
-
-WaveshareIOSensor = waveshare_io_ns.class_(
-    "WaveshareIOSensor",
+WaveshareIOCH32V003Sensor = waveshare_io_ns.class_(
+    "WaveshareIOCH32V003Sensor",
     sensor.Sensor,
     cg.PollingComponent,
     voltage_sampler.VoltageSampler,
-    cg.Parented.template(WaveshareIOComponent),
+    cg.Parented.template(WaveshareIOCH32V003Component),
 )
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        WaveshareIOSensor,
+        WaveshareIOCH32V003Sensor,
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_VOLTAGE,
@@ -33,7 +32,9 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(CONF_WAVESHARE_IO_ID): cv.use_id(WaveshareIOComponent),
+            cv.GenerateID(CONF_WAVESHARE_IO_ID): cv.use_id(
+                WaveshareIOCH32V003Component
+            ),
             cv.Optional(CONF_REFERENCE_VOLTAGE, default="9.9V"): cv.voltage,
         }
     )

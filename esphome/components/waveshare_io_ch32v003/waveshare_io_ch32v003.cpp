@@ -1,20 +1,21 @@
-#include "waveshare_io.h"
+#include "waveshare_io_ch32v003.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace waveshare_io {
+namespace waveshare_io_ch32v003 {
 
-static const uint8_t IO_EXTENSION_MODE = 0x02;
+static const uint8_t IO_EXTENSION_DIRECTION = 0x02;
 static const uint8_t IO_EXTENSION_IO_OUTPUT_ADDR = 0x03;
 static const uint8_t IO_EXTENSION_IO_INPUT_ADDR = 0x04;
 static const uint8_t IO_EXTENSION_PWM_ADDR = 0x05;
 static const uint8_t IO_EXTENSION_ADC_ADDR = 0x06;
+static const uint8_t IO_EXTENSION_INTERRUPT_ADDR = 0x07;
 
 static const uint8_t MAX_PWM_VALUE = 0.97 * 255;  // 0.97 * 255 = 247.35
 
-static const char *const TAG = "waveshare_io";
+static const char *const TAG = "waveshare_io_ch32v003";
 
-void WaveshareIOComponent::setup() {
+void WaveshareIOCH32V003Component::setup() {
   this->mode_mask_ = 0xFF;    // Set all pins to output mode
   this->output_mask_ = 0xFF;  // Set all pins to high (output mode)
 
@@ -31,7 +32,7 @@ void WaveshareIOComponent::setup() {
                 this->status_has_error());
 }
 
-void WaveshareIOComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
+void WaveshareIOCH32V003Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   // bits: 0 = input, 1 = output
   if (flags == gpio::FLAG_INPUT) {
     // Clear mode mask bit
@@ -43,9 +44,9 @@ void WaveshareIOComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->write_gpio_modes_();
 }
 
-void WaveshareIOComponent::loop() { this->reset_pin_cache_(); }
+void WaveshareIOCH32V003Component::loop() { this->reset_pin_cache_(); }
 
-void WaveshareIOComponent::dump_config() {
+void WaveshareIOCH32V003Component::dump_config() {
   ESP_LOGCONFIG(TAG, "WaveshareIO:");
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
@@ -53,7 +54,7 @@ void WaveshareIOComponent::dump_config() {
   }
 }
 
-uint16_t WaveshareIOComponent::get_adc_value() {
+uint16_t WaveshareIOCH32V003Component::get_adc_value() {
   if (this->is_failed())
     return 0;
 
@@ -67,7 +68,7 @@ uint16_t WaveshareIOComponent::get_adc_value() {
   return adc_value;
 }
 
-void WaveshareIOComponent::set_pwm_value(uint8_t value) {
+void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   if (this->is_failed())
     return;
 
@@ -86,10 +87,10 @@ void WaveshareIOComponent::set_pwm_value(uint8_t value) {
   this->status_clear_warning();
 }
 
-bool WaveshareIOComponent::write_gpio_modes_() {
+bool WaveshareIOCH32V003Component::write_gpio_modes_() {
   if (this->is_failed())
     return false;
-  if (!this->write_byte(IO_EXTENSION_MODE, this->mode_mask_)) {
+  if (!this->write_byte(IO_EXTENSION_DIRECTION, this->mode_mask_)) {
     this->status_set_warning("Failed to write mode register");
     return false;
   }
@@ -97,7 +98,7 @@ bool WaveshareIOComponent::write_gpio_modes_() {
   return true;
 }
 
-bool WaveshareIOComponent::write_gpio_outputs_() {
+bool WaveshareIOCH32V003Component::write_gpio_outputs_() {
   if (this->is_failed())
     return false;
   if (!this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, this->output_mask_)) {
@@ -108,7 +109,7 @@ bool WaveshareIOComponent::write_gpio_outputs_() {
   return true;
 }
 
-bool WaveshareIOComponent::digital_read_hw(uint8_t pin) {
+bool WaveshareIOCH32V003Component::digital_read_hw(uint8_t pin) {
   if (this->is_failed())
     return false;
 
@@ -123,7 +124,7 @@ bool WaveshareIOComponent::digital_read_hw(uint8_t pin) {
   return true;
 }
 
-void WaveshareIOComponent::digital_write_hw(uint8_t pin, bool value) {
+void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
@@ -142,25 +143,25 @@ void WaveshareIOComponent::digital_write_hw(uint8_t pin, bool value) {
   this->status_clear_warning();
 }
 
-bool WaveshareIOComponent::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
-float WaveshareIOComponent::get_setup_priority() const { return setup_priority::IO; }
+bool WaveshareIOCH32V003Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
+float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::IO; }
 
 // Run our loop() method very early in the loop, so that we cache read values
 // before other components call our digital_read() method.
-float WaveshareIOComponent::get_loop_priority() const { return 9.0f; }  // Just after WIFI
+float WaveshareIOCH32V003Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
 
-void WaveshareIOGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool WaveshareIOGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
+void WaveshareIOCH32V003GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
+bool WaveshareIOCH32V003GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
 
-void WaveshareIOGPIOPin::digital_write(bool value) {
+void WaveshareIOCH32V003GPIOPin::digital_write(bool value) {
   this->parent_->digital_write(this->pin_, value ^ this->inverted_);
 }
 
-std::string WaveshareIOGPIOPin::dump_summary() const { return str_sprintf("EXIO%u via WaveshareIO", pin_); }
-void WaveshareIOGPIOPin::set_flags(gpio::Flags flags) {
+std::string WaveshareIOCH32V003GPIOPin::dump_summary() const { return str_sprintf("EXIO%u via WaveshareIO", pin_); }
+void WaveshareIOCH32V003GPIOPin::set_flags(gpio::Flags flags) {
   flags_ = flags;
   this->parent_->pin_mode(this->pin_, flags);
 }
 
-}  // namespace waveshare_io
+}  // namespace waveshare_io_ch32v003
 }  // namespace esphome

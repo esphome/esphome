@@ -6,13 +6,13 @@
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace waveshare_io {
+namespace waveshare_io_ch32v003 {
 
-class WaveshareIOComponent : public Component,
-                             public i2c::I2CDevice,
-                             public gpio_expander::CachedGpioExpander<uint8_t, 8> {
+class WaveshareIOCH32V003Component : public Component,
+                                     public i2c::I2CDevice,
+                                     public gpio_expander::CachedGpioExpander<uint8_t, 8> {
  public:
-  WaveshareIOComponent() = default;
+  WaveshareIOCH32V003Component() = default;
 
   void setup() override;
   void pin_mode(uint8_t pin, gpio::Flags flags);
@@ -25,9 +25,10 @@ class WaveshareIOComponent : public Component,
 
   uint16_t get_adc_value();
   void set_pwm_value(uint8_t value);  // 0 - 255
+  uint8_t get_interrupt_status();
 
  protected:
-  friend class WaveshareIOGPIOPin;
+  friend class WaveshareIOCH32V003GPIOPin;
 
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
@@ -44,7 +45,7 @@ class WaveshareIOComponent : public Component,
 };
 
 /// Helper class to expose a WaveshareIO pin as a GPIO pin.
-class WaveshareIOGPIOPin : public GPIOPin, public Parented<WaveshareIOComponent> {
+class WaveshareIOCH32V003GPIOPin : public GPIOPin, public Parented<WaveshareIOCH32V003Component> {
  public:
   void setup() override{};
   void pin_mode(gpio::Flags flags) override;
@@ -64,5 +65,5 @@ class WaveshareIOGPIOPin : public GPIOPin, public Parented<WaveshareIOComponent>
   gpio::Flags flags_{};
 };
 
-}  // namespace waveshare_io
+}  // namespace waveshare_io_ch32v003
 }  // namespace esphome
