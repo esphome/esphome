@@ -119,6 +119,7 @@ class QMI8658Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
+  bool disable_wake_on_motion();
   bool enable_wake_on_motion(uint8_t threshold, QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr, QMI8658InterruptPin interrupt_pin, uint8_t initial_pin_state, uint8_t blanking_time);
   void set_accel_odr(QMI8658AccelODR accel_odr) { this->accel_odr_ = accel_odr; }
   void set_accel_range(QMI8658AccelRange accel_range) { this->accel_range_ = accel_range; }

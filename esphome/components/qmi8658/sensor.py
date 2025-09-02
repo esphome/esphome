@@ -97,6 +97,7 @@ QMI8658_GYRO_RANGE = {
 }
 
 EnableWakeOnMotionAction = qmi8658_ns.class_("EnableWakeOnMotionAction", automation.Action)
+DisableWakeOnMotionAction = qmi8658_ns.class_("DisableWakeOnMotionAction", automation.Action)
 
 ACCEL_SCHEMA = {
     "unit_of_measurement": UNIT_METER_PER_SECOND_SQUARED,
@@ -149,6 +150,12 @@ ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.maybe_simple_value(
     key=CONF_THRESHOLD,
 )
 
+DISABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(QMI8658Component),
+    },
+)
+
 
 @automation.register_action(
     "qmi8658.enable_wake_on_motion", EnableWakeOnMotionAction, ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA
@@ -169,6 +176,15 @@ async def qmi8658_enable_wake_on_motion_to_code(config, action_id, template_arg,
     cg.add(var.set_initial_pin_state(initial_pin_state))
     cg.add(var.set_interrupt_pin(interrupt_pin))
     cg.add(var.set_threshold(threshold))
+
+    return var
+
+@automation.register_action(
+    "qmi8658.disable_wake_on_motion", DisableWakeOnMotionAction, DISABLE_WAKE_ON_MOTION_ACTION_SCHEMA
+)
+async def qmi8658_disable_wake_on_motion_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     return var
 

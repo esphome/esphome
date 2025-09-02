@@ -1,0 +1,83 @@
+esphome:
+  name: qmi8658
+  friendly_name: QMI8658
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+logger:
+  level: DEBUG
+
+i2c:
+  sda: GPIO11
+  scl: GPIO12
+
+wifi:
+  ssid: Kherson
+  password: iloveyou
+
+web_server:
+
+deep_sleep:
+  id: deep_sleep_1
+  wakeup_pin:
+    number: GPIO0
+    inverted: true
+
+button:
+  - platform: template
+    name: Sweet dreams!
+    on_press:
+      - qmi8658.enable_wake_on_motion:
+          threshold: 50
+          interrupt_pin: INT2
+          initial_pin_state: 1
+  - platform: template
+    name: Wake up!
+    on_press:
+      - qmi8658.enable_wake_on_motion: 0
+
+binary_sensor:
+  - platform: gpio
+    name: GPIO10
+    pin:
+      number: GPIO10
+      mode:
+        input: true
+        pullup: true
+  - platform: gpio
+    name: GPIO13
+    pin:
+      number: GPIO13
+      mode:
+        input: true
+        pullup: true
+
+sensor:
+  - platform: qmi8658
+    address: 0x6B
+    #interrupt_pin_1: GPIO10    # Don't work very well for me, use IRQ2 below
+    #interrupt_pin_2: GPIO13
+    acceleration_range: 2G
+    acceleration_odr: 1000hz
+    #acceleration_lpf_mode: "0"   # Optional
+    gyroscope_range: 512DPS
+    gyroscope_odr: 4000HZ
+    #gyroscope_lpf_mode: "3"      # Optional
+    acceleration_x:
+      name: "QMI8658 Acceleration X"
+    acceleration_y:
+      name: "QMI8658 Acceleration Y"
+    acceleration_z:
+      name: "QMI8658 Acceleration Z"
+    gyroscope_x:
+      name: "QMI8658 Gyroscope X"
+    gyroscope_y:
+      name: "QMI8658 Gyroscope Y"
+    gyroscope_z:
+      name: "QMI8658 Gyroscope Z"
+    temperature:
+      name: "QMI8658 Temperature"
+    update_interval: 1s

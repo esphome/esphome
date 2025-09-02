@@ -113,13 +113,11 @@ void QMI8658Component::setup() {
   if (this->read_byte(QMI8658_REGISTER_WHO_AM_I, &chipid)) {
     if (chipid != 0x05) {
       ESP_LOGE(TAG, "This is not a QMI8658 chip");
-      this->mark_failed();
-      return;
+      return this->mark_failed();
     }
   } else {
     ESP_LOGE(TAG, "Can't read WHO_AM_I register");
-    this->mark_failed();
-    return;
+    return this->mark_failed();
   }
 
   ESP_LOGV(TAG, "  Setting up SPI Interface...");
@@ -142,7 +140,9 @@ void QMI8658Component::setup() {
     return this->mark_failed();
   }
 
-  
+  if (!this->enable_required_sensors_()) {
+    return this->mark_failed();
+  }
 }
 
 void QMI8658Component::dump_config() {
@@ -168,16 +168,14 @@ void QMI8658Component::update() {
   int16_t data[3];
 
   if (this->read_le_int16_(QMI8658_REGISTER_TEMP_L, data, 1) != i2c::ERROR_OK) {
-    this->status_set_warning("Error reading temperature data register");
-    return;
+    return this->status_set_warning("Error reading temperature data register");
   }
 
   float temperature = (float) data[0] / (float) INT16_MAX * 64.5f + 23.f;
 
 
   if (this->read_le_int16_(QMI8658_REGISTER_AX_L, data, 3) != i2c::ERROR_OK) {
-    this->status_set_warning("Error reading acceleration data register");
-    return;
+    return this->status_set_warning("Error reading acceleration data register");
   }
 
   float accel_x = (float) data[0] / (float) INT16_MAX * (1 << (uint8_t) this->accel_range_ + 1) * GRAVITY_EARTH;
@@ -185,8 +183,7 @@ void QMI8658Component::update() {
   float accel_z = (float) data[2] / (float) INT16_MAX * (1 << (uint8_t) this->accel_range_ + 1) * GRAVITY_EARTH;
   
   if (this->read_le_int16_(QMI8658_REGISTER_GX_L, data, 3) != i2c::ERROR_OK) {
-    this->status_set_warning("Error reading gyroscope data register");
-    return;
+    return this->status_set_warning("Error reading gyroscope data register");
   }
   
   float gyro_x = (float) data[0] / (float) INT16_MAX * (1 << (uint8_t) this->gyro_range_ + 4);
@@ -228,13 +225,39 @@ bool QMI8658Component::disable_sensors_() {
   return this->enable_sensors_(QMI8658_SENSOR_NONE);
 }
 
+bool QMI8658Component::disable_wake_on_motion() {
+  if (!this->disable_sensors_()) {
+    this->status_set_warning("Error disabling WoM: disabling sensors");
+    return false;
+  }
+  
+  ESP_LOGV(TAG, "  Disabling WoM threshold...");
+  uint8_t threshold = 0x00;
+  ESP_LOGV(TAG, "  threshold: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(threshold));
+  if (this->write_register(QMI8658_REGISTER_CAL1_L, &threshold, 1) != i2c::ERROR_OK) {
+    this->status_set_warning("Error disabling WoM: disabling threshold");
+    return false;
+  }
+
+  ESP_LOGV(TAG, "  Saving WoM settings...");
+  if (!this->send_command_(QMI8658_CMD_WRITE_WOM_SETTING)) {
+    this->status_set_warning("Error disabling WoM: saving WoM settings");
+    return false;
+  }
+  return this->enable_required_sensors_();
+}
+
 bool QMI8658Component::enable_required_sensors_() {
   ESP_LOGV(TAG, "  Enabling sensors...");
   uint8_t sensors_state = QMI8658_SENSOR_NONE;
   if (this->is_accel_required_()) sensors_state |= QMI8658_SENSOR_ACCEL;
   if (this->is_gyro_required_()) sensors_state |= QMI8658_SENSOR_GYRO;
   ESP_LOGV(TAG, "  sensors_state: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(sensors_state));
-  return this->enable_sensors_(sensors_state);
+  if (!this->enable_sensors_(sensors_state)) {
+    ESP_LOGE(TAG, "Can't enable required sensors");
+    return false;
+  }
+  return true;
 }
 
 bool QMI8658Component::enable_sensors_(uint8_t sensors_state) {
@@ -250,6 +273,7 @@ bool QMI8658Component::enable_wake_on_motion(uint8_t threshold, QMI8658AccelRang
     this->status_set_warning("Error enabling WoM: disabling sensors");
     return false;
   }
+  
   if (!this->configure_accel_(accel_range, accel_odr)) {
     this->status_set_warning("Error enabling WoM: configuring accel");
     return false;
@@ -270,9 +294,9 @@ bool QMI8658Component::enable_wake_on_motion(uint8_t threshold, QMI8658AccelRang
     return false;
   }
 
-  ESP_LOGV(TAG, "  Enabling WoM...");
+  ESP_LOGV(TAG, "  Saving WoM settings...");
   if (!this->send_command_(QMI8658_CMD_WRITE_WOM_SETTING)) {
-    this->status_set_warning("Error enabling WoM: sending command");
+    this->status_set_warning("Error enabling WoM: saving WoM settings");
     return false;
   }
   
