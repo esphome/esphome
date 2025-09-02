@@ -759,7 +759,7 @@ void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
   if (!item)
     return;
 
-  static constexpr size_t MAX_POOL_SIZE = 16;
+  static constexpr size_t MAX_POOL_SIZE = 8;
   if (this->scheduler_item_pool_.size() < MAX_POOL_SIZE) {
     // Clear callback to release captured resources
     item->callback = nullptr;
