@@ -24,6 +24,9 @@ api:
     - service: run_phase_5
       then:
         - script.execute: test_pool_reuse_verification
+    - service: run_phase_6
+      then:
+        - script.execute: test_full_pool_reuse
     - service: run_complete
       then:
         - script.execute: complete_test
@@ -202,6 +205,29 @@ script:
           ESP_LOGI("test", "Created %d items for reuse verification", reuse_test_count);
           id(create_count) += reuse_test_count;
           ESP_LOGI("test", "Phase 5 complete");
+
+  - id: test_full_pool_reuse
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Phase 6: Testing full pool reuse after Phase 5 items complete");
+
+          // At this point, all Phase 5 timeouts should have completed and been recycled.
+          // The pool should be at or near its maximum size (10).
+          // Creating 10 new items should reuse all from the pool.
+
+          auto *component = id(test_sensor);
+          int full_reuse_count = 10;
+
+          for (int i = 0; i < full_reuse_count; i++) {
+            std::string name = "full_reuse_" + std::to_string(i);
+            App.scheduler.set_timeout(component, name, 50 + i * 10, [i]() {
+              ESP_LOGD("test", "Full reuse test %d completed", i);
+            });
+          }
+
+          ESP_LOGI("test", "Created %d items for full pool reuse verification", full_reuse_count);
+          id(create_count) += full_reuse_count;
+          ESP_LOGI("test", "Phase 6 complete");
 
   - id: complete_test
     then:
