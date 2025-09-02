@@ -246,7 +246,6 @@ void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
-static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
