@@ -18,7 +18,7 @@ from esphome.core import CORE
 
 CODEOWNERS = ["@DT-art1"]
 
-AUTO_LOAD = ["camera"]
+AUTO_LOAD = ["camera", "i2c"]
 
 CONF_SENSOR_BUFFER_ID = "sensor_buffer_id"
 
