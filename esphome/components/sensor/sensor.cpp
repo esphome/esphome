@@ -17,8 +17,8 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
                 "%s  State Class: '%s'\n"
                 "%s  Unit of Measurement: '%s'\n"
                 "%s  Accuracy Decimals: %d",
-                prefix, type, obj->get_name().c_str(), prefix, state_class_to_string(obj->get_state_class()).c_str(),
-                prefix, obj->get_unit_of_measurement().c_str(), prefix, obj->get_accuracy_decimals());
+                prefix, type, obj->get_name().c_str(), prefix, state_class_to_string(obj->get_state_class()), prefix,
+                obj->get_unit_of_measurement().c_str(), prefix, obj->get_accuracy_decimals());
 
   if (!obj->get_device_class().empty()) {
     ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
@@ -33,7 +33,7 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
   }
 }
 
-std::string state_class_to_string(StateClass state_class) {
+const char *state_class_to_string(StateClass state_class) {
   switch (state_class) {
     case STATE_CLASS_MEASUREMENT:
       return "measurement";
