@@ -26,6 +26,11 @@ static constexpr size_t MAX_POOL_SIZE = 10;
 // recycled to the pool in a timely manner to maintain pool efficiency.
 static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 6;
 
+// Ensure MAX_LOGICALLY_DELETED_ITEMS is at least 4 smaller than MAX_POOL_SIZE
+// This guarantees we have room in the pool for recycled items when cleanup occurs
+static_assert(MAX_LOGICALLY_DELETED_ITEMS + 4 <= MAX_POOL_SIZE,
+              "MAX_LOGICALLY_DELETED_ITEMS must be at least 4 smaller than MAX_POOL_SIZE");
+
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
 // max delay to start an interval sequence
