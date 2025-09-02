@@ -8,6 +8,31 @@ namespace esphome::epaper_spi {
 
 static const char *const TAG = "epaper_spi";
 
+static const LogString *epaper_state_to_string(EPaperState state) {
+  switch (state) {
+    case EPaperState::IDLE:
+      return LOG_STR("IDLE");
+    case EPaperState::UPDATE:
+      return LOG_STR("UPDATE");
+    case EPaperState::RESET:
+      return LOG_STR("RESET");
+    case EPaperState::INITIALISE:
+      return LOG_STR("INITIALISE");
+    case EPaperState::TRANSFER_DATA:
+      return LOG_STR("TRANSFER_DATA");
+    case EPaperState::POWER_ON:
+      return LOG_STR("POWER_ON");
+    case EPaperState::REFRESH_SCREEN:
+      return LOG_STR("REFRESH_SCREEN");
+    case EPaperState::POWER_OFF:
+      return LOG_STR("POWER_OFF");
+    case EPaperState::DEEP_SLEEP:
+      return LOG_STR("DEEP_SLEEP");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 void EPaperBase::setup() {
   if (!this->init_buffer_(this->get_buffer_length())) {
     this->mark_failed("Failed to initialize buffer");
@@ -94,7 +119,8 @@ void EPaperBase::reset() {
 
 void EPaperBase::update() {
   if (!this->state_queue_.empty()) {
-    ESP_LOGE(TAG, "Display update already in progress");
+    ESP_LOGE(TAG, "Display update already in progress - %s",
+             LOG_STR_ARG(epaper_state_to_string(this->state_queue_.front())));
     return;
   }
 
