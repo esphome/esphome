@@ -14,7 +14,23 @@ namespace esphome {
 
 static const char *const TAG = "scheduler";
 
-static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
+// Memory pool configuration constants
+// Pool size of 10 is a balance between memory usage and performance:
+// - Small enough to not waste memory on simple configs (1-2 timers)
+// - Large enough to handle complex setups with multiple sensors/components
+// - Prevents system-wide stalls from heap allocation/deallocation that can
+//   disrupt task synchronization and cause dropped events
+static constexpr size_t MAX_POOL_SIZE = 10;
+// Maximum number of cancelled items to keep in the heap before forcing a cleanup.
+// Set to 6 to trigger cleanup relatively frequently, ensuring cancelled items are
+// recycled to the pool in a timely manner to maintain pool efficiency.
+static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 6;
+
+// Ensure MAX_LOGICALLY_DELETED_ITEMS is at least 4 smaller than MAX_POOL_SIZE
+// This guarantees we have room in the pool for recycled items when cleanup occurs
+static_assert(MAX_LOGICALLY_DELETED_ITEMS + 4 <= MAX_POOL_SIZE,
+              "MAX_LOGICALLY_DELETED_ITEMS must be at least 4 smaller than MAX_POOL_SIZE");
+
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
 // max delay to start an interval sequence
@@ -91,9 +107,15 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     // Reuse from pool
     item = std::move(this->scheduler_item_pool_.back());
     this->scheduler_item_pool_.pop_back();
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGVV(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+#endif
   } else {
     // Allocate new if pool is empty
     item = make_unique<SchedulerItem>();
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGVV(TAG, "Allocated new item (pool empty)");
+#endif
   }
   item->component = component;
   item->set_name(name_cstr, !is_static_string);
@@ -327,6 +349,8 @@ void HOT Scheduler::call(uint32_t now) {
     if (!this->should_skip_item_(item.get())) {
       this->execute_item_(item.get(), now);
     }
+    // Recycle the defer item after execution
+    this->recycle_item_(std::move(item));
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
@@ -759,18 +783,19 @@ void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
   if (!item)
     return;
 
-  // Pool size of 8 is a balance between memory usage and performance:
-  // - Small enough to not waste memory on simple configs (1-2 timers)
-  // - Large enough to handle complex setups with multiple sensors/components
-  // - Prevents system-wide stalls from heap allocation/deallocation that can
-  //   disrupt task synchronization and cause dropped events
-  static constexpr size_t MAX_POOL_SIZE = 8;
   if (this->scheduler_item_pool_.size() < MAX_POOL_SIZE) {
     // Clear callback to release captured resources
     item->callback = nullptr;
     // Clear dynamic name if any
     item->clear_dynamic_name();
     this->scheduler_item_pool_.push_back(std::move(item));
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGVV(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+#endif
+  } else {
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGVV(TAG, "Pool full (size: %zu), deleting item", this->scheduler_item_pool_.size());
+#endif
   }
   // else: unique_ptr will delete the item when it goes out of scope
 }
