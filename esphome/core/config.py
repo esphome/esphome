@@ -423,7 +423,7 @@ async def _add_automations(config):
 DATETIME_SUBTYPES = {"date", "time", "datetime"}
 
 
-@coroutine_with_priority(-100.0)
+@coroutine_with_priority(-1000.0)
 async def _add_platform_defines() -> None:
     # Generate compile-time defines for platforms that have actual entities
     # Only add USE_* and count defines when there are entities

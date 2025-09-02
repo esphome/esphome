@@ -10,7 +10,7 @@ void TotalDailyEnergy::setup() {
   float initial_value = 0;
 
   if (this->restore_) {
-    this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
     this->pref_.load(&initial_value);
   }
   this->publish_state_and_save(initial_value);
