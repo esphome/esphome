@@ -179,6 +179,7 @@ async def to_code(config):
     if config[CONF_TYPE] == ESP32_CAMERA_SENSOR:
         if CORE.using_esp_idf:
             add_idf_component(name="espressif/esp32-camera", ref="2.1.2")
+        cg.add_build_flag("-DUSE_ESP32_CAMERA_SENSOR")
         image_spec = cg.new_Pvariable(
             config[CONF_IMAGE_SPEC_ID],
             cg.StructInitializer(

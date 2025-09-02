@@ -1,13 +1,14 @@
 #pragma once
 
+#ifdef USE_ESP32_CAMERA_SENSOR
+
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/components/camera/sensor.h"
 
 #include <esp_camera.h>
 #include <sensor.h>
 
-namespace esphome {
-namespace camera_sensor {
+namespace esphome::camera_sensor {
 
 class ESP32CameraSensorBuffer : public camera::Buffer {
  public:
@@ -44,5 +45,6 @@ class ESP32CameraSensor : public camera::Sensor {
   camera_fb_t *frame_buffer_in_use_{};
 };
 
-}  // namespace camera_sensor
-}  // namespace esphome
+}  // namespace esphome::camera_sensor
+
+#endif

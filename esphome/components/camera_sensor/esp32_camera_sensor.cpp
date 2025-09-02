@@ -1,7 +1,8 @@
+#ifdef USE_ESP32_CAMERA_SENSOR
+
 #include "esp32_camera_sensor.h"
 
-namespace esphome {
-namespace camera_sensor {
+namespace esphome::camera_sensor {
 
 static const char *const TAG = "camera_sensor";
 
@@ -87,5 +88,6 @@ void ESP32CameraSensor::camera_sensor_dump_config() {
                 to_string(this->image_spec_->format));
 }
 
-}  // namespace camera_sensor
-}  // namespace esphome
+}  // namespace esphome::camera_sensor
+
+#endif

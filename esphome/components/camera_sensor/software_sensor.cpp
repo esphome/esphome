@@ -1,7 +1,6 @@
 #include "software_sensor.h"
 
-namespace esphome {
-namespace camera_sensor {
+namespace esphome::camera_sensor {
 
 static const char *const TAG = "camera_sensor";
 
@@ -18,5 +17,4 @@ void SoftwareSensor::camera_sensor_dump_config() {
                 this->image_spec_->width, this->image_spec_->height, to_string(this->image_spec_->format));
 }
 
-}  // namespace camera_sensor
-}  // namespace esphome
+}  // namespace esphome::camera_sensor

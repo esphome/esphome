@@ -2,8 +2,7 @@
 
 #include "esphome/components/camera/sensor.h"
 
-namespace esphome {
-namespace camera_sensor {
+namespace esphome::camera_sensor {
 
 class SoftwareSensor : public camera::Sensor {
  public:
@@ -21,5 +20,4 @@ class SoftwareSensor : public camera::Sensor {
   camera::CameraImageSpec *image_spec_;
 };
 
-}  // namespace camera_sensor
-}  // namespace esphome
+}  // namespace esphome::camera_sensor
