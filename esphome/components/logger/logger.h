@@ -60,16 +60,8 @@ static const char *const LOG_LEVEL_LETTERS[] = {
 };
 
 static const char *const LOG_LEVELS[] = {
-  "NONE",
-  "ERROR",
-  "WARN",
-  "INFO",
-  "CONFIG",
-  "DEBUG",
-  "VERBOSE",
-  "VERY_VERBOSE",
+    "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE",
 };
-
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection

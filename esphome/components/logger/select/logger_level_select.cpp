@@ -19,9 +19,7 @@ void LoggerLevelSelect::control(const std::string &value) {
   // Find selected value in available log levels
   auto begin_it = std::begin(LOG_LEVELS);
   auto end_it = std::end(LOG_LEVELS);
-  auto it = std::find_if(begin_it, end_it, [value](const char* x) {
-        return strcmp(x, value.c_str()) == 0;
-    });
+  auto it = std::find_if(begin_it, end_it, [value](const char *x) { return strcmp(x, value.c_str()) == 0; });
 
   if (it == end_it) {
     return;
