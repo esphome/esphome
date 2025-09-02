@@ -101,6 +101,22 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Take lock early to protect scheduler_item_pool_ access
   LockGuard guard{this->lock_};
 
+  // Optimization: if we're updating a defer that hasn't executed yet, just update its callback
+  // This avoids allocating a new item and cancelling/re-adding
+  if (delay == 0 && type == SchedulerItem::TIMEOUT && !skip_cancel && name_cstr != nullptr) {
+#ifdef ESPHOME_THREAD_SINGLE
+    // Single-threaded: check to_add_ for defers that haven't been moved to heap yet
+    if (this->try_update_defer_in_container_(this->to_add_, component, name_cstr, std::move(func))) {
+      return;
+    }
+#else
+    // Multi-threaded: check defer_queue_
+    if (this->try_update_defer_in_container_(this->defer_queue_, component, name_cstr, std::move(func))) {
+      return;
+    }
+#endif
+  }
+
   // Create and populate the scheduler item
   std::unique_ptr<SchedulerItem> item;
   if (!this->scheduler_item_pool_.empty()) {

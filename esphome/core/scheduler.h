@@ -217,6 +217,15 @@ class Scheduler {
   // Common implementation for cancel operations
   bool cancel_item_(Component *component, bool is_static_string, const void *name_ptr, SchedulerItem::Type type);
 
+  // Helper to check if two scheduler item names match
+  inline bool HOT names_match_(const char *name1, const char *name2) const {
+    // Check pointer equality first (common for static strings), then string contents
+    // The core ESPHome codebase uses static strings (const char*) for component names,
+    // making pointer comparison effective. The std::string overloads exist only for
+    // compatibility with external components but are rarely used in practice.
+    return (name1 != nullptr && name2 != nullptr) && ((name1 == name2) || (strcmp(name1, name2) == 0));
+  }
+
   // Helper function to check if item matches criteria for cancellation
   inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
                                 SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
@@ -224,19 +233,7 @@ class Scheduler {
         (match_retry && !item->is_retry)) {
       return false;
     }
-    const char *item_name = item->get_name();
-    if (item_name == nullptr) {
-      return false;
-    }
-    // Fast path: if pointers are equal
-    // This is effective because the core ESPHome codebase uses static strings (const char*)
-    // for component names. The std::string overloads exist only for compatibility with
-    // external components, but are rarely used in practice.
-    if (item_name == name_cstr) {
-      return true;
-    }
-    // Slow path: compare string contents
-    return strcmp(name_cstr, item_name) == 0;
+    return this->names_match_(item->get_name(), name_cstr);
   }
 
   // Helper to execute a scheduler item
@@ -311,6 +308,28 @@ class Scheduler {
       }
     }
     return cancelled;
+  }
+
+  // Template helper to try updating a defer in a container instead of allocating a new one
+  // Returns true if the defer was updated, false if not found
+  template<typename Container>
+  bool try_update_defer_in_container_(Container &container, Component *component, const char *name_cstr,
+                                      std::function<void()> &&func) {
+    if (container.empty()) {
+      return false;
+    }
+
+    auto &last_item = container.back();
+
+    // Check if last item is a matching defer (timeout with 0 delay) and names match
+    if (last_item->component != component || last_item->type != SchedulerItem::TIMEOUT || last_item->interval != 0 ||
+        is_item_removed_(last_item.get()) || !this->names_match_(last_item->get_name(), name_cstr)) {
+      return false;
+    }
+
+    // Same defer at the end - just update the callback, no allocation needed
+    last_item->callback = std::move(func);
+    return true;
   }
 
   Mutex lock_;
