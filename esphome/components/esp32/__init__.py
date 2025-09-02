@@ -840,6 +840,9 @@ async def to_code(config):
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
+    if "IDF_PATH" in os.environ:
+        del os.environ["IDF_PATH"]
+
     add_extra_script(
         "post",
         "post_build.py",
