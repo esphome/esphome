@@ -175,22 +175,26 @@ script:
       - lambda: |-
           ESP_LOGI("test", "Phase 5: Verifying pool reuse after everything settles");
 
-          // First, ensure any remaining intervals are cancelled to recycle to pool
+          // Cancel any remaining intervals
           auto *component = id(test_sensor);
           App.scheduler.cancel_interval(component, "temp_sensor");
           App.scheduler.cancel_interval(component, "humidity_sensor");
           App.scheduler.cancel_interval(component, "heartbeat");
 
-          // Give a moment for items to be recycled
-          ESP_LOGD("test", "Cancelled any remaining intervals to build up pool");
+          ESP_LOGD("test", "Cancelled any remaining intervals");
 
-          // Now create 6 new timeouts - they should all reuse from pool
-          int reuse_test_count = 6;
-          int initial_pool_reused = 0;
+          // The pool should have items from completed timeouts in earlier phases.
+          // Phase 1 had 3 timeouts that completed and were recycled.
+          // Phase 3 had 1 timeout that completed and was recycled.
+          // Phase 4 had 3 defers that completed and were recycled.
+          // So we should have a decent pool size already from naturally completed items.
+
+          // Now create 8 new timeouts - they should reuse from pool when available
+          int reuse_test_count = 8;
 
           for (int i = 0; i < reuse_test_count; i++) {
             std::string name = "reuse_test_" + std::to_string(i);
-            App.scheduler.set_timeout(component, name, 100 + i * 50, [i]() {
+            App.scheduler.set_timeout(component, name, 50 + i * 10, [i]() {
               ESP_LOGD("test", "Reuse test %d completed", i);
             });
           }
