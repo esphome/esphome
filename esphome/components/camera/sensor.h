@@ -18,6 +18,8 @@ inline const char *to_string(SensorError error) {
   switch (error) {
     case SENSOR_ERROR_SUCCESS:
       return "SENSOR_ERROR_SUCCESS";
+    case SENSOR_ERROR_RETRY:
+      return "SENSOR_ERROR_RETRY";
     case SENSOR_ERROR_CONFIGURATION:
       return "SENSOR_ERROR_CONFIGURATION";
   }
