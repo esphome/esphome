@@ -24,8 +24,8 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
     ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
   }
 
-  if (!obj->get_icon().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
+  if (!obj->get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
   }
 
   if (obj->get_force_update()) {

@@ -17,8 +17,8 @@ namespace text_sensor {
     if (!(obj)->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+    if (!(obj)->get_icon_ref().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
     } \
   }
 
