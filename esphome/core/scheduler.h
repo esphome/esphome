@@ -322,7 +322,14 @@ class Scheduler {
 #endif                                                      /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
-  // Memory pool for recycling SchedulerItem objects
+  // Memory pool for recycling SchedulerItem objects to reduce heap churn.
+  // Design decisions:
+  // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
+  // - The vector grows dynamically up to MAX_POOL_SIZE (8) only when needed, saving memory on simple setups
+  // - This approach balances memory efficiency for simple configs with performance for complex ones
+  // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
+  //   can stall the entire system, causing timing issues and dropped events for any components that need
+  //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
   std::vector<std::unique_ptr<SchedulerItem>> scheduler_item_pool_;
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
