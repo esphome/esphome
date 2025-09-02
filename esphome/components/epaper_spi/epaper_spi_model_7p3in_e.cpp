@@ -18,6 +18,7 @@ void EPaper7p3InE::power_off() {
 }
 
 void EPaper7p3InE::refresh_screen() {
+  ESP_LOGI(TAG, "Refresh the display");
   this->command(0x12);
   this->data(0x00);
   this->waiting_for_idle_ = true;
