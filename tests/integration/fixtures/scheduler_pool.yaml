@@ -144,33 +144,39 @@ script:
     then:
       - lambda: |-
           // Simulate defer patterns (state changes, async operations)
-          ESP_LOGI("test", "Phase 4: Simulating defer patterns");
+          ESP_LOGI("test", "Phase 4: Simulating heavy defer patterns like ratgdo");
 
-          class TestComponent : public Component {
-          public:
-            void simulate_state_changes() {
-              // Defer state changes (common in switches, lights, etc)
-              this->defer("state_change_1", []() {
-                ESP_LOGD("test", "State change 1 applied");
-                id(create_count)++;
-              });
+          auto *component = id(test_sensor);
 
-              // Another state change
-              this->defer("state_change_2", []() {
-                ESP_LOGD("test", "State change 2 applied");
-                id(create_count)++;
-              });
+          // Simulate a burst of defer operations like ratgdo does with state updates
+          // These should execute immediately and recycle quickly to the pool
+          for (int i = 0; i < 10; i++) {
+            std::string defer_name = "defer_" + std::to_string(i);
+            App.scheduler.set_timeout(component, defer_name, 0, [i]() {
+              ESP_LOGD("test", "Defer %d executed", i);
+              // Force a small delay between defer executions to see recycling
+              if (i == 5) {
+                ESP_LOGI("test", "Half of defers executed, checking pool status");
+              }
+            });
+          }
 
-              // Cleanup operation
-              this->defer("cleanup", []() {
-                ESP_LOGD("test", "Cleanup executed");
-                id(create_count)++;
-              });
-            }
-          };
+          id(create_count) += 10;
+          ESP_LOGD("test", "Created 10 defer operations (0ms timeouts)");
 
-          static TestComponent test_comp;
-          test_comp.simulate_state_changes();
+          // Also create some named defers that might get replaced
+          App.scheduler.set_timeout(component, "state_update", 0, []() {
+            ESP_LOGD("test", "State update 1");
+          });
+
+          // Replace the same named defer (should cancel previous)
+          App.scheduler.set_timeout(component, "state_update", 0, []() {
+            ESP_LOGD("test", "State update 2 (replaced)");
+          });
+
+          id(create_count) += 2;
+          id(cancel_count) += 1; // One cancelled due to replacement
+
           ESP_LOGI("test", "Phase 4 complete");
 
   - id: test_pool_reuse_verification

@@ -349,6 +349,8 @@ void HOT Scheduler::call(uint32_t now) {
     if (!this->should_skip_item_(item.get())) {
       this->execute_item_(item.get(), now);
     }
+    // Recycle the defer item after execution
+    this->recycle_item_(std::move(item));
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
