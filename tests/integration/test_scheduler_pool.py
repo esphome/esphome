@@ -47,6 +47,7 @@ async def test_scheduler_pool(
         3: loop.create_future(),
         4: loop.create_future(),
         5: loop.create_future(),
+        6: loop.create_future(),
     }
 
     def check_output(line: str) -> None:
@@ -68,7 +69,7 @@ async def test_scheduler_pool(
             new_alloc_count += 1
 
         # Track phase completion
-        for phase_num in range(1, 6):
+        for phase_num in range(1, 7):
             if (
                 f"Phase {phase_num} complete" in line
                 and not phase_futures[phase_num].done()
@@ -100,6 +101,7 @@ async def test_scheduler_pool(
             "run_phase_3",
             "run_phase_4",
             "run_phase_5",
+            "run_phase_6",
             "run_complete",
         }
         assert expected_services.issubset(service_names), (
@@ -109,7 +111,7 @@ async def test_scheduler_pool(
         # Get service objects
         phase_services = {
             num: next(s for s in services if s.name == f"run_phase_{num}")
-            for num in range(1, 6)
+            for num in range(1, 7)
         }
         complete_service = next(s for s in services if s.name == "run_complete")
 
@@ -137,7 +139,12 @@ async def test_scheduler_pool(
             # Phase 5: Pool reuse verification
             client.execute_service(phase_services[5], {})
             await asyncio.wait_for(phase_futures[5], timeout=3.0)
-            await asyncio.sleep(0.5)  # Let reuse tests complete
+            await asyncio.sleep(1.0)  # Let Phase 5 timeouts complete and recycle
+
+            # Phase 6: Full pool reuse verification
+            client.execute_service(phase_services[6], {})
+            await asyncio.wait_for(phase_futures[6], timeout=3.0)
+            await asyncio.sleep(1.0)  # Let Phase 6 timeouts complete
 
             # Complete test
             client.execute_service(complete_service, {})
@@ -159,7 +166,7 @@ async def test_scheduler_pool(
             )
 
     # Verify all test phases ran
-    for phase_num in range(1, 6):
+    for phase_num in range(1, 7):
         assert phase_futures[phase_num].done(), f"Phase {phase_num} did not complete"
 
     # Verify pool behavior
