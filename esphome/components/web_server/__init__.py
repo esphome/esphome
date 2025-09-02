@@ -52,9 +52,9 @@ def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_VERSION] == 1:
         if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
+            config[CONF_CSS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.css"
         if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
+            config[CONF_JS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
         if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
