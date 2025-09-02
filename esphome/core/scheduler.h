@@ -5,6 +5,7 @@
 #include <memory>
 #include <cstring>
 #include <deque>
+#include <array>
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
@@ -142,11 +143,7 @@ class Scheduler {
     }
 
     // Destructor to clean up dynamic names
-    ~SchedulerItem() {
-      if (name_is_dynamic) {
-        delete[] name_.dynamic_name;
-      }
-    }
+    ~SchedulerItem() { clear_dynamic_name(); }
 
     // Delete copy operations to prevent accidental copies
     SchedulerItem(const SchedulerItem &) = delete;
@@ -159,13 +156,19 @@ class Scheduler {
     // Helper to get the name regardless of storage type
     const char *get_name() const { return name_is_dynamic ? name_.dynamic_name : name_.static_name; }
 
+    // Helper to clear dynamic name if allocated
+    void clear_dynamic_name() {
+      if (name_is_dynamic && name_.dynamic_name) {
+        delete[] name_.dynamic_name;
+        name_.dynamic_name = nullptr;
+        name_is_dynamic = false;
+      }
+    }
+
     // Helper to set name with proper ownership
     void set_name(const char *name, bool make_copy = false) {
       // Clean up old dynamic name if any
-      if (name_is_dynamic && name_.dynamic_name) {
-        delete[] name_.dynamic_name;
-        name_is_dynamic = false;
-      }
+      clear_dynamic_name();
 
       if (!name) {
         // nullptr case - no name provided
@@ -240,9 +243,12 @@ class Scheduler {
   void execute_item_(SchedulerItem *item, uint32_t now);
 
   // Helper to check if item should be skipped
-  bool should_skip_item_(const SchedulerItem *item) const {
-    return item->remove || (item->component != nullptr && item->component->is_failed());
+  bool should_skip_item_(SchedulerItem *item) const {
+    return is_item_removed_(item) || (item->component != nullptr && item->component->is_failed());
   }
+
+  // Helper to recycle a SchedulerItem
+  void recycle_item_(std::unique_ptr<SchedulerItem> item);
 
   // Helper to check if item is marked for removal (platform-specific)
   // Returns true if item should be skipped, handles platform-specific synchronization
@@ -280,12 +286,31 @@ class Scheduler {
   bool has_cancelled_timeout_in_container_(const Container &container, Component *component, const char *name_cstr,
                                            bool match_retry) const {
     for (const auto &item : container) {
-      if (item->remove && this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, match_retry,
-                                              /* skip_removed= */ false)) {
+      if (is_item_removed_(item.get()) &&
+          this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, match_retry,
+                              /* skip_removed= */ false)) {
         return true;
       }
     }
     return false;
+  }
+
+  // Template helper to cancel and recycle items from a container
+  template<typename Container>
+  size_t cancel_and_recycle_from_container_(Container &container, Component *component, const char *name_cstr,
+                                            SchedulerItem::Type type, bool match_retry) {
+    size_t cancelled = 0;
+    for (auto it = container.begin(); it != container.end();) {
+      if (this->matches_item_(*it, component, name_cstr, type, match_retry)) {
+        // Recycle the cancelled item immediately
+        this->recycle_item_(std::move(*it));
+        it = container.erase(it);
+        cancelled++;
+      } else {
+        ++it;
+      }
+    }
+    return cancelled;
   }
 
   Mutex lock_;
@@ -296,6 +321,16 @@ class Scheduler {
   std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
 #endif                                                      /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
+
+  // Memory pool for recycling SchedulerItem objects to reduce heap churn.
+  // Design decisions:
+  // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
+  // - The vector grows dynamically up to MAX_POOL_SIZE (8) only when needed, saving memory on simple setups
+  // - This approach balances memory efficiency for simple configs with performance for complex ones
+  // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
+  //   can stall the entire system, causing timing issues and dropped events for any components that need
+  //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
+  std::vector<std::unique_ptr<SchedulerItem>> scheduler_item_pool_;
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
