@@ -843,6 +843,9 @@ async def to_code(config):
     if "IDF_PATH" in os.environ:
         del os.environ["IDF_PATH"]
 
+    if "IDF_TOOLS_PATH" in os.environ:
+        del os.environ["IDF_TOOLS_PATH"]
+
     add_extra_script(
         "post",
         "post_build.py",
