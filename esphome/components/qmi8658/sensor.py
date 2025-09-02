@@ -141,10 +141,9 @@ ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(QMI8658Component),
         cv.Optional(CONF_ACCELERATION_ODR, default="LOWPOWER_21HZ"): cv.templatable(cv.enum(QMI8658_ACCEL_ODR, upper=True)),
-        cv.Optional(CONF_ACCELERATION_RANGE, default="2G"): cv.templatable(cv.enum(QMI8658_ACCEL_RANGE, upper=True)),
         cv.Optional(CONF_BLANKING_TIME, default=0): cv.templatable(cv.int_range(min=0, max=63)),
-        cv.Optional(CONF_INITIAL_PIN_STATE, default=1): cv.templatable(cv.int_range(min=0, max=1)),
-        cv.Optional(CONF_INTERRUPT_PIN, default="INT2"): cv.templatable(cv.enum(QMI8658_INTERRUPT_PIN, upper=True)),
+        cv.Optional(CONF_INITIAL_PIN_STATE, default=0): cv.templatable(cv.int_range(min=0, max=1)),
+        cv.Optional(CONF_INTERRUPT_PIN, default="INT1"): cv.templatable(cv.enum(QMI8658_INTERRUPT_PIN, upper=True)),
         cv.Required(CONF_THRESHOLD): cv.templatable(cv.int_range(min=1, max=255)),
     },
     key=CONF_THRESHOLD,
@@ -165,13 +164,11 @@ async def qmi8658_enable_wake_on_motion_to_code(config, action_id, template_arg,
     await cg.register_parented(var, config[CONF_ID])
 
     accel_odr = await cg.templatable(config[CONF_ACCELERATION_ODR], args, QMI8658AccelODR)
-    accel_range = await cg.templatable(config[CONF_ACCELERATION_RANGE], args, QMI8658AccelRange)
     blanking_time = await cg.templatable(config[CONF_BLANKING_TIME], args, int)
     initial_pin_state = await cg.templatable(config[CONF_INITIAL_PIN_STATE], args, int)
     interrupt_pin = await cg.templatable(config[CONF_INTERRUPT_PIN], args, QMI8658InterruptPin)
     threshold = await cg.templatable(config[CONF_THRESHOLD], args, int)
     cg.add(var.set_accel_odr(accel_odr))
-    cg.add(var.set_accel_range(accel_range))
     cg.add(var.set_blanking_time(blanking_time))
     cg.add(var.set_initial_pin_state(initial_pin_state))
     cg.add(var.set_interrupt_pin(interrupt_pin))

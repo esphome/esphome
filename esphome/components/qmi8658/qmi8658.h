@@ -21,6 +21,7 @@ namespace qmi8658 {
 #define QMI8658_REGISTER_CTRL9          0x0A // Host Commands
 #define QMI8658_REGISTER_CAL1_L         0x0B // Calibration Register: lower 8 bits
 #define QMI8658_REGISTER_CAL1_H         0x0C // Calibration Register: upper 8 bits
+#define QMI8658_REGISTER_STATUS_INT     0x2D // Sensor Data Availability with the Locking mechanism
 #define QMI8658_REGISTER_STATUS0        0x2E // Output Data Over Run and Data Availability
 #define QMI8658_REGISTER_STATUS1        0x2F // Miscellaneous Status: Wake on Motion
 #define QMI8658_REGISTER_TIMESTAMP_L    0x30 // Sample Time Stamp: lower 8 bits
@@ -120,7 +121,7 @@ class QMI8658Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   bool disable_wake_on_motion();
-  bool enable_wake_on_motion(uint8_t threshold, QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr, QMI8658InterruptPin interrupt_pin, uint8_t initial_pin_state, uint8_t blanking_time);
+  bool enable_wake_on_motion(uint8_t threshold, QMI8658AccelODR accel_odr, QMI8658InterruptPin interrupt_pin, uint8_t initial_pin_state, uint8_t blanking_time);
   void set_accel_odr(QMI8658AccelODR accel_odr) { this->accel_odr_ = accel_odr; }
   void set_accel_range(QMI8658AccelRange accel_range) { this->accel_range_ = accel_range; }
   void set_accel_x_sensor(sensor::Sensor *accel_x_sensor) { accel_x_sensor_ = accel_x_sensor; }
@@ -147,6 +148,7 @@ class QMI8658Component : public PollingComponent, public i2c::I2CDevice {
   QMI8658GyroODR gyro_odr_ = QMI8658GyroODR::QMI8658_GYRO_ODR_8000HZ;
   QMI8658GyroRange gyro_range_ = QMI8658GyroRange::QMI8658_GYRO_RANGE_16DPS;
 
+  bool clr_register_bit_(uint8_t reg, uint8_t bit);
   bool configure_accel_(QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr);
   bool disable_sensors_();
   bool enable_required_sensors_();
@@ -154,7 +156,8 @@ class QMI8658Component : public PollingComponent, public i2c::I2CDevice {
   bool is_accel_required_() { return this->accel_x_sensor_ != nullptr || this->accel_y_sensor_ != nullptr || this->accel_z_sensor_ != nullptr; }
   bool is_gyro_required_() { return this->gyro_x_sensor_ != nullptr || this->gyro_y_sensor_ != nullptr || this->gyro_z_sensor_ != nullptr; }
   i2c::ErrorCode read_le_int16_(uint8_t reg, int16_t *value, uint8_t len);
-  bool send_command_(uint8_t command);
+  bool send_command_(uint8_t command, uint32_t wait_ms = 1000);
+  bool set_register_bit_(uint8_t reg, uint8_t);
 };
 
 }  // namespace qmi8658

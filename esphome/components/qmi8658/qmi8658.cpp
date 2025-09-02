@@ -208,6 +208,20 @@ void QMI8658Component::update() {
   this->status_clear_warning();
 }
 
+bool QMI8658Component::clr_register_bit_(uint8_t reg, uint8_t bit) {
+  uint8_t value;
+  if (this->read_register(reg, &value, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Error reading register");
+    return false;
+  }
+  value &= ~(1 << bit);
+  if (this->write_register(reg, &value, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Error writing register");
+    return false;
+  }
+  return true;
+}
+
 bool QMI8658Component::configure_accel_(QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr) {
   ESP_LOGV(TAG, "  Setting up Accel Config...");
   uint8_t accel_config = (uint8_t) accel_range << 4 | (uint8_t) accel_odr;
@@ -268,13 +282,13 @@ bool QMI8658Component::enable_sensors_(uint8_t sensors_state) {
   return true;
 }
 
-bool QMI8658Component::enable_wake_on_motion(uint8_t threshold, QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr, QMI8658InterruptPin interrupt_pin, uint8_t initial_pin_state, uint8_t blanking_time) {
+bool QMI8658Component::enable_wake_on_motion(uint8_t threshold, QMI8658AccelODR accel_odr, QMI8658InterruptPin interrupt_pin, uint8_t initial_pin_state, uint8_t blanking_time) {
   if (!this->disable_sensors_()) {
     this->status_set_warning("Error enabling WoM: disabling sensors");
     return false;
   }
   
-  if (!this->configure_accel_(accel_range, accel_odr)) {
+  if (!this->configure_accel_(this->accel_range_, accel_odr)) {
     this->status_set_warning("Error enabling WoM: configuring accel");
     return false;
   }
@@ -304,12 +318,18 @@ bool QMI8658Component::enable_wake_on_motion(uint8_t threshold, QMI8658AccelRang
     ESP_LOGE(TAG, "Can't enable accelerometer");
     return false;
   }
+
+  if (!this->set_register_bit_(QMI8658_REGISTER_CTRL1, (uint8_t) interrupt_pin + 3)) {
+    ESP_LOGE(TAG, "Can't enable interrupt");
+    return false;
+  }
+
   return true;
 }
 
 i2c::ErrorCode QMI8658Component::read_le_int16_(uint8_t reg, int16_t *value, uint8_t len) {
   uint8_t raw_data[len * 2];
-  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2, true);
+  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2);
   if (err != i2c::ERROR_OK) return err;
   for (int i = 0; i < len; i++) {
     value[i] = (int16_t) ((uint16_t) raw_data[i * 2] | ((uint16_t) raw_data[i * 2 + 1] << 8));
@@ -317,11 +337,39 @@ i2c::ErrorCode QMI8658Component::read_le_int16_(uint8_t reg, int16_t *value, uin
   return err;
 }
 
-bool QMI8658Component::send_command_(uint8_t command) {
+bool QMI8658Component::send_command_(uint8_t command, uint32_t wait_ms) {
   ESP_LOGV(TAG, "  Sending command...");
   ESP_LOGV(TAG, "  command: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(command));
   if (this->write_register(QMI8658_REGISTER_CTRL9, &command, 1) != i2c::ERROR_OK) {
     this->status_set_warning("Error sending command");
+    return false;
+  }
+
+  uint32_t startMillis = millis();
+  uint8_t val;
+  do {
+    if (this->read_register(QMI8658_REGISTER_STATUS_INT, &val, 1) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Error reading command status register");
+      return false;
+    }
+    delay(1);
+    if (millis() - startMillis > wait_ms) {
+      ESP_LOGE(TAG, "Command timed out");
+      return false;
+    }
+  } while (!(val & 0x80));
+  return true;
+}
+
+bool QMI8658Component::set_register_bit_(uint8_t reg, uint8_t bit) {
+  uint8_t value;
+  if (this->read_register(reg, &value, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Error reading register");
+    return false;
+  }
+  value |= (1 << bit);
+  if (this->write_register(reg, &value, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Error writing register");
     return false;
   }
   return true;
