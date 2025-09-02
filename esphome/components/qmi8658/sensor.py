@@ -145,7 +145,7 @@ ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.maybe_simple_value(
         cv.Optional(CONF_BLANKING_TIME, default=0): cv.templatable(cv.int_range(min=0, max=63)),
         cv.Optional(CONF_INITIAL_PIN_STATE, default=1): cv.templatable(cv.int_range(min=0, max=1)),
         cv.Optional(CONF_INTERRUPT_PIN, default="INT2"): cv.templatable(cv.enum(QMI8658_INTERRUPT_PIN, upper=True)),
-        cv.Required(CONF_THRESHOLD): cv.templatable(cv.int_range(min=0, max=255)),
+        cv.Required(CONF_THRESHOLD): cv.templatable(cv.int_range(min=1, max=255)),
     },
     key=CONF_THRESHOLD,
 )
