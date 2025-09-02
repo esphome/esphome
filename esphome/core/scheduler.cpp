@@ -15,21 +15,24 @@ namespace esphome {
 static const char *const TAG = "scheduler";
 
 // Memory pool configuration constants
-// Pool size of 10 is a balance between memory usage and performance:
-// - Small enough to not waste memory on simple configs (1-2 timers)
-// - Large enough to handle complex setups with multiple sensors/components
-// - Prevents system-wide stalls from heap allocation/deallocation that can
-//   disrupt task synchronization and cause dropped events
-static constexpr size_t MAX_POOL_SIZE = 10;
-// Maximum number of cancelled items to keep in the heap before forcing a cleanup.
-// Set to 6 to trigger cleanup relatively frequently, ensuring cancelled items are
-// recycled to the pool in a timely manner to maintain pool efficiency.
-static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 6;
+// Pool size of 5 matches typical usage patterns (2-4 active timers)
+// - Minimal memory overhead (~250 bytes on ESP32)
+// - Sufficient for most configs with a couple sensors/components
+// - Still prevents heap fragmentation and allocation stalls
+// - Complex setups with many timers will just allocate beyond the pool
+// See https://github.com/esphome/backlog/issues/52
+static constexpr size_t MAX_POOL_SIZE = 5;
 
-// Ensure MAX_LOGICALLY_DELETED_ITEMS is at least 4 smaller than MAX_POOL_SIZE
-// This guarantees we have room in the pool for recycled items when cleanup occurs
-static_assert(MAX_LOGICALLY_DELETED_ITEMS + 4 <= MAX_POOL_SIZE,
-              "MAX_LOGICALLY_DELETED_ITEMS must be at least 4 smaller than MAX_POOL_SIZE");
+// Cleanup is performed when cancelled items exceed this percentage of total items.
+// Using integer math: cleanup when (cancelled * 100 / total) > 50
+// This balances cleanup frequency with performance - we avoid O(n) cleanup
+// on every cancellation but don't let cancelled items accumulate excessively.
+static constexpr uint32_t CLEANUP_PERCENTAGE = 50;
+
+// Minimum number of cancelled items before considering cleanup.
+// Even if the fraction is exceeded, we need at least this many cancelled items
+// to make the O(n) cleanup operation worthwhile.
+static constexpr uint32_t MIN_CANCELLED_ITEMS_FOR_CLEANUP = 3;
 
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
@@ -417,8 +420,18 @@ void HOT Scheduler::call(uint32_t now) {
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // If we have too many items to remove
-  if (this->to_remove_ > MAX_LOGICALLY_DELETED_ITEMS) {
+  // Check if we should perform cleanup based on percentage of cancelled items
+  // Cleanup when: cancelled items >= MIN_CANCELLED_ITEMS_FOR_CLEANUP AND
+  //               cancelled percentage > CLEANUP_PERCENTAGE
+  size_t total_items = this->items_.size();
+  bool should_cleanup = false;
+
+  if (this->to_remove_ >= MIN_CANCELLED_ITEMS_FOR_CLEANUP && total_items > 0) {
+    // Use integer math to avoid floating point: (cancelled * 100 / total) > CLEANUP_PERCENTAGE
+    should_cleanup = (this->to_remove_ * 100) > (total_items * CLEANUP_PERCENTAGE);
+  }
+
+  if (should_cleanup) {
     // We hold the lock for the entire cleanup operation because:
     // 1. We're rebuilding the entire items_ list, so we need exclusive access throughout
     // 2. Other threads must see either the old state or the new state, not intermediate states

@@ -48,6 +48,7 @@ async def test_scheduler_pool(
         4: loop.create_future(),
         5: loop.create_future(),
         6: loop.create_future(),
+        7: loop.create_future(),
     }
 
     def check_output(line: str) -> None:
@@ -69,9 +70,10 @@ async def test_scheduler_pool(
             new_alloc_count += 1
 
         # Track phase completion
-        for phase_num in range(1, 7):
+        for phase_num in range(1, 8):
             if (
                 f"Phase {phase_num} complete" in line
+                and phase_num in phase_futures
                 and not phase_futures[phase_num].done()
             ):
                 phase_futures[phase_num].set_result(True)
@@ -102,6 +104,7 @@ async def test_scheduler_pool(
             "run_phase_4",
             "run_phase_5",
             "run_phase_6",
+            "run_phase_7",
             "run_complete",
         }
         assert expected_services.issubset(service_names), (
@@ -111,7 +114,7 @@ async def test_scheduler_pool(
         # Get service objects
         phase_services = {
             num: next(s for s in services if s.name == f"run_phase_{num}")
-            for num in range(1, 7)
+            for num in range(1, 8)
         }
         complete_service = next(s for s in services if s.name == "run_complete")
 
@@ -146,6 +149,11 @@ async def test_scheduler_pool(
             await asyncio.wait_for(phase_futures[6], timeout=1.0)
             await asyncio.sleep(0.1)  # Let Phase 6 timeouts complete
 
+            # Phase 7: Same-named defer optimization
+            client.execute_service(phase_services[7], {})
+            await asyncio.wait_for(phase_futures[7], timeout=1.0)
+            await asyncio.sleep(0.05)  # Let the single defer execute
+
             # Complete test
             client.execute_service(complete_service, {})
             await asyncio.wait_for(test_complete_future, timeout=0.5)
@@ -166,7 +174,7 @@ async def test_scheduler_pool(
             )
 
     # Verify all test phases ran
-    for phase_num in range(1, 7):
+    for phase_num in range(1, 8):
         assert phase_futures[phase_num].done(), f"Phase {phase_num} did not complete"
 
     # Verify pool behavior
@@ -180,8 +188,8 @@ async def test_scheduler_pool(
                 size = int(match.group(1))
                 max_pool_size = max(max_pool_size, size)
 
-        # Pool can grow up to its maximum of 10
-        assert max_pool_size <= 10, f"Pool grew beyond maximum ({max_pool_size})"
+        # Pool can grow up to its maximum of 5
+        assert max_pool_size <= 5, f"Pool grew beyond maximum ({max_pool_size})"
 
     # Log summary for debugging
     print("\nScheduler Pool Test Summary (Python Orchestrated):")

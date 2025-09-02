@@ -27,6 +27,9 @@ api:
     - service: run_phase_6
       then:
         - script.execute: test_full_pool_reuse
+    - service: run_phase_7
+      then:
+        - script.execute: test_same_defer_optimization
     - service: run_complete
       then:
         - script.execute: complete_test
@@ -87,7 +90,8 @@ script:
           auto *component = id(test_sensor);
 
           // Multiple sensors with different update intervals
-          App.scheduler.set_interval(component, "temp_sensor", 100, []() {
+          // These should only allocate once and reuse the same item for each interval execution
+          App.scheduler.set_interval(component, "temp_sensor", 10, []() {
             ESP_LOGD("test", "Temperature sensor update");
             id(interval_counter)++;
             if (id(interval_counter) >= 3) {
@@ -96,7 +100,7 @@ script:
             }
           });
 
-          App.scheduler.set_interval(component, "humidity_sensor", 150, []() {
+          App.scheduler.set_interval(component, "humidity_sensor", 15, []() {
             ESP_LOGD("test", "Humidity sensor update");
             id(interval_counter)++;
             if (id(interval_counter) >= 5) {
@@ -105,7 +109,9 @@ script:
             }
           });
 
+          // Only 2 allocations for the intervals, no matter how many times they execute
           id(create_count) += 2;
+          ESP_LOGD("test", "Created 2 intervals - they will reuse same items for each execution");
           ESP_LOGI("test", "Phase 2 complete");
 
   - id: test_communication_patterns
@@ -215,11 +221,14 @@ script:
   - id: test_full_pool_reuse
     then:
       - lambda: |-
-          ESP_LOGI("test", "Phase 6: Testing full pool reuse after Phase 5 items complete");
+          ESP_LOGI("test", "Phase 6: Testing pool size limits after Phase 5 items complete");
 
           // At this point, all Phase 5 timeouts should have completed and been recycled.
-          // The pool should be at or near its maximum size (10).
-          // Creating 10 new items should reuse all from the pool.
+          // The pool should be at its maximum size (5).
+          // Creating 10 new items tests that:
+          // - First 5 items reuse from the pool
+          // - Remaining 5 items allocate new (pool empty)
+          // - Pool doesn't grow beyond MAX_POOL_SIZE of 5
 
           auto *component = id(test_sensor);
           int full_reuse_count = 10;
@@ -234,6 +243,28 @@ script:
           ESP_LOGI("test", "Created %d items for full pool reuse verification", full_reuse_count);
           id(create_count) += full_reuse_count;
           ESP_LOGI("test", "Phase 6 complete");
+
+  - id: test_same_defer_optimization
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Phase 7: Testing same-named defer optimization");
+
+          auto *component = id(test_sensor);
+
+          // Create 10 defers with the same name - should optimize to update callback in-place
+          // This pattern is common in components like ratgdo that repeatedly defer state updates
+          for (int i = 0; i < 10; i++) {
+            App.scheduler.set_timeout(component, "repeated_defer", 0, [i]() {
+              ESP_LOGD("test", "Repeated defer executed with value: %d", i);
+            });
+          }
+
+          // Only the first should allocate, the rest should update in-place
+          // We expect only 1 allocation for all 10 operations
+          id(create_count) += 1;  // Only count 1 since others should be optimized
+
+          ESP_LOGD("test", "Created 10 same-named defers (should only allocate once)");
+          ESP_LOGI("test", "Phase 7 complete");
 
   - id: complete_test
     then:
