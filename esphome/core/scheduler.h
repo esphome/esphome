@@ -325,7 +325,7 @@ class Scheduler {
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.
   // Design decisions:
   // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
-  // - The vector grows dynamically up to MAX_POOL_SIZE (8) only when needed, saving memory on simple setups
+  // - The vector grows dynamically up to MAX_POOL_SIZE (10) only when needed, saving memory on simple setups
   // - This approach balances memory efficiency for simple configs with performance for complex ones
   // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
   //   can stall the entire system, causing timing issues and dropped events for any components that need

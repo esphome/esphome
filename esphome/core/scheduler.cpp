@@ -14,7 +14,7 @@ namespace esphome {
 
 static const char *const TAG = "scheduler";
 
-static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
+static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 6;
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
 // max delay to start an interval sequence
@@ -765,12 +765,12 @@ void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
   if (!item)
     return;
 
-  // Pool size of 8 is a balance between memory usage and performance:
+  // Pool size of 10 is a balance between memory usage and performance:
   // - Small enough to not waste memory on simple configs (1-2 timers)
   // - Large enough to handle complex setups with multiple sensors/components
   // - Prevents system-wide stalls from heap allocation/deallocation that can
   //   disrupt task synchronization and cause dropped events
-  static constexpr size_t MAX_POOL_SIZE = 8;
+  static constexpr size_t MAX_POOL_SIZE = 10;
   if (this->scheduler_item_pool_.size() < MAX_POOL_SIZE) {
     // Clear callback to release captured resources
     item->callback = nullptr;
