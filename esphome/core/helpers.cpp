@@ -142,11 +142,13 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   return refout ? (crc ^ 0xffff) : crc;
 }
 
-uint32_t fnv1_hash(const std::string &str) {
+uint32_t fnv1_hash(const char *str) {
   uint32_t hash = 2166136261UL;
-  for (char c : str) {
-    hash *= 16777619UL;
-    hash ^= c;
+  if (str) {
+    while (*str) {
+      hash *= 16777619UL;
+      hash ^= *str++;
+    }
   }
   return hash;
 }
