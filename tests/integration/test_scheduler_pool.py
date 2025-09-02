@@ -148,7 +148,7 @@ async def test_scheduler_pool(
 
             # Complete test
             client.execute_service(complete_service, {})
-            await asyncio.wait_for(test_complete_future, timeout=2.0)
+            await asyncio.wait_for(test_complete_future, timeout=0.5)
 
         except TimeoutError as e:
             # Print debug info if test times out
