@@ -176,7 +176,7 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
     DisplayPageShowNextAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
+            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
@@ -190,7 +190,7 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
     DisplayPageShowPrevAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
+            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
