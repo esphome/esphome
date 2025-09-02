@@ -86,6 +86,7 @@ class EPaperBase : public display::DisplayBuffer,
   std::queue<EPaperState> state_queue_{{EPaperState::IDLE}};
 
   bool waiting_for_idle_{false};
+  uint32_t waiting_for_idle_last_print_{0};
 };
 
 }  // namespace esphome::epaper_spi
