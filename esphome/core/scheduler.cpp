@@ -23,16 +23,10 @@ static const char *const TAG = "scheduler";
 // See https://github.com/esphome/backlog/issues/52
 static constexpr size_t MAX_POOL_SIZE = 5;
 
-// Cleanup is performed when cancelled items exceed this percentage of total items.
-// Using integer math: cleanup when (cancelled * 100 / total) > 50
-// This balances cleanup frequency with performance - we avoid O(n) cleanup
-// on every cancellation but don't let cancelled items accumulate excessively.
-static constexpr uint32_t CLEANUP_PERCENTAGE = 50;
-
-// Minimum number of cancelled items before considering cleanup.
-// Even if the fraction is exceeded, we need at least this many cancelled items
-// to make the O(n) cleanup operation worthwhile.
-static constexpr uint32_t MIN_CANCELLED_ITEMS_FOR_CLEANUP = 3;
+// Maximum number of logically deleted (cancelled) items before forcing cleanup.
+// Set to 5 to match the pool size - when we have as many cancelled items as our
+// pool can hold, it's time to clean up and recycle them.
+static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
 
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
@@ -446,18 +440,11 @@ void HOT Scheduler::call(uint32_t now) {
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // Check if we should perform cleanup based on percentage of cancelled items
-  // Cleanup when: cancelled items >= MIN_CANCELLED_ITEMS_FOR_CLEANUP AND
-  //               cancelled percentage > CLEANUP_PERCENTAGE
-  size_t total_items = this->items_.size();
-  bool should_cleanup = false;
-
-  if (this->to_remove_ >= MIN_CANCELLED_ITEMS_FOR_CLEANUP && total_items > 0) {
-    // Use integer math to avoid floating point: (cancelled * 100 / total) > CLEANUP_PERCENTAGE
-    should_cleanup = (this->to_remove_ * 100) > (total_items * CLEANUP_PERCENTAGE);
-  }
-
-  if (should_cleanup) {
+  // Check if we should perform cleanup based on number of cancelled items
+  // Cleanup when we have accumulated MAX_LOGICALLY_DELETED_ITEMS cancelled items
+  // This simple threshold ensures we don't waste memory on cancelled items
+  // regardless of how many intervals are running
+  if (this->to_remove_ >= MAX_LOGICALLY_DELETED_ITEMS) {
     // We hold the lock for the entire cleanup operation because:
     // 1. We're rebuilding the entire items_ list, so we need exclusive access throughout
     // 2. Other threads must see either the old state or the new state, not intermediate states
