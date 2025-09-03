@@ -385,10 +385,10 @@ void ResonateMediaPlayer::sync_task(void *params) {
         }
       }
 
-      if (esp_timer_get_time() - decoded_chunk->server_timestamp > 0) {
+      if (esp_timer_get_time() - decoded_chunk->timestamp > 0) {
         // Chunk was already supposed to play, skip it!
         ESP_LOGE(TAG, "Chunk was already supposed to play at %" PRId64 " and its %" PRId64 ", so skipping it",
-                 decoded_chunk->server_timestamp, esp_timer_get_time());
+                 decoded_chunk->timestamp, esp_timer_get_time());
         decoded_chunk->release();
         decoded_chunk = nullptr;
         release_chunk = false;
@@ -530,7 +530,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
                  frame_corrections, recent_error_us, pending_frame_corrections, chunk_timings.size());
         ++this_resonate->hard_sync_added_frames_;
 
-        timings.timestamp = decoded_chunk->server_timestamp;
+        timings.timestamp = decoded_chunk->timestamp;
         timings.total_frames = frame_corrections;
         timings.frame_corrections = frame_corrections;
         pending_frame_corrections += frame_corrections;
@@ -632,7 +632,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
       const int64_t new_duration_ms = current_stream_info.frames_to_milliseconds_with_remainder(&new_frames);
       const int64_t new_duration_us = new_duration_ms * 1000LL + current_stream_info.frames_to_microseconds(new_frames);
 
-      timings.timestamp = decoded_chunk->server_timestamp + new_duration_us;
+      timings.timestamp = decoded_chunk->timestamp + new_duration_us;
       timings.total_frames = chunk_frame_count + frame_corrections;
       timings.frame_corrections = frame_corrections;
       pending_frame_corrections += frame_corrections;

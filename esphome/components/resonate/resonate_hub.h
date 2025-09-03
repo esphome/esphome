@@ -92,10 +92,6 @@ class ResonateHub : public Component {
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
-  int64_t convert_server_to_client_timestamp(int64_t server_timestamp) const {
-    return this->time_filter_->compute_client_time(server_timestamp);
-  }
-
 #ifdef USE_RESONATE_AUDIO
   // Simple audio chunk callback registration
   void add_audio_chunk_callback(

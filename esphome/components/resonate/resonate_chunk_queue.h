@@ -42,7 +42,7 @@ struct AudioChunk {
   size_t allocated_size{0};            // Total allocated size of buffer
   size_t offset{0};                    // Number of bytes to skip in the buffer
   size_t size{0};                      // Number of bytes to read from the buffer after offset
-  int64_t server_timestamp{0};         // Server timestamp when this part of the stream was recorded
+  int64_t timestamp{0};                // Timestamp when this part of the stream was recorded
   ChunkType chunk_type;                // Describes the audio codec header in this packet
 
   // Add reference to this chunk
@@ -73,6 +73,8 @@ AudioChunk *create_audio_chunk(size_t data_size);
 // The buffer must have been allocated with RAMAllocator<uint8_t>
 AudioChunk *create_audio_chunk_from_buffer(uint8_t *existing_buffer, size_t buffer_size);
 
+// Reallocates the buffer of an existing chunk to a new size
+// Returns true if successful, false otherwise (original buffer remains unchanged on failure)
 bool reallocate_audio_chunk(AudioChunk **chunk, size_t new_size);
 
 class ResonateChunkQueue {

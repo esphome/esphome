@@ -297,7 +297,7 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
         }
         audio_chunk->offset = RESONATE_BINARY_CHUNK_HEADER_SIZE;
         audio_chunk->size = len - RESONATE_BINARY_CHUNK_HEADER_SIZE;
-        audio_chunk->server_timestamp = server_timestamp;
+        audio_chunk->timestamp = server_timestamp;
         audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
 
         if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
@@ -380,7 +380,7 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
 
           header_chunk->offset = 0;
           header_chunk->size = sizeof(DummyHeader);
-          header_chunk->server_timestamp = 0;
+          header_chunk->timestamp = 0;
 
           if (codec_format == ResonateCodecFormat::PCM) {
             header_chunk->chunk_type = CHUNK_TYPE_PCM_DUMMY_HEADER;
@@ -398,7 +398,7 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
           header_chunk->offset = 0;
           header_chunk->size = flac_header.size();
           header_chunk->chunk_type = CHUNK_TYPE_FLAC_HEADER;
-          header_chunk->server_timestamp = 0;
+          header_chunk->timestamp = 0;
         }
 
         if (!this->encoded_chunk_queue_->add_chunk(header_chunk, 0)) {
@@ -533,8 +533,8 @@ bool ResonateHub::send_audio_chunk_(AudioChunk *audio_chunk, TickType_t ticks_to
 void ResonateHub::decode_task(void *params) {
   ResonateHub *this_resonate = (ResonateHub *) params;
 
-  AudioChunk *encoded_chunk = nullptr;
-  AudioChunk *decoded_chunk = nullptr;
+  AudioChunk *encoded_chunk = nullptr;  // timestamp is in server time domain
+  AudioChunk *decoded_chunk = nullptr;  // timestamp is in client time domain
 
   std::unique_ptr<ResonateDecoder> decoder = std::make_unique<ResonateDecoder>();
   audio::AudioStreamInfo current_stream_info;
@@ -563,7 +563,7 @@ void ResonateHub::decode_task(void *params) {
 
     if (decoded_chunk != nullptr) {
       // Add decoded chunk to the queue
-      if ((esp_timer_get_time() > decoded_chunk->server_timestamp) ||
+      if ((esp_timer_get_time() > decoded_chunk->timestamp) ||
           this_resonate->send_audio_chunk_(decoded_chunk,
                                            pdMS_TO_TICKS(current_stream_info.bytes_to_frames(decoded_chunk->size)),
                                            current_stream_info)) {
@@ -593,7 +593,7 @@ void ResonateHub::decode_task(void *params) {
         }
       } else if ((decoder->get_current_codec() != ResonateCodecFormat::UNSUPPORTED) &&
                  (encoded_chunk->chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
-        int64_t client_timestamp = this_resonate->convert_server_to_client_timestamp(encoded_chunk->server_timestamp);
+        int64_t client_timestamp = this_resonate->time_filter_->compute_client_time(encoded_chunk->timestamp);
         int64_t time_until_playback_us = client_timestamp - esp_timer_get_time();
         if (time_until_playback_us < 0) {
           // Chunk was already supposed to play, skip it!
@@ -618,7 +618,7 @@ void ResonateHub::decode_task(void *params) {
         if (!decoder->decode_audio_chunk(encoded_chunk, &decoded_chunk)) {
           ESP_LOGE(TAG, "Failed to decode audio chunk");
         } else {
-          decoded_chunk->server_timestamp = client_timestamp;
+          decoded_chunk->timestamp = client_timestamp;
         }
       }
 
