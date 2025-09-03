@@ -158,7 +158,7 @@ void IWR6843AOPComponent::read_iwr6843aop_data() {
     }
     buffer.clear();
   } else {
-    ESP_LOGD(TAG, "Magic word NOT found at buffer start!");
+   // ESP_LOGD(TAG, "Magic word NOT found at buffer start!");
     buffer.clear();
     return;
   }

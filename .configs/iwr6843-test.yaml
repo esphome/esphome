@@ -20,25 +20,25 @@ ota:
     password: "faa23229fbe03188178746511093c0e5"
 
 # --- Remove or comment out WiFi and captive portal ---
-# wifi:
-#   ssid: !secret wifi_ssid
-#   password: !secret wifi_password
-#   ap:
-#     ssid: "IWR6843-Test Fallback Hotspot"
-#     password: "cYzIXtzxcrwH"
-# captive_portal:
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "IWR6843-Test Fallback Hotspot"
+    password: "cYzIXtzxcrwH"
+captive_portal:
 
 
 # --- Ethernet (W5500) configuration, DHCP by default ---
-ethernet:
-  type: W5500
-  clk_pin: GPIO6
-  mosi_pin: GPIO7
-  miso_pin: GPIO8
-  cs_pin: GPIO9
-  interrupt_pin: GPIO10
-  reset_pin: GPIO11
-  clock_speed: 25MHz
+# ethernet:
+#   type: W5500
+#   clk_pin: GPIO2
+#   mosi_pin: GPIO10
+#   miso_pin: GPIO11
+#   cs_pin: GPIO18
+#   interrupt_pin: GPIO15
+#   reset_pin: GPIO23
+#   clock_speed: 25MHz
 
 number:
   - platform: template
@@ -76,12 +76,12 @@ iwr6843aop:
 
 uart:
   - id: iwr_uart1
-    tx_pin: GPIO15
-    rx_pin: GPIO20
+    tx_pin: GPIO4
+    rx_pin: GPIO5 
     baud_rate: 115200
 
   - id: iwr_uart2
-    rx_pin: GPIO21
+    rx_pin: GPIO6
     baud_rate: 921600
     rx_buffer_size: 2048
 
@@ -93,3 +93,30 @@ binary_sensor:
   - platform: template
     id: bed_presence
     name: "Bed presence"
+
+i2c:
+  sda: GPIO20
+  scl: GPIO21
+  scan: false
+
+sensor:
+  - platform: tsl2591
+    name: "Ambient Light"
+    id: ambient_light
+    address: 0x29
+    integration_time: 100ms
+    gain: AUTO
+    device_factor: 53
+    update_interval: 10s
+    visible:
+      name: "TSL2591 visible light"
+    infrared:
+      name: "TSL2591 infrared light"
+    full_spectrum:
+      name: "TSL2591 full spectrum light"
+    calculated_lux:
+      id: i_lux
+      name: "TSL2591 Lux"
+    actual_gain:
+      id: "actual_gain"
+      name: "TSL2591 actual gain"
