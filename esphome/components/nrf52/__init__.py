@@ -30,7 +30,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     ThreadModel,
 )
-from esphome.core import CORE, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -132,7 +132,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-@coroutine_with_priority(1000)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_platformio_option("board", config[CONF_BOARD])
@@ -170,7 +170,7 @@ async def to_code(config: ConfigType) -> None:
         CORE.add_job(_dfu_to_code, dfu_config)
 
 
-@coroutine_with_priority(90)
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def _dfu_to_code(dfu_config):
     cg.add_define("USE_NRF52_DFU")
     var = cg.new_Pvariable(dfu_config[CONF_ID])
