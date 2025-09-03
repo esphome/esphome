@@ -22,8 +22,8 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
     ESP_LOGCONFIG(tag, "%s  Unit of Measurement: '%s'", prefix, obj->traits.get_unit_of_measurement().c_str());
   }
 
-  if (!obj->traits.get_device_class().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->traits.get_device_class().c_str());
+  if (!obj->traits.get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->traits.get_device_class_ref().c_str());
   }
 }
 

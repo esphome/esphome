@@ -20,8 +20,8 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
                 prefix, type, obj->get_name().c_str(), prefix, state_class_to_string(obj->get_state_class()), prefix,
                 obj->get_unit_of_measurement().c_str(), prefix, obj->get_accuracy_decimals());
 
-  if (!obj->get_device_class().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
+  if (!obj->get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
   }
 
   if (!obj->get_icon_ref().empty()) {
