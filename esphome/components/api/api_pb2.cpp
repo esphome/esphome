@@ -2153,10 +2153,12 @@ void BluetoothDeviceClearCacheResponse::calculate_size(ProtoSize &size) const {
 void BluetoothScannerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, static_cast<uint32_t>(this->state));
   buffer.encode_uint32(2, static_cast<uint32_t>(this->mode));
+  buffer.encode_uint32(3, static_cast<uint32_t>(this->configured_mode));
 }
 void BluetoothScannerStateResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->state));
   size.add_uint32(1, static_cast<uint32_t>(this->mode));
+  size.add_uint32(1, static_cast<uint32_t>(this->configured_mode));
 }
 bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
