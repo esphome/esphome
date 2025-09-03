@@ -1,0 +1,21 @@
+uart:
+  id: tag_uart
+  rx_pin: GPIO5
+  baud_rate: 9600
+
+ws18x0_uart:
+  id: tag_reader
+  uart_id: tag_uart
+  on_tag:
+    then:
+      - logger.log:
+          format: "Scanned tag 0x%lX"
+          args: ["x"]
+      - logger.log:
+          format: "Scanned raw 0x%llX"
+          args: ["id(tag_reader).raw()"]
+
+binary_sensor:
+  - platform: ws18x0_uart
+    uid: 7616525
+    name: "My Access Tag"
