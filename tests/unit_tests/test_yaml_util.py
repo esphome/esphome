@@ -62,3 +62,12 @@ def test_parsing_with_custom_loader(fixture_path):
     assert loader_calls[0].endswith("includes/included.yaml")
     assert loader_calls[1].endswith("includes/list.yaml")
     assert loader_calls[2].endswith("includes/scalar.yaml")
+
+
+def test_rel_resolve_path(fixture_path):
+    yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
+
+    actual = yaml_util.load_yaml(yaml_file)
+
+    assert actual["esphome"]["includes"][0] == "utils.h"
+    assert actual["esphome"]["includes"][1] == fixture_path / "yaml_util" / "colors.h"

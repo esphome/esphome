@@ -1,0 +1,4 @@
+esphome:
+  includes:
+    - utils.h # relative to project yaml file
+    - !rel colors.h # relative to current loaded yaml file
