@@ -54,13 +54,13 @@ struct ISRPinArg {
 
 ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
   auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->pin = this->pin_;
+  arg->pin = this->get_pin_num();
   arg->flags = gpio::FLAG_NONE;
-  arg->inverted = inverted_;
+  arg->inverted = pin_flags_.inverted;
 #if defined(USE_ESP32_VARIANT_ESP32)
-  arg->use_rtc = rtc_gpio_is_valid_gpio(this->pin_);
+  arg->use_rtc = rtc_gpio_is_valid_gpio(this->get_pin_num());
   if (arg->use_rtc)
-    arg->rtc_pin = rtc_io_number_get(this->pin_);
+    arg->rtc_pin = rtc_io_number_get(this->get_pin_num());
 #endif
   return ISRInternalGPIOPin((void *) arg);
 }
@@ -69,23 +69,23 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
   gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
-      idf_type = inverted_ ? GPIO_INTR_NEGEDGE : GPIO_INTR_POSEDGE;
+      idf_type = pin_flags_.inverted ? GPIO_INTR_NEGEDGE : GPIO_INTR_POSEDGE;
       break;
     case gpio::INTERRUPT_FALLING_EDGE:
-      idf_type = inverted_ ? GPIO_INTR_POSEDGE : GPIO_INTR_NEGEDGE;
+      idf_type = pin_flags_.inverted ? GPIO_INTR_POSEDGE : GPIO_INTR_NEGEDGE;
       break;
     case gpio::INTERRUPT_ANY_EDGE:
       idf_type = GPIO_INTR_ANYEDGE;
       break;
     case gpio::INTERRUPT_LOW_LEVEL:
-      idf_type = inverted_ ? GPIO_INTR_HIGH_LEVEL : GPIO_INTR_LOW_LEVEL;
+      idf_type = pin_flags_.inverted ? GPIO_INTR_HIGH_LEVEL : GPIO_INTR_LOW_LEVEL;
       break;
     case gpio::INTERRUPT_HIGH_LEVEL:
-      idf_type = inverted_ ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL;
+      idf_type = pin_flags_.inverted ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL;
       break;
   }
-  gpio_set_intr_type(pin_, idf_type);
-  gpio_intr_enable(pin_);
+  gpio_set_intr_type(get_pin_num(), idf_type);
+  gpio_intr_enable(get_pin_num());
   if (!isr_service_installed) {
     auto res = gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
     if (res != ESP_OK) {
@@ -94,7 +94,7 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
     }
     isr_service_installed = true;
   }
-  gpio_isr_handler_add(pin_, func, arg);
+  gpio_isr_handler_add(get_pin_num(), func, arg);
 }
 
 std::string ESP32InternalGPIOPin::dump_summary() const {
@@ -112,13 +112,13 @@ void ESP32InternalGPIOPin::setup() {
   conf.intr_type = GPIO_INTR_DISABLE;
   gpio_config(&conf);
   if (flags_ & gpio::FLAG_OUTPUT) {
-    gpio_set_drive_capability(pin_, drive_strength_);
+    gpio_set_drive_capability(get_pin_num(), get_drive_strength());
   }
 }
 
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   // can't call gpio_config here because that logs in esp-idf which may cause issues
-  gpio_set_direction(pin_, flags_to_mode(flags));
+  gpio_set_direction(get_pin_num(), flags_to_mode(flags));
   gpio_pull_mode_t pull_mode = GPIO_FLOATING;
   if ((flags & gpio::FLAG_PULLUP) && (flags & gpio::FLAG_PULLDOWN)) {
     pull_mode = GPIO_PULLUP_PULLDOWN;
@@ -127,12 +127,14 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   } else if (flags & gpio::FLAG_PULLDOWN) {
     pull_mode = GPIO_PULLDOWN_ONLY;
   }
-  gpio_set_pull_mode(pin_, pull_mode);
+  gpio_set_pull_mode(get_pin_num(), pull_mode);
 }
 
-bool ESP32InternalGPIOPin::digital_read() { return bool(gpio_get_level(pin_)) != inverted_; }
-void ESP32InternalGPIOPin::digital_write(bool value) { gpio_set_level(pin_, value != inverted_ ? 1 : 0); }
-void ESP32InternalGPIOPin::detach_interrupt() const { gpio_intr_disable(pin_); }
+bool ESP32InternalGPIOPin::digital_read() { return bool(gpio_get_level(get_pin_num())) != pin_flags_.inverted; }
+void ESP32InternalGPIOPin::digital_write(bool value) {
+  gpio_set_level(get_pin_num(), value != pin_flags_.inverted ? 1 : 0);
+}
+void ESP32InternalGPIOPin::detach_interrupt() const { gpio_intr_disable(get_pin_num()); }
 
 }  // namespace esp32
 
