@@ -49,6 +49,7 @@ bool ResonateDecoder::process_header(AudioChunk *header_chunk, audio::AudioStrea
           audio::AudioStreamInfo(this->flac_decoder_->get_sample_depth(), this->flac_decoder_->get_num_channels(),
                                  this->flac_decoder_->get_sample_rate());
       *stream_info = this->current_stream_info_;
+      this->maximum_decoded_size_ = this->flac_decoder_->get_output_buffer_size_bytes();
       break;
       // return true;
     }
@@ -75,6 +76,7 @@ bool ResonateDecoder::process_header(AudioChunk *header_chunk, audio::AudioStrea
         return false;
       }
 
+      this->maximum_decoded_size_ = stream_info->ms_to_bytes(120);  // Opus max frame size is 120ms
       this->current_stream_info_ = *stream_info;
       this->current_codec_ = ResonateCodecFormat::OPUS;
       break;
@@ -112,7 +114,7 @@ bool ResonateDecoder::decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk *
     // Caller will release encoded_chunk, decoded_chunk will be released separately
   } else {
     // For other codecs, allocate new chunk and decode
-    *decoded_chunk = create_audio_chunk(this->current_stream_info_.frames_to_bytes(encoded_chunk->frame_count));
+    *decoded_chunk = create_audio_chunk(this->maximum_decoded_size_);
     if (*decoded_chunk == nullptr) {
       ESP_LOGE(TAG, "Failed to allocate space for decoded audio");
       return false;
@@ -140,9 +142,11 @@ bool ResonateDecoder::decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk *
 
       (*decoded_chunk)->offset = 0;
       (*decoded_chunk)->size = this->current_stream_info_.samples_to_bytes(output_samples);
+      reallocate_audio_chunk(decoded_chunk, (*decoded_chunk)->size);
     } else if ((this->opus_decoder_ != nullptr) && (this->current_codec_ == ResonateCodecFormat::OPUS)) {
       int output_frames = opus_decode(this->opus_decoder_, encoded_chunk->get_data(), encoded_chunk->size,
-                                      (int16_t *) (*decoded_chunk)->get_data(), encoded_chunk->frame_count, 0);
+                                      (int16_t *) (*decoded_chunk)->get_data(),
+                                      this->current_stream_info_.bytes_to_frames(this->maximum_decoded_size_), 0);
       if (output_frames < 0) {
         ESP_LOGE(TAG, "Error decoding opus chunk: %d", output_frames);
         (*decoded_chunk)->release();  // Clean up allocated chunk
@@ -152,6 +156,7 @@ bool ResonateDecoder::decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk *
 
       (*decoded_chunk)->offset = 0;
       (*decoded_chunk)->size = this->current_stream_info_.frames_to_bytes(output_frames);
+      reallocate_audio_chunk(decoded_chunk, (*decoded_chunk)->size);
     } else {
       (*decoded_chunk)->release();  // Clean up allocated chunk
       *decoded_chunk = nullptr;
@@ -159,7 +164,6 @@ bool ResonateDecoder::decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk *
     }
   }
 
-  (*decoded_chunk)->frame_count = encoded_chunk->frame_count;
   (*decoded_chunk)->chunk_type = CHUNK_TYPE_DECODED_AUDIO;
 
   return true;

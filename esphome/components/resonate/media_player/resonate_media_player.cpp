@@ -74,6 +74,11 @@ void ResonateMediaPlayer::setup() {
 
   this->parent_->add_audio_chunk_callback(
       [this](AudioChunk *audio_chunk, TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info) {
+        if (!this->task_processing_) {
+          // Task isn't running, so don't add it to the queue
+          return false;
+        }
+
         this->audio_stream_info_ = stream_info;
 
         // add_chunk adds its own reference to the chunk
@@ -197,7 +202,7 @@ void ResonateMediaPlayer::loop() {
     if (this->sync_task_handle_ == nullptr) {
       // Reset the relevant queues
       xQueueReset(this->playback_progress_queue_);
-      this->decoded_chunk_queue_->reset();  // TODO: It's possible we throw away the initial chunks
+      this->decoded_chunk_queue_->reset();
 
       this->sync_task_handle_ =
           xTaskCreateStatic(sync_task, "resonate_sync", SYNC_TASK_STACK_SIZE, (void *) this, SYNC_TASK_PRIORITY,
@@ -309,7 +314,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
     output_transfer_buffer->set_sink(this_resonate->speaker_);
     interpolation_transfer_buffer->set_sink(this_resonate->speaker_);
 
-    bool receive_chunk = true;
+    bool release_chunk = true;
     bool initial_decode = true;
 
     int64_t pending_frame_corrections = 0;
@@ -349,15 +354,10 @@ void ResonateMediaPlayer::sync_task(void *params) {
         output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(3 * duration_in_transfer_buffers / 2), false);
       }
 
-      if ((output_transfer_buffer->available() == 0) && (decoded_chunk != nullptr) && receive_chunk) {
-        if (this_resonate->decoded_chunk_queue_->receive_chunk(true)) {
-          // Released the current chunk
-          decoded_chunk = nullptr;
-          receive_chunk = false;
-        } else {
-          // Failed to remove the chunk from the queue, try again
-          continue;
-        }
+      if ((output_transfer_buffer->available() == 0) && (decoded_chunk != nullptr) && release_chunk) {
+        decoded_chunk->release();
+        decoded_chunk = nullptr;
+        release_chunk = false;
       }
 
       if (interpolation_transfer_buffer->available() + output_transfer_buffer->available() > 0) {
@@ -365,8 +365,9 @@ void ResonateMediaPlayer::sync_task(void *params) {
         continue;
       }
 
-      if (!this_resonate->decoded_chunk_queue_->peek_chunk(&decoded_chunk, pdMS_TO_TICKS(15))) {
-        // No new chunks available to process
+      if ((decoded_chunk == nullptr) &&
+          !this_resonate->decoded_chunk_queue_->receive_chunk(&decoded_chunk, pdMS_TO_TICKS(15))) {
+        // No chunk available to process
         continue;
       }
 
@@ -384,17 +385,17 @@ void ResonateMediaPlayer::sync_task(void *params) {
         }
       }
 
-      // if (esp_timer_get_time() - decoded_chunk->server_timestamp > 0) {
-      //   // Chunk was already supposed to play, skip it!
-      //   if (this_resonate->decoded_chunk_queue_->receive_chunk(true)) {
-      //     ESP_LOGE(TAG, "Chunk was already supposed to play at %" PRId64 " and its %" PRId64 ", so skipping it",
-      //              decoded_chunk->server_timestamp, esp_timer_get_time());
-      //     decoded_chunk = nullptr;
-      //     receive_chunk = false;
-      //     continue;
-      //   }
-      // }
+      if (esp_timer_get_time() - decoded_chunk->server_timestamp > 0) {
+        // Chunk was already supposed to play, skip it!
+        ESP_LOGE(TAG, "Chunk was already supposed to play at %" PRId64 " and its %" PRId64 ", so skipping it",
+                 decoded_chunk->server_timestamp, esp_timer_get_time());
+        decoded_chunk->release();
+        decoded_chunk = nullptr;
+        release_chunk = false;
+        continue;
+      }
 
+      uint32_t chunk_frame_count = current_stream_info.bytes_to_frames(decoded_chunk->size);
       /*
        * Determine the current sync error using the playback information from the speaker.
        */
@@ -499,7 +500,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
         // Audio hasn't started or we are too far ahead, so insert many zeros
 
         // Keep the chunk for later processing (don't release yet)
-        receive_chunk = false;
+        release_chunk = false;
 
         // Remove any new chunk data from the transfer buffer and zero out the transfer buffer
         interpolation_transfer_buffer->decrease_buffer_length(interpolation_transfer_buffer->available());
@@ -541,7 +542,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
         continue;
       }
 
-      receive_chunk = true;
+      release_chunk = true;
       output_transfer_buffer->change_inplace_buffer(decoded_chunk->get_data(), decoded_chunk->size);
 
       if (recent_error_us < -temporary_hard_sync_threshold) {
@@ -627,12 +628,12 @@ void ResonateMediaPlayer::sync_task(void *params) {
           ++this_resonate->single_frames_added_;
         }
       }
-      uint32_t new_frames = decoded_chunk->frame_count;
+      uint32_t new_frames = chunk_frame_count;
       const int64_t new_duration_ms = current_stream_info.frames_to_milliseconds_with_remainder(&new_frames);
       const int64_t new_duration_us = new_duration_ms * 1000LL + current_stream_info.frames_to_microseconds(new_frames);
 
       timings.timestamp = decoded_chunk->server_timestamp + new_duration_us;
-      timings.total_frames = decoded_chunk->frame_count + frame_corrections;
+      timings.total_frames = chunk_frame_count + frame_corrections;
       timings.frame_corrections = frame_corrections;
       pending_frame_corrections += frame_corrections;
 
@@ -648,9 +649,14 @@ void ResonateMediaPlayer::sync_task(void *params) {
         high_water_mark = new_high_water_mark;
       }
     }
+
+    xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_STOPPING);
+    if (decoded_chunk != nullptr) {
+      decoded_chunk->release();
+      decoded_chunk = nullptr;
+    }
   }
 
-  xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_STOPPING);
   // Processes the stop command by stopping the speaker and resetting all states
   this_resonate->speaker_->stop();
 

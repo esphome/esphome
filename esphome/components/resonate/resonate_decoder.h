@@ -48,6 +48,8 @@ class ResonateDecoder {
   OpusDecoder *opus_decoder_{nullptr};
   size_t opus_decoder_size_{0};
 
+  size_t maximum_decoded_size_{0};
+
   audio::AudioStreamInfo current_stream_info_;
   ResonateCodecFormat current_codec_ = ResonateCodecFormat::UNSUPPORTED;
 };

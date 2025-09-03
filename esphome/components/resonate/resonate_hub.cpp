@@ -23,15 +23,27 @@ static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 200;
 
 static const size_t DECODE_TASK_STACK_SIZE = 6 * 1024;
 static const UBaseType_t DECODE_TASK_PRIORITY = 2;
-static const int64_t MINIMUM_TIME_SYNC_ERROR_US = 20000;
+
+static const size_t RESONATE_BINARY_CHUNK_HEADER_SIZE = 13;
+
+// Time synchronization accuracy thresholds:
+// When Kalman filter variance exceeds this threshold (squared), time sync is considered unreliable
+static const int64_t TIME_SYNC_ERROR_THRESHOLD_US = 20000;
+// Minimum delay before retrying chunk decode when time sync is unreliable
+static const uint32_t MIN_RETRY_DELAY_UNRELIABLE_SYNC_MS = 15;
 #endif
 
-static const UBaseType_t WEBSOCKET_TASK_PRIORITY = 17;
+// Send time messages more frequently when the Kalman error is high
+static const int64_t KALMAN_ERROR_THRESHOLD_LOW_US = 1000;
+static const int64_t KALMAN_ERROR_THRESHOLD_MEDIUM_US = 2000;
+static const int64_t KALMAN_ERROR_THRESHOLD_HIGH_US = 5000;
 
-struct TimeResponse {
-  int64_t offset;
-  int64_t delay;
-};
+static const int64_t TIME_MESSAGE_DELAY_THRESHOLD_LOW_MS = 3000;
+static const int64_t TIME_MESSAGE_DELAY_THRESHOLD_MEDIUM_MS = 1000;
+static const int64_t TIME_MESSAGE_DELAY_THRESHOLD_HIGH_MS = 500;
+static const int64_t TIME_MESSAGE_DELAY_DEFAULT_MS = 200;
+
+static const UBaseType_t WEBSOCKET_TASK_PRIORITY = 17;
 
 enum EventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),
@@ -67,41 +79,39 @@ void ResonateHub::setup() {
 #endif
 }
 
-void ResonateHub::loop() {
-  if (this->last_sent_time_message_ < std::numeric_limits<int64_t>::max() &&
-      !this->resonate_websocket_->is_connected()) {
-    // Websocket client disconnected
-
-    this->last_sent_time_message_ = std::numeric_limits<int64_t>::max();  // block trying to send time messages
-    this->time_filter_->reset();
+void ResonateHub::send_time_message_() {
+  if (!this->resonate_websocket_->is_connected() || this->pending_time_message_) {
+    return;
   }
 
-  int64_t delay_between_time_messages_ms = 200;
-  const int64_t current_covariance = this->time_filter_->get_covariance();
-  if (current_covariance < 5000LL * 5000LL) {
-    delay_between_time_messages_ms = 500;
-  }
-  if (current_covariance < 2000LL * 2000LL) {
-    delay_between_time_messages_ms = 1000;
-  }
-  if (current_covariance < 1000LL * 1000LL) {
-    delay_between_time_messages_ms = 3000;
-  }
-  if (((esp_timer_get_time() - this->last_sent_time_message_) / 1000LL > delay_between_time_messages_ms) &&
-      this->resonate_websocket_->is_connected()) {
-    bool should_send_new = !this->pending_time_message_ || delay_between_time_messages_ms >= 1000;
-    if (should_send_new) {
-      this->resonate_websocket_->send_time_message();
-      this->last_sent_time_message_ = esp_timer_get_time();
+  const int64_t current_covariance = this->time_filter_->get_covariance();  // use covariance to avoid unnecessary sqrt
+  int64_t delay_ms = TIME_MESSAGE_DELAY_DEFAULT_MS;
 
-      this->pending_time_message_ = true;
+  if (current_covariance < KALMAN_ERROR_THRESHOLD_LOW_US * KALMAN_ERROR_THRESHOLD_LOW_US) {
+    delay_ms = TIME_MESSAGE_DELAY_THRESHOLD_LOW_MS;
+  } else if (current_covariance < KALMAN_ERROR_THRESHOLD_MEDIUM_US * KALMAN_ERROR_THRESHOLD_MEDIUM_US) {
+    delay_ms = TIME_MESSAGE_DELAY_THRESHOLD_MEDIUM_MS;
+  } else if (current_covariance < KALMAN_ERROR_THRESHOLD_HIGH_US * KALMAN_ERROR_THRESHOLD_HIGH_US) {
+    delay_ms = TIME_MESSAGE_DELAY_THRESHOLD_HIGH_MS;
+  }
+
+  const int64_t time_since_last_ms = (esp_timer_get_time() - this->last_sent_time_message_) / 1000LL;
+  if (time_since_last_ms <= delay_ms) {
+    return;
+  }
+
+  this->resonate_websocket_->send_time_message();
+  this->last_sent_time_message_ = esp_timer_get_time();
+  this->pending_time_message_ = true;
 
 #ifdef USE_RESONATE_SENSOR
-      this->update_resonate_sensor(
-          {.type = ResonateSensorTypes::KALMAN_ERROR, .value = static_cast<float>(this->time_filter_->get_error())});
+  this->update_resonate_sensor(
+      {.type = ResonateSensorTypes::KALMAN_ERROR, .value = static_cast<float>(this->time_filter_->get_error())});
 #endif
-    }
-  }
+}
+
+void ResonateHub::loop() {
+  this->send_time_message_();
 
   if (network::is_connected() && !this->resonate_websocket_->is_started()) {
     this->resonate_websocket_->start_server(websocket_server_handler, websocket_close_callback, (void *) this,
@@ -151,6 +161,8 @@ void ResonateHub::websocket_close_callback(void *context) {
   ResonateHub *this_resonate = (ResonateHub *) context;
   xEventGroupSetBits(this_resonate->event_group_, COMMAND_STOP);  // Handles stopping in the hub component
   this_resonate->controls_callbacks_.call(ResonateControls::STOP);
+
+  this_resonate->time_filter_->reset();
 
   ESP_LOGD(TAG, "Connection closed");
 }
@@ -264,18 +276,18 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
   switch (binary_type) {
     case RESONATE_AUDIO_BINARY: {
 #ifdef USE_RESONATE_AUDIO
-      if ((this->time_filter_->get_covariance() > MINIMUM_TIME_SYNC_ERROR_US * MINIMUM_TIME_SYNC_ERROR_US) ||
-          (len < 13)) {
-        // Time sync isn't accurate, don't forward chunk to decoder
-        // Or the total packet length is too short to match the resonate binary audio chunk header size
+      if (len < RESONATE_BINARY_CHUNK_HEADER_SIZE) {
+        // Packet too short for resonate binary audio chunk header
         return false;  // deallocate payload
       } else {
         // Use the big endian datatype helpers for converting to host format
         int64_be_t server_timestamp;
-        uint32_be_t frame_count;
+
+        // frame_count will be removed in the future
+        // uint32_be_t frame_count;
 
         std::memcpy((void *) &server_timestamp, (void *) (payload + 1), sizeof(server_timestamp));
-        std::memcpy((void *) &frame_count, (void *) (payload + 9), sizeof(frame_count));
+        // std::memcpy((void *) &frame_count, (void *) (payload + 9), sizeof(frame_count));
 
         // Create a heap-allocated chunk that takes ownership of the payload
         AudioChunk *audio_chunk = create_audio_chunk_from_buffer(payload, len);
@@ -283,10 +295,9 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
           ESP_LOGE(TAG, "Failed to allocate AudioChunk");
           return false;  // deallocate payload
         }
-        audio_chunk->offset = 13;
-        audio_chunk->size = len - 13;
+        audio_chunk->offset = RESONATE_BINARY_CHUNK_HEADER_SIZE;
+        audio_chunk->size = len - RESONATE_BINARY_CHUNK_HEADER_SIZE;
         audio_chunk->server_timestamp = server_timestamp;
-        audio_chunk->frame_count = frame_count;
         audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
 
         if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
@@ -370,7 +381,6 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
           header_chunk->offset = 0;
           header_chunk->size = sizeof(DummyHeader);
           header_chunk->server_timestamp = 0;
-          header_chunk->frame_count = 0;
 
           if (codec_format == ResonateCodecFormat::PCM) {
             header_chunk->chunk_type = CHUNK_TYPE_PCM_DUMMY_HEADER;
@@ -389,7 +399,6 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
           header_chunk->size = flac_header.size();
           header_chunk->chunk_type = CHUNK_TYPE_FLAC_HEADER;
           header_chunk->server_timestamp = 0;
-          header_chunk->frame_count = 0;
         }
 
         if (!this->encoded_chunk_queue_->add_chunk(header_chunk, 0)) {
@@ -537,12 +546,15 @@ void ResonateHub::decode_task(void *params) {
       // Processes the stop command by stopping the speaker and resetting all states
 
       decoder->reset_decoders();
-      this_resonate->encoded_chunk_queue_->reset();
+      if (encoded_chunk != nullptr) {
+        encoded_chunk->release();
+        encoded_chunk = nullptr;
+      }
       if (decoded_chunk != nullptr) {
-        // Haven't sent a decoded chunk, so manually deallocate it
         decoded_chunk->release();
         decoded_chunk = nullptr;
       }
+      this_resonate->encoded_chunk_queue_->reset();
 
       vTaskDelay(pdMS_TO_TICKS(50));
 
@@ -551,12 +563,10 @@ void ResonateHub::decode_task(void *params) {
 
     if (decoded_chunk != nullptr) {
       // Add decoded chunk to the queue
-      uint32_t new_frames = decoded_chunk->frame_count;
-
       if ((esp_timer_get_time() > decoded_chunk->server_timestamp) ||
-          this_resonate->send_audio_chunk_(
-              decoded_chunk, pdMS_TO_TICKS(current_stream_info.frames_to_milliseconds_with_remainder(&new_frames)),
-              current_stream_info)) {
+          this_resonate->send_audio_chunk_(decoded_chunk,
+                                           pdMS_TO_TICKS(current_stream_info.bytes_to_frames(decoded_chunk->size)),
+                                           current_stream_info)) {
         // Release chunk ownership if it was already supposed to start playing (skipping it) or if successfully sent to
         // consumers
         decoded_chunk->release();
@@ -567,42 +577,55 @@ void ResonateHub::decode_task(void *params) {
       }
     }
 
-    if (this_resonate->encoded_chunk_queue_->peek_chunk(&encoded_chunk, pdMS_TO_TICKS(50))) {
+    if ((encoded_chunk != nullptr) ||
+        (this_resonate->encoded_chunk_queue_->receive_chunk(&encoded_chunk, pdMS_TO_TICKS(50)))) {
+      // Already have an encoded chunk or successfully received one from the queue
+
       if ((encoded_chunk->chunk_type != CHUNK_TYPE_ENCODED_AUDIO) &&
           (encoded_chunk->chunk_type != CHUNK_TYPE_DECODED_AUDIO)) {
+        // New codec header
         decoder->reset_decoders();
         if (!decoder->process_header(encoded_chunk, &current_stream_info)) {
           ESP_LOGE(TAG, "Failed to process audio codec header");
-          continue;
+          xEventGroupSetBits(this_resonate->event_group_, COMMAND_STOP);  // force stop
+        } else {
+          xEventGroupClearBits(this_resonate->event_group_, COMMAND_STOP);  // where the hell is this getting set?
         }
-        xEventGroupClearBits(this_resonate->event_group_, COMMAND_STOP);  // Where the hell is this getting set?
       } else if ((decoder->get_current_codec() != ResonateCodecFormat::UNSUPPORTED) &&
                  (encoded_chunk->chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
         int64_t client_timestamp = this_resonate->convert_server_to_client_timestamp(encoded_chunk->server_timestamp);
-        if (esp_timer_get_time() > client_timestamp) {
-          // Chunk was already supposed to play, don't bother decoding it, just release it and move onto the next one
-          if (this_resonate->encoded_chunk_queue_->receive_chunk(&encoded_chunk, true, 0)) {
-            encoded_chunk->release();
-            encoded_chunk = nullptr;
-          }
-          // Continue regardless of whether we successfully removed the chunk from the queue or not
+        int64_t time_until_playback_us = client_timestamp - esp_timer_get_time();
+        if (time_until_playback_us < 0) {
+          // Chunk was already supposed to play, skip it!
+          encoded_chunk->release();
+          encoded_chunk = nullptr;
+          continue;
+        }
+
+        if (this_resonate->time_filter_->get_covariance() >
+            TIME_SYNC_ERROR_THRESHOLD_US * TIME_SYNC_ERROR_THRESHOLD_US) {
+          // Time sync is unreliable, so delay decoding to avoid timing issues
+          const uint32_t time_until_playback_ms =
+              static_cast<uint32_t>(time_until_playback_us / 1000LL);  // Convert to milliseconds
+
+          // Wait for half the remaining time or minimum retry delay (whichever is larger)
+          // If chunk is too close to playback time, it will be discarded on next iteration
+          uint32_t wait_time_ms = std::max(time_until_playback_ms / 2, MIN_RETRY_DELAY_UNRELIABLE_SYNC_MS);
+          vTaskDelay(pdMS_TO_TICKS(wait_time_ms));
           continue;
         }
 
         if (!decoder->decode_audio_chunk(encoded_chunk, &decoded_chunk)) {
           ESP_LOGE(TAG, "Failed to decode audio chunk");
-          continue;
+        } else {
+          decoded_chunk->server_timestamp = client_timestamp;
         }
-        decoded_chunk->server_timestamp = client_timestamp;
       }
 
-      // Remove chunk from queue and release the queue's reference
-      // Note: For PCM, decoded_chunk may be the same as encoded_chunk (with added ref)
-      // For other codecs, they are separate chunks
-      // In both cases, we release the encoded_chunk received from the queue
-      if (this_resonate->encoded_chunk_queue_->receive_chunk(&encoded_chunk, false, 0)) {
-        encoded_chunk->release();
-      }
+      // Release the encoded chunk. Note, for PCM, decoded_chunk is the same data as encoded_chunk but has its own
+      // reference
+      encoded_chunk->release();
+      encoded_chunk = nullptr;
     }
 
     static uint32_t high_water_mark = 8192;

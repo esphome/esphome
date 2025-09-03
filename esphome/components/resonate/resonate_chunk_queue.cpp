@@ -53,15 +53,17 @@ AudioChunk *create_audio_chunk_from_buffer(uint8_t *existing_buffer, size_t buff
   return chunk;
 }
 
-bool allocate_audio_chunk(size_t data_size, AudioChunk **chunk) {
-  *chunk = create_audio_chunk(data_size);
-  return (*chunk) != nullptr;
-}
-
-void deallocate_audio_chunk(AudioChunk *chunk) {
-  if (chunk != nullptr) {
-    chunk->release();
+bool reallocate_audio_chunk(AudioChunk **chunk, size_t new_size) {
+  // Attempt to reallocate the buffer
+  auto buffer_allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE);
+  uint8_t *new_buffer = buffer_allocator.reallocate((*chunk)->buffer, new_size);
+  if (new_buffer != nullptr) {
+    // Reallocation succeeded
+    (*chunk)->buffer = new_buffer;
+    (*chunk)->allocated_size = new_size;
+    return true;
   }
+  return false;
 }
 
 void AudioChunk::release() {
@@ -92,34 +94,14 @@ std::unique_ptr<ResonateChunkQueue> ResonateChunkQueue::create(size_t length) {
 
 void ResonateChunkQueue::reset() {
   // Receive and release all chunks in the queue
-  while (this->receive_chunk(true)) {
-  }
-}
-
-bool ResonateChunkQueue::peek_chunk(AudioChunk **chunk, TickType_t ticks_to_wait) {
-  // Peek doesn't affect reference counting - just gets the pointer
-  return xQueuePeek(this->queue_, chunk, ticks_to_wait);
-}
-
-bool ResonateChunkQueue::receive_chunk(bool deallocate) {
   AudioChunk *chunk;
-  if (xQueueReceive(this->queue_, &chunk, 0)) {
-    if (deallocate) {
-      chunk->release();
-    }
-    return true;
+  while (this->receive_chunk(&chunk, 0)) {
+    chunk->release();
   }
-  return false;
 }
 
-bool ResonateChunkQueue::receive_chunk(AudioChunk **chunk, bool auto_release, TickType_t ticks_to_wait) {
-  if (xQueueReceive(this->queue_, chunk, ticks_to_wait)) {
-    if (auto_release) {
-      (*chunk)->release();
-    }
-    return true;
-  }
-  return false;
+bool ResonateChunkQueue::receive_chunk(AudioChunk **chunk, TickType_t ticks_to_wait) {
+  return xQueueReceive(this->queue_, chunk, ticks_to_wait);
 }
 
 bool ResonateChunkQueue::add_chunk(AudioChunk *chunk, TickType_t ticks_to_wait) {

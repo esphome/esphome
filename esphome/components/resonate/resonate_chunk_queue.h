@@ -43,8 +43,7 @@ struct AudioChunk {
   size_t offset{0};                    // Number of bytes to skip in the buffer
   size_t size{0};                      // Number of bytes to read from the buffer after offset
   int64_t server_timestamp{0};         // Server timestamp when this part of the stream was recorded
-  uint32_t frame_count{0};
-  ChunkType chunk_type;  // Describes the audio codec header in this packet
+  ChunkType chunk_type;                // Describes the audio codec header in this packet
 
   // Add reference to this chunk
   void add_ref() { ref_count.fetch_add(1, std::memory_order_relaxed); }
@@ -74,11 +73,7 @@ AudioChunk *create_audio_chunk(size_t data_size);
 // The buffer must have been allocated with RAMAllocator<uint8_t>
 AudioChunk *create_audio_chunk_from_buffer(uint8_t *existing_buffer, size_t buffer_size);
 
-// Legacy compatibility - allocates chunk and assigns to pointer
-bool allocate_audio_chunk(size_t data_size, AudioChunk **chunk);
-
-// Legacy compatibility - releases chunk
-void deallocate_audio_chunk(AudioChunk *chunk);
+bool reallocate_audio_chunk(AudioChunk **chunk, size_t new_size);
 
 class ResonateChunkQueue {
   // Queue of AudioChunk* pointers - simpler memory management with FreeRTOS queues
@@ -88,15 +83,8 @@ class ResonateChunkQueue {
   // Clears and deallocates all elements in the queue
   void reset();
 
-  // Peeks at the chunk pointer at the front of the queue (does not affect reference count)
-  bool peek_chunk(AudioChunk **chunk, TickType_t ticks_to_wait);
-
-  // Receives chunk pointer from the front of the queue and releases it
-  bool receive_chunk(bool deallocate);
-
   // Receives chunk pointer and stores it in provided pointer
-  // If auto_release is true, automatically releases the reference when done
-  bool receive_chunk(AudioChunk **chunk, bool auto_release, TickType_t ticks_to_wait = 0);
+  bool receive_chunk(AudioChunk **chunk, TickType_t ticks_to_wait = 0);
 
   // Add chunk pointer to back of queue
   // OWNERSHIP: The queue adds its own reference to the chunk

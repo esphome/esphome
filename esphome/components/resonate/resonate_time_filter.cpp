@@ -2,47 +2,57 @@
 
 #include "resonate_time_filter.h"
 
-#include <algorithm>
-#include <cinttypes>
-
-#include <esp_timer.h>
-
 namespace esphome {
 namespace resonate {
+
+// Residual threshold as fraction of max_error for triggering adaptive forgetting.
+// When residual > CUTOFF * max_error, the filter applies forgetting to recover from outliers.
+const double ADAPTIVE_FORGETTING_CUTOFF = 0.75;
 
 ResonateTimeFilter::ResonateTimeFilter(double process_std_dev, double forget_factor) {
   this->process_variance_ = process_std_dev * process_std_dev;
   this->forget_variance_factor_ = forget_factor * forget_factor;
 
-  // Use a queue since accessing the current time element isn't atomic
+  // Thread-safe queue for atomic transfer of time transformation parameters
   this->time_element_queue_ = xQueueCreate(1, sizeof(TimeElement));
 };
 
+ResonateTimeFilter::~ResonateTimeFilter() { vQueueDelete(this->time_element_queue_); };
+
 void ResonateTimeFilter::update(int64_t measurement, int64_t max_error, int64_t time_added) {
+  if (time_added == this->last_update_) {
+    // Skip duplicate timestamps to avoid division by zero in drift calculation
+    return;
+  }
+
   double dt = time_added - this->last_update_;
   this->last_update_ = time_added;
 
-  const double update_std_dev = max_error / 2.0;  // A Kalman filter assumes a normal distribution... so the standard
-                                                  // deviation shouldn't reperesent a maximum error!
+  const double update_std_dev = max_error;
   const double measurement_variance = update_std_dev * update_std_dev;
 
+  // Filter initialization: First measurement establishes offset baseline
   if (this->count_ <= 0) {
     ++this->count_;
 
     this->offset_ = measurement;
     this->offset_covariance_ = measurement_variance;
-    this->drift_ = 0;
+    this->drift_ = 0;  // No drift information available yet
 
     TimeElement time_element = {.last_update = this->last_update_, .offset = this->offset_, .drift = this->drift_};
     xQueueOverwrite(this->time_element_queue_, &time_element);
 
     return;
-  } else if (this->count_ == 1) {
+  }
+
+  // Second measurement: Initial drift estimation from finite differences
+  if (this->count_ == 1) {
     ++this->count_;
 
     this->drift_ = (measurement - this->offset_) / dt;
     this->offset_ = measurement;
 
+    // Drift variance estimated from propagation of offset uncertainties
     this->drift_covariance_ = (this->offset_covariance_ + measurement_variance) / dt;
     this->offset_covariance_ = measurement_variance;
 
@@ -52,14 +62,16 @@ void ResonateTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
     return;
   }
 
-  // Prediction
+  /*** Kalman Prediction Step ***/
+  // State prediction: x_k|k-1 = F * x_k-1|k-1
   double offset = this->offset_ + this->drift_ * dt;
 
-  // Covariance
-  //   - Assumes the process variance doesn't affect the drift covariance/offset drift covariance
+  // Covariance prediction: P_k|k-1 = F * P_k-1|k-1 * F^T + Q
+  // State transition matrix F = [1, dt; 0, 1]
   const double dt_squared = dt * dt;
 
-  const double drift_process_variance = 0.0;
+  // Process noise only applied to offset (modeling clock jitter/wander)
+  const double drift_process_variance = 0.0;  // Drift assumed stable
   double new_drift_covariance = this->drift_covariance_ + drift_process_variance;
 
   const double offset_drift_process_variance = 0.0;
@@ -70,31 +82,35 @@ void ResonateTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
   double new_offset_covariance = this->offset_covariance_ + 2 * this->offset_drift_covariance_ * dt +
                                  this->drift_covariance_ * dt_squared + offset_process_variance;
 
-  // Residual
-  const double residual = measurement - offset;
+  /*** Innovation and Adaptive Forgetting ***/
+  const double residual = measurement - offset;  // Innovation: y_k = z_k - H * x_k|k-1
+  const double max_residual_cutoff = max_error * ADAPTIVE_FORGETTING_CUTOFF;
 
   if (this->count_ < 100) {
-    // Never apply the forget factor when the filter has received few updates
+    // Build sufficient history before enabling adaptive forgetting
     ++this->count_;
-  } else if (residual > (3 * max_error) / 4.0) {
-    // Significant error in our prediction, apply a forgetting factor to more heavily weigh new measurements
+  } else if (residual > max_residual_cutoff) {
+    // Large prediction error detected - likely network disruption or clock adjustment
+    // Apply forgetting factor to increase Kalman gain and accelerate convergence
     new_drift_covariance *= this->forget_variance_factor_;
     new_offset_drift_covariance *= this->forget_variance_factor_;
     new_offset_covariance *= this->forget_variance_factor_;
   }
 
-  // System Uncertainty
+  /*** Kalman Update Step ***/
+  // Innovation covariance: S = H * P * H^T + R, where H = [1, 0]
   const double uncertainty = 1.0 / (new_offset_covariance + measurement_variance);
 
-  // Kalman Gain
+  // Kalman gain: K = P * H^T * S^(-1)
   const double offset_gain = new_offset_covariance * uncertainty;
   const double drift_gain = new_offset_drift_covariance * uncertainty;
 
-  // State Update
+  // State update: x_k|k = x_k|k-1 + K * y_k
   this->offset_ = offset + offset_gain * residual;
   this->drift_ += drift_gain * residual;
 
-  // Covariance update
+  // Covariance update: P_k|k = (I - K*H) * P_k|k-1
+  // Using simplified form to ensure numerical stability
   this->drift_covariance_ = new_drift_covariance - drift_gain * new_offset_drift_covariance;
   this->offset_drift_covariance_ = new_offset_drift_covariance - drift_gain * new_offset_covariance;
   this->offset_covariance_ = new_offset_covariance - offset_gain * new_offset_covariance;
@@ -104,30 +120,31 @@ void ResonateTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
 }
 
 int64_t ResonateTimeFilter::compute_server_time(int64_t client_time) {
-  // server_timestamp = client_timestamp + offset
+  // Transform: T_server = T_client + offset + drift * (T_client - T_last_update)
+  // Compute instantaneous offset accounting for linear drift:
+  // offset(t) = offset_base + drift * (t - t_last_update)
 
-  return client_time + this->compute_offset_(client_time);
+  // Atomically retrieve latest time transformation parameters
+  xQueueReceive(this->time_element_queue_, &this->current_time_element_, 0);
+
+  const double dt = client_time - this->current_time_element_.last_update;
+  const int64_t offset = std::round(this->current_time_element_.offset + this->current_time_element_.drift * dt);
+
+  return client_time + offset;
 }
 
 int64_t ResonateTimeFilter::compute_client_time(int64_t server_time) {
-  // server_timestamp = client_timestamp + current_offset + drift*(client_timestamp - last_update_timestamp)
-  //  = (1+drift)*(client_timestamp) + current_offset - drift*last_update_timestamp
-  // client_timestamp = (server_timestamp - current_offset + drift*last_update_timestamp)/(1+drift)
+  // Inverse transform solving for T_client:
+  // T_server = T_client + offset + drift * (T_client - T_last_update)
+  // T_server = (1 + drift) * T_client + offset - drift * T_last_update
+  // T_client = (T_server - offset + drift * T_last_update) / (1 + drift)
+
+  // Atomically retrieve latest time transformation parameters
   xQueueReceive(this->time_element_queue_, &this->current_time_element_, 0);
 
-  return round((static_cast<double>(server_time) - this->current_time_element_.offset +
-                this->current_time_element_.drift * this->current_time_element_.last_update) /
-               (1.0 + this->current_time_element_.drift));
-}
-
-int64_t ResonateTimeFilter::compute_offset_(int64_t timestamp) {
-  // server_timestamp = client_timestamp + current_offset + drift*(client_timestamp - last_update_timestamp)
-  //  = (1+drift)*(client_timestamp) + current_offset - drift*last_update_timestamp
-  // client_timestamp = (server_timestamp - current_offset + drift*last_update_timestamp)/(1+drift)
-  xQueueReceive(this->time_element_queue_, &this->current_time_element_, 0);
-
-  const double dt = timestamp - this->current_time_element_.last_update;
-  return round(this->current_time_element_.offset + this->current_time_element_.drift * dt);
+  return std::round((static_cast<double>(server_time) - this->current_time_element_.offset +
+                     this->current_time_element_.drift * this->current_time_element_.last_update) /
+                    (1.0 + this->current_time_element_.drift));
 }
 
 void ResonateTimeFilter::reset() {

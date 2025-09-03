@@ -159,6 +159,8 @@ class ResonateHub : public Component {
   std::string state_{"idle"};
 #endif
 
+  void send_time_message_();
+
   /// @brief Processes resonate binary message
   /// If it returns true, the caller needs to deallocate the payload
   bool process_binary_message_(uint8_t *payload, size_t len);
