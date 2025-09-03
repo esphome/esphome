@@ -403,9 +403,10 @@ void HOT Scheduler::call(uint32_t now) {
       }
 
       const char *name = item->get_name();
-      ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64,
+      bool is_cancelled = is_item_removed_(item.get());
+      ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64 "%s",
                item->get_type_str(), item->get_source(), name ? name : "(null)", item->interval,
-               item->next_execution_ - now_64, item->next_execution_);
+               item->next_execution_ - now_64, item->next_execution_, is_cancelled ? " [CANCELLED]" : "");
 
       old_items.push_back(std::move(item));
     }
