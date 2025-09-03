@@ -47,9 +47,9 @@ ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, siz
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
   std::vector<uint8_t> v(len + 2);
-  v.push_back(a_register >> 8);
-  v.push_back(a_register);
-  v.insert(v.end(), data, data + len);
+  v[0] = a_register >> 8;
+  v[1] = a_register;
+  std::copy(data, data + len, v.begin() + 2);
   return bus_->write_readv(this->address_, v.data(), v.size(), nullptr, 0);
 }
 
