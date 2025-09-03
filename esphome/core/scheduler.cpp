@@ -120,6 +120,24 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif
   }
 
+  // Optimization: if we're updating a timeout that's still in to_add_, just update it in-place
+  // This is common when timers are rapidly rescheduled (like api_reboot on connect/disconnect)
+  if (delay != 0 && type == SchedulerItem::TIMEOUT && !skip_cancel && name_cstr != nullptr && !this->to_add_.empty()) {
+    auto &last_item = this->to_add_.back();
+    // Check if last item in to_add_ matches and can be updated
+    if (last_item->component == component && last_item->type == SchedulerItem::TIMEOUT &&
+        !is_item_removed_(last_item.get()) && this->names_match_(last_item->get_name(), name_cstr)) {
+      // Same timeout at the end of to_add_ - update it instead of creating new
+      last_item->callback = std::move(func);
+      last_item->next_execution_ = now + delay;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+      ESP_LOGD(TAG, "Updated existing timeout in to_add_ for '%s/%s'", component->get_component_source(),
+               name_cstr ? name_cstr : "(null)");
+#endif
+      return;
+    }
+  }
+
   // Create and populate the scheduler item
   std::unique_ptr<SchedulerItem> item;
   if (!this->scheduler_item_pool_.empty()) {
