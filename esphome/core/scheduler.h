@@ -187,7 +187,6 @@ class Scheduler {
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
 
-    // Helper methods to work with split execution time (constexpr for optimization)
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
     // millis_major_ is also 16 bits and they must match.
