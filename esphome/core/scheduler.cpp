@@ -104,37 +104,42 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Take lock early to protect scheduler_item_pool_ access
   LockGuard guard{this->lock_};
 
-  // Optimization: if we're updating a defer that hasn't executed yet, just update its callback
+  // Optimization: if we're updating a timeout that hasn't been added to heap yet, just update it in-place
   // This avoids allocating a new item and cancelling/re-adding
-  if (delay == 0 && type == SchedulerItem::TIMEOUT && !skip_cancel && name_cstr != nullptr) {
-#ifdef ESPHOME_THREAD_SINGLE
-    // Single-threaded: check to_add_ for defers that haven't been moved to heap yet
-    if (this->try_update_defer_in_container_(this->to_add_, component, name_cstr, std::move(func))) {
-      return;
-    }
-#else
-    // Multi-threaded: check defer_queue_
-    if (this->try_update_defer_in_container_(this->defer_queue_, component, name_cstr, std::move(func))) {
+  if (type == SchedulerItem::TIMEOUT && !skip_cancel && name_cstr != nullptr) {
+#ifndef ESPHOME_THREAD_SINGLE
+    // Multi-threaded: defers go to defer_queue_
+    if (delay == 0 && this->try_update_defer_in_container_(this->defer_queue_, component, name_cstr, std::move(func))) {
       return;
     }
 #endif
-  }
 
-  // Optimization: if we're updating a timeout that's still in to_add_, just update it in-place
-  // This is common when timers are rapidly rescheduled (like api_reboot on connect/disconnect)
-  if (delay != 0 && type == SchedulerItem::TIMEOUT && !skip_cancel && name_cstr != nullptr && !this->to_add_.empty()) {
-    auto &last_item = this->to_add_.back();
-    // Check if last item in to_add_ matches and can be updated
-    if (last_item->component == component && last_item->type == SchedulerItem::TIMEOUT &&
-        !is_item_removed_(last_item.get()) && this->names_match_(last_item->get_name(), name_cstr)) {
-      // Same timeout at the end of to_add_ - update it instead of creating new
-      last_item->callback = std::move(func);
-      last_item->next_execution_ = now + delay;
+    // Check if we can update an existing timeout in to_add_
+    if (!this->to_add_.empty()) {
+      auto &last_item = this->to_add_.back();
+      // Check if last item in to_add_ matches and can be updated
+      if (last_item->component == component && last_item->type == SchedulerItem::TIMEOUT &&
+          !is_item_removed_(last_item.get()) && this->names_match_(last_item->get_name(), name_cstr)) {
+        // For defers (delay==0), only update callback
+        if (delay == 0 && last_item->interval == 0) {
+          last_item->callback = std::move(func);
 #ifdef ESPHOME_DEBUG_SCHEDULER
-      ESP_LOGD(TAG, "Updated existing timeout in to_add_ for '%s/%s'", component->get_component_source(),
-               name_cstr ? name_cstr : "(null)");
+          ESP_LOGD(TAG, "Updated existing defer in to_add_ for '%s/%s'", component->get_component_source(),
+                   name_cstr ? name_cstr : "(null)");
 #endif
-      return;
+          return;
+        }
+        // For regular timeouts, update callback and execution time
+        if (delay != 0) {
+          last_item->callback = std::move(func);
+          last_item->next_execution_ = now + delay;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+          ESP_LOGD(TAG, "Updated existing timeout in to_add_ for '%s/%s'", component->get_component_source(),
+                   name_cstr ? name_cstr : "(null)");
+#endif
+          return;
+        }
+      }
     }
   }
 
