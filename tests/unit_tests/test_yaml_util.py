@@ -1,3 +1,5 @@
+from os import path
+
 from esphome import yaml_util
 from esphome.components import substitutions
 from esphome.core import EsphomeError
@@ -65,9 +67,11 @@ def test_parsing_with_custom_loader(fixture_path):
 
 
 def test_rel_resolve_path(fixture_path):
-    yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
+    yaml_file = fixture_path / "yaml_util" / "reltest.yaml"
 
     actual = yaml_util.load_yaml(yaml_file)
 
     assert actual["esphome"]["includes"][0] == "utils.h"
-    assert actual["esphome"]["includes"][1] == fixture_path / "yaml_util" / "colors.h"
+    assert actual["esphome"]["includes"][1] == path.join(
+        fixture_path, "yaml_util", "colors.h"
+    )
