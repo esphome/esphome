@@ -7,7 +7,7 @@ static const char *const TAG = "axs5106.touchscreen";
 
 const uint8_t TOUCH_AXS5106_TOUCH_POINTS_REG = 0x01;
 
-typedef enum {
+enum GestureId {
   GESTURE_NONE = 0x00,              // No gesture
   GESTURE_SWIPE_UP = 0x01,          // Swipe up
   GESTURE_SWIPE_DOWN = 0x02,        // Swipe down
@@ -23,16 +23,16 @@ typedef enum {
   GESTURE_KEY_UP = 0x31,            // Key up
   GESTURE_PALM_TOUCH_START = 0x80,  // Large-area touch start
   GESTURE_PALM_TOUCH_END = 0x90     // Large-area touch end
-} GestureId;
+};
 
-typedef enum {
+enum EventId {
   EVENT_DOWN = (0b00),     // 00 in bits 7:6 → Down event (start of touch)
   EVENT_UP = (0b01),       // 01 in bits 7:6 → Up event (end of touch)
   EVENT_CONTACT = (0b10),  // 10 in bits 7:6 → Contact event (during touch)
   EVENT_RESERVED = (0b11)  // 11 in bits 7:6 → Reserved
-} EventId;
+};
 
-typedef union {
+union GesturePacket {
   uint8_t raw[14];  // raw byte access
 
   struct {
@@ -90,7 +90,7 @@ typedef union {
     } point1;
 
   } fields;
-} GesturePacket;
+};
 
 /* Original code just does a 10m reset line bounce and is ready to go.
  */
