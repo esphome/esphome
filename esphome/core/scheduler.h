@@ -161,7 +161,7 @@ class Scheduler {
     SchedulerItem &operator=(SchedulerItem &&) = delete;
 
     // Helper to get the name regardless of storage type
-    constexpr const char *get_name() const { return name_is_dynamic ? name_.dynamic_name : name_.static_name; }
+    const char *get_name() const { return name_is_dynamic ? name_.dynamic_name : name_.static_name; }
 
     // Helper to set name with proper ownership
     void set_name(const char *name, bool make_copy = false) {
