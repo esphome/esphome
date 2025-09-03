@@ -1081,9 +1081,9 @@ def _write_idf_component_yml():
     else:
         contents = ""
     if write_file_if_changed(yml_path, contents):
-        lock_path = CORE.relative_build_path("dependencies.lock")
-        if os.path.isfile(lock_path):
-            os.remove(lock_path)
+        dependencies_lock = CORE.relative_build_path("dependencies.lock")
+        if os.path.isfile(dependencies_lock):
+            os.remove(dependencies_lock)
         clean_cmake_cache()
 
 
