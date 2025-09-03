@@ -309,28 +309,6 @@ class Scheduler {
     return cancelled;
   }
 
-  // Template helper to try updating a defer in a container instead of allocating a new one
-  // Returns true if the defer was updated, false if not found
-  template<typename Container>
-  bool try_update_defer_in_container_(Container &container, Component *component, const char *name_cstr,
-                                      std::function<void()> &&func) {
-    if (container.empty()) {
-      return false;
-    }
-
-    auto &last_item = container.back();
-
-    // Check if last item is a matching defer (timeout with 0 delay) and names match
-    if (last_item->component != component || last_item->type != SchedulerItem::TIMEOUT || last_item->interval != 0 ||
-        is_item_removed_(last_item.get()) || !this->names_match_(last_item->get_name(), name_cstr)) {
-      return false;
-    }
-
-    // Same defer at the end - just update the callback, no allocation needed
-    last_item->callback = std::move(func);
-    return true;
-  }
-
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;

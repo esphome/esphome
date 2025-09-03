@@ -98,47 +98,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Take lock early to protect scheduler_item_pool_ access
   LockGuard guard{this->lock_};
 
-  // Optimization: if we're updating a timeout that hasn't been added to heap yet, just update it in-place
-  // This avoids allocating a new item and cancelling/re-adding
-  if (type == SchedulerItem::TIMEOUT && !skip_cancel && name_cstr != nullptr) {
-#ifndef ESPHOME_THREAD_SINGLE
-    // Multi-threaded: defers go to defer_queue_
-    if (delay == 0 && this->try_update_defer_in_container_(this->defer_queue_, component, name_cstr, std::move(func))) {
-      return;
-    }
-#endif
-
-    // Check if we can update an existing timeout in to_add_
-    if (!this->to_add_.empty()) {
-      auto &last_item = this->to_add_.back();
-      // Check if last item in to_add_ matches and can be updated
-      if (last_item->component == component && last_item->type == SchedulerItem::TIMEOUT &&
-          !is_item_removed_(last_item.get()) && this->names_match_(last_item->get_name(), name_cstr)) {
-#ifdef ESPHOME_THREAD_SINGLE
-        // Single-threaded: defers can be in to_add_, only update callback
-        if (delay == 0 && last_item->interval == 0) {
-          last_item->callback = std::move(func);
-#ifdef ESPHOME_DEBUG_SCHEDULER
-          ESP_LOGD(TAG, "Updated existing defer in to_add_ for '%s/%s'", component->get_component_source(),
-                   name_cstr ? name_cstr : "(null)");
-#endif
-          return;
-        }
-#endif
-        // For regular timeouts, update callback and execution time
-        if (delay != 0) {
-          last_item->callback = std::move(func);
-          last_item->next_execution_ = now + delay;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-          ESP_LOGD(TAG, "Updated existing timeout in to_add_ for '%s/%s'", component->get_component_source(),
-                   name_cstr ? name_cstr : "(null)");
-#endif
-          return;
-        }
-      }
-    }
-  }
-
   // Create and populate the scheduler item
   std::unique_ptr<SchedulerItem> item;
   if (!this->scheduler_item_pool_.empty()) {
