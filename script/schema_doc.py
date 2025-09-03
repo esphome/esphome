@@ -238,6 +238,8 @@ def md_get_next_config(lines, index):
         # skip code blocks inside properties (and complain??)
         if line.startswith("```"):
             in_code_block = not in_code_block
+            index += 1
+            continue
         if in_code_block:
             index += 1
             continue
@@ -337,7 +339,7 @@ def get_platform_from_title(title, config_component=None):
     return None
 
 
-REGEX_PROP = r"^\*\*(\w+)\*\* \((.*?)\): (.*)"
+REGEX_PROP = r"^\*\*(\w+)\*\*(?: \((.*?)\))?: (.*)"  # **<group1>** (<group2>): <group3> ## group2 optional
 REGEX_ENUM1 = r"^`([^`]*)`(?:(?: -|:) (.*)|\s\((.*)\))?"
 REGEX_ENUM2 = r"^\*\*([^\*]*)\*\*(?:(?: -|:) (.*)|\s\((.*)\))?"
 REGEX_PROP_TITLE = r"^#+ `([^`]+)`(.*)"
@@ -462,28 +464,33 @@ def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
 
     matched_config = find_schema_prop(schema, prop_name)
     if matched_config:
-        type_parts = [part.strip() for part in prop_types.split(",")]
-        optionality = type_parts[0].replace("*", "").lower()
-        config_optionality = matched_config.get(JSON_KEY, "")
-        if optionality != config_optionality.lower() and args.debug_level > 3:
-            print(
-                f"{md_file}:{index} {prop_name} Key {config_optionality} in ESPHome does not match {optionality} in docs"
-            )
-
-        templatable = TYPE_TEMPLATABLE in type_parts[1:]
-        config_templatable = matched_config.get(JSON_TEMPLATABLE, False)
-        if templatable != config_templatable and args.debug_level > 3:
-            print(
-                f"{md_file}:{index} {prop_name} Templatable {config_templatable} in ESPHome does not match {templatable} in docs"
-            )
-
         converted_doc = make_doc_with_see_also(md_file, index, doc)
 
-        if len(type_parts) > 1 and type_parts[1] != TYPE_TEMPLATABLE:
-            prop_type = convert_links_and_shortcodes(md_file, index, type_parts[1])
-            matched_config[JSON_DOCS] = f"**{prop_type}**: {converted_doc}"
-        else:
-            matched_config[JSON_DOCS] = converted_doc
+        if prop_types:
+            type_parts = [part.strip() for part in prop_types.split(",")]
+            optionality = type_parts[0].replace("*", "").lower()
+            config_optionality = matched_config.get(JSON_KEY, "")
+            if optionality != config_optionality.lower() and args.debug_level > 3:
+                print(
+                    f"{md_file}:{index} {prop_name} Key {config_optionality} in ESPHome does not match {optionality} in docs"
+                )
+
+            templatable = TYPE_TEMPLATABLE in type_parts[1:]
+            config_templatable = matched_config.get(JSON_TEMPLATABLE, False)
+            if templatable != config_templatable and args.debug_level > 3:
+                print(
+                    f"{md_file}:{index} {prop_name} Templatable {config_templatable} in ESPHome does not match {templatable} in docs"
+                )
+
+            # Document with type information, unless the type just says templatable
+            if len(type_parts) > 1 and type_parts[1] != TYPE_TEMPLATABLE:
+                prop_type = convert_links_and_shortcodes(md_file, index, type_parts[1])
+                matched_config[JSON_DOCS] = f"**{prop_type}**: {converted_doc}"
+                stats.props += 1
+                return matched_config
+
+        matched_config[JSON_DOCS] = converted_doc
+
         stats.props += 1
     return matched_config
 
@@ -537,25 +544,26 @@ def process_schema(
         if index >= len(lines):
             return index
 
-        search = re.search(REGEX_PROP_TITLE, lines[index], re.IGNORECASE)
-        if search:
-            prop_name = search.group(1)
-            matched_config = find_schema_prop(schema, prop_name)
-            if matched_config:
-                if args.debug_level > 6:
-                    print(
-                        f"{md_file}:{index} {lines[index]} : matched title for prop {prop_name} "
-                    )
-                index = process_config(
-                    md_file, lines, index + 1, matched_config, 0, schema
-                )
-                continue
-            elif parent_schema:
-                matched_config = find_schema_prop(parent_schema, prop_name)
+        if not item_config:
+            search = re.search(REGEX_PROP_TITLE, lines[index], re.IGNORECASE)
+            if search:
+                prop_name = search.group(1)
+                matched_config = find_schema_prop(schema, prop_name)
                 if matched_config:
-                    return index
-            elif lines[index].endswith("Action"):
-                continue  # this is a breaking title, but many triggers are labeled action
+                    if args.debug_level > 6:
+                        print(
+                            f"{md_file}:{index} {lines[index]} : matched title for prop {prop_name} "
+                        )
+                    index = process_config(
+                        md_file, lines, index + 1, matched_config, 0, schema
+                    )
+                    continue
+                elif parent_schema:
+                    matched_config = find_schema_prop(parent_schema, prop_name)
+                    if matched_config:
+                        return index
+                elif lines[index].endswith("Action"):
+                    continue  # this is a breaking title, but many triggers are labeled action
 
         if item_indent < indent:
             return prev_index
@@ -806,7 +814,6 @@ if __name__ == "__main__":
             component_name = None
 
             title = oddities_titles(content_folder, file_name, title)
-
             if title == "Component/Hub":
                 # Some files like pn523, rc522, as3935 are in a platform folder even
                 # though they are full components and their platform components are
