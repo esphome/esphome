@@ -5,7 +5,6 @@
 #include <memory>
 #include <cstring>
 #include <deque>
-#include <array>
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
