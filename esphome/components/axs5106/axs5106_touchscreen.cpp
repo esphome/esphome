@@ -6,6 +6,9 @@ namespace axs5106 {
 static const char *const TAG = "axs5106.touchscreen";
 
 const uint8_t TOUCH_AXS5106_TOUCH_POINTS_REG = 0x01;
+const uint8_t TOUCH_AXS5106_ID_REG = 0x08;
+
+const uint8_t AXS5106_ID[] = {0x51, 0x06, 0x01};
 
 enum GestureId {
   GESTURE_NONE = 0x00,              // No gesture
@@ -92,8 +95,6 @@ union GesturePacket {
   } fields;
 };
 
-/* Original code just does a 10m reset line bounce and is ready to go.
- */
 void AXS5106Touchscreen::setup() {
   if (this->reset_pin_ == nullptr) {
     this->mark_failed();
@@ -115,12 +116,37 @@ void AXS5106Touchscreen::setup() {
     this->y_raw_max_ = this->display_->get_native_height();
   }
 
-  // Take out of reset off the main loop
-  this->set_timeout(10, [this]() { this->reset_pin_->digital_write(true); });
+  // Take device out of reset off the main loop
+  this->set_timeout(10, [this] { this->reset_pin_->digital_write(true); });
+  // Then try reading the ID
+  this->set_timeout(30, [this] { this->continue_setup_(); });
+}
+
+/* Confirm the ID reg is what we expect, before marking
+ * this ready to go.
+ */
+void AXS5106Touchscreen::continue_setup_() {
+  uint8_t id = 8, res[3] = {0};
+  // Query ID register
+  i2c::ErrorCode err = this->write(&TOUCH_AXS5106_ID_REG, 1);
+  if (err != i2c::ERROR_OK) {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->skip_update_ = true;
+    ESP_LOGE(TAG, "Read failed");
+    return;
+  }
+  delayMicroseconds(45);
+  this->read_bytes_raw(res, sizeof res);  // ID is three bytes
+
+  for (int i = 0; i < sizeof res; i++) {
+    ESP_LOGCONFIG(TAG, "  ID[%d]=%02x", i, res[i]);
+  }
+
+  this->setup_complete_ = !memcmp(res, AXS5106_ID, sizeof AXS5106_ID);
 }
 
 void AXS5106Touchscreen::update_touches() {
-  GesturePacket gp{0};
+  GesturePacket gp{{0}};
 
   /* This bit is a little stupid.  You can't use `read_register` here
    * because the micro needs a little rest before actually having
