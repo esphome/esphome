@@ -5,7 +5,6 @@
 #include <memory>
 #include <cstring>
 #include <deque>
-#include <array>
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
@@ -217,6 +216,15 @@ class Scheduler {
   // Common implementation for cancel operations
   bool cancel_item_(Component *component, bool is_static_string, const void *name_ptr, SchedulerItem::Type type);
 
+  // Helper to check if two scheduler item names match
+  inline bool HOT names_match_(const char *name1, const char *name2) const {
+    // Check pointer equality first (common for static strings), then string contents
+    // The core ESPHome codebase uses static strings (const char*) for component names,
+    // making pointer comparison effective. The std::string overloads exist only for
+    // compatibility with external components but are rarely used in practice.
+    return (name1 != nullptr && name2 != nullptr) && ((name1 == name2) || (strcmp(name1, name2) == 0));
+  }
+
   // Helper function to check if item matches criteria for cancellation
   inline bool HOT matches_item_(const std::unique_ptr<SchedulerItem> &item, Component *component, const char *name_cstr,
                                 SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
@@ -224,19 +232,7 @@ class Scheduler {
         (match_retry && !item->is_retry)) {
       return false;
     }
-    const char *item_name = item->get_name();
-    if (item_name == nullptr) {
-      return false;
-    }
-    // Fast path: if pointers are equal
-    // This is effective because the core ESPHome codebase uses static strings (const char*)
-    // for component names. The std::string overloads exist only for compatibility with
-    // external components, but are rarely used in practice.
-    if (item_name == name_cstr) {
-      return true;
-    }
-    // Slow path: compare string contents
-    return strcmp(name_cstr, item_name) == 0;
+    return this->names_match_(item->get_name(), name_cstr);
   }
 
   // Helper to execute a scheduler item
@@ -295,24 +291,6 @@ class Scheduler {
     return false;
   }
 
-  // Template helper to cancel and recycle items from a container
-  template<typename Container>
-  size_t cancel_and_recycle_from_container_(Container &container, Component *component, const char *name_cstr,
-                                            SchedulerItem::Type type, bool match_retry) {
-    size_t cancelled = 0;
-    for (auto it = container.begin(); it != container.end();) {
-      if (this->matches_item_(*it, component, name_cstr, type, match_retry)) {
-        // Recycle the cancelled item immediately
-        this->recycle_item_(std::move(*it));
-        it = container.erase(it);
-        cancelled++;
-      } else {
-        ++it;
-      }
-    }
-    return cancelled;
-  }
-
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
@@ -325,8 +303,8 @@ class Scheduler {
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.
   // Design decisions:
   // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
-  // - The vector grows dynamically up to MAX_POOL_SIZE (8) only when needed, saving memory on simple setups
-  // - This approach balances memory efficiency for simple configs with performance for complex ones
+  // - The vector grows dynamically up to MAX_POOL_SIZE (5) only when needed, saving memory on simple setups
+  // - Pool size of 5 matches typical usage (2-4 timers) while keeping memory overhead low (~250 bytes on ESP32)
   // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
   //   can stall the entire system, causing timing issues and dropped events for any components that need
   //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
