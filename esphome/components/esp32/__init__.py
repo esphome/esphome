@@ -40,6 +40,7 @@ from esphome.cpp_generator import RawExpression
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
 from esphome.types import ConfigType
+from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -1079,7 +1080,11 @@ def _write_idf_component_yml():
         contents = yaml_util.dump({"dependencies": dependencies})
     else:
         contents = ""
-    write_file_if_changed(yml_path, contents)
+    if write_file_if_changed(yml_path, contents):
+        lock_path = CORE.relative_build_path("dependencies.lock")
+        if os.path.isfile(lock_path):
+            os.remove(lock_path)
+        clean_cmake_cache()
 
 
 # Called by writer.py
