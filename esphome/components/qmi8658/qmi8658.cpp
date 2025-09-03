@@ -112,11 +112,13 @@ void QMI8658Component::setup() {
   if (this->read_byte(QMI8658_REGISTER_WHO_AM_I, &chipid)) {
     if (chipid != 0x05) {
       ESP_LOGE(TAG, "This is not a QMI8658 chip");
-      return this->mark_failed();
+      this->mark_failed();
+      return;
     }
   } else {
     ESP_LOGE(TAG, "Can't read WHO_AM_I register");
-    return this->mark_failed();
+    this->mark_failed();
+    return;
   }
 
   ESP_LOGV(TAG, "  Setting up SPI Interface...");
@@ -124,15 +126,18 @@ void QMI8658Component::setup() {
   ESP_LOGV(TAG, "  spi_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(spi_config));
   if (!this->write_byte(QMI8658_REGISTER_CTRL1, spi_config)) {
     ESP_LOGE(TAG, "Can't configure SPI Interface");
-    return this->mark_failed();
+    this->mark_failed();
+    return;
   }
 
   if (!this->configure_accel_(this->accel_range_, this->accel_odr_, this->accel_lpf_mode_)) {
-    return this->mark_failed();
+    this->mark_failed();
+    return;
   }
 
   if (!this->configure_gyro_(this->gyro_range_, this->gyro_odr_, this->gyro_lpf_mode_)) {
-    return this->mark_failed();
+    this->mark_failed();
+    return;
   }
 
   ESP_LOGV(TAG, "  Setting up LPF config...");
@@ -146,11 +151,13 @@ void QMI8658Component::setup() {
   ESP_LOGV(TAG, "  lpf_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(lpf_config));
   if (!this->write_byte(QMI8658_REGISTER_CTRL5, lpf_config)) {
     ESP_LOGE(TAG, "Can't configure LPF");
-    return this->mark_failed();
+    this->mark_failed();
+    return;
   }
 
   if (!this->enable_required_sensors_()) {
-    return this->mark_failed();
+    this->mark_failed();
+    return;
   }
 }
 
@@ -177,13 +184,15 @@ void QMI8658Component::update() {
   int16_t data[3];
 
   if (this->read_le_int16_(QMI8658_REGISTER_TEMP_L, data, 1) != i2c::ERROR_OK) {
-    return this->status_set_warning("Error reading temperature data register");
+    this->status_set_warning("Error reading temperature data register");
+    return;
   }
 
   float temperature = (float) data[0] / 32768.f * 64.5f + 23.f;
 
   if (this->read_le_int16_(QMI8658_REGISTER_AX_L, data, 3) != i2c::ERROR_OK) {
-    return this->status_set_warning("Error reading acceleration data register");
+    this->status_set_warning("Error reading acceleration data register");
+    return;
   }
 
   float accel_x = (float) data[0] / (float) 32768.f * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
@@ -191,7 +200,8 @@ void QMI8658Component::update() {
   float accel_z = (float) data[2] / (float) 32768.f * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
 
   if (this->read_le_int16_(QMI8658_REGISTER_GX_L, data, 3) != i2c::ERROR_OK) {
-    return this->status_set_warning("Error reading gyroscope data register");
+    this->status_set_warning("Error reading gyroscope data register");
+    return;
   }
 
   float gyro_x = (float) data[0] / (float) 32768.f * (1 << ((uint8_t) this->gyro_range_ + 4));
@@ -378,7 +388,7 @@ bool QMI8658Component::send_command_(uint8_t command, uint32_t wait_ms) {
     return false;
   }
 
-  uint32_t startMillis = millis();
+  uint32_t start_millis = millis();
   uint8_t val;
   do {
     if (this->read_register(QMI8658_REGISTER_STATUS_INT, &val, 1) != i2c::ERROR_OK) {
@@ -386,7 +396,7 @@ bool QMI8658Component::send_command_(uint8_t command, uint32_t wait_ms) {
       return false;
     }
     delay(1);
-    if (millis() - startMillis > wait_ms) {
+    if (millis() - start_millis > wait_ms) {
       ESP_LOGE(TAG, "Command timed out");
       return false;
     }
