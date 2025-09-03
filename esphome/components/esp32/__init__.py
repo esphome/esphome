@@ -855,11 +855,6 @@ async def to_code(config):
 
         cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
-        # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
-        # This is espressif's own published version which is more up to date.
-        cg.add_platformio_option(
-            "platform_packages", ["espressif/toolchain-esp32ulp@2.35.0-20220830"]
-        )
         add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
