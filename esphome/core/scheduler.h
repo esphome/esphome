@@ -156,7 +156,7 @@ class Scheduler {
     SchedulerItem &operator=(SchedulerItem &&) = delete;
 
     // Helper to get the name regardless of storage type
-    constexpr const char *get_name() const { return name_is_dynamic ? name_.dynamic_name : name_.static_name; }
+    const char *get_name() const { return name_is_dynamic ? name_.dynamic_name : name_.static_name; }
 
     // Helper to clear dynamic name if allocated
     void clear_dynamic_name() {
@@ -189,7 +189,6 @@ class Scheduler {
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
 
-    // Helper methods to work with split execution time (constexpr for optimization)
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
     // millis_major_ is also 16 bits and they must match.
