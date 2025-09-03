@@ -656,12 +656,23 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-  // Cancel items in the main heap (can't recycle immediately due to heap structure)
-  for (auto &item : this->items_) {
-    if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-      this->mark_item_removed_(item.get());
+  // Cancel items in the main heap
+  // Special case: if the last item in the heap matches, we can remove it immediately
+  // (removing the last element doesn't break heap structure)
+  if (!this->items_.empty()) {
+    auto &last_item = this->items_.back();
+    if (this->matches_item_(last_item, component, name_cstr, type, match_retry)) {
+      this->recycle_item_(std::move(this->items_.back()));
+      this->items_.pop_back();
       total_cancelled++;
-      this->to_remove_++;  // Track removals for heap items
+    }
+    // For other items in heap, we can only mark for removal (can't remove from middle of heap)
+    for (auto &item : this->items_) {
+      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+        this->mark_item_removed_(item.get());
+        total_cancelled++;
+        this->to_remove_++;  // Track removals for heap items
+      }
     }
   }
 
