@@ -126,7 +126,7 @@ void AXS5106Touchscreen::setup() {
  * this ready to go.
  */
 void AXS5106Touchscreen::continue_setup_() {
-  uint8_t id = 8, res[3] = {0};
+  uint8_t res[3] = {0};
   // Query ID register
   i2c::ErrorCode err = this->write(&TOUCH_AXS5106_ID_REG, 1);
   if (err != i2c::ERROR_OK) {
