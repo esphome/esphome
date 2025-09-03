@@ -24,6 +24,9 @@ void BluetoothProxy::setup() {
   this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
   this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
 
+  // Capture the configured scan mode from YAML before any API changes
+  this->configured_scan_active_ = this->parent_->get_scan_active();
+
   this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
     if (this->api_connection_ != nullptr) {
       this->send_bluetooth_scanner_state_(state);
@@ -36,6 +39,9 @@ void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerSta
   resp.state = static_cast<api::enums::BluetoothScannerState>(state);
   resp.mode = this->parent_->get_scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
                                                : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
+  resp.configured_mode = this->configured_scan_active_
+                             ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
+                             : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
   this->api_connection_->send_message(resp, api::BluetoothScannerStateResponse::MESSAGE_TYPE);
 }
 
