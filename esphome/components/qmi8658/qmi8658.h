@@ -60,10 +60,23 @@ namespace qmi8658 {
 #define QMI8658_SPI_AI                  1 << 6 // Address auto increment
 #pragma endregion
 
+#define FIELD_WITH_SETTER(type, name, def) \
+protected: \
+    type name##_ { def }; \
+public: \
+    void set_##name(const type &value) { name##_ = value; }
 
 enum QMI8658InterruptPin {
     QMI8658_INT1 =                      0x00,
     QMI8658_INT2 =                      0x01
+};
+
+enum QMI8658LPFMode {
+    QMI8658_LPF_MODE_0 =                0x00,
+    QMI8658_LPF_MODE_1 =                0x01,
+    QMI8658_LPF_MODE_2 =                0x02,
+    QMI8658_LPF_MODE_3 =                0x03,
+    QMI8658_LPF_OFF =                   0x04
 };
 
 enum QMI8658AccelRange {
@@ -115,6 +128,20 @@ enum QMI8658GyroODR {
 
 class QMI8658Component : public PollingComponent, public i2c::I2CDevice {
  public:
+  FIELD_WITH_SETTER(QMI8658LPFMode, accel_lpf_mode, QMI8658_LPF_OFF)
+  FIELD_WITH_SETTER(QMI8658AccelODR, accel_odr, QMI8658_ACCEL_ODR_8000HZ)
+  FIELD_WITH_SETTER(QMI8658AccelRange, accel_range, QMI8658_ACCEL_RANGE_2G)
+  FIELD_WITH_SETTER(QMI8658LPFMode, gyro_lpf_mode, QMI8658_LPF_OFF)
+  FIELD_WITH_SETTER(QMI8658GyroODR, gyro_odr, QMI8658_GYRO_ODR_8000HZ)
+  FIELD_WITH_SETTER(QMI8658GyroRange, gyro_range, QMI8658_GYRO_RANGE_16DPS)
+  SUB_SENSOR(accel_x)
+  SUB_SENSOR(accel_y)
+  SUB_SENSOR(accel_z)
+  SUB_SENSOR(gyro_x)
+  SUB_SENSOR(gyro_y)
+  SUB_SENSOR(gyro_z)
+  SUB_SENSOR(temperature)
+  
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -122,34 +149,11 @@ class QMI8658Component : public PollingComponent, public i2c::I2CDevice {
 
   bool disable_wake_on_motion();
   bool enable_wake_on_motion(uint8_t threshold, QMI8658AccelODR accel_odr, QMI8658InterruptPin interrupt_pin, uint8_t initial_pin_state, uint8_t blanking_time);
-  void set_accel_odr(QMI8658AccelODR accel_odr) { this->accel_odr_ = accel_odr; }
-  void set_accel_range(QMI8658AccelRange accel_range) { this->accel_range_ = accel_range; }
-  void set_accel_x_sensor(sensor::Sensor *accel_x_sensor) { accel_x_sensor_ = accel_x_sensor; }
-  void set_accel_y_sensor(sensor::Sensor *accel_y_sensor) { accel_y_sensor_ = accel_y_sensor; }
-  void set_accel_z_sensor(sensor::Sensor *accel_z_sensor) { accel_z_sensor_ = accel_z_sensor; }
-  void set_gyro_odr(QMI8658GyroODR gyro_odr) { this->gyro_odr_ = gyro_odr; }
-  void set_gyro_range(QMI8658GyroRange gyro_range) { this->gyro_range_ = gyro_range; }
-  void set_gyro_x_sensor(sensor::Sensor *gyro_x_sensor) { gyro_x_sensor_ = gyro_x_sensor; }
-  void set_gyro_y_sensor(sensor::Sensor *gyro_y_sensor) { gyro_y_sensor_ = gyro_y_sensor; }
-  void set_gyro_z_sensor(sensor::Sensor *gyro_z_sensor) { gyro_z_sensor_ = gyro_z_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
 
  protected:
-  sensor::Sensor *accel_x_sensor_{nullptr};
-  sensor::Sensor *accel_y_sensor_{nullptr};
-  sensor::Sensor *accel_z_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *gyro_x_sensor_{nullptr};
-  sensor::Sensor *gyro_y_sensor_{nullptr};
-  sensor::Sensor *gyro_z_sensor_{nullptr};
-
-  QMI8658AccelODR accel_odr_ = QMI8658AccelODR::QMI8658_ACCEL_ODR_8000HZ;
-  QMI8658AccelRange accel_range_ = QMI8658AccelRange::QMI8658_ACCEL_RANGE_2G;
-  QMI8658GyroODR gyro_odr_ = QMI8658GyroODR::QMI8658_GYRO_ODR_8000HZ;
-  QMI8658GyroRange gyro_range_ = QMI8658GyroRange::QMI8658_GYRO_RANGE_16DPS;
-
   bool clr_register_bit_(uint8_t reg, uint8_t bit);
-  bool configure_accel_(QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr);
+  bool configure_accel_(QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr, QMI8658LPFMode accel_lpf_mode);
+  bool configure_gyro_(QMI8658GyroRange gyro_range, QMI8658GyroODR gyro_odr, QMI8658LPFMode gyro_lpf_mode);
   bool disable_sensors_();
   bool enable_required_sensors_();
   bool enable_sensors_(uint8_t sensors_state);

@@ -128,15 +128,25 @@ void QMI8658Component::setup() {
     return this->mark_failed();
   }
 
-  if (!this->configure_accel_(this->accel_range_, this->accel_odr_)) {
+  if (!this->configure_accel_(this->accel_range_, this->accel_odr_, this->accel_lpf_mode_)) {
+    return this->mark_failed();
+  }
+  
+  if (!this->configure_gyro_(this->gyro_range_, this->gyro_odr_, this->gyro_lpf_mode_)) {
     return this->mark_failed();
   }
 
-  ESP_LOGV(TAG, "  Setting up Gyro Config...");
-  uint8_t gyro_config = (uint8_t) this->gyro_range_ << 4 | (uint8_t) this->gyro_odr_;
-  ESP_LOGV(TAG, "  gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
-  if (!this->write_byte(QMI8658_REGISTER_CTRL3, gyro_config)) {
-    ESP_LOGE(TAG, "Can't configure gyroscope");
+  ESP_LOGV(TAG, "  Setting up LPF config...");
+  uint8_t lpf_config = 0;
+  if (this->accel_lpf_mode_ != QMI8658LPFMode::QMI8658_LPF_OFF) {
+    lpf_config |= (uint8_t) this->accel_lpf_mode_ << 1 | 1 << 0;
+  }
+  if (this->gyro_lpf_mode_ != QMI8658LPFMode::QMI8658_LPF_OFF) {
+    lpf_config |= (uint8_t) this->gyro_lpf_mode_ << 5 | 1 << 4;
+  }
+  ESP_LOGV(TAG, "  lpf_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(lpf_config));
+  if (!this->write_byte(QMI8658_REGISTER_CTRL5, lpf_config)) {
+    ESP_LOGE(TAG, "Can't configure LPF");
     return this->mark_failed();
   }
 
@@ -171,24 +181,24 @@ void QMI8658Component::update() {
     return this->status_set_warning("Error reading temperature data register");
   }
 
-  float temperature = (float) data[0] / (float) INT16_MAX * 64.5f + 23.f;
+  float temperature = (float) data[0] / 32768.f * 64.5f + 23.f;
 
 
   if (this->read_le_int16_(QMI8658_REGISTER_AX_L, data, 3) != i2c::ERROR_OK) {
     return this->status_set_warning("Error reading acceleration data register");
   }
 
-  float accel_x = (float) data[0] / (float) INT16_MAX * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
-  float accel_y = (float) data[1] / (float) INT16_MAX * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
-  float accel_z = (float) data[2] / (float) INT16_MAX * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
+  float accel_x = (float) data[0] / (float) 32768.f * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
+  float accel_y = (float) data[1] / (float) 32768.f * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
+  float accel_z = (float) data[2] / (float) 32768.f * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
   
   if (this->read_le_int16_(QMI8658_REGISTER_GX_L, data, 3) != i2c::ERROR_OK) {
     return this->status_set_warning("Error reading gyroscope data register");
   }
   
-  float gyro_x = (float) data[0] / (float) INT16_MAX * (1 << ((uint8_t) this->gyro_range_ + 4));
-  float gyro_y = (float) data[1] / (float) INT16_MAX * (1 << ((uint8_t) this->gyro_range_ + 4));
-  float gyro_z = (float) data[2] / (float) INT16_MAX * (1 << ((uint8_t) this->gyro_range_ + 4));
+  float gyro_x = (float) data[0] / (float) 32768.f * (1 << ((uint8_t) this->gyro_range_ + 4));
+  float gyro_y = (float) data[1] / (float) 32768.f * (1 << ((uint8_t) this->gyro_range_ + 4));
+  float gyro_z = (float) data[2] / (float) 32768.f * (1 << ((uint8_t) this->gyro_range_ + 4));
 
   ESP_LOGD(TAG,
            "Got accel={x=%.3f m/s², y=%.3f m/s², z=%.3f m/s²}, "
@@ -222,12 +232,23 @@ bool QMI8658Component::clr_register_bit_(uint8_t reg, uint8_t bit) {
   return true;
 }
 
-bool QMI8658Component::configure_accel_(QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr) {
+bool QMI8658Component::configure_accel_(QMI8658AccelRange accel_range, QMI8658AccelODR accel_odr, QMI8658LPFMode accel_lpf_mode) {
   ESP_LOGV(TAG, "  Setting up Accel Config...");
   uint8_t accel_config = (uint8_t) accel_range << 4 | (uint8_t) accel_odr;
   ESP_LOGV(TAG, "  accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
   if (!this->write_byte(QMI8658_REGISTER_CTRL2, accel_config)) {
     ESP_LOGE(TAG, "Can't configure accelerometer");
+    return false;
+  }
+  return true;
+}
+
+bool QMI8658Component::configure_gyro_(QMI8658GyroRange gyro_range, QMI8658GyroODR gyro_odr, QMI8658LPFMode gyro_lpf_mode) {
+  ESP_LOGV(TAG, "  Setting up Gyro Config...");
+  uint8_t gyro_config = (uint8_t) gyro_range_ << 4 | (uint8_t) gyro_odr_;
+  ESP_LOGV(TAG, "  gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
+  if (!this->write_byte(QMI8658_REGISTER_CTRL3, gyro_config)) {
+    ESP_LOGE(TAG, "Can't configure gyroscope");
     return false;
   }
   return true;
@@ -288,7 +309,7 @@ bool QMI8658Component::enable_wake_on_motion(uint8_t threshold, QMI8658AccelODR 
     return false;
   }
   
-  if (!this->configure_accel_(this->accel_range_, accel_odr)) {
+  if (!this->configure_accel_(this->accel_range_, accel_odr, this->accel_lpf_mode_)) {
     this->status_set_warning("Error enabling WoM: configuring accel");
     return false;
   }

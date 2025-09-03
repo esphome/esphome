@@ -28,9 +28,11 @@ from esphome.const import (
 
 DEPENDENCIES = ["i2c"]
 
+CONF_ACCELERATION_LPF_MODE = "acceleration_lpf_mode"
 CONF_ACCELERATION_ODR = "acceleration_odr"
 CONF_ACCELERATION_RANGE = "acceleration_range"
 CONF_BLANKING_TIME = "blanking_time"
+CONF_GYROSCOPE_LPF_MODE = "gyroscope_lpf_mode"
 CONF_GYROSCOPE_ODR = "gyroscope_odr"
 CONF_GYROSCOPE_RANGE = "gyroscope_range"
 CONF_INITIAL_PIN_STATE = "initial_pin_state"
@@ -44,6 +46,19 @@ QMI8658InterruptPin = qmi8658_ns.enum("QMI8658InterruptPin")
 QMI8658_INTERRUPT_PIN = {
     "INT1": QMI8658InterruptPin.QMI8658_INT1,
     "INT2": QMI8658InterruptPin.QMI8658_INT2
+}
+
+QMI8658LPFMode = qmi8658_ns.enum("QMI8658LPFMode")
+QMI8658_LPF_MODE = {
+    "OFF": QMI8658LPFMode.QMI8658_LPF_OFF,
+    "MODE_0": QMI8658LPFMode.QMI8658_LPF_MODE_0,
+    "2.62%": QMI8658LPFMode.QMI8658_LPF_MODE_0,
+    "MODE_1": QMI8658LPFMode.QMI8658_LPF_MODE_1,
+    "3.59%": QMI8658LPFMode.QMI8658_LPF_MODE_1,
+    "MODE_2": QMI8658LPFMode.QMI8658_LPF_MODE_2,
+    "5.32%": QMI8658LPFMode.QMI8658_LPF_MODE_2,
+    "MODE_3": QMI8658LPFMode.QMI8658_LPF_MODE_3,
+    "14%": QMI8658LPFMode.QMI8658_LPF_MODE_3,
 }
 
 QMI8658AccelODR = qmi8658_ns.enum("QMI8658AccelODR")
@@ -114,11 +129,13 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QMI8658Component),
+            cv.Optional(CONF_ACCELERATION_LPF_MODE, "OFF"): cv.enum(QMI8658_LPF_MODE, upper=True),
             cv.Optional(CONF_ACCELERATION_ODR, default="8000HZ"): cv.enum(QMI8658_ACCEL_ODR, upper=True),
             cv.Optional(CONF_ACCELERATION_RANGE, default="2G"): cv.enum(QMI8658_ACCEL_RANGE, upper=True),
             cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(icon=ICON_ACCELERATION_X, **ACCEL_SCHEMA),
             cv.Optional(CONF_ACCELERATION_Y): sensor.sensor_schema(icon=ICON_ACCELERATION_Y, **ACCEL_SCHEMA),
             cv.Optional(CONF_ACCELERATION_Z): sensor.sensor_schema(icon=ICON_ACCELERATION_Z, **ACCEL_SCHEMA),
+            cv.Optional(CONF_GYROSCOPE_LPF_MODE, "OFF"): cv.enum(QMI8658_LPF_MODE, upper=True),
             cv.Optional(CONF_GYROSCOPE_ODR, default="8000HZ"): cv.enum(QMI8658_GYRO_ODR, upper=True),
             cv.Optional(CONF_GYROSCOPE_RANGE, default="16DPS"): cv.enum(QMI8658_GYRO_RANGE, upper=True),
             cv.Optional(CONF_GYROSCOPE_X): sensor.sensor_schema(icon=ICON_GYROSCOPE_X, **GYRO_SCHEMA),
@@ -189,8 +206,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
+    cg.add(var.set_accel_lpf_mode(config[CONF_ACCELERATION_LPF_MODE]))
     cg.add(var.set_accel_odr(config[CONF_ACCELERATION_ODR]))
     cg.add(var.set_accel_range(config[CONF_ACCELERATION_RANGE]))
+    cg.add(var.set_gyro_lpf_mode(config[CONF_GYROSCOPE_LPF_MODE]))
     cg.add(var.set_gyro_odr(config[CONF_GYROSCOPE_ODR]))
     cg.add(var.set_gyro_range(config[CONF_GYROSCOPE_RANGE]))
 
