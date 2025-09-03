@@ -32,21 +32,21 @@ void AS5048bComponent::dump_config() {
 }
 
 void AS5048bComponent::read_angle_() {
-  uint8_t angleMSB = 0;
-  uint8_t angleLSB = 0;
+  uint8_t angle_msb = 0;
+  uint8_t angle_lsb = 0;
 
-  i2c::ErrorCode errorMSB = this->read_register(AS5048B_ANGLMSB_REG, &angleMSB, 2);
-  i2c::ErrorCode errorLSB = this->read_register(AS5048B_ANGLLSB_REG, &angleLSB, 2);
+  i2c::ErrorCode error_msb = this->read_register(AS5048B_ANGLMSB_REG, &angle_msb, 2);
+  i2c::ErrorCode error_lsb = this->read_register(AS5048B_ANGLLSB_REG, &angle_lsb, 2);
 
-  if (errorMSB || errorLSB) {
-    ESP_LOGE(TAG, "Failed to read registers with codes %d and %d for MSB and LSB.", errorMSB, errorLSB);
+  if (error_msb || error_lsb) {
+    ESP_LOGE(TAG, "Failed to read registers with codes %d and %d for MSB and LSB.", error_msb, error_lsb);
     this->mark_failed();
     return;
   }
 
-  uint16_t rawAngle = angleLSB << 6;
-  rawAngle += (angleMSB & 0x3F);
-  double angle = (rawAngle / AS5048B_RESOLUTION) * 360.0;
+  uint16_t raw_angle = angle_lsb << 6;
+  raw_angle += (angle_msb & 0x3F);
+  double angle = (raw_angle / AS5048B_RESOLUTION) * 360.0;
 
   ESP_LOGD(TAG, "Got angle %.2f °", angle);
   this->publish_state(angle);
