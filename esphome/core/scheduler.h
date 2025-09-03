@@ -291,24 +291,6 @@ class Scheduler {
     return false;
   }
 
-  // Template helper to cancel and recycle items from a container
-  template<typename Container>
-  size_t cancel_and_recycle_from_container_(Container &container, Component *component, const char *name_cstr,
-                                            SchedulerItem::Type type, bool match_retry) {
-    size_t cancelled = 0;
-    for (auto it = container.begin(); it != container.end();) {
-      if (this->matches_item_(*it, component, name_cstr, type, match_retry)) {
-        // Recycle the cancelled item immediately
-        this->recycle_item_(std::move(*it));
-        it = container.erase(it);
-        cancelled++;
-      } else {
-        ++it;
-      }
-    }
-    return cancelled;
-  }
-
   Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;

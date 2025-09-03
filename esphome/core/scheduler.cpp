@@ -517,7 +517,9 @@ void HOT Scheduler::call(uint32_t now) {
 void HOT Scheduler::process_to_add() {
   LockGuard guard{this->lock_};
   for (auto &it : this->to_add_) {
-    if (it->remove) {
+    if (is_item_removed_(it.get())) {
+      // Recycle cancelled items
+      this->recycle_item_(std::move(it));
       continue;
     }
 
@@ -595,10 +597,14 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
 
   // Check all containers for matching items
 #ifndef ESPHOME_THREAD_SINGLE
-  // Cancel and immediately recycle items in defer queue
+  // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
-    total_cancelled +=
-        this->cancel_and_recycle_from_container_(this->defer_queue_, component, name_cstr, type, match_retry);
+    for (auto &item : this->defer_queue_) {
+      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+        this->mark_item_removed_(item.get());
+        total_cancelled++;
+      }
+    }
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
@@ -622,8 +628,14 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
     }
   }
 
-  // Cancel and immediately recycle items in to_add_ since they're not in heap yet
-  total_cancelled += this->cancel_and_recycle_from_container_(this->to_add_, component, name_cstr, type, match_retry);
+  // Cancel items in to_add_
+  for (auto &item : this->to_add_) {
+    if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+      this->mark_item_removed_(item.get());
+      total_cancelled++;
+      // Don't track removals for to_add_ items
+    }
+  }
 
   return total_cancelled > 0;
 }
