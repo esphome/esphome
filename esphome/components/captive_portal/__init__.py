@@ -10,7 +10,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["web_server_base", "ota.web_server"]
 DEPENDENCIES = ["wifi"]
@@ -40,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(64.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 

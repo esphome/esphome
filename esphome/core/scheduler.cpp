@@ -15,21 +15,18 @@ namespace esphome {
 static const char *const TAG = "scheduler";
 
 // Memory pool configuration constants
-// Pool size of 10 is a balance between memory usage and performance:
-// - Small enough to not waste memory on simple configs (1-2 timers)
-// - Large enough to handle complex setups with multiple sensors/components
-// - Prevents system-wide stalls from heap allocation/deallocation that can
-//   disrupt task synchronization and cause dropped events
-static constexpr size_t MAX_POOL_SIZE = 10;
-// Maximum number of cancelled items to keep in the heap before forcing a cleanup.
-// Set to 6 to trigger cleanup relatively frequently, ensuring cancelled items are
-// recycled to the pool in a timely manner to maintain pool efficiency.
-static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 6;
+// Pool size of 5 matches typical usage patterns (2-4 active timers)
+// - Minimal memory overhead (~250 bytes on ESP32)
+// - Sufficient for most configs with a couple sensors/components
+// - Still prevents heap fragmentation and allocation stalls
+// - Complex setups with many timers will just allocate beyond the pool
+// See https://github.com/esphome/backlog/issues/52
+static constexpr size_t MAX_POOL_SIZE = 5;
 
-// Ensure MAX_LOGICALLY_DELETED_ITEMS is at least 4 smaller than MAX_POOL_SIZE
-// This guarantees we have room in the pool for recycled items when cleanup occurs
-static_assert(MAX_LOGICALLY_DELETED_ITEMS + 4 <= MAX_POOL_SIZE,
-              "MAX_LOGICALLY_DELETED_ITEMS must be at least 4 smaller than MAX_POOL_SIZE");
+// Maximum number of logically deleted (cancelled) items before forcing cleanup.
+// Set to 5 to match the pool size - when we have as many cancelled items as our
+// pool can hold, it's time to clean up and recycle them.
+static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
 
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
@@ -108,13 +105,13 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     item = std::move(this->scheduler_item_pool_.back());
     this->scheduler_item_pool_.pop_back();
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGVV(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
 #endif
   } else {
     // Allocate new if pool is empty
     item = make_unique<SchedulerItem>();
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGVV(TAG, "Allocated new item (pool empty)");
+    ESP_LOGD(TAG, "Allocated new item (pool empty)");
 #endif
   }
   item->component = component;
@@ -384,9 +381,10 @@ void HOT Scheduler::call(uint32_t now) {
       }
 
       const char *name = item->get_name();
-      ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64,
+      bool is_cancelled = is_item_removed_(item.get());
+      ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64 "%s",
                item->get_type_str(), item->get_source(), name ? name : "(null)", item->interval,
-               item->next_execution_ - now_64, item->next_execution_);
+               item->next_execution_ - now_64, item->next_execution_, is_cancelled ? " [CANCELLED]" : "");
 
       old_items.push_back(std::move(item));
     }
@@ -401,8 +399,13 @@ void HOT Scheduler::call(uint32_t now) {
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // If we have too many items to remove
-  if (this->to_remove_ > MAX_LOGICALLY_DELETED_ITEMS) {
+  // Cleanup removed items before processing
+  // First try to clean items from the top of the heap (fast path)
+  this->cleanup_();
+
+  // If we still have too many cancelled items, do a full cleanup
+  // This only happens if cancelled items are stuck in the middle/bottom of the heap
+  if (this->to_remove_ >= MAX_LOGICALLY_DELETED_ITEMS) {
     // We hold the lock for the entire cleanup operation because:
     // 1. We're rebuilding the entire items_ list, so we need exclusive access throughout
     // 2. Other threads must see either the old state or the new state, not intermediate states
@@ -428,9 +431,6 @@ void HOT Scheduler::call(uint32_t now) {
     std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
     this->to_remove_ = 0;
   }
-
-  // Cleanup removed items before processing
-  this->cleanup_();
   while (!this->items_.empty()) {
     // use scoping to indicate visibility of `item` variable
     {
@@ -516,7 +516,9 @@ void HOT Scheduler::call(uint32_t now) {
 void HOT Scheduler::process_to_add() {
   LockGuard guard{this->lock_};
   for (auto &it : this->to_add_) {
-    if (it->remove) {
+    if (is_item_removed_(it.get())) {
+      // Recycle cancelled items
+      this->recycle_item_(std::move(it));
       continue;
     }
 
@@ -594,24 +596,45 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
 
   // Check all containers for matching items
 #ifndef ESPHOME_THREAD_SINGLE
-  // Cancel and immediately recycle items in defer queue
+  // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
-    total_cancelled +=
-        this->cancel_and_recycle_from_container_(this->defer_queue_, component, name_cstr, type, match_retry);
+    for (auto &item : this->defer_queue_) {
+      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+        this->mark_item_removed_(item.get());
+        total_cancelled++;
+      }
+    }
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-  // Cancel items in the main heap (can't recycle immediately due to heap structure)
-  for (auto &item : this->items_) {
-    if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-      this->mark_item_removed_(item.get());
+  // Cancel items in the main heap
+  // Special case: if the last item in the heap matches, we can remove it immediately
+  // (removing the last element doesn't break heap structure)
+  if (!this->items_.empty()) {
+    auto &last_item = this->items_.back();
+    if (this->matches_item_(last_item, component, name_cstr, type, match_retry)) {
+      this->recycle_item_(std::move(this->items_.back()));
+      this->items_.pop_back();
       total_cancelled++;
-      this->to_remove_++;  // Track removals for heap items
+    }
+    // For other items in heap, we can only mark for removal (can't remove from middle of heap)
+    for (auto &item : this->items_) {
+      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+        this->mark_item_removed_(item.get());
+        total_cancelled++;
+        this->to_remove_++;  // Track removals for heap items
+      }
     }
   }
 
-  // Cancel and immediately recycle items in to_add_ since they're not in heap yet
-  total_cancelled += this->cancel_and_recycle_from_container_(this->to_add_, component, name_cstr, type, match_retry);
+  // Cancel items in to_add_
+  for (auto &item : this->to_add_) {
+    if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+      this->mark_item_removed_(item.get());
+      total_cancelled++;
+      // Don't track removals for to_add_ items
+    }
+  }
 
   return total_cancelled > 0;
 }
@@ -790,11 +813,11 @@ void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
     item->clear_dynamic_name();
     this->scheduler_item_pool_.push_back(std::move(item));
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGVV(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+    ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_.size());
 #endif
   } else {
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGVV(TAG, "Pool full (size: %zu), deleting item", this->scheduler_item_pool_.size());
+    ESP_LOGD(TAG, "Pool full (size: %zu), deleting item", this->scheduler_item_pool_.size());
 #endif
   }
   // else: unique_ptr will delete the item when it goes out of scope
