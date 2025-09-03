@@ -185,7 +185,6 @@ class Scheduler {
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
 
-    // Helper methods to work with split execution time (constexpr for optimization)
     constexpr uint64_t get_next_execution() const {
       return (static_cast<uint64_t>(next_execution_high_) << 32) | next_execution_low_;
     }
