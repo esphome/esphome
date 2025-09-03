@@ -9,10 +9,8 @@ namespace as5048b {
 
 class AS5048bComponent : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
-  /// Setup the sensor and check connection.
   void setup() override;
   void dump_config() override;
-  /// Update the sensor value (angle).
   void update() override;
 
   float get_setup_priority() const override;
