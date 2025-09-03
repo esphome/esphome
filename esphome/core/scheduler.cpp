@@ -399,10 +399,12 @@ void HOT Scheduler::call(uint32_t now) {
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // Check if we should perform cleanup based on number of cancelled items
-  // Cleanup when we have accumulated MAX_LOGICALLY_DELETED_ITEMS cancelled items
-  // This simple threshold ensures we don't waste memory on cancelled items
-  // regardless of how many intervals are running
+  // Cleanup removed items before processing
+  // First try to clean items from the top of the heap (fast path)
+  this->cleanup_();
+
+  // If we still have too many cancelled items, do a full cleanup
+  // This only happens if cancelled items are stuck in the middle/bottom of the heap
   if (this->to_remove_ >= MAX_LOGICALLY_DELETED_ITEMS) {
     // We hold the lock for the entire cleanup operation because:
     // 1. We're rebuilding the entire items_ list, so we need exclusive access throughout
@@ -429,9 +431,6 @@ void HOT Scheduler::call(uint32_t now) {
     std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
     this->to_remove_ = 0;
   }
-
-  // Cleanup removed items before processing
-  this->cleanup_();
   while (!this->items_.empty()) {
     // use scoping to indicate visibility of `item` variable
     {
