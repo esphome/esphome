@@ -28,9 +28,7 @@ template<typename... Ts> class EnableWakeOnMotionAction : public Action<Ts...>, 
 
 template<typename... Ts> class DisableWakeOnMotionAction : public Action<Ts...>, public Parented<QMI8658Component> {
  public:
-  void play(Ts... x) override {
-    this->parent_->disable_wake_on_motion();
-  }
+  void play(Ts... x) override { this->parent_->disable_wake_on_motion(); }
 };
 
 }  // namespace qmi8658

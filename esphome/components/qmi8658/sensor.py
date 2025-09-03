@@ -1,29 +1,29 @@
 from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_TEMPERATURE,
     CONF_ACCELERATION_X,
     CONF_ACCELERATION_Y,
     CONF_ACCELERATION_Z,
     CONF_GYROSCOPE_X,
     CONF_GYROSCOPE_Y,
     CONF_GYROSCOPE_Z,
+    CONF_ID,
     CONF_INTERRUPT_PIN,
+    CONF_TEMPERATURE,
     CONF_THRESHOLD,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER_PER_SECOND_SQUARED,
     ICON_ACCELERATION_X,
     ICON_ACCELERATION_Y,
     ICON_ACCELERATION_Z,
     ICON_GYROSCOPE_X,
     ICON_GYROSCOPE_Y,
     ICON_GYROSCOPE_Z,
-    UNIT_DEGREE_PER_SECOND,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_DEGREE_PER_SECOND,
+    UNIT_METER_PER_SECOND_SQUARED,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -45,7 +45,7 @@ QMI8658Component = qmi8658_ns.class_(
 QMI8658InterruptPin = qmi8658_ns.enum("QMI8658InterruptPin")
 QMI8658_INTERRUPT_PIN = {
     "INT1": QMI8658InterruptPin.QMI8658_INT1,
-    "INT2": QMI8658InterruptPin.QMI8658_INT2
+    "INT2": QMI8658InterruptPin.QMI8658_INT2,
 }
 
 QMI8658LPFMode = qmi8658_ns.enum("QMI8658LPFMode")
@@ -75,7 +75,7 @@ QMI8658_ACCEL_ODR = {
     "LOWPOWER_128HZ": QMI8658AccelODR.QMI8658_ACCEL_ODR_LOWPOWER_128HZ,
     "LOWPOWER_21HZ": QMI8658AccelODR.QMI8658_ACCEL_ODR_LOWPOWER_21HZ,
     "LOWPOWER_11HZ": QMI8658AccelODR.QMI8658_ACCEL_ODR_LOWPOWER_11HZ,
-    "LOWPOWER_3HZ": QMI8658AccelODR.QMI8658_ACCEL_ODR_LOWPOWER_3HZ
+    "LOWPOWER_3HZ": QMI8658AccelODR.QMI8658_ACCEL_ODR_LOWPOWER_3HZ,
 }
 
 QMI8658AccelRange = qmi8658_ns.enum("QMI8658AccelRange")
@@ -96,7 +96,7 @@ QMI8658_GYRO_ODR = {
     "250HZ": QMI8658GyroODR.QMI8658_GYRO_ODR_250HZ,
     "125HZ": QMI8658GyroODR.QMI8658_GYRO_ODR_125HZ,
     "62.5HZ": QMI8658GyroODR.QMI8658_GYRO_ODR_62_5HZ,
-    "31.25HZ": QMI8658GyroODR.QMI8658_GYRO_ODR_31_25HZ
+    "31.25HZ": QMI8658GyroODR.QMI8658_GYRO_ODR_31_25HZ,
 }
 
 QMI8658GyroRange = qmi8658_ns.enum("QMI8658GyroRange")
@@ -108,11 +108,15 @@ QMI8658_GYRO_RANGE = {
     "256DPS": QMI8658GyroRange.QMI8658_GYRO_RANGE_256DPS,
     "512DPS": QMI8658GyroRange.QMI8658_GYRO_RANGE_512DPS,
     "1024DPS": QMI8658GyroRange.QMI8658_GYRO_RANGE_1024DPS,
-    "2048DPS": QMI8658GyroRange.QMI8658_GYRO_RANGE_2048DPS
+    "2048DPS": QMI8658GyroRange.QMI8658_GYRO_RANGE_2048DPS,
 }
 
-EnableWakeOnMotionAction = qmi8658_ns.class_("EnableWakeOnMotionAction", automation.Action)
-DisableWakeOnMotionAction = qmi8658_ns.class_("DisableWakeOnMotionAction", automation.Action)
+EnableWakeOnMotionAction = qmi8658_ns.class_(
+    "EnableWakeOnMotionAction", automation.Action
+)
+DisableWakeOnMotionAction = qmi8658_ns.class_(
+    "DisableWakeOnMotionAction", automation.Action
+)
 
 ACCEL_SCHEMA = {
     "unit_of_measurement": UNIT_METER_PER_SECOND_SQUARED,
@@ -129,18 +133,42 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QMI8658Component),
-            cv.Optional(CONF_ACCELERATION_LPF_MODE, "OFF"): cv.enum(QMI8658_LPF_MODE, upper=True),
-            cv.Optional(CONF_ACCELERATION_ODR, default="8000HZ"): cv.enum(QMI8658_ACCEL_ODR, upper=True),
-            cv.Optional(CONF_ACCELERATION_RANGE, default="2G"): cv.enum(QMI8658_ACCEL_RANGE, upper=True),
-            cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(icon=ICON_ACCELERATION_X, **ACCEL_SCHEMA),
-            cv.Optional(CONF_ACCELERATION_Y): sensor.sensor_schema(icon=ICON_ACCELERATION_Y, **ACCEL_SCHEMA),
-            cv.Optional(CONF_ACCELERATION_Z): sensor.sensor_schema(icon=ICON_ACCELERATION_Z, **ACCEL_SCHEMA),
-            cv.Optional(CONF_GYROSCOPE_LPF_MODE, "OFF"): cv.enum(QMI8658_LPF_MODE, upper=True),
-            cv.Optional(CONF_GYROSCOPE_ODR, default="8000HZ"): cv.enum(QMI8658_GYRO_ODR, upper=True),
-            cv.Optional(CONF_GYROSCOPE_RANGE, default="16DPS"): cv.enum(QMI8658_GYRO_RANGE, upper=True),
-            cv.Optional(CONF_GYROSCOPE_X): sensor.sensor_schema(icon=ICON_GYROSCOPE_X, **GYRO_SCHEMA),
-            cv.Optional(CONF_GYROSCOPE_Y): sensor.sensor_schema(icon=ICON_GYROSCOPE_Y, **GYRO_SCHEMA),
-            cv.Optional(CONF_GYROSCOPE_Z): sensor.sensor_schema(icon=ICON_GYROSCOPE_Z, **GYRO_SCHEMA),
+            cv.Optional(CONF_ACCELERATION_LPF_MODE, "OFF"): cv.enum(
+                QMI8658_LPF_MODE, upper=True
+            ),
+            cv.Optional(CONF_ACCELERATION_ODR, default="8000HZ"): cv.enum(
+                QMI8658_ACCEL_ODR, upper=True
+            ),
+            cv.Optional(CONF_ACCELERATION_RANGE, default="2G"): cv.enum(
+                QMI8658_ACCEL_RANGE, upper=True
+            ),
+            cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(
+                icon=ICON_ACCELERATION_X, **ACCEL_SCHEMA
+            ),
+            cv.Optional(CONF_ACCELERATION_Y): sensor.sensor_schema(
+                icon=ICON_ACCELERATION_Y, **ACCEL_SCHEMA
+            ),
+            cv.Optional(CONF_ACCELERATION_Z): sensor.sensor_schema(
+                icon=ICON_ACCELERATION_Z, **ACCEL_SCHEMA
+            ),
+            cv.Optional(CONF_GYROSCOPE_LPF_MODE, "OFF"): cv.enum(
+                QMI8658_LPF_MODE, upper=True
+            ),
+            cv.Optional(CONF_GYROSCOPE_ODR, default="8000HZ"): cv.enum(
+                QMI8658_GYRO_ODR, upper=True
+            ),
+            cv.Optional(CONF_GYROSCOPE_RANGE, default="16DPS"): cv.enum(
+                QMI8658_GYRO_RANGE, upper=True
+            ),
+            cv.Optional(CONF_GYROSCOPE_X): sensor.sensor_schema(
+                icon=ICON_GYROSCOPE_X, **GYRO_SCHEMA
+            ),
+            cv.Optional(CONF_GYROSCOPE_Y): sensor.sensor_schema(
+                icon=ICON_GYROSCOPE_Y, **GYRO_SCHEMA
+            ),
+            cv.Optional(CONF_GYROSCOPE_Z): sensor.sensor_schema(
+                icon=ICON_GYROSCOPE_Z, **GYRO_SCHEMA
+            ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=0,
@@ -157,10 +185,16 @@ CONFIG_SCHEMA = (
 ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(QMI8658Component),
-        cv.Optional(CONF_ACCELERATION_ODR, default="LOWPOWER_21HZ"): cv.templatable(cv.enum(QMI8658_ACCEL_ODR, upper=True)),
-        cv.Optional(CONF_BLANKING_TIME, default=0): cv.templatable(cv.int_range(min=0, max=63)),
+        cv.Optional(CONF_ACCELERATION_ODR, default="LOWPOWER_21HZ"): cv.templatable(
+            cv.enum(QMI8658_ACCEL_ODR, upper=True)
+        ),
+        cv.Optional(CONF_BLANKING_TIME, default=0): cv.templatable(
+            cv.int_range(min=0, max=63)
+        ),
         cv.Required(CONF_INITIAL_PIN_STATE): cv.templatable(cv.int_range(min=0, max=1)),
-        cv.Required(CONF_INTERRUPT_PIN): cv.templatable(cv.enum(QMI8658_INTERRUPT_PIN, upper=True)),
+        cv.Required(CONF_INTERRUPT_PIN): cv.templatable(
+            cv.enum(QMI8658_INTERRUPT_PIN, upper=True)
+        ),
         cv.Required(CONF_THRESHOLD): cv.templatable(cv.int_range(min=1, max=255)),
     },
 )
@@ -173,16 +207,22 @@ DISABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "qmi8658.enable_wake_on_motion", EnableWakeOnMotionAction, ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA
+    "qmi8658.enable_wake_on_motion",
+    EnableWakeOnMotionAction,
+    ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA,
 )
 async def qmi8658_enable_wake_on_motion_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    accel_odr = await cg.templatable(config[CONF_ACCELERATION_ODR], args, QMI8658AccelODR)
+    accel_odr = await cg.templatable(
+        config[CONF_ACCELERATION_ODR], args, QMI8658AccelODR
+    )
     blanking_time = await cg.templatable(config[CONF_BLANKING_TIME], args, int)
     initial_pin_state = await cg.templatable(config[CONF_INITIAL_PIN_STATE], args, int)
-    interrupt_pin = await cg.templatable(config[CONF_INTERRUPT_PIN], args, QMI8658InterruptPin)
+    interrupt_pin = await cg.templatable(
+        config[CONF_INTERRUPT_PIN], args, QMI8658InterruptPin
+    )
     threshold = await cg.templatable(config[CONF_THRESHOLD], args, int)
     cg.add(var.set_accel_odr(accel_odr))
     cg.add(var.set_blanking_time(blanking_time))
@@ -192,14 +232,18 @@ async def qmi8658_enable_wake_on_motion_to_code(config, action_id, template_arg,
 
     return var
 
+
 @automation.register_action(
-    "qmi8658.disable_wake_on_motion", DisableWakeOnMotionAction, DISABLE_WAKE_ON_MOTION_ACTION_SCHEMA
+    "qmi8658.disable_wake_on_motion",
+    DisableWakeOnMotionAction,
+    DISABLE_WAKE_ON_MOTION_ACTION_SCHEMA,
 )
 async def qmi8658_disable_wake_on_motion_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
     return var
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
