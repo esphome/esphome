@@ -14,7 +14,7 @@ namespace esphome {
 
 static const char *const TAG = "scheduler";
 
-static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
+static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
 // max delay to start an interval sequence
@@ -117,12 +117,12 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     // first execution happens immediately after a random smallish offset
     // Calculate random offset (0 to min(interval/2, 5s))
     uint32_t offset = (uint32_t) (std::min(delay / 2, MAX_INTERVAL_DELAY) * random_float());
-    item->next_execution_ = now + offset;
+    item->set_next_execution(now + offset);
     ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms", name_cstr ? name_cstr : "", delay,
              offset);
   } else {
     item->interval = 0;
-    item->next_execution_ = now + delay;
+    item->set_next_execution(now + delay);
   }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
@@ -138,7 +138,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
              name_cstr ? name_cstr : "(null)", type_str, delay);
   } else {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, item->get_source(),
-             name_cstr ? name_cstr : "(null)", type_str, delay, static_cast<uint32_t>(item->next_execution_ - now));
+             name_cstr ? name_cstr : "(null)", type_str, delay,
+             static_cast<uint32_t>(item->get_next_execution() - now));
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
@@ -285,9 +286,10 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   auto &item = this->items_[0];
   // Convert the fresh timestamp from caller (usually Application::loop()) to 64-bit
   const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from caller
-  if (item->next_execution_ < now_64)
+  const uint64_t next_exec = item->get_next_execution();
+  if (next_exec < now_64)
     return 0;
-  return item->next_execution_ - now_64;
+  return next_exec - now_64;
 }
 void HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
@@ -354,7 +356,7 @@ void HOT Scheduler::call(uint32_t now) {
       const char *name = item->get_name();
       ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64,
                item->get_type_str(), item->get_source(), name ? name : "(null)", item->interval,
-               item->next_execution_ - now_64, item->next_execution_);
+               item->get_next_execution() - now_64, item->get_next_execution());
 
       old_items.push_back(std::move(item));
     }
@@ -401,7 +403,7 @@ void HOT Scheduler::call(uint32_t now) {
     {
       // Don't copy-by value yet
       auto &item = this->items_[0];
-      if (item->next_execution_ > now_64) {
+      if (item->get_next_execution() > now_64) {
         // Not reached timeout yet, done for this call
         break;
       }
@@ -440,7 +442,7 @@ void HOT Scheduler::call(uint32_t now) {
       const char *item_name = item->get_name();
       ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
                item->get_type_str(), item->get_source(), item_name ? item_name : "(null)", item->interval,
-               item->next_execution_, now_64);
+               item->get_next_execution(), now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
       // Warning: During callback(), a lot of stuff can happen, including:
@@ -465,7 +467,7 @@ void HOT Scheduler::call(uint32_t now) {
       }
 
       if (item->type == SchedulerItem::INTERVAL) {
-        item->next_execution_ = now_64 + item->interval;
+        item->set_next_execution(now_64 + item->interval);
         // Add new item directly to to_add_
         // since we have the lock held
         this->to_add_.push_back(std::move(item));
@@ -744,7 +746,10 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
 
 bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
                                        const std::unique_ptr<SchedulerItem> &b) {
-  return a->next_execution_ > b->next_execution_;
+  // High bits are almost always equal (change only on 32-bit rollover ~49 days)
+  // Optimize for common case: check low bits first when high bits are equal
+  return (a->next_execution_high_ == b->next_execution_high_) ? (a->next_execution_low_ > b->next_execution_low_)
+                                                              : (a->next_execution_high_ > b->next_execution_high_);
 }
 
 }  // namespace esphome
