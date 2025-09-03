@@ -12,15 +12,13 @@ class AS5048bComponent : public PollingComponent, public i2c::I2CDevice, public 
   /// Setup the sensor and check connection.
   void setup() override;
   void dump_config() override;
-  /// Update the sensor value (wind angle).
+  /// Update the sensor value (angle).
   void update() override;
 
   float get_setup_priority() const override;
 
  protected:
   void read_angle_();
-
-  bool data_ready_ = false;
 };
 
 }  // namespace as5048b
