@@ -8,56 +8,56 @@ namespace esphome {
 namespace qmi8658 {
 
 #pragma region Registers
-#define QMI8658_REGISTER_WHO_AM_I 0x00     // Device Identifier
-#define QMI8658_REGISTER_REVISION 0x01     // Device Revision ID
-#define QMI8658_REGISTER_CTRL1 0x02        // SPI Interface and Sensor Enable
-#define QMI8658_REGISTER_CTRL2 0x03        // Accelerometer: Output Data Rate, Full Scale, Self Test
-#define QMI8658_REGISTER_CTRL3 0x04        // Gyroscope: Output Data Rate, Full Scale, Self Test
-#define QMI8658_REGISTER_CTRL4 0x05        // Reserved
-#define QMI8658_REGISTER_CTRL5 0x06        // Low pass filter setting
-#define QMI8658_REGISTER_CTRL6 0x07        // AttitudeEngine™ Settings: Output Data Rate, Motion on Demand
-#define QMI8658_REGISTER_CTRL7 0x08        // Enable Sensors
-#define QMI8658_REGISTER_CTRL8 0x09        // Motion Detection Control
-#define QMI8658_REGISTER_CTRL9 0x0A        // Host Commands
-#define QMI8658_REGISTER_CAL1_L 0x0B       // Calibration Register: lower 8 bits
-#define QMI8658_REGISTER_CAL1_H 0x0C       // Calibration Register: upper 8 bits
-#define QMI8658_REGISTER_STATUS_INT 0x2D   // Sensor Data Availability with the Locking mechanism
-#define QMI8658_REGISTER_STATUS0 0x2E      // Output Data Over Run and Data Availability
-#define QMI8658_REGISTER_STATUS1 0x2F      // Miscellaneous Status: Wake on Motion
-#define QMI8658_REGISTER_TIMESTAMP_L 0x30  // Sample Time Stamp: lower 8 bits
-#define QMI8658_REGISTER_TIMESTAMP_M 0x31  // Sample Time Stamp: middle 8 bits
-#define QMI8658_REGISTER_TIMESTAMP_H 0x32  // Sample Time Stamp: upper 8 bits
-#define QMI8658_REGISTER_TEMP_L 0x33       // Temperature Output Data: lower 8 bits
-#define QMI8658_REGISTER_TEMP_H 0x34       // Temperature Output Data: upper 8 bits
-#define QMI8658_REGISTER_AX_L 0x35         // X-axis Acceleration: lower 8 bits
-#define QMI8658_REGISTER_AX_H 0x36         // X-axis Acceleration: upper 8 bits
-#define QMI8658_REGISTER_AY_L 0x37         // Y-axis Acceleration: lower 8 bits
-#define QMI8658_REGISTER_AY_H 0x38         // Y-axis Acceleration: upper 8 bits
-#define QMI8658_REGISTER_AZ_L 0x39         // Z-axis Acceleration: lower 8 bits
-#define QMI8658_REGISTER_AZ_H 0x3A         // Z-axis Acceleration: upper 8 bits
-#define QMI8658_REGISTER_GX_L 0x3B         // X-axis Angular Rate: lower 8 bits
-#define QMI8658_REGISTER_GX_H 0x3C         // X-axis Angular Rate: upper 8 bits
-#define QMI8658_REGISTER_GY_L 0x3D         // X-axis Angular Rate: lower 8 bits
-#define QMI8658_REGISTER_GY_H 0x3E         // X-axis Angular Rate: upper 8 bits
-#define QMI8658_REGISTER_GZ_L 0x3F         // X-axis Angular Rate: lower 8 bits
-#define QMI8658_REGISTER_GZ_H 0x40         // X-axis Angular Rate: upper 8 bits
+const uint8_t QMI8658_REGISTER_WHO_AM_I = 0x00;     // Device Identifier
+const uint8_t QMI8658_REGISTER_REVISION = 0x01;     // Device Revision ID
+const uint8_t QMI8658_REGISTER_CTRL1 = 0x02;        // SPI Interface and Sensor Enable
+const uint8_t QMI8658_REGISTER_CTRL2 = 0x03;        // Accelerometer: Output Data Rate, Full Scale, Self Test
+const uint8_t QMI8658_REGISTER_CTRL3 = 0x04;        // Gyroscope: Output Data Rate, Full Scale, Self Test
+const uint8_t QMI8658_REGISTER_CTRL4 = 0x05;        // Reserved
+const uint8_t QMI8658_REGISTER_CTRL5 = 0x06;        // Low pass filter setting
+const uint8_t QMI8658_REGISTER_CTRL6 = 0x07;        // AttitudeEngine™ Settings: Output Data Rate, Motion on Demand
+const uint8_t QMI8658_REGISTER_CTRL7 = 0x08;        // Enable Sensors
+const uint8_t QMI8658_REGISTER_CTRL8 = 0x09;        // Motion Detection Control
+const uint8_t QMI8658_REGISTER_CTRL9 = 0x0A;        // Host Commands
+const uint8_t QMI8658_REGISTER_CAL1_L = 0x0B;       // Calibration Register: lower 8 bits
+const uint8_t QMI8658_REGISTER_CAL1_H = 0x0C;       // Calibration Register: upper 8 bits
+const uint8_t QMI8658_REGISTER_STATUS_INT = 0x2D;   // Sensor Data Availability with the Locking mechanism
+const uint8_t QMI8658_REGISTER_STATUS0 = 0x2E;      // Output Data Over Run and Data Availability
+const uint8_t QMI8658_REGISTER_STATUS1 = 0x2F;      // Miscellaneous Status: Wake on Motion
+const uint8_t QMI8658_REGISTER_TIMESTAMP_L = 0x30;  // Sample Time Stamp: lower 8 bits
+const uint8_t QMI8658_REGISTER_TIMESTAMP_M = 0x31;  // Sample Time Stamp: middle 8 bits
+const uint8_t QMI8658_REGISTER_TIMESTAMP_H = 0x32;  // Sample Time Stamp: upper 8 bits
+const uint8_t QMI8658_REGISTER_TEMP_L = 0x33;       // Temperature Output Data: lower 8 bits
+const uint8_t QMI8658_REGISTER_TEMP_H = 0x34;       // Temperature Output Data: upper 8 bits
+const uint8_t QMI8658_REGISTER_AX_L = 0x35;         // X-axis Acceleration: lower 8 bits
+const uint8_t QMI8658_REGISTER_AX_H = 0x36;         // X-axis Acceleration: upper 8 bits
+const uint8_t QMI8658_REGISTER_AY_L = 0x37;         // Y-axis Acceleration: lower 8 bits
+const uint8_t QMI8658_REGISTER_AY_H = 0x38;         // Y-axis Acceleration: upper 8 bits
+const uint8_t QMI8658_REGISTER_AZ_L = 0x39;         // Z-axis Acceleration: lower 8 bits
+const uint8_t QMI8658_REGISTER_AZ_H = 0x3A;         // Z-axis Acceleration: upper 8 bits
+const uint8_t QMI8658_REGISTER_GX_L = 0x3B;         // X-axis Angular Rate: lower 8 bits
+const uint8_t QMI8658_REGISTER_GX_H = 0x3C;         // X-axis Angular Rate: upper 8 bits
+const uint8_t QMI8658_REGISTER_GY_L = 0x3D;         // X-axis Angular Rate: lower 8 bits
+const uint8_t QMI8658_REGISTER_GY_H = 0x3E;         // X-axis Angular Rate: upper 8 bits
+const uint8_t QMI8658_REGISTER_GZ_L = 0x3F;         // X-axis Angular Rate: lower 8 bits
+const uint8_t QMI8658_REGISTER_GZ_H = 0x40;         // X-axis Angular Rate: upper 8 bits
 #pragma endregion
 
 #pragma region Commands
-#define QMI8658_CMD_WRITE_WOM_SETTING 0x08
+const uint8_t QMI8658_CMD_WRITE_WOM_SETTING = 0x08;
 #pragma endregion
 
 #pragma region Sensors
-#define QMI8658_SENSOR_NONE 0
-#define QMI8658_SENSOR_ACCEL 1 << 0  // Accelerometer
-#define QMI8658_SENSOR_GYRO 1 << 1   // Gyroscope
-#define QMI8658_SENSOR_MAG 1 << 2    // Magnetometer
-#define QMI8658_SENSOR_AE 1 << 3     // AttitudeEngine
+const uint8_t QMI8658_SENSOR_NONE = 0;
+const uint8_t QMI8658_SENSOR_ACCEL = 1 << 0;  // Accelerometer
+const uint8_t QMI8658_SENSOR_GYRO = 1 << 1;   // Gyroscope
+const uint8_t QMI8658_SENSOR_MAG = 1 << 2;    // Magnetometer
+const uint8_t QMI8658_SENSOR_AE = 1 << 3;     // AttitudeEngine
 #pragma endregion
 
 #pragma region SPI Interface flags
-#define QMI8658_SPI_BE 1 << 5  // Read data big endian
-#define QMI8658_SPI_AI 1 << 6  // Address auto increment
+const uint8_t QMI8658_SPI_BE = 1 << 5;  // Read data big endian
+const uint8_t QMI8658_SPI_AI = 1 << 6;  // Address auto increment
 #pragma endregion
 
 #define FIELD_WITH_SETTER(type, name, def) \
