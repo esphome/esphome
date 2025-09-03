@@ -120,7 +120,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       // Check if last item in to_add_ matches and can be updated
       if (last_item->component == component && last_item->type == SchedulerItem::TIMEOUT &&
           !is_item_removed_(last_item.get()) && this->names_match_(last_item->get_name(), name_cstr)) {
-        // For defers (delay==0), only update callback
+#ifdef ESPHOME_THREAD_SINGLE
+        // Single-threaded: defers can be in to_add_, only update callback
         if (delay == 0 && last_item->interval == 0) {
           last_item->callback = std::move(func);
 #ifdef ESPHOME_DEBUG_SCHEDULER
@@ -129,6 +130,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif
           return;
         }
+#endif
         // For regular timeouts, update callback and execution time
         if (delay != 0) {
           last_item->callback = std::move(func);
