@@ -178,17 +178,17 @@ void QMI8658Component::update() {
     return this->status_set_warning("Error reading acceleration data register");
   }
 
-  float accel_x = (float) data[0] / (float) INT16_MAX * (1 << (uint8_t) this->accel_range_ + 1) * GRAVITY_EARTH;
-  float accel_y = (float) data[1] / (float) INT16_MAX * (1 << (uint8_t) this->accel_range_ + 1) * GRAVITY_EARTH;
-  float accel_z = (float) data[2] / (float) INT16_MAX * (1 << (uint8_t) this->accel_range_ + 1) * GRAVITY_EARTH;
+  float accel_x = (float) data[0] / (float) INT16_MAX * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
+  float accel_y = (float) data[1] / (float) INT16_MAX * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
+  float accel_z = (float) data[2] / (float) INT16_MAX * (1 << ((uint8_t) this->accel_range_ + 1)) * GRAVITY_EARTH;
   
   if (this->read_le_int16_(QMI8658_REGISTER_GX_L, data, 3) != i2c::ERROR_OK) {
     return this->status_set_warning("Error reading gyroscope data register");
   }
   
-  float gyro_x = (float) data[0] / (float) INT16_MAX * (1 << (uint8_t) this->gyro_range_ + 4);
-  float gyro_y = (float) data[1] / (float) INT16_MAX * (1 << (uint8_t) this->gyro_range_ + 4);
-  float gyro_z = (float) data[2] / (float) INT16_MAX * (1 << (uint8_t) this->gyro_range_ + 4);
+  float gyro_x = (float) data[0] / (float) INT16_MAX * (1 << ((uint8_t) this->gyro_range_ + 4));
+  float gyro_y = (float) data[1] / (float) INT16_MAX * (1 << ((uint8_t) this->gyro_range_ + 4));
+  float gyro_z = (float) data[2] / (float) INT16_MAX * (1 << ((uint8_t) this->gyro_range_ + 4));
 
   ESP_LOGD(TAG,
            "Got accel={x=%.3f m/s², y=%.3f m/s², z=%.3f m/s²}, "

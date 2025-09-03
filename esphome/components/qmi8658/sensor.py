@@ -132,21 +132,20 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("1s"))
     .extend(i2c.i2c_device_schema(0x6B))
 )
 
 
-ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.maybe_simple_value(
+ENABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(QMI8658Component),
         cv.Optional(CONF_ACCELERATION_ODR, default="LOWPOWER_21HZ"): cv.templatable(cv.enum(QMI8658_ACCEL_ODR, upper=True)),
         cv.Optional(CONF_BLANKING_TIME, default=0): cv.templatable(cv.int_range(min=0, max=63)),
-        cv.Optional(CONF_INITIAL_PIN_STATE, default=0): cv.templatable(cv.int_range(min=0, max=1)),
-        cv.Optional(CONF_INTERRUPT_PIN, default="INT1"): cv.templatable(cv.enum(QMI8658_INTERRUPT_PIN, upper=True)),
+        cv.Required(CONF_INITIAL_PIN_STATE): cv.templatable(cv.int_range(min=0, max=1)),
+        cv.Required(CONF_INTERRUPT_PIN): cv.templatable(cv.enum(QMI8658_INTERRUPT_PIN, upper=True)),
         cv.Required(CONF_THRESHOLD): cv.templatable(cv.int_range(min=1, max=255)),
     },
-    key=CONF_THRESHOLD,
 )
 
 DISABLE_WAKE_ON_MOTION_ACTION_SCHEMA = cv.Schema(
