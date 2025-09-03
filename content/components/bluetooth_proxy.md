@@ -45,9 +45,12 @@ please search for it in the [Home Assistant Integrations](https://www.home-assis
 
 ```yaml
 bluetooth_proxy:
+  # Active connections are now enabled by default
+  # To disable active connections (previous default behavior), use:
+  # active: false
 ```
 
-- **active** (*Optional*, boolean): Enables proxying active connections. Defaults to `false`.
+- **active** (*Optional*, boolean): Enables proxying active connections. Defaults to `true`.
 - **cache_services** (*Optional*, boolean): Enables caching GATT services in NVS flash storage which significantly speeds up active connections. Defaults to `true` when using the ESP-IDF framework.
 - **connection_slots** (*Optional*, int): The maximum number of BLE connection slots to use.
   Each configured slot consumes ~1KB of RAM. This can only be adjusted when using
