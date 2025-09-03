@@ -11,7 +11,9 @@ CODEOWNERS = ["@jhandke"]
 DEPENDENCIES = ["i2c"]
 
 as5048b_ns = cg.esphome_ns.namespace("as5048b")
-AS5048bComponent = as5048b_ns.class_("AS5048bComponent", cg.PollingComponent, i2c.I2CDevice)
+AS5048bComponent = as5048b_ns.class_(
+    "AS5048bComponent", cg.PollingComponent, i2c.I2CDevice
+)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(

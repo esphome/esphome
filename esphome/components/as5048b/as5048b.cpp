@@ -5,18 +5,18 @@ namespace esphome {
 namespace as5048b {
 static const char *const TAG = "as5048b";
 
-static const uint8_t AS5048_ADDRESS = 0x40;         // 0b10000 + (A1 & A2 to GND)
+static const uint8_t AS5048_ADDRESS = 0x40;  // 0b10000 + (A1 & A2 to GND)
 static const uint8_t AS5048B_PROG_REG = 0x03;
 static const uint8_t AS5048B_ADDR_REG = 0x15;
-static const uint8_t AS5048B_ZEROMSB_REG = 0x16;    // bits 0..7
-static const uint8_t AS5048B_ZEROLSB_REG = 0x17;    // bits 0..5
+static const uint8_t AS5048B_ZEROMSB_REG = 0x16;  // bits 0..7
+static const uint8_t AS5048B_ZEROLSB_REG = 0x17;  // bits 0..5
 static const uint8_t AS5048B_GAIN_REG = 0xFA;
 static const uint8_t AS5048B_DIAG_REG = 0xFB;
-static const uint8_t AS5048B_MAGNMSB_REG = 0xFC;    // bits 0..7
-static const uint8_t AS5048B_MAGNLSB_REG = 0xFD;    // bits 0..5
-static const uint8_t AS5048B_ANGLMSB_REG = 0xFE;    // bits 0..7 = Angle<6>...Angle<13>
-static const uint8_t AS5048B_ANGLLSB_REG = 0xFF;    // bits 0..5 = Angle<0>...Angle<5>
-static const double AS5048B_RESOLUTION = 16384.0;   // 14 bits
+static const uint8_t AS5048B_MAGNMSB_REG = 0xFC;   // bits 0..7
+static const uint8_t AS5048B_MAGNLSB_REG = 0xFD;   // bits 0..5
+static const uint8_t AS5048B_ANGLMSB_REG = 0xFE;   // bits 0..7 = Angle<6>...Angle<13>
+static const uint8_t AS5048B_ANGLLSB_REG = 0xFF;   // bits 0..5 = Angle<0>...Angle<5>
+static const double AS5048B_RESOLUTION = 16384.0;  // 14 bits
 
 void AS5048bComponent::setup() {}
 
