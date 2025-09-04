@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, coroutine
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import add, get_variable
+from esphome.cpp_generator import RawExpression, add, get_variable
 from esphome.cpp_types import App
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
@@ -76,7 +76,8 @@ async def register_component(var, config):
             "Error while finding name of component, please report this", exc_info=e
         )
     if name is not None:
-        add(var.set_component_source(name))
+        # Use ESPHOME_PSTR macro which stores strings in PROGMEM on ESP8266, no-op on other platforms
+        add(var.set_component_source(RawExpression(f'ESPHOME_PSTR("{name}")')))
 
     add(App.register_component(var))
     return var
