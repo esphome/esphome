@@ -41,11 +41,21 @@ template<typename T, uint8_t N> class CachedGpioExpander {
   void digital_write(uint8_t pin, bool value) { this->digital_write_hw(pin, value); }
 
  protected:
-  /// @brief Call component low level function to read GPIO state from device
+  /// @brief Read GPIO bank from hardware into internal state
+  /// @param pin Pin number (used to determine which bank to read)
+  /// @return true if read succeeded, false on communication error
+  /// @note This does NOT return the pin state. It returns whether the read operation succeeded.
+  ///       The actual pin state should be returned by digital_read_cache().
   virtual bool digital_read_hw(uint8_t pin) = 0;
-  /// @brief Call component read function from internal cache.
+
+  /// @brief Get cached pin value from internal state
+  /// @param pin Pin number to read
+  /// @return Pin state (true = HIGH, false = LOW)
   virtual bool digital_read_cache(uint8_t pin) = 0;
-  /// @brief Call component low level function to write GPIO state to device
+
+  /// @brief Write GPIO state to hardware
+  /// @param pin Pin number to write
+  /// @param value Pin state to write (true = HIGH, false = LOW)
   virtual void digital_write_hw(uint8_t pin, bool value) = 0;
 
   /// @brief Invalidate cache. This function should be called in component loop().

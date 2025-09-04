@@ -29,7 +29,8 @@ void PCF8574Component::dump_config() {
   }
 }
 bool PCF8574Component::digital_read_hw(uint8_t pin) {
-  return this->read_gpio_() ? (this->input_mask_ & (1 << pin)) : false;
+  // Read all pins from hardware into input_mask_
+  return this->read_gpio_();  // Return true if I2C read succeeded, false on error
 }
 
 bool PCF8574Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
