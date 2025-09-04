@@ -83,7 +83,7 @@ class MAX6956 : public Component,
   uint8_t global_brightness_;
 
   // Cache for the 4 banks of 8 pins each (aligned with base class view)
-  // Bank 0: bits 0-7 (bits 0-3 unused, bits 4-7 = pins 4-7)
+  // Bank 0: bits 0-7 (bits 0-3 unused as MAX6956 pins start at 4, bits 4-7 = pins 4-7)
   // Bank 1: bits 8-15 (pins 8-15)
   // Bank 2: bits 16-23 (pins 16-23)
   // Bank 3: bits 24-31 (pins 24-31)
