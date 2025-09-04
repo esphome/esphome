@@ -11,11 +11,16 @@ namespace esphome::gpio_expander {
 /// @brief A class to cache the read state of a GPIO expander.
 ///        This class caches reads between GPIO Pins which are on the same bank.
 ///        This means that for reading whole Port (ex. 8 pins) component needs only one
-///        I2C/SPI read per main loop call. It assumes, that one bit in byte identifies one GPIO pin
+///        I2C/SPI read per main loop call. It assumes that one bit in byte identifies one GPIO pin.
+///
 ///        Template parameters:
-///           T - Type which represents internal register. Could be uint8_t or uint16_t. Adjust to
-///               match size of your internal GPIO bank register.
-///           N - Number of pins
+///           T - Type which represents internal bank register. Could be uint8_t or uint16_t.
+///               Choose based on how your I/O expander reads pins:
+///               * uint8_t:  For chips that read banks separately (8 pins at a time)
+///                          Examples: MCP23017 (2x8-bit banks), TCA9555 (2x8-bit banks)
+///               * uint16_t: For chips that read all pins at once (up to 16 pins)
+///                          Examples: PCF8574/8575 (8/16 pins), PCA9554/9555 (8/16 pins)
+///           N - Total number of pins (as uint8_t)
 template<typename T, uint8_t N> class CachedGpioExpander {
  public:
   /// @brief Read the state of the given pin. This will invalidate the cache for the given pin number.
