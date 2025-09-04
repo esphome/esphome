@@ -1,6 +1,19 @@
+esphome:
+  on_boot:
+    then:
+      - light.toggle: test_binary_light
+
 output:
   - platform: gpio
     id: test_binary
     pin: 0
 
-<<: !include common.yaml
+light:
+  - platform: binary
+    id: test_binary_light
+    name: Binary Light
+    output: test_binary
+    effects:
+      - strobe:
+    on_state:
+      - logger.log: Binary light state changed
