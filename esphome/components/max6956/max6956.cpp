@@ -200,8 +200,8 @@ void MAX6956::dump_config() {
  **************************************/
 void MAX6956GPIOPin::setup() { pin_mode(flags_); }
 void MAX6956GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool MAX6956GPIOPin::digital_read() { return this->parent_->read_pin_cached(this->pin_) != this->inverted_; }
-void MAX6956GPIOPin::digital_write(bool value) { this->parent_->write_pin(this->pin_, value != this->inverted_); }
+bool MAX6956GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
+void MAX6956GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 std::string MAX6956GPIOPin::dump_summary() const {
   char buffer[32];
   snprintf(buffer, sizeof(buffer), "%u via Max6956", pin_);
