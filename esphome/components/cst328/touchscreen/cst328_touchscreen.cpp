@@ -5,9 +5,10 @@ namespace cst328 {
 
 static const char *const TAG = "cst328.touchscreen";
 
-static const uint32_t CST328_TRANSITION_TIMEOUT = 300;  // 200 ms from datasheet, but typically much less
-static const uint16_t CST328_FW_CRC = 0xCACA;           // Expected firmware CRC value
-static const uint8_t CST328_SYNC_BYTE = 0xAB;           // Sync byte used in communication
+static const uint32_t CST328_BEFORE_RESET_TIMEOUT = 50;  // 50 ms from datasheet
+static const uint32_t CST328_TRANSITION_TIMEOUT = 300;   // 200 ms from datasheet, but typically much less
+static const uint16_t CST328_FW_CRC = 0xCACA;            // Expected firmware CRC value
+static const uint8_t CST328_SYNC_BYTE = 0xAB;            // Sync byte used in communication
 
 static const uint8_t ZERO_BYTE = 0;
 
@@ -34,21 +35,18 @@ void CST328Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up CST328 Touchscreen...");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
-    this->reset_device_();
-    this->set_timeout(CST328_TRANSITION_TIMEOUT, [this] { this->continue_setup_(); });
+    this->reset_pin_->digital_write(true);
+    this->set_timeout(CST328_BEFORE_RESET_TIMEOUT, [this] { this->reset_device_(); });
   } else {
     this->continue_setup_();
   }
 }
 
 void CST328Touchscreen::reset_device_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(true);
-    delay(50);
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
-  }
+  this->reset_pin_->digital_write(false);
+  delay(5);
+  this->reset_pin_->digital_write(true);
+  this->set_timeout(CST328_TRANSITION_TIMEOUT, [this] { this->continue_setup_(); });
 }
 
 void CST328Touchscreen::continue_setup_() {
