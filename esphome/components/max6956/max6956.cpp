@@ -54,12 +54,12 @@ bool MAX6956::digital_read_hw(uint8_t pin) {
   // Calculate bank index based on the base class view (no offset adjustment)
   uint8_t bank_index = pin / MAX6956_BANK_SIZE;
 
-  // Register addresses aligned with base class banks
+  // Use the named constants for register addresses
   static const uint8_t bank_regs[4] = {
-      0x40,  // Bank 0: 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
-      0x48,  // Bank 1: 8 ports 8-15 (bits D0-D7)
-      0x50,  // Bank 2: 8 ports 16-23 (bits D0-D7)
-      0x58,  // Bank 3: 8 ports 24-31 (bits D0-D7)
+      MAX6956_4PORTS_4_7,    // Bank 0: 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
+      MAX6956_8PORTS_8_15,   // Bank 1: 8 ports 8-15 (bits D0-D7)
+      MAX6956_8PORTS_16_23,  // Bank 2: 8 ports 16-23 (bits D0-D7)
+      MAX6956_8PORTS_24_31,  // Bank 3: 8 ports 24-31 (bits D0-D7)
   };
 
   // Read the appropriate register

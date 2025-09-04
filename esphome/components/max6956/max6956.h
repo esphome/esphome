@@ -30,14 +30,14 @@ enum MAX6956GPIORegisters {
   MAX6956_CONFIGURATION = 0x04,
   MAX6956_TRANSITION_DETECT_MASK = 0x06,
   MAX6956_DISPLAY_TEST = 0x07,
-  MAX6956_PORT_CONFIG_START = 0x09,   // Port Configuration P7, P6, P5, P4
-  MAX6956_CURRENT_START = 0x12,       // Current054
-  MAX6956_1PORT_VALUE_START = 0x20,   // Port 0 only (virtual port, no action)
-  MAX6956_8PORTS_VALUE_START = 0x44,  // 8 ports 4-11 (data bits D0-D7)
-  // Additional 8-port bulk read registers
-  MAX6956_8PORTS_12_19 = 0x4C,  // 8 ports 12-19
-  MAX6956_8PORTS_20_27 = 0x54,  // 8 ports 20-27
-  MAX6956_8PORTS_24_31 = 0x58,  // 8 ports 24-31
+  MAX6956_PORT_CONFIG_START = 0x09,  // Port Configuration P7, P6, P5, P4
+  MAX6956_CURRENT_START = 0x12,      // Current054
+  MAX6956_1PORT_VALUE_START = 0x20,  // Port 0 only (virtual port, no action)
+  // 8-port bulk read registers aligned with base class banks
+  MAX6956_4PORTS_4_7 = 0x40,    // 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
+  MAX6956_8PORTS_8_15 = 0x48,   // 8 ports 8-15 (bits D0-D7)
+  MAX6956_8PORTS_16_23 = 0x50,  // 8 ports 16-23 (bits D0-D7)
+  MAX6956_8PORTS_24_31 = 0x58,  // 8 ports 24-31 (bits D0-D7)
 };
 
 enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
