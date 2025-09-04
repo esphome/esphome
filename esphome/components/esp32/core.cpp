@@ -22,6 +22,10 @@ void setup();
 void loop();
 #endif
 
+#ifndef ESPHOME_APP_MAIN_TASK_STACK_SIZE
+#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
+#endif
+
 namespace esphome {
 
 void IRAM_ATTR HOT yield() { vPortYield(); }
@@ -85,7 +89,7 @@ void loop_task(void *pv_params) {
 
 extern "C" void app_main() {
   esp32::setup_preferences();
-  xTaskCreate(loop_task, "loopTask", 8192, nullptr, 1, &loop_task_handle);
+  xTaskCreate(loop_task, "app_main", ESPHOME_APP_MAIN_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle);
 }
 #endif  // USE_ESP_IDF
 
