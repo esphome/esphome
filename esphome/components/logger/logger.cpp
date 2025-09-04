@@ -246,9 +246,28 @@ void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
-static const LogString *const LOG_LEVELS[] = {LOG_STR("NONE"),    LOG_STR("ERROR"),       LOG_STR("WARN"),
-                                              LOG_STR("INFO"),    LOG_STR("CONFIG"),      LOG_STR("DEBUG"),
-                                              LOG_STR("VERBOSE"), LOG_STR("VERY_VERBOSE")};
+
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+// ESP8266: PSTR() cannot be used in array initializers, so we need to declare
+// each string separately as a global constant first
+static const char LOG_LEVEL_NONE[] PROGMEM = "NONE";
+static const char LOG_LEVEL_ERROR[] PROGMEM = "ERROR";
+static const char LOG_LEVEL_WARN[] PROGMEM = "WARN";
+static const char LOG_LEVEL_INFO[] PROGMEM = "INFO";
+static const char LOG_LEVEL_CONFIG[] PROGMEM = "CONFIG";
+static const char LOG_LEVEL_DEBUG[] PROGMEM = "DEBUG";
+static const char LOG_LEVEL_VERBOSE[] PROGMEM = "VERBOSE";
+static const char LOG_LEVEL_VERY_VERBOSE[] PROGMEM = "VERY_VERBOSE";
+
+static const LogString *const LOG_LEVELS[] = {
+    reinterpret_cast<const LogString *>(LOG_LEVEL_NONE),    reinterpret_cast<const LogString *>(LOG_LEVEL_ERROR),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_WARN),    reinterpret_cast<const LogString *>(LOG_LEVEL_INFO),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_CONFIG),  reinterpret_cast<const LogString *>(LOG_LEVEL_DEBUG),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_VERBOSE), reinterpret_cast<const LogString *>(LOG_LEVEL_VERY_VERBOSE),
+};
+#else
+static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
+#endif
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
