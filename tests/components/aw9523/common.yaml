@@ -20,3 +20,10 @@ binary_sensor:
     pin:
       aw9523: aw9523_1
       number: 1
+
+output:
+  - platform: aw9523
+    aw9523: aw9523_1
+    id: aw9523_pin_2
+    max_current: 10 mA
+    pin: 2
