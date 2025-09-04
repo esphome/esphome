@@ -51,7 +51,7 @@ from . import wpa2_eap
 
 AUTO_LOAD = ["network"]
 
-NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2]
+NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
@@ -179,8 +179,8 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 def validate_variant(_):
     if CORE.is_esp32:
         variant = get_esp32_variant()
-        if variant in NO_WIFI_VARIANTS:
-            raise cv.Invalid(f"{variant} does not support WiFi")
+        if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
+            raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
 
 
 def final_validate(config):
