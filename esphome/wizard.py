@@ -189,32 +189,45 @@ def wizard_write(path, **kwargs):
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     name = kwargs["name"]
-    board = kwargs["board"]
+    if kwargs["type"] == "empty":
+        file_text = ""
+        # Will be updated later after editing the file
+        hardware = "UNKNOWN"
+    elif kwargs["type"] == "upload":
+        file_text = kwargs["file_text"]
+        hardware = "UNKNOWN"
+    else:  # "basic"
+        board = kwargs["board"]
 
-    for key in ("ssid", "psk", "password", "ota_password"):
-        if key in kwargs:
-            kwargs[key] = sanitize_double_quotes(kwargs[key])
+        for key in ("ssid", "psk", "password", "ota_password"):
+            if key in kwargs:
+                kwargs[key] = sanitize_double_quotes(kwargs[key])
+        if "platform" not in kwargs:
+            if board in esp8266_boards.BOARDS:
+                platform = "ESP8266"
+            elif board in esp32_boards.BOARDS:
+                platform = "ESP32"
+            elif board in rp2040_boards.BOARDS:
+                platform = "RP2040"
+            elif board in bk72xx_boards.BOARDS:
+                platform = "BK72XX"
+            elif board in ln882x_boards.BOARDS:
+                platform = "LN882X"
+            elif board in rtl87xx_boards.BOARDS:
+                platform = "RTL87XX"
+            else:
+                safe_print(color(AnsiFore.RED, f'The board "{board}" is unknown.'))
+                return False
+            kwargs["platform"] = platform
+        hardware = kwargs["platform"]
+        file_text = wizard_file(**kwargs)
 
-    if "platform" not in kwargs:
-        if board in esp8266_boards.BOARDS:
-            platform = "ESP8266"
-        elif board in esp32_boards.BOARDS:
-            platform = "ESP32"
-        elif board in rp2040_boards.BOARDS:
-            platform = "RP2040"
-        elif board in bk72xx_boards.BOARDS:
-            platform = "BK72XX"
-        elif board in ln882x_boards.BOARDS:
-            platform = "LN882X"
-        elif board in rtl87xx_boards.BOARDS:
-            platform = "RTL87XX"
-        else:
-            safe_print(color(AnsiFore.RED, f'The board "{board}" is unknown.'))
-            return False
-        kwargs["platform"] = platform
-    hardware = kwargs["platform"]
+    # Check if file already exists to prevent overwriting
+    if os.path.exists(path) and os.path.isfile(path):
+        safe_print(color(AnsiFore.RED, f'The file "{path}" already exists.'))
+        return False
 
-    write_file(path, wizard_file(**kwargs))
+    write_file(path, file_text)
     storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
     storage_path = ext_storage_path(os.path.basename(path))
     storage.save(storage_path)
