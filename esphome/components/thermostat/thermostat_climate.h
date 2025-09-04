@@ -168,7 +168,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool hysteresis_valid();  // returns true if valid
   void validate_target_temperature();
   void validate_target_temperatures();
-  void validate_target_temperatures_for_heat_cool(const bool pin_target_temperature_high);
+  void validate_target_temperatures_for_heat_cool(bool pin_target_temperature_high);
   void validate_target_temperature_low();
   void validate_target_temperature_high();
 
