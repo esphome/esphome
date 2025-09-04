@@ -17,9 +17,8 @@ void PCF8574Component::setup() {
   this->read_gpio_();
 }
 void PCF8574Component::loop() {
-  // Invalidate the cache at the start of each loop.
-  // The actual read will happen on demand in digital_read()
-  this->cache_valid_ = false;
+  // Invalidate the cache at the start of each loop
+  this->reset_pin_cache_();
 }
 void PCF8574Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCF8574:");
@@ -29,20 +28,21 @@ void PCF8574Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
-bool PCF8574Component::digital_read(uint8_t pin) {
-  // Read the inputs once per loop on demand and cache the result
-  if (!this->cache_valid_ && this->read_gpio_()) {
-    this->cache_valid_ = true;
-  }
-  return this->input_mask_ & (1 << pin);
+bool PCF8574Component::digital_read(uint8_t pin) { return this->get_pin_value_(pin); }
+
+bool PCF8574Component::digital_read_hw(uint8_t pin) {
+  return this->read_gpio_() ? (this->input_mask_ & (1 << pin)) : false;
 }
-void PCF8574Component::digital_write(uint8_t pin, bool value) {
+
+bool PCF8574Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
+void PCF8574Component::digital_write(uint8_t pin, bool value) { this->set_pin_value_(pin, value); }
+
+void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
   if (value) {
     this->output_mask_ |= (1 << pin);
   } else {
     this->output_mask_ &= ~(1 << pin);
   }
-
   this->write_gpio_();
 }
 void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
