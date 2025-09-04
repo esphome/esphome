@@ -613,6 +613,7 @@ CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
 CONF_MAIN_LOOP_STACK_SIZE = "main_loop_stack_size"
 
+
 def _validate_idf_component(config: ConfigType) -> ConfigType:
     """Validate IDF component config and warn about deprecated options."""
     if CONF_REFRESH in config:
@@ -669,7 +670,9 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                         CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
                     ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
-                    cv.Optional(CONF_MAIN_LOOP_STACK_SIZE, default=8192): cv.int_range(1024, 1024**6),
+                    cv.Optional(CONF_MAIN_LOOP_STACK_SIZE, default=8192): cv.int_range(
+                        1024, 1024**6
+                    ),
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
