@@ -1,0 +1,22 @@
+i2c:
+  id: i2c_aw9523
+  sda: ${i2c_sda}
+  scl: ${i2c_scl}
+
+aw9523:
+  id: aw9523_1
+  address: 0x59
+
+switch:
+  - platform: gpio
+    id: switch1
+    pin:
+      aw9523: aw9523_1
+      number: 0
+
+binary_sensor:
+  - platform: gpio
+    id: sensor1
+    pin:
+      aw9523: aw9523_1
+      number: 1
