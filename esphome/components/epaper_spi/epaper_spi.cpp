@@ -143,7 +143,7 @@ void EPaperBase::loop() {
       this->waiting_for_idle_ = false;
     } else {
       if (App.get_loop_component_start_time() - this->waiting_for_idle_last_print_ >= 1000) {
-        ESP_LOGI(TAG, "Waiting for busy pin to go idle...");
+        ESP_LOGI(TAG, "Waiting for idle");
         this->waiting_for_idle_last_print_ = App.get_loop_component_start_time();
       }
       return;
