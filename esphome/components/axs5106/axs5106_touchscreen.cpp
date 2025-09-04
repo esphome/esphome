@@ -130,9 +130,8 @@ void AXS5106Touchscreen::continue_setup_() {
   // Query ID register
   i2c::ErrorCode err = this->write(&TOUCH_AXS5106_ID_REG, 1);
   if (err != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-    this->skip_update_ = true;
-    ESP_LOGE(TAG, "Read failed");
+    this->mark_failed();
+    ESP_LOGE(TAG, "Read chip ID failed");
     return;
   }
   delayMicroseconds(45);
@@ -142,7 +141,12 @@ void AXS5106Touchscreen::continue_setup_() {
     ESP_LOGCONFIG(TAG, "  ID[%d]=%02x", i, res[i]);
   }
 
-  this->setup_complete_ = !memcmp(res, AXS5106_ID, sizeof AXS5106_ID);
+  if (memcmp(res, AXS5106_ID, sizeof AXS5106_ID)) {
+    ESP_LOGE(TAG, "Chip ID mismatch, not continuing");
+    this->mark_failed();
+  } else {
+    this->setup_complete_ = true;
+  }
 }
 
 void AXS5106Touchscreen::update_touches() {
