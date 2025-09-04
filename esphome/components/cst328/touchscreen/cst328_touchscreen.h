@@ -9,29 +9,21 @@
 namespace esphome {
 namespace cst328 {
 
-static const uint8_t CST328_REG_STATUS = 0x00;
 static const uint8_t CST328_TOUCH_MAX_POINTS = 5;
-static const uint8_t CST328_TOUCH_DATA_SIZE = 27;
+static const uint8_t CST328_TOUCH_DATA_SIZE = CST328_TOUCH_MAX_POINTS * 5 + 2;
 
 static const uint16_t CST_REG_TOUCH_INFORMATION = 0xD000;
 static const uint16_t CST_REG_TOUCH_FINGER_NUMBER = 0xD005;
-static const uint16_t CST_REG_KEY_TX_RX_NUMBERS = 0xD1F4;
+
+static const uint16_t CST_REG_FINGER_COUNT_IDX = CST_REG_TOUCH_FINGER_NUMBER - CST_REG_TOUCH_INFORMATION;
+
 static const uint16_t CST_REG_X_Y_RESOLUTION = 0xD1F8;
 static const uint16_t CST_REG_FW_CRC_AND_BOOT_TIME = 0xD1FC;
 static const uint16_t CST_REG_CHIP_TYPE_AND_PROJECT_ID = 0xD204;
 static const uint16_t CST_REG_FW_REVISION = 0xD208;
 
-// Work Modes
 static const uint16_t CST_WM_DEBUG_INFO = 0xD101;
-static const uint16_t CST_WM_RESET = 0xD102;
-static const uint16_t CST_WM_RECALIBRATION = 0xD104;
-static const uint16_t CST_WM_DEEP_SLEEP = 0xD105;
-static const uint16_t CST_WM_DEBUG_POINT = 0xD108;
 static const uint16_t CST_WM_NORMAL = 0xD109;
-static const uint16_t CST_WM_DEBUG_RAWDATA = 0xD10A;
-static const uint16_t CST_WM_DEBUG_DIFF = 0xD10D;
-static const uint16_t CST_WM_DEBUG_FACTORY = 0xD119;
-static const uint16_t CST_WM_DEBUG_FACTORY_2 = 0xD120;
 
 class CST328ButtonListener {
  public:
