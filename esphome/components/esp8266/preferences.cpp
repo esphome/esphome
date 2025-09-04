@@ -1,6 +1,7 @@
 #ifdef USE_ESP8266
 
 #include <c_types.h>
+#include <cinttypes>
 extern "C" {
 #include "spi_flash.h"
 }
@@ -177,7 +178,7 @@ class ESP8266Preferences : public ESPPreferences {
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
     uint32_t length_words = bytes_to_words(length);
     if (length_words > 255) {
-      ESP_LOGE(TAG, "Preference too large: %u words > 255", length_words);
+      ESP_LOGE(TAG, "Preference too large: %" PRIu32 " words > 255", length_words);
       return {};
     }
     if (in_flash) {
