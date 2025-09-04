@@ -17,19 +17,19 @@ AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
-waveshare_io_ns = cg.esphome_ns.namespace("waveshare_io_ch32v003")
+waveshare_io_ch32v003_ns = cg.esphome_ns.namespace("waveshare_io_ch32v003")
 
-WaveshareIOCH32V003Component = waveshare_io_ns.class_(
+WaveshareIOCH32V003Component = waveshare_io_ch32v003_ns.class_(
     "WaveshareIOCH32V003Component", cg.Component, i2c.I2CDevice
 )
-WaveshareIOCH32V003GPIOPin = waveshare_io_ns.class_(
+WaveshareIOCH32V003GPIOPin = waveshare_io_ch32v003_ns.class_(
     "WaveshareIOCH32V003GPIOPin",
     cg.GPIOPin,
     cg.Parented.template(WaveshareIOCH32V003Component),
 )
 
-CONF_WAVESHARE_IO = "waveshare_io_ch32v003"
-CONF_WAVESHARE_IO_ID = "waveshare_io_ch32v003_id"
+CONF_WAVESHARE_IO_CH32V003 = "waveshare_io_ch32v003"
+CONF_WAVESHARE_IO_CH32V003_ID = "waveshare_io_ch32v003_id"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -63,15 +63,17 @@ WAVESHARE_IO_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_WAVESHARE_IO): cv.use_id(WaveshareIOCH32V003Component),
+        cv.Required(CONF_WAVESHARE_IO_CH32V003): cv.use_id(
+            WaveshareIOCH32V003Component
+        ),
     }
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_WAVESHARE_IO, WAVESHARE_IO_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_WAVESHARE_IO_CH32V003, WAVESHARE_IO_PIN_SCHEMA)
 async def waveshare_io_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_WAVESHARE_IO])
+    parent = await cg.get_variable(config[CONF_WAVESHARE_IO_CH32V003])
 
     cg.add(var.set_parent(parent))
 

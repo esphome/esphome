@@ -9,12 +9,16 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
-from .. import CONF_WAVESHARE_IO_ID, WaveshareIOCH32V003Component, waveshare_io_ns
+from .. import (
+    CONF_WAVESHARE_IO_CH32V003_ID,
+    WaveshareIOCH32V003Component,
+    waveshare_io_ch32v003_ns,
+)
 
 AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["waveshare_io_ch32v003"]
 
-WaveshareIOCH32V003Sensor = waveshare_io_ns.class_(
+WaveshareIOCH32V003Sensor = waveshare_io_ch32v003_ns.class_(
     "WaveshareIOCH32V003Sensor",
     sensor.Sensor,
     cg.PollingComponent,
@@ -32,7 +36,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(CONF_WAVESHARE_IO_ID): cv.use_id(
+            cv.GenerateID(CONF_WAVESHARE_IO_CH32V003_ID): cv.use_id(
                 WaveshareIOCH32V003Component
             ),
             cv.Optional(CONF_REFERENCE_VOLTAGE, default="9.9V"): cv.voltage,
@@ -44,7 +48,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_parented(var, config[CONF_WAVESHARE_IO_ID])
+    await cg.register_parented(var, config[CONF_WAVESHARE_IO_CH32V003_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 

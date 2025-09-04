@@ -11,8 +11,6 @@ static const uint8_t IO_EXTENSION_PWM_ADDR = 0x05;
 static const uint8_t IO_EXTENSION_ADC_ADDR = 0x06;
 static const uint8_t IO_EXTENSION_INTERRUPT_ADDR = 0x07;
 
-static const uint8_t MAX_PWM_VALUE = 0.97 * 255;  // 0.97 * 255 = 247.35
-
 static const char *const TAG = "waveshare_io_ch32v003";
 
 void WaveshareIOCH32V003Component::setup() {
@@ -72,11 +70,9 @@ void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   if (this->is_failed())
     return;
 
-  // limit PWM level, might be connected with circuit schematic
+  // limit PWM level! might be connected with circuit schematic
   // as per Waveshare IO library function "void IO_EXTENSION_Pwm_Output(uint8_t Value)"
-  if (value > MAX_PWM_VALUE) {
-    value = MAX_PWM_VALUE;
-  }
+  // PWM limited in waveshare output component now.
 
   uint8_t data[2] = {IO_EXTENSION_PWM_ADDR, value};
   if (!this->write_bytes(data[0], &data[1], 1)) {
