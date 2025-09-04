@@ -6,16 +6,16 @@ from esphome.const import CONF_ID, CONF_MODEL
 AUTO_LOAD = ["climate_ir"]
 CODEOWNERS = ["@Rodrigoah"]
 
-# Must match C++: namespace esphome::hitachi_168bit { class Hitachi168bitClimate ... }
 hitachi_ns = cg.esphome_ns.namespace("hitachi_168bit")
 Hitachi168bitClimate = hitachi_ns.class_("Hitachi168bitClimate", climate_ir.ClimateIR)
-Model = hitachi_ns.enum("Model")
 
+Model = hitachi_ns.enum("Model")
 MODEL_MAP = {
     "HCRA31NEWH": Model.MODEL_HCRA31NEWH,
 }
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(Hitachi168bitClimate).extend(
     {
         cv.GenerateID(): cv.declare_id(Hitachi168bitClimate),
         cv.Optional(CONF_MODEL, default="HCRA31NEWH"): cv.one_of(
