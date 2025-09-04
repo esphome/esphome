@@ -6,9 +6,9 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <array>
 #include <cinttypes>
 #include <map>
-#include <vector>
 
 namespace esphome {
 namespace thermostat {
@@ -24,6 +24,7 @@ enum ThermostatClimateTimerIndex : uint8_t {
   TIMER_HEATING_OFF = 7,
   TIMER_HEATING_ON = 8,
   TIMER_IDLE_ON = 9,
+  TIMER_COUNT = 10,
 };
 
 enum OnBootRestoreFrom : uint8_t {
@@ -131,6 +132,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_dry_mode_trigger() const;
   Trigger<> *get_fan_only_mode_trigger() const;
   Trigger<> *get_heat_mode_trigger() const;
+  Trigger<> *get_heat_cool_mode_trigger() const;
   Trigger<> *get_off_mode_trigger() const;
   Trigger<> *get_fan_mode_on_trigger() const;
   Trigger<> *get_fan_mode_off_trigger() const;
@@ -166,6 +168,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool hysteresis_valid();  // returns true if valid
   void validate_target_temperature();
   void validate_target_temperatures();
+  void validate_target_temperatures_for_heat_cool(const bool pin_target_temperature_high);
   void validate_target_temperature_low();
   void validate_target_temperature_high();
 
@@ -241,8 +244,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
 
-  void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config,
-                           bool is_default_preset);
+  void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config);
 
   /// Minimum allowable duration in seconds for action timers
   const uint8_t min_timer_duration_{1};
@@ -362,9 +364,15 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *supplemental_heat_action_trigger_{nullptr};
   Trigger<> *heat_mode_trigger_{nullptr};
 
+  /// The trigger to call when the controller should switch to heat/cool mode.
+  ///
+  /// In heat/cool mode, the controller will enable heating/cooling as necessary and switch
+  /// to idle when the temperature is within the thresholds/set points.
+  Trigger<> *heat_cool_mode_trigger_{nullptr};
+
   /// The trigger to call when the controller should switch to auto mode.
   ///
-  /// In auto mode, the controller will enable heating/cooling as necessary and switch
+  /// In auto mode, the controller will enable heating/cooling as supported/necessary and switch
   /// to idle when the temperature is within the thresholds/set points.
   Trigger<> *auto_mode_trigger_{nullptr};
 
@@ -456,17 +464,17 @@ class ThermostatClimate : public climate::Climate, public Component {
   std::string default_custom_preset_{};
 
   /// Climate action timers
-  std::vector<ThermostatClimateTimer> timer_{
-      {false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)},
-      {false, 0, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)},
+  std::array<ThermostatClimateTimer, TIMER_COUNT> timer_{
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)),
+      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)),
   };
 
   /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
