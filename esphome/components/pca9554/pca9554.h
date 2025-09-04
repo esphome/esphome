@@ -34,9 +34,9 @@ class PCA9554Component : public Component,
   bool write_register_(uint8_t reg, uint16_t value);
 
   // Virtual methods from CachedGpioExpander
-  bool digital_read_hw(uint16_t pin) override;
-  bool digital_read_cache(uint16_t pin) override;
-  void digital_write_hw(uint16_t pin, bool value) override;
+  bool digital_read_hw(uint8_t pin) override;
+  bool digital_read_cache(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
 
   /// number of bits the expander has
   size_t pin_count_{8};
