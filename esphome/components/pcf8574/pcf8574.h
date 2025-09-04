@@ -25,6 +25,7 @@ class PCF8574Component : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
+  float get_loop_priority() const override;
 
   void dump_config() override;
 
