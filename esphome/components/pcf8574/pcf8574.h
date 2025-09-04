@@ -22,6 +22,8 @@ class PCF8574Component : public Component,
   void setup() override;
   /// Invalidate cache at start of each loop
   void loop() override;
+  /// Helper function to read the value of a pin.
+  bool digital_read(uint8_t pin);
   /// Helper function to write the value of a pin.
   void digital_write(uint8_t pin, bool value);
   /// Helper function to set the pin mode of a pin.

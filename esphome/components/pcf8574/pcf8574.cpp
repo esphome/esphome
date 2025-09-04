@@ -28,14 +28,21 @@ void PCF8574Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
-bool PCF8574Component::digital_read(uint8_t pin) { return this->get_pin_value_(pin); }
+bool PCF8574Component::digital_read(uint8_t pin) {
+  // Call the base class method
+  return this->CachedGpioExpander::digital_read(pin);
+}
 
 bool PCF8574Component::digital_read_hw(uint8_t pin) {
   return this->read_gpio_() ? (this->input_mask_ & (1 << pin)) : false;
 }
 
 bool PCF8574Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
-void PCF8574Component::digital_write(uint8_t pin, bool value) { this->set_pin_value_(pin, value); }
+
+void PCF8574Component::digital_write(uint8_t pin, bool value) {
+  // Call the base class method
+  this->CachedGpioExpander::digital_write(pin, value);
+}
 
 void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
   if (value) {
