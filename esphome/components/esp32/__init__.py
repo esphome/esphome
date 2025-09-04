@@ -40,6 +40,7 @@ from esphome.cpp_generator import RawExpression
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
 from esphome.types import ConfigType
+from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -840,6 +841,9 @@ async def to_code(config):
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
+    for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
+        os.environ.pop(clean_var, None)
+
     add_extra_script(
         "post",
         "post_build.py",
@@ -855,11 +859,6 @@ async def to_code(config):
 
         cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
-        # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
-        # This is espressif's own published version which is more up to date.
-        cg.add_platformio_option(
-            "platform_packages", ["espressif/toolchain-esp32ulp@2.35.0-20220830"]
-        )
         add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
@@ -1079,7 +1078,11 @@ def _write_idf_component_yml():
         contents = yaml_util.dump({"dependencies": dependencies})
     else:
         contents = ""
-    write_file_if_changed(yml_path, contents)
+    if write_file_if_changed(yml_path, contents):
+        dependencies_lock = CORE.relative_build_path("dependencies.lock")
+        if os.path.isfile(dependencies_lock):
+            os.remove(dependencies_lock)
+        clean_cmake_cache()
 
 
 # Called by writer.py

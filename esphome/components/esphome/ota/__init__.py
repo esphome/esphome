@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ CONFIG_SCHEMA = (
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
-@coroutine_with_priority(52.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
