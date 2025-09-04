@@ -78,8 +78,11 @@ class MAX6956 : public Component, public i2c::I2CDevice, public gpio_expander::C
   max6956::MAX6956CURRENTMODE brightness_mode_;
   uint8_t global_brightness_;
 
-  // Cache for the 4 banks of 8 pins each
-  // Bank 0: pins 4-11, Bank 1: pins 12-19, Bank 2: pins 20-27, Bank 3: pins 24-31
+  // Cache for the 4 banks of 8 pins each (aligned with base class view)
+  // Bank 0: bits 0-7 (bits 0-3 unused, bits 4-7 = pins 4-7)
+  // Bank 1: bits 8-15 (pins 8-15)
+  // Bank 2: bits 16-23 (pins 16-23)
+  // Bank 3: bits 24-31 (pins 24-31)
   uint8_t input_banks_[4] = {0, 0, 0, 0};
 
  private:

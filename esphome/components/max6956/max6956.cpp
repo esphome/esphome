@@ -51,25 +51,31 @@ bool MAX6956::digital_read_hw(uint8_t pin) {
     return false;
   }
 
-  // Calculate bank index
-  uint8_t bank_index = (pin - MAX6956_MIN) / MAX6956_BANK_SIZE;
+  // Calculate bank index based on the base class view (no offset adjustment)
+  uint8_t bank_index = pin / MAX6956_BANK_SIZE;
 
-  // Register addresses for each bank
+  // Register addresses aligned with base class banks
   static const uint8_t bank_regs[4] = {
-      MAX6956_8PORTS_VALUE_START,  // 0x44 - ports 4-11
-      MAX6956_8PORTS_12_19,        // 0x4C - ports 12-19
-      MAX6956_8PORTS_20_27,        // 0x54 - ports 20-27
-      MAX6956_8PORTS_24_31         // 0x58 - ports 24-31
+      0x40,  // Bank 0: 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
+      0x48,  // Bank 1: 8 ports 8-15 (bits D0-D7)
+      0x50,  // Bank 2: 8 ports 16-23 (bits D0-D7)
+      0x58,  // Bank 3: 8 ports 24-31 (bits D0-D7)
   };
 
-  // Read the 8-port bank register
-  uint8_t bank_value = 0;
-  if (!this->read_reg_(bank_regs[bank_index], &bank_value)) {
+  // Read the appropriate register
+  uint8_t value = 0;
+  if (!this->read_reg_(bank_regs[bank_index], &value)) {
     return false;
   }
 
-  // Store the bank value in our cache
-  this->input_banks_[bank_index] = bank_value;
+  // Store in cache with proper alignment
+  if (bank_index == 0) {
+    // Special case for bank 0: pins 4-7 are in bits D0-D3, shift them to bits 4-7
+    this->input_banks_[0] = value << 4;
+  } else {
+    // Banks 1-3 map directly
+    this->input_banks_[bank_index] = value;
+  }
 
   return true;
 }
@@ -80,10 +86,9 @@ bool MAX6956::digital_read_cache(uint8_t pin) {
     return false;
   }
 
-  // Calculate bank index and bit position
-  uint8_t adjusted_pin = pin - MAX6956_MIN;
-  uint8_t bank_index = adjusted_pin / MAX6956_BANK_SIZE;
-  uint8_t bit_position = adjusted_pin % MAX6956_BANK_SIZE;
+  // Use the base class's view of banks (no offset adjustment)
+  uint8_t bank_index = pin / MAX6956_BANK_SIZE;
+  uint8_t bit_position = pin % MAX6956_BANK_SIZE;
 
   return (this->input_banks_[bank_index] & (1 << bit_position)) != 0;
 }
