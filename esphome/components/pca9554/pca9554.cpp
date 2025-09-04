@@ -37,10 +37,9 @@ void PCA9554Component::setup() {
 }
 
 void PCA9554Component::loop() {
-  // The read_inputs_() method will cache the input values from the chip.
-  this->read_inputs_();
-  // Clear all the previously read flags.
-  this->was_previously_read_ = 0x00;
+  // Invalidate the cache at the start of each loop.
+  // The actual read will happen on demand in digital_read()
+  this->cache_valid_ = false;
 }
 
 void PCA9554Component::dump_config() {
@@ -55,16 +54,10 @@ void PCA9554Component::dump_config() {
 }
 
 bool PCA9554Component::digital_read(uint8_t pin) {
-  // Note: We want to try and avoid doing any I2C bus read transactions here
-  // to conserve I2C bus bandwidth. So what we do is check to see if we
-  // have seen a read during the time esphome is running this loop. If we have,
-  // we do an I2C bus transaction to get the latest value. If we haven't
-  // we return a cached value which was read at the time loop() was called.
-  if (this->was_previously_read_ & (1 << pin))
-    this->read_inputs_();  // Force a read of a new value
-  // Indicate we saw a read request for this pin in case a
-  // read happens later in the same loop.
-  this->was_previously_read_ |= (1 << pin);
+  // Read the inputs once per loop on demand and cache the result
+  if (!this->cache_valid_ && this->read_inputs_()) {
+    this->cache_valid_ = true;
+  }
   return this->input_mask_ & (1 << pin);
 }
 
