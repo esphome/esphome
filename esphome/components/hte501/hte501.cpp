@@ -11,7 +11,7 @@ void HTE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
   this->write_read(address, sizeof address, identification, sizeof identification);
-  if (identification[8] != calc_crc8_(identification, 0, 7)) {
+  if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
     this->error_code_ = CRC_CHECK_FAILED;
     this->mark_failed();
     return;
@@ -45,7 +45,8 @@ void HTE501Component::update() {
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
-    if (i2c_response[2] != calc_crc8_(i2c_response, 0, 1) && i2c_response[5] != calc_crc8_(i2c_response, 3, 4)) {
+    if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) &&
+        i2c_response[5] != crc8(i2c_response + 3, 2, 0xFF, 0x31, true)) {
       this->error_code_ = CRC_CHECK_FAILED;
       this->status_set_warning();
       return;
@@ -65,25 +66,6 @@ void HTE501Component::update() {
       this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   });
-}
-
-unsigned char HTE501Component::calc_crc8_(const unsigned char buf[], unsigned char from, unsigned char to) {
-  unsigned char crc_val = 0xFF;
-  unsigned char i = 0;
-  unsigned char j = 0;
-  for (i = from; i <= to; i++) {
-    int cur_val = buf[i];
-    for (j = 0; j < 8; j++) {
-      if (((crc_val ^ cur_val) & 0x80) != 0)  // If MSBs are not equal
-      {
-        crc_val = ((crc_val << 1) ^ 0x31);
-      } else {
-        crc_val = (crc_val << 1);
-      }
-      cur_val = cur_val << 1;
-    }
-  }
-  return crc_val;
 }
 }  // namespace hte501
 }  // namespace esphome

@@ -30,7 +30,7 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
 
@@ -368,7 +368,7 @@ async def to_code(config):
 # This needs to be run as a job with very low priority so that all components have
 # chance to call register_ble_tracker and register_client before the list is checked
 # and added to the global defines list.
-@coroutine_with_priority(-1000)
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_ble_features():
     # Add feature-specific defines based on what's needed
     if BLEFeatures.ESP_BT_DEVICE in _required_features:

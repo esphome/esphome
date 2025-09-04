@@ -93,7 +93,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
     return false;
   if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
-  if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
+  if (this->state_ != espbt::ClientState::IDLE)
     return false;
 
   this->log_event_("Found device");
@@ -168,8 +168,7 @@ void BLEClientBase::unconditional_disconnect() {
     this->log_gattc_warning_("esp_ble_gattc_close", err);
   }
 
-  if (this->state_ == espbt::ClientState::SEARCHING || this->state_ == espbt::ClientState::READY_TO_CONNECT ||
-      this->state_ == espbt::ClientState::DISCOVERED) {
+  if (this->state_ == espbt::ClientState::READY_TO_CONNECT || this->state_ == espbt::ClientState::DISCOVERED) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
@@ -492,6 +491,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (status) {
         this->log_gattc_warning_("esp_ble_gattc_write_char_descr", status);
       }
+      break;
+    }
+
+    case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
+      this->log_gattc_event_("UNREG_FOR_NOTIFY");
       break;
     }
 
