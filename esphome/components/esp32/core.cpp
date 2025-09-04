@@ -22,10 +22,6 @@ void setup();
 void loop();
 #endif
 
-#ifndef ESPHOME_APP_MAIN_TASK_STACK_SIZE
-#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
-#endif
-
 namespace esphome {
 
 void IRAM_ATTR HOT yield() { vPortYield(); }
@@ -78,6 +74,10 @@ uint32_t arch_get_cpu_freq_hz() {
 }
 
 #ifdef USE_ESP_IDF
+#ifndef ESPHOME_APP_MAIN_TASK_STACK_SIZE
+#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
+#endif
+
 TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void loop_task(void *pv_params) {
