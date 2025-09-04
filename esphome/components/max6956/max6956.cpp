@@ -55,7 +55,7 @@ bool MAX6956::digital_read_hw(uint8_t pin) {
   uint8_t bank_index = pin / MAX6956_BANK_SIZE;
 
   // Use the named constants for register addresses
-  static const uint8_t bank_regs[4] = {
+  static const uint8_t BANK_REGS[4] = {
       MAX6956_4PORTS_4_7,    // Bank 0: 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
       MAX6956_8PORTS_8_15,   // Bank 1: 8 ports 8-15 (bits D0-D7)
       MAX6956_8PORTS_16_23,  // Bank 2: 8 ports 16-23 (bits D0-D7)
@@ -64,7 +64,7 @@ bool MAX6956::digital_read_hw(uint8_t pin) {
 
   // Read the appropriate register
   uint8_t value = 0;
-  if (!this->read_reg_(bank_regs[bank_index], &value)) {
+  if (!this->read_reg_(BANK_REGS[bank_index], &value)) {
     return false;
   }
 
