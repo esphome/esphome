@@ -45,8 +45,8 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
   uint16_t output_mask_{0x00};
   /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
-  /// Flags to check if read previously during this loop
-  uint16_t was_previously_read_ = {0x00};
+  /// Cache validity flag - true if we've read inputs this loop cycle
+  bool cache_valid_{false};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
 };
