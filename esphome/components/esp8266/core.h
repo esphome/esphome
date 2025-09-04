@@ -3,7 +3,6 @@
 #ifdef USE_ESP8266
 
 #include <cstdint>
-#include "esphome/core/hal.h"
 
 extern const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16];
 extern const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16];
