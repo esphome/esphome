@@ -76,11 +76,8 @@ async def register_component(var, config):
             "Error while finding name of component, please report this", exc_info=e
         )
     if name is not None:
-        # On ESP8266, store component source strings in PROGMEM to save RAM
-        if CORE.is_esp8266:
-            add(var.set_component_source(RawExpression(f'PSTR("{name}")')))
-        else:
-            add(var.set_component_source(name))
+        # Use ESPHOME_PSTR macro which stores strings in PROGMEM on ESP8266, no-op on other platforms
+        add(var.set_component_source(RawExpression(f'ESPHOME_PSTR("{name}")')))
 
     add(App.register_component(var))
     return var
