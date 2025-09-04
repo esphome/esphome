@@ -12,7 +12,7 @@ void LM75BComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up LM75B..."); }
 float LM75BComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void LM75BComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "LM75B");
+  ESP_LOGCONFIG(TAG, "LM75B:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up LM75B failed!");
@@ -32,10 +32,6 @@ void LM75BComponent::update() {
   int16_t raw_temperature = (buff[0] << 8) | buff[1];
   // Read the 11-bit raw temperature value
   raw_temperature >>= 5;
-  // Sign extend negative numbers
-  if (raw_temperature & (1 << 10)) {
-    raw_temperature |= 0xFC00;
-  }
   // Publish the temperature in °C
   this->publish_state(raw_temperature * 0.125);
   if (this->status_has_warning()) {
