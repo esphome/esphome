@@ -5,9 +5,14 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ESPHOME, CONF_ID, CONF_NAME
+from esphome.const import (
+    CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
+    CONF_ID,
+    CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
+)
 from esphome.core import CORE, TimePeriod
-from esphome.core.config import CONF_NAME_ADD_MAC_SUFFIX
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
@@ -280,6 +285,10 @@ async def to_code(config):
             add_idf_sdkconfig_option(
                 "CONFIG_BT_BLE_ESTAB_LINK_CONN_TOUT", timeout_seconds
             )
+            # Increase GATT client connection retry count for problematic devices
+            # Default in ESP-IDF is 3, we increase to 10 for better reliability with
+            # low-power/timing-sensitive devices
+            add_idf_sdkconfig_option("CONFIG_BT_GATTC_CONNECT_RETRY_COUNT", 10)
 
         # Set the maximum number of notification registrations
         # This controls how many BLE characteristics can have notifications enabled
