@@ -9,6 +9,15 @@ static const uint32_t CST328_TRANSITION_TIMEOUT = 300;  // 200 ms from datasheet
 static const uint16_t CST328_FW_CRC = 0xCACA;           // Expected firmware CRC value
 static const uint8_t CST328_SYNC_BYTE = 0xAB;           // Sync byte used in communication
 
+#define I2C_WARN_ON_ERROR(x, log_tag, format, ...) \
+  do { \
+    i2c::ErrorCode err_rc_ = (x); \
+    if (err_rc_ != i2c::ERROR_OK) { \
+      ESP_LOGW(log_tag, "%s(%d): [error %d] " format, __FUNCTION__, __LINE__, err_rc_, ##__VA_ARGS__); \
+      this->status_set_warning(format); \
+    } \
+  } while (0)
+
 #define I2C_FAIL_ON_ERROR(x, log_tag, format, ...) \
   do { \
     i2c::ErrorCode err_rc_ = (x); \
@@ -41,7 +50,7 @@ void CST328Touchscreen::reset_device_() {
 }
 
 void CST328Touchscreen::continue_setup_() {
-  ESP_LOGI(TAG, "Continuing CST328 setup...");
+  ESP_LOGVV(TAG, "Continuing CST328 setup...");
   uint8_t buf[24];
 
   I2C_FAIL_ON_ERROR(this->write_register16(CST_WM_DEBUG_INFO, buf, 0), TAG, "Failed to enter debug/info mode");
@@ -60,7 +69,7 @@ void CST328Touchscreen::continue_setup_() {
 
   this->chip_id_ = buf[2] + (buf[3] << 8);
   this->project_id_ = buf[0] + (buf[1] << 8);
-  ESP_LOGV(TAG, "Chip ID %X, project ID %X", this->chip_id_, this->project_id_);
+  ESP_LOGVV(TAG, "Chip ID %X, project ID %X", this->chip_id_, this->project_id_);
 
   // Read FW version
   I2C_FAIL_ON_ERROR(this->read_register16(CST_REG_FW_REVISION, buf, 4), TAG, "Failed to read FW version");
@@ -68,7 +77,7 @@ void CST328Touchscreen::continue_setup_() {
   this->fw_ver_major_ = buf[3];
   this->fw_ver_minor_ = buf[2];
   this->fw_build_ = buf[0] + (buf[1] << 8);
-  ESP_LOGV(TAG, "FW version %d.%d.%d", this->fw_ver_major_, this->fw_ver_minor_, this->fw_build_);
+  ESP_LOGVV(TAG, "FW version %d.%d.%d", this->fw_ver_major_, this->fw_ver_minor_, this->fw_build_);
 
   // Read X/Y resolution
   if (i2c::ERROR_OK == this->read_register16(CST_REG_X_Y_RESOLUTION, buf, 4)) {
@@ -80,13 +89,15 @@ void CST328Touchscreen::continue_setup_() {
   }
 
   // Enter normal mode
-  this->write_register16(CST_WM_NORMAL, buf, 0);
+  I2C_WARN_ON_ERROR(this->write_register16(CST_WM_NORMAL, buf, 0), TAG, "Failed to enter normal mode");
 
-  // read once and sync?
-  uint8_t sync_byte;
-  this->read_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1);
+  // read once and sync
+  uint8_t sync_byte{0};
+  I2C_WARN_ON_ERROR(this->read_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1), TAG,
+                    "Failed to read touch information");
   sync_byte = CST328_SYNC_BYTE;
-  this->write_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1);
+  I2C_WARN_ON_ERROR(this->write_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1), TAG,
+                    "Failed to write touch information");
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
@@ -95,7 +106,7 @@ void CST328Touchscreen::continue_setup_() {
 
   this->setup_complete_ = true;
 
-  ESP_LOGV(TAG, "CST328 setup complete");
+  ESP_LOGVV(TAG, "CST328 setup complete");
 }
 
 void CST328Touchscreen::dump_config() {
@@ -129,8 +140,8 @@ void CST328Touchscreen::update_touches() {
 
   this->status_clear_warning();
   this->skip_update_ = false;
-  ESP_LOGI(TAG, "update_touches - read fingers");
   if (i2c::ERROR_OK != this->read_register16(CST_REG_TOUCH_FINGER_NUMBER, data, 1)) {
+    this->status_set_warning("Failed to read touch #");
     this->skip_update_ = true;
   } else {
     touch_cnt = data[0] & 0x0F;
@@ -138,10 +149,8 @@ void CST328Touchscreen::update_touches() {
     if (touch_cnt == 0 || touch_cnt > CST328_TOUCH_MAX_POINTS) {
       this->update_button_state_(false);
     } else {
-      ESP_LOGVV(TAG, "%d touch(es)", touch_cnt);
+      this->update_button_state_(true);
 
-      // Read Touch Points
-      ESP_LOGI(TAG, "update_touches - read points");
       if (i2c::ERROR_OK == this->read_register16(CST_REG_TOUCH_INFORMATION, data, sizeof(data))) {
         size_t index = 0;
         for (uint8_t i = 0; i != touch_cnt; i++) {
@@ -159,12 +168,18 @@ void CST328Touchscreen::update_touches() {
             index += 2;
           }
         }
+      } else {
+        this->status_set_warning("Failed to read touch points");
+        this->skip_update_ = true;
       }
     }
   }
 
-  this->write_register16(CST_REG_TOUCH_FINGER_NUMBER, &clear_byte, 1);
-  this->write_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1);
+  auto err_clear = i2c::ERROR_OK != this->write_register16(CST_REG_TOUCH_FINGER_NUMBER, &clear_byte, 1);
+  auto err_sync = i2c::ERROR_OK != this->write_register16(CST_REG_TOUCH_INFORMATION, &sync_byte, 1);
+  if (err_clear || err_sync) {
+    ESP_LOGVV(TAG, "Failed to clean up");
+  }
 }
 
 }  // namespace cst328
