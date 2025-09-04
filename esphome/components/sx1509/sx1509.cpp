@@ -84,7 +84,7 @@ bool SX1509Component::digital_read_hw(uint8_t pin) {
 bool SX1509Component::digital_read_cache(uint8_t pin) {
   // Return cached value for input pins, false for output pins
   if (this->ddr_mask_ & (1 << pin)) {
-    return this->input_mask_ & (1 << pin);
+    return (this->input_mask_ & (1 << pin)) != 0;
   }
   return false;
 }
