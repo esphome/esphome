@@ -156,7 +156,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5.5.0
+        uses: codecov/codecov-action@v5.5.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Save Python virtual environment cache
