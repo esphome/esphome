@@ -16,6 +16,11 @@ void PCF8574Component::setup() {
   this->write_gpio_();
   this->read_gpio_();
 }
+void PCF8574Component::loop() {
+  // Invalidate the cache at the start of each loop.
+  // The actual read will happen on demand in digital_read()
+  this->cache_valid_ = false;
+}
 void PCF8574Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCF8574:");
   LOG_I2C_DEVICE(this)
@@ -25,7 +30,10 @@ void PCF8574Component::dump_config() {
   }
 }
 bool PCF8574Component::digital_read(uint8_t pin) {
-  this->read_gpio_();
+  // Read the inputs once per loop on demand and cache the result
+  if (!this->cache_valid_ && this->read_gpio_()) {
+    this->cache_valid_ = true;
+  }
   return this->input_mask_ & (1 << pin);
 }
 void PCF8574Component::digital_write(uint8_t pin, bool value) {
