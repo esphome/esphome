@@ -22,7 +22,7 @@ void KMeterISOComponent::setup() {
     this->reset_to_construction_state();
   }
 
-  auto err = this->bus_->writev(this->address_, nullptr, 0);
+  auto err = this->bus_->write_readv(this->address_, nullptr, 0, nullptr, 0);
   if (err == esphome::i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "Could write to the address %d.", this->address_);
   } else {
@@ -33,7 +33,7 @@ void KMeterISOComponent::setup() {
   }
 
   uint8_t read_buf[4] = {1};
-  if (!this->read_bytes(KMETER_ERROR_STATUS_REG, read_buf, 1)) {
+  if (!this->read_register(KMETER_ERROR_STATUS_REG, read_buf, 1)) {
     ESP_LOGCONFIG(TAG, "Could not read from the device.");
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();

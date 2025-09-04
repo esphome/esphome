@@ -44,14 +44,14 @@ from esphome.const import (
     CONF_USERNAME,
     PlatformFramework,
 )
-from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
 
 from . import wpa2_eap
 
 AUTO_LOAD = ["network"]
 
-NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2]
+NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
@@ -179,8 +179,8 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 def validate_variant(_):
     if CORE.is_esp32:
         variant = get_esp32_variant()
-        if variant in NO_WIFI_VARIANTS:
-            raise cv.Invalid(f"{variant} does not support WiFi")
+        if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
+            raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
 
 
 def final_validate(config):
@@ -370,7 +370,7 @@ def wifi_network(config, ap, static_ip):
     return ap
 
 
-@coroutine_with_priority(60.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))

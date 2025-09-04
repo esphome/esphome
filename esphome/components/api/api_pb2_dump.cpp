@@ -1135,7 +1135,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   dump_field(out, "string_", this->string_);
   dump_field(out, "int_", this->int_);
   for (const auto it : this->bool_array) {
-    dump_field(out, "bool_array", it, 4);
+    dump_field(out, "bool_array", static_cast<bool>(it), 4);
   }
   for (const auto &it : this->int_array) {
     dump_field(out, "int_array", it, 4);
@@ -1704,6 +1704,7 @@ void BluetoothScannerStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerStateResponse");
   dump_field(out, "state", static_cast<enums::BluetoothScannerState>(this->state));
   dump_field(out, "mode", static_cast<enums::BluetoothScannerMode>(this->mode));
+  dump_field(out, "configured_mode", static_cast<enums::BluetoothScannerMode>(this->configured_mode));
 }
 void BluetoothScannerSetModeRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerSetModeRequest");
