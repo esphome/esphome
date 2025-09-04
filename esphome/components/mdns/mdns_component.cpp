@@ -24,100 +24,139 @@ static const char *const TAG = "mdns";
 void MDNSComponent::compile_records_() {
   this->hostname_ = App.get_name();
 
-  this->services_.clear();
+  // Calculate exact capacity needed for services vector
+  size_t services_count = 0;
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
-    MDNSService service{};
+    services_count++;
+  }
+#endif
+#ifdef USE_PROMETHEUS
+  services_count++;
+#endif
+#ifdef USE_WEBSERVER
+  services_count++;
+#endif
+#ifdef USE_MDNS_EXTRA_SERVICES
+  services_count += this->services_extra_.size();
+#endif
+  // Reserve for fallback service if needed
+  if (services_count == 0) {
+    services_count = 1;
+  }
+  this->services_.reserve(services_count);
+
+#ifdef USE_API
+  if (api::global_api_server != nullptr) {
+    this->services_.emplace_back();
+    auto &service = this->services_.back();
     service.service_type = "_esphomelib";
     service.proto = "_tcp";
     service.port = api::global_api_server->get_port();
-    if (!App.get_friendly_name().empty()) {
-      service.txt_records.push_back({"friendly_name", App.get_friendly_name()});
-    }
-    service.txt_records.push_back({"version", ESPHOME_VERSION});
-    service.txt_records.push_back({"mac", get_mac_address()});
-    const char *platform = nullptr;
-#ifdef USE_ESP8266
-    platform = "ESP8266";
-#endif
-#ifdef USE_ESP32
-    platform = "ESP32";
-#endif
-#ifdef USE_RP2040
-    platform = "RP2040";
-#endif
-#ifdef USE_LIBRETINY
-    platform = lt_cpu_get_model_name();
-#endif
-    if (platform != nullptr) {
-      service.txt_records.push_back({"platform", platform});
-    }
 
-    service.txt_records.push_back({"board", ESPHOME_BOARD});
+    const std::string &friendly_name = App.get_friendly_name();
+    bool friendly_name_empty = friendly_name.empty();
+
+    // Calculate exact capacity for txt_records
+    size_t txt_count = 3;  // version, mac, board (always present)
+    if (!friendly_name_empty) {
+      txt_count++;  // friendly_name
+    }
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+    txt_count++;  // platform
+#endif
+#if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
+    txt_count++;  // network
+#endif
+#ifdef USE_API_NOISE
+    txt_count++;  // api_encryption or api_encryption_supported
+#endif
+#ifdef ESPHOME_PROJECT_NAME
+    txt_count += 2;  // project_name and project_version
+#endif
+#ifdef USE_DASHBOARD_IMPORT
+    txt_count++;  // package_import_url
+#endif
+
+    auto &txt_records = service.txt_records;
+    txt_records.reserve(txt_count);
+
+    if (!friendly_name_empty) {
+      txt_records.emplace_back(MDNSTXTRecord{"friendly_name", friendly_name});
+    }
+    txt_records.emplace_back(MDNSTXTRecord{"version", ESPHOME_VERSION});
+    txt_records.emplace_back(MDNSTXTRecord{"mac", get_mac_address()});
+
+#ifdef USE_ESP8266
+    txt_records.emplace_back(MDNSTXTRecord{"platform", "ESP8266"});
+#elif defined(USE_ESP32)
+    txt_records.emplace_back(MDNSTXTRecord{"platform", "ESP32"});
+#elif defined(USE_RP2040)
+    txt_records.emplace_back(MDNSTXTRecord{"platform", "RP2040"});
+#elif defined(USE_LIBRETINY)
+    txt_records.emplace_back(MDNSTXTRecord{"platform", lt_cpu_get_model_name()});
+#endif
+
+    txt_records.emplace_back(MDNSTXTRecord{"board", ESPHOME_BOARD});
 
 #if defined(USE_WIFI)
-    service.txt_records.push_back({"network", "wifi"});
+    txt_records.emplace_back(MDNSTXTRecord{"network", "wifi"});
 #elif defined(USE_ETHERNET)
-    service.txt_records.push_back({"network", "ethernet"});
+    txt_records.emplace_back(MDNSTXTRecord{"network", "ethernet"});
 #elif defined(USE_OPENTHREAD)
-    service.txt_records.push_back({"network", "thread"});
+    txt_records.emplace_back(MDNSTXTRecord{"network", "thread"});
 #endif
 
 #ifdef USE_API_NOISE
+    static constexpr const char *NOISE_ENCRYPTION = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
     if (api::global_api_server->get_noise_ctx()->has_psk()) {
-      service.txt_records.push_back({"api_encryption", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+      txt_records.emplace_back(MDNSTXTRecord{"api_encryption", NOISE_ENCRYPTION});
     } else {
-      service.txt_records.push_back({"api_encryption_supported", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+      txt_records.emplace_back(MDNSTXTRecord{"api_encryption_supported", NOISE_ENCRYPTION});
     }
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
-    service.txt_records.push_back({"project_name", ESPHOME_PROJECT_NAME});
-    service.txt_records.push_back({"project_version", ESPHOME_PROJECT_VERSION});
+    txt_records.emplace_back(MDNSTXTRecord{"project_name", ESPHOME_PROJECT_NAME});
+    txt_records.emplace_back(MDNSTXTRecord{"project_version", ESPHOME_PROJECT_VERSION});
 #endif  // ESPHOME_PROJECT_NAME
 
 #ifdef USE_DASHBOARD_IMPORT
-    service.txt_records.push_back({"package_import_url", dashboard_import::get_package_import_url()});
+    txt_records.emplace_back(MDNSTXTRecord{"package_import_url", dashboard_import::get_package_import_url()});
 #endif
-
-    this->services_.push_back(service);
   }
 #endif  // USE_API
 
 #ifdef USE_PROMETHEUS
-  {
-    MDNSService service{};
-    service.service_type = "_prometheus-http";
-    service.proto = "_tcp";
-    service.port = USE_WEBSERVER_PORT;
-    this->services_.push_back(service);
-  }
+  this->services_.emplace_back();
+  auto &prom_service = this->services_.back();
+  prom_service.service_type = "_prometheus-http";
+  prom_service.proto = "_tcp";
+  prom_service.port = USE_WEBSERVER_PORT;
 #endif
 
 #ifdef USE_WEBSERVER
-  {
-    MDNSService service{};
-    service.service_type = "_http";
-    service.proto = "_tcp";
-    service.port = USE_WEBSERVER_PORT;
-    this->services_.push_back(service);
-  }
+  this->services_.emplace_back();
+  auto &web_service = this->services_.back();
+  web_service.service_type = "_http";
+  web_service.proto = "_tcp";
+  web_service.port = USE_WEBSERVER_PORT;
 #endif
 
 #ifdef USE_MDNS_EXTRA_SERVICES
   this->services_.insert(this->services_.end(), this->services_extra_.begin(), this->services_extra_.end());
 #endif
 
-  if (this->services_.empty()) {
-    // Publish "http" service if not using native API
-    // This is just to have *some* mDNS service so that .local resolution works
-    MDNSService service{};
-    service.service_type = "_http";
-    service.proto = "_tcp";
-    service.port = USE_WEBSERVER_PORT;
-    service.txt_records.push_back({"version", ESPHOME_VERSION});
-    this->services_.push_back(service);
-  }
+#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
+  // Publish "http" service if not using native API or any other services
+  // This is just to have *some* mDNS service so that .local resolution works
+  this->services_.emplace_back();
+  auto &fallback_service = this->services_.back();
+  fallback_service.service_type = "_http";
+  fallback_service.proto = "_tcp";
+  fallback_service.port = USE_WEBSERVER_PORT;
+  fallback_service.txt_records.emplace_back(MDNSTXTRecord{"version", ESPHOME_VERSION});
+#endif
 }
 
 void MDNSComponent::dump_config() {
@@ -125,6 +164,7 @@ void MDNSComponent::dump_config() {
                 "mDNS:\n"
                 "  Hostname: %s",
                 this->hostname_.c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
     ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(),
@@ -134,6 +174,7 @@ void MDNSComponent::dump_config() {
                const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
     }
   }
+#endif
 }
 
 std::vector<MDNSService> MDNSComponent::get_services() { return this->services_; }

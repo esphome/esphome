@@ -20,7 +20,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 from esphome.util import Registry
@@ -230,7 +230,7 @@ async def new_text_sensor(config, *args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(text_sensor_ns.using)
 
