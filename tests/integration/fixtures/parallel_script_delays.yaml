@@ -4,7 +4,7 @@ esphome:
 host:
 
 logger:
-  level: DEBUG
+  level: VERY_VERBOSE
 
 api:
   actions:
