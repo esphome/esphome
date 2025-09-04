@@ -375,10 +375,19 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->reset_connection_(param->disconnect.reason);
+      // Don't reset connection yet - wait for CLOSE_EVT to ensure controller has freed resources
+      // This prevents race condition where we mark slot as free before controller cleanup is complete
+      ESP_LOGD(TAG, "[%d] [%s] Disconnect, reason=0x%02x", this->connection_index_, this->address_str_.c_str(),
+               param->disconnect.reason);
+      // Send disconnection notification but don't free the slot yet
+      this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
       break;
     }
     case ESP_GATTC_CLOSE_EVT: {
+      ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_.c_str(),
+               param->close.reason);
+      // Now the GATT connection is fully closed and controller resources are freed
+      // Safe to mark the connection slot as available
       this->reset_connection_(param->close.reason);
       break;
     }

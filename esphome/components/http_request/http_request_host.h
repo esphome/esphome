@@ -1,11 +1,7 @@
 #pragma once
 
-#include "http_request.h"
-
 #ifdef USE_HOST
-
-#define CPPHTTPLIB_NO_EXCEPTIONS
-#include "httplib.h"
+#include "http_request.h"
 namespace esphome {
 namespace http_request {
 
