@@ -74,8 +74,10 @@ uint32_t arch_get_cpu_freq_hz() {
 }
 
 #ifdef USE_ESP_IDF
-#ifndef ESPHOME_APP_MAIN_TASK_STACK_SIZE
-#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
+#ifdef ESPHOME_APP_MAIN_TASK_STACK_SIZE
+static const uint32_t app_main_loop_stack_size = ESPHOME_APP_MAIN_TASK_STACK_SIZE;
+#else
+static const uint32_t app_main_loop_stack_size = 8192;
 #endif
 
 TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -89,7 +91,7 @@ void loop_task(void *pv_params) {
 
 extern "C" void app_main() {
   esp32::setup_preferences();
-  xTaskCreate(loop_task, "app_main", ESPHOME_APP_MAIN_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle);
+  xTaskCreate(loop_task, "app_main", app_main_loop_stack_size, nullptr, 1, &loop_task_handle);
 }
 #endif  // USE_ESP_IDF
 
