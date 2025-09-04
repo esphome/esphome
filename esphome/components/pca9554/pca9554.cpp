@@ -53,17 +53,17 @@ void PCA9554Component::dump_config() {
   }
 }
 
-bool PCA9554Component::digital_read_hw(uint16_t pin) {
+bool PCA9554Component::digital_read_hw(uint8_t pin) {
   // Read all pins from hardware into input_mask_
   return this->read_inputs_();  // Return true if I2C read succeeded, false on error
 }
 
-bool PCA9554Component::digital_read_cache(uint16_t pin) {
+bool PCA9554Component::digital_read_cache(uint8_t pin) {
   // Return the cached pin state from input_mask_
   return this->input_mask_ & (1 << pin);
 }
 
-void PCA9554Component::digital_write_hw(uint16_t pin, bool value) {
+void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   if (value) {
     this->output_mask_ |= (1 << pin);
   } else {
