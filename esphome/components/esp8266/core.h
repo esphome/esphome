@@ -3,7 +3,6 @@
 #ifdef USE_ESP8266
 
 #include <cstdint>
-#include <pgmspace.h>
 
 extern const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] PROGMEM;
 extern const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] PROGMEM;
