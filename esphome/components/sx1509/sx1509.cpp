@@ -77,15 +77,12 @@ void SX1509Component::loop() {
 }
 
 bool SX1509Component::digital_read_hw(uint8_t pin) {
-  if (this->ddr_mask_ & (1 << pin)) {
-    if (!this->read_byte_16(REG_DATA_B, &this->input_mask_))
-      return false;
-    return true;
-  }
-  return false;
+  // Always read all pins when any input pin is accessed
+  return this->read_byte_16(REG_DATA_B, &this->input_mask_);
 }
 
 bool SX1509Component::digital_read_cache(uint8_t pin) {
+  // Return cached value for input pins, false for output pins
   if (this->ddr_mask_ & (1 << pin)) {
     return this->input_mask_ & (1 << pin);
   }
