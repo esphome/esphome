@@ -1135,7 +1135,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   dump_field(out, "string_", this->string_);
   dump_field(out, "int_", this->int_);
   for (const auto it : this->bool_array) {
-    dump_field(out, "bool_array", it, 4);
+    dump_field(out, "bool_array", static_cast<bool>(it), 4);
   }
   for (const auto &it : this->int_array) {
     dump_field(out, "int_array", it, 4);
