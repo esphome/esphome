@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 from collections.abc import Callable, Iterable
 import datetime
 import functools
@@ -490,7 +491,17 @@ class WizardRequestHandler(BaseHandler):
         kwargs = {
             k: v
             for k, v in json.loads(self.request.body.decode()).items()
-            if k in ("name", "platform", "board", "ssid", "psk", "password")
+            if k
+            in (
+                "type",
+                "name",
+                "platform",
+                "board",
+                "ssid",
+                "psk",
+                "password",
+                "file_content",
+            )
         }
         if not kwargs["name"]:
             self.set_status(422)
@@ -498,19 +509,65 @@ class WizardRequestHandler(BaseHandler):
             self.write(json.dumps({"error": "Name is required"}))
             return
 
+        if "type" not in kwargs:
+            # Default to basic wizard type for backwards compatibility
+            kwargs["type"] = "basic"
+
         kwargs["friendly_name"] = kwargs["name"]
         kwargs["name"] = friendly_name_slugify(kwargs["friendly_name"])
-
-        kwargs["ota_password"] = secrets.token_hex(16)
-        noise_psk = secrets.token_bytes(32)
-        kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
+        if kwargs["type"] == "basic":
+            kwargs["ota_password"] = secrets.token_hex(16)
+            noise_psk = secrets.token_bytes(32)
+            kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
+        elif kwargs["type"] == "upload":
+            try:
+                kwargs["file_text"] = base64.b64decode(kwargs["file_content"]).decode(
+                    "utf-8"
+                )
+            except (binascii.Error, UnicodeDecodeError):
+                self.set_status(422)
+                self.set_header("content-type", "application/json")
+                self.write(
+                    json.dumps({"error": "The uploaded file is not correctly encoded."})
+                )
+                return
+        elif kwargs["type"] != "empty":
+            self.set_status(422)
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps(
+                    {"error": f"Invalid wizard type specified: {kwargs['type']}"}
+                )
+            )
+            return
         filename = f"{kwargs['name']}.yaml"
         destination = settings.rel_path(filename)
-        wizard.wizard_write(path=destination, **kwargs)
-        self.set_status(200)
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps({"configuration": filename}))
-        self.finish()
+
+        # Check if destination file already exists
+        if os.path.exists(destination):
+            self.set_status(409)  # Conflict status code
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps({"error": f"Configuration file '{filename}' already exists"})
+            )
+            self.finish()
+            return
+
+        success = wizard.wizard_write(path=destination, **kwargs)
+        if success:
+            self.set_status(200)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"configuration": filename}))
+            self.finish()
+        else:
+            self.set_status(500)
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps(
+                    {"error": "Failed to write configuration, see logs for details"}
+                )
+            )
+            self.finish()
 
 
 class ImportRequestHandler(BaseHandler):
