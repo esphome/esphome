@@ -38,8 +38,8 @@ void PCA9554Component::setup() {
 
 void PCA9554Component::loop() {
   // Invalidate the cache at the start of each loop.
-  // The actual read will happen on demand in digital_read()
-  this->cache_valid_ = false;
+  // The actual read will happen on demand when digital_read() is called
+  this->reset_pin_cache_();
 }
 
 void PCA9554Component::dump_config() {
@@ -53,15 +53,17 @@ void PCA9554Component::dump_config() {
   }
 }
 
-bool PCA9554Component::digital_read(uint8_t pin) {
-  // Read the inputs once per loop on demand and cache the result
-  if (!this->cache_valid_ && this->read_inputs_()) {
-    this->cache_valid_ = true;
-  }
+bool PCA9554Component::digital_read_hw(uint16_t pin) {
+  // Read all pins from hardware into input_mask_
+  return this->read_inputs_();  // Return true if I2C read succeeded, false on error
+}
+
+bool PCA9554Component::digital_read_cache(uint16_t pin) {
+  // Return the cached pin state from input_mask_
   return this->input_mask_ & (1 << pin);
 }
 
-void PCA9554Component::digital_write(uint8_t pin, bool value) {
+void PCA9554Component::digital_write_hw(uint16_t pin, bool value) {
   if (value) {
     this->output_mask_ |= (1 << pin);
   } else {
