@@ -342,7 +342,7 @@ esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/packet_transport/* @clydebarrow
 esphome/components/pca6416a/* @Mat931
-esphome/components/pca9554/* @clydebarrow @hwstar
+esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
 esphome/components/pi4ioe5v6408/* @jesserockz
