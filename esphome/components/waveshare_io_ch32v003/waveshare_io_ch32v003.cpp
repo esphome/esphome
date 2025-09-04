@@ -70,9 +70,9 @@ void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   if (this->is_failed())
     return;
 
-  // limit PWM level! might be connected with circuit schematic
-  // as per Waveshare IO library function "void IO_EXTENSION_Pwm_Output(uint8_t Value)"
-  // PWM limited in waveshare output component now.
+  // PWM limits are enforced at the output component level to protect hardware
+  // based on circuit schematic requirements. This follows the pattern from the
+  // original Waveshare IO library function "void IO_EXTENSION_Pwm_Output(uint8_t Value)".
 
   uint8_t data[2] = {IO_EXTENSION_PWM_ADDR, value};
   if (!this->write_bytes(data[0], &data[1], 1)) {
