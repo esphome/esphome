@@ -1,0 +1,12 @@
+esphome:
+  on_boot:
+    - rx8130.read_time
+    - rx8130.write_time
+
+i2c:
+  - id: i2c_rx8130
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+time:
+  - platform: rx8130
