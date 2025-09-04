@@ -21,6 +21,11 @@ binary_sensor:
       aw9523: aw9523_1
       number: 1
 
+light:
+  - platform: monochromatic
+    name: "AW9523 #02"
+    output: aw9523_pin_2
+
 output:
   - platform: aw9523
     aw9523: aw9523_1
