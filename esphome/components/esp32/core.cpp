@@ -74,7 +74,7 @@ uint32_t arch_get_cpu_freq_hz() {
 }
 
 #ifdef USE_ESP_IDF
-#ifdef ESPHOME_APP_MAIN_TASK_STACK_SIZE
+#if defined(ESPHOME_APP_MAIN_TASK_STACK_SIZE) && ESPHOME_APP_MAIN_TASK_STACK_SIZE > 8192
 static const uint32_t app_main_loop_stack_size = ESPHOME_APP_MAIN_TASK_STACK_SIZE;
 #else
 static const uint32_t app_main_loop_stack_size = 8192;

@@ -671,7 +671,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                     cv.Optional(CONF_MAIN_LOOP_STACK_SIZE, default=8192): cv.int_range(
-                        1024, 1024**6
+                        8192, 1024**6
                     ),
                 }
             ),
