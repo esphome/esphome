@@ -11,7 +11,6 @@ static const uint8_t LM75B_REG_TEMPERATURE = 0x00;
 
 class LM75BComponent : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
-  void setup() override;
   void dump_config() override;
   void update() override;
   float get_setup_priority() const override;

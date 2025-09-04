@@ -7,8 +7,6 @@ namespace lm75b {
 
 static const char *const TAG = "lm75b";
 
-void LM75BComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up LM75B..."); }
-
 float LM75BComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void LM75BComponent::dump_config() {
