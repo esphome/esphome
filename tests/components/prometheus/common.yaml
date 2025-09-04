@@ -69,6 +69,15 @@ event:
       - "custom_event_1"
       - "custom_event_2"
 
+button:
+  - platform: template
+    name: "Template Event Button"
+    on_press:
+      - logger.log: "Template Event Button pressed"
+      - lambda: |-
+          ESP_LOGD("template_event_button", "Template Event Button pressed");
+      - event.trigger: custom_event_1
+
 binary_sensor:
   - platform: template
     id: template_binary_sensor1
