@@ -12,6 +12,9 @@
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
 
 namespace esphome {
 
@@ -185,7 +188,19 @@ void Component::call() {
 const char *Component::get_component_source() const {
   if (this->component_source_ == nullptr)
     return "<unknown>";
+#ifdef USE_ESP8266
+  // On ESP8266, component_source_ is stored in PROGMEM
+  // We need a static buffer to hold the string when read from flash
+  // Since this is only used for logging, a single shared buffer is fine
+  static char buffer[64];  // Component names are typically short
+
+  // Copy from PROGMEM to buffer
+  strncpy_P(buffer, this->component_source_, sizeof(buffer) - 1);
+  buffer[sizeof(buffer) - 1] = '\0';  // Ensure null termination
+  return buffer;
+#else
   return this->component_source_;
+#endif
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   if (blocking_time > this->warn_if_blocking_over_) {
