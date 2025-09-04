@@ -199,11 +199,11 @@ async def add_pin_initial_states_array():
 
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] = {{{initial_modes_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] PROGMEM = {{{initial_modes_s}}}"
         )
     )
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] = {{{initial_levels_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] PROGMEM = {{{initial_levels_s}}}"
         )
     )
