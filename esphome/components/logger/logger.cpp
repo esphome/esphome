@@ -266,8 +266,7 @@ static const LogString *const LOG_LEVELS[] = {
     reinterpret_cast<const LogString *>(LOG_LEVEL_VERBOSE), reinterpret_cast<const LogString *>(LOG_LEVEL_VERY_VERBOSE),
 };
 #else
-static const LogString *const LOG_LEVELS[] = {"NONE",   "ERROR", "WARN",    "INFO",
-                                              "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
+static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #endif
 
 void Logger::dump_config() {
