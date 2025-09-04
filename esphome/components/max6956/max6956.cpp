@@ -70,7 +70,7 @@ bool MAX6956::digital_read_hw(uint8_t pin) {
   // Store in cache with proper alignment
   if (bank_index == 0) {
     // Special case for bank 0: pins 4-7 are in bits D0-D3, shift them to bits 4-7
-    this->input_banks_[0] = value << 4;
+    this->input_banks_[0] = value << MAX6956_BANK0_SHIFT;
   } else {
     // Banks 1-3 map directly
     this->input_banks_[bank_index] = value;

@@ -24,6 +24,8 @@ enum MAX6956GPIORange : uint8_t {
 
 /// Bank configuration for MAX6956
 static constexpr uint8_t MAX6956_BANK_SIZE = 8;
+static constexpr uint8_t MAX6956_TOTAL_PINS = 32;  // Includes pins 0-3 (unused) for cache alignment
+static constexpr uint8_t MAX6956_BANK0_SHIFT = 4;
 
 enum MAX6956GPIORegisters {
   MAX6956_GLOBAL_CURRENT = 0x02,
@@ -44,7 +46,9 @@ enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
 
 enum MAX6956CURRENTMODE { GLOBAL = 0x00, SEGMENT = 0x01 };
 
-class MAX6956 : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint8_t, 28> {
+class MAX6956 : public Component,
+                public i2c::I2CDevice,
+                public gpio_expander::CachedGpioExpander<uint8_t, MAX6956_TOTAL_PINS> {
  public:
   MAX6956() = default;
 
