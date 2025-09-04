@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_SWAP_XY,
     CONF_TRANSFORM,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
 DEPENDENCIES = ["display"]
@@ -152,7 +152,7 @@ async def register_touchscreen(var, config):
         )
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(touchscreen_ns.using)
     cg.add_define("USE_TOUCHSCREEN")
