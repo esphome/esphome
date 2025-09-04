@@ -15,6 +15,7 @@ from esphome.const import (
 CODEOWNERS = ["@looping40"]
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["gpio_expander"]
 MULTI_CONF = True
 
 CONF_BRIGHTNESS_MODE = "brightness_mode"

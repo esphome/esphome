@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/gpio_expander/cached_gpio.h"
 
 namespace esphome {
 namespace max6956 {
@@ -21,6 +22,9 @@ enum MAX6956GPIORange : uint8_t {
   MAX6956_MAX = 31,
 };
 
+/// Bank configuration for MAX6956
+static constexpr uint8_t MAX6956_BANK_SIZE = 8;
+
 enum MAX6956GPIORegisters {
   MAX6956_GLOBAL_CURRENT = 0x02,
   MAX6956_CONFIGURATION = 0x04,
@@ -30,20 +34,23 @@ enum MAX6956GPIORegisters {
   MAX6956_CURRENT_START = 0x12,       // Current054
   MAX6956_1PORT_VALUE_START = 0x20,   // Port 0 only (virtual port, no action)
   MAX6956_8PORTS_VALUE_START = 0x44,  // 8 ports 4-11 (data bits D0-D7)
+  // Additional 8-port bulk read registers
+  MAX6956_8PORTS_12_19 = 0x4C,  // 8 ports 12-19
+  MAX6956_8PORTS_20_27 = 0x54,  // 8 ports 20-27
+  MAX6956_8PORTS_24_31 = 0x58,  // 8 ports 24-31
 };
 
 enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
 
 enum MAX6956CURRENTMODE { GLOBAL = 0x00, SEGMENT = 0x01 };
 
-class MAX6956 : public Component, public i2c::I2CDevice {
+class MAX6956 : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint8_t, 28> {
  public:
   MAX6956() = default;
 
   void setup() override;
+  void loop() override;
 
-  bool digital_read(uint8_t pin);
-  void digital_write(uint8_t pin, bool value);
   void pin_mode(uint8_t pin, gpio::Flags flags);
   void pin_mode(uint8_t pin, max6956::MAX6956GPIOFlag flags);
 
@@ -58,6 +65,11 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   void write_brightness_global();
   void write_brightness_mode();
 
+  // CachedGpioExpander implementation
+  bool digital_read_hw(uint8_t pin) override;
+  bool digital_read_cache(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
+
  protected:
   // read a given register
   bool read_reg_(uint8_t reg, uint8_t *value);
@@ -65,6 +77,10 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   bool write_reg_(uint8_t reg, uint8_t value);
   max6956::MAX6956CURRENTMODE brightness_mode_;
   uint8_t global_brightness_;
+
+  // Cache for the 4 banks of 8 pins each
+  // Bank 0: pins 4-11, Bank 1: pins 12-19, Bank 2: pins 20-27, Bank 3: pins 24-31
+  uint8_t input_banks_[4] = {0, 0, 0, 0};
 
  private:
   int8_t prev_bright_[28] = {0};

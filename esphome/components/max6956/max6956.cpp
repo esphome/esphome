@@ -40,14 +40,55 @@ void MAX6956::setup() {
   ESP_LOGD(TAG, "setup reg[0x%.2X]=0x%.2X", MAX6956_CONFIGURATION, configuration);
 }
 
-bool MAX6956::digital_read(uint8_t pin) {
-  uint8_t reg_addr = MAX6956_1PORT_VALUE_START + pin;
-  uint8_t value = 0;
-  this->read_reg_(reg_addr, &value);
-  return (value & MASK_1PORT_VALUE);
+void MAX6956::loop() {
+  // Invalidate cache at the start of each loop
+  this->reset_pin_cache_();
 }
 
-void MAX6956::digital_write(uint8_t pin, bool value) {
+bool MAX6956::digital_read_hw(uint8_t pin) {
+  // MAX6956 pins start at MAX6956_MIN
+  if (pin < MAX6956_MIN || pin > MAX6956_MAX) {
+    return false;
+  }
+
+  // Calculate bank index
+  uint8_t bank_index = (pin - MAX6956_MIN) / MAX6956_BANK_SIZE;
+
+  // Register addresses for each bank
+  static const uint8_t bank_regs[4] = {
+      MAX6956_8PORTS_VALUE_START,  // 0x44 - ports 4-11
+      MAX6956_8PORTS_12_19,        // 0x4C - ports 12-19
+      MAX6956_8PORTS_20_27,        // 0x54 - ports 20-27
+      MAX6956_8PORTS_24_31         // 0x58 - ports 24-31
+  };
+
+  // Read the 8-port bank register
+  uint8_t bank_value = 0;
+  if (!this->read_reg_(bank_regs[bank_index], &bank_value)) {
+    return false;
+  }
+
+  // Store the bank value in our cache
+  this->input_banks_[bank_index] = bank_value;
+
+  return true;
+}
+
+bool MAX6956::digital_read_cache(uint8_t pin) {
+  // MAX6956 pins start at MAX6956_MIN
+  if (pin < MAX6956_MIN || pin > MAX6956_MAX) {
+    return false;
+  }
+
+  // Calculate bank index and bit position
+  uint8_t adjusted_pin = pin - MAX6956_MIN;
+  uint8_t bank_index = adjusted_pin / MAX6956_BANK_SIZE;
+  uint8_t bit_position = adjusted_pin % MAX6956_BANK_SIZE;
+
+  return (this->input_banks_[bank_index] & (1 << bit_position)) != 0;
+}
+
+void MAX6956::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = MAX6956_1PORT_VALUE_START + pin;
   this->write_reg_(reg_addr, value);
 }
@@ -159,8 +200,8 @@ void MAX6956::dump_config() {
  **************************************/
 void MAX6956GPIOPin::setup() { pin_mode(flags_); }
 void MAX6956GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool MAX6956GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void MAX6956GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
+bool MAX6956GPIOPin::digital_read() { return this->parent_->read_pin_cached(this->pin_) != this->inverted_; }
+void MAX6956GPIOPin::digital_write(bool value) { this->parent_->write_pin(this->pin_, value != this->inverted_); }
 std::string MAX6956GPIOPin::dump_summary() const {
   char buffer[32];
   snprintf(buffer, sizeof(buffer), "%u via Max6956", pin_);
