@@ -56,7 +56,7 @@ void MCP23016::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->update_reg_(pin, false, iodir);
   }
 }
-float MCP23016::get_setup_priority() const { return setup_priority::IO; }
+float MCP23016::get_setup_priority() const { return setup_priority::HARDWARE; }
 bool MCP23016::read_reg_(uint8_t reg, uint8_t *value) {
   if (this->is_failed())
     return false;
