@@ -120,8 +120,7 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
-// Run our loop() method very early in the loop, so that we cache read values before
-// before other components call our digital_read() method.
+// Run our loop() method early to invalidate cache before any other components access the pins
 float PCA9554Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
 
 void PCA9554GPIOPin::setup() { pin_mode(flags_); }
