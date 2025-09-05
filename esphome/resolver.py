@@ -34,7 +34,9 @@ class AsyncResolver:
             self.result = await hr.async_resolve_host(
                 hosts, port, timeout=RESOLVE_TIMEOUT
             )
-        except (ResolveAPIError, ResolveTimeoutAPIError, OSError) as e:
+        except Exception as e:  # pylint: disable=broad-except
+            # We need to catch all exceptions to ensure the event is set
+            # Otherwise the thread could hang forever
             self.exception = e
         finally:
             self.event.set()
