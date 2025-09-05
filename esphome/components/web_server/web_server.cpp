@@ -307,7 +307,7 @@ std::string WebServer::get_config_json() {
     root[F("ota")] = true;
 #endif
     root[F("log")] = this->expose_log_;
-    root[F("lang")] = "en";
+    root[F("lang")] = F("en");
   });
 }
 
@@ -802,12 +802,12 @@ std::string WebServer::light_all_json_generator(WebServer *web_server, void *sou
 std::string WebServer::light_json(light::LightState *obj, JsonDetail start_config) {
   return json::build_json([this, obj, start_config](JsonObject root) {
     set_json_id(root, obj, "light-" + obj->get_object_id(), start_config);
-    root[F("state")] = obj->remote_values.is_on() ? "ON" : "OFF";
+    root[F("state")] = obj->remote_values.is_on() ? F("ON") : F("OFF");
 
     light::LightJSONSchema::dump_json(*obj, root);
     if (start_config == DETAIL_ALL) {
       JsonArray opt = root[F("effects")].to<JsonArray>();
-      opt.add("None");
+      opt.add(F("None"));
       for (auto const &option : obj->get_effects()) {
         opt.add(option->get_name());
       }
@@ -942,8 +942,8 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       this->add_sorting_info_(root, obj);
     }
     if (std::isnan(value)) {
-      root[F("value")] = "\"NaN\"";
-      root[F("state")] = "NA";
+      root[F("value")] = F("\"NaN\"");
+      root[F("state")] = F("NA");
     } else {
       root[F("value")] = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
       std::string state = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
@@ -1167,7 +1167,7 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
     root[F("max_length")] = obj->traits.get_max_length();
     root[F("pattern")] = obj->traits.get_pattern();
     if (obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD) {
-      root[F("state")] = "********";
+      root[F("state")] = F("********");
     } else {
       root[F("state")] = value;
     }
@@ -1353,7 +1353,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       if (!std::isnan(obj->current_temperature)) {
         root[F("current_temperature")] = value_accuracy_to_string(obj->current_temperature, current_accuracy);
       } else {
-        root[F("current_temperature")] = "NA";
+        root[F("current_temperature")] = F("NA");
       }
     }
     if (traits.get_supports_two_point_target_temperature()) {
