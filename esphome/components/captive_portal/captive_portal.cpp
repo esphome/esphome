@@ -11,17 +11,15 @@ namespace captive_portal {
 static const char *const TAG = "captive_portal";
 
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
-#ifdef USE_ESP8266
   AsyncResponseStream *stream = request->beginResponseStream(F("application/json"));
   stream->addHeader(F("cache-control"), F("public, max-age=0, must-revalidate"));
+#ifdef USE_ESP8266
   stream->print(F("{\"mac\":\""));
   stream->print(get_mac_address_pretty().c_str());
   stream->print(F("\",\"name\":\""));
   stream->print(App.get_name().c_str());
-  stream->print(F("\",\"aps\":["));
+  stream->print(F("\",\"aps\":[{}"));
 #else
-  AsyncResponseStream *stream = request->beginResponseStream(F("application/json"));
-  stream->addHeader(F("cache-control"), F("public, max-age=0, must-revalidate"));
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", get_mac_address_pretty().c_str(), App.get_name().c_str());
 #endif
 
