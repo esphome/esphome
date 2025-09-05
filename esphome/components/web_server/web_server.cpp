@@ -1940,7 +1940,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
   // No matching handler found - send 404
   ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-  request->send(404, CONTENT_TYPE_PLAIN, MSG_NOT_FOUND);
+  request->send(404, CONTENT_TYPE_PLAIN, MSG_NOT_FOUND);  // NOLINT(readability-suspicious-call-argument)
 }
 
 bool WebServer::isRequestHandlerTrivial() const { return false; }
