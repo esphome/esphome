@@ -63,7 +63,6 @@ void PulseMeterSensor::loop() {
       std::swap(this->set_, this->get_);
       this->updated_state_ = false;
     }
-    
   }
 
   const uint32_t now = micros();
