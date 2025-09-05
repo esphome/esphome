@@ -1,3 +1,4 @@
+import logging
 import socket
 from unittest.mock import patch
 
@@ -369,6 +370,46 @@ def test_resolve_ip_address_list_of_ips() -> None:
             socket.IPPROTO_TCP,
         )  # 0 on Windows with AI_NUMERICHOST
         assert addr_info[3] == ""
+
+
+def test_resolve_ip_address_with_getaddrinfo_failure(caplog) -> None:
+    """Test that getaddrinfo OSError is handled gracefully in fast path."""
+    with (
+        caplog.at_level(logging.DEBUG),
+        patch("socket.getaddrinfo") as mock_getaddrinfo,
+    ):
+        # First IP succeeds
+        mock_getaddrinfo.side_effect = [
+            [
+                (
+                    socket.AF_INET,
+                    socket.SOCK_STREAM,
+                    socket.IPPROTO_TCP,
+                    "",
+                    ("192.168.1.100", 6053),
+                )
+            ],
+            OSError("Failed to resolve"),  # Second IP fails
+        ]
+
+        # Should continue despite one failure
+        result = helpers.resolve_ip_address(["192.168.1.100", "192.168.1.101"], 6053)
+
+        # Should have result from first IP only
+        assert len(result) == 1
+        assert result[0][4][0] == "192.168.1.100"
+
+        # Verify both IPs were attempted
+        assert mock_getaddrinfo.call_count == 2
+        mock_getaddrinfo.assert_any_call(
+            "192.168.1.100", 6053, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
+        )
+        mock_getaddrinfo.assert_any_call(
+            "192.168.1.101", 6053, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
+        )
+
+        # Verify the debug log was called for the failed IP
+        assert "Failed to parse IP address '192.168.1.101'" in caplog.text
 
 
 def test_resolve_ip_address_hostname() -> None:
