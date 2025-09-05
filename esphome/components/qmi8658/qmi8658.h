@@ -7,6 +7,8 @@
 namespace esphome {
 namespace qmi8658 {
 
+const float GRAVITY_EARTH = 9.80665f;
+
 #pragma region Registers
 const uint8_t QMI8658_REGISTER_WHO_AM_I = 0x00;     // Device Identifier
 const uint8_t QMI8658_REGISTER_REVISION = 0x01;     // Device Revision ID
