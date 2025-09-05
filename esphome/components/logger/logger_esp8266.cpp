@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <Arduino.h>
+#include <pgmspace.h>
 
 namespace esphome::logger {
 
