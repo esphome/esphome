@@ -10,6 +10,8 @@
 // Macro to define strings in PROGMEM on ESP8266, regular memory on other platforms
 #define MDNS_STATIC_CONST_CHAR(name, value) static const char name[] PROGMEM = value
 // Helper to get string from PROGMEM - returns a temporary std::string
+// Only define this function if we have services that will use it
+#if defined(USE_API) || defined(USE_PROMETHEUS) || defined(USE_WEBSERVER) || defined(USE_MDNS_EXTRA_SERVICES)
 static std::string mdns_string_p(const char *src) {
   char buf[64];
   strncpy_P(buf, src, sizeof(buf) - 1);
@@ -17,6 +19,10 @@ static std::string mdns_string_p(const char *src) {
   return std::string(buf);
 }
 #define MDNS_STR(name) mdns_string_p(name)
+#else
+// If no services are configured, we still need the fallback service but it uses string literals
+#define MDNS_STR(name) std::string(name)
+#endif
 #else
 // On non-ESP8266 platforms, use regular const char*
 #define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char *name = value
