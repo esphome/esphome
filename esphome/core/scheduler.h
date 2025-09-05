@@ -184,7 +184,7 @@ class Scheduler {
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
     const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
-    const char *get_source() const { return component ? component->get_component_source() : "unknown"; }
+    const LogString *get_source() const { return component ? component->get_component_log_str() : LOG_STR("unknown"); }
   };
 
   // Common implementation for both timeout and interval
