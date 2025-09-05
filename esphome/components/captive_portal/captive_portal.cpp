@@ -18,7 +18,7 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->print(get_mac_address_pretty().c_str());
   stream->print(F("\",\"name\":\""));
   stream->print(App.get_name().c_str());
-  stream->print(F("\",\"aps\":["));
+  stream->print(F("\",\"aps\":[{}"));
 #else
   AsyncResponseStream *stream = request->beginResponseStream(F("application/json"));
   stream->addHeader(F("cache-control"), F("public, max-age=0, must-revalidate"));
