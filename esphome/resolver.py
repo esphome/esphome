@@ -52,10 +52,10 @@ class AsyncResolver:
             raise EsphomeError("Timeout resolving IP address")
 
         if exc := self.exception:
-            if isinstance(exc, ResolveAPIError):
-                raise EsphomeError(f"Error resolving IP address: {exc}") from exc
             if isinstance(exc, ResolveTimeoutAPIError):
                 raise EsphomeError(f"Timeout resolving IP address: {exc}") from exc
+            if isinstance(exc, ResolveAPIError):
+                raise EsphomeError(f"Error resolving IP address: {exc}") from exc
             raise exc
 
         return self.result
