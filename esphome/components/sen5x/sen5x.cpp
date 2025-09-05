@@ -284,7 +284,8 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s", rht_accel_mode_to_string(this->acceleration_mode_.value()));
+    ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
+                  LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
