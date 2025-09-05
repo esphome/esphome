@@ -59,7 +59,11 @@ void PulseMeterSensor::loop() {
     this->last_pin_val_ = current;
 
     // Swap out set and get to get the latest state from the ISR
-    std::swap(this->set_, this->get_);
+    if (this->updated_state_) {
+      std::swap(this->set_, this->get_);
+      this->updated_state_ = false;
+    }
+    
   }
 
   const uint32_t now = micros();
@@ -151,6 +155,7 @@ void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
     set.last_detected_edge_us_ = now;
     set.last_rising_edge_us_ = now;
     set.count_++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    sensor->updated_state = true;
   }
 
   // This ISR is bound to rising edges, so the pin is high
@@ -182,6 +187,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   set.last_rising_edge_us_ = !state.latched_ && pin_val ? now : set.last_detected_edge_us_;
 
   state.last_intr_ = now;
+  sensor->updated_state_ = true;
   sensor->last_pin_val_ = pin_val;
 }
 
