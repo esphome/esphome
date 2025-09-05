@@ -48,10 +48,10 @@ void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &dat
 optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   // If the default tolerance is in play, override it with something that works better.
   if (src.get_tolerance_mode() == ToleranceMode::TOLERANCE_MODE_PERCENTAGE  && src.get_tolerance() == 25) {
-    src.set_tolerance(MAGIQUEST_TOLERANCE, ToleranceMode::TOLERANCE_MODE_TIME);
+    src.set_tolerance(MAGIQUEST2_TOLERANCE, ToleranceMode::TOLERANCE_MODE_TIME);
   }
 
-  MagiQuestData data {
+  MagiQuest2Data data {
     .magnitude = 0,
     .wand_id = 0,
     .wand_id_legacy = 0,
@@ -60,36 +60,42 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   // 8-bit header
   uint8_t header = 0;
   for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
-    if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
+    if (src.expect_item(MAGIQUEST2_ONE_MARK, MAGIQUEST2_ONE_SPACE)) {
       header |= mask;
-    } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
+    } else if (!src.expect_item(MAGIQUEST2_ZERO_MARK, MAGIQUEST2_ZERO_SPACE)) {
       return {};
     }
+  }
+
+  // The header is expected to be all 0s.
+  if (header) {
+    return {};
   }
 
   // 31-bit wand_id
   for (uint32_t mask = 1 << 30; mask; mask >>= 1) {
-    if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
+    if (src.expect_item(MAGIQUEST2_ONE_MARK, MAGIQUEST2_ONE_SPACE)) {
       data.wand_id |= mask;
-    } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
+    } else if (!src.expect_item(MAGIQUEST2_ZERO_MARK, MAGIQUEST2_ZERO_SPACE)) {
       return {};
     }
   }
 
-  // The "legacy" wand_id is part header part actual wand_id, which we can get by shifting.
-  data.wand_id_legacy = data.wand_id >> 6;
+  // The "legacy" wand_id is part header part actual wand_id, and since the header is all 0s we can
+  // easily apply a conversion by shifting.
+  data.wand_id_legacy = data.wand_id >> 5;
 
   // 17-bit magnitude + checksum
   uint32_t magnitudeAndChecksum = 0;
   for (uint32_t mask = 1 << 16; mask; mask >>= 1) {
     // Special case the final bit, because the space seems to get dropped
     if (mask == 1) {
-      if (src.expect_mark(MAGIQUEST_ONE_MARK)) {
+      if (src.expect_mark(MAGIQUEST2_ONE_MARK)) {
         magnitudeAndChecksum |= mask;
       }
-    } else if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
+    } else if (src.expect_item(MAGIQUEST2_ONE_MARK, MAGIQUEST2_ONE_SPACE)) {
       magnitudeAndChecksum |= mask;
-    } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
+    } else if (!src.expect_item(MAGIQUEST2_ZERO_MARK, MAGIQUEST2_ZERO_SPACE)) {
       return {};
     }
   }
