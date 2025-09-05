@@ -205,7 +205,7 @@ void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
   static const char CONNECTION_STR[] PROGMEM = "Connection";
   static const char CLOSE_STR[] PROGMEM = "close";
   const char *msg = this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED;
-  response = request->beginResponse(200, TEXT_PLAIN, msg);
+  response = request->beginResponse_P(200, TEXT_PLAIN, msg);
   response->addHeader(CONNECTION_STR, CLOSE_STR);
 #else
   const char *msg = this->ota_success_ ? "Update Successful!" : "Update Failed!";
