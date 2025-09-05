@@ -423,14 +423,15 @@ def test_resolve_ip_address_hostname() -> None:
 
     with patch("esphome.resolver.AsyncResolver") as MockResolver:
         mock_resolver = MockResolver.return_value
-        mock_resolver.run.return_value = [mock_addr_info]
+        mock_resolver.resolve.return_value = [mock_addr_info]
 
         result = helpers.resolve_ip_address("test.local", 6053)
 
         assert len(result) == 1
         assert result[0][0] == socket.AF_INET
         assert result[0][4] == ("192.168.1.100", 6053)
-        mock_resolver.run.assert_called_once_with(["test.local"], 6053)
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        mock_resolver.resolve.assert_called_once()
 
 
 def test_resolve_ip_address_mixed_list() -> None:
@@ -444,14 +445,15 @@ def test_resolve_ip_address_mixed_list() -> None:
 
     with patch("esphome.resolver.AsyncResolver") as MockResolver:
         mock_resolver = MockResolver.return_value
-        mock_resolver.run.return_value = [mock_addr_info]
+        mock_resolver.resolve.return_value = [mock_addr_info]
 
         # Mix of IP and hostname - should use async resolver
         result = helpers.resolve_ip_address(["192.168.1.100", "test.local"], 6053)
 
         assert len(result) == 1
         assert result[0][4][0] == "192.168.1.200"
-        mock_resolver.run.assert_called_once_with(["192.168.1.100", "test.local"], 6053)
+        MockResolver.assert_called_once_with(["192.168.1.100", "test.local"], 6053)
+        mock_resolver.resolve.assert_called_once()
 
 
 def test_resolve_ip_address_url() -> None:
@@ -465,12 +467,13 @@ def test_resolve_ip_address_url() -> None:
 
     with patch("esphome.resolver.AsyncResolver") as MockResolver:
         mock_resolver = MockResolver.return_value
-        mock_resolver.run.return_value = [mock_addr_info]
+        mock_resolver.resolve.return_value = [mock_addr_info]
 
         result = helpers.resolve_ip_address("http://test.local", 6053)
 
         assert len(result) == 1
-        mock_resolver.run.assert_called_once_with(["test.local"], 6053)
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        mock_resolver.resolve.assert_called_once()
 
 
 def test_resolve_ip_address_ipv6_conversion() -> None:
@@ -484,7 +487,7 @@ def test_resolve_ip_address_ipv6_conversion() -> None:
 
     with patch("esphome.resolver.AsyncResolver") as MockResolver:
         mock_resolver = MockResolver.return_value
-        mock_resolver.run.return_value = [mock_addr_info]
+        mock_resolver.resolve.return_value = [mock_addr_info]
 
         result = helpers.resolve_ip_address("test.local", 6053)
 
@@ -497,7 +500,7 @@ def test_resolve_ip_address_error_handling() -> None:
     """Test error handling from AsyncResolver."""
     with patch("esphome.resolver.AsyncResolver") as MockResolver:
         mock_resolver = MockResolver.return_value
-        mock_resolver.run.side_effect = EsphomeError("Resolution failed")
+        mock_resolver.resolve.side_effect = EsphomeError("Resolution failed")
 
         with pytest.raises(EsphomeError, match="Resolution failed"):
             helpers.resolve_ip_address("test.local", 6053)
@@ -583,7 +586,7 @@ def test_resolve_ip_address_sorting() -> None:
 
     with patch("esphome.resolver.AsyncResolver") as MockResolver:
         mock_resolver = MockResolver.return_value
-        mock_resolver.run.return_value = mock_addr_infos
+        mock_resolver.resolve.return_value = mock_addr_infos
 
         result = helpers.resolve_ip_address("test.local", 6053)
 

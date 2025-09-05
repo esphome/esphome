@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 import socket
-import threading
 from unittest.mock import patch
 
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
@@ -44,8 +42,8 @@ def test_async_resolver_successful_resolution(mock_addr_info_ipv4: AddrInfo) -> 
         "esphome.resolver.hr.async_resolve_host",
         return_value=[mock_addr_info_ipv4],
     ) as mock_resolve:
-        resolver = AsyncResolver()
-        result = resolver.run(["test.local"], 6053)
+        resolver = AsyncResolver(["test.local"], 6053)
+        result = resolver.resolve()
 
         assert result == [mock_addr_info_ipv4]
         mock_resolve.assert_called_once_with(
@@ -63,8 +61,8 @@ def test_async_resolver_multiple_hosts(
         "esphome.resolver.hr.async_resolve_host",
         return_value=mock_results,
     ) as mock_resolve:
-        resolver = AsyncResolver()
-        result = resolver.run(["test1.local", "test2.local"], 6053)
+        resolver = AsyncResolver(["test1.local", "test2.local"], 6053)
+        result = resolver.resolve()
 
         assert result == mock_results
         mock_resolve.assert_called_once_with(
@@ -79,11 +77,11 @@ def test_async_resolver_resolve_api_error() -> None:
         "esphome.resolver.hr.async_resolve_host",
         side_effect=ResolveAPIError(error_msg),
     ):
-        resolver = AsyncResolver()
+        resolver = AsyncResolver(["test.local"], 6053)
         with pytest.raises(
             EsphomeError, match=re.escape(f"Error resolving IP address: {error_msg}")
         ):
-            resolver.run(["test.local"], 6053)
+            resolver.resolve()
 
 
 def test_async_resolver_timeout_error() -> None:
@@ -94,14 +92,14 @@ def test_async_resolver_timeout_error() -> None:
         "esphome.resolver.hr.async_resolve_host",
         side_effect=ResolveTimeoutAPIError(error_msg),
     ):
-        resolver = AsyncResolver()
+        resolver = AsyncResolver(["test.local"], 6053)
         # Match either "Timeout" or "Error" since ResolveTimeoutAPIError is a subclass of ResolveAPIError
         # and depending on import order/test execution context, it might be caught as either
         with pytest.raises(
             EsphomeError,
             match=f"(Timeout|Error) resolving IP address: {re.escape(error_msg)}",
         ):
-            resolver.run(["test.local"], 6053)
+            resolver.resolve()
 
 
 def test_async_resolver_generic_exception() -> None:
@@ -111,34 +109,30 @@ def test_async_resolver_generic_exception() -> None:
         "esphome.resolver.hr.async_resolve_host",
         side_effect=error,
     ):
-        resolver = AsyncResolver()
+        resolver = AsyncResolver(["test.local"], 6053)
         with pytest.raises(RuntimeError, match="Unexpected error"):
-            resolver.run(["test.local"], 6053)
+            resolver.resolve()
 
 
 def test_async_resolver_thread_timeout() -> None:
     """Test timeout when thread doesn't complete in time."""
-    # Use an event to control when the async function completes
-    test_event = threading.Event()
-
-    async def slow_resolve(hosts, port, timeout):
-        # Wait for the test to signal completion
-        await asyncio.get_event_loop().run_in_executor(None, test_event.wait, 0.5)
-        return []
-
-    with patch("esphome.resolver.hr.async_resolve_host", slow_resolve):
-        resolver = AsyncResolver()
-        # Override event.wait to simulate timeout
+    # Mock the start method to prevent actual thread execution
+    with (
+        patch.object(AsyncResolver, "start"),
+        patch("esphome.resolver.hr.async_resolve_host"),
+    ):
+        resolver = AsyncResolver(["test.local"], 6053)
+        # Override event.wait to simulate timeout (return False = timeout occurred)
         with (
             patch.object(resolver.event, "wait", return_value=False),
             pytest.raises(
                 EsphomeError, match=re.escape("Timeout resolving IP address")
             ),
         ):
-            resolver.run(["test.local"], 6053)
+            resolver.resolve()
 
-        # Signal the async function to complete and give it time to clean up
-        test_event.set()
+        # Verify thread start was called
+        resolver.start.assert_called_once()
 
 
 def test_async_resolver_ip_addresses(mock_addr_info_ipv4: AddrInfo) -> None:
@@ -147,8 +141,8 @@ def test_async_resolver_ip_addresses(mock_addr_info_ipv4: AddrInfo) -> None:
         "esphome.resolver.hr.async_resolve_host",
         return_value=[mock_addr_info_ipv4],
     ) as mock_resolve:
-        resolver = AsyncResolver()
-        result = resolver.run(["192.168.1.100"], 6053)
+        resolver = AsyncResolver(["192.168.1.100"], 6053)
+        result = resolver.resolve()
 
         assert result == [mock_addr_info_ipv4]
         mock_resolve.assert_called_once_with(
@@ -166,8 +160,8 @@ def test_async_resolver_mixed_addresses(
         "esphome.resolver.hr.async_resolve_host",
         return_value=mock_results,
     ) as mock_resolve:
-        resolver = AsyncResolver()
-        result = resolver.run(["test.local", "192.168.1.100", "::1"], 6053)
+        resolver = AsyncResolver(["test.local", "192.168.1.100", "::1"], 6053)
+        result = resolver.resolve()
 
         assert result == mock_results
         mock_resolve.assert_called_once_with(

@@ -209,8 +209,8 @@ def resolve_ip_address(host: str | list[str], port: int) -> list[AddrInfo]:
 
     from esphome.resolver import AsyncResolver
 
-    resolver = AsyncResolver()
-    addr_infos = resolver.run(hosts, port)
+    resolver = AsyncResolver(hosts, port)
+    addr_infos = resolver.resolve()
     # Convert aioesphomeapi AddrInfo to our format
     for addr_info in addr_infos:
         sockaddr = addr_info.sockaddr

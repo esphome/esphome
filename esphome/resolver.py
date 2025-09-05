@@ -13,7 +13,7 @@ from esphome.core import EsphomeError
 RESOLVE_TIMEOUT = 10.0  # seconds
 
 
-class AsyncResolver:
+class AsyncResolver(threading.Thread):
     """Resolver using aioesphomeapi that runs in a thread for faster results.
 
     This resolver uses aioesphomeapi's async_resolve_host to handle DNS resolution,
@@ -22,17 +22,20 @@ class AsyncResolver:
     cleanup cycle, which can take significant time.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, hosts: list[str], port: int) -> None:
         """Initialize the resolver."""
+        super().__init__(daemon=True)
+        self.hosts = hosts
+        self.port = port
         self.result: list[hr.AddrInfo] | None = None
         self.exception: Exception | None = None
         self.event = threading.Event()
 
-    async def _resolve(self, hosts: list[str], port: int) -> None:
+    async def _resolve(self) -> None:
         """Resolve hostnames to IP addresses."""
         try:
             self.result = await hr.async_resolve_host(
-                hosts, port, timeout=RESOLVE_TIMEOUT
+                self.hosts, self.port, timeout=RESOLVE_TIMEOUT
             )
         except Exception as e:  # pylint: disable=broad-except
             # We need to catch all exceptions to ensure the event is set
@@ -41,12 +44,13 @@ class AsyncResolver:
         finally:
             self.event.set()
 
-    def run(self, hosts: list[str], port: int) -> list[hr.AddrInfo]:
-        """Run the DNS resolution in a separate thread."""
-        thread = threading.Thread(
-            target=lambda: asyncio.run(self._resolve(hosts, port)), daemon=True
-        )
-        thread.start()
+    def run(self) -> None:
+        """Run the DNS resolution."""
+        asyncio.run(self._resolve())
+
+    def resolve(self) -> list[hr.AddrInfo]:
+        """Start the thread and wait for the result."""
+        self.start()
 
         if not self.event.wait(
             timeout=RESOLVE_TIMEOUT + 1.0
