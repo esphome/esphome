@@ -71,7 +71,7 @@ def AUTO_LOAD():
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
-
+CONF_TRANSPORT = "transport"
 
 def validate_message_just_topic(value):
     value = cv.publish_topic(value)
@@ -209,6 +209,15 @@ def validate_fingerprint(value):
         raise cv.Invalid("fingerprint must be valid SHA1 hash")
     return value
 
+def validate_transport(value):
+    v = value.lower()
+    if v not in ("tcp", "ssl", "ws", "wss"):
+        raise cv.Invalid("Transport must be one of: tcp, ssl, ws, wss")
+
+    if v in ("ws", "wss"):
+        if not (CORE.is_esp32 and CORE.using_esp_idf):
+            raise cv.Invalid(f"Transport={v} requires ESP32 with ESP-IDF")
+    return v
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -217,6 +226,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
+            cv.Optional(CONF_TRANSPORT, default="tcp"): cv.All(
+                cv.string_strict, validate_transport
+            ),
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
@@ -336,6 +348,15 @@ async def to_code(config):
     cg.add(var.set_broker_address(config[CONF_BROKER]))
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_broker_port(config[CONF_PORT]))
+
+    # Setup Transport Variable
+    transport = config[CONF_TRANSPORT].lower()
+    cg.add(var.set_transport(transport))
+    if transport in ("ws", "wss"):
+        cg.add_define("USE_MQTT_WS")
+    elif transport == "ssl":
+        cg.add_define("USE_MQTT_SSL")
+    
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
