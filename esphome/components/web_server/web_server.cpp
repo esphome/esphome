@@ -49,40 +49,27 @@ static const char CONTENT_TYPE_PLAIN[] PROGMEM = "text/plain";
 static const char HEADER_CONTENT_ENCODING[] PROGMEM = "Content-Encoding";
 static const char ENCODING_GZIP[] PROGMEM = "gzip";
 static const char EVENT_STATE[] PROGMEM = "state";
-
-// Helper macros to get __FlashStringHelper* from PROGMEM strings
-#define CONTENT_JSON_F FPSTR(CONTENT_TYPE_JSON)
-#define CONTENT_HTML_F FPSTR(CONTENT_TYPE_HTML)
-#define CONTENT_CSS_F FPSTR(CONTENT_TYPE_CSS)
-#define CONTENT_JS_F FPSTR(CONTENT_TYPE_JS)
-#define CONTENT_PLAIN_F FPSTR(CONTENT_TYPE_PLAIN)
-#define HEADER_ENCODING_F FPSTR(HEADER_CONTENT_ENCODING)
-#define GZIP_F FPSTR(ENCODING_GZIP)
-#define STATE_F FPSTR(EVENT_STATE)
+static const char MSG_NOT_FOUND[] PROGMEM = "Not Found";
 #else
-// For all other platforms, define the same names as regular string literals
-#define CONTENT_JSON_F "application/json"
-#define CONTENT_HTML_F "text/html"
-#define CONTENT_CSS_F "text/css"
-#define CONTENT_JS_F "text/javascript"
-#define CONTENT_PLAIN_F "text/plain"
-#define HEADER_ENCODING_F "Content-Encoding"
-#define GZIP_F "gzip"
-#define STATE_F "state"
+// For all other platforms, regular string constants
+static const char *const CONTENT_TYPE_JSON = "application/json";
+static const char *const CONTENT_TYPE_HTML = "text/html";
+static const char *const CONTENT_TYPE_CSS = "text/css";
+static const char *const CONTENT_TYPE_JS = "text/javascript";
+static const char *const CONTENT_TYPE_PLAIN = "text/plain";
+static const char *const HEADER_CONTENT_ENCODING = "Content-Encoding";
+static const char *const ENCODING_GZIP = "gzip";
+static const char *const EVENT_STATE = "state";
+static const char *const MSG_NOT_FOUND = "Not Found";
 #endif
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 #ifdef USE_ESP8266
 // Store single copy in PROGMEM on ESP8266
-static const char HEADER_PNA_NAME_P[] PROGMEM = "Private-Network-Access-Name";
-static const char HEADER_PNA_ID_P[] PROGMEM = "Private-Network-Access-ID";
-static const char HEADER_CORS_REQ_PNA_P[] PROGMEM = "Access-Control-Request-Private-Network";
-static const char HEADER_CORS_ALLOW_PNA_P[] PROGMEM = "Access-Control-Allow-Private-Network";
-// Use FPSTR() to get __FlashStringHelper* from PROGMEM data
-#define HEADER_PNA_NAME FPSTR(HEADER_PNA_NAME_P)
-#define HEADER_PNA_ID FPSTR(HEADER_PNA_ID_P)
-#define HEADER_CORS_REQ_PNA FPSTR(HEADER_CORS_REQ_PNA_P)
-#define HEADER_CORS_ALLOW_PNA FPSTR(HEADER_CORS_ALLOW_PNA_P)
+static const char HEADER_PNA_NAME[] PROGMEM = "Private-Network-Access-Name";
+static const char HEADER_PNA_ID[] PROGMEM = "Private-Network-Access-ID";
+static const char HEADER_CORS_REQ_PNA[] PROGMEM = "Access-Control-Request-Private-Network";
+static const char HEADER_CORS_ALLOW_PNA[] PROGMEM = "Access-Control-Allow-Private-Network";
 #else
 // For all other platforms, use regular strings
 static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
@@ -168,7 +155,7 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     std::string message = de.message_generator_(web_server_, de.source_);
-    if (this->send(message.c_str(), STATE_F) != DISCARDED) {
+    if (this->send(message.c_str(), EVENT_STATE) != DISCARDED) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
       this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
@@ -217,7 +204,7 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     std::string message = message_generator(web_server_, source);
-    if (this->send(message.c_str(), STATE_F) == DISCARDED) {
+    if (this->send(message.c_str(), EVENT_STATE) == DISCARDED) {
       deq_push_back_with_dedup_(source, message_generator);
     } else {
       this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
@@ -362,21 +349,21 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
-  AsyncWebServerResponse *response = request->beginResponse(200, CONTENT_HTML_F, INDEX_GZ, sizeof(INDEX_GZ));
+  AsyncWebServerResponse *response = request->beginResponse(200, CONTENT_TYPE_HTML, INDEX_GZ, sizeof(INDEX_GZ));
 #else
-  AsyncWebServerResponse *response = request->beginResponse_P(200, CONTENT_HTML_F, INDEX_GZ, sizeof(INDEX_GZ));
+  AsyncWebServerResponse *response = request->beginResponse_P(200, CONTENT_TYPE_HTML, INDEX_GZ, sizeof(INDEX_GZ));
 #endif
-  response->addHeader(HEADER_ENCODING_F, GZIP_F);
+  response->addHeader(HEADER_CONTENT_ENCODING, ENCODING_GZIP);
   request->send(response);
 }
 #elif USE_WEBSERVER_VERSION >= 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
   AsyncWebServerResponse *response =
-      request->beginResponse(200, CONTENT_HTML_F, ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
+      request->beginResponse(200, CONTENT_TYPE_HTML, ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
 #else
   AsyncWebServerResponse *response =
-      request->beginResponse_P(200, CONTENT_HTML_F, ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
+      request->beginResponse_P(200, CONTENT_TYPE_HTML, ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
 #endif
   // No gzip header here because the HTML file is so small
   request->send(response);
@@ -398,12 +385,12 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
   AsyncWebServerResponse *response =
-      request->beginResponse(200, CONTENT_CSS_F, ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
+      request->beginResponse(200, CONTENT_TYPE_CSS, ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
 #else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, CONTENT_CSS_F, ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
+  AsyncWebServerResponse *response = request->beginResponse_P(200, CONTENT_TYPE_CSS, ESPHOME_WEBSERVER_CSS_INCLUDE,
+                                                              ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
 #endif
-  response->addHeader(HEADER_ENCODING_F, GZIP_F);
+  response->addHeader(HEADER_CONTENT_ENCODING, ENCODING_GZIP);
   request->send(response);
 }
 #endif
@@ -412,12 +399,12 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #ifndef USE_ESP8266
   AsyncWebServerResponse *response =
-      request->beginResponse(200, CONTENT_JS_F, ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
+      request->beginResponse(200, CONTENT_TYPE_JS, ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
 #else
   AsyncWebServerResponse *response =
-      request->beginResponse_P(200, CONTENT_JS_F, ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
+      request->beginResponse_P(200, CONTENT_TYPE_JS, ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
 #endif
-  response->addHeader(HEADER_ENCODING_F, GZIP_F);
+  response->addHeader(HEADER_CONTENT_ENCODING, ENCODING_GZIP);
   request->send(response);
 }
 #endif
@@ -468,7 +455,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->sensor_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
   }
@@ -513,7 +500,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->text_sensor_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
   }
@@ -552,7 +539,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->switch_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -617,7 +604,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->button_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
     } else if (match.method_equals("press")) {
       this->defer([obj]() { obj->press(); });
       request->send(200);
@@ -658,7 +645,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->binary_sensor_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
   }
@@ -697,7 +684,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->fan_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
@@ -771,7 +758,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->light_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
@@ -844,7 +831,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->cover_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -915,7 +902,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->number_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
     if (!match.method_equals("set")) {
@@ -981,7 +968,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->date_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
     if (!match.method_equals("set")) {
@@ -1037,7 +1024,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->time_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
     if (!match.method_equals("set")) {
@@ -1092,7 +1079,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->datetime_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
     if (!match.method_equals("set")) {
@@ -1149,7 +1136,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->text_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
     if (!match.method_equals("set")) {
@@ -1207,7 +1194,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->select_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -1262,7 +1249,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->climate_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -1400,7 +1387,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->lock_json(obj, obj->state, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -1471,7 +1458,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->valve_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -1538,7 +1525,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->alarm_control_panel_json(obj, obj->get_state(), detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -1603,7 +1590,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->event_json(obj, "", detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
   }
@@ -1667,7 +1654,7 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->update_json(obj, detail);
-      request->send(200, CONTENT_JSON_F, data.c_str());
+      request->send(200, CONTENT_TYPE_JSON, data.c_str());
       return;
     }
 
@@ -1953,7 +1940,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
   // No matching handler found - send 404
   ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-  request->send(404, CONTENT_PLAIN_F, F("Not Found"));
+  request->send(404, CONTENT_TYPE_PLAIN, MSG_NOT_FOUND);
 }
 
 bool WebServer::isRequestHandlerTrivial() const { return false; }
