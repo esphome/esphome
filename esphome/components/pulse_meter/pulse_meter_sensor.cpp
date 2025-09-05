@@ -155,7 +155,7 @@ void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
     set.last_detected_edge_us_ = now;
     set.last_rising_edge_us_ = now;
     set.count_++;  // NOLINT(clang-diagnostic-deprecated-volatile)
-    sensor->updated_state = true;
+    sensor->updated_state_ = true;
   }
 
   // This ISR is bound to rising edges, so the pin is high
