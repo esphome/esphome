@@ -15,6 +15,8 @@ namespace sensirion_common {
  * Format:
  *   | 16 Bit Command Code | 16 bit Data word 1 | CRC of DW 1 | 16 bit Data word 1 | CRC of DW 2 | ..
  */
+static const uint8_t CRC_POLYNOMIAL = 0x31;  // default for Sensirion
+
 class SensirionI2CDevice : public i2c::I2CDevice {
  public:
   enum CommandLen : uint8_t { ADDR_8_BIT = 1, ADDR_16_BIT = 2 };

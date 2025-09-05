@@ -10,7 +10,6 @@ namespace sensirion_common {
 static const char *const TAG = "sensirion_i2c";
 // To avoid memory allocations for small writes a stack buffer is used
 static const size_t BUFFER_STACK_SIZE = 16;
-static const uint8_t CRC_POLYNOMIAL = 0x31;  // default for Sensirion
 
 bool SensirionI2CDevice::read_data(uint16_t *data, const uint8_t len) {
   const uint8_t num_bytes = len * 3;
