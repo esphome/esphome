@@ -396,25 +396,27 @@ def check_permissions(port: str):
             )
 
 
-def upload_program(config: ConfigType, args: ArgsProtocol, host: str) -> int | str:
+def upload_program(
+    config: ConfigType, args: ArgsProtocol, devices: list[str]
+) -> int | str:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if getattr(module, "upload_program")(config, args, host):
+        if getattr(module, "upload_program")(config, args, devices[0]):
             return 0
     except AttributeError:
         pass
 
-    if get_port_type(host) == "SERIAL":
-        check_permissions(host)
+    if get_port_type(devices[0]) == "SERIAL":
+        check_permissions(devices[0])
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
-            return upload_using_esptool(config, host, file, args.upload_speed)
+            return upload_using_esptool(config, devices[0], file, args.upload_speed)
 
         if CORE.target_platform in (PLATFORM_RP2040):
-            return upload_using_platformio(config, host)
+            return upload_using_platformio(config, devices[0])
 
         if CORE.is_libretiny:
-            return upload_using_platformio(config, host)
+            return upload_using_platformio(config, devices[0])
 
         return 1  # Unknown target platform
 
@@ -433,28 +435,27 @@ def upload_program(config: ConfigType, args: ArgsProtocol, host: str) -> int | s
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD, "")
+    binary = args.file if getattr(args, "file", None) is not None else CORE.firmware_bin
 
     # Check if we should use MQTT for address resolution
     # This happens when no device was specified, or the current host is "MQTT"/"OTA"
-    devices: list[str] = args.device or []
     if (
         CONF_MQTT in config  # pylint: disable=too-many-boolean-expressions
-        and (not devices or host in ("MQTT", "OTA"))
+        and (not devices or devices[0] in ("MQTT", "OTA"))
         and (
             ((config[CONF_MDNS][CONF_DISABLED]) and not is_ip_address(CORE.address))
-            or get_port_type(host) == "MQTT"
+            or get_port_type(devices[0]) == "MQTT"
         )
     ):
         from esphome import mqtt
 
-        host = mqtt.get_esphome_device_ip(
-            config, args.username, args.password, args.client_id
-        )
+        devices = [
+            mqtt.get_esphome_device_ip(
+                config, args.username, args.password, args.client_id
+            )
+        ]
 
-    if getattr(args, "file", None) is not None:
-        return espota2.run_ota(host, remote_port, password, args.file)
-
-    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
+    return espota2.run_ota(devices, remote_port, password, binary)
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -551,17 +552,11 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose="uploading",
     )
 
-    # Try each device until one succeeds
-    exit_code = 1
-    for device in devices:
-        _LOGGER.info("Uploading to %s", device)
-        exit_code = upload_program(config, args, device)
-        if exit_code == 0:
-            _LOGGER.info("Successfully uploaded program.")
-            return 0
-        if len(devices) > 1:
-            _LOGGER.warning("Failed to upload to %s", device)
-
+    exit_code = upload_program(config, args, devices)
+    if exit_code == 0:
+        _LOGGER.info("Successfully uploaded program.")
+    else:
+        _LOGGER.warning("Failed to upload to %s", devices)
     return exit_code
 
 
