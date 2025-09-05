@@ -38,6 +38,7 @@ void SEN5XComponent::setup() {
       this->mark_failed();
       return;
     }
+    delay(20);  // per datasheet
 
     uint16_t raw_read_status;
     if (!this->read_data(raw_read_status)) {
