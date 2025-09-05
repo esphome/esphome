@@ -47,12 +47,9 @@ void RuntimeStatsCollector::log_stats_() {
 
   // Log top components by period runtime
   for (const auto &it : stats_to_display) {
-    const char *source = LOG_STR_ARG(it.component->get_component_log_str());
-    const ComponentRuntimeStats *stats = it.stats;
-
-    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.2fms, max=%" PRIu32 "ms, total=%" PRIu32 "ms", source,
-             stats->get_period_count(), stats->get_period_avg_time_ms(), stats->get_period_max_time_ms(),
-             stats->get_period_time_ms());
+    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.2fms, max=%" PRIu32 "ms, total=%" PRIu32 "ms",
+             LOG_STR_ARG(it.component->get_component_log_str()), it.stats->get_period_count(),
+             it.stats->get_period_avg_time_ms(), it.stats->get_period_max_time_ms(), it.stats->get_period_time_ms());
   }
 
   // Log total stats since boot
@@ -65,12 +62,9 @@ void RuntimeStatsCollector::log_stats_() {
             });
 
   for (const auto &it : stats_to_display) {
-    const char *source = LOG_STR_ARG(it.component->get_component_log_str());
-    const ComponentRuntimeStats *stats = it.stats;
-
-    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.2fms, max=%" PRIu32 "ms, total=%" PRIu32 "ms", source,
-             stats->get_total_count(), stats->get_total_avg_time_ms(), stats->get_total_max_time_ms(),
-             stats->get_total_time_ms());
+    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.2fms, max=%" PRIu32 "ms, total=%" PRIu32 "ms",
+             LOG_STR_ARG(it.component->get_component_log_str()), it.stats->get_total_count(),
+             it.stats->get_total_avg_time_ms(), it.stats->get_total_max_time_ms(), it.stats->get_total_time_ms());
   }
 }
 
