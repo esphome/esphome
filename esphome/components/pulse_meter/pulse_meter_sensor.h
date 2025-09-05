@@ -48,7 +48,6 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   uint32_t last_processed_edge_us_ = 0;
 
   // This struct (and the two pointers) are used to pass data between the ISR and loop.
-  // These two pointers are exchanged each loop.
   // Use these to send data from the ISR to the loop not the other way around (except for resetting the values).
   struct State {
     uint32_t last_detected_edge_us_ = 0;
@@ -58,6 +57,9 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   State state_[2];
   volatile State *set_ = state_;
   volatile State *get_ = state_ + 1;
+
+  // if ISR has runned since the last loop
+  bool updated_state_ = false;
 
   // Only use the following variables in the ISR or while guarded by an InterruptLock
   ISRInternalGPIOPin isr_pin_;
