@@ -44,7 +44,7 @@ ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, siz
 
   buffer[0] = a_register;
   std::copy(data, data + len, buffer + 1);
-  return bus_->write_readv(this->address_, buffer, len + 1, nullptr, 0);
+  return this->bus_->write_readv(this->address_, buffer, len + 1, nullptr, 0);
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
@@ -54,7 +54,7 @@ ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, 
   buffer[0] = a_register >> 8;
   buffer[1] = a_register;
   std::copy(data, data + len, buffer + 2);
-  return bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
+  return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
 }
 
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {

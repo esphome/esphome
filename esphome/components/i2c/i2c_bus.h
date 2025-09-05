@@ -16,10 +16,10 @@ template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
  public:
   uint8_t *get(size_t size) {
     if (size <= STACK_SIZE) {
-      return stack_buffer_;
+      return this->stack_buffer_;
     }
-    heap_buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
-    return heap_buffer_.get();
+    this->heap_buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
+    return this->heap_buffer_.get();
   }
 
  private:
