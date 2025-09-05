@@ -35,9 +35,12 @@ const LogString *Logger::get_uart_selection_() {
       return LOG_STR("UART0");
     case UART_SELECTION_UART1:
       return LOG_STR("UART1");
+#ifdef USE_LOGGER_USB_CDC
     case UART_SELECTION_USB_CDC:
-    default:
       return LOG_STR("USB_CDC");
+#endif
+    default:
+      return LOG_STR("UNKNOWN");
   }
 }
 
