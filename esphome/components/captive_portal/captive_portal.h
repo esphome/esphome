@@ -45,11 +45,11 @@ class CaptivePortal : public AsyncWebHandler, public Component {
       return false;
 
     if (request->method() == HTTP_GET) {
-      if (request->url() == "/")
+      if (request->url() == F("/"))
         return true;
-      if (request->url() == "/config.json")
+      if (request->url() == F("/config.json"))
         return true;
-      if (request->url() == "/wifisave")
+      if (request->url() == F("/wifisave"))
         return true;
     }
 
