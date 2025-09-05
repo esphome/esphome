@@ -29,6 +29,19 @@ static const int8_t SEN5X_INDEX_SCALE_FACTOR = 10;                            //
 static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
 static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
+static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
+  switch (mode) {
+    case LOW_ACCELERATION:
+      return LOG_STR("LOW");
+    case MEDIUM_ACCELERATION:
+      return LOG_STR("MEDIUM");
+    case HIGH_ACCELERATION:
+      return LOG_STR("HIGH");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 void SEN5XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
@@ -237,10 +250,6 @@ void SEN5XComponent::setup() {
 }
 
 void SEN5XComponent::dump_config() {
-  static const char *rht_accel_mode_low_str = "LOW";
-  static const char *rht_accel_mode_medium_str = "MEDIUM";
-  static const char *rht_accel_mode_high_str = "HIGH";
-
   ESP_LOGCONFIG(TAG, "SEN5X:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -275,19 +284,7 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
-    const char *rht_accel_mode = rht_accel_mode_high_str;
-    switch (this->acceleration_mode_.value()) {
-      case LOW_ACCELERATION:
-        rht_accel_mode = rht_accel_mode_low_str;
-        break;
-      case MEDIUM_ACCELERATION:
-        rht_accel_mode = rht_accel_mode_medium_str;
-        break;
-      case HIGH_ACCELERATION:
-        // rht_accel_mode = rht_accel_mode_high_str;
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s", rht_accel_mode);
+    ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s", rht_accel_mode_to_string(this->acceleration_mode_.value()));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
