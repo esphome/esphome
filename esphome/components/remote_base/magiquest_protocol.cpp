@@ -18,8 +18,7 @@ static const uint32_t MAGIQUEST_ZERO_MARK = MAGIQUEST_UNIT;
 static const uint32_t MAGIQUEST_ZERO_SPACE = 3 * MAGIQUEST_UNIT;
 
 void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &data) {
-  // This is still the "legacy" encoding - I do not have a receiver that can be used
-  // to validate any changes.
+  // This is still the "legacy" encoding - changes here risk breaking existing uses.
 
   dst->reserve(101);  // 2 start bits, 48 data bits, 1 stop bit
   dst->set_carrier_frequency(38000);
@@ -48,7 +47,7 @@ void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &dat
 optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   // If the default tolerance is in play, override it with something that works better.
   if (src.get_tolerance_mode() == ToleranceMode::TOLERANCE_MODE_PERCENTAGE  && src.get_tolerance() == 25) {
-    src.set_tolerance(MAGIQUEST2_TOLERANCE, ToleranceMode::TOLERANCE_MODE_TIME);
+    src.set_tolerance(MAGIQUEST_TOLERANCE, ToleranceMode::TOLERANCE_MODE_TIME);
   }
 
   MagiQuest2Data data {
@@ -60,9 +59,9 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   // 8-bit header
   uint8_t header = 0;
   for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
-    if (src.expect_item(MAGIQUEST2_ONE_MARK, MAGIQUEST2_ONE_SPACE)) {
+    if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
       header |= mask;
-    } else if (!src.expect_item(MAGIQUEST2_ZERO_MARK, MAGIQUEST2_ZERO_SPACE)) {
+    } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
       return {};
     }
   }
@@ -74,9 +73,9 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
 
   // 31-bit wand_id
   for (uint32_t mask = 1 << 30; mask; mask >>= 1) {
-    if (src.expect_item(MAGIQUEST2_ONE_MARK, MAGIQUEST2_ONE_SPACE)) {
+    if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
       data.wand_id |= mask;
-    } else if (!src.expect_item(MAGIQUEST2_ZERO_MARK, MAGIQUEST2_ZERO_SPACE)) {
+    } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
       return {};
     }
   }
@@ -90,12 +89,12 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   for (uint32_t mask = 1 << 16; mask; mask >>= 1) {
     // Special case the final bit, because the space seems to get dropped
     if (mask == 1) {
-      if (src.expect_mark(MAGIQUEST2_ONE_MARK)) {
+      if (src.expect_mark(MAGIQUEST_ONE_MARK)) {
         magnitudeAndChecksum |= mask;
       }
-    } else if (src.expect_item(MAGIQUEST2_ONE_MARK, MAGIQUEST2_ONE_SPACE)) {
+    } else if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
       magnitudeAndChecksum |= mask;
-    } else if (!src.expect_item(MAGIQUEST2_ZERO_MARK, MAGIQUEST2_ZERO_SPACE)) {
+    } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
       return {};
     }
   }
@@ -111,11 +110,11 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   return data;
 }
 void MagiQuestProtocol::dump(const MagiQuestData &data) {
-    ESP_LOGI(
-        TAG,
-        "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=%d",
-        data.wand_id,
-        data.magnitude);
+  ESP_LOGI(
+    TAG,
+    "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=%d",
+    data.wand_id,
+    data.magnitude);
 }
 bool MagiQuestProtocol::checksumIsValid(uint32_t wand_id, uint32_t magnitudeAndChecksum) {
   uint8_t checksum = 0;
