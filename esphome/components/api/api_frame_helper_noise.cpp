@@ -10,10 +10,18 @@
 #include <cstring>
 #include <cinttypes>
 
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
 namespace esphome::api {
 
 static const char *const TAG = "api.noise";
+#ifdef USE_ESP8266
+static const char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
+#else
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
+#endif
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->client_info_->get_combined_info().c_str(), ##__VA_ARGS__)
@@ -75,7 +83,11 @@ APIError APINoiseFrameHelper::init() {
   // init prologue
   size_t old_size = prologue_.size();
   prologue_.resize(old_size + PROLOGUE_INIT_LEN);
+#ifdef USE_ESP8266
+  memcpy_P(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
+#else
   std::memcpy(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
+#endif
 
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
