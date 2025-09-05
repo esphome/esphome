@@ -1,5 +1,5 @@
 #pragma once
-#include "esphome/components/I2C/I2C.h"
+#include "esphome/components/i2c/i2c.h"
 #include "esphome/core/helpers.h"
 
 #include <vector>
