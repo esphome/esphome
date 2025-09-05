@@ -2,8 +2,6 @@
 #include "logger.h"
 #include "esphome/core/log.h"
 
-#include <Arduino.h>
-
 namespace esphome::logger {
 
 static const char *const TAG = "logger";
@@ -37,12 +35,17 @@ void Logger::pre_setup() {
 
 void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
 
-static const char UART0_STR[] PROGMEM = "UART0";
-static const char UART1_STR[] PROGMEM = "UART1";
-static const char UART0_SWAP_STR[] PROGMEM = "UART0_SWAP";
-static const char *const UART_SELECTIONS[] PROGMEM = {UART0_STR, UART1_STR, UART0_SWAP_STR};
-
-const char *Logger::get_uart_selection_() { return (const char *) pgm_read_ptr(&UART_SELECTIONS[this->uart_]); }
+const LogString *Logger::get_uart_selection_() {
+  switch (this->uart_) {
+    case UART_SELECTION_UART0:
+      return LOG_STR("UART0");
+    case UART_SELECTION_UART1:
+      return LOG_STR("UART1");
+    case UART_SELECTION_UART0_SWAP:
+    default:
+      return LOG_STR("UART0_SWAP");
+  }
+}
 
 }  // namespace esphome::logger
 #endif
