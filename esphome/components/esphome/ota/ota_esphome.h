@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OTA
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
 #include "esphome/components/ota/ota_backend.h"
