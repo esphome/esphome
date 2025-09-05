@@ -1,6 +1,7 @@
 #ifdef USE_ESP8266
 #include "logger.h"
 #include "esphome/core/log.h"
+#include <pgmspace.h>
 
 namespace esphome::logger {
 
