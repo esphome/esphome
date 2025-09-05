@@ -58,7 +58,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   volatile State *set_ = state_;
   volatile State *get_ = state_ + 1;
 
-  // if ISR has runned since the last loop
+  // if ISR has updated the set_ state since the last loop
   bool updated_state_ = false;
 
   // Only use the following variables in the ISR or while guarded by an InterruptLock
