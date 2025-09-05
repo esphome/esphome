@@ -202,9 +202,9 @@ class Component {
 
   bool status_has_error() const;
 
-  void status_set_warning(const char *message = "unspecified");
+  void status_set_warning(const char *message = nullptr);
 
-  void status_set_error(const char *message = "unspecified");
+  void status_set_error(const char *message = nullptr);
 
   void status_clear_warning();
 

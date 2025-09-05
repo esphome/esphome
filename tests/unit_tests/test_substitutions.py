@@ -18,11 +18,10 @@ def sort_dicts(obj):
     """Recursively sort dictionaries for order-insensitive comparison."""
     if isinstance(obj, dict):
         return {k: sort_dicts(obj[k]) for k in sorted(obj)}
-    elif isinstance(obj, list):
+    if isinstance(obj, list):
         # Lists are not sorted; we preserve order
         return [sort_dicts(i) for i in obj]
-    else:
-        return obj
+    return obj
 
 
 def dict_diff(a, b, path=""):

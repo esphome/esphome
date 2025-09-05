@@ -26,11 +26,11 @@ from esphome.const import (
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace("time")
@@ -340,7 +340,7 @@ async def register_time(time_var, config):
     await setup_time_core_(time_var, config)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("POSIX_CLOCK", True)

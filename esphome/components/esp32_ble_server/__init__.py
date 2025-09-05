@@ -529,6 +529,7 @@ async def to_code_characteristic(service_var, char_conf):
 async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+    cg.add_define("USE_ESP32_BLE_UUID")
 
     var = cg.new_Pvariable(config[CONF_ID])
 
@@ -571,6 +572,7 @@ async def to_code(config):
             config[CONF_ON_DISCONNECT],
         )
     cg.add_define("USE_ESP32_BLE_SERVER")
+    cg.add_define("USE_ESP32_BLE_ADVERTISING")
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
@@ -628,5 +630,4 @@ async def ble_server_descriptor_set_value(config, action_id, template_arg, args)
 )
 async def ble_server_characteristic_notify(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)

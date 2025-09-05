@@ -54,7 +54,7 @@ from esphome.const import (
     PLATFORM_STM32,
     PlatformFramework,
 )
-from esphome.core import CORE, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 
 DEPENDENCIES = ["uart"] if CORE.is_stm32 else []
 
@@ -286,7 +286,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(90.0)
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]

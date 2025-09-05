@@ -18,7 +18,7 @@ from esphome.const import (
     PLATFORM_RP2040,
     ThreadModel,
 )
-from esphome.core import CORE, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, mkdir_p, read_file, write_file
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
@@ -159,7 +159,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1000)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(rp2040_ns.setup_preferences())
 

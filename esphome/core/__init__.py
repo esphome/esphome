@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextlib import contextmanager
 import logging
 import math
 import os
@@ -29,6 +30,7 @@ from esphome.const import (
 
 # pylint: disable=unused-import
 from esphome.coroutine import (  # noqa: F401
+    CoroPriority,
     FakeAwaitable as _FakeAwaitable,
     FakeEventLoop as _FakeEventLoop,
     coroutine,
@@ -39,7 +41,7 @@ from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
-    from ..types import ConfigType
+    from ..types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -264,7 +266,7 @@ class TimePeriodMinutes(TimePeriod):
     pass
 
 
-LAMBDA_PROG = re.compile(r"id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
+LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 
 class Lambda:
@@ -572,14 +574,16 @@ class EsphomeCore:
         # Key: platform name (e.g. "sensor", "binary_sensor"), Value: count
         self.platform_counts: defaultdict[str, int] = defaultdict(int)
         # Track entity unique IDs to handle duplicates
-        # Set of (device_id, platform, sanitized_name) tuples
-        self.unique_ids: set[tuple[str, str, str]] = set()
+        # Dict mapping (device_id, platform, sanitized_name) -> entity metadata
+        self.unique_ids: dict[tuple[str, str, str], EntityMetadata] = {}
         # Whether ESPHome was started in verbose mode
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
         # A list of all known ID classes
         self.id_classes = {}
+        # The current component being processed during validation
+        self.current_component: str | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -605,8 +609,19 @@ class EsphomeCore:
         self.loaded_integrations = set()
         self.component_ids = set()
         self.platform_counts = defaultdict(int)
-        self.unique_ids = set()
+        self.unique_ids = {}
+        self.current_component = None
         PIN_SCHEMA_REGISTRY.reset()
+
+    @contextmanager
+    def component_context(self, component: str):
+        """Context manager to set the current component being processed."""
+        old_component = self.current_component
+        self.current_component = component
+        try:
+            yield
+        finally:
+            self.current_component = old_component
 
     @property
     def address(self) -> str | None:
@@ -794,6 +809,10 @@ class EsphomeCore:
             raise TypeError(
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
+
+        if not library.name:
+            raise ValueError(f"The library for {library.repository} must have a name")
+
         short_name = (
             library.name if "/" not in library.name else library.name.split("/")[-1]
         )

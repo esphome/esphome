@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 from collections.abc import Callable, Iterable
 import datetime
 import functools
@@ -229,6 +230,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                close_fds=False,
             )
             stdout_thread = threading.Thread(target=self._stdout_thread)
             stdout_thread.daemon = True
@@ -324,38 +326,52 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
+        addresses: list[str] = []
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            if (mdns := dashboard.mdns_status) and (
-                address_list := await mdns.async_resolve_host(entry.name)
-            ):
-                # Use the IP address if available but only
-                # if the API is loaded and the device is online
-                # since MQTT logging will not work otherwise
-                port = sort_ip_addresses(address_list)[0]
-            elif (
-                entry.address
+            # First priority: entry.address AKA use_address
+            if (
+                (use_address := entry.address)
                 and (
                     address_list := await dashboard.dns_cache.async_resolve(
-                        entry.address, time.monotonic()
+                        use_address, time.monotonic()
                     )
                 )
                 and not isinstance(address_list, Exception)
             ):
-                # If mdns is not available, try to use the DNS cache
-                port = sort_ip_addresses(address_list)[0]
+                addresses.extend(sort_ip_addresses(address_list))
 
-        return [
-            *DASHBOARD_COMMAND,
-            *args,
-            config_file,
-            "--device",
-            port,
+            # Second priority: mDNS
+            if (
+                (mdns := dashboard.mdns_status)
+                and (address_list := await mdns.async_resolve_host(entry.name))
+                and (
+                    new_addresses := [
+                        addr for addr in address_list if addr not in addresses
+                    ]
+                )
+            ):
+                # Use the IP address if available but only
+                # if the API is loaded and the device is online
+                # since MQTT logging will not work otherwise
+                addresses.extend(sort_ip_addresses(new_addresses))
+
+        if not addresses:
+            # If no address was found, use the port directly
+            # as otherwise they will get the chooser which
+            # does not work with the dashboard as there is no
+            # interactive way to get keyboard input
+            addresses = [port]
+
+        device_args: list[str] = [
+            arg for address in addresses for arg in ("--device", address)
         ]
+
+        return [*DASHBOARD_COMMAND, *args, config_file, *device_args]
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
@@ -475,7 +491,17 @@ class WizardRequestHandler(BaseHandler):
         kwargs = {
             k: v
             for k, v in json.loads(self.request.body.decode()).items()
-            if k in ("name", "platform", "board", "ssid", "psk", "password")
+            if k
+            in (
+                "type",
+                "name",
+                "platform",
+                "board",
+                "ssid",
+                "psk",
+                "password",
+                "file_content",
+            )
         }
         if not kwargs["name"]:
             self.set_status(422)
@@ -483,19 +509,65 @@ class WizardRequestHandler(BaseHandler):
             self.write(json.dumps({"error": "Name is required"}))
             return
 
+        if "type" not in kwargs:
+            # Default to basic wizard type for backwards compatibility
+            kwargs["type"] = "basic"
+
         kwargs["friendly_name"] = kwargs["name"]
         kwargs["name"] = friendly_name_slugify(kwargs["friendly_name"])
-
-        kwargs["ota_password"] = secrets.token_hex(16)
-        noise_psk = secrets.token_bytes(32)
-        kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
+        if kwargs["type"] == "basic":
+            kwargs["ota_password"] = secrets.token_hex(16)
+            noise_psk = secrets.token_bytes(32)
+            kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
+        elif kwargs["type"] == "upload":
+            try:
+                kwargs["file_text"] = base64.b64decode(kwargs["file_content"]).decode(
+                    "utf-8"
+                )
+            except (binascii.Error, UnicodeDecodeError):
+                self.set_status(422)
+                self.set_header("content-type", "application/json")
+                self.write(
+                    json.dumps({"error": "The uploaded file is not correctly encoded."})
+                )
+                return
+        elif kwargs["type"] != "empty":
+            self.set_status(422)
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps(
+                    {"error": f"Invalid wizard type specified: {kwargs['type']}"}
+                )
+            )
+            return
         filename = f"{kwargs['name']}.yaml"
         destination = settings.rel_path(filename)
-        wizard.wizard_write(path=destination, **kwargs)
-        self.set_status(200)
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps({"configuration": filename}))
-        self.finish()
+
+        # Check if destination file already exists
+        if os.path.exists(destination):
+            self.set_status(409)  # Conflict status code
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps({"error": f"Configuration file '{filename}' already exists"})
+            )
+            self.finish()
+            return
+
+        success = wizard.wizard_write(path=destination, **kwargs)
+        if success:
+            self.set_status(200)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"configuration": filename}))
+            self.finish()
+        else:
+            self.set_status(500)
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps(
+                    {"error": "Failed to write configuration, see logs for details"}
+                )
+            )
+            self.finish()
 
 
 class ImportRequestHandler(BaseHandler):

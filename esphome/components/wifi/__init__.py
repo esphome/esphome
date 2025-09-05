@@ -44,14 +44,14 @@ from esphome.const import (
     CONF_USERNAME,
     PlatformFramework,
 )
-from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
 
 from . import wpa2_eap
 
 AUTO_LOAD = ["network"]
 
-NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2]
+NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
@@ -179,8 +179,8 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 def validate_variant(_):
     if CORE.is_esp32:
         variant = get_esp32_variant()
-        if variant in NO_WIFI_VARIANTS:
-            raise cv.Invalid(f"{variant} does not support WiFi")
+        if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
+            raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
 
 
 def final_validate(config):
@@ -194,45 +194,7 @@ def final_validate(config):
         )
 
 
-def final_validate_power_esp32_ble(value):
-    if not CORE.is_esp32:
-        return
-    if value != "NONE":
-        # WiFi should be in modem sleep (!=NONE) with BLE coexistence
-        # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
-        return
-    for conflicting in [
-        "esp32_ble",
-        "esp32_ble_beacon",
-        "esp32_ble_server",
-        "esp32_ble_tracker",
-    ]:
-        if conflicting not in fv.full_config.get():
-            continue
-
-        try:
-            # Only arduino 1.0.5+ and esp-idf impacted
-            cv.require_framework_version(
-                esp32_arduino=cv.Version(1, 0, 5),
-                esp_idf=cv.Version(4, 0, 0),
-            )(None)
-        except cv.Invalid:
-            pass
-        else:
-            raise cv.Invalid(
-                f"power_save_mode NONE is incompatible with {conflicting}. "
-                f"Please remove the power save mode. See also "
-                f"https://github.com/esphome/issues/issues/2141#issuecomment-865688582"
-            )
-
-
 FINAL_VALIDATE_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_POWER_SAVE_MODE): final_validate_power_esp32_ble,
-        },
-        extra=cv.ALLOW_EXTRA,
-    ),
     final_validate,
     validate_variant,
 )
@@ -265,8 +227,6 @@ def _validate(config):
         networks = config.get(CONF_NETWORKS, [])
         if not networks:
             raise cv.Invalid("At least one network required for fast_connect!")
-        if len(networks) != 1:
-            raise cv.Invalid("Fast connect can only be used with one network!")
 
     if CONF_USE_ADDRESS not in config:
         use_address = CORE.name + config[CONF_DOMAIN]
@@ -410,16 +370,21 @@ def wifi_network(config, ap, static_ip):
     return ap
 
 
-@coroutine_with_priority(60.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+
+    # Track if any network uses Enterprise authentication
+    has_eap = False
 
     def add_sta(ap, network):
         ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
         cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
 
     for network in config.get(CONF_NETWORKS, []):
+        if CONF_EAP in network:
+            has_eap = True
         cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
@@ -435,6 +400,10 @@ async def to_code(config):
     elif CORE.is_esp32 and CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+
+    # Disable Enterprise WiFi support if no EAP is configured
+    if CORE.is_esp32 and CORE.using_esp_idf and not has_eap:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))

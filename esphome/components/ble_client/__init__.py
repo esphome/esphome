@@ -175,8 +175,7 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
 )
 async def ble_disconnect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
@@ -184,8 +183,7 @@ async def ble_disconnect_to_code(config, action_id, template_arg, args):
 )
 async def ble_connect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
@@ -282,14 +280,13 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
 )
 async def remove_bond_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+    cg.add_define("USE_ESP32_BLE_UUID")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
