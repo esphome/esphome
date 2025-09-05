@@ -29,7 +29,6 @@ output:
   - platform: waveshare_io_ch32v003
     id: wave_io_pwm_output
     inverted: true
-    power_supply: wave_io_backlight_enable
     zero_means_zero: true
     safe_pwm_levels:
       min_value: 0
