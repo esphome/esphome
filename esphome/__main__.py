@@ -399,24 +399,25 @@ def check_permissions(port: str):
 def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> int | str:
+    host = devices[0]
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if getattr(module, "upload_program")(config, args, devices[0]):
+        if getattr(module, "upload_program")(config, args, host):
             return 0
     except AttributeError:
         pass
 
-    if get_port_type(devices[0]) == "SERIAL":
-        check_permissions(devices[0])
+    if get_port_type(host) == "SERIAL":
+        check_permissions(host)
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
-            return upload_using_esptool(config, devices[0], file, args.upload_speed)
+            return upload_using_esptool(config, host, file, args.upload_speed)
 
         if CORE.target_platform in (PLATFORM_RP2040):
-            return upload_using_platformio(config, devices[0])
+            return upload_using_platformio(config, host)
 
         if CORE.is_libretiny:
-            return upload_using_platformio(config, devices[0])
+            return upload_using_platformio(config, host)
 
         return 1  # Unknown target platform
 
@@ -441,10 +442,10 @@ def upload_program(
     # This happens when no device was specified, or the current host is "MQTT"/"OTA"
     if (
         CONF_MQTT in config  # pylint: disable=too-many-boolean-expressions
-        and (not devices or devices[0] in ("MQTT", "OTA"))
+        and (not devices or host in ("MQTT", "OTA"))
         and (
             ((config[CONF_MDNS][CONF_DISABLED]) and not is_ip_address(CORE.address))
-            or get_port_type(devices[0]) == "MQTT"
+            or get_port_type(host) == "MQTT"
         )
     ):
         from esphome import mqtt
