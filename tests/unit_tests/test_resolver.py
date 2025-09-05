@@ -6,7 +6,6 @@ import asyncio
 import re
 import socket
 import threading
-import time
 from unittest.mock import patch
 
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
