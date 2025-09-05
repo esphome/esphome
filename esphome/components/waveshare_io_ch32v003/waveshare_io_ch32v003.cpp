@@ -66,6 +66,19 @@ uint16_t WaveshareIOCH32V003Component::get_adc_value() {
   return adc_value;
 }
 
+uint8_t WaveshareIOCH32V003Component::get_interrupt_status() {
+  if (this->is_failed())
+    return 0;
+
+  uint8_t data = 0;
+  if (!this->read_bytes(IO_EXTENSION_INTERRUPT_ADDR, &data, 1)) {
+    this->status_set_warning("Failed to read interrupt register");
+    return 0;
+  }
+  this->status_clear_warning();
+  return data;
+}
+
 void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   if (this->is_failed())
     return;
