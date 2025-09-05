@@ -237,10 +237,10 @@ void SEN5XComponent::setup() {
 }
 
 void SEN5XComponent::dump_config() {
-  static const char *RHT_ACCEL_MODE_LOW_STR = "LOW";
-  static const char *RHT_ACCEL_MODE_MEDIUM_STR = "MEDIUM";
-  static const char *RHT_ACCEL_MODE_HIGH_STR = "HIGH";
-  static const char *RHT_ACCEL_MODE_UNKNOWN_STR = "UNKNOWN";
+  static const char *rht_accel_mode_low_str = "LOW";
+  static const char *rht_accel_mode_medium_str = "MEDIUM";
+  static const char *rht_accel_mode_high_str = "HIGH";
+  static const char *rht_accel_mode_unknown_str = "UNKNOWN";
 
   ESP_LOGCONFIG(TAG, "SEN5X:");
   LOG_I2C_DEVICE(this);
@@ -276,16 +276,16 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
-    const char *rht_accel_mode = RHT_ACCEL_MODE_UNKNOWN_STR;
+    const char *rht_accel_mode = rht_accel_mode_unknown_str;
     switch (this->acceleration_mode_.value()) {
       case LOW_ACCELERATION:
-        rht_accel_mode = RHT_ACCEL_MODE_LOW_STR;
+        rht_accel_mode = rht_accel_mode_low_str;
         break;
       case MEDIUM_ACCELERATION:
-        rht_accel_mode = RHT_ACCEL_MODE_MEDIUM_STR;
+        rht_accel_mode = rht_accel_mode_medium_str;
         break;
       case HIGH_ACCELERATION:
-        rht_accel_mode = RHT_ACCEL_MODE_HIGH_STR;
+        rht_accel_mode = rht_accel_mode_high_str;
         break;
       default:
         break;
