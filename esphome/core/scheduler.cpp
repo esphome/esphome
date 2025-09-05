@@ -163,10 +163,10 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Debug logging
   const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
   if (type == SchedulerItem::TIMEOUT) {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, item->get_source(),
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
              name_cstr ? name_cstr : "(null)", type_str, delay);
   } else {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, item->get_source(),
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
              name_cstr ? name_cstr : "(null)", type_str, delay,
              static_cast<uint32_t>(item->get_next_execution() - now));
   }
@@ -385,7 +385,7 @@ void HOT Scheduler::call(uint32_t now) {
       const char *name = item->get_name();
       bool is_cancelled = is_item_removed_(item.get());
       ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64 "%s",
-               item->get_type_str(), item->get_source(), name ? name : "(null)", item->interval,
+               item->get_type_str(), LOG_STR_ARG(item->get_source()), name ? name : "(null)", item->interval,
                item->get_next_execution() - now_64, item->get_next_execution(), is_cancelled ? " [CANCELLED]" : "");
 
       old_items.push_back(std::move(item));
@@ -476,7 +476,7 @@ void HOT Scheduler::call(uint32_t now) {
 #ifdef ESPHOME_DEBUG_SCHEDULER
       const char *item_name = item->get_name();
       ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
-               item->get_type_str(), item->get_source(), item_name ? item_name : "(null)", item->interval,
+               item->get_type_str(), LOG_STR_ARG(item->get_source()), item_name ? item_name : "(null)", item->interval,
                item->get_next_execution(), now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 

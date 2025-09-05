@@ -204,7 +204,7 @@ class Scheduler {
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
     constexpr const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
-    const char *get_source() const { return component ? component->get_component_source() : "unknown"; }
+    const LogString *get_source() const { return component ? component->get_component_log_str() : LOG_STR("unknown"); }
   };
 
   // Common implementation for both timeout and interval

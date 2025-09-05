@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
 namespace esphome {
@@ -220,12 +221,12 @@ class Component {
    *
    * This is set by the ESPHome core, and should not be called manually.
    */
-  void set_component_source(const char *source) { component_source_ = source; }
-  /** Get the integration where this component was declared as a string.
+  void set_component_source(const LogString *source) { component_source_ = source; }
+  /** Get the integration where this component was declared as a LogString for logging.
    *
-   * Returns "<unknown>" if source not set
+   * Returns LOG_STR("<unknown>") if source not set
    */
-  const char *get_component_source() const;
+  const LogString *get_component_log_str() const;
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
@@ -405,7 +406,7 @@ class Component {
   bool cancel_defer(const std::string &name);  // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
-  const char *component_source_{nullptr};
+  const LogString *component_source_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
   /// State of this component - each bit has a purpose:
   /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)
