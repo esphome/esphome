@@ -34,7 +34,7 @@ class AsyncResolver:
             self.result = await hr.async_resolve_host(
                 hosts, port, timeout=RESOLVE_TIMEOUT
             )
-        except Exception as e:
+        except (ResolveAPIError, ResolveTimeoutAPIError, OSError) as e:
             self.exception = e
         finally:
             self.event.set()

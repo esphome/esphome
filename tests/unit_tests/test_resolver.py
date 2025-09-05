@@ -15,7 +15,7 @@ from esphome.resolver import RESOLVE_TIMEOUT, AsyncResolver
 
 
 @pytest.fixture
-def mock_addr_info_ipv4():
+def mock_addr_info_ipv4() -> AddrInfo:
     """Create a mock IPv4 AddrInfo."""
     return AddrInfo(
         family=socket.AF_INET,
@@ -26,7 +26,7 @@ def mock_addr_info_ipv4():
 
 
 @pytest.fixture
-def mock_addr_info_ipv6():
+def mock_addr_info_ipv6() -> AddrInfo:
     """Create a mock IPv6 AddrInfo."""
     return AddrInfo(
         family=socket.AF_INET6,
@@ -36,7 +36,7 @@ def mock_addr_info_ipv6():
     )
 
 
-def test_async_resolver_successful_resolution(mock_addr_info_ipv4):
+def test_async_resolver_successful_resolution(mock_addr_info_ipv4: AddrInfo) -> None:
     """Test successful DNS resolution."""
     with patch(
         "esphome.resolver.hr.async_resolve_host",
@@ -51,7 +51,9 @@ def test_async_resolver_successful_resolution(mock_addr_info_ipv4):
         )
 
 
-def test_async_resolver_multiple_hosts(mock_addr_info_ipv4, mock_addr_info_ipv6):
+def test_async_resolver_multiple_hosts(
+    mock_addr_info_ipv4: AddrInfo, mock_addr_info_ipv6: AddrInfo
+) -> None:
     """Test resolving multiple hosts."""
     mock_results = [mock_addr_info_ipv4, mock_addr_info_ipv6]
 
@@ -68,7 +70,7 @@ def test_async_resolver_multiple_hosts(mock_addr_info_ipv4, mock_addr_info_ipv6)
         )
 
 
-def test_async_resolver_resolve_api_error():
+def test_async_resolver_resolve_api_error() -> None:
     """Test handling of ResolveAPIError."""
     error_msg = "Failed to resolve"
     with patch(
@@ -82,7 +84,7 @@ def test_async_resolver_resolve_api_error():
             resolver.run(["test.local"], 6053)
 
 
-def test_async_resolver_timeout_error():
+def test_async_resolver_timeout_error() -> None:
     """Test handling of ResolveTimeoutAPIError."""
     error_msg = "Resolution timed out"
     with patch(
@@ -96,7 +98,7 @@ def test_async_resolver_timeout_error():
             resolver.run(["test.local"], 6053)
 
 
-def test_async_resolver_generic_exception():
+def test_async_resolver_generic_exception() -> None:
     """Test handling of generic exceptions."""
     error = RuntimeError("Unexpected error")
     with patch(
@@ -108,7 +110,7 @@ def test_async_resolver_generic_exception():
             resolver.run(["test.local"], 6053)
 
 
-def test_async_resolver_thread_timeout():
+def test_async_resolver_thread_timeout() -> None:
     """Test timeout when thread doesn't complete in time."""
 
     async def slow_resolve(hosts, port, timeout):
@@ -125,7 +127,7 @@ def test_async_resolver_thread_timeout():
             resolver.run(["test.local"], 6053)
 
 
-def test_async_resolver_ip_addresses(mock_addr_info_ipv4):
+def test_async_resolver_ip_addresses(mock_addr_info_ipv4: AddrInfo) -> None:
     """Test resolving IP addresses."""
     with patch(
         "esphome.resolver.hr.async_resolve_host",
@@ -140,7 +142,9 @@ def test_async_resolver_ip_addresses(mock_addr_info_ipv4):
         )
 
 
-def test_async_resolver_mixed_addresses(mock_addr_info_ipv4, mock_addr_info_ipv6):
+def test_async_resolver_mixed_addresses(
+    mock_addr_info_ipv4: AddrInfo, mock_addr_info_ipv6: AddrInfo
+) -> None:
     """Test resolving mix of hostnames and IP addresses."""
     mock_results = [mock_addr_info_ipv4, mock_addr_info_ipv6]
 

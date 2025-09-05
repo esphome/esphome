@@ -285,7 +285,7 @@ def test_sort_ip_addresses(text: list[str], expected: list[str]) -> None:
 
 
 # DNS resolution tests
-def test_is_ip_address_ipv4():
+def test_is_ip_address_ipv4() -> None:
     """Test is_ip_address with IPv4 addresses."""
     assert helpers.is_ip_address("192.168.1.1") is True
     assert helpers.is_ip_address("127.0.0.1") is True
@@ -293,7 +293,7 @@ def test_is_ip_address_ipv4():
     assert helpers.is_ip_address("0.0.0.0") is True
 
 
-def test_is_ip_address_ipv6():
+def test_is_ip_address_ipv6() -> None:
     """Test is_ip_address with IPv6 addresses."""
     assert helpers.is_ip_address("::1") is True
     assert helpers.is_ip_address("2001:db8::1") is True
@@ -301,7 +301,7 @@ def test_is_ip_address_ipv6():
     assert helpers.is_ip_address("::") is True
 
 
-def test_is_ip_address_invalid():
+def test_is_ip_address_invalid() -> None:
     """Test is_ip_address with non-IP strings."""
     assert helpers.is_ip_address("hostname") is False
     assert helpers.is_ip_address("hostname.local") is False
@@ -310,26 +310,38 @@ def test_is_ip_address_invalid():
     assert helpers.is_ip_address("") is False
 
 
-def test_resolve_ip_address_single_ipv4():
+def test_resolve_ip_address_single_ipv4() -> None:
     """Test resolving a single IPv4 address (fast path)."""
     result = helpers.resolve_ip_address("192.168.1.100", 6053)
 
     assert len(result) == 1
     assert result[0][0] == socket.AF_INET  # family
-    assert result[0][1] == socket.SOCK_STREAM  # type
-    assert result[0][2] == socket.IPPROTO_TCP  # proto
+    assert result[0][1] in (
+        0,
+        socket.SOCK_STREAM,
+    )  # type (0 on Windows with AI_NUMERICHOST)
+    assert result[0][2] in (
+        0,
+        socket.IPPROTO_TCP,
+    )  # proto (0 on Windows with AI_NUMERICHOST)
     assert result[0][3] == ""  # canonname
     assert result[0][4] == ("192.168.1.100", 6053)  # sockaddr
 
 
-def test_resolve_ip_address_single_ipv6():
+def test_resolve_ip_address_single_ipv6() -> None:
     """Test resolving a single IPv6 address (fast path)."""
     result = helpers.resolve_ip_address("::1", 6053)
 
     assert len(result) == 1
     assert result[0][0] == socket.AF_INET6  # family
-    assert result[0][1] == socket.SOCK_STREAM  # type
-    assert result[0][2] == socket.IPPROTO_TCP  # proto
+    assert result[0][1] in (
+        0,
+        socket.SOCK_STREAM,
+    )  # type (0 on Windows with AI_NUMERICHOST)
+    assert result[0][2] in (
+        0,
+        socket.IPPROTO_TCP,
+    )  # proto (0 on Windows with AI_NUMERICHOST)
     assert result[0][3] == ""  # canonname
     # IPv6 sockaddr has 4 elements
     assert len(result[0][4]) == 4
@@ -337,7 +349,7 @@ def test_resolve_ip_address_single_ipv6():
     assert result[0][4][1] == 6053  # port
 
 
-def test_resolve_ip_address_list_of_ips():
+def test_resolve_ip_address_list_of_ips() -> None:
     """Test resolving a list of IP addresses (fast path)."""
     ips = ["192.168.1.100", "10.0.0.1", "::1"]
     result = helpers.resolve_ip_address(ips, 6053)
@@ -348,12 +360,18 @@ def test_resolve_ip_address_list_of_ips():
     # Check that results are properly formatted
     for addr_info in result:
         assert addr_info[0] in (socket.AF_INET, socket.AF_INET6)
-        assert addr_info[1] == socket.SOCK_STREAM
-        assert addr_info[2] == socket.IPPROTO_TCP
+        assert addr_info[1] in (
+            0,
+            socket.SOCK_STREAM,
+        )  # 0 on Windows with AI_NUMERICHOST
+        assert addr_info[2] in (
+            0,
+            socket.IPPROTO_TCP,
+        )  # 0 on Windows with AI_NUMERICHOST
         assert addr_info[3] == ""
 
 
-def test_resolve_ip_address_hostname():
+def test_resolve_ip_address_hostname() -> None:
     """Test resolving a hostname (async resolver path)."""
     mock_addr_info = AddrInfo(
         family=socket.AF_INET,
@@ -374,7 +392,7 @@ def test_resolve_ip_address_hostname():
         mock_resolver.run.assert_called_once_with(["test.local"], 6053)
 
 
-def test_resolve_ip_address_mixed_list():
+def test_resolve_ip_address_mixed_list() -> None:
     """Test resolving a mix of IPs and hostnames."""
     mock_addr_info = AddrInfo(
         family=socket.AF_INET,
@@ -395,7 +413,7 @@ def test_resolve_ip_address_mixed_list():
         mock_resolver.run.assert_called_once_with(["192.168.1.100", "test.local"], 6053)
 
 
-def test_resolve_ip_address_url():
+def test_resolve_ip_address_url() -> None:
     """Test extracting hostname from URL."""
     mock_addr_info = AddrInfo(
         family=socket.AF_INET,
@@ -414,7 +432,7 @@ def test_resolve_ip_address_url():
         mock_resolver.run.assert_called_once_with(["test.local"], 6053)
 
 
-def test_resolve_ip_address_ipv6_conversion():
+def test_resolve_ip_address_ipv6_conversion() -> None:
     """Test proper IPv6 address info conversion."""
     mock_addr_info = AddrInfo(
         family=socket.AF_INET6,
@@ -434,7 +452,7 @@ def test_resolve_ip_address_ipv6_conversion():
         assert result[0][4] == ("2001:db8::1", 6053, 1, 2)
 
 
-def test_resolve_ip_address_error_handling():
+def test_resolve_ip_address_error_handling() -> None:
     """Test error handling from AsyncResolver."""
     with patch("esphome.resolver.AsyncResolver") as MockResolver:
         mock_resolver = MockResolver.return_value
@@ -444,7 +462,7 @@ def test_resolve_ip_address_error_handling():
             helpers.resolve_ip_address("test.local", 6053)
 
 
-def test_addr_preference_ipv4():
+def test_addr_preference_ipv4() -> None:
     """Test address preference for IPv4."""
     addr_info = (
         socket.AF_INET,
@@ -456,7 +474,7 @@ def test_addr_preference_ipv4():
     assert helpers.addr_preference_(addr_info) == 2
 
 
-def test_addr_preference_ipv6():
+def test_addr_preference_ipv6() -> None:
     """Test address preference for regular IPv6."""
     addr_info = (
         socket.AF_INET6,
@@ -468,7 +486,7 @@ def test_addr_preference_ipv6():
     assert helpers.addr_preference_(addr_info) == 1
 
 
-def test_addr_preference_ipv6_link_local_no_scope():
+def test_addr_preference_ipv6_link_local_no_scope() -> None:
     """Test address preference for link-local IPv6 without scope."""
     addr_info = (
         socket.AF_INET6,
@@ -480,7 +498,7 @@ def test_addr_preference_ipv6_link_local_no_scope():
     assert helpers.addr_preference_(addr_info) == 3
 
 
-def test_addr_preference_ipv6_link_local_with_scope():
+def test_addr_preference_ipv6_link_local_with_scope() -> None:
     """Test address preference for link-local IPv6 with scope."""
     addr_info = (
         socket.AF_INET6,
@@ -492,7 +510,7 @@ def test_addr_preference_ipv6_link_local_with_scope():
     assert helpers.addr_preference_(addr_info) == 1  # Has scope, so it's usable
 
 
-def test_resolve_ip_address_sorting():
+def test_resolve_ip_address_sorting() -> None:
     """Test that results are sorted by preference."""
     # Create multiple address infos with different preferences
     mock_addr_infos = [
