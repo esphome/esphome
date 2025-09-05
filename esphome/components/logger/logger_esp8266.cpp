@@ -35,9 +35,12 @@ void Logger::pre_setup() {
 
 void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
 
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
+static const char UART0_STR[] PROGMEM = "UART0";
+static const char UART1_STR[] PROGMEM = "UART1";
+static const char UART0_SWAP_STR[] PROGMEM = "UART0_SWAP";
+static const char *const UART_SELECTIONS[] PROGMEM = {UART0_STR, UART1_STR, UART0_SWAP_STR};
 
-const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
+const char *Logger::get_uart_selection_() { return pgm_read_ptr(&UART_SELECTIONS[this->uart_]); }
 
 }  // namespace esphome::logger
 #endif
