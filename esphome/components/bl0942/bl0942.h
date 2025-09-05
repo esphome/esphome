@@ -143,6 +143,9 @@ class BL0942 : public PollingComponent, public uart::UARTDevice {
   uint32_t rx_start_ = 0;
   uint32_t prev_cf_cnt_ = 0;
 
+  uint8_t incoming_buf_[sizeof(DataPacket)];
+  int incoming_buflen_ = 0;
+
   bool validate_checksum_(DataPacket *data);
   int read_reg_(uint8_t reg);
   void write_reg_(uint8_t reg, uint32_t val);

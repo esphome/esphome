@@ -45,29 +45,64 @@ static const uint32_t BL0942_REG_USR_WRPROT_MAGIC = 0x55;
 static const uint32_t PKT_TIMEOUT_MS = 200;
 
 void BL0942::loop() {
-  DataPacket buffer;
   int avail = this->available();
 
   if (!avail) {
-    return;
-  }
-  if (avail < sizeof(buffer)) {
-    if (!this->rx_start_) {
-      this->rx_start_ = millis();
-    } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%d bytes)", avail);
-      this->read_array((uint8_t *) &buffer, avail);
+    if (this->incoming_buflen_ && millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%d bytes)", this->incoming_buflen_);
       this->rx_start_ = 0;
+      this->incoming_buflen_ = 0;
     }
     return;
   }
 
-  if (this->read_array((uint8_t *) &buffer, sizeof(buffer))) {
-    if (this->validate_checksum_(&buffer)) {
-      this->received_package_(&buffer);
+  while (avail) {
+    int rcv = sizeof(DataPacket) - this->incoming_buflen_;
+    if (rcv > avail)
+      rcv = avail;
+    assert(rcv > 0);
+
+    if (!this->read_array(this->incoming_buf_ + this->incoming_buflen_, rcv)) {
+      ESP_LOGW(TAG, "Failed to read %d available bytes from uart", rcv);
+      return;
+    }
+    if (!this->incoming_buflen_)
+      this->rx_start_ = millis();
+
+    this->incoming_buflen_ += rcv;
+    avail -= rcv;
+
+    assert(this->incoming_buflen_ <= sizeof(DataPacket));
+    assert(avail >= 0);
+
+    if (this->incoming_buflen_ == sizeof(DataPacket)) {
+      // If we have a full packet and it starts with a header byte,
+      // try to consume it.
+      if (this->incoming_buf_[0] == BL0942_PACKET_HEADER &&
+          this->validate_checksum_((DataPacket *) this->incoming_buf_)) {
+        this->received_package_((DataPacket *) this->incoming_buf_);
+        this->incoming_buflen_ = 0;
+        continue;
+      }
+
+      // Kill the header byte so that we skip to the next one.
+      this->incoming_buf_[0] = 0x00;
+    }
+
+    // A packet should start with the 0x55 BL0942_PACKET_HEADER.
+    // If it doesn't, skip bytes until it does.
+    if (this->incoming_buf_[0] != BL0942_PACKET_HEADER) {
+      int discard = this->incoming_buflen_;
+
+      void *start = memchr((void *) this->incoming_buf_, BL0942_PACKET_HEADER, this->incoming_buflen_);
+      if (start) {
+        discard = (uint8_t *) start - this->incoming_buf_;
+        memmove(this->incoming_buf_, start, this->incoming_buflen_ - discard);
+      }
+      ESP_LOGW(TAG, "Junk on wire. Throwing away %d bytes", discard);
+      this->incoming_buflen_ -= discard;
     }
   }
-  this->rx_start_ = 0;
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
