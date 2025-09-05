@@ -140,7 +140,6 @@ def test_async_resolver_thread_timeout() -> None:
 
         # Signal the async function to complete and give it time to clean up
         test_event.set()
-        time.sleep(0.1)
 
 
 def test_async_resolver_ip_addresses(mock_addr_info_ipv4: AddrInfo) -> None:
