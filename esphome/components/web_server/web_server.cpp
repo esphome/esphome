@@ -1231,6 +1231,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     parse_string_param_(request, "mode", call, &decltype(call)::set_mode);
     parse_string_param_(request, "fan_mode", call, &decltype(call)::set_fan_mode);
     parse_string_param_(request, "swing_mode", call, &decltype(call)::set_swing_mode);
+    parse_string_param_(request, "preset", call, &decltype(call)::set_preset);
 
     // Parse temperature parameters
     parse_float_param_(request, "target_temperature_high", call, &decltype(call)::set_target_temperature_high);
