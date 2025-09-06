@@ -13,3 +13,8 @@ time:
 
 loki:
   url: http://foo.com
+
+switch:
+  - platform: loki
+    enabled:
+      name: Loki Enabled
