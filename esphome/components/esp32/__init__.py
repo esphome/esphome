@@ -40,6 +40,7 @@ from esphome.cpp_generator import RawExpression
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
 from esphome.types import ConfigType
+from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -840,6 +841,9 @@ async def to_code(config):
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
+    for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
+        os.environ.pop(clean_var, None)
+
     add_extra_script(
         "post",
         "post_build.py",
@@ -1074,7 +1078,11 @@ def _write_idf_component_yml():
         contents = yaml_util.dump({"dependencies": dependencies})
     else:
         contents = ""
-    write_file_if_changed(yml_path, contents)
+    if write_file_if_changed(yml_path, contents):
+        dependencies_lock = CORE.relative_build_path("dependencies.lock")
+        if os.path.isfile(dependencies_lock):
+            os.remove(dependencies_lock)
+        clean_cmake_cache()
 
 
 # Called by writer.py
