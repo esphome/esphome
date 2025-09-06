@@ -258,7 +258,7 @@ void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
                 "  Hardware UART: %s",
-                this->baud_rate_, get_uart_selection_());
+                this->baud_rate_, LOG_STR_ARG(get_uart_selection_()));
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   if (this->log_buffer_) {

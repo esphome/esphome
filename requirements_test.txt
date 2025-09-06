@@ -1,13 +1,13 @@
 pylint==3.3.8
 flake8==7.3.0  # also change in .pre-commit-config.yaml when updating
-ruff==0.12.11  # also change in .pre-commit-config.yaml when updating
+ruff==0.12.12  # also change in .pre-commit-config.yaml when updating
 pyupgrade==3.20.0  # also change in .pre-commit-config.yaml when updating
 pre-commit
 
 # Unit tests
-pytest==8.4.1
+pytest==8.4.2
 pytest-cov==6.2.1
-pytest-mock==3.14.1
+pytest-mock==3.15.0
 pytest-asyncio==1.1.0
 pytest-xdist==3.8.0
 asyncmock==0.4.2
