@@ -206,9 +206,7 @@ class Component {
   bool status_has_error() const;
 
   void status_set_warning(const char *message = nullptr);
-#ifdef USE_STORE_LOG_STR_IN_FLASH
   void status_set_warning(const LogString *message);
-#endif
 
   void status_set_error(const char *message = nullptr);
 
