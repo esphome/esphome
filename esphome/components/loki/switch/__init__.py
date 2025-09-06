@@ -21,7 +21,7 @@ CONFIG_SCHEMA = cv.Schema(
             EnabledSwitch,
             icon=ICON_LED_ON,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            default_restore_mode="ENABLED",
+            default_restore_mode="RESTORE_DEFAULT_ON",
         ),
     }
 )
