@@ -1,9 +1,9 @@
-#include "enabled.h"
+#include "logs_enabled.h"
 
 namespace esphome {
 namespace loki {
 
-void EnabledSwitch::write_state(bool state) {
+void LogsEnabledSwitch::write_state(bool state) {
   if (this->parent_->is_enabled() != state) {
     this->parent_->set_enabled(state);
   }

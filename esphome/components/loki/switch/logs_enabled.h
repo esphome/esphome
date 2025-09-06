@@ -6,9 +6,9 @@
 namespace esphome {
 namespace loki {
 
-class EnabledSwitch : public switch_::Switch, public Parented<Loki> {
+class LogsEnabledSwitch : public switch_::Switch, public Parented<Loki> {
  public:
-  EnabledSwitch() = default;
+  LogsEnabledSwitch() = default;
 
  protected:
   void write_state(bool state) override;
