@@ -171,13 +171,13 @@ CSI_CAMERA_SCHEMA = cv.Schema(
         cv.Optional(CONF_BYTE_SWAP, default=False): cv.boolean,
         cv.GenerateID(CONF_IMAGE_SPEC_ID): cv.declare_id(CameraImageSpec),
     }
-).extend(i2c.i2c_device_schema(None))
+)
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
         SOFTWARE_SENSOR: SOFTWARE_SCHEMA,
         ESP32_CAMERA_SENSOR: ESP32_CAMERA_SCHEMA,
-        CSI_CAMERA_SENSOR: CSI_CAMERA_SCHEMA,
+        CSI_CAMERA_SENSOR: CSI_CAMERA_SCHEMA.extend(i2c.i2c_device_schema(None)),
     },
     default_type=SOFTWARE_SENSOR,
 )
