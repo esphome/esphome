@@ -14,6 +14,7 @@ DEPENDENCIES = ["network", "logger", "time", "http_request"]
 loki_ns = cg.esphome_ns.namespace("loki")
 Loki = loki_ns.class_("Loki", Component, Parented.template(HttpRequestComponent))
 
+CONF_LOKI_ID = "loki_id"
 CONF_STRIP = "strip"
 CONF_ENABLED = "enabled"
 
