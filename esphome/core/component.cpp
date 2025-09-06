@@ -294,7 +294,7 @@ void Component::status_set_warning(const LogString *message) {
     return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(),
+  ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 #endif
