@@ -16,7 +16,6 @@
 namespace esphome {
 
 static const char *const TAG = "component";
-static const auto *const UNSPECIFIED_MESSAGE = LOG_STR("unspecified");
 
 // Global vectors for component data that doesn't belong in every instance.
 // Using vector instead of unordered_map for both because:
@@ -143,7 +142,7 @@ void Component::call_dump_config() {
       }
     }
     ESP_LOGE(TAG, "  %s is marked FAILED: %s", this->get_component_source(),
-             error_msg ? error_msg : LOG_STR_ARG(UNSPECIFIED_MESSAGE));
+             error_msg ? error_msg : LOG_STR_LITERAL("unspecified"));
   }
 }
 
@@ -293,14 +292,14 @@ void Component::status_set_warning(const char *message) {
   this->status_set_warning_flag_();
   if ((this->component_state_ & STATUS_LED_WARNING) != 0)
     ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(),
-             message ? message : LOG_STR_ARG(UNSPECIFIED_MESSAGE));
+             message ? message : LOG_STR_LITERAL("unspecified"));
 }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void Component::status_set_warning(const LogString *message) {
   this->status_set_warning_flag_();
   if ((this->component_state_ & STATUS_LED_WARNING) != 0)
     ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(),
-             message ? LOG_STR_ARG(message) : LOG_STR_ARG(UNSPECIFIED_MESSAGE));
+             message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 #endif
 void Component::status_set_error(const char *message) {
@@ -309,7 +308,7 @@ void Component::status_set_error(const char *message) {
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", this->get_component_source(),
-           message ? message : LOG_STR_ARG(UNSPECIFIED_MESSAGE));
+           message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
     // Lazy allocate the error messages vector if needed
     if (!component_error_messages) {
