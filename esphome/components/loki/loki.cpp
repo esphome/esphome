@@ -29,6 +29,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   }
 
   auto data = str_sprintf("<%d>%s %s %s: %.*s", pri, timestamp.c_str(), App.get_name().c_str(), tag, len, message);
+  // TODO: Implement actual HTTP request to Loki endpoint
   // this->parent_->send_packet((const uint8_t *) data.data(), data.size());
 }
 
