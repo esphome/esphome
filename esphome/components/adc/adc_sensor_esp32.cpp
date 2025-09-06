@@ -335,11 +335,16 @@ float ADCSensor::sample_autorange_() {
   }
 
   const int adc_half = 2048;
-  uint32_t c12 = std::min(raw12, adc_half);
-  uint32_t c6 = adc_half - std::abs(raw6 - adc_half);
-  uint32_t c2 = adc_half - std::abs(raw2 - adc_half);
-  uint32_t c0 = std::min(4095 - raw0, adc_half);
-  uint32_t csum = c12 + c6 + c2 + c0;
+  const uint32_t c12 = std::min(raw12, adc_half);
+
+  const int32_t c6_signed = adc_half - std::abs(raw6 - adc_half);
+  const uint32_t c6 = std::max(0, c6_signed);  // Clamp to prevent underflow
+
+  const int32_t c2_signed = adc_half - std::abs(raw2 - adc_half);  
+  const uint32_t c2 = std::max(0, c2_signed);  // Clamp to prevent underflow
+
+  const uint32_t c0 = std::min(4095 - raw0, adc_half);
+  const uint32_t csum = c12 + c6 + c2 + c0;
 
   ESP_LOGD(TAG, "DEBUG Autorange summary:");
   ESP_LOGD(TAG, "  Raw readings: 12db=%d, 6db=%d, 2.5db=%d, 0db=%d", raw12, raw6, raw2, raw0);
@@ -351,7 +356,7 @@ float ADCSensor::sample_autorange_() {
     return NAN;
   }
 
-  float final_result = (mv12 * c12 + mv6 * c6 + mv2 * c2 + mv0 * c0) / csum;
+  const float final_result = (mv12 * c12 + mv6 * c6 + mv2 * c2 + mv0 * c0) / csum;
   ESP_LOGD(TAG, "Autorange final: (%.6f*%u + %.6f*%u + %.6f*%u + %.6f*%u)/%u = %.6fV", mv12, c12, mv6, c6, mv2, c2, mv0,
            c0, csum, final_result);
 
