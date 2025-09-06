@@ -186,7 +186,6 @@ void ThermostatClimate::validate_target_temperature_high() {
 }
 
 void ThermostatClimate::control(const climate::ClimateCall &call) {
-  bool target_temperature_low_changed = false;
   bool target_temperature_high_changed = false;
 
   if (call.get_preset().has_value()) {
@@ -217,7 +216,6 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
   }
   if (this->supports_two_points_) {
     if (call.get_target_temperature_low().has_value()) {
-      target_temperature_low_changed = this->target_temperature_low != call.get_target_temperature_low().value();
       this->target_temperature_low = call.get_target_temperature_low().value();
     }
     if (call.get_target_temperature_high().has_value()) {
