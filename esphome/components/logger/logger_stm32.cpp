@@ -21,7 +21,9 @@ void HOT Logger::write_msg_(const char *msg) {
   }
 }
 
-const char *Logger::get_uart_selection_() { return ((uart::STM32UARTComponent *) this->hw_uart_)->get_name(); }
+const LogString *Logger::get_uart_selection_() {
+  return LOG_STR(((uart::STM32UARTComponent *) this->hw_uart_)->get_name());
+}
 
 }  // namespace logger
 }  // namespace esphome
