@@ -32,7 +32,7 @@ class HDC302XComponent : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
   bool enable_heater();
-  bool configure_heater(const uint16_t power_level);
+  bool configure_heater(uint16_t power_level);
   bool disable_heater();
 
   void set_temp_sensor(sensor::Sensor *temp_sensor) { this->temp_sensor_ = temp_sensor; }
