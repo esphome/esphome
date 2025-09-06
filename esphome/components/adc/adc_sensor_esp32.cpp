@@ -338,10 +338,10 @@ float ADCSensor::sample_autorange_() {
   const uint32_t c12 = std::min(raw12, adc_half);
 
   const int32_t c6_signed = adc_half - std::abs(raw6 - adc_half);
-  const uint32_t c6 = std::max(0, c6_signed);  // Clamp to prevent underflow
+  const uint32_t c6 = (c6_signed > 0) ? c6_signed : 0;  // Clamp to prevent underflow
 
   const int32_t c2_signed = adc_half - std::abs(raw2 - adc_half);  
-  const uint32_t c2 = std::max(0, c2_signed);  // Clamp to prevent underflow
+  const uint32_t (c2_signed > 0) ? c2_signed : 0;  // Clamp to prevent underflow
 
   const uint32_t c0 = std::min(4095 - raw0, adc_half);
   const uint32_t csum = c12 + c6 + c2 + c0;
