@@ -40,7 +40,7 @@ class MagiQuestProtocol : public RemoteProtocol<MagiQuestData> {
   void dump(const MagiQuestData &data) override;
 
  private:
-  bool checksumIsValid(uint32_t wand_id, uint32_t magnitudeAndChecksum);
+  bool checksum_is_valid_(uint32_t wand_id, uint32_t magnitudeAndChecksum);
 };
 
 DECLARE_REMOTE_PROTOCOL(MagiQuest)

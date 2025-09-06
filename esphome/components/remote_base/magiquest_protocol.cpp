@@ -85,25 +85,25 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   data.wand_id_legacy = data.wand_id >> 5;
 
   // 17-bit magnitude + checksum
-  uint32_t magnitudeAndChecksum = 0;
+  uint32_t magnitude_and_checksum = 0;
   for (uint32_t mask = 1 << 16; mask; mask >>= 1) {
     // Special case the final bit, because the space seems to get dropped
     if (mask == 1) {
       if (src.expect_mark(MAGIQUEST_ONE_MARK)) {
-        magnitudeAndChecksum |= mask;
+        magnitude_and_checksum |= mask;
       }
     } else if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
-      magnitudeAndChecksum |= mask;
+      magnitude_and_checksum |= mask;
     } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
       return {};
     }
   }
 
   // Remove the checksum bits from the magnitude.
-  data.magnitude = magnitudeAndChecksum >> 8;
+  data.magnitude = magnitude_and_checksum >> 8;
 
   // Validate the checksum.
-  if (!checksumIsValid(data.wand_id, magnitudeAndChecksum)) {
+  if (!checksum_is_valid_(data.wand_id, magnitude_and_checksum)) {
     return {};
   }
 
@@ -112,20 +112,20 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
 void MagiQuestProtocol::dump(const MagiQuestData &data) {
   ESP_LOGI(TAG, "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=%d", data.wand_id, data.magnitude);
 }
-bool MagiQuestProtocol::checksumIsValid(uint32_t wand_id, uint32_t magnitudeAndChecksum) {
+bool MagiQuestProtocol::checksum_is_valid_(uint32_t wand_id, uint32_t magnitude_and_checksum) {
   uint8_t checksum = 0;
 
   // shift the wand_id for the checksum calculation.
   wand_id <<= 1;
-  uint8_t *wandIdBytes = reinterpret_cast<uint8_t *>(&wand_id);
+  uint8_t *wand_id_bytes = reinterpret_cast<uint8_t *>(&wand_id);
   for (uint8_t i = 0; i < 4; i++) {
-    checksum += wandIdBytes[i];
+    checksum += wand_id_bytes[i];
   }
 
   // magnitudeAndChecksum can be used directly.
-  uint8_t *magnitudeAndChecksumBytes = reinterpret_cast<uint8_t *>(&magnitudeAndChecksum);
+  uint8_t *magnitude_and_checksum_bytes = reinterpret_cast<uint8_t *>(&magnitude_and_checksum);
   for (uint8_t i = 0; i < 4; i++) {
-    checksum += magnitudeAndChecksumBytes[i];
+    checksum += magnitude_and_checksum_bytes[i];
   }
 
   return checksum == 0;
