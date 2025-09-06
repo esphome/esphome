@@ -287,7 +287,6 @@ void Component::status_set_warning(const char *message) {
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
 }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
 void Component::status_set_warning(const LogString *message) {
   // Don't spam the log. This risks missing different warning messages though.
   if ((this->component_state_ & STATUS_LED_WARNING) != 0)
@@ -297,7 +296,6 @@ void Component::status_set_warning(const LogString *message) {
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
-#endif
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
