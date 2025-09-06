@@ -30,13 +30,6 @@ void HDC302XComponent::setup() {
     this->mark_failed("Clear status failed");
     return;
   }
-
-  // Heater
-  if (this->heater_enabled_) {
-    if (!this->enable_heater()) {
-      this->mark_failed("Enable heater failed");
-    }
-  }
 };
 
 void HDC302XComponent::dump_config() {

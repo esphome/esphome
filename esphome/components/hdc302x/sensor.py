@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_HEATER,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_POWER_MODE,
@@ -48,7 +47,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_POWER_MODE, default="HIGH_ACCURACY"): cv.enum(
                 POWER_MODE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_HEATER, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -70,4 +68,3 @@ async def to_code(config):
         cg.add(var.set_humidity_sensor(sens))
 
     cg.add(var.set_power_mode(config[CONF_POWER_MODE]))
-    cg.add(var.set_heater_enabled(config[CONF_HEATER]))
