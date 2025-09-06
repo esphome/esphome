@@ -245,9 +245,6 @@ class Component {
   /// Helper to set component state (clears state bits and sets new state)
   void set_component_state_(uint8_t state);
 
-  /// Helper to set warning flag without duplicating logic
-  void status_set_warning_flag_();
-
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().
