@@ -11,7 +11,7 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 
-// ESP8266 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
+// STM32 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
 Mutex::Mutex() {}
 Mutex::~Mutex() {}
 void Mutex::lock() {}
