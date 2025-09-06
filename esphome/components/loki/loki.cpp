@@ -39,7 +39,6 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   // Create Loki JSON payload
   std::string json_payload = json::build_json([&](JsonObject root) {
     JsonArray streams = root["streams"].to<JsonArray>();
-    JsonObject stream = streams.createNestedObject();
     JsonObject entry = streams.add<JsonObject>();
 
     // Stream labels
@@ -61,13 +60,12 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
     }
     labels["tag"] = tag;
     labels["log_level"] = this->get_log_level_name(level);
-    ;
 
     // Log values (timestamp and message)
     JsonArray values = entry["values"].to<JsonArray>();
     JsonArray log_line = values.add<JsonArray>();
     log_line.add(tsbuf);
-    log_line.add(log_message.c_str());
+    log_line.add(log_message);
   });
 
   // Prepare headers
