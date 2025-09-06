@@ -616,7 +616,10 @@ CONF_MAIN_LOOP_STACK_SIZE = "main_loop_stack_size"
 
 # The minimum working stack size for app_main loop task
 # DO NOT LOWER THIS VALUE as it may break the working main loop task on esp-idf platform
+# 32KB / 160 KB heap from 320 KB Data RAM out of total 520 KB SRAM
 MIN_MAIN_LOOP_TASK_STACK_SIZE = 8192
+# 128KB / 160KB heap from 320 KB Data RAM out of total 520 KB SRAM
+MAX_MAIN_LOOP_TASK_STACK_SIZE = 32768
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -676,7 +679,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                     cv.Optional(CONF_MAIN_LOOP_STACK_SIZE, default=8192): cv.int_range(
-                        MIN_MAIN_LOOP_TASK_STACK_SIZE, 1024**6
+                        MIN_MAIN_LOOP_TASK_STACK_SIZE, MAX_MAIN_LOOP_TASK_STACK_SIZE
                     ),
                 }
             ),
