@@ -1,14 +1,8 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32S2
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
 from esphome.core import CORE
-from esphome.const import (
-    CONF_ID,
-)
-from esphome.components.esp32.const import (
-    KEY_ESP32,
-    KEY_VARIANT,
-    VARIANT_ESP32S2,
-)
 
 CODEOWNERS = ["@tomaszduda23"]
 CONF_USB_DEVICE_ID = "usb_device_id"

@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from . import CONF_USB_DEVICE_ID, UsbDevice, CONF_USB_DEVICE
+import esphome.config_validation as cv
+
+from . import CONF_USB_DEVICE, CONF_USB_DEVICE_ID, UsbDevice
 
 AUTO_LOAD = [CONF_USB_DEVICE]
 
