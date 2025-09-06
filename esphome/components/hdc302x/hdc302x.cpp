@@ -16,6 +16,7 @@ static const uint8_t HDC302X_CMD_TRIGGER_MSB = 0x24;
 
 static const uint8_t HDC302X_CMD_HEATER_ENABLE[2] = {0x30, 0x6d};
 static const uint8_t HDC302X_CMD_HEATER_DISABLE[2] = {0x30, 0x66};
+static const uint8_t HDC302X_CMD_HEATER_CONFIGURE[2] = {0x30, 0x6e};
 
 void HDC302XComponent::setup() {
   // Soft reset the device
@@ -65,6 +66,26 @@ bool HDC302XComponent::enable_heater() {
     ESP_LOGE(TAG, "Enable heater failed");
     return false;
   }
+  return true;
+};
+
+bool HDC302XComponent::configure_heater(const uint16_t power_level) {
+  // Heater current level config.
+  uint8_t config[] = {
+      static_cast<uint8_t>((power_level >> 8) & 0xFF),  // MSB
+      static_cast<uint8_t>(power_level & 0xFF)          // LSB
+  };
+
+  // Configure level of heater current (per datasheet 7.5.7.8).
+  uint8_t cmd[] = {
+      HDC302X_CMD_HEATER_CONFIGURE[0],   HDC302X_CMD_HEATER_CONFIGURE[1], config[0], config[1],
+      crc8(config, 2, 0xff, 0x31, true),
+  };
+  if (this->write(cmd, sizeof(cmd)) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Configure heater failed");
+    return false;
+  }
+
   return true;
 };
 

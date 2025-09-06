@@ -14,6 +14,11 @@ enum HDC302XPowerMode : uint8_t {
   ULTRA_LOW_POWER = 0xff,
 };
 
+/* HDC302x heater power configs, per datasheet Table 7-15. */
+static const uint16_t HDC302X_HEATER_POWER_FULL = 0x3fff;
+static const uint16_t HDC302X_HEATER_POWER_HALF = 0x03ff;
+static const uint16_t HDC302X_HEATER_POWER_QUARTER = 0x009f;
+
 /**
  HDC302x Temperature and humidity sensor.
 
@@ -27,6 +32,7 @@ class HDC302XComponent : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
   bool enable_heater();
+  bool configure_heater(const uint16 power_level);
   bool disable_heater();
 
   void set_temp_sensor(sensor::Sensor *temp_sensor) { this->temp_sensor_ = temp_sensor; }
