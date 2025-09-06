@@ -11,8 +11,8 @@ enum Model {
 };
 
 // Temperature
-constexpr float TEMP_MIN_HCRA31NEWH = 16.0f;
-constexpr float TEMP_MAX_HCRA31NEWH = 30.0f;
+constexpr float HITACHI168BIT_HCRA31NEWH_TEMP_MIN = 16.0f;
+constexpr float HITACHI168BIT_HCRA31NEWH_TEMP_MAX = 30.0f;
 
 class Hitachi168bitClimate : public climate_ir::ClimateIR {
  public:
@@ -37,7 +37,7 @@ class Hitachi168bitClimate : public climate_ir::ClimateIR {
   void set_model(Model model) { this->model_ = model; }
 
   // used to track when to send the power toggle command
-  bool powered_on_assumed;
+  bool powered_on_assumed{false};
 
  protected:
   /// Transmit via IR the state of this climate controller.

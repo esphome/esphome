@@ -4,7 +4,7 @@
 namespace esphome {
 namespace hitachi_168bit {
 
-static const char *const TAG = "whirlpool.climate";
+static const char *const TAG = "hitachi_168bit.climate";
 
 const uint16_t HITACHI168BIT_HEADER_MARK = 9000;
 const uint16_t HITACHI168BIT_HEADER_SPACE = 4494;
@@ -32,7 +32,7 @@ const uint8_t HITACHI168BIT_SWING_MASK = 128;  // Not Tested in HITACHI
 
 const uint8_t HITACHI168BIT_POWER = 0x04;
 
-void Htachi168bitClimate::transmit_state() {
+void Hitachi168bitClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
   uint8_t remote_state[HITACHI168BIT_STATE_LENGTH] = {0};
   remote_state[0] = 0x95;
@@ -149,10 +149,10 @@ void Htachi168bitClimate::transmit_state() {
   transmit.perform();
 }
 
-bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
+bool Hitachi168bitClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Check if the esp isn't currently transmitting.
   if (millis() - this->last_transmit_time_ < 500) {
-    ESP_LOGV(TAG, "Blocked receive because of current trasmittion");
+    ESP_LOGV(TAG, "Blocked receive because of current transmission");
     return false;
   }
 
