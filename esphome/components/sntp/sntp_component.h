@@ -26,9 +26,16 @@ class SNTPComponent : public time::RealTimeClock {
   void update() override;
   void loop() override;
 
+  void time_synced();
+
  protected:
   std::vector<std::string> servers_;
   bool has_time_{false};
+
+#if defined(USE_ESP32)
+ private:
+  static SNTPComponent *instance;
+#endif
 };
 
 }  // namespace sntp

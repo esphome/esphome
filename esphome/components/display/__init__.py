@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     SCHEDULER_DONT_RUN,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -176,7 +176,7 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
     DisplayPageShowNextAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
+            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
@@ -190,7 +190,7 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
     DisplayPageShowPrevAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
+            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
@@ -218,7 +218,7 @@ async def display_is_displaying_page_to_code(config, condition_id, template_arg,
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(display_ns.using)
     cg.add_define("USE_DISPLAY")

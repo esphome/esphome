@@ -1059,7 +1059,9 @@ def _generate_array_dump_content(
     # Check if underlying type can use dump_field
     if ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
-        o += f'  dump_field(out, "{name}", {ti.dump_field_value("it")}, 4);\n'
+        # std::vector<bool> iterators return proxy objects, need explicit cast
+        value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
+        o += f'  dump_field(out, "{name}", {value_expr}, 4);\n'
     else:
         # For complex types (messages, bytes), use the old pattern
         o += f'  out.append("  {name}: ");\n'

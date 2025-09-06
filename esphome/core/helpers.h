@@ -155,7 +155,8 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t p
                  bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
-uint32_t fnv1_hash(const std::string &str);
+uint32_t fnv1_hash(const char *str);
+inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
