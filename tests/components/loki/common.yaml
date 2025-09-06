@@ -3,4 +3,4 @@ wifi:
   password: password1
 
 loki:
-  loki_host: http://foo.com
+  url: http://foo.com

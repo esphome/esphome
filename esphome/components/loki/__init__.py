@@ -15,8 +15,7 @@ loki_ns = cg.esphome_ns.namespace("loki")
 Loki = loki_ns.class_("Loki", Component, Parented.template(HttpRequestComponent))
 
 CONF_STRIP = "strip"
-CONF_FACILITY = "facility"
-CONFIG_SCHEMA = HttpRequestComponent.HTTP_REQUEST_POST_ACTION_SCHEMA.extend(
+CONFIG_SCHEMA = HttpRequestComponent.CONFIG_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(Loki),
         cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
