@@ -1,11 +1,6 @@
-i2c:
-  - id: i2c_cap1188
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
+  reset_pin: GPIO15
 
-cap1188:
-  id: cap1188_component
-  address: 0x29
-  reset_pin: 15
-  touch_threshold: 0x20
-  allow_multiple_touches: true
+<<: !include common.yaml

@@ -1,8 +1,6 @@
 #include "cse7766.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
-#include <iomanip>
-#include <sstream>
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace cse7766 {
@@ -10,7 +8,7 @@ namespace cse7766 {
 static const char *const TAG = "cse7766";
 
 void CSE7766Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
     // last transmission too long ago. Reset RX index.
     this->raw_data_index_ = 0;
@@ -43,7 +41,7 @@ bool CSE7766Component::check_byte_() {
   uint8_t index = this->raw_data_index_;
   uint8_t byte = this->raw_data_[index];
   if (index == 0) {
-    return !((byte != 0x55) && ((byte & 0xF0) != 0xF0) && (byte != 0xAA));
+    return (byte == 0x55) || ((byte & 0xF0) == 0xF0) || (byte == 0xAA);
   }
 
   if (index == 1) {
@@ -72,12 +70,8 @@ bool CSE7766Component::check_byte_() {
 void CSE7766Component::parse_data_() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::stringstream ss;
-    ss << "Raw data:" << std::hex << std::uppercase << std::setfill('0');
-    for (uint8_t i = 0; i < 23; i++) {
-      ss << ' ' << std::setw(2) << static_cast<unsigned>(this->raw_data_[i]);
-    }
-    ESP_LOGVV(TAG, "%s", ss.str().c_str());
+    std::string s = format_hex_pretty(this->raw_data_, sizeof(this->raw_data_));
+    ESP_LOGVV(TAG, "Raw data: %s", s.c_str());
   }
 #endif
 
@@ -211,28 +205,22 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::stringstream ss;
-    ss << "Parsed:";
+    std::string buf = "Parsed:";
     if (have_voltage) {
-      ss << " V=" << voltage << "V";
+      buf += str_sprintf(" V=%fV", voltage);
     }
     if (have_current) {
-      ss << " I=" << current * 1000.0f << "mA (~" << calculated_current * 1000.0f << "mA)";
+      buf += str_sprintf(" I=%fmA (~%fmA)", current * 1000.0f, calculated_current * 1000.0f);
     }
     if (have_power) {
-      ss << " P=" << power << "W";
+      buf += str_sprintf(" P=%fW", power);
     }
     if (energy != 0.0f) {
-      ss << " E=" << energy << "kWh (" << cf_pulses << ")";
+      buf += str_sprintf(" E=%fkWh (%u)", energy, cf_pulses);
     }
-    ESP_LOGVV(TAG, "%s", ss.str().c_str());
+    ESP_LOGVV(TAG, "%s", buf.c_str());
   }
 #endif
-}
-
-uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
-  return (uint32_t(this->raw_data_[start_index]) << 16) | (uint32_t(this->raw_data_[start_index + 1]) << 8) |
-         uint32_t(this->raw_data_[start_index + 2]);
 }
 
 void CSE7766Component::dump_config() {

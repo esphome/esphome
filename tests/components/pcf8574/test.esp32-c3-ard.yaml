@@ -1,28 +1,5 @@
-i2c:
-  - id: i2c_pcf8563
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-pcf8574:
-  - id: pcf8574_hub
-    address: 0x21
-    pcf8575: false
-
-binary_sensor:
-  - platform: gpio
-    id: pcf8574_binary_sensor
-    name: PCF Binary Sensor
-    pin:
-      pcf8574: pcf8574_hub
-      number: 1
-      mode: INPUT
-      inverted: true
-
-output:
-  - platform: gpio
-    id: pcf8574_output
-    pin:
-      pcf8574: pcf8574_hub
-      number: 0
-      mode: OUTPUT
-      inverted: false
+<<: !include common.yaml

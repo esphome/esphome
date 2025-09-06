@@ -1,18 +1,6 @@
-i2c:
-  - id: i2c_as3935
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
+  irq_pin: GPIO15
 
-as3935_i2c:
-  irq_pin: 15
-
-binary_sensor:
-  - platform: as3935
-    name: Storm Alert
-
-sensor:
-  - platform: as3935
-    lightning_energy:
-      name: Lightning Energy
-    distance:
-      name: Distance Storm
+<<: !include common.yaml

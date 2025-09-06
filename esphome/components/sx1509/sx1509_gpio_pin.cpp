@@ -1,5 +1,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "sx1509.h"
 #include "sx1509_gpio_pin.h"
 
 namespace esphome {
@@ -13,7 +14,7 @@ bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pi
 void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 std::string SX1509GPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via sx1509", pin_);
+  snprintf(buffer, sizeof(buffer), "%u via sx1509", this->pin_);
   return buffer;
 }
 

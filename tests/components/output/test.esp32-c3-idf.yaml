@@ -1,13 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - output.turn_off: light_output_1
-      - output.turn_on: light_output_1
-      - output.set_level:
-          id: light_output_1
-          level: 50%
+substitutions:
+  output_platform: ledc
+  pin: GPIO1
 
-output:
-  - platform: ledc
-    id: light_output_1
-    pin: 1
+<<: !include common.yaml

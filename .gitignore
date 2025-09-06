@@ -75,6 +75,9 @@ cov.xml
 # pyenv
 .python-version
 
+# asdf
+.tool-versions
+
 # Environments
 .env
 .venv
@@ -140,3 +143,4 @@ sdkconfig.*
 /components
 /managed_components
 
+api-docs/

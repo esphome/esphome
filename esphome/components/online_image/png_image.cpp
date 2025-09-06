@@ -2,7 +2,6 @@
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 
 #include "esphome/components/display/display_buffer.h"
-#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -35,20 +34,49 @@ static void init_callback(pngle_t *pngle, uint32_t w, uint32_t h) {
  * @param h The height of the rectangle to draw.
  * @param rgba The color to paint the rectangle in.
  */
-static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4]) {
+static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t rgba[4]) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
   decoder->draw(x, y, w, h, color);
 }
 
-void PngDecoder::prepare(uint32_t download_size) {
+PngDecoder::PngDecoder(OnlineImage *image) : ImageDecoder(image) {
+  {
+    pngle_t *pngle = this->allocator_.allocate(1, PNGLE_T_SIZE);
+    if (!pngle) {
+      ESP_LOGE(TAG, "Failed to allocate memory for PNGLE engine!");
+      return;
+    }
+    memset(pngle, 0, PNGLE_T_SIZE);
+    pngle_reset(pngle);
+    this->pngle_ = pngle;
+  }
+}
+
+PngDecoder::~PngDecoder() {
+  if (this->pngle_) {
+    pngle_reset(this->pngle_);
+    this->allocator_.deallocate(this->pngle_, PNGLE_T_SIZE);
+  }
+}
+
+int PngDecoder::prepare(size_t download_size) {
   ImageDecoder::prepare(download_size);
+  if (!this->pngle_) {
+    ESP_LOGE(TAG, "PNG decoder engine not initialized!");
+    return DECODE_ERROR_OUT_OF_MEMORY;
+  }
   pngle_set_user_data(this->pngle_, this);
   pngle_set_init_callback(this->pngle_, init_callback);
   pngle_set_draw_callback(this->pngle_, draw_callback);
+  return 0;
 }
 
 int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
+  if (!this->pngle_) {
+    ESP_LOGE(TAG, "PNG decoder engine not initialized!");
+    return DECODE_ERROR_OUT_OF_MEMORY;
+  }
   if (size < 256 && size < this->download_size_ - this->decoded_bytes_) {
     ESP_LOGD(TAG, "Waiting for data");
     return 0;

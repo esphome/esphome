@@ -1,0 +1,47 @@
+esphome:
+  name: scheduler-string-lifetime-test
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [scheduler_string_lifetime_component]
+
+host:
+
+logger:
+  level: DEBUG
+
+scheduler_string_lifetime_component:
+  id: string_lifetime
+
+api:
+  services:
+    - service: run_string_lifetime_test
+      then:
+        - lambda: |-
+            id(string_lifetime)->run_string_lifetime_test();
+    - service: run_test1
+      then:
+        - lambda: |-
+            id(string_lifetime)->run_test1();
+    - service: run_test2
+      then:
+        - lambda: |-
+            id(string_lifetime)->run_test2();
+    - service: run_test3
+      then:
+        - lambda: |-
+            id(string_lifetime)->run_test3();
+    - service: run_test4
+      then:
+        - lambda: |-
+            id(string_lifetime)->run_test4();
+    - service: run_test5
+      then:
+        - lambda: |-
+            id(string_lifetime)->run_test5();
+    - service: run_final_check
+      then:
+        - lambda: |-
+            id(string_lifetime)->run_final_check();

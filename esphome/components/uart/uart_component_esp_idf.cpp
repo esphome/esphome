@@ -1,11 +1,11 @@
 #ifdef USE_ESP_IDF
 
 #include "uart_component_esp_idf.h"
+#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -42,17 +42,13 @@ uart_config_t IDFUARTComponent::get_config_() {
       break;
   }
 
-  uart_config_t uart_config;
+  uart_config_t uart_config{};
   uart_config.baud_rate = this->baud_rate_;
   uart_config.data_bits = data_bits;
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
   uart_config.source_clk = UART_SCLK_DEFAULT;
-#else
-  uart_config.source_clk = UART_SCLK_APB;
-#endif
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
@@ -84,14 +80,12 @@ void IDFUARTComponent::setup() {
   }
 #endif  // USE_LOGGER
 
-  if (next_uart_num >= UART_NUM_MAX) {
-    ESP_LOGW(TAG, "Maximum number of UART components created already.");
+  if (next_uart_num >= SOC_UART_NUM) {
+    ESP_LOGW(TAG, "Maximum number of UART components created already");
     this->mark_failed();
     return;
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
-  ESP_LOGCONFIG(TAG, "Setting up UART %u...", this->uart_num_);
-
   this->lock_ = xSemaphoreCreateMutex();
 
   xSemaphoreTake(this->lock_, portMAX_DELAY);
@@ -162,10 +156,12 @@ void IDFUARTComponent::dump_config() {
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %" PRIu32 " baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
-  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  ESP_LOGCONFIG(TAG,
+                "  Baud Rate: %" PRIu32 " baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u",
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   this->check_logger_conflict();
 }
 
@@ -234,7 +230,7 @@ int IDFUARTComponent::available() {
 }
 
 void IDFUARTComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   xSemaphoreTake(this->lock_, portMAX_DELAY);
   uart_wait_tx_done(this->uart_num_, portMAX_DELAY);
   xSemaphoreGive(this->lock_);

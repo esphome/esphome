@@ -4,56 +4,18 @@ touchscreen:
     display: tft_display
     update_interval: 50ms
     threshold: 1
-    calibration:
-      x_max: 240
-      y_max: 320
 
 font:
   - file: "$component_dir/roboto.ttf"
     id: roboto20
     size: 20
-    extras:
-      - file: '$component_dir/materialdesignicons-webfont.ttf'
-        glyphs: [
-          "\U000F004B",
-          "\U0000f0ed",
-          "\U000F006E",
-          "\U000F012C",
-          "\U000F179B",
-          "\U000F0748",
-          "\U000F1A1B",
-          "\U000F02DC",
-          "\U000F0A02",
-          "\U000F035F",
-          "\U000F0156",
-          "\U000F0C5F",
-          "\U000f0084",
-          "\U000f0091",
-        ]
+
   - file: "$component_dir/helvetica.ttf"
     id: helvetica20
   - file: "$component_dir/roboto.ttf"
     id: roboto10
     size: 10
     bpp: 4
-    extras:
-      - file: '$component_dir/materialdesignicons-webfont.ttf'
-        glyphs: [
-          "\U000F004B",
-          "\U0000f0ed",
-          "\U000F006E",
-          "\U000F012C",
-          "\U000F179B",
-          "\U000F0748",
-          "\U000F1A1B",
-          "\U000F02DC",
-          "\U000F0A02",
-          "\U000F035F",
-          "\U000F0156",
-          "\U000F0C5F",
-          "\U000f0084",
-          "\U000f0091",
-        ]
 
 sensor:
   - platform: lvgl
@@ -62,32 +24,33 @@ sensor:
     widget: lv_arc
   - platform: lvgl
     widget: slider_id
-    name: LVGL Slider
+    name: LVGL Slider Sensor
   - platform: lvgl
     widget: bar_id
     id: lvgl_bar_sensor
-    name: LVGL Bar
+    name: LVGL Bar Sensor
   - platform: lvgl
     widget: spinbox_id
-    name: LVGL Spinbox
+    name: LVGL Spinbox Sensor
 
 number:
   - platform: lvgl
     widget: slider_id
-    name: LVGL Slider
+    name: LVGL Slider Number
     update_on_release: true
+    restore_value: true
   - platform: lvgl
     widget: lv_arc
     id: lvgl_arc_number
-    name: LVGL Arc
+    name: LVGL Arc Number
   - platform: lvgl
     widget: bar_id
     id: lvgl_bar_number
-    name: LVGL Bar
+    name: LVGL Bar Number
   - platform: lvgl
     widget: spinbox_id
     id: lvgl_spinbox_number
-    name: LVGL Spinbox
+    name: LVGL Spinbox Number
 
 light:
   - platform: lvgl
@@ -100,7 +63,7 @@ binary_sensor:
     id: lvgl_pressbutton
     name: Pressbutton
     widget: spin_up
-    publish_initial_state: true
+    trigger_on_initial_state: true
   - platform: lvgl
     name: ButtonMatrix button
     widget: button_a

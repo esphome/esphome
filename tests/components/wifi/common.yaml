@@ -3,6 +3,13 @@ esphome:
     then:
       - wifi.disable
       - wifi.enable
+      - wifi.configure:
+          ssid: MySSID
+          password: password1
+          on_connect:
+            - logger.log: "Connected to WiFi!"
+          on_error:
+            - logger.log: "Failed to connect to WiFi!"
 
 wifi:
   ssid: MySSID

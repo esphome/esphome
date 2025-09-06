@@ -61,7 +61,6 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
 
   void setup() override;
   void loop() override;
-  bool can_proceed() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
@@ -80,7 +79,6 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
   int32_t offset_calibration_;
   bool offset_calibration_failed_ = false;
   bool gain_calibration_failed_ = false;
-  bool setup_complete_ = false;
 
   //
   // Config values

@@ -1,15 +1,6 @@
-uart:
-  - id: uart_kuntze
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO12
+  rx_pin: GPIO14
+  flow_control_pin: GPIO13
 
-modbus:
-  flow_control_pin: 13
-
-sensor:
-  - platform: kuntze
-    ph:
-      name: Kuntze pH
-    temperature:
-      name: Kuntze temperature
+<<: !include common.yaml

@@ -28,7 +28,7 @@ void Sim800LComponent::update() {
       this->state_ = STATE_DIALING1;
     } else if (this->registered_ && this->connect_pending_) {
       this->connect_pending_ = false;
-      ESP_LOGI(TAG, "Connecting...");
+      ESP_LOGI(TAG, "Connecting");
       this->send_cmd_("ATA");
       this->state_ = STATE_ATA_SENT;
     } else if (this->registered_ && this->send_ussd_pending_) {
@@ -36,7 +36,7 @@ void Sim800LComponent::update() {
       this->state_ = STATE_SEND_USSD1;
     } else if (this->registered_ && this->disconnect_pending_) {
       this->disconnect_pending_ = false;
-      ESP_LOGI(TAG, "Disconnecting...");
+      ESP_LOGI(TAG, "Disconnecting");
       this->send_cmd_("ATH");
     } else if (this->registered_ && this->call_state_ != 6) {
       send_cmd_("AT+CLCC");
@@ -324,7 +324,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->sms_received_callback_.call(this->message_, this->sender_);
         this->state_ = STATE_RECEIVED_SMS;
       } else {
-        if (this->message_.length() > 0)
+        if (!this->message_.empty())
           this->message_ += "\n";
         this->message_ += message;
       }

@@ -1,6 +1,7 @@
 #include "modbus.h"
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace modbus {
@@ -13,16 +14,7 @@ void Modbus::setup() {
   }
 }
 void Modbus::loop() {
-  const uint32_t now = millis();
-
-  if (now - this->last_modbus_byte_ > 50) {
-    this->rx_buffer_.clear();
-    this->last_modbus_byte_ = now;
-  }
-  // stop blocking new send commands after send_wait_time_ ms regardless if a response has been received since then
-  if (now - this->last_send_ > send_wait_time_) {
-    waiting_for_response = 0;
-  }
+  const uint32_t now = App.get_loop_component_start_time();
 
   while (this->available()) {
     uint8_t byte;
@@ -30,7 +22,27 @@ void Modbus::loop() {
     if (this->parse_modbus_byte_(byte)) {
       this->last_modbus_byte_ = now;
     } else {
+      size_t at = this->rx_buffer_.size();
+      if (at > 0) {
+        ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse failed", at);
+        this->rx_buffer_.clear();
+      }
+    }
+  }
+
+  if (now - this->last_modbus_byte_ > 50) {
+    size_t at = this->rx_buffer_.size();
+    if (at > 0) {
+      ESP_LOGV(TAG, "Clearing buffer of %d bytes - timeout", at);
       this->rx_buffer_.clear();
+    }
+
+    // stop blocking new send commands after sent_wait_time_ ms after response received
+    if (now - this->last_send_ > send_wait_time_) {
+      if (waiting_for_response > 0) {
+        ESP_LOGV(TAG, "Stop waiting for response from %d", waiting_for_response);
+      }
+      waiting_for_response = 0;
     }
   }
 }
@@ -39,7 +51,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
   const uint8_t *raw = &this->rx_buffer_[0];
-  ESP_LOGV(TAG, "Modbus received Byte  %d (0X%x)", byte, byte);
+  ESP_LOGVV(TAG, "Modbus received Byte  %d (0X%x)", byte, byte);
   // Byte 0: modbus address (match all)
   if (at == 0)
     return true;
@@ -78,15 +90,24 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
-    if (this->role == ModbusRole::SERVER && (function_code == 0x3 || function_code == 0x4)) {
-      data_offset = 2;
-      data_len = 4;
-    }
-
-    // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
-    if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
-      data_offset = 2;
-      data_len = 4;
+    if (this->role == ModbusRole::SERVER) {
+      if (function_code == 0x1 || function_code == 0x3 || function_code == 0x4 || function_code == 0x6) {
+        data_offset = 2;
+        data_len = 4;
+      } else if (function_code == 0x10) {
+        if (at < 6) {
+          return true;
+        }
+        data_offset = 2;
+        // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
+        data_len = 2 + 2 + 1 + raw[6];
+      }
+    } else {
+      // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
+      if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
+        data_offset = 2;
+        data_len = 4;
+      }
     }
 
     // Error ( msb indicates error )
@@ -120,6 +141,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   bool found = false;
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
+      found = true;
       // Is it an error response?
       if ((function_code & 0x80) == 0x80) {
         ESP_LOGD(TAG, "Modbus error function code: 0x%X exception: %d", function_code, raw[2]);
@@ -129,13 +151,21 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
           // Ignore modbus exception not related to a pending command
           ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response");
         }
-      } else if (this->role == ModbusRole::SERVER && (function_code == 0x3 || function_code == 0x4)) {
-        device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
-                                         uint16_t(data[3]) | (uint16_t(data[2]) << 8));
-      } else {
-        device->on_modbus_data(data);
+        continue;
       }
-      found = true;
+      if (this->role == ModbusRole::SERVER) {
+        if (function_code == 0x3 || function_code == 0x4) {
+          device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
+                                           uint16_t(data[3]) | (uint16_t(data[2]) << 8));
+          continue;
+        }
+        if (function_code == 0x6 || function_code == 0x10) {
+          device->on_modbus_write_registers(function_code, data);
+          continue;
+        }
+      }
+      // fallthrough for other function codes
+      device->on_modbus_data(data);
     }
   }
   waiting_for_response = 0;
@@ -144,15 +174,19 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     ESP_LOGW(TAG, "Got Modbus frame from unknown address 0x%02X! ", address);
   }
 
-  // return false to reset buffer
-  return false;
+  // reset buffer
+  ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse succeeded", at);
+  this->rx_buffer_.clear();
+  return true;
 }
 
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
-  ESP_LOGCONFIG(TAG, "  Send Wait Time: %d ms", this->send_wait_time_);
-  ESP_LOGCONFIG(TAG, "  CRC Disabled: %s", YESNO(this->disable_crc_));
+  ESP_LOGCONFIG(TAG,
+                "  Send Wait Time: %d ms\n"
+                "  CRC Disabled: %s",
+                this->send_wait_time_, YESNO(this->disable_crc_));
 }
 float Modbus::get_setup_priority() const {
   // After UART bus

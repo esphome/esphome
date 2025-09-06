@@ -6,8 +6,8 @@ namespace esphome {
 namespace animation {
 
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count,
-                     image::ImageType type)
-    : Image(data_start, width, height, type),
+                     image::ImageType type, image::Transparency transparent)
+    : Image(data_start, width, height, type, transparent),
       animation_data_start_(data_start),
       current_frame_(0),
       animation_frame_count_(animation_frame_count),
@@ -62,7 +62,7 @@ void Animation::set_frame(int frame) {
 }
 
 void Animation::update_data_start_() {
-  const uint32_t image_size = image_type_to_width_stride(this->width_, this->type_) * this->height_;
+  const uint32_t image_size = this->get_width_stride() * this->height_;
   this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 

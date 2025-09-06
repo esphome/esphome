@@ -8,6 +8,7 @@ namespace internal_temperature {
 
 class InternalTemperatureSensor : public sensor::Sensor, public PollingComponent {
  public:
+  void setup() override;
   void dump_config() override;
 
   void update() override;

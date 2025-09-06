@@ -59,6 +59,9 @@ class Sun {
   void set_latitude(double latitude) { location_.latitude = latitude; }
   void set_longitude(double longitude) { location_.longitude = longitude; }
 
+  // Check if the sun is above the horizon, with a default elevation angle of -0.83333 (standard for sunrise/set).
+  bool is_above_horizon(double elevation = -0.83333) { return this->elevation() > elevation; }
+
   optional<ESPTime> sunrise(double elevation);
   optional<ESPTime> sunset(double elevation);
   optional<ESPTime> sunrise(ESPTime date, double elevation);

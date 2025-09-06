@@ -1,23 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - grove_tb6612fng.run:
-          channel: 1
-          speed: 255
-          direction: BACKWARD
-          id: test_motor
-      - grove_tb6612fng.stop:
-          channel: 1
-          id: test_motor
-      - grove_tb6612fng.break:
-          channel: 1
-          id: test_motor
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-i2c:
-  - id: i2c_grove_tb6612fng
-    scl: 16
-    sda: 17
-
-grove_tb6612fng:
-  id: test_motor
-  address: 0x14
+<<: !include common.yaml

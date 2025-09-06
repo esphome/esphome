@@ -16,7 +16,6 @@ class XiaomiHHCCJCY10 : public Component, public esp32_ble_tracker::ESPBTDeviceL
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
   void set_moisture(sensor::Sensor *moisture) { this->moisture_ = moisture; }
   void set_conductivity(sensor::Sensor *conductivity) { this->conductivity_ = conductivity; }

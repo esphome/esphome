@@ -24,6 +24,7 @@ class RpiDpiRgb : public display::Display {
   void update() override { this->do_update_(); }
   void setup() override;
   void loop() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void draw_pixel_at(int x, int y, Color color) override;
@@ -44,8 +45,8 @@ class RpiDpiRgb : public display::Display {
     this->width_ = width;
     this->height_ = height;
   }
-  int get_width() override { return this->width_; }
-  int get_height() override { return this->height_; }
+  int get_width() override;
+  int get_height() override;
   void set_hsync_back_porch(uint16_t hsync_back_porch) { this->hsync_back_porch_ = hsync_back_porch; }
   void set_hsync_front_porch(uint16_t hsync_front_porch) { this->hsync_front_porch_ = hsync_front_porch; }
   void set_hsync_pulse_width(uint16_t hsync_pulse_width) { this->hsync_pulse_width_ = hsync_pulse_width; }

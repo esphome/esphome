@@ -1,14 +1,5 @@
-uart:
-  - id: uart_mhz19
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-sensor:
-  - platform: mhz19
-    co2:
-      name: MH-Z19 CO2 Value
-    temperature:
-      name: MH-Z19 Temperature
-    automatic_baseline_calibration: false
-    update_interval: 15s
+<<: !include common.yaml

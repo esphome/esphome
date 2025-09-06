@@ -53,14 +53,10 @@ class Touchscreen : public PollingComponent {
   void set_swap_xy(bool swap) { this->swap_x_y_ = swap; }
 
   void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
-    this->x_raw_min_ = std::min(x_min, x_max);
-    this->x_raw_max_ = std::max(x_min, x_max);
-    this->y_raw_min_ = std::min(y_min, y_max);
-    this->y_raw_max_ = std::max(y_min, y_max);
-    if (x_min > x_max)
-      this->invert_x_ = true;
-    if (y_min > y_max)
-      this->invert_y_ = true;
+    this->x_raw_min_ = x_min;
+    this->x_raw_max_ = x_max;
+    this->y_raw_min_ = y_min;
+    this->y_raw_max_ = y_max;
   }
 
   Trigger<TouchPoint, const TouchPoints_t &> *get_touch_trigger() { return &this->touch_trigger_; }

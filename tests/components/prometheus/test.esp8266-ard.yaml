@@ -1,1 +1,5 @@
+substitutions:
+  verify_ssl: "false"
+  pin: GPIO5
+
 <<: !include common.yaml

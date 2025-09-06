@@ -8,10 +8,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-#ifdef USE_ESP32
-#include <driver/rmt.h>
-#endif
-
 namespace esphome {
 namespace remote_base {
 
@@ -54,11 +50,14 @@ class RemoteReceiveData {
   uint32_t get_index() const { return index_; }
   int32_t operator[](uint32_t index) const { return this->data_[index]; }
   int32_t size() const { return this->data_.size(); }
-  bool is_valid(uint32_t offset) const { return this->index_ + offset < this->data_.size(); }
+  bool is_valid(uint32_t offset = 0) const { return this->index_ + offset < this->data_.size(); }
   int32_t peek(uint32_t offset = 0) const { return this->data_[this->index_ + offset]; }
   bool peek_mark(uint32_t length, uint32_t offset = 0) const;
+  bool peek_mark_at_least(uint32_t length, uint32_t offset = 0) const;
+  bool peek_mark_at_most(uint32_t length, uint32_t offset = 0) const;
   bool peek_space(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
+  bool peek_space_at_most(uint32_t length, uint32_t offset = 0) const;
   bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
     return this->peek_space(space, offset + 1) && this->peek_mark(mark, offset);
   }
@@ -112,25 +111,21 @@ class RemoteComponentBase {
 #ifdef USE_ESP32
 class RemoteRMTChannel {
  public:
-  explicit RemoteRMTChannel(uint8_t mem_block_num = 1);
-  explicit RemoteRMTChannel(rmt_channel_t channel, uint8_t mem_block_num = 1);
-
-  void config_rmt(rmt_config_t &rmt);
-  void set_clock_divider(uint8_t clock_divider) { this->clock_divider_ = clock_divider; }
+  void set_clock_resolution(uint32_t clock_resolution) { this->clock_resolution_ = clock_resolution; }
+  void set_rmt_symbols(uint32_t rmt_symbols) { this->rmt_symbols_ = rmt_symbols; }
 
  protected:
   uint32_t from_microseconds_(uint32_t us) {
-    const uint32_t ticks_per_ten_us = 80000000u / this->clock_divider_ / 100000u;
+    const uint32_t ticks_per_ten_us = this->clock_resolution_ / 100000u;
     return us * ticks_per_ten_us / 10;
   }
   uint32_t to_microseconds_(uint32_t ticks) {
-    const uint32_t ticks_per_ten_us = 80000000u / this->clock_divider_ / 100000u;
+    const uint32_t ticks_per_ten_us = this->clock_resolution_ / 100000u;
     return (ticks * 10) / ticks_per_ten_us;
   }
   RemoteComponentBase *remote_base_;
-  rmt_channel_t channel_{RMT_CHANNEL_0};
-  uint8_t mem_block_num_;
-  uint8_t clock_divider_{80};
+  uint32_t clock_resolution_{1000000};
+  uint32_t rmt_symbols_;
 };
 #endif
 

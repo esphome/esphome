@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -7,8 +8,9 @@ from esphome.const import (
     CONF_OTA,
     CONF_PLATFORM,
     CONF_TRIGGER_ID,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["md5", "safe_mode"]
@@ -80,7 +82,7 @@ BASE_OTA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(54.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     cg.add_define("USE_OTA")
 
@@ -92,6 +94,7 @@ async def to_code(config):
 
 
 async def ota_to_code(var, config):
+    await cg.past_safe_mode()
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -119,3 +122,18 @@ async def ota_to_code(var, config):
         use_state_callback = True
     if use_state_callback:
         cg.add_define("USE_OTA_STATE_CALLBACK")
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "ota_backend_arduino_esp32.cpp": {PlatformFramework.ESP32_ARDUINO},
+        "ota_backend_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "ota_backend_arduino_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ota_backend_arduino_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

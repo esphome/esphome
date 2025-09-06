@@ -1,5 +1,6 @@
 #include "nfc.h"
 #include <cstdio>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -7,29 +8,9 @@ namespace nfc {
 
 static const char *const TAG = "nfc";
 
-std::string format_uid(std::vector<uint8_t> &uid) {
-  char buf[(uid.size() * 2) + uid.size() - 1];
-  int offset = 0;
-  for (size_t i = 0; i < uid.size(); i++) {
-    const char *format = "%02X";
-    if (i + 1 < uid.size())
-      format = "%02X-";
-    offset += sprintf(buf + offset, format, uid[i]);
-  }
-  return std::string(buf);
-}
+std::string format_uid(const std::vector<uint8_t> &uid) { return format_hex_pretty(uid, '-', false); }
 
-std::string format_bytes(std::vector<uint8_t> &bytes) {
-  char buf[(bytes.size() * 2) + bytes.size() - 1];
-  int offset = 0;
-  for (size_t i = 0; i < bytes.size(); i++) {
-    const char *format = "%02X";
-    if (i + 1 < bytes.size())
-      format = "%02X ";
-    offset += sprintf(buf + offset, format, bytes[i]);
-  }
-  return std::string(buf);
-}
+std::string format_bytes(const std::vector<uint8_t> &bytes) { return format_hex_pretty(bytes, ' ', false); }
 
 uint8_t guess_tag_type(uint8_t uid_length) {
   if (uid_length == 4) {

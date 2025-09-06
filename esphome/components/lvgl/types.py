@@ -40,6 +40,7 @@ void_ptr = cg.void.operator("ptr")
 lv_coord_t = cg.global_ns.namespace("lv_coord_t")
 lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
+lv_key_t = cg.global_ns.enum("lv_key_t")
 FontEngine = lvgl_ns.class_("FontEngine")
 IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
 PauseTrigger = lvgl_ns.class_("PauseTrigger", automation.Trigger.template())
@@ -160,7 +161,7 @@ class WidgetType:
         """
         return []
 
-    def obj_creator(self, parent: MockObjClass, config: dict):
+    async def obj_creator(self, parent: MockObjClass, config: dict):
         """
         Create an instance of the widget type
         :param parent: The parent to which it should be attached
@@ -191,7 +192,7 @@ class WidgetType:
 
 class NumberType(WidgetType):
     def get_max(self, config: dict):
-        return int(config[CONF_MAX_VALUE] or 100)
+        return int(config.get(CONF_MAX_VALUE, 100))
 
     def get_min(self, config: dict):
-        return int(config[CONF_MIN_VALUE] or 0)
+        return int(config.get(CONF_MIN_VALUE, 0))

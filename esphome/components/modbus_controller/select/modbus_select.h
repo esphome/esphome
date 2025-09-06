@@ -42,12 +42,12 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   void control(const std::string &value) override;
 
  protected:
-  std::vector<int64_t> mapping_;
-  ModbusController *parent_;
+  std::vector<int64_t> mapping_{};
+  ModbusController *parent_{nullptr};
   bool use_write_multiple_{false};
   bool optimistic_{false};
-  optional<transform_func_t> transform_func_;
-  optional<write_transform_func_t> write_transform_func_;
+  optional<transform_func_t> transform_func_{nullopt};
+  optional<write_transform_func_t> write_transform_func_{nullopt};
 };
 
 }  // namespace modbus_controller

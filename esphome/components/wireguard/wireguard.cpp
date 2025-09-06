@@ -8,6 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/time.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/helpers.h"
 
 #include <esp_wireguard.h>
 #include <esp_wireguard_err.h>
@@ -21,14 +22,12 @@ static const char *const TAG = "wireguard";
  * Cannot use `static const char*` for LOGMSG_PEER_STATUS on esp8266 platform
  * because log messages in `Wireguard::update()` method fail.
  */
-#define LOGMSG_PEER_STATUS "WireGuard remote peer is %s (latest handshake %s)"
+#define LOGMSG_PEER_STATUS "Remote peer is %s (latest handshake %s)"
 
 static const char *const LOGMSG_ONLINE = "online";
 static const char *const LOGMSG_OFFLINE = "offline";
 
 void Wireguard::setup() {
-  ESP_LOGD(TAG, "initializing WireGuard...");
-
   this->wg_config_.address = this->address_.c_str();
   this->wg_config_.private_key = this->private_key_.c_str();
   this->wg_config_.endpoint = this->peer_endpoint_.c_str();
@@ -37,15 +36,18 @@ void Wireguard::setup() {
   this->wg_config_.netmask = this->netmask_.c_str();
   this->wg_config_.persistent_keepalive = this->keepalive_;
 
-  if (this->preshared_key_.length() > 0)
+  if (!this->preshared_key_.empty())
     this->wg_config_.preshared_key = this->preshared_key_.c_str();
 
   this->publish_enabled_state();
 
-  this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
+  {
+    LwIPLock lock;
+    this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
+  }
 
   if (this->wg_initialized_ == ESP_OK) {
-    ESP_LOGI(TAG, "WireGuard initialized");
+    ESP_LOGI(TAG, "Initialized");
     this->wg_peer_offline_time_ = millis();
     this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
     this->defer(std::bind(&Wireguard::start_connection_, this));  // defer to avoid blocking setup
@@ -56,7 +58,7 @@ void Wireguard::setup() {
     }
 #endif
   } else {
-    ESP_LOGE(TAG, "cannot initialize WireGuard, error code %d", this->wg_initialized_);
+    ESP_LOGE(TAG, "Cannot initialize: error code %d", this->wg_initialized_);
     this->mark_failed();
   }
 }
@@ -67,7 +69,7 @@ void Wireguard::loop() {
   }
 
   if ((this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) && (!network::is_connected())) {
-    ESP_LOGV(TAG, "local network connection has been lost, stopping WireGuard...");
+    ESP_LOGV(TAG, "Local network connection has been lost, stopping");
     this->stop_connection_();
   }
 }
@@ -109,7 +111,7 @@ void Wireguard::update() {
     // check reboot timeout every time the peer is down
     if (this->enabled_ && this->reboot_timeout_ > 0) {
       if (millis() - this->wg_peer_offline_time_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "WireGuard remote peer is unreachable, rebooting...");
+        ESP_LOGE(TAG, "Remote peer is unreachable; rebooting");
         App.reboot();
       }
     }
@@ -137,7 +139,7 @@ void Wireguard::dump_config() {
   ESP_LOGCONFIG(TAG, "  Peer Port: " LOG_SECRET("%d"), this->peer_port_);
   ESP_LOGCONFIG(TAG, "  Peer Public Key: " LOG_SECRET("%s"), this->peer_public_key_.c_str());
   ESP_LOGCONFIG(TAG, "  Peer Pre-shared Key: " LOG_SECRET("%s"),
-                (this->preshared_key_.length() > 0 ? mask_key(this->preshared_key_).c_str() : "NOT IN USE"));
+                (!this->preshared_key_.empty() ? mask_key(this->preshared_key_).c_str() : "NOT IN USE"));
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
   for (auto &allowed_ip : this->allowed_ips_) {
     ESP_LOGCONFIG(TAG, "    - %s/%s", std::get<0>(allowed_ip).c_str(), std::get<1>(allowed_ip).c_str());
@@ -201,14 +203,14 @@ void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
 void Wireguard::enable() {
   this->enabled_ = true;
-  ESP_LOGI(TAG, "WireGuard enabled");
+  ESP_LOGI(TAG, "Enabled");
   this->publish_enabled_state();
 }
 
 void Wireguard::disable() {
   this->enabled_ = false;
   this->defer(std::bind(&Wireguard::stop_connection_, this));  // defer to avoid blocking running loop
-  ESP_LOGI(TAG, "WireGuard disabled");
+  ESP_LOGI(TAG, "Disabled");
   this->publish_enabled_state();
 }
 
@@ -224,44 +226,47 @@ bool Wireguard::is_enabled() { return this->enabled_; }
 
 void Wireguard::start_connection_() {
   if (!this->enabled_) {
-    ESP_LOGV(TAG, "WireGuard is disabled, cannot start connection");
+    ESP_LOGV(TAG, "Disabled, cannot start connection");
     return;
   }
 
   if (this->wg_initialized_ != ESP_OK) {
-    ESP_LOGE(TAG, "cannot start WireGuard, initialization in error with code %d", this->wg_initialized_);
+    ESP_LOGE(TAG, "Cannot start: error code %d", this->wg_initialized_);
     return;
   }
 
   if (!network::is_connected()) {
-    ESP_LOGD(TAG, "WireGuard is waiting for local network connection to be available");
+    ESP_LOGD(TAG, "Waiting for local network connection to be available");
     return;
   }
 
   if (!this->srctime_->now().is_valid()) {
-    ESP_LOGD(TAG, "WireGuard is waiting for system time to be synchronized");
+    ESP_LOGD(TAG, "Waiting for system time to be synchronized");
     return;
   }
 
   if (this->wg_connected_ == ESP_OK) {
-    ESP_LOGV(TAG, "WireGuard connection already started");
+    ESP_LOGV(TAG, "Connection already started");
     return;
   }
 
-  ESP_LOGD(TAG, "starting WireGuard connection...");
-  this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
+  ESP_LOGD(TAG, "Starting connection");
+  {
+    LwIPLock lock;
+    this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
+  }
 
   if (this->wg_connected_ == ESP_OK) {
-    ESP_LOGI(TAG, "WireGuard connection started");
+    ESP_LOGI(TAG, "Connection started");
   } else if (this->wg_connected_ == ESP_ERR_RETRY) {
-    ESP_LOGD(TAG, "WireGuard is waiting for endpoint IP address to be available");
+    ESP_LOGD(TAG, "Waiting for endpoint IP address to be available");
     return;
   } else {
-    ESP_LOGW(TAG, "cannot start WireGuard connection, error code %d", this->wg_connected_);
+    ESP_LOGW(TAG, "Cannot start connection, error code %d", this->wg_connected_);
     return;
   }
 
-  ESP_LOGD(TAG, "configuring WireGuard allowed IPs list...");
+  ESP_LOGD(TAG, "Configuring allowed IPs list");
   bool allowed_ips_ok = true;
   for (std::tuple<std::string, std::string> ip : this->allowed_ips_) {
     allowed_ips_ok &=
@@ -269,9 +274,9 @@ void Wireguard::start_connection_() {
   }
 
   if (allowed_ips_ok) {
-    ESP_LOGD(TAG, "allowed IPs list configured correctly");
+    ESP_LOGD(TAG, "Allowed IPs list configured correctly");
   } else {
-    ESP_LOGE(TAG, "cannot configure WireGuard allowed IPs list, aborting...");
+    ESP_LOGE(TAG, "Cannot configure allowed IPs list, aborting");
     this->stop_connection_();
     this->mark_failed();
   }
@@ -279,8 +284,11 @@ void Wireguard::start_connection_() {
 
 void Wireguard::stop_connection_() {
   if (this->wg_initialized_ == ESP_OK && this->wg_connected_ == ESP_OK) {
-    ESP_LOGD(TAG, "stopping WireGuard connection...");
-    esp_wireguard_disconnect(&(this->wg_ctx_));
+    ESP_LOGD(TAG, "Stopping connection");
+    {
+      LwIPLock lock;
+      esp_wireguard_disconnect(&(this->wg_ctx_));
+    }
     this->wg_connected_ = ESP_FAIL;
   }
 }

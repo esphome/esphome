@@ -1,0 +1,10 @@
+i2c:
+  - id: i2c_bh1750
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: bh1750
+    name: Living Room Brightness
+    address: 0x23
+    update_interval: 30s

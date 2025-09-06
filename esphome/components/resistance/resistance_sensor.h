@@ -1,8 +1,7 @@
 #pragma once
 
-#include "esphome/components/resistance_sampler/resistance_sampler.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
 namespace resistance {
@@ -12,7 +11,7 @@ enum ResistanceConfiguration {
   DOWNSTREAM,
 };
 
-class ResistanceSensor : public Component, public sensor::Sensor, resistance_sampler::ResistanceSampler {
+class ResistanceSensor : public Component, public sensor::Sensor {
  public:
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_configuration(ResistanceConfiguration configuration) { configuration_ = configuration; }
@@ -25,7 +24,6 @@ class ResistanceSensor : public Component, public sensor::Sensor, resistance_sam
       this->process_(this->sensor_->state);
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void process_(float value);

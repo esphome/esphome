@@ -138,8 +138,6 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-#define PI 3.1415926535897932384626433832795
-
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -182,9 +180,11 @@ using display_writer_t = std::function<void(Display &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
+    ESP_LOGCONFIG(TAG, \
+                  prefix type "\n" \
+                              "%s  Rotations: %d °\n" \
+                              "%s  Dimensions: %dpx x %dpx", \
+                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 /// Turn the pixel OFF.
@@ -436,6 +436,20 @@ class Display : public PollingComponent {
    * @param ... The arguments to use for the text formatting.
    */
   void printf(int x, int y, BaseFont *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
+
+  /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
+   * @param background The background color to draw the text with.
+   * @param align The alignment of the text.
+   * @param format The format to use.
+   * @param ... The arguments to use for the text formatting.
+   */
+  void strftime(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                ESPTime time) __attribute__((format(strftime, 8, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *

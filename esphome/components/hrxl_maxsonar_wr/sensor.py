@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 from esphome.const import (
+    ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
-    ICON_ARROW_EXPAND_VERTICAL,
 )
 
 CODEOWNERS = ["@netmikey"]

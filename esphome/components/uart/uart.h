@@ -40,7 +40,7 @@ class UARTDevice {
 
   int available() { return this->parent_->available(); }
 
-  void flush() { return this->parent_->flush(); }
+  void flush() { this->parent_->flush(); }
 
   // Compat APIs
   int read() {

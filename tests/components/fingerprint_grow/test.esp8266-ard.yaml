@@ -1,56 +1,6 @@
-esphome:
-  on_boot:
-    then:
-      - fingerprint_grow.enroll:
-          finger_id: 2
-          num_scans: 2
-      - fingerprint_grow.cancel_enroll:
-      - fingerprint_grow.delete:
-          finger_id: 2
-      - fingerprint_grow.delete_all:
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
+  sensing_pin: GPIO15
 
-uart:
-  - id: uart_fingerprint_grow
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 57600
-
-fingerprint_grow:
-  sensing_pin: 16
-  password: 0x12FE37DC
-  new_password: 0xA65B9840
-  on_finger_scan_start:
-    - logger.log: test_fingerprint_grow_finger_scan_start
-  on_finger_scan_invalid:
-    - logger.log: test_fingerprint_grow_finger_scan_invalid
-  on_finger_scan_matched:
-    - logger.log: test_fingerprint_grow_finger_scan_matched
-  on_finger_scan_unmatched:
-    - logger.log: test_fingerprint_grow_finger_scan_unmatched
-  on_finger_scan_misplaced:
-    - logger.log: test_fingerprint_grow_finger_scan_misplaced
-  on_enrollment_scan:
-    - logger.log: test_fingerprint_grow_enrollment_scan
-  on_enrollment_done:
-    - logger.log: test_fingerprint_grow_node_enrollment_done
-  on_enrollment_failed:
-    - logger.log: test_fingerprint_grow_enrollment_failed
-
-binary_sensor:
-  - platform: fingerprint_grow
-    name: Fingerprint Enrolling
-
-sensor:
-  - platform: fingerprint_grow
-    fingerprint_count:
-      name: Fingerprint Count
-    status:
-      name: Fingerprint Status
-    capacity:
-      name: Fingerprint Capacity
-    security_level:
-      name: Fingerprint Security Level
-    last_finger_id:
-      name: Fingerprint Last Finger ID
-    last_confidence:
-      name: Fingerprint Last Confidence
+<<: !include common.yaml

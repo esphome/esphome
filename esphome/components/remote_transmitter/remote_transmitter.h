@@ -5,6 +5,10 @@
 
 #include <vector>
 
+#if defined(USE_ESP32)
+#include <driver/rmt_tx.h>
+#endif
+
 namespace esphome {
 namespace remote_transmitter {
 
@@ -16,22 +20,22 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 #endif
 {
  public:
-#ifdef USE_ESP32
-  RemoteTransmitterComponent(InternalGPIOPin *pin, uint8_t mem_block_num = 1)
-      : remote_base::RemoteTransmitterBase(pin), remote_base::RemoteRMTChannel(mem_block_num) {}
-
-  RemoteTransmitterComponent(InternalGPIOPin *pin, rmt_channel_t channel, uint8_t mem_block_num = 1)
-      : remote_base::RemoteTransmitterBase(pin), remote_base::RemoteRMTChannel(channel, mem_block_num) {}
-#else
   explicit RemoteTransmitterComponent(InternalGPIOPin *pin) : remote_base::RemoteTransmitterBase(pin) {}
-#endif
   void setup() override;
 
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
+  // transmitter setup must run after receiver setup to allow the same GPIO to be used by both
+  float get_setup_priority() const override { return setup_priority::DATA - 1; }
 
   void set_carrier_duty_percent(uint8_t carrier_duty_percent) { this->carrier_duty_percent_ = carrier_duty_percent; }
+
+  void digital_write(bool value);
+
+#if defined(USE_ESP32)
+  void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
+  void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
+#endif
 
   Trigger<> *get_transmit_trigger() const { return this->transmit_trigger_; };
   Trigger<> *get_complete_trigger() const { return this->complete_trigger_; };
@@ -54,7 +58,11 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
   uint32_t current_carrier_frequency_{38000};
   bool initialized_{false};
-  std::vector<rmt_item32_t> rmt_temp_;
+  std::vector<rmt_symbol_word_t> rmt_temp_;
+  bool with_dma_{false};
+  bool eot_level_{false};
+  rmt_channel_handle_t channel_{NULL};
+  rmt_encoder_handle_t encoder_{NULL};
   esp_err_t error_code_{ESP_OK};
   std::string error_string_{""};
   bool inverted_{false};

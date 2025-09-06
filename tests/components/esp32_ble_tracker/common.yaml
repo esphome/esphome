@@ -39,3 +39,10 @@ esp32_ble_tracker:
     - then:
         - lambda: |-
              ESP_LOGD("ble_auto", "The scan has ended!");
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome

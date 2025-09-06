@@ -1,15 +1,11 @@
 name: Build Image
 inputs:
-  platform:
-    description: "Platform to build for"
-    required: true
-    example: "linux/amd64"
   target:
     description: "Target to build"
     required: true
     example: "docker"
-  baseimg:
-    description: "Base image type"
+  build_type:
+    description: "Build type"
     required: true
     example: "docker"
   suffix:
@@ -19,6 +15,11 @@ inputs:
     description: "Version to build"
     required: true
     example: "2023.12.0"
+  base_os:
+    description: "Base OS to use"
+    required: false
+    default: "debian"
+    example: "debian"
 runs:
   using: "composite"
   steps:
@@ -46,52 +47,52 @@ runs:
 
     - name: Build and push to ghcr by digest
       id: build-ghcr
-      uses: docker/build-push-action@v6.9.0
+      uses: docker/build-push-action@v6.18.0
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false
       with:
         context: .
         file: ./docker/Dockerfile
-        platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
         cache-from: type=gha
         cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
-          BASEIMGTYPE=${{ inputs.baseimg }}
+          BUILD_TYPE=${{ inputs.build_type }}
           BUILD_VERSION=${{ inputs.version }}
+          BUILD_OS=${{ inputs.base_os }}
         outputs: |
           type=image,name=ghcr.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
     - name: Export ghcr digests
       shell: bash
       run: |
-        mkdir -p /tmp/digests/${{ inputs.target }}/ghcr
+        mkdir -p /tmp/digests/${{ inputs.build_type }}/ghcr
         digest="${{ steps.build-ghcr.outputs.digest }}"
-        touch "/tmp/digests/${{ inputs.target }}/ghcr/${digest#sha256:}"
+        touch "/tmp/digests/${{ inputs.build_type }}/ghcr/${digest#sha256:}"
 
     - name: Build and push to dockerhub by digest
       id: build-dockerhub
-      uses: docker/build-push-action@v6.9.0
+      uses: docker/build-push-action@v6.18.0
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false
       with:
         context: .
         file: ./docker/Dockerfile
-        platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
         cache-from: type=gha
         cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
-          BASEIMGTYPE=${{ inputs.baseimg }}
+          BUILD_TYPE=${{ inputs.build_type }}
           BUILD_VERSION=${{ inputs.version }}
+          BUILD_OS=${{ inputs.base_os }}
         outputs: |
           type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
     - name: Export dockerhub digests
       shell: bash
       run: |
-        mkdir -p /tmp/digests/${{ inputs.target }}/dockerhub
+        mkdir -p /tmp/digests/${{ inputs.build_type }}/dockerhub
         digest="${{ steps.build-dockerhub.outputs.digest }}"
-        touch "/tmp/digests/${{ inputs.target }}/dockerhub/${digest#sha256:}"
+        touch "/tmp/digests/${{ inputs.build_type }}/dockerhub/${digest#sha256:}"

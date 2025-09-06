@@ -125,6 +125,10 @@ class LambdaLightEffect : public LightEffect {
     }
   }
 
+  /// Get the current effect index for use in lambda functions.
+  /// This can be useful for lambda effects that need to know their own index.
+  uint32_t get_current_index() const { return this->get_index(); }
+
  protected:
   std::function<void(bool initial_run)> f_;
   uint32_t update_interval_;
@@ -142,6 +146,10 @@ class AutomationLightEffect : public LightEffect {
     }
   }
   Trigger<> *get_trig() const { return trig_; }
+
+  /// Get the current effect index for use in automations.
+  /// Useful for automations that need to know which effect is running.
+  uint32_t get_current_index() const { return this->get_index(); }
 
  protected:
   Trigger<> *trig_{new Trigger<>};

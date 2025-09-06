@@ -101,8 +101,6 @@ void ShellyDimmer::setup() {
   this->pin_nrst_->setup();
   this->pin_boot0_->setup();
 
-  ESP_LOGI(TAG, "Initializing Shelly Dimmer...");
-
   this->handle_firmware();
 
   this->send_settings_();
@@ -119,17 +117,21 @@ void ShellyDimmer::dump_config() {
   LOG_PIN("  NRST Pin: ", this->pin_nrst_);
   LOG_PIN("  BOOT0 Pin: ", this->pin_boot0_);
 
-  ESP_LOGCONFIG(TAG, "  Leading Edge: %s", YESNO(this->leading_edge_));
-  ESP_LOGCONFIG(TAG, "  Warmup Brightness: %d", this->warmup_brightness_);
+  ESP_LOGCONFIG(TAG,
+                "  Leading Edge: %s\n"
+                "  Warmup Brightness: %d\n"
+                "  Minimum Brightness: %d\n"
+                "  Maximum Brightness: %d",
+                YESNO(this->leading_edge_), this->warmup_brightness_, this->min_brightness_, this->max_brightness_);
   // ESP_LOGCONFIG(TAG, "  Warmup Time: %d", this->warmup_time_);
   // ESP_LOGCONFIG(TAG, "  Fade Rate: %d", this->fade_rate_);
-  ESP_LOGCONFIG(TAG, "  Minimum Brightness: %d", this->min_brightness_);
-  ESP_LOGCONFIG(TAG, "  Maximum Brightness: %d", this->max_brightness_);
 
   LOG_UPDATE_INTERVAL(this);
 
-  ESP_LOGCONFIG(TAG, "  STM32 current firmware version: %d.%d ", this->version_major_, this->version_minor_);
-  ESP_LOGCONFIG(TAG, "  STM32 required firmware version: %d.%d", USE_SHD_FIRMWARE_MAJOR_VERSION,
+  ESP_LOGCONFIG(TAG,
+                "  STM32 current firmware version: %d.%d \n"
+                "  STM32 required firmware version: %d.%d",
+                this->version_major_, this->version_minor_, USE_SHD_FIRMWARE_MAJOR_VERSION,
                 USE_SHD_FIRMWARE_MINOR_VERSION);
 
   if (this->version_major_ != USE_SHD_FIRMWARE_MAJOR_VERSION ||
@@ -466,7 +468,7 @@ bool ShellyDimmer::handle_frame_() {
     }
     case SHELLY_DIMMER_PROTO_CMD_SWITCH:
     case SHELLY_DIMMER_PROTO_CMD_SETTINGS: {
-      return !(payload_len < 1 || payload[0] != 0x01);
+      return payload_len >= 1 && payload[0] == 0x01;
     }
     default: {
       return false;

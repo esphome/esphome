@@ -55,5 +55,4 @@ lvgl:
 
 packages:
   lvgl: !include lvgl-package.yaml
-
-<<: !include common.yaml
+  xvgl: !include common.yaml

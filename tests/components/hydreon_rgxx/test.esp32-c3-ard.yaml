@@ -1,37 +1,5 @@
-uart:
-  - id: uart_hydreon_rgxx
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 115200
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-binary_sensor:
-  - platform: hydreon_rgxx
-    hydreon_rgxx_id: hydreon_rg9
-    too_cold:
-      name: rg9_toocold
-    em_sat:
-      name: rg9_emsat
-    lens_bad:
-      name: rg9_lens_bad
-
-sensor:
-  - platform: hydreon_rgxx
-    id: hydreon_rg9
-    model: RG 9
-    moisture:
-      name: hydreon_rain
-      id: hydreon_rain
-    temperature:
-      name: hydreon_temperature
-    disable_led: true
-  - platform: hydreon_rgxx
-    id: hydreon_rg15
-    model: RG_15
-    acc:
-      name: hydreon_acc
-    event_acc:
-      name: hydreon_event_acc
-    total_acc:
-      name: hydreon_total_acc
-    r_int:
-      name: hydreon_r_int
+<<: !include common.yaml
