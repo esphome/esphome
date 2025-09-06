@@ -38,20 +38,17 @@ void CameraImpl::stop_stream(CameraRequester requester) {
 void CameraImpl::setup() {
   this->jpeg_ = std::make_shared<CameraImageAdapter>(encoder_->get_output_buffer());
   if (this->jpeg_ == nullptr) {
-    this->status_set_error("Missing set_encoder_buffer() call detected.");
-    this->mark_failed();
+    this->mark_failed("Missing set_encoder_buffer() call detected.");
     return;
   }
 
   if (this->sensor_ == nullptr) {
-    this->status_set_error("Missing set_sensor() call detected.");
-    this->mark_failed();
+    this->mark_failed("Missing set_sensor() call detected.");
     return;
   }
 
   if (!this->sensor_->camera_sensor_setup()) {
-    this->status_set_error("Camera Sensor Setup failed!");
-    this->mark_failed();
+    this->mark_failed("Camera Sensor Setup failed!");
     return;
   }
 }
@@ -61,9 +58,8 @@ bool CameraImpl::camera_loop() {
 
   if (state_ == CAMERA_STATE_INIT) {
     if (!this->sensor_ || !this->jpeg_) {
-      this->status_set_error(
+      this->mark_failed(
           "Missing setup() call detected. Are you overriding setup() without calling CameraImpl::setup() ?");
-      this->mark_failed();
       return false;
     }
 
@@ -90,12 +86,13 @@ bool CameraImpl::camera_loop() {
     switch (error) {
       case SENSOR_ERROR_SUCCESS: {
         state_ = CAMERA_STATE_CAPTURING;
+        this->input_image_ = this->sensor_->get_image_buffer();
+        this->input_image_spec_ = this->sensor_->get_image_spec();
       } break;
       case SENSOR_ERROR_RETRY: {
       } break;
       case SENSOR_ERROR_CONFIGURATION: {
-        this->status_set_error("SENSOR_ERROR_CONFIGURATION");
-        this->mark_failed();
+        this->mark_failed("SENSOR_ERROR_CONFIGURATION");
         return false;
       } break;
     }
@@ -103,21 +100,19 @@ bool CameraImpl::camera_loop() {
 
   if (state_ == CAMERA_STATE_CAPTURING) {
     this->camera_incremental_context_.done = true;
-    this->image_capture_callback_.call(*this->sensor_->get_image_buffer(), *this->sensor_->get_image_spec(),
+    this->image_capture_callback_.call(*this->input_image_, *this->input_image_spec_,
                                        this->camera_incremental_context_);
     // Incremental image capture
     if (!this->camera_incremental_context_.done)
       return true;
 
     // Check that we have a valid image for the encoder
-    if (this->sensor_->get_image_spec()->bytes_per_image() != this->sensor_->get_image_buffer()->get_data_length()) {
-      ESP_LOGE(TAG, "Spec bytes %d != %d image bytes!", this->sensor_->get_image_spec()->bytes_per_image(),
-               this->sensor_->get_image_buffer()->get_data_length());
+    if (this->input_image_spec_->bytes_per_image() != this->input_image_->get_data_length()) {
+      ESP_LOGE(TAG, "Spec bytes %d != %d image bytes!", this->input_image_spec_->bytes_per_image(),
+               this->input_image_->get_data_length());
       state_ = CAMERA_STATE_CLEAR_REQUEST;
     } else {
       state_ = CAMERA_STATE_PROCESSING;
-      this->input_image_ = this->sensor_->get_image_buffer();
-      this->input_image_spec_ = this->sensor_->get_image_spec();
     }
   }
 
@@ -185,8 +180,7 @@ bool CameraImpl::camera_loop() {
         return true;
       } break;
       case ENCODER_ERROR_CONFIGURATION: {
-        this->status_set_error("ENCODER_ERROR_CONFIGURATION");
-        this->mark_failed();
+        this->mark_failed("ENCODER_ERROR_CONFIGURATION");
         return false;
       } break;
     }
@@ -217,6 +211,9 @@ bool CameraImpl::camera_loop() {
 void CameraImpl::loop() { camera_loop(); }
 
 void CameraImpl::dump_config() {
+  if (is_failed())
+    return;
+
   ESP_LOGCONFIG(TAG,
                 "Camera:\n"
                 "  Name: %s\n"

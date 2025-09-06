@@ -8,8 +8,8 @@ namespace camera {
 
 /// Result codes from the sensor used to control camera pipeline flow.
 enum SensorError : uint8_t {
-  SENSOR_ERROR_SUCCESS = 0,   ///< Capture succeeded, continue pipeline normally.
-  SENSOR_ERROR_RETRY,         ///< Camera has not captured a new image yet, retry later.
+  SENSOR_ERROR_SUCCESS = 0,   ///< Capture succeeded, get_image_buffer() returns the new image.
+  SENSOR_ERROR_RETRY,         ///< No new image captured yet, retry later.
   SENSOR_ERROR_CONFIGURATION  ///< Fatal config error, shut down pipeline.
 };
 
@@ -34,11 +34,13 @@ class Sensor {
   /// @return SensorError Indicating the result of the capture operation.
   virtual SensorError capture_pixels() = 0;
 
-  /// Returns the sensor's current image buffer.
+  /// Returns the sensor's image buffer.
+  /// Buffer is valid **only until the next call** to get_image_buffer().
+  /// I.e.. only one buffer can be in flight at a time.
   /// @return Pointer to a Buffer containing the last captured frame.
   virtual Buffer *get_image_buffer() = 0;
 
-  /// Returns the camera's image specification.
+  /// @return the camera's image specification.
   virtual CameraImageSpec *get_image_spec() = 0;
 
   /// Sets up the camera sensor, configures resolution and applies

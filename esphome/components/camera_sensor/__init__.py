@@ -24,6 +24,7 @@ CONF_SENSOR_BUFFER_ID = "sensor_buffer_id"
 
 SOFTWARE_SENSOR = "software"
 ESP32_CAMERA_SENSOR = "esp32_camera"
+CSI_CAMERA_SENSOR = "csi_camera"
 
 camera_ns = cg.esphome_ns.namespace("camera")
 camera_sensor_ns = cg.esphome_ns.namespace("camera_sensor")
@@ -36,6 +37,7 @@ BufferImpl = camera_ns.class_("BufferImpl")
 
 SoftwareSensor = camera_sensor_ns.class_("SoftwareSensor", Sensor)
 ESP32CameraSensor = camera_sensor_ns.class_("ESP32CameraSensor", Sensor)
+CSICameraSensor = camera_sensor_ns.class_("CSICameraSensor", Sensor)
 
 CONF_D0 = "d0"
 CONF_D1 = "d1"
@@ -50,6 +52,9 @@ CONF_PCLK = "pclk"
 CONF_PWDN = "pwdn"
 CONF_VSYNC = "vsync"
 CONF_XCLK = "xclk"
+
+CONF_BUFFERS = "buffers"
+CONF_BYTE_SWAP = "byte_swap"
 
 PINS_SCHEMA = cv.Schema(
     {
@@ -147,10 +152,32 @@ ESP32_CAMERA_SCHEMA = cv.All(
     validate_resolution,
 )
 
+CONF_RESTRICTED_PIXEL_FORMAT_SELECTS = {
+    "RGB565": PixelFormat.PIXEL_FORMAT_RGB565,
+}
+
+CSI_CAMERA_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(CSICameraSensor),
+        cv.Required(CONF_HEIGHT): cv.int_range(0),
+        cv.Required(CONF_WIDTH): cv.int_range(0),
+        cv.Required(CONF_FORMAT): cv.enum(
+            CONF_RESTRICTED_PIXEL_FORMAT_SELECTS, upper=True
+        ),
+        cv.Optional(CONF_PWDN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_RESET): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_XCLK): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_BUFFERS, default=2): cv.int_range(2, 16),
+        cv.Optional(CONF_BYTE_SWAP, default=False): cv.boolean,
+        cv.GenerateID(CONF_IMAGE_SPEC_ID): cv.declare_id(CameraImageSpec),
+    }
+).extend(i2c.i2c_device_schema(None))
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
         SOFTWARE_SENSOR: SOFTWARE_SCHEMA,
         ESP32_CAMERA_SENSOR: ESP32_CAMERA_SCHEMA,
+        CSI_CAMERA_SENSOR: CSI_CAMERA_SCHEMA,
     },
     default_type=SOFTWARE_SENSOR,
 )
@@ -218,3 +245,27 @@ async def to_code(config):
         cg.add(var.set_frequency(config[CONF_FREQUENCY]))
         resolution = (config[CONF_WIDTH], config[CONF_HEIGHT])
         cg.add(var.set_framesize(FRAME_SIZES[resolution]))
+    if config[CONF_TYPE] == CSI_CAMERA_SENSOR:
+        if CORE.using_esp_idf:
+            add_idf_component(name="espressif/esp_cam_sensor", ref="1.3.0")
+        cg.add_build_flag("-DUSE_CSI_CAMERA_SENSOR")
+        image_spec = cg.new_Pvariable(
+            config[CONF_IMAGE_SPEC_ID],
+            cg.StructInitializer(
+                CameraImageSpec,
+                ("width", config[CONF_WIDTH]),
+                ("height", config[CONF_HEIGHT]),
+                ("format", config[CONF_FORMAT]),
+            ),
+        )
+        var = cg.new_Pvariable(
+            config[CONF_ID],
+            image_spec,
+        )
+        xclk_pin = config.get(CONF_XCLK, -1)
+        pwdn_pin = config.get(CONF_PWDN, -1)
+        reset_pin = config.get(CONF_RESET, -1)
+        cg.add(var.set_pins(xclk_pin, pwdn_pin, reset_pin))
+        cg.add(var.set_framebuffers(config[CONF_BUFFERS]))
+        cg.add(var.set_byte_swap(config[CONF_BYTE_SWAP]))
+        await i2c.register_i2c_device(var, config)
