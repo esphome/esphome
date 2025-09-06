@@ -5,6 +5,16 @@ esphome:
 stm32:
   board: genericSTM32F103C6
 
+uart:
+  - tx_pin:
+      number: PA9
+      af: 7
+    rx_pin:
+      number: PA10
+      af: 7
+    baud_rate: 115200
+    instance: USART1
+
 logger:
   level: VERY_VERBOSE
 
