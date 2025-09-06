@@ -204,6 +204,9 @@ class Component {
   bool status_has_error() const;
 
   void status_set_warning(const char *message = nullptr);
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  void status_set_warning(const LogString *message);
+#endif
 
   void status_set_error(const char *message = nullptr);
 
@@ -239,6 +242,9 @@ class Component {
 
   /// Helper to set component state (clears state bits and sets new state)
   void set_component_state_(uint8_t state);
+
+  /// Helper to set warning flag without duplicating logic
+  void status_set_warning_flag_();
 
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *

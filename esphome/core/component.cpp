@@ -278,15 +278,29 @@ bool Component::is_ready() const {
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
-void Component::status_set_warning(const char *message) {
+
+void Component::status_set_warning_flag_() {
   // Don't spam the log. This risks missing different warning messages though.
   if ((this->component_state_ & STATUS_LED_WARNING) != 0)
     return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
-           message ? message : UNSPECIFIED_MESSAGE);
 }
+
+void Component::status_set_warning(const char *message) {
+  this->status_set_warning_flag_();
+  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+    ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
+             message ? message : UNSPECIFIED_MESSAGE);
+}
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+void Component::status_set_warning(const LogString *message) {
+  this->status_set_warning_flag_();
+  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+    ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
+             message ? LOG_STR_ARG(message) : UNSPECIFIED_MESSAGE);
+}
+#endif
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
