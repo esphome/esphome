@@ -10,19 +10,17 @@ hitachi_ns = cg.esphome_ns.namespace("hitachi_168bit")
 Hitachi168bitClimate = hitachi_ns.class_("Hitachi168bitClimate", climate_ir.ClimateIR)
 
 Model = hitachi_ns.enum("Model")
-MODEL_MAP = {
+MODELS = {
     "HCRA31NEWH": Model.MODEL_HCRA31NEWH,
 }
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(Hitachi168bitClimate).extend(
     {
-        cv.GenerateID(): cv.declare_id(Hitachi168bitClimate),
-        cv.Optional(CONF_MODEL, default="HCRA31NEWH"): cv.enum(MODEL_MAP, lower=False),
+        cv.Optional(CONF_MODEL, default="HCRA31NEWH"): cv.enum(MODELS, upper=True),
     }
 )
 
 
 async def to_code(config):
     var = await climate_ir.new_climate_ir(config)
-    # Gracias al cv.enum, config[CONF_MODEL] ya es del tipo Model
     cg.add(var.set_model(config[CONF_MODEL]))
