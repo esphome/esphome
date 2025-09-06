@@ -84,7 +84,7 @@ void HDC302XComponent::read_data_() {
   }
 
   // Check checksums
-  if (this->crc8_(buf, 2) != buf[2] || this->crc8_(buf + 3, 2) != buf[5]) {
+  if (crc8(buf, 2, 0xff, 0x31, true) != buf[2] || crc8(buf + 3, 2, 0xff, 0x31, true) != buf[5]) {
     this->status_set_warning("Read data: invalid CRC");
     return;
   }
@@ -120,25 +120,6 @@ uint32_t HDC302XComponent::conversion_delay_ms_() {
       return 13;
   }
 };
-
-uint8_t HDC302XComponent::crc8_(const uint8_t *buf, size_t len) {
-  // Compute 8-bit CRC with properties from datasheet, Table 7-1.
-  //  - Initialisation: 0xff
-  //  - Polynominal: 0x31
-
-  uint8_t crc = 0xff;
-  for (size_t i = 0; i < len; i++) {
-    crc ^= buf[i];
-    for (size_t j = 8; j > 0; j--) {
-      if (crc & 0x80) {
-        crc = (crc << 1) ^ 0x31;
-      } else {
-        crc = crc << 1;
-      }
-    }
-  }
-  return crc;
-}
 
 }  // namespace hdc302x
 }  // namespace esphome
