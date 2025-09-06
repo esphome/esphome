@@ -50,7 +50,7 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
     src.set_tolerance(MAGIQUEST_TOLERANCE, ToleranceMode::TOLERANCE_MODE_TIME);
   }
 
-  MagiQuest2Data data {
+  MagiQuestData data {
     .magnitude = 0,
     .wand_id = 0,
     .wand_id_legacy = 0,
