@@ -59,7 +59,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
       labels["friendly_name"] = node_friendly_name;
     }
     labels["tag"] = tag;
-    labels["log_level"] = this->get_log_level_name(level);
+    labels["log_level"] = this->get_log_level_name_(level);
 
     // Log values (timestamp and message)
     JsonArray values = entry["values"].to<JsonArray>();
@@ -86,7 +86,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   this->parent_->post(full_url, json_payload, headers);
 }
 
-const char *Loki::get_log_level_name(int level) const {
+const char *Loki::get_log_level_name_(int level) const {
   switch (level) {
     case ESPHOME_LOG_LEVEL_ERROR:
       return "ERROR";
