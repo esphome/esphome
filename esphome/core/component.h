@@ -10,6 +10,9 @@
 
 namespace esphome {
 
+// Forward declaration for LogString
+struct LogString;
+
 /** Default setup priorities for components of different types.
  *
  * Components should return one of these setup priorities in get_setup_priority.
@@ -242,9 +245,6 @@ class Component {
 
   /// Helper to set component state (clears state bits and sets new state)
   void set_component_state_(uint8_t state);
-
-  /// Helper to set warning flag without duplicating logic
-  void status_set_warning_flag_();
 
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
