@@ -14,6 +14,11 @@ void Loki::setup() {
       [this](int level, const char *tag, const char *message, size_t message_len) {
         this->log_(level, tag, message, message_len);
       });
+
+  // Publish initial switch state
+  if (this->logs_enabled_switch_ != nullptr) {
+    this->logs_enabled_switch_->publish_state(this->enabled_);
+  }
 }
 
 void Loki::log_(const int level, const char *tag, const char *message, size_t message_len) const {
