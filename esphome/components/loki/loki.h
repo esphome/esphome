@@ -30,7 +30,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
  protected:
   int log_level_;
   void log_(int level, const char *tag, const char *message, size_t message_len) const;
-  const char *get_log_level_name(int level) const;
+  const char *get_log_level_name_(int level) const;
   time::RealTimeClock *time_;
   bool strip_{true};
   bool enabled_{true};

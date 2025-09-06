@@ -49,12 +49,12 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
     // Add node name
     labels["node"] = App.get_name();
     // Check for area and add if not empty
-    std::string node_area = App.get_area();
+    const std::string &node_area = App.get_area();
     if (!node_area.empty()) {
       labels["area"] = node_area;
     }
     // Check for friendly_name and add if not empty
-    std::string node_friendly_name = App.get_friendly_name();
+    const std::string &node_friendly_name = App.get_friendly_name();
     if (!node_friendly_name.empty()) {
       labels["friendly_name"] = node_friendly_name;
     }
