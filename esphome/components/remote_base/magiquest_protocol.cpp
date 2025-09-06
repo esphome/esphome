@@ -46,14 +46,14 @@ void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &dat
 }
 optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   // If the default tolerance is in play, override it with something that works better.
-  if (src.get_tolerance_mode() == ToleranceMode::TOLERANCE_MODE_PERCENTAGE  && src.get_tolerance() == 25) {
+  if (src.get_tolerance_mode() == ToleranceMode::TOLERANCE_MODE_PERCENTAGE && src.get_tolerance() == 25) {
     src.set_tolerance(MAGIQUEST_TOLERANCE, ToleranceMode::TOLERANCE_MODE_TIME);
   }
 
-  MagiQuestData data {
-    .magnitude = 0,
-    .wand_id = 0,
-    .wand_id_legacy = 0,
+  MagiQuestData data{
+      .magnitude = 0,
+      .wand_id = 0,
+      .wand_id_legacy = 0,
   };
 
   // 8-bit header
@@ -110,24 +110,20 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   return data;
 }
 void MagiQuestProtocol::dump(const MagiQuestData &data) {
-  ESP_LOGI(
-    TAG,
-    "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=%d",
-    data.wand_id,
-    data.magnitude);
+  ESP_LOGI(TAG, "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=%d", data.wand_id, data.magnitude);
 }
 bool MagiQuestProtocol::checksumIsValid(uint32_t wand_id, uint32_t magnitudeAndChecksum) {
   uint8_t checksum = 0;
 
   // shift the wand_id for the checksum calculation.
   wand_id <<= 1;
-  uint8_t* wandIdBytes = reinterpret_cast<uint8_t*>(&wand_id);
+  uint8_t *wandIdBytes = reinterpret_cast<uint8_t *>(&wand_id);
   for (uint8_t i = 0; i < 4; i++) {
     checksum += wandIdBytes[i];
   }
 
   // magnitudeAndChecksum can be used directly.
-  uint8_t* magnitudeAndChecksumBytes = reinterpret_cast<uint8_t*>(&magnitudeAndChecksum);
+  uint8_t *magnitudeAndChecksumBytes = reinterpret_cast<uint8_t *>(&magnitudeAndChecksum);
   for (uint8_t i = 0; i < 4; i++) {
     checksum += magnitudeAndChecksumBytes[i];
   }
