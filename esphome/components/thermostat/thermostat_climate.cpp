@@ -129,8 +129,14 @@ bool ThermostatClimate::hysteresis_valid() {
   return true;
 }
 
+bool ThermostatClimate::limit_setpoints_for_heat_cool() {
+  return this->mode == climate::CLIMATE_MODE_HEAT_COOL ||
+         (this->mode == climate::CLIMATE_MODE_AUTO && this->supports_heat_cool_);
+}
+
 void ThermostatClimate::validate_target_temperature() {
   if (std::isnan(this->target_temperature)) {
+    // default to the midpoint between visual min and max
     this->target_temperature =
         ((this->get_traits().get_visual_max_temperature() - this->get_traits().get_visual_min_temperature()) / 2) +
         this->get_traits().get_visual_min_temperature();
@@ -141,38 +147,17 @@ void ThermostatClimate::validate_target_temperature() {
   }
 }
 
-void ThermostatClimate::validate_target_temperatures() {
-  if (this->supports_two_points_) {
+void ThermostatClimate::validate_target_temperatures(const bool pin_target_temperature_high) {
+  if (!this->supports_two_points_) {
+    this->validate_target_temperature();
+  } else if (pin_target_temperature_high) {
+    // if target_temperature_high is set less than target_temperature_low, move down target_temperature_low
     this->validate_target_temperature_low();
     this->validate_target_temperature_high();
   } else {
-    this->validate_target_temperature();
-  }
-}
-
-void ThermostatClimate::validate_target_temperatures_for_heat_cool(const bool pin_target_temperature_high) {
-  this->validate_target_temperature_low();
-  this->validate_target_temperature_high();
-
-  // target_temperature_low must not be greater than the visual maximum minus set_point_minimum_differential_
-  this->target_temperature_low =
-      clamp(this->target_temperature_low, this->get_traits().get_visual_min_temperature(),
-            this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_);
-  // target_temperature_high must not be lower than the visual minimum plus set_point_minimum_differential_
-  this->target_temperature_high =
-      clamp(this->target_temperature_high,
-            this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_,
-            this->get_traits().get_visual_max_temperature());
-  if (pin_target_temperature_high) {
-    // if target_temperature_high is set less than target_temperature_low, move down target_temperature_low
-    if (this->target_temperature_high < this->target_temperature_low + this->set_point_minimum_differential_) {
-      this->target_temperature_low = this->target_temperature_high - this->set_point_minimum_differential_;
-    }
-  } else {
     // if target_temperature_low is set greater than target_temperature_high, move up target_temperature_high
-    if (this->target_temperature_low > this->target_temperature_high - this->set_point_minimum_differential_) {
-      this->target_temperature_high = this->target_temperature_low + this->set_point_minimum_differential_;
-    }
+    this->validate_target_temperature_high();
+    this->validate_target_temperature_low();
   }
 }
 
@@ -180,8 +165,11 @@ void ThermostatClimate::validate_target_temperature_low() {
   if (std::isnan(this->target_temperature_low)) {
     this->target_temperature_low = this->get_traits().get_visual_min_temperature();
   } else {
+    float target_temperature_low_upper_limit =
+        this->limit_setpoints_for_heat_cool() ? this->target_temperature_high - this->set_point_minimum_differential_
+                                              : this->get_traits().get_visual_max_temperature();
     this->target_temperature_low = clamp(this->target_temperature_low, this->get_traits().get_visual_min_temperature(),
-                                         this->get_traits().get_visual_max_temperature());
+                                         target_temperature_low_upper_limit);
   }
 }
 
@@ -189,9 +177,11 @@ void ThermostatClimate::validate_target_temperature_high() {
   if (std::isnan(this->target_temperature_high)) {
     this->target_temperature_high = this->get_traits().get_visual_max_temperature();
   } else {
-    this->target_temperature_high =
-        clamp(this->target_temperature_high, this->get_traits().get_visual_min_temperature(),
-              this->get_traits().get_visual_max_temperature());
+    float target_temperature_high_lower_limit =
+        this->limit_setpoints_for_heat_cool() ? this->target_temperature_low + this->set_point_minimum_differential_
+                                              : this->get_traits().get_visual_min_temperature();
+    this->target_temperature_high = clamp(this->target_temperature_high, target_temperature_high_lower_limit,
+                                          this->get_traits().get_visual_max_temperature());
   }
 }
 
@@ -229,23 +219,14 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     if (call.get_target_temperature_low().has_value()) {
       target_temperature_low_changed = this->target_temperature_low != call.get_target_temperature_low().value();
       this->target_temperature_low = call.get_target_temperature_low().value();
-      if (target_temperature_low_changed) {
-        this->validate_target_temperature_low();
-      }
     }
     if (call.get_target_temperature_high().has_value()) {
       target_temperature_high_changed = this->target_temperature_high != call.get_target_temperature_high().value();
       this->target_temperature_high = call.get_target_temperature_high().value();
-      if (target_temperature_high_changed) {
-        this->validate_target_temperature_high();
-      }
     }
-    if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL) ||
-        (this->mode == climate::CLIMATE_MODE_AUTO && this->supports_heat_cool_)) {
-      // ensure the two set points are valid for auto and/or heat_cool modes
-      this->validate_target_temperatures_for_heat_cool(target_temperature_high_changed ||
-                                                       (this->prev_mode_ == climate::CLIMATE_MODE_COOL));
-    }
+    // ensure the two set points are valid and adjust one of them if necessary
+    this->validate_target_temperatures(target_temperature_high_changed ||
+                                       (this->prev_mode_ == climate::CLIMATE_MODE_COOL));
   } else {
     if (call.get_target_temperature().has_value()) {
       this->target_temperature = call.get_target_temperature().value();
@@ -331,12 +312,7 @@ climate::ClimateAction ThermostatClimate::compute_action_(const bool ignore_time
   }
 
   // ensure set point(s) is/are valid before computing the action
-  if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL) ||
-      (this->mode == climate::CLIMATE_MODE_AUTO && this->supports_heat_cool_)) {
-    this->validate_target_temperatures_for_heat_cool(this->prev_mode_ == climate::CLIMATE_MODE_COOL);
-  } else {
-    this->validate_target_temperatures();
-  }
+  this->validate_target_temperatures(this->prev_mode_ == climate::CLIMATE_MODE_COOL);
   // everything has been validated so we can now safely compute the action
   switch (this->mode) {
     // if the climate mode is OFF then the climate action must be OFF
@@ -408,7 +384,7 @@ climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
   }
 
   // ensure set point(s) is/are valid before computing the action
-  this->validate_target_temperatures();
+  this->validate_target_temperatures(this->prev_mode_ == climate::CLIMATE_MODE_COOL);
   // everything has been validated so we can now safely compute the action
   switch (this->mode) {
     // if the climate mode is OFF then the climate action must be OFF

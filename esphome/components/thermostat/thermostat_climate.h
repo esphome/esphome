@@ -165,10 +165,10 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Returns the fan mode that is locked in (check fan_mode_change_delayed(), first!)
   climate::ClimateFanMode locked_fan_mode();
   /// Set point and hysteresis validation
-  bool hysteresis_valid();  // returns true if valid
+  bool hysteresis_valid();               // returns true if valid
+  bool limit_setpoints_for_heat_cool();  // returns true if set points should be further limited within visual range
   void validate_target_temperature();
-  void validate_target_temperatures();
-  void validate_target_temperatures_for_heat_cool(bool pin_target_temperature_high);
+  void validate_target_temperatures(bool pin_target_temperature_high);
   void validate_target_temperature_low();
   void validate_target_temperature_high();
 
