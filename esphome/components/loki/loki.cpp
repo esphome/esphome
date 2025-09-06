@@ -1,37 +1,36 @@
 #include "loki.h"
-#ifdef USE_NETWORK
+
 #include "esphome/components/logger/logger.h"
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
+#include "esphome/core/time.h"
 
 namespace esphome {
 namespace loki {
 
-static const char *TAG = "loki.component";
-
-void LokiComponent::setup() {
-  if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
-      if (level <= this->log_level_) {
-        //        this->publish({.topic = this->log_message_.topic,
-        //                       .payload = message,
-        //                       .qos = this->log_message_.qos,
-        //                       .retain = this->log_message_.retain});
-      }
-    });
-  }
+void Loki::setup() {
+  logger::global_logger->add_on_log_callback(
+      [this](int level, const char *tag, const char *message, size_t message_len) {
+        this->log_(level, tag, message, message_len);
+      });
 }
 
-void LokiComponent::loop() {}
+void Loki::log_(const int level, const char *tag, const char *message, size_t message_len) const {
+  if (level > this->log_level_)
+    return;
+  // Syslog PRI calculation: facility * 8 + severity
+  int severity = 7;
+  int pri = 0 * 8 + severity;
+  auto timestamp = this->time_->now().strftime("%b %e %H:%M:%S");
+  size_t len = message_len;
+  // remove color formatting
+  if (this->strip_ && message[0] == 0x1B && len > 11) {
+    message += 7;
+    len -= 11;
+  }
 
-void LokiComponent::dump_config() { ESP_LOGCONFIG(TAG, "Loki component"); }
-
-float LokiComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
-
-// Setters
-void LokiComponent::disable_log_message() { this->log_message_ = ""; }
-bool LokiComponent::is_log_message_enabled() const { return !this->log_message_.empty(); }
-void LokiComponent::set_log_level(int level) { this->log_level_ = level; }
+  auto data = str_sprintf("<%d>%s %s %s: %.*s", pri, timestamp.c_str(), App.get_name().c_str(), tag, len, message);
+  // this->parent_->send_packet((const uint8_t *) data.data(), data.size());
+}
 
 }  // namespace loki
 }  // namespace esphome
-#endif

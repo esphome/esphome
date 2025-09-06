@@ -1,31 +1,25 @@
 #pragma once
-#include "esphome/core/defines.h"
-#ifdef USE_NETWORK
-
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/components/http_request/http_request.h"
+#include "esphome/components/time/real_time_clock.h"
 
+#ifdef USE_NETWORK
 namespace esphome {
 namespace loki {
-
-class LokiComponent : public Component {
+class Loki : public Component, public Parented<http_request::HttpRequestComponent> {
  public:
+  Loki(int level, time::RealTimeClock *time) : log_level_(level), time_(time) {}
   void setup() override;
-  void loop() override;
-  void dump_config() override;
-  /// Loki client setup priority
-  float get_setup_priority() const override;
-  /// Logging specific
-  void set_log_level(int level);
-  /// Get the topic used for logging. Defaults to "<topic_prefix>/debug" and the value is cached for speed.
-  void disable_log_message();
-  bool is_log_message_enabled() const;
-  std::string log_message_;
-  std::string payload_buffer_;
-  int log_level_{ESPHOME_LOG_LEVEL};
-};
+  void set_strip(bool strip) { this->strip_ = strip; }
 
+ protected:
+  int log_level_;
+  void log_(int level, const char *tag, const char *message, size_t message_len) const;
+  time::RealTimeClock *time_;
+  bool strip_{true};
+};
 }  // namespace loki
 }  // namespace esphome
 #endif
