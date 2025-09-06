@@ -1307,10 +1307,14 @@ Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->p
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
 
+  ESP_LOGCONFIG(TAG,
+                "  On boot, restore from: %s\n"
+                "  Use Start-up Delay: %s",
+                this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY",
+                YESNO(this->use_startup_delay_));
   if (this->supports_two_points_) {
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
   }
-  ESP_LOGCONFIG(TAG, "  Use Start-up Delay: %s", YESNO(this->use_startup_delay_));
   if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG,
                   "  Cooling Parameters:\n"
@@ -1349,8 +1353,9 @@ void ThermostatClimate::dump_config() {
   }
   if (this->supports_fan_only_) {
     ESP_LOGCONFIG(TAG,
-                  "  Fanning Minimum Off Time: %" PRIu32 "s\n"
-                  "  Fanning Minimum Run Time: %" PRIu32 "s",
+                  "  Fan Parameters:\n"
+                  "    Minimum Off Time: %" PRIu32 "s\n"
+                  "    Minimum Run Time: %" PRIu32 "s",
                   this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000,
                   this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
   }
@@ -1426,9 +1431,6 @@ void ThermostatClimate::dump_config() {
       this->dump_preset_config_(preset_name, it.second);
     }
   }
-
-  ESP_LOGCONFIG(TAG, "  On boot, restore from: %s",
-                this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY");
 }
 
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
