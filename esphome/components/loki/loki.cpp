@@ -1,5 +1,6 @@
 #include "loki.h"
 
+#include <cinttypes>
 #include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
 #include "esphome/core/time.h"
@@ -32,9 +33,9 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   // Get current timestamp in nanoseconds
   auto now = this->time_->now();
   // seconds -> nanoseconds as string
-  long long ns = (long long) now.timestamp * 1000000000LL;
+  int64_t ns = static_cast<int64_t>(now.timestamp) * 1000000000LL;
   char tsbuf[32];
-  snprintf(tsbuf, sizeof(tsbuf), "%lld", ns);
+  snprintf(tsbuf, sizeof(tsbuf), "%" PRId64, ns);
 
   // Create Loki JSON payload
   std::string json_payload = json::build_json([&](JsonObject root) {
