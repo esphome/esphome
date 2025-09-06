@@ -15,7 +15,7 @@ void Loki::setup() {
 }
 
 void Loki::log_(const int level, const char *tag, const char *message, size_t message_len) const {
-  if (level > this->log_level_)
+  if (!this->enabled_ || level > this->log_level_)
     return;
   // Syslog PRI calculation: facility * 8 + severity
   int severity = 7;

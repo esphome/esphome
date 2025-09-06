@@ -15,6 +15,8 @@ loki_ns = cg.esphome_ns.namespace("loki")
 Loki = loki_ns.class_("Loki", Component, Parented.template(HttpRequestComponent))
 
 CONF_STRIP = "strip"
+CONF_ENABLED = "enabled"
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Loki),
@@ -24,6 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PORT, default=3100): cv.port,
         cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
         cv.Optional(CONF_STRIP, default=True): cv.boolean,
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -38,3 +41,4 @@ async def to_code(config):
     cg.add(var.set_strip(config[CONF_STRIP]))
     cg.add(var.set_url(config[CONF_URL]))
     cg.add(var.set_port(config[CONF_PORT]))
+    cg.add(var.set_enabled(config[CONF_ENABLED]))
