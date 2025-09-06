@@ -39,6 +39,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
 
   // Create Loki JSON payload
   std::string json_payload = json::build_json([&](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     JsonArray streams = root["streams"].to<JsonArray>();
     JsonObject entry = streams.add<JsonObject>();
 
