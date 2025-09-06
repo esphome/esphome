@@ -16,5 +16,5 @@ loki:
 
 switch:
   - platform: loki
-    enabled:
-      name: Loki Enabled
+    logs_enabled:
+      name: Loki Logs Enabled
