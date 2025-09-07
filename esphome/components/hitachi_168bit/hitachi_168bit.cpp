@@ -35,11 +35,11 @@ const uint8_t HITACHI168BIT_POWER = 0x04;
 void Hitachi168bitClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
   uint8_t remote_state[HITACHI168BIT_STATE_LENGTH] = {0};
-  remote_state[0] = 0x95;
-  remote_state[1] = 0x9A;
-  remote_state[6] = 0x01;
+  remote_state[0] = 0xA9;  // 0x95;
+  remote_state[1] = 0x59;  // 0x9A;
+  remote_state[6] = 0x80;  // 0x01;
   // MODEL DG11J191
-  remote_state[18] = 0x1C;
+  remote_state[18] = 0x38;  // 0x1C;
 
   auto powered_on = this->mode != climate::CLIMATE_MODE_OFF;
   if (powered_on != this->powered_on_assumed) {
