@@ -9,6 +9,8 @@
 namespace esphome {
 namespace loki {
 
+static const char *const TAG = "loki";
+
 void Loki::setup() {
   logger::global_logger->add_on_log_callback(
       [this](int level, const char *tag, const char *message, size_t message_len) {
@@ -79,7 +81,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   });
 
   // Prepare headers
-  std::list<http_request::Header> headers;
+  std::list<http_request::Header> headers = {};
   headers.push_back({"Content-Type", "application/json"});
 
   // Construct full URL
@@ -93,7 +95,10 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   full_url += "loki/api/v1/push";
 
   // Send HTTP POST request
-  this->parent_->post(full_url, json_payload, headers);
+  auto container = this->parent_->post(full_url, json_payload, headers);
+  if (container == nullptr) {
+    ESP_LOGE(TAG, "Failed to send log to Loki at %s", full_url.c_str());
+  }
 }
 
 const char *Loki::get_log_level_name_(int level) const {

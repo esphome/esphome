@@ -13,6 +13,20 @@ time:
 
 loki:
   url: http://foo.com
+  level: DEBUG
+  enabled: true
+
+# Add a test script to verify connectivity
+script:
+  - id: test_loki_connection
+    then:
+      - logger.log: "Testing Loki connection..."
+      - http_request.get:
+          url: http://foo.com/ready
+          on_error:
+            logger.log: "Loki server not reachable - check URL and network"
+          on_response:
+            logger.log: "Loki server is reachable"
 
 switch:
   - platform: loki
