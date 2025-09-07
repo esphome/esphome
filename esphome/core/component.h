@@ -10,6 +10,9 @@
 
 namespace esphome {
 
+// Forward declaration for LogString
+struct LogString;
+
 /** Default setup priorities for components of different types.
  *
  * Components should return one of these setup priorities in get_setup_priority.
@@ -204,6 +207,7 @@ class Component {
   bool status_has_error() const;
 
   void status_set_warning(const char *message = nullptr);
+  void status_set_warning(const LogString *message);
 
   void status_set_error(const char *message = nullptr);
 
