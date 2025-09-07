@@ -235,10 +235,6 @@ bool OpenthermHub::handle_error_(OperationMode mode) {
       // Timeout error might happen while we wait for device to respond.
       this->handle_timeout_error_();
       return true;
-    case OperationMode::ERROR_TIMER:
-      // Timer error can happen only on ESP32.
-      this->handle_timer_error_();
-      return true;
     default:
       return false;
   }
@@ -259,11 +255,9 @@ void OpenthermHub::sync_loop_() {
   }
 
   this->start_conversation_();
-  // There may be a timer error at this point
-  if (this->handle_error_(this->opentherm_->get_mode())) {
-    return;
-  }
 
+  // This is not neccessary now, since RMT transmission waits for completion in `opentherm.cpp`.
+  // But in the future we will make it async again so we don't remove this block.
   // Spin while message is being sent to device
   if (!this->spin_wait_(1150, [&] { return this->opentherm_->is_active(); })) {
     ESP_LOGE(TAG, "Hub timeout triggered during send");
@@ -380,13 +374,6 @@ void OpenthermHub::handle_protocol_error_() {
 void OpenthermHub::handle_timeout_error_() {
   ESP_LOGW(TAG, "Timeout while waiting for response from device");
   this->stop_opentherm_();
-}
-
-void OpenthermHub::handle_timer_error_() {
-  this->opentherm_->report_and_reset_timer_error();
-  this->stop_opentherm_();
-  // Timer error is critical, there is no point in retrying.
-  this->mark_failed();
 }
 
 void OpenthermHub::dump_config() {

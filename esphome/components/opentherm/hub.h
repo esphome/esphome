@@ -86,7 +86,6 @@ class OpenthermHub : public Component {
   bool handle_error_(OperationMode mode);
   void handle_protocol_error_();
   void handle_timeout_error_();
-  void handle_timer_error_();
   void stop_opentherm_();
   void start_conversation_();
   void read_response_();

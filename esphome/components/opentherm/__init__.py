@@ -5,7 +5,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, PLATFORM_ESP32, PLATFORM_ESP8266
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, PLATFORM_ESP32
 
 from . import const, generate, schema, validate
 
@@ -78,7 +78,7 @@ CONFIG_SCHEMA = cv.All(
         )
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+    cv.only_on([PLATFORM_ESP32]),
 )
 
 

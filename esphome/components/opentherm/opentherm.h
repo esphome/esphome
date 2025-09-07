@@ -12,9 +12,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
-#include "driver/timer.h"
-#endif
+#include <driver/rmt_rx.h>
+#include <driver/rmt_tx.h>
+#include <esp_err.h>
+#include <driver/gpio.h>
 
 namespace esphome {
 namespace opentherm {
@@ -52,12 +53,13 @@ enum ProtocolErrorType {
   NO_CHANGE_TOO_LONG = 4,  // No level change for too much timer ticks
 };
 
+// Deprecated timer error types (legacy). Kept for compatibility with hub code.
 enum TimerErrorType {
-  NO_TIMER_ERROR = 0,           // No error
-  SET_ALARM_VALUE_ERROR = 1,    // No transition in the middle of the bit
-  TIMER_START_ERROR = 2,        // Stop bit wasn't present when expected
-  TIMER_PAUSE_ERROR = 3,        // Parity check didn't pass
-  SET_COUNTER_VALUE_ERROR = 4,  // No level change for too much timer ticks
+  NO_TIMER_ERROR = 0,
+  SET_ALARM_VALUE_ERROR = 1,
+  TIMER_START_ERROR = 2,
+  TIMER_PAUSE_ERROR = 3,
+  SET_COUNTER_VALUE_ERROR = 4,
 };
 
 enum MessageType {
@@ -336,7 +338,6 @@ class OpenTherm {
 
   void debug_data(OpenthermData &data);
   void debug_error(OpenThermError &error) const;
-  void report_and_reset_timer_error();
 
   const char *protocol_error_to_str(ProtocolErrorType error_type);
   const char *timer_error_to_str(TimerErrorType error_type);
@@ -344,11 +345,7 @@ class OpenTherm {
   const char *operation_mode_to_str(OperationMode mode);
   const char *message_id_to_str(MessageId id);
 
-  static bool timer_isr(OpenTherm *arg);
-
-#ifdef ESP8266
-  static void esp8266_timer_isr();
-#endif
+  // No timer ISR with RMT backend
 
  private:
   InternalGPIOPin *in_pin_;
@@ -356,10 +353,16 @@ class OpenTherm {
   ISRInternalGPIOPin isr_in_pin_;
   ISRInternalGPIOPin isr_out_pin_;
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
-  timer_group_t timer_group_;
-  timer_idx_t timer_idx_;
-#endif
+  // RMT resources
+  rmt_channel_handle_t rx_channel_{nullptr};
+  rmt_channel_handle_t tx_channel_{nullptr};
+  rmt_receive_config_t rx_config_{};
+  rmt_encoder_handle_t tx_encoder_{nullptr};
+  // RX buffer for one OpenTherm frame
+  static constexpr size_t RX_SYMBOL_CAPACITY = 128;  // sufficient for a full frame with margins
+  rmt_symbol_word_t rx_buffer_[RX_SYMBOL_CAPACITY]{};
+  // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
+  static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
 
   OperationMode mode_;
   ProtocolErrorType error_type_;
@@ -370,29 +373,16 @@ class OpenTherm {
   int32_t timeout_counter_;  // <0 no timeout
   int32_t device_timeout_;
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
-  esp_err_t timer_error_ = ESP_OK;
-  TimerErrorType timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
+  // RMT init and helpers
+  bool init_rmt_();
+  static bool rmt_rx_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *evt, void *arg);
 
-  bool init_esp32_timer_();
-  void start_esp32_timer_(uint64_t alarm_value);
-#endif
-
-  void stop_timer_();
-
-  void read_();               // data detected start reading
-  void start_read_timer_();   // reading timer_ to sample at 1/5 of manchester code bit length (at 5kHz)
-  void start_write_timer_();  // writing timer_ to send manchester code (at 2kHz)
+  // RMT-based operations
+  void start_read_rmt_();
+  void start_write_rmt_();
   bool check_parity_(uint32_t val);
 
-  void bit_read_(uint8_t value);
   ProtocolErrorType verify_stop_bit_(uint8_t value);
-  void write_bit_(uint8_t high, uint8_t clock);
-
-#ifdef ESP8266
-  // ESP8266 timer can accept callback with no parameters, so we have this hack to save a static instance of OpenTherm
-  static OpenTherm *instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-#endif
 };
 
 }  // namespace opentherm
