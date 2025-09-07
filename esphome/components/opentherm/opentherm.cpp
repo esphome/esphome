@@ -191,6 +191,95 @@ bool OpenTherm::init_rmt_() {
   return true;
 }
 
+// --- RMT RX decoding helpers (IRAM) ---
+constexpr uint32_t HALF_US = 500;    // half-bit period
+constexpr uint32_t JIT_MINUS = 100;  // early edge tolerance
+constexpr uint32_t JIT_PLUS = 150;   // late  edge tolerance
+
+static inline IRAM_ATTR uint8_t classify_dt(uint32_t dt) {
+  if (dt >= (HALF_US - JIT_MINUS) && dt <= (HALF_US + JIT_PLUS))
+    return 0;  // short
+  if (dt >= (2 * HALF_US - JIT_MINUS) && dt <= (2 * HALF_US + JIT_PLUS))
+    return 1;  // long
+  return 2;    // invalid
+}
+
+static inline IRAM_ATTR int build_edges(const rmt_symbol_word_t *syms, size_t count, uint32_t *edge_t,
+                                        uint8_t *edge_is_rise, int max_edges) {
+  uint32_t t_acc = 0;
+  int n = 0;
+  for (size_t i = 0; i < count && n < max_edges; i++) {
+    uint32_t d0 = syms[i].duration0;
+    uint32_t d1 = syms[i].duration1;
+    if (d0 == 0)
+      break;
+    t_acc += d0;
+    // mid-bit edge
+    edge_t[n] = t_acc;
+    edge_is_rise[n] = (syms[i].level0 == 0 && syms[i].level1 == 1) ? 1 : 0;
+    n++;
+    if (d1 == 0)
+      break;
+    t_acc += d1;
+    // boundary edge (only if level toggles to next symbol)
+    if ((i + 1) < count && n < max_edges) {
+      bool next_l0 = syms[i + 1].level0;
+      bool cur_l1 = syms[i].level1;
+      if (next_l0 != cur_l1) {
+        edge_t[n] = t_acc;
+        edge_is_rise[n] = (cur_l1 == 0 && next_l0 == 1) ? 1 : 0;
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
+static inline IRAM_ATTR bool collapse_decode(const uint32_t *edge_t, const uint8_t *edge_is_rise, int edge_count,
+                                             int start_idx, bool rise_is_one, uint8_t out_bits[34]) {
+  int ei = start_idx;
+  int blen = 0;
+  // Start bit must be '1'
+  uint8_t start_bit = rise_is_one ? (edge_is_rise[ei] ? 1 : 0) : (edge_is_rise[ei] ? 0 : 1);
+  if (start_bit != 1)
+    return false;
+  out_bits[blen++] = 1;
+  while (blen < 34) {
+    if (ei + 1 >= edge_count)
+      return false;
+    uint32_t dt1 = edge_t[ei + 1] - edge_t[ei];
+    uint8_t c1 = classify_dt(dt1);
+    if (c1 == 1) {
+      ei = ei + 1;
+    } else if (c1 == 0) {
+      if (ei + 2 >= edge_count)
+        return false;
+      uint32_t dt2 = edge_t[ei + 2] - edge_t[ei + 1];
+      if (classify_dt(dt2) != 0)
+        return false;
+      ei = ei + 2;
+    } else {
+      return false;
+    }
+    uint8_t bit = rise_is_one ? (edge_is_rise[ei] ? 1 : 0) : (edge_is_rise[ei] ? 0 : 1);
+    out_bits[blen++] = bit;
+  }
+  return true;
+}
+
+static inline IRAM_ATTR bool scan_decode(const uint32_t *edge_t, const uint8_t *edge_is_rise, int edge_count,
+                                         uint8_t out_bits[34]) {
+  for (int start = 0; start < edge_count; start++) {
+    for (int pol = 0; pol < 2; pol++) {
+      bool rise_is_one = (pol == 0);
+      if (!collapse_decode(edge_t, edge_is_rise, edge_count, start, rise_is_one, out_bits))
+        continue;
+      if (out_bits[0] == 1 && out_bits[33] == 1)
+        return true;
+    }
+  }
+  return false;
+}
 bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
   auto *self = static_cast<OpenTherm *>(arg);
   // Start decoding
@@ -209,34 +298,7 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
   constexpr int kMaxEdges = 256;
   uint32_t edge_t[kMaxEdges];
   uint8_t edge_dir_rise[kMaxEdges];  // 1 for rising, 0 for falling
-  int edge_count = 0;
-  uint32_t t_acc = 0;
-  for (size_t i = 0; i < count && edge_count < kMaxEdges; i++) {
-    uint32_t d0 = syms[i].duration0;
-    uint32_t d1 = syms[i].duration1;
-    if (d0 == 0)
-      break;
-    t_acc += d0;
-    // Mid-bit transition: level0 -> level1
-    if (edge_count < kMaxEdges) {
-      edge_t[edge_count] = t_acc;
-      edge_dir_rise[edge_count] = (syms[i].level0 == 0 && syms[i].level1 == 1) ? 1 : 0;
-      edge_count++;
-    }
-    if (d1 == 0)
-      break;
-    t_acc += d1;
-    // Bit-boundary transition: last level of this symbol -> first level of next symbol (if it toggles)
-    if ((i + 1) < count && edge_count < kMaxEdges) {
-      bool next_l0 = syms[i + 1].level0;
-      bool cur_l1 = syms[i].level1;
-      if (next_l0 != cur_l1) {
-        edge_t[edge_count] = t_acc;
-        edge_dir_rise[edge_count] = (cur_l1 == 0 && next_l0 == 1) ? 1 : 0;
-        edge_count++;
-      }
-    }
-  }
+  int edge_count = build_edges(syms, count, edge_t, edge_dir_rise, kMaxEdges);
 
   if (edge_count < 2) {
     self->mode_ = OperationMode::ERROR_TIMEOUT;
@@ -244,70 +306,9 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     return false;
   }
 
-  // Timing windows (us)
-  const int halfbit = 500;
-  const int jitter_m = 100;
-  const int jitter_p = 150;
-  auto is_short = [&](uint32_t dt) -> bool {
-    return dt >= (uint32_t) (halfbit - jitter_m) && dt <= (uint32_t) (halfbit + jitter_p);
-  };
-  auto is_long = [&](uint32_t dt) -> bool {
-    return dt >= (uint32_t) (2 * halfbit - jitter_m) && dt <= (uint32_t) (2 * halfbit + jitter_p);
-  };
-
-  // Active-low polarity (idle high); start on rising edge
+  // Decode bits from edges (try all starts and both polarities)
   uint8_t bits[34];
-
-  // Helper: attempt to decode by collapsing edges into mid-bit edges
-  auto try_decode = [&](int start_edge_idx, bool rise_is_one, uint8_t out_bits[34]) -> bool {
-    int ei = start_edge_idx;
-    int blen = 0;
-    // First bit must be start bit '1'
-    uint8_t bit = rise_is_one ? (edge_dir_rise[ei] ? 1 : 0) : (edge_dir_rise[ei] ? 0 : 1);
-    if (bit != 1)
-      return false;
-    out_bits[blen++] = 1;
-    while (blen < 34) {
-      if (ei + 1 >= edge_count)
-        return false;
-      uint32_t dt1 = edge_t[ei + 1] - edge_t[ei];
-      if (is_long(dt1)) {
-        // direct to next mid edge
-        ei = ei + 1;
-      } else if (is_short(dt1)) {
-        if (ei + 2 >= edge_count)
-          return false;
-        uint32_t dt2 = edge_t[ei + 2] - edge_t[ei + 1];
-        if (!is_short(dt2))
-          return false;
-        ei = ei + 2;  // skip boundary, land on next mid
-      } else {
-        return false;
-      }
-      // Append bit from mid-edge direction
-      uint8_t val = rise_is_one ? (edge_dir_rise[ei] ? 1 : 0) : (edge_dir_rise[ei] ? 0 : 1);
-      out_bits[blen++] = val;
-    }
-    return true;
-  };
-
-  // Try both polarities and all candidate starts
-  bool frame_ok = false;
-  uint8_t tmp_bits[34];
-  for (int start = 0; start < edge_count && !frame_ok; start++) {
-    // Prefer starts on any edge; collapse will validate by timing
-    for (int pol = 0; pol < 2 && !frame_ok; pol++) {
-      bool rise_is_one = (pol == 0);  // active-low first, then inverted
-      if (!try_decode(start, rise_is_one, tmp_bits))
-        continue;
-      if (tmp_bits[0] != 1 || tmp_bits[33] != 1)
-        continue;
-      // Success
-      for (int i = 0; i < 34; i++)
-        bits[i] = tmp_bits[i];
-      frame_ok = true;
-    }
-  }
+  bool frame_ok = scan_decode(edge_t, edge_dir_rise, edge_count, bits);
 
   if (!frame_ok) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
