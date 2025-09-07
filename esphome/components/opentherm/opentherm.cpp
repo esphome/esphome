@@ -20,6 +20,13 @@ using std::string;
 using std::to_string;
 
 static const char *const TAG = "opentherm";
+// RMT source clock is used by the RX range filter hardware. The maximum
+// configurable minimum pulse width is limited to 255 source clock cycles.
+#ifdef USE_ESP32_VARIANT_ESP32H2
+static const uint32_t RMT_CLK_FREQ = 32000000;
+#else
+static const uint32_t RMT_CLK_FREQ = 80000000;
+#endif
 
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
@@ -173,9 +180,19 @@ bool OpenTherm::init_rmt_() {
 
   // Configure receive timing window
   memset(&this->rx_config_, 0, sizeof(this->rx_config_));
-  // Filter out glitches shorter than 100us; consider signal ended after >2000us without edge
-  this->rx_config_.signal_range_min_ns = 100 * 1000;
-  this->rx_config_.signal_range_max_ns = 2000 * 1000;
+  // Filter out short glitches; consider signal ended after >2000us without edge
+  // Note: signal_range_min_ns must be < 255 cycles of the RMT source clock.
+  // Clamp to the hardware-supported maximum to avoid runtime errors.
+  {
+    uint32_t const max_filter_ns = 255u * 1000u / (RMT_CLK_FREQ / 1000000u);
+    uint32_t desired_min_ns = 100u * 1000u;  // 100us target, will be clamped
+    // Must be strictly less than the limit reported by the driver
+    uint32_t safe_min_ns = (max_filter_ns > 0) ? (max_filter_ns - 1) : 0;
+    if (desired_min_ns > safe_min_ns)
+      desired_min_ns = safe_min_ns;
+    this->rx_config_.signal_range_min_ns = desired_min_ns;
+  }
+  this->rx_config_.signal_range_max_ns = 2000u * 1000u;
 
   return true;
 }
@@ -203,6 +220,56 @@ static inline bool sample_level_at(const rmt_symbol_word_t *syms, size_t n, uint
   return level;
 }
 
+// Helper: convert a sequence of RMT symbols into sequential level-duration spans
+// and locate the start bit (idle-high gap -> low ~500us -> high ~500us).
+static inline bool IRAM_ATTR find_start_timestamp_us(const rmt_symbol_word_t *syms, size_t count,
+                                                     uint32_t *t_start_out) {
+  if (syms == nullptr || count == 0)
+    return false;
+  // Tolerances for half-bit durations
+  const uint32_t HALF_MIN = 300;  // us
+  const uint32_t HALF_MAX = 700;  // us
+  const uint32_t IDLE_MIN = 800;  // us of idle high before start
+
+  struct Span {
+    bool level;
+    uint32_t dur;
+    uint32_t start;
+    bool valid;
+  } a{true, 0, 0, false}, b{true, 0, 0, false}, c{true, 0, 0, false};
+
+  uint32_t t_us = 0;
+  // iterate spans in order
+  for (size_t i = 0; i < count; i++) {
+    bool levels[2] = {syms[i].level0, syms[i].level1};
+    uint32_t durs[2] = {syms[i].duration0, syms[i].duration1};
+    for (int k = 0; k < 2; k++) {
+      if (durs[k] == 0)
+        break;
+      // shift history: a <- b <- c <- new
+      a = b;
+      b = c;
+      c.level = levels[k];
+      c.dur = durs[k];
+      c.start = t_us;
+      c.valid = true;
+
+      // Check for [a=idle high], [b=low ~500us], [c=high ~500us]
+      if (a.valid && b.valid && c.valid) {
+        bool idle_ok = (a.level == 1) && (a.dur >= IDLE_MIN);
+        bool low_ok = (b.level == 0) && (b.dur >= HALF_MIN && b.dur <= HALF_MAX);
+        bool high_ok = (c.level == 1) && (c.dur >= HALF_MIN && c.dur <= HALF_MAX);
+        if (idle_ok && low_ok && high_ok) {
+          *t_start_out = b.start;  // start at beginning of low half of start bit
+          return true;
+        }
+      }
+      t_us += durs[k];
+    }
+  }
+  return false;
+}
+
 bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
   auto *self = static_cast<OpenTherm *>(arg);
   // Start decoding
@@ -216,14 +283,20 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     return false;
   }
 
-  // Assume capture starts at beginning of start bit low period
-  // Validate by sampling within each half-bit
+  // Try to locate the actual start bit within the captured symbols.
+  uint32_t t_start = 0;
+  bool have_start = find_start_timestamp_us(syms, count, &t_start);
+  if (!have_start) {
+    // Fallback: assume buffer starts at (or very close to) start bit
+    t_start = 0;
+  }
+  // Validate by sampling within each half-bit from detected start
   uint32_t bits = 0;
   // Start bit (index 0), 32 data bits (1..32), stop bit (33)
   for (uint8_t i = 0; i <= 33; i++) {
     self->bit_pos_ = i;
-    uint32_t t0 = i * 1000 + 250;  // middle of left half
-    uint32_t t1 = i * 1000 + 750;  // middle of right half
+    uint32_t t0 = t_start + i * 1000 + 250;  // middle of left half
+    uint32_t t1 = t_start + i * 1000 + 750;  // middle of right half
     bool L = sample_level_at(syms, count, t0);
     bool R = sample_level_at(syms, count, t1);
     if (i == 0 || i == 33) {
