@@ -95,10 +95,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   full_url += "loki/api/v1/push";
 
   // Send HTTP POST request
-  auto container = this->parent_->post(full_url, json_payload, headers);
-  if (container == nullptr) {
-    ESP_LOGE(TAG, "Failed to send log to Loki at %s", full_url.c_str());
-  }
+  this->parent_->post(full_url, json_payload, headers);
 }
 
 const char *Loki::get_log_level_name_(int level) const {
