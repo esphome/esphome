@@ -282,8 +282,9 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
   auto *syms = evt->received_symbols;
   size_t count = evt->num_symbols;
   if (syms == nullptr || count == 0) {
-    self->mode_ = OperationMode::ERROR_PROTOCOL;
-    self->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
+    // Spurious/empty capture: mark as timeout so outer loop doesn't spin-wait
+    self->mode_ = OperationMode::ERROR_TIMEOUT;
+    self->rx_receiving_ = false;
     return false;
   }
 
@@ -305,6 +306,11 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     if (d1 == 0)
       break;
     total_us += d1;
+  }
+  if (total_us < 10000) {  // too short, likely noise; treat as timeout
+    self->mode_ = OperationMode::ERROR_TIMEOUT;
+    self->rx_receiving_ = false;
+    return false;
   }
   const uint32_t PAD_US = 2000;  // ensure we cover stop-bit tail into idle
   int n_halves_base = (int) ((total_us + PAD_US) / 500);
@@ -392,6 +398,7 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
   if (!found) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
     self->error_type_ = ProtocolErrorType::NO_TRANSITION;
+    self->rx_receiving_ = false;
     return false;
   }
 
@@ -413,19 +420,26 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
   if (!self->check_parity_(self->data_)) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
     self->error_type_ = ProtocolErrorType::PARITY_ERROR;
+    self->rx_receiving_ = false;
     return false;
   }
 
   self->mode_ = OperationMode::RECEIVED;
+  self->rx_receiving_ = false;
   return false;
 }
 
 void OpenTherm::start_read_rmt_() {
   // Start single receive into internal buffer
   memset(this->rx_buffer_, 0, sizeof(this->rx_buffer_));
-  if (rmt_receive(this->rx_channel_, this->rx_buffer_, sizeof(this->rx_buffer_), &this->rx_config_) != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to start RMT receive");
-    this->mode_ = OperationMode::ERROR_PROTOCOL;
+  if (!this->rx_receiving_) {
+    esp_err_t err = rmt_receive(this->rx_channel_, this->rx_buffer_, sizeof(this->rx_buffer_), &this->rx_config_);
+    if (err == ESP_OK) {
+      this->rx_receiving_ = true;
+    } else {
+      ESP_LOGW(TAG, "Failed to start RMT receive: %s", esp_err_to_name(err));
+      this->mode_ = OperationMode::ERROR_TIMEOUT;
+    }
   }
 }
 

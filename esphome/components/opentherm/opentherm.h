@@ -358,6 +358,7 @@ class OpenTherm {
   rmt_channel_handle_t tx_channel_{nullptr};
   rmt_receive_config_t rx_config_{};
   rmt_encoder_handle_t tx_encoder_{nullptr};
+  bool rx_receiving_{false};
   // RX buffer for one OpenTherm frame
   static constexpr size_t RX_SYMBOL_CAPACITY = 128;  // sufficient for a full frame with margins
   rmt_symbol_word_t rx_buffer_[RX_SYMBOL_CAPACITY]{};
