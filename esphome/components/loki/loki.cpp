@@ -109,6 +109,8 @@ const char *Loki::get_log_level_name_(int level) const {
       return "WARN";
     case ESPHOME_LOG_LEVEL_INFO:
       return "INFO";
+    case ESPHOME_LOG_LEVEL_CONFIG:
+      return "CONFIG";
     case ESPHOME_LOG_LEVEL_DEBUG:
       return "DEBUG";
     case ESPHOME_LOG_LEVEL_VERBOSE:
