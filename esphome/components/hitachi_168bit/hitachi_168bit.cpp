@@ -211,7 +211,7 @@ bool Hitachi168bitClimate::on_receive(remote_base::RemoteReceiveData data) {
       remote_state[18], remote_state[19], remote_state[20]);
 
   // verify header remote code
-  if (remote_state[0] != 0x95 || remote_state[1] != 0x9A)
+  if (remote_state[0] != 0xA9 || remote_state[1] != 0x59)
     return false;
 
   // powr on/off button
