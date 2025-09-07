@@ -308,8 +308,12 @@ def perform_ota(
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
+def run_ota_impl_(
+    remote_host: str | list[str], remote_port: int, password: str, filename: str
+) -> int:
+    # Handle both single host and list of hosts
     try:
+        # Resolve all hosts at once for parallel DNS resolution
         res = resolve_ip_address(remote_host, remote_port)
     except EsphomeError as err:
         _LOGGER.error(
@@ -350,7 +354,9 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
     return 1
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(
+    remote_host: str | list[str], remote_port: int, password: str, filename: str
+) -> int:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:

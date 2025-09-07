@@ -732,7 +732,7 @@ class APIConnection final : public APIServerConnection {
   }
 
   // Helper function to log API errors with errno
-  void log_warning_(const char *message, APIError err);
+  void log_warning_(const LogString *message, APIError err);
   // Specific helper for duplicated error message
   void log_socket_operation_failed_(APIError err);
 };
