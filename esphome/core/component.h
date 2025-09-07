@@ -9,6 +9,9 @@
 
 namespace esphome {
 
+// Forward declaration for LogString
+struct LogString;
+
 /** Default setup priorities for components of different types.
  *
  * Components should return one of these setup priorities in get_setup_priority.
@@ -44,14 +47,13 @@ extern const float LATE;
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
-#define LOG_UPDATE_INTERVAL(this) \
-  if (this->get_update_interval() == SCHEDULER_DONT_RUN) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: never"); \
-  } else if (this->get_update_interval() < 100) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
-  } else { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
-  }
+// Forward declaration
+class PollingComponent;
+
+// Function declaration for LOG_UPDATE_INTERVAL
+void log_update_interval(const char *tag, PollingComponent *component);
+
+#define LOG_UPDATE_INTERVAL(this) log_update_interval(TAG, this)
 
 extern const uint8_t COMPONENT_STATE_MASK;
 extern const uint8_t COMPONENT_STATE_CONSTRUCTION;
@@ -203,6 +205,7 @@ class Component {
   bool status_has_error() const;
 
   void status_set_warning(const char *message = nullptr);
+  void status_set_warning(const LogString *message);
 
   void status_set_error(const char *message = nullptr);
 
