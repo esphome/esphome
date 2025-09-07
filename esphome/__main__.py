@@ -396,7 +396,10 @@ def check_permissions(port: str):
             )
 
 
-def upload_program(config: ConfigType, args: ArgsProtocol, host: str) -> int | str:
+def upload_program(
+    config: ConfigType, args: ArgsProtocol, devices: list[str]
+) -> int | str:
+    host = devices[0]
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         if getattr(module, "upload_program")(config, args, host):
@@ -433,10 +436,10 @@ def upload_program(config: ConfigType, args: ArgsProtocol, host: str) -> int | s
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD, "")
+    binary = args.file if getattr(args, "file", None) is not None else CORE.firmware_bin
 
     # Check if we should use MQTT for address resolution
     # This happens when no device was specified, or the current host is "MQTT"/"OTA"
-    devices: list[str] = args.device or []
     if (
         CONF_MQTT in config  # pylint: disable=too-many-boolean-expressions
         and (not devices or host in ("MQTT", "OTA"))
@@ -447,14 +450,13 @@ def upload_program(config: ConfigType, args: ArgsProtocol, host: str) -> int | s
     ):
         from esphome import mqtt
 
-        host = mqtt.get_esphome_device_ip(
-            config, args.username, args.password, args.client_id
-        )
+        devices = [
+            mqtt.get_esphome_device_ip(
+                config, args.username, args.password, args.client_id
+            )
+        ]
 
-    if getattr(args, "file", None) is not None:
-        return espota2.run_ota(host, remote_port, password, args.file)
-
-    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
+    return espota2.run_ota(devices, remote_port, password, binary)
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -551,17 +553,11 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose="uploading",
     )
 
-    # Try each device until one succeeds
-    exit_code = 1
-    for device in devices:
-        _LOGGER.info("Uploading to %s", device)
-        exit_code = upload_program(config, args, device)
-        if exit_code == 0:
-            _LOGGER.info("Successfully uploaded program.")
-            return 0
-        if len(devices) > 1:
-            _LOGGER.warning("Failed to upload to %s", device)
-
+    exit_code = upload_program(config, args, devices)
+    if exit_code == 0:
+        _LOGGER.info("Successfully uploaded program.")
+    else:
+        _LOGGER.warning("Failed to upload to %s", devices)
     return exit_code
 
 
