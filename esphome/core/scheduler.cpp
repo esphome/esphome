@@ -474,7 +474,7 @@ void HOT Scheduler::call(uint32_t now) {
         this->to_add_.push_back(std::move(item));
       }
 
-      added_items |= this->to_add_.empty() == false;
+      added_items |= !this->to_add_.empty();
     }
   }
 
