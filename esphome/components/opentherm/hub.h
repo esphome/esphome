@@ -70,6 +70,9 @@ class OpenthermHub : public Component {
 
   uint32_t last_conversation_start_ = 0;
   uint32_t last_conversation_end_ = 0;
+  uint32_t warmup_until_ = 0;            // delay first conversation to let peripherals settle
+  bool skip_first_conversation_ = true;  // skip exactly one conversation after warmup
+  bool suppress_first_timeout_ = true;   // suppress log for the first timeout
   OperationMode last_mode_ = IDLE;
   OpenthermData last_request_;
 
