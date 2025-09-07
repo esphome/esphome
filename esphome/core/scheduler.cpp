@@ -327,7 +327,7 @@ void HOT Scheduler::call(uint32_t now) {
   this->process_to_add();
 
   // Track if any items were added to to_add_ during this call (intervals or from callbacks)
-  bool added_items = false;
+  bool has_added_items = false;
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   static uint64_t last_print = 0;
@@ -474,11 +474,11 @@ void HOT Scheduler::call(uint32_t now) {
         this->to_add_.push_back(std::move(item));
       }
 
-      added_items |= this->to_add_.empty() == false;
+      has_added_items |= !this->to_add_.empty();
     }
   }
 
-  if (added_items) {
+  if (has_added_items) {
     this->process_to_add();
   }
 }
