@@ -197,83 +197,6 @@ bool OpenTherm::init_rmt_() {
   return true;
 }
 
-// Helper to sample level at specific time offset (us) from first captured edge
-static inline bool sample_level_at(const rmt_symbol_word_t *syms, size_t n, uint32_t t_us) {
-  uint32_t acc = 0;
-  bool level = syms[0].level0;
-  for (size_t i = 0; i < n; i++) {
-    uint32_t d0 = syms[i].duration0;
-    if (d0 == 0)
-      break;
-    if (acc + d0 > t_us)
-      return syms[i].level0;  // t_us lies within duration0
-    acc += d0;
-    level = syms[i].level1;
-    uint32_t d1 = syms[i].duration1;
-    if (d1 == 0)
-      return level;
-    if (acc + d1 > t_us)
-      return level;
-    acc += d1;
-    // After duration1, the signal level equals the last level (level1) until the next symbol starts.
-    // The next symbol's level0 must equal this for continuity per RMT driver.
-    // Do NOT reset to syms[i].level0 here.
-    // Keep 'level' as level1 for the subsequent iteration.
-  }
-  return level;
-}
-
-// Helper: convert a sequence of RMT symbols into sequential level-duration spans
-// and locate the start bit (idle-high gap -> low ~500us -> high ~500us).
-static inline bool IRAM_ATTR find_start_timestamp_us(const rmt_symbol_word_t *syms, size_t count, uint32_t *t_start_out,
-                                                     bool *low_high_out) {
-  if (syms == nullptr || count == 0)
-    return false;
-  // Tolerances for half-bit durations
-  const uint32_t HALF_MIN = 300;  // us
-  const uint32_t HALF_MAX = 700;  // us
-  // Find the first [low ~500us, high ~500us] or [high ~500us, low ~500us] pair and
-  // use its first half as the frame start. Report whether the pair is low->high.
-
-  struct Span {
-    bool level;
-    uint32_t dur;
-    uint32_t start;
-    bool valid;
-  } a{true, 0, 0, false}, b{true, 0, 0, false}, c{true, 0, 0, false};
-
-  uint32_t t_us = 0;
-  // iterate spans in order
-  for (size_t i = 0; i < count; i++) {
-    bool levels[2] = {syms[i].level0, syms[i].level1};
-    uint32_t durs[2] = {syms[i].duration0, syms[i].duration1};
-    for (int k = 0; k < 2; k++) {
-      if (durs[k] == 0)
-        break;
-      // shift history: a <- b <- c <- new
-      a = b;
-      b = c;
-      c.level = levels[k];
-      c.dur = durs[k];
-      c.start = t_us;
-      c.valid = true;
-
-      // Check for [b ~500us], [c ~500us] with different levels
-      if (a.valid && b.valid && c.valid) {
-        bool b_ok = (b.dur >= HALF_MIN && b.dur <= HALF_MAX);
-        bool c_ok = (c.dur >= HALF_MIN && c.dur <= HALF_MAX);
-        if (b_ok && c_ok && (b.level != c.level)) {
-          *t_start_out = b.start;  // start at beginning of the first half
-          *low_high_out = (b.level == 0 && c.level == 1);
-          return true;
-        }
-      }
-      t_us += durs[k];
-    }
-  }
-  return false;
-}
-
 bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
   auto *self = static_cast<OpenTherm *>(arg);
   // Start decoding
@@ -288,135 +211,163 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     return false;
   }
 
-  // Store debug symbols for later logging outside ISR
-  size_t dbg_n = (count < OpenTherm::DEBUG_RX_SYMBOLS) ? count : OpenTherm::DEBUG_RX_SYMBOLS;
-  for (size_t i = 0; i < dbg_n; i++)
-    self->last_rx_symbols_[i] = syms[i];
-  self->last_rx_symbol_count_ = dbg_n;
-
-  // Build half-bit levels (0/1) by sampling every ~500us starting at a few different phases and step sizes
-  uint8_t halves[256];
-  uint32_t total_us = 0;
-  for (size_t i = 0; i < count; i++) {
+  // Build edge list (timestamps in us) and directions
+  constexpr int kMaxEdges = 256;
+  uint32_t edge_t[kMaxEdges];
+  uint8_t edge_dir_rise[kMaxEdges];  // 1 for rising, 0 for falling
+  int edge_count = 0;
+  uint32_t t_acc = 0;
+  for (size_t i = 0; i < count && edge_count < kMaxEdges; i++) {
     uint32_t d0 = syms[i].duration0;
     uint32_t d1 = syms[i].duration1;
     if (d0 == 0)
       break;
-    total_us += d0;
+    t_acc += d0;
+    // Mid-bit transition: level0 -> level1
+    if (edge_count < kMaxEdges) {
+      edge_t[edge_count] = t_acc;
+      edge_dir_rise[edge_count] = (syms[i].level0 == 0 && syms[i].level1 == 1) ? 1 : 0;
+      edge_count++;
+    }
     if (d1 == 0)
       break;
-    total_us += d1;
-  }
-  if (total_us < 10000) {  // too short, likely noise; treat as timeout
-    self->mode_ = OperationMode::ERROR_TIMEOUT;
-    self->rx_receiving_ = false;
-    return false;
-  }
-  const uint32_t PAD_US = 2000;  // ensure we cover stop-bit tail into idle
-  int n_halves_base = (int) ((total_us + PAD_US) / 500);
-  if (n_halves_base > 256)
-    n_halves_base = 256;
-  // phases to try (us)
-  const uint32_t phases[] = {200, 250, 300};
-  // step sizes to try (us)
-  const uint32_t steps[] = {490, 495, 500, 505, 510};
-  int chosen_phase_idx = -1;
-  int chosen_step_idx = -1;
-  int n_halves = 0;
-  // Try to find a valid frame by scanning phases, polarities and start indices
-  auto is_one = [](bool pol_lh, uint8_t h0, uint8_t h1) -> bool {
-    return pol_lh ? (h0 == 0 && h1 == 1) : (h0 == 1 && h1 == 0);
-  };
-  uint32_t bits = 0;
-  bool found = false;
-  bool pol_lh = true;
-  int start_half = -1;
-  self->last_scan_info_count_ = 0;
-  for (size_t ph = 0; ph < sizeof(phases) / sizeof(phases[0]) && !found; ph++) {
-    uint32_t phase = phases[ph];
-    for (size_t st = 0; st < sizeof(steps) / sizeof(steps[0]) && !found; st++) {
-      uint32_t step = steps[st];
-      n_halves = (int) ((total_us + PAD_US) / step);
-      if (n_halves > 256)
-        n_halves = 256;
-      for (int k = 0; k < n_halves; k++) {
-        uint32_t t = phase + k * step;
-        halves[k] = sample_level_at(syms, count, t) ? 1 : 0;
-      }
-      // Try both polarities and all plausible start positions
-      for (int pol = 0; pol < 2 && !found; pol++) {
-        pol_lh = (pol == 0);
-        for (int s = 0; s + 33 * 2 < n_halves; s++) {
-          if (!is_one(pol_lh, halves[s + 0], halves[s + 1]))
-            continue;
-          uint32_t tmp = 0;
-          bool ok = true;
-          uint8_t fail_bit = 255;
-          for (int i = 1; i <= 32; i++) {
-            int idx = s + i * 2;
-            if (idx + 1 >= n_halves) {
-              ok = false;
-              fail_bit = (uint8_t) i;
-              break;
-            }
-            uint8_t a = halves[idx + 0];
-            uint8_t b = halves[idx + 1];
-            if (a == b) {
-              ok = false;
-              fail_bit = (uint8_t) i;
-              break;
-            }
-            uint8_t bit = is_one(pol_lh, a, b) ? 1 : 0;
-            tmp = (tmp << 1) | bit;
-          }
-          if (!ok) {
-            if (self->last_scan_info_count_ < OpenTherm::MAX_SCAN_INFO) {
-              self->last_scan_info_[self->last_scan_info_count_++] =
-                  OpenTherm::ScanInfo{(uint8_t) ph, (uint8_t) s, (uint8_t) (pol_lh ? 1 : 0), fail_bit};
-            }
-            continue;
-          }
-          if (!is_one(pol_lh, halves[s + 33 * 2 + 0], halves[s + 33 * 2 + 1]))
-            continue;
-          // Found a valid frame
-          bits = tmp;
-          start_half = s;
-          chosen_phase_idx = (int) ph;
-          chosen_step_idx = (int) st;
-          found = true;
-          break;
-        }
+    t_acc += d1;
+    // Bit-boundary transition: last level of this symbol -> first level of next symbol (if it toggles)
+    if ((i + 1) < count && edge_count < kMaxEdges) {
+      bool next_l0 = syms[i + 1].level0;
+      bool cur_l1 = syms[i].level1;
+      if (next_l0 != cur_l1) {
+        edge_t[edge_count] = t_acc;
+        edge_dir_rise[edge_count] = (cur_l1 == 0 && next_l0 == 1) ? 1 : 0;
+        edge_count++;
       }
     }
   }
 
-  // Save debug halves snapshot (from the first phase for visibility)
-  self->last_halves_count_ = (uint16_t) n_halves_base;
-  for (int i = 0; i < n_halves_base && i < 32; i++)
-    self->last_halves_[i] = sample_level_at(syms, count, phases[0] + i * 500) ? 1 : 0;
+  // Save a snapshot of the first few raw symbols for diagnostics
+  self->dbg_symbol_count_ = (count < self->DBG_MAX_SYMBOLS) ? count : self->DBG_MAX_SYMBOLS;
+  self->dbg_total_symbols_ = (uint16_t) count;
+  for (uint8_t i = 0; i < self->dbg_symbol_count_; i++)
+    self->dbg_symbols_[i] = syms[i];
 
-  if (!found) {
+  if (edge_count < 2) {
+    self->mode_ = OperationMode::ERROR_TIMEOUT;
+    self->rx_receiving_ = false;
+    return false;
+  }
+
+  // Timing windows (us)
+  const int halfbit = 500;
+  const int jitter_m = 100;
+  const int jitter_p = 150;
+  auto is_short = [&](uint32_t dt) -> bool {
+    return dt >= (uint32_t) (halfbit - jitter_m) && dt <= (uint32_t) (halfbit + jitter_p);
+  };
+  auto is_long = [&](uint32_t dt) -> bool {
+    return dt >= (uint32_t) (2 * halfbit - jitter_m) && dt <= (uint32_t) (2 * halfbit + jitter_p);
+  };
+
+  enum State { IDLE, SYNC, MID1, MID0, START1, START0 };
+  State st = IDLE;
+
+  // Active-low polarity (idle high); start on rising edge
+  uint8_t bits[34];
+  int bits_len = 0;
+
+  // Precompute intervals between consecutive edges
+  self->dbg_edge_count_ = edge_count;
+  int interval_count = edge_count > 0 ? (edge_count - 1) : 0;
+  // Save first intervals for diagnostics
+  for (int i = 0; i < interval_count && i < (int) self->DBG_MAX_INTERVALS; i++) {
+    uint32_t dt = edge_t[i + 1] - edge_t[i];
+    char etype = 'e';
+    if (is_short(dt))
+      etype = 's';
+    else if (is_long(dt))
+      etype = 'l';
+    self->dbg_intervals_[i] = (uint16_t) dt;
+    self->dbg_types_[i] = (etype == 's') ? 0 : (etype == 'l') ? 1 : 2;
+  }
+
+  // Helper: attempt to decode by collapsing edges into mid-bit edges
+  auto try_decode = [&](int start_edge_idx, bool rise_is_one, uint8_t out_bits[34]) -> bool {
+    int ei = start_edge_idx;
+    int blen = 0;
+    // First bit must be start bit '1'
+    uint8_t bit = rise_is_one ? (edge_dir_rise[ei] ? 1 : 0) : (edge_dir_rise[ei] ? 0 : 1);
+    if (bit != 1)
+      return false;
+    out_bits[blen++] = 1;
+    while (blen < 34) {
+      if (ei + 1 >= edge_count)
+        return false;
+      uint32_t dt1 = edge_t[ei + 1] - edge_t[ei];
+      if (is_long(dt1)) {
+        // direct to next mid edge
+        ei = ei + 1;
+      } else if (is_short(dt1)) {
+        if (ei + 2 >= edge_count)
+          return false;
+        uint32_t dt2 = edge_t[ei + 2] - edge_t[ei + 1];
+        if (!is_short(dt2))
+          return false;
+        ei = ei + 2;  // skip boundary, land on next mid
+      } else {
+        return false;
+      }
+      // Append bit from mid-edge direction
+      uint8_t val = rise_is_one ? (edge_dir_rise[ei] ? 1 : 0) : (edge_dir_rise[ei] ? 0 : 1);
+      out_bits[blen++] = val;
+    }
+    return true;
+  };
+
+  // Try both polarities and all candidate starts
+  bool frame_ok = false;
+  uint8_t tmp_bits[34];
+  for (int start = 0; start < edge_count && !frame_ok; start++) {
+    // Prefer starts on any edge; collapse will validate by timing
+    for (int pol = 0; pol < 2 && !frame_ok; pol++) {
+      bool rise_is_one = (pol == 0);  // active-low first, then inverted
+      if (!try_decode(start, rise_is_one, tmp_bits))
+        continue;
+      if (tmp_bits[0] != 1 || tmp_bits[33] != 1)
+        continue;
+      // Success
+      for (int i = 0; i < 34; i++)
+        bits[i] = tmp_bits[i];
+      bits_len = 34;
+      frame_ok = true;
+    }
+  }
+
+  self->dbg_bits_len_ = (uint8_t) bits_len;
+  for (int i = 0; i < bits_len && i < 34; i++)
+    self->dbg_bits_[i] = bits[i];
+
+  if (!frame_ok) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
     self->error_type_ = ProtocolErrorType::NO_TRANSITION;
     self->rx_receiving_ = false;
     return false;
   }
 
-  // Record first few half samples for debug
-  for (int i = 0; i < 6; i++) {
-    int idx = start_half + i * 2;
-    if (idx + 1 < n_halves) {
-      self->last_sample_L_[i] = halves[idx + 0];
-      self->last_sample_R_[i] = halves[idx + 1];
-    }
+  // Validate start/stop bits
+  if (bits[0] != 1 || bits[33] != 1) {
+    self->mode_ = OperationMode::ERROR_PROTOCOL;
+    self->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;
+    self->rx_receiving_ = false;
+    return false;
   }
-  self->last_polarity_low_high_ = pol_lh;
-  // Approximate start time in microseconds by summing half periods
-  uint32_t phase_us = phases[chosen_phase_idx >= 0 ? chosen_phase_idx : 0];
-  uint32_t step_us = steps[chosen_step_idx >= 0 ? chosen_step_idx : 2 /*500*/];
-  self->last_t_start_us_ = (uint32_t) (phase_us + start_half * step_us);
 
-  self->data_ = bits;  // 32-bit payload including parity
+  // Assemble 32-bit payload [b1..b32] (parity + fields)
+  uint32_t payload = 0;
+  for (int i = 1; i <= 32; i++) {
+    payload = (payload << 1) | (uint32_t) bits[i];
+  }
+  self->data_ = payload;
+
+  // Parity check across all 32 bits
   if (!self->check_parity_(self->data_)) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
     self->error_type_ = ProtocolErrorType::PARITY_ERROR;
@@ -669,42 +620,58 @@ void OpenTherm::debug_data(OpenthermData &data) {
            to_string(data.f88()).c_str());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "data: %s; clock: %s; capture: %s; bit_pos: %s", format_hex(error.data).c_str(),
-           to_string(clock_).c_str(), format_bin(error.capture).c_str(), to_string(error.bit_pos).c_str());
-  ESP_LOGD(TAG, "rxdbg: start=%u us, polarity=%s, symbols=%u", (unsigned) this->last_t_start_us_,
-           this->last_polarity_low_high_ ? "low->high" : "high->low", (unsigned) this->last_rx_symbol_count_);
-  uint32_t to_show = (this->last_rx_symbol_count_ < 8) ? this->last_rx_symbol_count_ : 8u;
-  for (uint32_t i = 0; i < to_show; i++) {
-    const auto &s = this->last_rx_symbols_[i];
-    ESP_LOGD(TAG, "  sym[%u]: L0=%u D0=%u | L1=%u D1=%u", (unsigned) i, (unsigned) s.level0, (unsigned) s.duration0,
-             (unsigned) s.level1, (unsigned) s.duration1);
-  }
-  // Show first few sampled half-bit levels before polarity adjustment
-  ESP_LOGD(TAG, "  sample L: %u %u %u %u %u %u", (unsigned) this->last_sample_L_[0], (unsigned) this->last_sample_L_[1],
-           (unsigned) this->last_sample_L_[2], (unsigned) this->last_sample_L_[3], (unsigned) this->last_sample_L_[4],
-           (unsigned) this->last_sample_L_[5]);
-  ESP_LOGD(TAG, "  sample R: %u %u %u %u %u %u", (unsigned) this->last_sample_R_[0], (unsigned) this->last_sample_R_[1],
-           (unsigned) this->last_sample_R_[2], (unsigned) this->last_sample_R_[3], (unsigned) this->last_sample_R_[4],
-           (unsigned) this->last_sample_R_[5]);
-  if (this->last_fail_bit_ != 255) {
-    ESP_LOGD(TAG, "  fail@bit=%u L=%u R=%u adj_L=%u adj_R=%u align_delta=%d", (unsigned) this->last_fail_bit_,
-             (unsigned) this->last_fail_L_, (unsigned) this->last_fail_R_, (unsigned) this->last_fail_L_adj_,
-             (unsigned) this->last_fail_R_adj_, (int) this->last_align_delta_);
-  }
-  ESP_LOGD(TAG, "  halves_count=%u first16=%u %u %u %u %u %u %u %u %u %u %u %u %u %u %u",
-           (unsigned) this->last_halves_count_, (unsigned) this->last_halves_[0], (unsigned) this->last_halves_[1],
-           (unsigned) this->last_halves_[2], (unsigned) this->last_halves_[3], (unsigned) this->last_halves_[4],
-           (unsigned) this->last_halves_[5], (unsigned) this->last_halves_[6], (unsigned) this->last_halves_[7],
-           (unsigned) this->last_halves_[8], (unsigned) this->last_halves_[9], (unsigned) this->last_halves_[10],
-           (unsigned) this->last_halves_[11], (unsigned) this->last_halves_[12], (unsigned) this->last_halves_[13],
-           (unsigned) this->last_halves_[14], (unsigned) this->last_halves_[15]);
-  if (this->last_scan_info_count_ > 0) {
-    ESP_LOGD(TAG, "  scan candidates (phase,start,pol,failbit): count=%u", (unsigned) this->last_scan_info_count_);
-    for (uint8_t i = 0; i < this->last_scan_info_count_; i++) {
-      auto s = this->last_scan_info_[i];
-      ESP_LOGD(TAG, "    (%u,%u,%u,%u)", (unsigned) s.phase_idx, (unsigned) s.start_half, (unsigned) s.pol_low_high,
-               (unsigned) s.fail_bit);
+  ESP_LOGD(TAG, "OpenTherm error: %s (bit_pos=%u)", OpenTherm::protocol_error_to_str(error.error_type),
+           (unsigned) error.bit_pos);
+  // Print a small snapshot of RX capture for troubleshooting
+  if (this->dbg_symbol_count_ > 0) {
+    uint8_t n = this->dbg_symbol_count_;
+    if (n > DBG_MAX_SYMBOLS)
+      n = DBG_MAX_SYMBOLS;
+    ESP_LOGD(TAG, "rx symbols: total=%u (showing %u)", (unsigned) this->dbg_total_symbols_, (unsigned) n);
+    for (uint8_t i = 0; i < n; i++) {
+      const auto &s = this->dbg_symbols_[i];
+      ESP_LOGD(TAG, "  sym[%u]: L0=%u D0=%u | L1=%u D1=%u", (unsigned) i, (unsigned) s.level0, (unsigned) s.duration0,
+               (unsigned) s.level1, (unsigned) s.duration1);
     }
+  }
+  if (this->dbg_edge_count_ > 0) {
+    ESP_LOGD(TAG, "edges: %u", (unsigned) this->dbg_edge_count_);
+  }
+  // Intervals and classification
+  {
+    char buf[160];
+    int off = 0;
+    off += snprintf(buf + off, sizeof(buf) - off, "intervals(us,type): ");
+    uint8_t n = DBG_MAX_INTERVALS;
+    for (uint8_t i = 0; i < n; i++) {
+      uint16_t dt = this->dbg_intervals_[i];
+      uint8_t tp = this->dbg_types_[i];
+      if (dt == 0 && tp == 0 && i > 0)
+        break;
+      char tpc = (tp == 0) ? 's' : (tp == 1) ? 'l' : 'e';
+      off += snprintf(buf + off, sizeof(buf) - off, "%u%c ", (unsigned) dt, tpc);
+      if (off > (int) sizeof(buf) - 8)
+        break;
+    }
+    ESP_LOGD(TAG, "%s", buf);
+  }
+  // Bits preview
+  if (this->dbg_bits_len_ > 0) {
+    char bits_str[80];
+    int off = 0;
+    uint8_t n = this->dbg_bits_len_;
+    if (n > 34)
+      n = 34;
+    for (uint8_t i = 0; i < n; i++) {
+      off += snprintf(bits_str + off, sizeof(bits_str) - off, "%u", (unsigned) this->dbg_bits_[i]);
+      if (i + 1 == n)
+        break;
+      if (i == 0 || i == 1 || i == 4 || i == 12 || i == 28) {
+        bits_str[off++] = ' ';
+      }
+    }
+    bits_str[off] = 0;
+    ESP_LOGD(TAG, "bits(%u): %s", (unsigned) this->dbg_bits_len_, bits_str);
   }
 }
 

@@ -339,11 +339,11 @@ class OpenTherm {
   void debug_data(OpenthermData &data);
   void debug_error(OpenThermError &error) const;
 
-  const char *protocol_error_to_str(ProtocolErrorType error_type);
-  const char *timer_error_to_str(TimerErrorType error_type);
-  const char *message_type_to_str(MessageType message_type);
-  const char *operation_mode_to_str(OperationMode mode);
-  const char *message_id_to_str(MessageId id);
+  static const char *protocol_error_to_str(ProtocolErrorType error_type);
+  static const char *timer_error_to_str(TimerErrorType error_type);
+  static const char *message_type_to_str(MessageType message_type);
+  static const char *operation_mode_to_str(OperationMode mode);
+  static const char *message_id_to_str(MessageId id);
 
   // No timer ISR with RMT backend
 
@@ -365,32 +365,17 @@ class OpenTherm {
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
   static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
 
-  // Debug storage for last RX attempt (for logging outside ISR)
-  static constexpr size_t DEBUG_RX_SYMBOLS = 32;
-  rmt_symbol_word_t last_rx_symbols_[DEBUG_RX_SYMBOLS]{};
-  uint32_t last_rx_symbol_count_{0};
-  uint32_t last_t_start_us_{0};
-  bool last_polarity_low_high_{true};
-  uint8_t last_sample_L_[6]{};  // sampled first bits left-half levels
-  uint8_t last_sample_R_[6]{};  // sampled first bits right-half levels
-  // Debug of failure point
-  uint8_t last_fail_bit_{255};
-  uint8_t last_fail_L_{0}, last_fail_R_{0};
-  uint8_t last_fail_L_adj_{0}, last_fail_R_adj_{0};
-  int32_t last_align_delta_{0};
-  // Half-bit debug
-  uint16_t last_halves_count_{0};
-  uint8_t last_halves_[32]{};  // first 32 half-bit levels
-  // Scan diagnostics
-  struct ScanInfo {
-    uint8_t phase_idx;
-    uint8_t start_half;
-    uint8_t pol_low_high;  // 1 if low->high means 1
-    uint8_t fail_bit;      // 255 if success
-  };
-  static constexpr size_t MAX_SCAN_INFO = 8;
-  ScanInfo last_scan_info_[MAX_SCAN_INFO]{};
-  uint8_t last_scan_info_count_{0};
+  // Minimal RX diagnostics (stored in ISR, printed outside)
+  static constexpr size_t DBG_MAX_SYMBOLS = 8;
+  static constexpr size_t DBG_MAX_INTERVALS = 16;
+  rmt_symbol_word_t dbg_symbols_[DBG_MAX_SYMBOLS]{};
+  uint8_t dbg_symbol_count_{0};
+  uint16_t dbg_total_symbols_{0};
+  uint16_t dbg_edge_count_{0};
+  uint16_t dbg_intervals_[DBG_MAX_INTERVALS]{};  // microseconds
+  uint8_t dbg_types_[DBG_MAX_INTERVALS]{};       // 0='s', 1='l', 2='e'
+  uint8_t dbg_bits_len_{0};
+  uint8_t dbg_bits_[34]{};  // start..stop (up to 34)
 
   OperationMode mode_;
   ProtocolErrorType error_type_;
