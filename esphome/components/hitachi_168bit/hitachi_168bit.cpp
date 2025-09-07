@@ -65,7 +65,7 @@ void Hitachi168bitClimate::transmit_state() {
       break;
     case climate::CLIMATE_MODE_COOL:
       remote_state[3] = HITACHI168BIT_COOL;
-      remote_state[15] = 6;
+      remote_state[15] = 2;
       break;
     case climate::CLIMATE_MODE_DRY:
       remote_state[3] = HITACHI168BIT_DRY;
