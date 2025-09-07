@@ -1,4 +1,5 @@
 #pragma once
+#include <queue>
 #include <string>
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -36,6 +37,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   uint16_t get_port() const { return this->port_; }
   int get_log_level() const { return this->log_level_; }
   bool is_strip_enabled() const { return this->strip_; }
+  void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
 #ifdef USE_SWITCH
   // Switch methods
@@ -45,6 +47,9 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
  protected:
   int log_level_;
   void log_(int level, const char *tag, const char *message, size_t message_len) const;
+  int num_runs_ = 0;
+  int max_runs_ = 0;
+  std::queue<std::tuple<Ts...>> var_queue_;
   const char *get_log_level_name_(int level) const;
   time::RealTimeClock *time_;
   bool strip_{true};

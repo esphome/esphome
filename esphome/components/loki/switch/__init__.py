@@ -8,7 +8,7 @@ from .. import CONF_LOKI_ID, Loki, loki_ns
 CODEOWNERS = ["@jzucker2"]
 LogsEnabledSwitch = loki_ns.class_("LogsEnabledSwitch", switch.Switch)
 
-# Haier switches
+# loki switches
 CONF_LOGS_ENABLED = "logs_enabled"
 
 # Additional icons
@@ -29,7 +29,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_LOKI_ID])
-
     for switch_type in [CONF_LOGS_ENABLED]:
         if conf := config.get(switch_type):
             sw_var = await switch.new_switch(conf)

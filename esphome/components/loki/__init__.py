@@ -15,6 +15,7 @@ loki_ns = cg.esphome_ns.namespace("loki")
 Loki = loki_ns.class_("Loki", Component, Parented.template(HttpRequestComponent))
 
 CONF_LOKI_ID = "loki_id"
+CONF_MAX_RUNS = "max_runs"
 CONF_STRIP = "strip"
 CONF_ENABLED = "enabled"
 
@@ -23,6 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(Loki),
         cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
         cv.GenerateID(CONF_TIME_ID): cv.use_id(RealTimeClock),
+        cv.Optional(CONF_MAX_RUNS): cv.positive_int,
         cv.Required(CONF_URL): cv.url,
         cv.Optional(CONF_PORT, default=3100): cv.port,
         cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
@@ -43,3 +45,5 @@ async def to_code(config):
     cg.add(var.set_url(config[CONF_URL]))
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_enabled(config[CONF_ENABLED]))
+    if CONF_MAX_RUNS in config:
+        cg.add(parent.set_max_runs(config[CONF_MAX_RUNS]))
