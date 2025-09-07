@@ -835,4 +835,25 @@ void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
   // else: unique_ptr will delete the item when it goes out of scope
 }
 
+void Scheduler::recycle_item_(std::unique_ptr<SchedulerItem> item) {
+  if (!item)
+    return;
+
+  if (this->scheduler_item_pool_.size() < MAX_POOL_SIZE) {
+    // Clear callback to release captured resources
+    item->callback = nullptr;
+    // Clear dynamic name if any
+    item->clear_dynamic_name();
+    this->scheduler_item_pool_.push_back(std::move(item));
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+#endif
+  } else {
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Pool full (size: %zu), deleting item", this->scheduler_item_pool_.size());
+#endif
+  }
+  // else: unique_ptr will delete the item when it goes out of scope
+}
+
 }  // namespace esphome
