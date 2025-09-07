@@ -326,6 +326,9 @@ void HOT Scheduler::call(uint32_t now) {
   const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from Application::loop()
   this->process_to_add();
 
+  // Track if we add any interval items during this call
+  bool added_intervals = false;
+
 #ifdef ESPHOME_DEBUG_SCHEDULER
   static uint64_t last_print = 0;
 
@@ -470,10 +473,14 @@ void HOT Scheduler::call(uint32_t now) {
         // since we have the lock held
         this->to_add_.push_back(std::move(item));
       }
+
+      added_intervals |= this->to_add_.empty() == false;
     }
   }
 
-  this->process_to_add();
+  if (added_intervals) {
+    this->process_to_add();
+  }
 }
 void HOT Scheduler::process_to_add() {
   LockGuard guard{this->lock_};
