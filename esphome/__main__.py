@@ -441,7 +441,7 @@ def upload_program(
     # This happens when no device was specified, or the current host is "MQTT"/"OTA"
     if (
         CONF_MQTT in config  # pylint: disable=too-many-boolean-expressions
-        and (not devices or host in ("MQTT", "OTA"))
+        and (host in ("MQTT", "OTA") or "MQTT" in devices or "OTA" in devices)
         and (
             ((config[CONF_MDNS][CONF_DISABLED]) and not is_ip_address(CORE.address))
             or get_port_type(host) == "MQTT"
