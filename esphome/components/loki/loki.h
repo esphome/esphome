@@ -5,12 +5,9 @@
 #include "esphome/core/log.h"
 #include "esphome/components/http_request/http_request.h"
 #include "esphome/components/time/real_time_clock.h"
-
-namespace esphome {
-namespace switch_ {
-class Switch;
-}
-}  // namespace esphome
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #ifdef USE_NETWORK
 namespace esphome {
@@ -24,9 +21,11 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   void set_port(uint16_t port) { this->port_ = port; }
   void set_enabled(bool enabled) {
     this->enabled_ = enabled;
+#ifdef USE_SWITCH
     if (this->logs_enabled_switch_ != nullptr) {
       this->logs_enabled_switch_->publish_state(enabled);
     }
+#endif
   }
 
   // Helper methods
@@ -38,8 +37,10 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   int get_log_level() const { return this->log_level_; }
   bool is_strip_enabled() const { return this->strip_; }
 
+#ifdef USE_SWITCH
   // Switch methods
   void set_logs_enabled_switch(switch_::Switch *switch_) { this->logs_enabled_switch_ = switch_; }
+#endif
 
  protected:
   int log_level_;
@@ -50,7 +51,9 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   bool enabled_{true};
   std::string url_;
   uint16_t port_{3100};
+#ifdef USE_SWITCH
   switch_::Switch *logs_enabled_switch_{nullptr};
+#endif
 };
 }  // namespace loki
 }  // namespace esphome
