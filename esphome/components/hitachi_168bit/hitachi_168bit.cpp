@@ -39,13 +39,16 @@ void Hitachi168bitClimate::transmit_state() {
   remote_state[1] = 0x59;  // 0x9A;
   remote_state[6] = 0x80;  // 0x01;
   // MODEL DG11J191
+  remote_state[10] = 0x20;  // Not whirlpool
+
   remote_state[18] = 0x38;  // 0x1C;
 
+  remote_state[19] = 0x08;  // Not whirlpool
   auto powered_on = this->mode != climate::CLIMATE_MODE_OFF;
   if (powered_on != this->powered_on_assumed) {
     // Set power toggle command
-    remote_state[2] = 4;
-    remote_state[15] = 1;
+    // remote_state[2] = 4;
+    // remote_state[15] = 1;
     this->powered_on_assumed = powered_on;
   }
   switch (this->mode) {
