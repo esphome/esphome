@@ -10,6 +10,10 @@
 #include <cstring>
 #include <cinttypes>
 
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
 namespace esphome::api {
 
 static const char *const TAG = "api.plaintext";
@@ -197,9 +201,17 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
       // We must send at least 3 bytes to be read, so we add
       // a message after the indicator byte to ensures its long
       // enough and can aid in debugging.
-      const char msg[] = "\x00"
-                         "Bad indicator byte";
+#ifdef USE_ESP8266
+      static const char msg_progmem[] PROGMEM = "\x00"
+                                                "Bad indicator byte";
+      char msg[19];
+      memcpy_P(msg, msg_progmem, 19);
       iov[0].iov_base = (void *) msg;
+#else
+      static const char msg[] = "\x00"
+                                "Bad indicator byte";
+      iov[0].iov_base = (void *) msg;
+#endif
       iov[0].iov_len = 19;
       this->write_raw_(iov, 1, 19);
     }
