@@ -338,6 +338,8 @@ class OpenTherm {
 
   void debug_data(OpenthermData &data);
   void debug_error(OpenThermError &error) const;
+  // Detailed diagnostics for NO_TRANSITION protocol errors
+  void log_no_transition_diagnostics() const;
 
   static const char *protocol_error_to_str(ProtocolErrorType error_type);
   static const char *timer_error_to_str(TimerErrorType error_type);
@@ -364,6 +366,22 @@ class OpenTherm {
   rmt_symbol_word_t rx_buffer_[RX_SYMBOL_CAPACITY]{};
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
   static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
+
+  // Diagnostics storage for the last failed RX (NO_TRANSITION)
+  static constexpr int MAX_EDGES_STORE = 256;
+  bool diag_valid_{false};
+  size_t diag_sym_count_{0};
+  rmt_symbol_word_t diag_syms_[RX_SYMBOL_CAPACITY]{};
+  int diag_edge_count_{0};
+  uint32_t diag_edge_t_[MAX_EDGES_STORE]{};    // microseconds from capture start
+  uint8_t diag_edge_rise_[MAX_EDGES_STORE]{};  // 1 rising, 0 falling
+  uint32_t diag_cnt_short_{0};
+  uint32_t diag_cnt_long_{0};
+  uint32_t diag_cnt_invalid_{0};
+  uint32_t diag_edges_suppressed_{0};
+  uint32_t diag_rmt_clk_freq_{0};
+  uint32_t diag_range_min_ns_{0};
+  uint32_t diag_range_max_ns_{0};
 
   OperationMode mode_;
   ProtocolErrorType error_type_;

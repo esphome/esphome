@@ -151,8 +151,6 @@ void OpenthermHub::setup() {
     this->mark_failed();
     return;
   }
-  // Allow other components (UART displays, sensors) to settle before first conversation
-  this->warmup_until_ = millis() + 400;  // 0.4s warmup
 
   // Ensure that there is at least one request, as we are required to
   // communicate at least once every second. Sending the status request is
@@ -314,17 +312,6 @@ void OpenthermHub::check_timings_(uint32_t cur_time) {
 }
 
 bool OpenthermHub::should_skip_loop_(uint32_t cur_time) const {
-  if (this->warmup_until_ != 0 && cur_time < this->warmup_until_) {
-    ESP_LOGV(TAG, "Warmup period active, delaying conversation");
-    return true;
-  }
-  if (this->skip_first_conversation_) {
-    // Skip exactly one conversation after warmup to let RMT settle
-    // Cast away const as this method is logically mutating transient control flags
-    const_cast<OpenthermHub *>(this)->skip_first_conversation_ = false;
-    ESP_LOGV(TAG, "Skipping first conversation after warmup");
-    return true;
-  }
   if (this->last_conversation_end_ > 0 && (cur_time - this->last_conversation_end_) < 100) {
     ESP_LOGV(TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
     return true;
@@ -349,6 +336,8 @@ void OpenthermHub::start_conversation_() {
   ESP_LOGD(TAG, "Sending request with id %d (%s)", request.id,
            this->opentherm_->message_id_to_str((MessageId) request.id));
   this->opentherm_->debug_data(request);
+  // Save for diagnostics
+  this->last_request_ = request;
   // Send the request
   this->last_conversation_start_ = millis();
   this->opentherm_->send(request);
@@ -381,16 +370,36 @@ void OpenthermHub::handle_protocol_error_() {
   ESP_LOGW(TAG, "Protocol error occured while receiving response: %s",
            this->opentherm_->protocol_error_to_str(error.error_type));
   this->opentherm_->debug_error(error);
+
+  // Detailed, one-shot INFO diagnostics for NO_TRANSITION only
+  if (error.error_type == ProtocolErrorType::NO_TRANSITION) {
+    // Context: last request and timing
+    uint32_t now = millis();
+    uint32_t since_start = (this->last_conversation_start_ > 0) ? (now - this->last_conversation_start_) : 0;
+    ESP_LOGI(TAG, "Diagnostics context: since_start=%u ms, last_mode=%s", (unsigned) since_start,
+             this->opentherm_->operation_mode_to_str(this->last_mode_));
+
+    // Last request details
+    ESP_LOGI(TAG, "Last request: type=%s (%u), id=%u (%s), HB=%u, LB=%u, u16=%u, f88=%0.3f",
+             this->opentherm_->message_type_to_str((MessageType) this->last_request_.type),
+             (unsigned) this->last_request_.type, (unsigned) this->last_request_.id,
+             this->opentherm_->message_id_to_str((MessageId) this->last_request_.id),
+             (unsigned) this->last_request_.valueHB, (unsigned) this->last_request_.valueLB,
+             (unsigned) this->last_request_.u16(), (double) this->last_request_.f88());
+
+    // Also show raw bit fields for easy visual comparison
+    ESP_LOGI(TAG, "Last request bits: type=%s id=%s HB=%s LB=%s", format_bin(this->last_request_.type).c_str(),
+             format_bin(this->last_request_.id).c_str(), format_bin(this->last_request_.valueHB).c_str(),
+             format_bin(this->last_request_.valueLB).c_str());
+
+    // Dump the captured RMT-level diagnostics
+    this->opentherm_->log_no_transition_diagnostics();
+  }
   this->stop_opentherm_();
 }
 
 void OpenthermHub::handle_timeout_error_() {
-  if (this->suppress_first_timeout_) {
-    this->suppress_first_timeout_ = false;
-    ESP_LOGV(TAG, "Initial OpenTherm timeout suppressed");
-  } else {
-    ESP_LOGW(TAG, "Timeout while waiting for response from device");
-  }
+  ESP_LOGW(TAG, "Timeout while waiting for response from device");
   this->stop_opentherm_();
 }
 

@@ -192,32 +192,45 @@ bool OpenTherm::init_rmt_() {
 }
 
 // --- RMT RX decoding helpers (IRAM) ---
-constexpr uint32_t HALF_US = 500;    // half-bit period
-constexpr uint32_t JIT_MINUS = 100;  // early edge tolerance
-constexpr uint32_t JIT_PLUS = 150;   // late  edge tolerance
+constexpr uint32_t HALF_US = 500;          // half-bit period
+constexpr uint32_t JIT_MINUS = 100;        // short: early edge tolerance
+constexpr uint32_t JIT_PLUS = 150;         // short: late  edge tolerance
+constexpr uint32_t LONG_JIT_MINUS = 200;   // long: early tolerance (accept down to ~800us)
+constexpr uint32_t LONG_JIT_PLUS = 250;    // long: late tolerance  (accept up to ~1250us)
+constexpr uint32_t SUM_TOL = 120;          // tolerance for sum of two half periods
+constexpr uint32_t SHORT_MIN_FLOOR = 300;  // guard for extremely short glitches
+constexpr uint32_t GLITCH_MIN_US = 200;    // ignore edges shorter than this
 
 static inline IRAM_ATTR uint8_t classify_dt(uint32_t dt) {
+  // Short half bit (about 500us)
   if (dt >= (HALF_US - JIT_MINUS) && dt <= (HALF_US + JIT_PLUS))
     return 0;  // short
-  if (dt >= (2 * HALF_US - JIT_MINUS) && dt <= (2 * HALF_US + JIT_PLUS))
+  // Long half bit (about 1000us) — wider tolerance to account for line/boiler jitter
+  if (dt >= (2 * HALF_US - LONG_JIT_MINUS) && dt <= (2 * HALF_US + LONG_JIT_PLUS))
     return 1;  // long
   return 2;    // invalid
 }
 
 static inline IRAM_ATTR int build_edges(const rmt_symbol_word_t *syms, size_t count, uint32_t *edge_t,
-                                        uint8_t *edge_is_rise, int max_edges) {
+                                        uint8_t *edge_is_rise, int max_edges, uint32_t glitch_min_us,
+                                        int *out_suppressed) {
   uint32_t t_acc = 0;
   int n = 0;
+  int suppressed = 0;
   for (size_t i = 0; i < count && n < max_edges; i++) {
     uint32_t d0 = syms[i].duration0;
     uint32_t d1 = syms[i].duration1;
     if (d0 == 0)
       break;
     t_acc += d0;
-    // mid-bit edge
-    edge_t[n] = t_acc;
-    edge_is_rise[n] = (syms[i].level0 == 0 && syms[i].level1 == 1) ? 1 : 0;
-    n++;
+    // mid-bit edge: add only if duration is not an ultra-short glitch
+    if (d0 >= glitch_min_us) {
+      edge_t[n] = t_acc;
+      edge_is_rise[n] = (syms[i].level0 == 0 && syms[i].level1 == 1) ? 1 : 0;
+      n++;
+    } else {
+      suppressed++;
+    }
     if (d1 == 0)
       break;
     t_acc += d1;
@@ -226,12 +239,18 @@ static inline IRAM_ATTR int build_edges(const rmt_symbol_word_t *syms, size_t co
       bool next_l0 = syms[i + 1].level0;
       bool cur_l1 = syms[i].level1;
       if (next_l0 != cur_l1) {
-        edge_t[n] = t_acc;
-        edge_is_rise[n] = (cur_l1 == 0 && next_l0 == 1) ? 1 : 0;
-        n++;
+        if (d1 >= glitch_min_us) {
+          edge_t[n] = t_acc;
+          edge_is_rise[n] = (cur_l1 == 0 && next_l0 == 1) ? 1 : 0;
+          n++;
+        } else {
+          suppressed++;
+        }
       }
     }
   }
+  if (out_suppressed)
+    *out_suppressed = suppressed;
   return n;
 }
 
@@ -259,7 +278,18 @@ static inline IRAM_ATTR bool collapse_decode(const uint32_t *edge_t, const uint8
         return false;
       ei = ei + 2;
     } else {
-      return false;
+      // Fallback: accept a pair that sums to one bit time, even if individual halves
+      // slightly violate short thresholds (observed e.g. 661us + 365us ~ 1026us).
+      if (ei + 2 >= edge_count)
+        return false;
+      uint32_t dt2 = edge_t[ei + 2] - edge_t[ei + 1];
+      uint32_t sum = dt1 + dt2;
+      if (dt1 >= SHORT_MIN_FLOOR && dt2 >= SHORT_MIN_FLOOR && sum >= (2 * HALF_US - SUM_TOL) &&
+          sum <= (2 * HALF_US + SUM_TOL)) {
+        ei = ei + 2;  // treat as two shorts
+      } else {
+        return false;
+      }
     }
     uint8_t bit = rise_is_one ? (edge_is_rise[ei] ? 1 : 0) : (edge_is_rise[ei] ? 0 : 1);
     out_bits[blen++] = bit;
@@ -298,7 +328,8 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
   constexpr int kMaxEdges = 256;
   uint32_t edge_t[kMaxEdges];
   uint8_t edge_dir_rise[kMaxEdges];  // 1 for rising, 0 for falling
-  int edge_count = build_edges(syms, count, edge_t, edge_dir_rise, kMaxEdges);
+  int suppressed = 0;
+  int edge_count = build_edges(syms, count, edge_t, edge_dir_rise, kMaxEdges, GLITCH_MIN_US, &suppressed);
 
   if (edge_count < 2) {
     self->mode_ = OperationMode::ERROR_TIMEOUT;
@@ -313,6 +344,42 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
   if (!frame_ok) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
     self->error_type_ = ProtocolErrorType::NO_TRANSITION;
+    // Capture diagnostics for later logging at non-ISR context
+    // Copy raw symbols (bounded by RX_SYMBOL_CAPACITY)
+    size_t to_copy = count;
+    if (to_copy > RX_SYMBOL_CAPACITY)
+      to_copy = RX_SYMBOL_CAPACITY;
+    for (size_t i = 0; i < to_copy; i++) {
+      self->diag_syms_[i] = syms[i];
+    }
+    self->diag_sym_count_ = to_copy;
+    // Copy edges and compute classifications
+    int store_edges = edge_count;
+    if (store_edges > MAX_EDGES_STORE)
+      store_edges = MAX_EDGES_STORE;
+    self->diag_edge_count_ = store_edges;
+    self->diag_cnt_short_ = 0;
+    self->diag_cnt_long_ = 0;
+    self->diag_cnt_invalid_ = 0;
+    self->diag_edges_suppressed_ = suppressed;
+    for (int i = 0; i < store_edges; i++) {
+      self->diag_edge_t_[i] = edge_t[i];
+      self->diag_edge_rise_[i] = edge_dir_rise[i];
+      if (i > 0) {
+        uint32_t dt = edge_t[i] - edge_t[i - 1];
+        uint8_t cls = classify_dt(dt);
+        if (cls == 0)
+          self->diag_cnt_short_++;
+        else if (cls == 1)
+          self->diag_cnt_long_++;
+        else
+          self->diag_cnt_invalid_++;
+      }
+    }
+    self->diag_rmt_clk_freq_ = RMT_CLK_FREQ;
+    self->diag_range_min_ns_ = self->rx_config_.signal_range_min_ns;
+    self->diag_range_max_ns_ = self->rx_config_.signal_range_max_ns;
+    self->diag_valid_ = true;
     self->rx_receiving_ = false;
     return false;
   }
@@ -348,6 +415,7 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
 void OpenTherm::start_read_rmt_() {
   // Start single receive into internal buffer
   memset(this->rx_buffer_, 0, sizeof(this->rx_buffer_));
+  this->diag_valid_ = false;  // reset previous diagnostics before a new capture
   if (!this->rx_receiving_) {
     esp_err_t err = rmt_receive(this->rx_channel_, this->rx_buffer_, sizeof(this->rx_buffer_), &this->rx_config_);
     if (err == ESP_OK) {
@@ -587,6 +655,46 @@ void OpenTherm::debug_data(OpenthermData &data) {
 void OpenTherm::debug_error(OpenThermError &error) const {
   ESP_LOGD(TAG, "OpenTherm error: %s (bit_pos=%u)", OpenTherm::protocol_error_to_str(error.error_type),
            (unsigned) error.bit_pos);
+}
+
+void OpenTherm::log_no_transition_diagnostics() const {
+  if (!this->diag_valid_ || this->error_type_ != ProtocolErrorType::NO_TRANSITION) {
+    return;
+  }
+
+  ESP_LOGI(TAG, "NO_TRANSITION diagnostics begin =====================================");
+  ESP_LOGI(TAG, "RMT config: clk_freq=%u Hz, resolution=%u Hz, range_min=%u ns, range_max=%u ns",
+           (unsigned) this->diag_rmt_clk_freq_, (unsigned) RMT_RESOLUTION_HZ, (unsigned) this->diag_range_min_ns_,
+           (unsigned) this->diag_range_max_ns_);
+
+  ESP_LOGI(TAG, "Capture: symbols=%u, edges(stored)=%u, classify: short=%u long=%u invalid=%u",
+           (unsigned) this->diag_sym_count_, (unsigned) this->diag_edge_count_, (unsigned) this->diag_cnt_short_,
+           (unsigned) this->diag_cnt_long_, (unsigned) this->diag_cnt_invalid_);
+  ESP_LOGI(TAG, "Glitch filter: threshold=%u us, suppressed_edges=%u", (unsigned) GLITCH_MIN_US,
+           (unsigned) this->diag_edges_suppressed_);
+
+  // Dump raw symbols
+  for (size_t i = 0; i < this->diag_sym_count_; i++) {
+    const auto &s = this->diag_syms_[i];
+    ESP_LOGI(TAG, "SYM[%03u]: L0=%u D0=%u us | L1=%u D1=%u us", (unsigned) i, (unsigned) s.level0,
+             (unsigned) s.duration0, (unsigned) s.level1, (unsigned) s.duration1);
+  }
+
+  // Dump edges and delta times
+  for (int i = 0; i < this->diag_edge_count_; i++) {
+    if (i == 0) {
+      ESP_LOGI(TAG, "EDGE[%03d]: t=%u us, dir=%s", i, (unsigned) this->diag_edge_t_[i],
+               this->diag_edge_rise_[i] ? "rise" : "fall");
+    } else {
+      uint32_t dt = this->diag_edge_t_[i] - this->diag_edge_t_[i - 1];
+      uint8_t c = classify_dt(dt);
+      const char *cls = (c == 0) ? "short" : (c == 1) ? "long" : "invalid";
+      ESP_LOGI(TAG, "EDGE[%03d]: t=%u us, dt=%u us, %s, dir=%s", i, (unsigned) this->diag_edge_t_[i], (unsigned) dt,
+               cls, this->diag_edge_rise_[i] ? "rise" : "fall");
+    }
+  }
+
+  ESP_LOGI(TAG, "NO_TRANSITION diagnostics end =======================================");
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
