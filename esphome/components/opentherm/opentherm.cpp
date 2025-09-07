@@ -206,7 +206,7 @@ static inline bool sample_level_at(const rmt_symbol_word_t *syms, size_t n, uint
     if (d0 == 0)
       break;
     if (acc + d0 > t_us)
-      return level;
+      return syms[i].level0;  // t_us lies within duration0
     acc += d0;
     level = syms[i].level1;
     uint32_t d1 = syms[i].duration1;
@@ -215,21 +215,25 @@ static inline bool sample_level_at(const rmt_symbol_word_t *syms, size_t n, uint
     if (acc + d1 > t_us)
       return level;
     acc += d1;
-    level = syms[i].level0;  // next symbol starts with level0 again (driver packs pairs)
+    // After duration1, the signal level equals the last level (level1) until the next symbol starts.
+    // The next symbol's level0 must equal this for continuity per RMT driver.
+    // Do NOT reset to syms[i].level0 here.
+    // Keep 'level' as level1 for the subsequent iteration.
   }
   return level;
 }
 
 // Helper: convert a sequence of RMT symbols into sequential level-duration spans
 // and locate the start bit (idle-high gap -> low ~500us -> high ~500us).
-static inline bool IRAM_ATTR find_start_timestamp_us(const rmt_symbol_word_t *syms, size_t count,
-                                                     uint32_t *t_start_out) {
+static inline bool IRAM_ATTR find_start_timestamp_us(const rmt_symbol_word_t *syms, size_t count, uint32_t *t_start_out,
+                                                     bool *low_high_out) {
   if (syms == nullptr || count == 0)
     return false;
   // Tolerances for half-bit durations
   const uint32_t HALF_MIN = 300;  // us
   const uint32_t HALF_MAX = 700;  // us
-  const uint32_t IDLE_MIN = 800;  // us of idle high before start
+  // Find the first [low ~500us, high ~500us] or [high ~500us, low ~500us] pair and
+  // use its first half as the frame start. Report whether the pair is low->high.
 
   struct Span {
     bool level;
@@ -254,13 +258,13 @@ static inline bool IRAM_ATTR find_start_timestamp_us(const rmt_symbol_word_t *sy
       c.start = t_us;
       c.valid = true;
 
-      // Check for [a=idle high], [b=low ~500us], [c=high ~500us]
+      // Check for [b ~500us], [c ~500us] with different levels
       if (a.valid && b.valid && c.valid) {
-        bool idle_ok = (a.level == 1) && (a.dur >= IDLE_MIN);
-        bool low_ok = (b.level == 0) && (b.dur >= HALF_MIN && b.dur <= HALF_MAX);
-        bool high_ok = (c.level == 1) && (c.dur >= HALF_MIN && c.dur <= HALF_MAX);
-        if (idle_ok && low_ok && high_ok) {
-          *t_start_out = b.start;  // start at beginning of low half of start bit
+        bool b_ok = (b.dur >= HALF_MIN && b.dur <= HALF_MAX);
+        bool c_ok = (c.dur >= HALF_MIN && c.dur <= HALF_MAX);
+        if (b_ok && c_ok && (b.level != c.level)) {
+          *t_start_out = b.start;  // start at beginning of the first half
+          *low_high_out = (b.level == 0 && c.level == 1);
           return true;
         }
       }
@@ -283,41 +287,101 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     return false;
   }
 
-  // Try to locate the actual start bit within the captured symbols.
-  uint32_t t_start = 0;
-  bool have_start = find_start_timestamp_us(syms, count, &t_start);
-  if (!have_start) {
-    // Fallback: assume buffer starts at (or very close to) start bit
-    t_start = 0;
+  // Store debug symbols for later logging outside ISR
+  size_t dbg_n = (count < OpenTherm::DEBUG_RX_SYMBOLS) ? count : OpenTherm::DEBUG_RX_SYMBOLS;
+  for (size_t i = 0; i < dbg_n; i++)
+    self->last_rx_symbols_[i] = syms[i];
+  self->last_rx_symbol_count_ = dbg_n;
+
+  // Build half-bit levels (0/1) from symbols
+  uint8_t halves[256];
+  int n_halves = 0;
+  for (size_t i = 0; i < count; i++) {
+    uint32_t d0 = syms[i].duration0;
+    uint32_t d1 = syms[i].duration1;
+    if (d0 == 0)
+      break;
+    int h0 = (int) ((d0 + 250) / 500);
+    if (h0 < 1)
+      h0 = 1;
+    if (h0 > 4)
+      h0 = 4;
+    for (int k = 0; k < h0 && n_halves < 256; k++)
+      halves[n_halves++] = syms[i].level0 ? 1 : 0;
+    if (d1 == 0)
+      break;
+    int h1 = (int) ((d1 + 250) / 500);
+    if (h1 < 1)
+      h1 = 1;
+    if (h1 > 4)
+      h1 = 4;
+    for (int k = 0; k < h1 && n_halves < 256; k++)
+      halves[n_halves++] = syms[i].level1 ? 1 : 0;
   }
-  // Validate by sampling within each half-bit from detected start
+  if (n_halves < 70) {
+    self->mode_ = OperationMode::ERROR_PROTOCOL;
+    self->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
+    return false;
+  }
+
+  auto is_one = [](bool pol_lh, uint8_t h0, uint8_t h1) -> bool {
+    return pol_lh ? (h0 == 0 && h1 == 1) : (h0 == 1 && h1 == 0);
+  };
+
+  // Try both polarities and all plausible start positions
   uint32_t bits = 0;
-  // Start bit (index 0), 32 data bits (1..32), stop bit (33)
-  for (uint8_t i = 0; i <= 33; i++) {
-    self->bit_pos_ = i;
-    uint32_t t0 = t_start + i * 1000 + 250;  // middle of left half
-    uint32_t t1 = t_start + i * 1000 + 750;  // middle of right half
-    bool L = sample_level_at(syms, count, t0);
-    bool R = sample_level_at(syms, count, t1);
-    if (i == 0 || i == 33) {
-      // start/stop bit must be logical 1 => low then high (idle high)
-      if (!(L == 0 && R == 1)) {
-        self->mode_ = OperationMode::ERROR_PROTOCOL;
-        self->error_type_ = (i == 33) ? ProtocolErrorType::INVALID_STOP_BIT : ProtocolErrorType::NO_TRANSITION;
-        return false;
+  bool found = false;
+  bool pol_lh = true;
+  int start_half = -1;
+  for (int pol = 0; pol < 2 && !found; pol++) {
+    pol_lh = (pol == 0);
+    for (int s = 0; s + 33 * 2 < n_halves; s++) {
+      // Start bit must be 1
+      if (!is_one(pol_lh, halves[s + 0], halves[s + 1]))
+        continue;
+      uint32_t tmp = 0;
+      bool ok = true;
+      for (int i = 1; i <= 32; i++) {
+        uint8_t a = halves[s + i * 2 + 0];
+        uint8_t b = halves[s + i * 2 + 1];
+        if (a == b) {
+          ok = false;
+          break;
+        }
+        uint8_t bit = is_one(pol_lh, a, b) ? 1 : 0;
+        tmp = (tmp << 1) | bit;
       }
-    } else {
-      if (L == R) {
-        self->mode_ = OperationMode::ERROR_PROTOCOL;
-        self->error_type_ = ProtocolErrorType::NO_TRANSITION;
-        return false;
-      }
-      uint8_t bit = (L == 0 && R == 1) ? 1 : 0;  // 1=low->high, 0=high->low
-      bits = (bits << 1) | bit;
+      if (!ok)
+        continue;
+      // Stop bit must be 1
+      if (!is_one(pol_lh, halves[s + 33 * 2 + 0], halves[s + 33 * 2 + 1]))
+        continue;
+      bits = tmp;
+      start_half = s;
+      found = true;
+      break;
     }
   }
 
-  self->data_ = bits;  // 32-bit payload including parity as MSB
+  if (!found) {
+    self->mode_ = OperationMode::ERROR_PROTOCOL;
+    self->error_type_ = ProtocolErrorType::NO_TRANSITION;
+    return false;
+  }
+
+  // Record first few half samples for debug
+  for (int i = 0; i < 6; i++) {
+    int idx = start_half + i * 2;
+    if (idx + 1 < n_halves) {
+      self->last_sample_L_[i] = halves[idx + 0];
+      self->last_sample_R_[i] = halves[idx + 1];
+    }
+  }
+  self->last_polarity_low_high_ = pol_lh;
+  // Approximate start time in microseconds by summing half periods
+  self->last_t_start_us_ = (uint32_t) (start_half * 500);
+
+  self->data_ = bits;  // 32-bit payload including parity
   if (!self->check_parity_(self->data_)) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
     self->error_type_ = ProtocolErrorType::PARITY_ERROR;
@@ -565,6 +629,26 @@ void OpenTherm::debug_data(OpenthermData &data) {
 void OpenTherm::debug_error(OpenThermError &error) const {
   ESP_LOGD(TAG, "data: %s; clock: %s; capture: %s; bit_pos: %s", format_hex(error.data).c_str(),
            to_string(clock_).c_str(), format_bin(error.capture).c_str(), to_string(error.bit_pos).c_str());
+  ESP_LOGD(TAG, "rxdbg: start=%u us, polarity=%s, symbols=%u", (unsigned) this->last_t_start_us_,
+           this->last_polarity_low_high_ ? "low->high" : "high->low", (unsigned) this->last_rx_symbol_count_);
+  uint32_t to_show = (this->last_rx_symbol_count_ < 8) ? this->last_rx_symbol_count_ : 8u;
+  for (uint32_t i = 0; i < to_show; i++) {
+    const auto &s = this->last_rx_symbols_[i];
+    ESP_LOGD(TAG, "  sym[%u]: L0=%u D0=%u | L1=%u D1=%u", (unsigned) i, (unsigned) s.level0, (unsigned) s.duration0,
+             (unsigned) s.level1, (unsigned) s.duration1);
+  }
+  // Show first few sampled half-bit levels before polarity adjustment
+  ESP_LOGD(TAG, "  sample L: %u %u %u %u %u %u", (unsigned) this->last_sample_L_[0], (unsigned) this->last_sample_L_[1],
+           (unsigned) this->last_sample_L_[2], (unsigned) this->last_sample_L_[3], (unsigned) this->last_sample_L_[4],
+           (unsigned) this->last_sample_L_[5]);
+  ESP_LOGD(TAG, "  sample R: %u %u %u %u %u %u", (unsigned) this->last_sample_R_[0], (unsigned) this->last_sample_R_[1],
+           (unsigned) this->last_sample_R_[2], (unsigned) this->last_sample_R_[3], (unsigned) this->last_sample_R_[4],
+           (unsigned) this->last_sample_R_[5]);
+  if (this->last_fail_bit_ != 255) {
+    ESP_LOGD(TAG, "  fail@bit=%u L=%u R=%u adj_L=%u adj_R=%u align_delta=%d", (unsigned) this->last_fail_bit_,
+             (unsigned) this->last_fail_L_, (unsigned) this->last_fail_R_, (unsigned) this->last_fail_L_adj_,
+             (unsigned) this->last_fail_R_adj_, (int) this->last_align_delta_);
+  }
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }

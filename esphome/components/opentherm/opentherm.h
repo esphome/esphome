@@ -364,6 +364,20 @@ class OpenTherm {
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
   static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
 
+  // Debug storage for last RX attempt (for logging outside ISR)
+  static constexpr size_t DEBUG_RX_SYMBOLS = 32;
+  rmt_symbol_word_t last_rx_symbols_[DEBUG_RX_SYMBOLS]{};
+  uint32_t last_rx_symbol_count_{0};
+  uint32_t last_t_start_us_{0};
+  bool last_polarity_low_high_{true};
+  uint8_t last_sample_L_[6]{};  // sampled first bits left-half levels
+  uint8_t last_sample_R_[6]{};  // sampled first bits right-half levels
+  // Debug of failure point
+  uint8_t last_fail_bit_{255};
+  uint8_t last_fail_L_{0}, last_fail_R_{0};
+  uint8_t last_fail_L_adj_{0}, last_fail_R_adj_{0};
+  int32_t last_align_delta_{0};
+
   OperationMode mode_;
   ProtocolErrorType error_type_;
   uint32_t capture_;
