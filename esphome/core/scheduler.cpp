@@ -357,8 +357,8 @@ void HOT Scheduler::call(uint32_t now) {
   const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from Application::loop()
   this->process_to_add();
 
-  // Track if we add any interval items during this call
-  bool added_intervals = false;
+  // Track if any items were added to to_add_ during this call (intervals or from callbacks)
+  bool added_items = false;
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   static uint64_t last_print = 0;
@@ -514,11 +514,11 @@ void HOT Scheduler::call(uint32_t now) {
         this->recycle_item_(std::move(item));
       }
 
-      added_intervals |= this->to_add_.empty() == false;
+      added_items |= this->to_add_.empty() == false;
     }
   }
 
-  if (added_intervals) {
+  if (added_items) {
     this->process_to_add();
   }
 }
