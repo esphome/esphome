@@ -200,7 +200,7 @@ def has_mqtt_ip_lookup() -> bool:
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
-    if CONF_DISCOVER_IP in CORE.config[CONF_MQTT]:
+    if CONF_DISCOVER_IP not in CORE.config[CONF_MQTT]:
         return True
     return CORE.config[CONF_MQTT][CONF_DISCOVER_IP]
 
