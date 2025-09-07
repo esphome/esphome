@@ -293,75 +293,101 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     self->last_rx_symbols_[i] = syms[i];
   self->last_rx_symbol_count_ = dbg_n;
 
-  // Build half-bit levels (0/1) from symbols
+  // Build half-bit levels (0/1) by sampling every ~500us starting at a few different phases and step sizes
   uint8_t halves[256];
-  int n_halves = 0;
+  uint32_t total_us = 0;
   for (size_t i = 0; i < count; i++) {
     uint32_t d0 = syms[i].duration0;
     uint32_t d1 = syms[i].duration1;
     if (d0 == 0)
       break;
-    int h0 = (int) ((d0 + 250) / 500);
-    if (h0 < 1)
-      h0 = 1;
-    if (h0 > 4)
-      h0 = 4;
-    for (int k = 0; k < h0 && n_halves < 256; k++)
-      halves[n_halves++] = syms[i].level0 ? 1 : 0;
+    total_us += d0;
     if (d1 == 0)
       break;
-    int h1 = (int) ((d1 + 250) / 500);
-    if (h1 < 1)
-      h1 = 1;
-    if (h1 > 4)
-      h1 = 4;
-    for (int k = 0; k < h1 && n_halves < 256; k++)
-      halves[n_halves++] = syms[i].level1 ? 1 : 0;
+    total_us += d1;
   }
-  if (n_halves < 70) {
-    self->mode_ = OperationMode::ERROR_PROTOCOL;
-    self->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
-    return false;
-  }
-
+  const uint32_t PAD_US = 2000;  // ensure we cover stop-bit tail into idle
+  int n_halves_base = (int) ((total_us + PAD_US) / 500);
+  if (n_halves_base > 256)
+    n_halves_base = 256;
+  // phases to try (us)
+  const uint32_t phases[] = {200, 250, 300};
+  // step sizes to try (us)
+  const uint32_t steps[] = {490, 495, 500, 505, 510};
+  int chosen_phase_idx = -1;
+  int chosen_step_idx = -1;
+  int n_halves = 0;
+  // Try to find a valid frame by scanning phases, polarities and start indices
   auto is_one = [](bool pol_lh, uint8_t h0, uint8_t h1) -> bool {
     return pol_lh ? (h0 == 0 && h1 == 1) : (h0 == 1 && h1 == 0);
   };
-
-  // Try both polarities and all plausible start positions
   uint32_t bits = 0;
   bool found = false;
   bool pol_lh = true;
   int start_half = -1;
-  for (int pol = 0; pol < 2 && !found; pol++) {
-    pol_lh = (pol == 0);
-    for (int s = 0; s + 33 * 2 < n_halves; s++) {
-      // Start bit must be 1
-      if (!is_one(pol_lh, halves[s + 0], halves[s + 1]))
-        continue;
-      uint32_t tmp = 0;
-      bool ok = true;
-      for (int i = 1; i <= 32; i++) {
-        uint8_t a = halves[s + i * 2 + 0];
-        uint8_t b = halves[s + i * 2 + 1];
-        if (a == b) {
-          ok = false;
+  self->last_scan_info_count_ = 0;
+  for (size_t ph = 0; ph < sizeof(phases) / sizeof(phases[0]) && !found; ph++) {
+    uint32_t phase = phases[ph];
+    for (size_t st = 0; st < sizeof(steps) / sizeof(steps[0]) && !found; st++) {
+      uint32_t step = steps[st];
+      n_halves = (int) ((total_us + PAD_US) / step);
+      if (n_halves > 256)
+        n_halves = 256;
+      for (int k = 0; k < n_halves; k++) {
+        uint32_t t = phase + k * step;
+        halves[k] = sample_level_at(syms, count, t) ? 1 : 0;
+      }
+      // Try both polarities and all plausible start positions
+      for (int pol = 0; pol < 2 && !found; pol++) {
+        pol_lh = (pol == 0);
+        for (int s = 0; s + 33 * 2 < n_halves; s++) {
+          if (!is_one(pol_lh, halves[s + 0], halves[s + 1]))
+            continue;
+          uint32_t tmp = 0;
+          bool ok = true;
+          uint8_t fail_bit = 255;
+          for (int i = 1; i <= 32; i++) {
+            int idx = s + i * 2;
+            if (idx + 1 >= n_halves) {
+              ok = false;
+              fail_bit = (uint8_t) i;
+              break;
+            }
+            uint8_t a = halves[idx + 0];
+            uint8_t b = halves[idx + 1];
+            if (a == b) {
+              ok = false;
+              fail_bit = (uint8_t) i;
+              break;
+            }
+            uint8_t bit = is_one(pol_lh, a, b) ? 1 : 0;
+            tmp = (tmp << 1) | bit;
+          }
+          if (!ok) {
+            if (self->last_scan_info_count_ < OpenTherm::MAX_SCAN_INFO) {
+              self->last_scan_info_[self->last_scan_info_count_++] =
+                  OpenTherm::ScanInfo{(uint8_t) ph, (uint8_t) s, (uint8_t) (pol_lh ? 1 : 0), fail_bit};
+            }
+            continue;
+          }
+          if (!is_one(pol_lh, halves[s + 33 * 2 + 0], halves[s + 33 * 2 + 1]))
+            continue;
+          // Found a valid frame
+          bits = tmp;
+          start_half = s;
+          chosen_phase_idx = (int) ph;
+          chosen_step_idx = (int) st;
+          found = true;
           break;
         }
-        uint8_t bit = is_one(pol_lh, a, b) ? 1 : 0;
-        tmp = (tmp << 1) | bit;
       }
-      if (!ok)
-        continue;
-      // Stop bit must be 1
-      if (!is_one(pol_lh, halves[s + 33 * 2 + 0], halves[s + 33 * 2 + 1]))
-        continue;
-      bits = tmp;
-      start_half = s;
-      found = true;
-      break;
     }
   }
+
+  // Save debug halves snapshot (from the first phase for visibility)
+  self->last_halves_count_ = (uint16_t) n_halves_base;
+  for (int i = 0; i < n_halves_base && i < 32; i++)
+    self->last_halves_[i] = sample_level_at(syms, count, phases[0] + i * 500) ? 1 : 0;
 
   if (!found) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
@@ -379,7 +405,9 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
   }
   self->last_polarity_low_high_ = pol_lh;
   // Approximate start time in microseconds by summing half periods
-  self->last_t_start_us_ = (uint32_t) (start_half * 500);
+  uint32_t phase_us = phases[chosen_phase_idx >= 0 ? chosen_phase_idx : 0];
+  uint32_t step_us = steps[chosen_step_idx >= 0 ? chosen_step_idx : 2 /*500*/];
+  self->last_t_start_us_ = (uint32_t) (phase_us + start_half * step_us);
 
   self->data_ = bits;  // 32-bit payload including parity
   if (!self->check_parity_(self->data_)) {
@@ -648,6 +676,21 @@ void OpenTherm::debug_error(OpenThermError &error) const {
     ESP_LOGD(TAG, "  fail@bit=%u L=%u R=%u adj_L=%u adj_R=%u align_delta=%d", (unsigned) this->last_fail_bit_,
              (unsigned) this->last_fail_L_, (unsigned) this->last_fail_R_, (unsigned) this->last_fail_L_adj_,
              (unsigned) this->last_fail_R_adj_, (int) this->last_align_delta_);
+  }
+  ESP_LOGD(TAG, "  halves_count=%u first16=%u %u %u %u %u %u %u %u %u %u %u %u %u %u %u",
+           (unsigned) this->last_halves_count_, (unsigned) this->last_halves_[0], (unsigned) this->last_halves_[1],
+           (unsigned) this->last_halves_[2], (unsigned) this->last_halves_[3], (unsigned) this->last_halves_[4],
+           (unsigned) this->last_halves_[5], (unsigned) this->last_halves_[6], (unsigned) this->last_halves_[7],
+           (unsigned) this->last_halves_[8], (unsigned) this->last_halves_[9], (unsigned) this->last_halves_[10],
+           (unsigned) this->last_halves_[11], (unsigned) this->last_halves_[12], (unsigned) this->last_halves_[13],
+           (unsigned) this->last_halves_[14], (unsigned) this->last_halves_[15]);
+  if (this->last_scan_info_count_ > 0) {
+    ESP_LOGD(TAG, "  scan candidates (phase,start,pol,failbit): count=%u", (unsigned) this->last_scan_info_count_);
+    for (uint8_t i = 0; i < this->last_scan_info_count_; i++) {
+      auto s = this->last_scan_info_[i];
+      ESP_LOGD(TAG, "    (%u,%u,%u,%u)", (unsigned) s.phase_idx, (unsigned) s.start_half, (unsigned) s.pol_low_high,
+               (unsigned) s.fail_bit);
+    }
   }
 }
 

@@ -377,6 +377,19 @@ class OpenTherm {
   uint8_t last_fail_L_{0}, last_fail_R_{0};
   uint8_t last_fail_L_adj_{0}, last_fail_R_adj_{0};
   int32_t last_align_delta_{0};
+  // Half-bit debug
+  uint16_t last_halves_count_{0};
+  uint8_t last_halves_[32]{};  // first 32 half-bit levels
+  // Scan diagnostics
+  struct ScanInfo {
+    uint8_t phase_idx;
+    uint8_t start_half;
+    uint8_t pol_low_high;  // 1 if low->high means 1
+    uint8_t fail_bit;      // 255 if success
+  };
+  static constexpr size_t MAX_SCAN_INFO = 8;
+  ScanInfo last_scan_info_[MAX_SCAN_INFO]{};
+  uint8_t last_scan_info_count_{0};
 
   OperationMode mode_;
   ProtocolErrorType error_type_;
