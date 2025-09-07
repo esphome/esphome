@@ -365,18 +365,6 @@ class OpenTherm {
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
   static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
 
-  // Minimal RX diagnostics (stored in ISR, printed outside)
-  static constexpr size_t DBG_MAX_SYMBOLS = 8;
-  static constexpr size_t DBG_MAX_INTERVALS = 16;
-  rmt_symbol_word_t dbg_symbols_[DBG_MAX_SYMBOLS]{};
-  uint8_t dbg_symbol_count_{0};
-  uint16_t dbg_total_symbols_{0};
-  uint16_t dbg_edge_count_{0};
-  uint16_t dbg_intervals_[DBG_MAX_INTERVALS]{};  // microseconds
-  uint8_t dbg_types_[DBG_MAX_INTERVALS]{};       // 0='s', 1='l', 2='e'
-  uint8_t dbg_bits_len_{0};
-  uint8_t dbg_bits_[34]{};  // start..stop (up to 34)
-
   OperationMode mode_;
   ProtocolErrorType error_type_;
   uint32_t capture_;
@@ -395,7 +383,7 @@ class OpenTherm {
   void start_write_rmt_();
   bool check_parity_(uint32_t val);
 
-  ProtocolErrorType verify_stop_bit_(uint8_t value);
+  // verify_stop_bit_ removed in the RMT-based decoder
 };
 
 }  // namespace opentherm

@@ -104,13 +104,7 @@ void OpenTherm::stop() { this->mode_ = OperationMode::IDLE; }
 
 // Timer ISR removed in RMT implementation
 
-ProtocolErrorType IRAM_ATTR OpenTherm::verify_stop_bit_(uint8_t value) {
-  if (value) {  // stop bit detected
-    return check_parity_(this->data_) ? ProtocolErrorType::NO_ERROR : ProtocolErrorType::PARITY_ERROR;
-  } else {  // no stop bit detected, error
-    return ProtocolErrorType::INVALID_STOP_BIT;
-  }
-}
+// (legacy) verify_stop_bit_ no longer used with RMT decoding
 
 bool OpenTherm::init_rmt_() {
   // Configure RX channel
@@ -244,12 +238,6 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     }
   }
 
-  // Save a snapshot of the first few raw symbols for diagnostics
-  self->dbg_symbol_count_ = (count < self->DBG_MAX_SYMBOLS) ? count : self->DBG_MAX_SYMBOLS;
-  self->dbg_total_symbols_ = (uint16_t) count;
-  for (uint8_t i = 0; i < self->dbg_symbol_count_; i++)
-    self->dbg_symbols_[i] = syms[i];
-
   if (edge_count < 2) {
     self->mode_ = OperationMode::ERROR_TIMEOUT;
     self->rx_receiving_ = false;
@@ -267,27 +255,8 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
     return dt >= (uint32_t) (2 * halfbit - jitter_m) && dt <= (uint32_t) (2 * halfbit + jitter_p);
   };
 
-  enum State { IDLE, SYNC, MID1, MID0, START1, START0 };
-  State st = IDLE;
-
   // Active-low polarity (idle high); start on rising edge
   uint8_t bits[34];
-  int bits_len = 0;
-
-  // Precompute intervals between consecutive edges
-  self->dbg_edge_count_ = edge_count;
-  int interval_count = edge_count > 0 ? (edge_count - 1) : 0;
-  // Save first intervals for diagnostics
-  for (int i = 0; i < interval_count && i < (int) self->DBG_MAX_INTERVALS; i++) {
-    uint32_t dt = edge_t[i + 1] - edge_t[i];
-    char etype = 'e';
-    if (is_short(dt))
-      etype = 's';
-    else if (is_long(dt))
-      etype = 'l';
-    self->dbg_intervals_[i] = (uint16_t) dt;
-    self->dbg_types_[i] = (etype == 's') ? 0 : (etype == 'l') ? 1 : 2;
-  }
 
   // Helper: attempt to decode by collapsing edges into mid-bit edges
   auto try_decode = [&](int start_edge_idx, bool rise_is_one, uint8_t out_bits[34]) -> bool {
@@ -336,14 +305,9 @@ bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_don
       // Success
       for (int i = 0; i < 34; i++)
         bits[i] = tmp_bits[i];
-      bits_len = 34;
       frame_ok = true;
     }
   }
-
-  self->dbg_bits_len_ = (uint8_t) bits_len;
-  for (int i = 0; i < bits_len && i < 34; i++)
-    self->dbg_bits_[i] = bits[i];
 
   if (!frame_ok) {
     self->mode_ = OperationMode::ERROR_PROTOCOL;
@@ -622,57 +586,6 @@ void OpenTherm::debug_data(OpenthermData &data) {
 void OpenTherm::debug_error(OpenThermError &error) const {
   ESP_LOGD(TAG, "OpenTherm error: %s (bit_pos=%u)", OpenTherm::protocol_error_to_str(error.error_type),
            (unsigned) error.bit_pos);
-  // Print a small snapshot of RX capture for troubleshooting
-  if (this->dbg_symbol_count_ > 0) {
-    uint8_t n = this->dbg_symbol_count_;
-    if (n > DBG_MAX_SYMBOLS)
-      n = DBG_MAX_SYMBOLS;
-    ESP_LOGD(TAG, "rx symbols: total=%u (showing %u)", (unsigned) this->dbg_total_symbols_, (unsigned) n);
-    for (uint8_t i = 0; i < n; i++) {
-      const auto &s = this->dbg_symbols_[i];
-      ESP_LOGD(TAG, "  sym[%u]: L0=%u D0=%u | L1=%u D1=%u", (unsigned) i, (unsigned) s.level0, (unsigned) s.duration0,
-               (unsigned) s.level1, (unsigned) s.duration1);
-    }
-  }
-  if (this->dbg_edge_count_ > 0) {
-    ESP_LOGD(TAG, "edges: %u", (unsigned) this->dbg_edge_count_);
-  }
-  // Intervals and classification
-  {
-    char buf[160];
-    int off = 0;
-    off += snprintf(buf + off, sizeof(buf) - off, "intervals(us,type): ");
-    uint8_t n = DBG_MAX_INTERVALS;
-    for (uint8_t i = 0; i < n; i++) {
-      uint16_t dt = this->dbg_intervals_[i];
-      uint8_t tp = this->dbg_types_[i];
-      if (dt == 0 && tp == 0 && i > 0)
-        break;
-      char tpc = (tp == 0) ? 's' : (tp == 1) ? 'l' : 'e';
-      off += snprintf(buf + off, sizeof(buf) - off, "%u%c ", (unsigned) dt, tpc);
-      if (off > (int) sizeof(buf) - 8)
-        break;
-    }
-    ESP_LOGD(TAG, "%s", buf);
-  }
-  // Bits preview
-  if (this->dbg_bits_len_ > 0) {
-    char bits_str[80];
-    int off = 0;
-    uint8_t n = this->dbg_bits_len_;
-    if (n > 34)
-      n = 34;
-    for (uint8_t i = 0; i < n; i++) {
-      off += snprintf(bits_str + off, sizeof(bits_str) - off, "%u", (unsigned) this->dbg_bits_[i]);
-      if (i + 1 == n)
-        break;
-      if (i == 0 || i == 1 || i == 4 || i == 12 || i == 28) {
-        bits_str[off++] = ' ';
-      }
-    }
-    bits_str[off] = 0;
-    ESP_LOGD(TAG, "bits(%u): %s", (unsigned) this->dbg_bits_len_, bits_str);
-  }
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
