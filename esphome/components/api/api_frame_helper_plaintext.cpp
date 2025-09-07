@@ -202,15 +202,15 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
       // a message after the indicator byte to ensures its long
       // enough and can aid in debugging.
 #ifdef USE_ESP8266
-      static const char msg_progmem[] PROGMEM = "\x00"
+      static const char MSG_PROGMEM[] PROGMEM = "\x00"
                                                 "Bad indicator byte";
       char msg[19];
-      memcpy_P(msg, msg_progmem, 19);
+      memcpy_P(msg, MSG_PROGMEM, 19);
       iov[0].iov_base = (void *) msg;
 #else
-      static const char msg[] = "\x00"
+      static const char MSG[] = "\x00"
                                 "Bad indicator byte";
-      iov[0].iov_base = (void *) msg;
+      iov[0].iov_base = (void *) MSG;
 #endif
       iov[0].iov_len = 19;
       this->write_raw_(iov, 1, 19);
