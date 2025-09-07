@@ -16,7 +16,6 @@
 namespace esphome {
 
 static const char *const TAG = "component";
-static const char *const UNSPECIFIED_MESSAGE = "unspecified";
 
 // Global vectors for component data that doesn't belong in every instance.
 // Using vector instead of unordered_map for both because:
@@ -143,7 +142,7 @@ void Component::call_dump_config() {
       }
     }
     ESP_LOGE(TAG, "  %s is marked FAILED: %s", this->get_component_source(),
-             error_msg ? error_msg : UNSPECIFIED_MESSAGE);
+             error_msg ? error_msg : LOG_STR_LITERAL("unspecified"));
   }
 }
 
@@ -280,20 +279,32 @@ bool Component::is_ready() const {
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+
 void Component::status_set_warning(const char *message) {
   // Don't spam the log. This risks missing different warning messages though.
   if ((this->component_state_ & STATUS_LED_WARNING) != 0)
     return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(), message ? message : UNSPECIFIED_MESSAGE);
+  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(),
+           message ? message : LOG_STR_LITERAL("unspecified"));
+}
+void Component::status_set_warning(const LogString *message) {
+  // Don't spam the log. This risks missing different warning messages though.
+  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+    return;
+  this->component_state_ |= STATUS_LED_WARNING;
+  App.app_state_ |= STATUS_LED_WARNING;
+  ESP_LOGW(TAG, "%s set Warning flag: %s", this->get_component_source(),
+           message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
-  ESP_LOGE(TAG, "%s set Error flag: %s", this->get_component_source(), message ? message : UNSPECIFIED_MESSAGE);
+  ESP_LOGE(TAG, "%s set Error flag: %s", this->get_component_source(),
+           message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
     // Lazy allocate the error messages vector if needed
     if (!component_error_messages) {

@@ -51,8 +51,7 @@ void HOT I2CST7567::write_display_data() {
     static const size_t BLOCK_SIZE = 64;
     for (uint8_t x = 0; x < (uint8_t) this->get_width_internal(); x += BLOCK_SIZE) {
       this->write_register(esphome::st7567_base::ST7567_SET_START_LINE, &buffer_[y * this->get_width_internal() + x],
-                           this->get_width_internal() - x > BLOCK_SIZE ? BLOCK_SIZE : this->get_width_internal() - x,
-                           true);
+                           this->get_width_internal() - x > BLOCK_SIZE ? BLOCK_SIZE : this->get_width_internal() - x);
     }
   }
 }
