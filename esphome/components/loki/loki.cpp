@@ -25,6 +25,16 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   if (!this->enabled_ || level > this->log_level_)
     return;
 
+  // Get current timestamp in nanoseconds
+  auto now = this->time_->now();
+  if (!now.is_valid()) {
+    return;
+  }
+  // seconds -> nanoseconds as string
+  int64_t ns = static_cast<int64_t>(now.timestamp) * 1000000000LL;
+  char tsbuf[32];
+  snprintf(tsbuf, sizeof(tsbuf), "%" PRId64, ns);
+
   size_t len = message_len;
   // remove color formatting
   if (this->strip_ && message[0] == 0x1B && len > 11) {
@@ -34,13 +44,6 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
 
   // Create log message string
   std::string log_message(message, len);
-
-  // Get current timestamp in nanoseconds
-  auto now = this->time_->now();
-  // seconds -> nanoseconds as string
-  int64_t ns = static_cast<int64_t>(now.timestamp) * 1000000000LL;
-  char tsbuf[32];
-  snprintf(tsbuf, sizeof(tsbuf), "%" PRId64, ns);
 
   // Create Loki JSON payload
   std::string json_payload = json::build_json([&](JsonObject root) {
