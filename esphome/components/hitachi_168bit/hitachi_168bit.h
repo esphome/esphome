@@ -50,12 +50,8 @@ class Hitachi168bitClimate : public climate_ir::ClimateIR {
   bool send_swing_cmd_{false};
   Model model_;
 
-  float temperature_min_() {
-    return (model_ == MODEL_HCRA31NEWH) ? HITACHI168BIT_HCRA31NEWH_TEMP_MIN : HITACHI168BIT_HCRA31NEWH_TEMP_MIN;
-  }
-  float temperature_max_() {
-    return (model_ == MODEL_HCRA31NEWH) ? HITACHI168BIT_HCRA31NEWH_TEMP_MAX : HITACHI168BIT_HCRA31NEWH_TEMP_MAX;
-  }
+  float temperature_min_() { return HITACHI168BIT_HCRA31NEWH_TEMP_MIN; }
+  float temperature_max_() { return HITACHI168BIT_HCRA31NEWH_TEMP_MAX; }
 };
 
 }  // namespace hitachi_168bit
