@@ -39,7 +39,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
 
 #ifdef USE_SWITCH
   // Switch methods
-  void set_logs_enabled_switch(switch_::Switch *switch_) { this->logs_enabled_switch_ = switch_; }
+  void set_logs_enabled_switch(switch_::Switch *sw) { this->logs_enabled_switch_ = sw; }
 #endif
 
  protected:
