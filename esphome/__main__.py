@@ -140,9 +140,9 @@ def choose_upload_log_host(
                     (show_ota and "ota" in CORE.config)
                     or (show_api and "api" in CORE.config)
                 ):
-                    # IP lookup via MQTT
+                    # IP lookup via MQTT, prefer API logging over MQTT
                     if show_mqtt and has_mqtt_ip_lookup():
-                        resolved.append("MQTTIP")
+                        resolved.insert(0, "MQTTIP")
 
                     # ensure IPs are tried first and mDNS / DNS last
                     if is_ip_address(CORE.address):
