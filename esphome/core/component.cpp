@@ -342,6 +342,18 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
 }
 void Component::dump_config() {}
+
+// Function implementation of LOG_UPDATE_INTERVAL macro to reduce code size
+void log_update_interval(const char *tag, PollingComponent *component) {
+  uint32_t update_interval = component->get_update_interval();
+  if (update_interval == SCHEDULER_DONT_RUN) {
+    ESP_LOGCONFIG(tag, "  Update Interval: never");
+  } else if (update_interval < 100) {
+    ESP_LOGCONFIG(tag, "  Update Interval: %.3fs", update_interval / 1000.0f);
+  } else {
+    ESP_LOGCONFIG(tag, "  Update Interval: %.1fs", update_interval / 1000.0f);
+  }
+}
 float Component::get_actual_setup_priority() const {
   // Check if there's an override in the global vector
   if (setup_priority_overrides) {
