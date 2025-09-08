@@ -122,11 +122,6 @@ bool OpenTherm::init_rmt_() {
     ESP_LOGE(TAG, "Failed to create RMT RX channel");
     return false;
   }
-  if (this->in_pin_->get_flags() & gpio::FLAG_PULLUP) {
-    gpio_pullup_en(gpio_num_t(this->in_pin_->get_pin()));
-  } else {
-    gpio_pullup_dis(gpio_num_t(this->in_pin_->get_pin()));
-  }
 
   // Configure TX channel
   rmt_tx_channel_config_t tx_chan_cfg;
@@ -137,7 +132,7 @@ bool OpenTherm::init_rmt_() {
   tx_chan_cfg.mem_block_symbols = 64;
   tx_chan_cfg.trans_queue_depth = 1;
   tx_chan_cfg.flags.io_loop_back = 0;
-  tx_chan_cfg.flags.io_od_mode = (this->out_pin_->get_flags() & gpio::FLAG_OPEN_DRAIN) ? 1 : 0;
+  tx_chan_cfg.flags.io_od_mode = 0;
   tx_chan_cfg.flags.invert_out = 0;
   tx_chan_cfg.flags.with_dma = 0;
   tx_chan_cfg.intr_priority = 0;
@@ -177,16 +172,9 @@ bool OpenTherm::init_rmt_() {
   // Filter out short glitches; consider signal ended after >2000us without edge
   // Note: signal_range_min_ns must be < 255 cycles of the RMT source clock.
   // Clamp to the hardware-supported maximum to avoid runtime errors.
-  {
-    uint32_t const max_filter_ns = 255u * 1000u / (RMT_CLK_FREQ / 1000000u);
-    uint32_t desired_min_ns = 100u * 1000u;  // 100us target, will be clamped
-    // Must be strictly less than the limit reported by the driver
-    uint32_t safe_min_ns = (max_filter_ns > 0) ? (max_filter_ns - 1) : 0;
-    if (desired_min_ns > safe_min_ns)
-      desired_min_ns = safe_min_ns;
-    this->rx_config_.signal_range_min_ns = desired_min_ns;
-  }
-  this->rx_config_.signal_range_max_ns = 2000u * 1000u;
+  uint32_t max_filter_ns = 255 * 1000 / (RMT_CLK_FREQ / 1000000);
+  this->rx_config_.signal_range_min_ns = std::min(static_cast<uint32_t>(100 * 1000), max_filter_ns);
+  this->rx_config_.signal_range_max_ns = 2000 * 1000;
 
   return true;
 }
