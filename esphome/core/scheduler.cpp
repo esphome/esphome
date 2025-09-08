@@ -436,85 +436,79 @@ void HOT Scheduler::call(uint32_t now) {
     this->to_remove_ = 0;
   }
   while (!this->items_.empty()) {
-    // use scoping to indicate visibility of `item` variable
-    {
-      // Don't copy-by value yet
-      auto &item = this->items_[0];
-      if (item->get_next_execution() > now_64) {
-        // Not reached timeout yet, done for this call
-        break;
-      }
-      // Don't run on failed components
-      if (item->component != nullptr && item->component->is_failed()) {
-        LockGuard guard{this->lock_};
-        this->pop_raw_();
-        continue;
-      }
+    // Don't copy-by value yet
+    auto &item = this->items_[0];
+    if (item->get_next_execution() > now_64) {
+      // Not reached timeout yet, done for this call
+      break;
+    }
+    // Don't run on failed components
+    if (item->component != nullptr && item->component->is_failed()) {
+      LockGuard guard{this->lock_};
+      this->pop_raw_();
+      continue;
+    }
 
-      // Check if item is marked for removal
-      // This handles two cases:
-      // 1. Item was marked for removal after cleanup_() but before we got here
-      // 2. Item is marked for removal but wasn't at the front of the heap during cleanup_()
+    // Check if item is marked for removal
+    // This handles two cases:
+    // 1. Item was marked for removal after cleanup_() but before we got here
+    // 2. Item is marked for removal but wasn't at the front of the heap during cleanup_()
 #ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
-      // Multi-threaded platforms without atomics: must take lock to safely read remove flag
-      {
-        LockGuard guard{this->lock_};
-        if (is_item_removed_(item.get())) {
-          this->pop_raw_();
-          this->to_remove_--;
-          continue;
-        }
-      }
-#else
-      // Single-threaded or multi-threaded with atomics: can check without lock
+    // Multi-threaded platforms without atomics: must take lock to safely read remove flag
+    {
+      LockGuard guard{this->lock_};
       if (is_item_removed_(item.get())) {
-        LockGuard guard{this->lock_};
         this->pop_raw_();
         this->to_remove_--;
         continue;
       }
+    }
+#else
+    // Single-threaded or multi-threaded with atomics: can check without lock
+    if (is_item_removed_(item.get())) {
+      LockGuard guard{this->lock_};
+      this->pop_raw_();
+      this->to_remove_--;
+      continue;
+    }
 #endif
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-      const char *item_name = item->get_name();
-      ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
-               item->get_type_str(), LOG_STR_ARG(item->get_source()), item_name ? item_name : "(null)", item->interval,
-               item->get_next_execution(), now_64);
+    const char *item_name = item->get_name();
+    ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
+             item->get_type_str(), LOG_STR_ARG(item->get_source()), item_name ? item_name : "(null)", item->interval,
+             item->get_next_execution(), now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-      // Warning: During callback(), a lot of stuff can happen, including:
-      //  - timeouts/intervals get added, potentially invalidating vector pointers
-      //  - timeouts/intervals get cancelled
-      this->execute_item_(item.get(), now);
+    // Warning: During callback(), a lot of stuff can happen, including:
+    //  - timeouts/intervals get added, potentially invalidating vector pointers
+    //  - timeouts/intervals get cancelled
+    this->execute_item_(item.get(), now);
+
+    LockGuard guard{this->lock_};
+
+    auto executed_item = std::move(this->items_[0]);
+    // Only pop after function call, this ensures we were reachable
+    // during the function call and know if we were cancelled.
+    this->pop_raw_();
+
+    if (executed_item->remove) {
+      // We were removed/cancelled in the function call, stop
+      this->to_remove_--;
+      continue;
     }
 
-    {
-      LockGuard guard{this->lock_};
-
-      // new scope, item from before might have been moved in the vector
-      auto item = std::move(this->items_[0]);
-      // Only pop after function call, this ensures we were reachable
-      // during the function call and know if we were cancelled.
-      this->pop_raw_();
-
-      if (item->remove) {
-        // We were removed/cancelled in the function call, stop
-        this->to_remove_--;
-        continue;
-      }
-
-      if (item->type == SchedulerItem::INTERVAL) {
-        item->set_next_execution(now_64 + item->interval);
-        // Add new item directly to to_add_
-        // since we have the lock held
-        this->to_add_.push_back(std::move(item));
-      } else {
-        // Timeout completed - recycle it
-        this->recycle_item_(std::move(item));
-      }
-
-      has_added_items |= !this->to_add_.empty();
+    if (executed_item->type == SchedulerItem::INTERVAL) {
+      executed_item->set_next_execution(now_64 + executed_item->interval);
+      // Add new item directly to to_add_
+      // since we have the lock held
+      this->to_add_.push_back(std::move(executed_item));
+    } else {
+      // Timeout completed - recycle it
+      this->recycle_item_(std::move(executed_item));
     }
+
+    has_added_items |= !this->to_add_.empty();
   }
 
   if (has_added_items) {
