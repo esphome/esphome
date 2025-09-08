@@ -554,7 +554,7 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose="uploading",
     )
 
-    exit_code, successful_device = upload_program(config, args, devices)
+    exit_code, _ = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
     else:
