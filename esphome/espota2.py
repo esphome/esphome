@@ -310,7 +310,7 @@ def perform_ota(
 
 def run_ota_impl_(
     remote_host: str | list[str], remote_port: int, password: str, filename: str
-) -> int:
+) -> tuple[int, str | None]:
     # Handle both single host and list of hosts
     try:
         # Resolve all hosts at once for parallel DNS resolution
@@ -344,21 +344,22 @@ def run_ota_impl_(
                 perform_ota(sock, password, file_handle, filename)
             except OTAError as err:
                 _LOGGER.error(str(err))
-                return 1
+                return 1, None
             finally:
                 sock.close()
 
-        return 0
+        # Successfully uploaded to sa[0]
+        return 0, sa[0]
 
     _LOGGER.error("Connection failed.")
-    return 1
+    return 1, None
 
 
 def run_ota(
     remote_host: str | list[str], remote_port: int, password: str, filename: str
-) -> int:
+) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
-        return 1
+        return 1, None
