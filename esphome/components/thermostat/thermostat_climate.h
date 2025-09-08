@@ -249,6 +249,23 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Minimum allowable duration in seconds for action timers
   const uint8_t min_timer_duration_{1};
 
+  /// Store previously-known states
+  ///
+  /// These are used to determine when a trigger/action needs to be called
+  climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
+  climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
+  climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
+
+  /// The current supplemental action
+  climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
+
+  /// Default standard preset to use on start up
+  climate::ClimatePreset default_preset_{};
+
+  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
+  /// state will attempt to be restored if possible
+  OnBootRestoreFrom on_boot_restore_from_{OnBootRestoreFrom::MEMORY};
+
   /// Whether the controller supports auto/cooling/drying/fanning/heating.
   ///
   /// A false value for any given attribute means that the controller has no such action
@@ -446,20 +463,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
 
-  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
-  /// state will attempt to be restored if possible
-  OnBootRestoreFrom on_boot_restore_from_{OnBootRestoreFrom::MEMORY};
-
-  /// Store previously-known states
-  ///
-  /// These are used to determine when a trigger/action needs to be called
-  climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
-  climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
-  climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
-  climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
-
-  /// Default standard preset to use on start up
-  climate::ClimatePreset default_preset_{};
   /// Default custom preset to use on start up
   std::string default_custom_preset_{};
 
