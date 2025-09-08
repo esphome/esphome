@@ -124,7 +124,7 @@ bool MagiQuestProtocol::checksum_is_valid_(uint32_t wand_id, uint32_t magnitude_
 
   // magnitudeAndChecksum can be used directly.
   uint8_t *magnitude_and_checksum_bytes = reinterpret_cast<uint8_t *>(&magnitude_and_checksum);
-  for (uint8_t i = 0; i < 4; i++) {
+  for (uint8_t i = 0; i < sizeof(magnitude_and_checksum); i++) {
     checksum += magnitude_and_checksum_bytes[i];
   }
 
