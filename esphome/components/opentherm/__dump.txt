@@ -1,0 +1,943 @@
+INFO Successfully uploaded program.
+INFO Starting log output from /dev/cu.usbserial-55390112081 with baud rate 115200
+[14:50:00][I][logger:165]: Log initialized
+[14:50:00][C][safe_mode:084]: Unsuccessful boot attempts: 3
+[14:50:00][D][esp32.preferences:143]: Writing 1 items: 0 cached, 1 written, 0 failed
+[14:50:00][I][app:090]: Running through setup()
+[14:50:00][D][binary_sensor:039]: 'Using HA PID': New state is OFF
+[14:50:00][D][template.switch:046]:   Restored state ON
+[14:50:00][D][switch:020]: 'Use Home Assistant Thermostat' Turning ON.
+[14:50:00][D][switch:063]: 'Use Home Assistant Thermostat': Sending state ON
+[14:50:01][D][binary_sensor:039]: 'HA Connection Status': New state is OFF
+[14:50:01][D][pid:077]: PID setpoint: 22.000000
+[14:50:01][D][climate:011]: 'Central Heating' - Setting
+[14:50:01][D][climate:015]:   Mode: HEAT
+[14:50:01][D][climate:040]:   Target Temperature: 22.00
+[14:50:01][D][climate:396]: 'Central Heating' - Sending state:
+[14:50:01][D][climate:399]:   Mode: HEAT
+[14:50:01][D][climate:401]:   Action: OFF
+[14:50:01][D][climate:419]:   Current Temperature: nan°C
+[14:50:01][D][climate:425]:   Target Temperature: 22.00°C
+[14:50:01][D][switch:020]: 'Central Heating enabled' Turning ON.
+[14:50:01][D][switch:063]: 'Central Heating enabled': Sending state ON
+[14:50:01][D][sensor:130]: 'PID Result': Sending state 0.00000 % with 2 decimals of accuracy
+[14:50:01][D][sensor:130]: 'PID Error': Sending state 0.00000 % with 2 decimals of accuracy
+[14:50:01][D][sensor:130]: 'PID Proportional': Sending state 0.00000 % with 2 decimals of accuracy
+[14:50:01][D][sensor:130]: 'PID Integral': Sending state 0.00000 % with 2 decimals of accuracy
+[14:50:01][D][number:033]: 'Hot Water Setpoint': Sending state 60.000000
+[14:50:01][D][opentherm.switch:016]: Restored state for OpenTherm switch 'Central Heating enabled': 1
+[14:50:01][D][opentherm.switch:016]: Restored state for OpenTherm switch 'Hot Water enabled': 1
+[14:50:01][D][switch:063]: 'Hot Water enabled': Sending state ON
+[14:50:01][C][wifi:060]: Starting
+[14:50:01][C][wifi:060]:   Local MAC: E0:5A:1B:A0:53:30
+[14:50:01][D][wifi:507]: Starting scan
+[14:50:01][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:01][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:01][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:01][I][opentherm:297]: Raw RMT RX dump:
+[14:50:01][I][opentherm:451]: RX raw begin =====================================
+[14:50:01][I][opentherm:452]: symbols=1
+[14:50:01][I][opentherm:455]: SYM[000]: L0=0 D0=0 us | L1=0 D1=0 us
+[14:50:01][I][opentherm:458]: RX raw end =======================================
+[14:50:01][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:01][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:01][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:01][I][opentherm:297]: Raw RMT RX dump:
+[14:50:01][I][opentherm:451]: RX raw begin =====================================
+[14:50:01][I][opentherm:452]: symbols=31
+[14:50:01][I][opentherm:455]: SYM[000]: L0=1 D0=528 us | L1=0 D1=1005 us
+[14:50:01][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[002]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:01][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=490 us
+[14:50:01][I][opentherm:455]: SYM[005]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[006]: L0=1 D0=551 us | L1=0 D1=471 us
+[14:50:01][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[008]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[009]: L0=1 D0=536 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[010]: L0=1 D0=534 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=496 us
+[14:50:01][I][opentherm:455]: SYM[014]: L0=1 D0=1048 us | L1=0 D1=1012 us
+[14:50:01][I][opentherm:455]: SYM[015]: L0=1 D0=527 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[016]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=494 us
+[14:50:01][I][opentherm:455]: SYM[019]: L0=1 D0=532 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[021]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:01][I][opentherm:455]: SYM[024]: L0=1 D0=545 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[025]: L0=1 D0=520 us | L1=0 D1=496 us
+[14:50:01][I][opentherm:455]: SYM[026]: L0=1 D0=530 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[027]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[028]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[029]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:01][I][opentherm:455]: SYM[030]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:01][I][opentherm:458]: RX raw end =======================================
+[14:50:01][I][nextion:097]: Connected
+[14:50:01][I][nextion:119]:   Device Model:   NX4832F035_011R
+[14:50:01][I][nextion:119]:   FW Version:     72
+[14:50:01][I][nextion:119]:   Serial Number:  B5B034016EE7D061
+[14:50:01][I][nextion:119]:   Flash Size:     16777216
+[14:50:01][C][nextion:147]: Nextion:
+[14:50:01][C][nextion:152]:   Wake On Touch:  YES
+[14:50:01][C][nextion:152]:   Touch Timeout:  0
+[14:50:01][W][nextion:504]: Invalid variable name
+[14:50:01][E][nextion:369]: Queue empty
+[14:50:01][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:01][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:01][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:02][I][opentherm:297]: Raw RMT RX dump:
+[14:50:02][I][opentherm:451]: RX raw begin =====================================
+[14:50:02][I][opentherm:452]: symbols=28
+[14:50:02][I][opentherm:455]: SYM[000]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:02][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:02][I][opentherm:455]: SYM[002]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[003]: L0=1 D0=536 us | L1=0 D1=490 us
+[14:50:02][I][opentherm:455]: SYM[004]: L0=1 D0=541 us | L1=0 D1=486 us
+[14:50:02][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=494 us
+[14:50:02][I][opentherm:455]: SYM[006]: L0=1 D0=528 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[010]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=501 us
+[14:50:02][I][opentherm:455]: SYM[012]: L0=1 D0=525 us | L1=0 D1=496 us
+[14:50:02][I][opentherm:455]: SYM[013]: L0=1 D0=537 us | L1=0 D1=489 us
+[14:50:02][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1004 us
+[14:50:02][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:02][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:02][I][opentherm:455]: SYM[021]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[022]: L0=1 D0=534 us | L1=0 D1=487 us
+[14:50:02][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[026]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:02][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:02][I][opentherm:458]: RX raw end =======================================
+[14:50:02][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:02][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:02][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:02][I][opentherm:297]: Raw RMT RX dump:
+[14:50:02][I][opentherm:451]: RX raw begin =====================================
+[14:50:02][I][opentherm:452]: symbols=28
+[14:50:02][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1009 us
+[14:50:02][I][opentherm:455]: SYM[001]: L0=1 D0=1044 us | L1=0 D1=1009 us
+[14:50:02][I][opentherm:455]: SYM[002]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[004]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=501 us
+[14:50:02][I][opentherm:455]: SYM[009]: L0=1 D0=525 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[010]: L0=1 D0=537 us | L1=0 D1=489 us
+[14:50:02][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=496 us
+[14:50:02][I][opentherm:455]: SYM[012]: L0=1 D0=530 us | L1=0 D1=503 us
+[14:50:02][I][opentherm:455]: SYM[013]: L0=1 D0=527 us | L1=0 D1=484 us
+[14:50:02][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:02][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1008 us
+[14:50:02][I][opentherm:455]: SYM[017]: L0=1 D0=531 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[018]: L0=1 D0=534 us | L1=0 D1=497 us
+[14:50:02][I][opentherm:455]: SYM[019]: L0=1 D0=1051 us | L1=0 D1=488 us
+[14:50:02][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:02][I][opentherm:455]: SYM[021]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:02][I][opentherm:455]: SYM[023]: L0=1 D0=542 us | L1=0 D1=485 us
+[14:50:02][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:02][I][opentherm:455]: SYM[026]: L0=1 D0=544 us | L1=0 D1=995 us
+[14:50:02][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:02][I][opentherm:458]: RX raw end =======================================
+[14:50:02][D][dallas.temp.sensor:054]: 'Collector Return Temperature': Got Temperature=26.2°C
+[14:50:02][D][sensor:130]: 'Collector Return Temperature': Sending state 26.18750 °C with 2 decimals of accuracy
+[14:50:02][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:02][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:02][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:03][I][opentherm:297]: Raw RMT RX dump:
+[14:50:03][I][opentherm:451]: RX raw begin =====================================
+[14:50:03][I][opentherm:452]: symbols=28
+[14:50:03][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1004 us
+[14:50:03][I][opentherm:455]: SYM[001]: L0=1 D0=1049 us | L1=0 D1=1000 us
+[14:50:03][I][opentherm:455]: SYM[002]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[003]: L0=1 D0=545 us | L1=0 D1=481 us
+[14:50:03][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[005]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[006]: L0=1 D0=544 us | L1=0 D1=482 us
+[14:50:03][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[008]: L0=1 D0=1053 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[010]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[012]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=503 us
+[14:50:03][I][opentherm:455]: SYM[014]: L0=1 D0=523 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[015]: L0=1 D0=538 us | L1=0 D1=1001 us
+[14:50:03][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1007 us
+[14:50:03][I][opentherm:455]: SYM[017]: L0=1 D0=533 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=487 us
+[14:50:03][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[020]: L0=1 D0=534 us | L1=0 D1=1015 us
+[14:50:03][I][opentherm:455]: SYM[021]: L0=1 D0=525 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[023]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=497 us
+[14:50:03][I][opentherm:455]: SYM[025]: L0=1 D0=1047 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[026]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:03][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:03][I][opentherm:458]: RX raw end =======================================
+[14:50:03][D][dallas.temp.sensor:054]: 'Collector Feed Temperature': Got Temperature=27.6°C
+[14:50:03][D][sensor:130]: 'Collector Feed Temperature': Sending state 27.62500 °C with 2 decimals of accuracy
+[14:50:03][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:03][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:03][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:03][I][opentherm:297]: Raw RMT RX dump:
+[14:50:03][I][opentherm:451]: RX raw begin =====================================
+[14:50:03][I][opentherm:452]: symbols=28
+[14:50:03][I][opentherm:455]: SYM[000]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:03][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1004 us
+[14:50:03][I][opentherm:455]: SYM[002]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[003]: L0=1 D0=530 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[004]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[006]: L0=1 D0=540 us | L1=0 D1=486 us
+[14:50:03][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=510 us
+[14:50:03][I][opentherm:455]: SYM[010]: L0=1 D0=521 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=501 us
+[14:50:03][I][opentherm:455]: SYM[014]: L0=1 D0=525 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[015]: L0=1 D0=544 us | L1=0 D1=995 us
+[14:50:03][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1009 us
+[14:50:03][I][opentherm:455]: SYM[017]: L0=1 D0=531 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[019]: L0=1 D0=1047 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[020]: L0=1 D0=530 us | L1=0 D1=1005 us
+[14:50:03][I][opentherm:455]: SYM[021]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[022]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[023]: L0=1 D0=534 us | L1=0 D1=497 us
+[14:50:03][I][opentherm:455]: SYM[024]: L0=1 D0=530 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[025]: L0=1 D0=1047 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[026]: L0=1 D0=553 us | L1=0 D1=991 us
+[14:50:03][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:03][I][opentherm:458]: RX raw end =======================================
+[14:50:03][D][esp32.preferences:143]: Writing 3 items: 3 cached, 0 written, 0 failed
+[14:50:03][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:03][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:03][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:03][I][opentherm:297]: Raw RMT RX dump:
+[14:50:03][I][opentherm:451]: RX raw begin =====================================
+[14:50:03][I][opentherm:452]: symbols=28
+[14:50:03][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1004 us
+[14:50:03][I][opentherm:455]: SYM[001]: L0=1 D0=1059 us | L1=0 D1=994 us
+[14:50:03][I][opentherm:455]: SYM[002]: L0=1 D0=545 us | L1=0 D1=482 us
+[14:50:03][I][opentherm:455]: SYM[003]: L0=1 D0=538 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[004]: L0=1 D0=531 us | L1=0 D1=491 us
+[14:50:03][I][opentherm:455]: SYM[005]: L0=1 D0=542 us | L1=0 D1=485 us
+[14:50:03][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[007]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:03][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[009]: L0=1 D0=531 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[010]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[014]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1009 us
+[14:50:04][I][opentherm:455]: SYM[016]: L0=1 D0=1054 us | L1=0 D1=999 us
+[14:50:04][I][opentherm:455]: SYM[017]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[019]: L0=1 D0=1047 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[020]: L0=1 D0=542 us | L1=0 D1=998 us
+[14:50:04][I][opentherm:455]: SYM[021]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=487 us
+[14:50:04][I][opentherm:455]: SYM[026]: L0=1 D0=535 us | L1=0 D1=1011 us
+[14:50:04][I][opentherm:455]: SYM[027]: L0=1 D0=1042 us | L1=0 D1=0 us
+[14:50:04][I][opentherm:458]: RX raw end =======================================
+[14:50:04][D][dallas.temp.sensor:054]: 'Heater Internal Temperature': Got Temperature=61.1°C
+[14:50:04][D][sensor:130]: 'Heater Internal Temperature': Sending state 61.06250 °C with 2 decimals of accuracy
+[14:50:04][D][wifi:576]: Found networks:
+[14:50:04][I][wifi:599]: - 'Lera' (18:31:BF:36:FD:A9) ▂▄▆█
+[14:50:04][D][wifi:601]:     Channel: 1
+[14:50:04][D][wifi:601]:     RSSI: -56 dB
+[14:50:04][I][wifi:599]: - 'Lera' (50:EB:F6:33:03:61) ▂▄▆█
+[14:50:04][D][wifi:601]:     Channel: 1
+[14:50:04][D][wifi:601]:     RSSI: -59 dB
+[14:50:04][I][wifi:599]: - 'Lera' (50:EB:F6:32:9F:28) ▂▄▆█
+[14:50:04][D][wifi:601]:     Channel: 1
+[14:50:04][D][wifi:601]:     RSSI: -72 dB
+[14:50:04][I][wifi:599]: - 'Lera' (50:EB:F6:32:A0:F1) ▂▄▆█
+[14:50:04][D][wifi:601]:     Channel: 1
+[14:50:04][D][wifi:601]:     RSSI: -80 dB
+[14:50:04][D][wifi:606]: - 'HUAWEI-B535-63C9' (F4:A5:9D:5D:63:C9) ▂▄▆█
+[14:50:04][D][wifi:606]: - '' (F4:A5:9D:5D:63:CD) ▂▄▆█
+[14:50:04][D][wifi:606]: - 'Malinovaya18' (4C:C6:4C:53:52:5B) ▂▄▆█
+[14:50:04][D][wifi:606]: - 'Missery2' (60:A4:4C:EF:FE:50) ▂▄▆█
+[14:50:04][I][wifi:329]: Connecting to 'Lera'
+[14:50:04][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:04][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:04][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:04][I][opentherm:297]: Raw RMT RX dump:
+[14:50:04][I][opentherm:451]: RX raw begin =====================================
+[14:50:04][I][opentherm:452]: symbols=28
+[14:50:04][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1004 us
+[14:50:04][I][opentherm:455]: SYM[001]: L0=1 D0=1049 us | L1=0 D1=1004 us
+[14:50:04][I][opentherm:455]: SYM[002]: L0=1 D0=539 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[003]: L0=1 D0=539 us | L1=0 D1=487 us
+[14:50:04][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[010]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[012]: L0=1 D0=544 us | L1=0 D1=482 us
+[14:50:04][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[014]: L0=1 D0=531 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:04][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:04][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[019]: L0=1 D0=1053 us | L1=0 D1=499 us
+[14:50:04][I][opentherm:455]: SYM[020]: L0=1 D0=527 us | L1=0 D1=1009 us
+[14:50:04][I][opentherm:455]: SYM[021]: L0=1 D0=531 us | L1=0 D1=491 us
+[14:50:04][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[023]: L0=1 D0=534 us | L1=0 D1=496 us
+[14:50:04][I][opentherm:455]: SYM[024]: L0=1 D0=531 us | L1=0 D1=494 us
+[14:50:04][I][opentherm:455]: SYM[025]: L0=1 D0=1045 us | L1=0 D1=492 us
+[14:50:04][I][opentherm:455]: SYM[026]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:04][I][opentherm:455]: SYM[027]: L0=1 D0=1058 us | L1=0 D1=0 us
+[14:50:04][I][opentherm:458]: RX raw end =======================================
+[14:50:04][I][wifi:675]: Connected
+[14:50:04][C][wifi:444]:   Local MAC: E0:5A:1B:A0:53:30
+[14:50:04][C][wifi:449]:   SSID: 'Lera'
+[14:50:04][C][wifi:452]:   IP Address: 192.168.3.185
+[14:50:04][C][wifi:456]:   BSSID: 18:31:BF:36:FD:A9
+[14:50:04][C][wifi:456]:   Hostname: 'boiler-estate'
+[14:50:04][C][wifi:456]:   Signal strength: -55 dB ▂▄▆█
+[14:50:04][C][wifi:467]:   Channel: 1
+[14:50:04][C][wifi:467]:   Subnet: 255.255.255.0
+[14:50:04][C][wifi:467]:   Gateway: 192.168.3.1
+[14:50:04][C][wifi:467]:   DNS1: 0.0.0.0
+[14:50:05][C][wifi:467]:   DNS2: 0.0.0.0
+[14:50:05][C][wifi:476]:   BTM: enabled
+[14:50:05][C][wifi:476]:   RRM: enabled
+[14:50:05][I][app:135]: setup() finished successfully!
+[14:50:05][D][dallas.temp.sensor:054]: 'Radiators Feed Temperature': Got Temperature=28.0°C
+[14:50:05][D][sensor:130]: 'Radiators Feed Temperature': Sending state 28.00000 °C with 2 decimals of accuracy
+[14:50:05][I][app:200]: ESPHome version 2025.9.0-dev compiled on Sep  8 2025, 14:45:27
+[14:50:05][C][wifi:661]: WiFi:
+[14:50:05][C][wifi:444]:   Local MAC: E0:5A:1B:A0:53:30
+[14:50:05][C][wifi:449]:   SSID: 'Lera'
+[14:50:05][C][wifi:452]:   IP Address: 192.168.3.185
+[14:50:05][C][wifi:456]:   BSSID: 18:31:BF:36:FD:A9
+[14:50:05][C][wifi:456]:   Hostname: 'boiler-estate'
+[14:50:05][C][wifi:456]:   Signal strength: -55 dB ▂▄▆█
+[14:50:05][C][wifi:467]:   Channel: 1
+[14:50:05][C][wifi:467]:   Subnet: 255.255.255.0
+[14:50:05][C][wifi:467]:   Gateway: 192.168.3.1
+[14:50:05][C][wifi:467]:   DNS1: 0.0.0.0
+[14:50:05][C][wifi:467]:   DNS2: 0.0.0.0
+[14:50:05][C][wifi:476]:   BTM: enabled
+[14:50:05][C][wifi:476]:   RRM: enabled
+[14:50:05][D][sensor:130]: 'RSSI': Sending state -55.00000 dBm with 0 decimals of accuracy
+[14:50:05][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:05][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:05][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:05][I][opentherm:297]: Raw RMT RX dump:
+[14:50:05][I][opentherm:451]: RX raw begin =====================================
+[14:50:05][I][opentherm:452]: symbols=28
+[14:50:05][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1004 us
+[14:50:05][I][opentherm:455]: SYM[001]: L0=1 D0=1049 us | L1=0 D1=1000 us
+[14:50:05][I][opentherm:455]: SYM[002]: L0=1 D0=536 us | L1=0 D1=490 us
+[14:50:05][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=500 us
+[14:50:05][I][opentherm:455]: SYM[008]: L0=1 D0=1044 us | L1=0 D1=495 us
+[14:50:05][I][opentherm:455]: SYM[009]: L0=1 D0=531 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[010]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[011]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[014]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:05][I][opentherm:455]: SYM[016]: L0=1 D0=1047 us | L1=0 D1=1012 us
+[14:50:05][I][opentherm:455]: SYM[017]: L0=1 D0=528 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[018]: L0=1 D0=539 us | L1=0 D1=483 us
+[14:50:05][I][opentherm:455]: SYM[019]: L0=1 D0=1047 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:05][I][opentherm:455]: SYM[021]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[022]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=501 us
+[14:50:05][I][opentherm:455]: SYM[024]: L0=1 D0=525 us | L1=0 D1=496 us
+[14:50:05][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[026]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:05][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:05][I][opentherm:458]: RX raw end =======================================
+[14:50:05][C][logger:252]: Logger:
+[14:50:05][C][logger:252]:   Max Level: DEBUG
+[14:50:05][C][logger:252]:   Initial Level: DEBUG
+[14:50:05][C][logger:258]:   Log Baud Rate: 115200
+[14:50:05][C][logger:258]:   Hardware UART: UART0
+[14:50:05][C][logger:265]:   Task Log Buffer Size: 768
+[14:50:05][C][logger:270]:   Level for 'component': ERROR
+[14:50:05][C][logger:270]:   Level for 'sensor': DEBUG
+[14:50:05][D][text_sensor:069]: 'IP Address': Sending state '192.168.3.185'
+[14:50:05][D][text_sensor:069]: 'BSSID': Sending state '18:31:BF:36:FD:A9'
+[14:50:05][C][gpio.one_wire:021]: GPIO 1-wire bus:
+[14:50:05][C][gpio.one_wire:022]:   Pin: GPIO5
+[14:50:05][C][gpio.one_wire:084]:   Found devices:
+[14:50:05][C][gpio.one_wire:086]:     0x720122739f6a6c28 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0x5d0122739a2eea28 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0xc00122738ce7e628 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0x3e01229268289628 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0xf80122737a99be28 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0x2001229265635128 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0xc801229266646528 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0x0701229267f92728 (DS18B20)
+[14:50:05][C][gpio.one_wire:086]:     0xbf01227377362f28 (DS18B20)
+[14:50:05][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:05][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:05][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:05][I][opentherm:297]: Raw RMT RX dump:
+[14:50:05][I][opentherm:451]: RX raw begin =====================================
+[14:50:05][I][opentherm:452]: symbols=28
+[14:50:05][I][opentherm:455]: SYM[000]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:05][I][opentherm:455]: SYM[001]: L0=1 D0=1053 us | L1=0 D1=1011 us
+[14:50:05][I][opentherm:455]: SYM[002]: L0=1 D0=529 us | L1=0 D1=482 us
+[14:50:05][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[007]: L0=1 D0=541 us | L1=0 D1=486 us
+[14:50:05][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=496 us
+[14:50:05][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=495 us
+[14:50:05][I][opentherm:455]: SYM[010]: L0=1 D0=531 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[011]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[014]: L0=1 D0=542 us | L1=0 D1=484 us
+[14:50:05][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:05][I][opentherm:455]: SYM[016]: L0=1 D0=1047 us | L1=0 D1=1005 us
+[14:50:05][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[018]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[019]: L0=1 D0=1043 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:05][I][opentherm:455]: SYM[021]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:05][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[025]: L0=1 D0=1052 us | L1=0 D1=492 us
+[14:50:05][I][opentherm:455]: SYM[026]: L0=1 D0=534 us | L1=0 D1=1006 us
+[14:50:05][I][opentherm:455]: SYM[027]: L0=1 D0=1047 us | L1=0 D1=0 us
+[14:50:05][I][opentherm:458]: RX raw end =======================================
+[14:50:05][C][uart.idf:153]: UART Bus 1:
+[14:50:05][C][uart.idf:154]:   TX Pin: GPIO26
+[14:50:05][C][uart.idf:155]:   RX Pin: GPIO18
+[14:50:05][C][uart.idf:157]:   RX Buffer Size: 256
+[14:50:05][C][uart.idf:159]:   Baud Rate: 115200 baud
+[14:50:05][C][uart.idf:159]:   Data Bits: 8
+[14:50:05][C][uart.idf:159]:   Parity: NONE
+[14:50:05][C][uart.idf:159]:   Stop bits: 1
+[14:50:05][D][dallas.temp.sensor:054]: 'Floor Feed Temperature': Got Temperature=28.1°C
+[14:50:05][D][sensor:130]: 'Floor Feed Temperature': Sending state 28.06250 °C with 2 decimals of accuracy
+[14:50:05][D][dallas.temp.sensor:054]: 'Heater Return Temperature': Got Temperature=63.0°C
+[14:50:05][D][sensor:130]: 'Heater Return Temperature': Sending state 63.00000 °C with 2 decimals of accuracy
+[14:50:06][C][template.sensor:015]: Template Sensor 'Final PID Output'
+[14:50:06][C][template.sensor:015]:   State Class: ''
+[14:50:06][C][template.sensor:015]:   Unit of Measurement: ''
+[14:50:06][C][template.sensor:015]:   Accuracy Decimals: 2
+[14:50:06][C][template.sensor:023]:   Update Interval: 60.0s
+[14:50:06][C][opentherm:405]: OpenTherm:
+[14:50:06][C][opentherm:406]:   In: GPIO17
+[14:50:06][C][opentherm:407]:   Out: GPIO16
+[14:50:06][C][opentherm:408]:   Sync mode: YES
+[14:50:06][C][opentherm:408]:   Sensors: rel_mod_level_sensor t_boiler_sensor device_type_sensor device_version_sensor opentherm_version_device_sensor device_id_sensor
+[14:50:06][C][opentherm:408]:   Binary sensors: ch_active_binary_sensor dhw_active_binary_sensor flame_on_binary_sensor fault_indication_binary_sensor diagnostic_indication_binary_sensor dhw_present_binary_sensor control_type_on_off_binary_sensor cooling_supported_binary_sensor dhw_storage_tank_binary_sensor controller_pump_control_allowed_binary_sensor ch2
+[14:50:06][C][opentherm:419]:   Initial requests:
+[14:50:06][C][opentherm:421]:   - 127 (VERSION_DEVICE)
+[14:50:06][C][opentherm:421]:   - 125 (OT_VERSION_DEVICE)
+[14:50:06][C][opentherm:421]:   - 3 (DEVICE_CONFIG)
+[14:50:06][C][opentherm:423]:   Repeating requests:
+[14:50:06][C][opentherm:425]:   - 0 (STATUS)
+[14:50:06][C][opentherm:425]:   - 25 (FEED_TEMP)
+[14:50:06][C][opentherm:425]:   - 56 (DHW_SETPOINT)
+[14:50:06][C][opentherm:425]:   - 17 (MODULATION_LEVEL)
+[14:50:06][C][opentherm:425]:   - 1 (CH_SETPOINT)
+[14:50:06][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:06][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:06][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:06][I][opentherm:297]: Raw RMT RX dump:
+[14:50:06][I][opentherm:451]: RX raw begin =====================================
+[14:50:06][I][opentherm:452]: symbols=28
+[14:50:06][I][opentherm:455]: SYM[000]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:06][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:06][I][opentherm:455]: SYM[002]: L0=1 D0=540 us | L1=0 D1=486 us
+[14:50:06][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=487 us
+[14:50:06][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[005]: L0=1 D0=538 us | L1=0 D1=489 us
+[14:50:06][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[008]: L0=1 D0=1049 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[009]: L0=1 D0=536 us | L1=0 D1=490 us
+[14:50:06][I][opentherm:455]: SYM[010]: L0=1 D0=539 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[013]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1008 us
+[14:50:06][I][opentherm:455]: SYM[016]: L0=1 D0=1045 us | L1=0 D1=1005 us
+[14:50:06][I][opentherm:455]: SYM[017]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=498 us
+[14:50:06][I][opentherm:455]: SYM[020]: L0=1 D0=528 us | L1=0 D1=1001 us
+[14:50:06][I][opentherm:455]: SYM[021]: L0=1 D0=544 us | L1=0 D1=482 us
+[14:50:06][I][opentherm:455]: SYM[022]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[026]: L0=1 D0=534 us | L1=0 D1=1010 us
+[14:50:06][I][opentherm:455]: SYM[027]: L0=1 D0=1047 us | L1=0 D1=0 us
+[14:50:06][I][opentherm:458]: RX raw end =======================================
+[14:50:06][C][template.binary_sensor:016]: Template Binary Sensor 'Using HA PID'
+[14:50:06][C][template.sensor:015]: Template Sensor 'temp_input'
+[14:50:06][C][template.sensor:015]:   State Class: ''
+[14:50:06][C][template.sensor:015]:   Unit of Measurement: ''
+[14:50:06][C][template.sensor:015]:   Accuracy Decimals: 2
+[14:50:06][C][template.sensor:023]:   Update Interval: never
+[14:50:06][C][template.switch:087]: Template Switch 'Use Home Assistant Thermostat'
+[14:50:06][C][template.switch:087]:   Restore Mode: restore defaults to OFF
+[14:50:06][C][template.switch:057]:   Optimistic: YES
+[14:50:06][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:06][C][dallas.temp.sensor:034]:   Address: 0xbf01227377362f28 (DS18B20)
+[14:50:06][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:06][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:06][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:06][C][dallas.temp.sensor:034]:   Address: 0x0701229267f92728 (DS18B20)
+[14:50:06][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:06][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:06][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:06][C][dallas.temp.sensor:034]:   Address: 0xc801229266646528 (DS18B20)
+[14:50:06][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:06][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:06][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:06][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:06][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:06][I][opentherm:297]: Raw RMT RX dump:
+[14:50:06][I][opentherm:451]: RX raw begin =====================================
+[14:50:06][I][opentherm:452]: symbols=28
+[14:50:06][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:06][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1004 us
+[14:50:06][I][opentherm:455]: SYM[002]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[004]: L0=1 D0=540 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[006]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[008]: L0=1 D0=1058 us | L1=0 D1=482 us
+[14:50:06][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=498 us
+[14:50:06][I][opentherm:455]: SYM[010]: L0=1 D0=528 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[011]: L0=1 D0=538 us | L1=0 D1=488 us
+[14:50:06][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:06][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1001 us
+[14:50:06][I][opentherm:455]: SYM[016]: L0=1 D0=1047 us | L1=0 D1=1005 us
+[14:50:06][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[018]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[020]: L0=1 D0=534 us | L1=0 D1=1010 us
+[14:50:06][I][opentherm:455]: SYM[021]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=495 us
+[14:50:06][I][opentherm:455]: SYM[023]: L0=1 D0=531 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:06][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=501 us
+[14:50:06][I][opentherm:455]: SYM[026]: L0=1 D0=525 us | L1=0 D1=1008 us
+[14:50:06][I][opentherm:455]: SYM[027]: L0=1 D0=1045 us | L1=0 D1=0 us
+[14:50:06][I][opentherm:458]: RX raw end =======================================
+[14:50:06][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:06][C][dallas.temp.sensor:034]:   Address: 0xf80122737a99be28 (DS18B20)
+[14:50:06][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:07][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:07][D][dallas.temp.sensor:054]: 'Radiators Return Temperature': Got Temperature=25.1°C
+[14:50:07][D][sensor:130]: 'Radiators Return Temperature': Sending state 25.12500 °C with 2 decimals of accuracy
+[14:50:07][D][dallas.temp.sensor:054]: 'Floor Return Temperature': Got Temperature=27.9°C
+[14:50:07][D][sensor:130]: 'Floor Return Temperature': Sending state 27.93750 °C with 2 decimals of accuracy
+[14:50:07][D][dallas.temp.sensor:054]: 'Room Temperature': Got Temperature=27.6°C
+[14:50:07][D][sensor:130]: 'Room Temperature': Sending state 27.31250 °C with 2 decimals of accuracy
+[14:50:07][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:07][C][dallas.temp.sensor:034]:   Address: 0xc00122738ce7e628 (DS18B20)
+[14:50:07][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:07][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:07][D][sensor:130]: 'temp_input': Sending state 27.31250  with 2 decimals of accuracy
+[14:50:07][D][pid_internal:011]: Sending internal PID output to OpenTherm: 0.00
+[14:50:07][D][opentherm.output:010]: Received state: 0.00. Min value: 40.00, max value: 60.00
+[14:50:07][D][opentherm.output:015]: Output t_set_ch_setpoint set to 0.00
+[14:50:07][D][sensor:130]: 'Final PID Output': Sending state 0.00000  with 2 decimals of accuracy
+[14:50:07][D][sensor:130]: 'PID Result': Sending state -265.62500 % with 2 decimals of accuracy
+[14:50:07][D][sensor:130]: 'PID Error': Sending state -531.25000 % with 2 decimals of accuracy
+[14:50:07][D][sensor:130]: 'PID Proportional': Sending state -265.62500 % with 2 decimals of accuracy
+[14:50:07][D][sensor:130]: 'PID Integral': Sending state 0.00000 % with 2 decimals of accuracy
+[14:50:07][D][climate:396]: 'Central Heating' - Sending state:
+[14:50:07][D][climate:399]:   Mode: HEAT
+[14:50:07][D][climate:401]:   Action: IDLE
+[14:50:07][D][climate:419]:   Current Temperature: 27.31°C
+[14:50:07][D][climate:425]:   Target Temperature: 22.00°C
+[14:50:07][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:07][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:07][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:07][I][opentherm:297]: Raw RMT RX dump:
+[14:50:07][I][opentherm:451]: RX raw begin =====================================
+[14:50:07][I][opentherm:452]: symbols=28
+[14:50:07][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:07][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:07][I][opentherm:455]: SYM[002]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=501 us
+[14:50:07][I][opentherm:455]: SYM[004]: L0=1 D0=536 us | L1=0 D1=481 us
+[14:50:07][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=500 us
+[14:50:07][I][opentherm:455]: SYM[006]: L0=1 D0=522 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[007]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[008]: L0=1 D0=1049 us | L1=0 D1=490 us
+[14:50:07][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[010]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[012]: L0=1 D0=534 us | L1=0 D1=510 us
+[14:50:07][I][opentherm:455]: SYM[013]: L0=1 D0=531 us | L1=0 D1=482 us
+[14:50:07][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1012 us
+[14:50:07][I][opentherm:455]: SYM[016]: L0=1 D0=1041 us | L1=0 D1=1005 us
+[14:50:07][I][opentherm:455]: SYM[017]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[020]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:07][I][opentherm:455]: SYM[021]: L0=1 D0=535 us | L1=0 D1=502 us
+[14:50:07][I][opentherm:455]: SYM[022]: L0=1 D0=524 us | L1=0 D1=488 us
+[14:50:07][I][opentherm:455]: SYM[023]: L0=1 D0=539 us | L1=0 D1=487 us
+[14:50:07][I][opentherm:455]: SYM[024]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[026]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:07][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:07][I][opentherm:458]: RX raw end =======================================
+[14:50:07][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:07][C][dallas.temp.sensor:034]:   Address: 0x720122739f6a6c28 (DS18B20)
+[14:50:07][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:07][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:07][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:07][C][dallas.temp.sensor:034]:   Address: 0x5d0122739a2eea28 (DS18B20)
+[14:50:07][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:07][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:07][C][restart.button:015]: Restart Button 'Restart'
+[14:50:07][C][restart.button:018]:   Icon: 'mdi:restart'
+[14:50:07][C][status:016]: Status Binary Sensor 'HA Connection Status'
+[14:50:07][C][status:019]:   Device Class: 'connectivity'
+[14:50:07][C][nextion:147]: Nextion:
+[14:50:07][C][nextion:152]:   Wake On Touch:  YES
+[14:50:07][C][nextion:152]:   Touch Timeout:  0
+[14:50:07][C][pid.climate:075]: PID Climate 'Central Heating'
+[14:50:07][C][pid.climate:076]:   Control Parameters:
+[14:50:07][C][pid.climate:076]:     kp: 0.50000, ki: 0.00100, kd: 0.00000, output samples: 1
+[14:50:07][C][pid.climate:082]:   Deadband disabled.
+[14:50:07][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:07][C][dallas.temp.sensor:034]:   Address: 0x2001229265635128 (DS18B20)
+[14:50:07][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:07][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:07][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:07][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:07][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:07][I][opentherm:297]: Raw RMT RX dump:
+[14:50:07][I][opentherm:451]: RX raw begin =====================================
+[14:50:07][I][opentherm:452]: symbols=28
+[14:50:07][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1009 us
+[14:50:07][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1004 us
+[14:50:07][I][opentherm:455]: SYM[002]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:07][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=499 us
+[14:50:07][I][opentherm:455]: SYM[010]: L0=1 D0=528 us | L1=0 D1=502 us
+[14:50:07][I][opentherm:455]: SYM[011]: L0=1 D0=520 us | L1=0 D1=501 us
+[14:50:07][I][opentherm:455]: SYM[012]: L0=1 D0=525 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[013]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[015]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:07][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1009 us
+[14:50:07][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[018]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:07][I][opentherm:455]: SYM[020]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:07][I][opentherm:455]: SYM[021]: L0=1 D0=535 us | L1=0 D1=499 us
+[14:50:08][I][opentherm:455]: SYM[022]: L0=1 D0=527 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[024]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[026]: L0=1 D0=534 us | L1=0 D1=1016 us
+[14:50:08][I][opentherm:455]: SYM[027]: L0=1 D0=1033 us | L1=0 D1=0 us
+[14:50:08][I][opentherm:458]: RX raw end =======================================
+[14:50:08][C][pid.sensor:015]: PID Climate Sensor 'PID Result'
+[14:50:08][C][pid.sensor:015]:   State Class: 'measurement'
+[14:50:08][C][pid.sensor:015]:   Unit of Measurement: '%'
+[14:50:08][C][pid.sensor:015]:   Accuracy Decimals: 2
+[14:50:08][C][pid.sensor:028]:   Icon: 'mdi:gauge'
+[14:50:08][C][pid.sensor:015]: PID Climate Sensor 'PID Error'
+[14:50:08][C][pid.sensor:015]:   State Class: 'measurement'
+[14:50:08][C][pid.sensor:015]:   Unit of Measurement: '%'
+[14:50:08][C][pid.sensor:015]:   Accuracy Decimals: 2
+[14:50:08][C][pid.sensor:028]:   Icon: 'mdi:gauge'
+[14:50:08][C][pid.sensor:015]: PID Climate Sensor 'PID Proportional'
+[14:50:08][C][pid.sensor:015]:   State Class: 'measurement'
+[14:50:08][C][pid.sensor:015]:   Unit of Measurement: '%'
+[14:50:08][C][pid.sensor:015]:   Accuracy Decimals: 2
+[14:50:08][C][pid.sensor:028]:   Icon: 'mdi:gauge'
+[14:50:08][D][sensor:130]: 'temp_input': Sending state 27.31250  with 2 decimals of accuracy
+[14:50:08][D][pid_internal:011]: Sending internal PID output to OpenTherm: 0.00
+[14:50:08][D][opentherm.output:010]: Received state: 0.00. Min value: 40.00, max value: 60.00
+[14:50:08][D][opentherm.output:015]: Output t_set_ch_setpoint set to 0.00
+[14:50:08][D][sensor:130]: 'Final PID Output': Sending state 0.00000  with 2 decimals of accuracy
+[14:50:08][D][sensor:130]: 'PID Result': Sending state -266.16315 % with 2 decimals of accuracy
+[14:50:08][D][sensor:130]: 'PID Error': Sending state -531.25000 % with 2 decimals of accuracy
+[14:50:08][D][sensor:130]: 'PID Proportional': Sending state -265.62500 % with 2 decimals of accuracy
+[14:50:08][D][sensor:130]: 'PID Integral': Sending state -0.53816 % with 2 decimals of accuracy
+[14:50:08][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:08][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:08][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:08][I][opentherm:297]: Raw RMT RX dump:
+[14:50:08][I][opentherm:451]: RX raw begin =====================================
+[14:50:08][I][opentherm:452]: symbols=28
+[14:50:08][I][opentherm:455]: SYM[000]: L0=1 D0=534 us | L1=0 D1=1005 us
+[14:50:08][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:08][I][opentherm:455]: SYM[002]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[003]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[004]: L0=1 D0=540 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[006]: L0=1 D0=545 us | L1=0 D1=481 us
+[14:50:08][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[008]: L0=1 D0=1049 us | L1=0 D1=495 us
+[14:50:08][I][opentherm:455]: SYM[009]: L0=1 D0=531 us | L1=0 D1=494 us
+[14:50:08][I][opentherm:455]: SYM[010]: L0=1 D0=532 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[012]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1001 us
+[14:50:08][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:08][I][opentherm:455]: SYM[017]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1009 us
+[14:50:08][I][opentherm:455]: SYM[021]: L0=1 D0=535 us | L1=0 D1=500 us
+[14:50:08][I][opentherm:455]: SYM[022]: L0=1 D0=526 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[023]: L0=1 D0=534 us | L1=0 D1=502 us
+[14:50:08][I][opentherm:455]: SYM[024]: L0=1 D0=525 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[025]: L0=1 D0=1047 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[026]: L0=1 D0=544 us | L1=0 D1=996 us
+[14:50:08][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:08][I][opentherm:458]: RX raw end =======================================
+[14:50:08][C][pid.sensor:015]: PID Climate Sensor 'PID Integral'
+[14:50:08][C][pid.sensor:015]:   State Class: 'measurement'
+[14:50:08][C][pid.sensor:015]:   Unit of Measurement: '%'
+[14:50:08][C][pid.sensor:015]:   Accuracy Decimals: 2
+[14:50:08][C][pid.sensor:028]:   Icon: 'mdi:gauge'
+[14:50:08][C][dallas.temp.sensor:029]: Dallas Temperature Sensor:
+[14:50:08][C][dallas.temp.sensor:034]:   Address: 0x3e01229268289628 (DS18B20)
+[14:50:08][C][dallas.temp.sensor:035]:   Resolution: 12 bits
+[14:50:08][C][dallas.temp.sensor:036]:   Update Interval: 30.0s
+[14:50:08][C][opentherm.number:015]: OpenTherm Number 'Hot Water Setpoint'
+[14:50:08][C][opentherm.number:022]:   Unit of Measurement: '°C'
+[14:50:08][C][opentherm.number:034]:   Restore value: 1
+[14:50:08][C][opentherm.number:034]:   Initial value: 60.00
+[14:50:08][C][opentherm.number:034]:   Current value: 60.00
+[14:50:08][C][opentherm.switch:087]: OpenTherm Switch 'Central Heating enabled'
+[14:50:08][C][opentherm.switch:087]:   Restore Mode: restore defaults to OFF
+[14:50:08][C][opentherm.switch:024]:   Current state: 1
+[14:50:08][C][opentherm.switch:087]: OpenTherm Switch 'Hot Water enabled'
+[14:50:08][C][opentherm.switch:087]:   Restore Mode: restore defaults to OFF
+[14:50:08][C][opentherm.switch:024]:   Current state: 1
+[14:50:08][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:08][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:08][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:08][I][opentherm:297]: Raw RMT RX dump:
+[14:50:08][I][opentherm:451]: RX raw begin =====================================
+[14:50:08][I][opentherm:452]: symbols=28
+[14:50:08][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:08][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1004 us
+[14:50:08][I][opentherm:455]: SYM[002]: L0=1 D0=536 us | L1=0 D1=494 us
+[14:50:08][I][opentherm:455]: SYM[003]: L0=1 D0=532 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[009]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[010]: L0=1 D0=540 us | L1=0 D1=482 us
+[14:50:08][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=498 us
+[14:50:08][I][opentherm:455]: SYM[012]: L0=1 D0=528 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[013]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:08][I][opentherm:455]: SYM[016]: L0=1 D0=1052 us | L1=0 D1=1005 us
+[14:50:08][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[018]: L0=1 D0=542 us | L1=0 D1=485 us
+[14:50:08][I][opentherm:455]: SYM[019]: L0=1 D0=1048 us | L1=0 D1=491 us
+[14:50:08][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1008 us
+[14:50:08][I][opentherm:455]: SYM[021]: L0=1 D0=531 us | L1=0 D1=494 us
+[14:50:08][I][opentherm:455]: SYM[022]: L0=1 D0=533 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[023]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[024]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:08][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=494 us
+[14:50:08][I][opentherm:455]: SYM[026]: L0=1 D0=532 us | L1=0 D1=1001 us
+[14:50:08][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:09][I][opentherm:458]: RX raw end =======================================
+[14:50:09][C][esphome.ota:075]: Over-The-Air updates:
+[14:50:09][C][esphome.ota:075]:   Address: 192.168.3.185:3232
+[14:50:09][C][esphome.ota:075]:   Version: 2
+[14:50:09][C][esphome.ota:082]:   Password configured
+[14:50:09][C][safe_mode:018]: Safe Mode:
+[14:50:09][C][safe_mode:018]:   Successful after: 60s
+[14:50:09][C][safe_mode:018]:   Invoke after: 10 attempts
+[14:50:09][C][safe_mode:018]:   Duration: 300s
+[14:50:09][W][safe_mode:030]: Last reset too quick; invoke in 7 restarts
+[14:50:09][C][api:205]: Server:
+[14:50:09][C][api:205]:   Address: 192.168.3.185:6053
+[14:50:09][C][api:210]:   Noise encryption: YES
+[14:50:09][C][wifi_signal.sensor:015]: WiFi Signal 'RSSI'
+[14:50:09][C][wifi_signal.sensor:015]:   State Class: 'measurement'
+[14:50:09][C][wifi_signal.sensor:015]:   Unit of Measurement: 'dBm'
+[14:50:09][C][wifi_signal.sensor:015]:   Accuracy Decimals: 0
+[14:50:09][C][wifi_signal.sensor:024]:   Device Class: 'signal_strength'
+[14:50:09][C][wifi_info:013]: BSSID 'BSSID'
+[14:50:09][C][wifi_info:013]:   Icon: 'mdi:wan'
+[14:50:09][C][wifi_info:010]: IP Address 'IP Address'
+[14:50:09][C][wifi_info:010]:   Icon: 'mdi:wan'
+[14:50:09][C][mdns:163]: mDNS:
+[14:50:09][C][mdns:163]:   Hostname: boiler-estate
+[14:50:09][D][sensor:130]: 'temp_input': Sending state 27.31250  with 2 decimals of accuracy
+[14:50:09][D][pid_internal:011]: Sending internal PID output to OpenTherm: 0.00
+[14:50:09][D][opentherm.output:010]: Received state: 0.00. Min value: 40.00, max value: 60.00
+[14:50:09][D][opentherm.output:015]: Output t_set_ch_setpoint set to 0.00
+[14:50:09][D][sensor:130]: 'Final PID Output': Sending state 0.00000  with 2 decimals of accuracy
+[14:50:09][D][sensor:130]: 'PID Result': Sending state -266.69708 % with 2 decimals of accuracy
+[14:50:09][D][sensor:130]: 'PID Error': Sending state -531.25000 % with 2 decimals of accuracy
+[14:50:09][D][sensor:130]: 'PID Proportional': Sending state -265.62500 % with 2 decimals of accuracy
+[14:50:09][D][sensor:130]: 'PID Integral': Sending state -1.07206 % with 2 decimals of accuracy
+[14:50:09][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:09][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:09][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:09][I][opentherm:297]: Raw RMT RX dump:
+[14:50:09][I][opentherm:451]: RX raw begin =====================================
+[14:50:09][I][opentherm:452]: symbols=28
+[14:50:09][I][opentherm:455]: SYM[000]: L0=1 D0=524 us | L1=0 D1=1009 us
+[14:50:09][I][opentherm:455]: SYM[001]: L0=1 D0=1044 us | L1=0 D1=1009 us
+[14:50:09][I][opentherm:455]: SYM[002]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[003]: L0=1 D0=536 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[004]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[005]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[007]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[008]: L0=1 D0=1048 us | L1=0 D1=502 us
+[14:50:09][I][opentherm:455]: SYM[009]: L0=1 D0=525 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[010]: L0=1 D0=539 us | L1=0 D1=488 us
+[14:50:09][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[012]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[013]: L0=1 D0=530 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[014]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[015]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:09][I][opentherm:455]: SYM[016]: L0=1 D0=1047 us | L1=0 D1=1015 us
+[14:50:09][I][opentherm:455]: SYM[017]: L0=1 D0=525 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[018]: L0=1 D0=534 us | L1=0 D1=496 us
+[14:50:09][I][opentherm:455]: SYM[019]: L0=1 D0=1052 us | L1=0 D1=488 us
+[14:50:09][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:09][I][opentherm:455]: SYM[021]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[022]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[023]: L0=1 D0=541 us | L1=0 D1=485 us
+[14:50:09][I][opentherm:455]: SYM[024]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[025]: L0=1 D0=1048 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[026]: L0=1 D0=545 us | L1=0 D1=995 us
+[14:50:09][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:09][I][opentherm:458]: RX raw end =======================================
+[14:50:09][C][homeassistant.sensor:015]: Homeassistant Sensor 'temp_min_room_temp'
+[14:50:09][C][homeassistant.sensor:015]:   State Class: ''
+[14:50:09][C][homeassistant.sensor:015]:   Unit of Measurement: ''
+[14:50:09][C][homeassistant.sensor:015]:   Accuracy Decimals: 1
+[14:50:09][C][homeassistant.sensor:031]:   Entity ID: 'climate.radiators_climate'
+[14:50:09][C][homeassistant.sensor:033]:   Attribute: 'current_temperature'
+[14:50:09][C][homeassistant.sensor:015]: Homeassistant Sensor 'ha_pid_output'
+[14:50:09][C][homeassistant.sensor:015]:   State Class: ''
+[14:50:09][C][homeassistant.sensor:015]:   Unit of Measurement: ''
+[14:50:09][C][homeassistant.sensor:015]:   Accuracy Decimals: 1
+[14:50:09][C][homeassistant.sensor:031]:   Entity ID: 'sensor.main_thermostat_output'
+[14:50:09][C][homeassistant.sensor:015]: Homeassistant Sensor 'ha_room_setpoint'
+[14:50:09][C][homeassistant.sensor:015]:   State Class: ''
+[14:50:09][C][homeassistant.sensor:015]:   Unit of Measurement: ''
+[14:50:09][C][homeassistant.sensor:015]:   Accuracy Decimals: 1
+[14:50:09][C][homeassistant.sensor:031]:   Entity ID: 'climate.radiators_climate'
+[14:50:09][C][homeassistant.sensor:033]:   Attribute: 'temperature'
+[14:50:09][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:09][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:09][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+[14:50:09][I][opentherm:297]: Raw RMT RX dump:
+[14:50:09][I][opentherm:451]: RX raw begin =====================================
+[14:50:09][I][opentherm:452]: symbols=28
+[14:50:09][I][opentherm:455]: SYM[000]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:09][I][opentherm:455]: SYM[001]: L0=1 D0=1048 us | L1=0 D1=1000 us
+[14:50:09][I][opentherm:455]: SYM[002]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[003]: L0=1 D0=545 us | L1=0 D1=481 us
+[14:50:09][I][opentherm:455]: SYM[004]: L0=1 D0=536 us | L1=0 D1=501 us
+[14:50:09][I][opentherm:455]: SYM[005]: L0=1 D0=525 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[006]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[007]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[008]: L0=1 D0=1052 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[009]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[010]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[011]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[012]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[013]: L0=1 D0=535 us | L1=0 D1=501 us
+[14:50:09][I][opentherm:455]: SYM[014]: L0=1 D0=525 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[015]: L0=1 D0=539 us | L1=0 D1=1000 us
+[14:50:09][I][opentherm:455]: SYM[016]: L0=1 D0=1048 us | L1=0 D1=1005 us
+[14:50:09][I][opentherm:455]: SYM[017]: L0=1 D0=535 us | L1=0 D1=491 us
+[14:50:09][I][opentherm:455]: SYM[018]: L0=1 D0=535 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[019]: L0=1 D0=1043 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[020]: L0=1 D0=535 us | L1=0 D1=1005 us
+[14:50:09][I][opentherm:455]: SYM[021]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[022]: L0=1 D0=534 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[023]: L0=1 D0=535 us | L1=0 D1=494 us
+[14:50:09][I][opentherm:455]: SYM[024]: L0=1 D0=532 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[025]: L0=1 D0=1052 us | L1=0 D1=492 us
+[14:50:09][I][opentherm:455]: SYM[026]: L0=1 D0=535 us | L1=0 D1=1069 us
+[14:50:10][I][opentherm:455]: SYM[027]: L0=1 D0=1048 us | L1=0 D1=0 us
+[14:50:10][I][opentherm:458]: RX raw end =======================================
+[14:50:10][D][nextion:337]: Manual ready set
+[14:50:10][E][nextion:369]: Queue empty
+[14:50:10][D][nextion:562]: New page: 1
+[14:50:10][D][sensor:130]: 'temp_input': Sending state 27.31250  with 2 decimals of accuracy
+[14:50:10][D][pid_internal:011]: Sending internal PID output to OpenTherm: 0.00
+[14:50:10][D][opentherm.output:010]: Received state: 0.00. Min value: 40.00, max value: 60.00
+[14:50:10][D][opentherm.output:015]: Output t_set_ch_setpoint set to 0.00
+[14:50:10][D][sensor:130]: 'Final PID Output': Sending state 0.00000  with 2 decimals of accuracy
+[14:50:10][D][sensor:130]: 'PID Result': Sending state -267.22885 % with 2 decimals of accuracy
+[14:50:10][D][sensor:130]: 'PID Error': Sending state -531.25000 % with 2 decimals of accuracy
+[14:50:10][D][sensor:130]: 'PID Proportional': Sending state -265.62500 % with 2 decimals of accuracy
+[14:50:10][D][sensor:130]: 'PID Integral': Sending state -1.60384 % with 2 decimals of accuracy
+[14:50:10][D][opentherm:356]: Sending request with id 127 (VERSION_DEVICE)
+[14:50:10][D][opentherm:434]: 00000000 01111111 00000000 00000000
+[14:50:10][D][opentherm:436]: type: READ_DATA; id: 127; HB: 0; LB: 0; uint_16: 0; float: 0.000000
+ERROR Serial port closed!
