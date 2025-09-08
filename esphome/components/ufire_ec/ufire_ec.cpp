@@ -104,10 +104,10 @@ void UFireECComponent::write_data_(uint8_t reg, float data) {
 void UFireECComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "uFire-EC");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "EC Sensor", this->ec_sensor_)
-  LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_)
-  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_)
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "EC Sensor", this->ec_sensor_);
+  LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
   ESP_LOGCONFIG(TAG,
                 "  Temperature Compensation: %f\n"
                 "  Temperature Coefficient: %f",

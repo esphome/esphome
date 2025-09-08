@@ -65,6 +65,8 @@ FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
 
 
 async def to_code(config):
+    cg.add_define("USE_ESP32_BLE_UUID")
+
     uuid = config[CONF_UUID].hex
     uuid_arr = [
         cg.RawExpression(f"0x{uuid[i : i + 2]}") for i in range(0, len(uuid), 2)

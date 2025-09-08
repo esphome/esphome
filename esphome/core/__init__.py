@@ -29,6 +29,7 @@ from esphome.const import (
 
 # pylint: disable=unused-import
 from esphome.coroutine import (  # noqa: F401
+    CoroPriority,
     FakeAwaitable as _FakeAwaitable,
     FakeEventLoop as _FakeEventLoop,
     coroutine,
@@ -803,6 +804,10 @@ class EsphomeCore:
             raise TypeError(
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
+
+        if not library.name:
+            raise ValueError(f"The library for {library.repository} must have a name")
+
         short_name = (
             library.name if "/" not in library.name else library.name.split("/")[-1]
         )
