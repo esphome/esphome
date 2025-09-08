@@ -82,7 +82,7 @@ for path in components_dir.iterdir():
 
 
 for path, owners in sorted(codeowners.items()):
-    owners = sorted(set(owners))
+    owners = sorted(set(owners), key=str.lower)
     if not owners:
         continue
     for owner in owners:
