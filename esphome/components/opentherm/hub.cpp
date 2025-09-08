@@ -204,6 +204,13 @@ void OpenthermHub::loop() {
     case OperationMode::WRITE:
     case OperationMode::READ:
     case OperationMode::LISTEN:
+      // If we have a raw capture ready, dump it now (avoid ISR logging)
+      if (this->opentherm_->has_raw_capture()) {
+        ESP_LOGI(TAG, "Raw RMT RX dump:");
+        this->opentherm_->dump_rx_raw();
+        this->stop_opentherm_();
+        return;
+      }
       break;
     case OperationMode::IDLE:
       this->check_timings_(cur_time);
@@ -282,11 +289,24 @@ void OpenthermHub::sync_loop_() {
     return;
   }
 
-  // Spin while response is being received
-  if (!this->spin_wait_(1150, [&] { return this->opentherm_->is_active(); })) {
-    ESP_LOGE(TAG, "Hub timeout triggered during receive");
-    this->stop_opentherm_();
-    return;
+  // Spin while response is being received, but allow early exit when raw capture is ready
+  {
+    auto start = millis();
+    while (this->opentherm_->is_active()) {
+      if (this->opentherm_->has_raw_capture()) {
+        ESP_LOGI(TAG, "Raw RMT RX dump:");
+        this->opentherm_->dump_rx_raw();
+        this->stop_opentherm_();
+        return;
+      }
+      auto now = millis();
+      if (now - start >= 1150) {
+        ESP_LOGE(TAG, "Hub timeout triggered during receive");
+        this->stop_opentherm_();
+        return;
+      }
+      yield();
+    }
   }
 
   // Check for errors and ensure we are in the right state (message received successfully)

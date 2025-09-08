@@ -345,6 +345,14 @@ class OpenTherm {
   static const char *operation_mode_to_str(OperationMode mode);
   static const char *message_id_to_str(MessageId id);
 
+  // Raw RX capture utilities (unprocessed RMT data)
+  bool has_raw_capture() const { return this->raw_capture_ready_; }
+  void dump_rx_raw() const;
+  void clear_raw_capture() {
+    this->raw_capture_ready_ = false;
+    this->raw_syms_count_ = 0;
+  }
+
   // No timer ISR with RMT backend
 
  private:
@@ -364,6 +372,11 @@ class OpenTherm {
   rmt_symbol_word_t rx_buffer_[RX_SYMBOL_CAPACITY]{};
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
   static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
+
+  // Raw RX capture storage for diagnostics
+  bool raw_capture_ready_{false};
+  size_t raw_syms_count_{0};
+  rmt_symbol_word_t raw_syms_[RX_SYMBOL_CAPACITY]{};
 
   OperationMode mode_;
   ProtocolErrorType error_type_;

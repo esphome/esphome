@@ -179,14 +179,29 @@ bool OpenTherm::init_rmt_() {
   return true;
 }
 
-// RX decoding removed for a fresh implementation start.
-bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *, void *) {
+// RX decoding removed for a fresh implementation start. Only capture raw symbols.
+bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
+  auto *self = static_cast<OpenTherm *>(arg);
+  const rmt_symbol_word_t *syms = evt ? evt->received_symbols : nullptr;
+  size_t count = evt ? evt->num_symbols : 0;
+  if (syms != nullptr && count > 0) {
+    size_t to_copy = count;
+    if (to_copy > RX_SYMBOL_CAPACITY)
+      to_copy = RX_SYMBOL_CAPACITY;
+    for (size_t i = 0; i < to_copy; i++) {
+      self->raw_syms_[i] = syms[i];
+    }
+    self->raw_syms_count_ = to_copy;
+    self->raw_capture_ready_ = true;
+  }
+  self->rx_receiving_ = false;
   return false;
 }
 
 void OpenTherm::start_read_rmt_() {
   // Start single receive into internal buffer
   memset(this->rx_buffer_, 0, sizeof(this->rx_buffer_));
+  this->clear_raw_capture();
   if (!this->rx_receiving_) {
     esp_err_t err = rmt_receive(this->rx_channel_, this->rx_buffer_, sizeof(this->rx_buffer_), &this->rx_config_);
     if (err == ESP_OK) {
@@ -426,6 +441,21 @@ void OpenTherm::debug_data(OpenthermData &data) {
 void OpenTherm::debug_error(OpenThermError &error) const {
   ESP_LOGD(TAG, "OpenTherm error: %s (bit_pos=%u)", OpenTherm::protocol_error_to_str(error.error_type),
            (unsigned) error.bit_pos);
+}
+
+void OpenTherm::dump_rx_raw() const {
+  if (!this->raw_capture_ready_) {
+    ESP_LOGI(TAG, "RX raw: no capture available");
+    return;
+  }
+  ESP_LOGI(TAG, "RX raw begin =====================================");
+  ESP_LOGI(TAG, "symbols=%u", (unsigned) this->raw_syms_count_);
+  for (size_t i = 0; i < this->raw_syms_count_; i++) {
+    const auto &s = this->raw_syms_[i];
+    ESP_LOGI(TAG, "SYM[%03u]: L0=%u D0=%u us | L1=%u D1=%u us", (unsigned) i, (unsigned) s.level0,
+             (unsigned) s.duration0, (unsigned) s.level1, (unsigned) s.duration1);
+  }
+  ESP_LOGI(TAG, "RX raw end =======================================");
 }
 
 // RX diagnostics removed for fresh implementation
