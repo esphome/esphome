@@ -194,7 +194,7 @@ bool OpenTherm::init_rmt_() {
 // --- RMT RX decoding helpers (IRAM) ---
 constexpr uint32_t HALF_US = 500;          // half-bit period
 constexpr uint32_t JIT_MINUS = 100;        // short: early edge tolerance
-constexpr uint32_t JIT_PLUS = 150;         // short: late  edge tolerance
+constexpr uint32_t JIT_PLUS = 200;         // short: late  edge tolerance (accept up to ~700us)
 constexpr uint32_t LONG_JIT_MINUS = 200;   // long: early tolerance (accept down to ~800us)
 constexpr uint32_t LONG_JIT_PLUS = 250;    // long: late tolerance  (accept up to ~1250us)
 constexpr uint32_t SUM_TOL = 120;          // tolerance for sum of two half periods
@@ -274,9 +274,22 @@ static inline IRAM_ATTR bool collapse_decode(const uint32_t *edge_t, const uint8
       if (ei + 2 >= edge_count)
         return false;
       uint32_t dt2 = edge_t[ei + 2] - edge_t[ei + 1];
-      if (classify_dt(dt2) != 0)
-        return false;
-      ei = ei + 2;
+      uint8_t c2 = classify_dt(dt2);
+      if (c2 == 0) {
+        ei = ei + 2;  // two shorts as expected
+      } else if (c2 == 1) {
+        // Accept short + long as valid progression (boundary present then next boundary omitted)
+        ei = ei + 2;
+      } else {
+        // Try forgiving check on sum for slightly skewed halves
+        uint32_t sum = dt1 + dt2;
+        if (dt1 >= SHORT_MIN_FLOOR && dt2 >= SHORT_MIN_FLOOR && sum >= (2 * HALF_US - SUM_TOL) &&
+            sum <= (2 * HALF_US + SUM_TOL)) {
+          ei = ei + 2;
+        } else {
+          return false;
+        }
+      }
     } else {
       // Fallback: accept a pair that sums to one bit time, even if individual halves
       // slightly violate short thresholds (observed e.g. 661us + 365us ~ 1026us).
@@ -288,7 +301,14 @@ static inline IRAM_ATTR bool collapse_decode(const uint32_t *edge_t, const uint8
           sum <= (2 * HALF_US + SUM_TOL)) {
         ei = ei + 2;  // treat as two shorts
       } else {
-        return false;
+        // Also accept pattern: (almost short) + long
+        uint8_t c2 = classify_dt(dt2);
+        bool dt1_near_short = (dt1 >= SHORT_MIN_FLOOR && dt1 <= (HALF_US + JIT_PLUS));
+        if (dt1_near_short && c2 == 1) {
+          ei = ei + 2;
+        } else {
+          return false;
+        }
       }
     }
     uint8_t bit = rise_is_one ? (edge_is_rise[ei] ? 1 : 0) : (edge_is_rise[ei] ? 0 : 1);
