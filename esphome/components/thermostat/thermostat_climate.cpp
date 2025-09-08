@@ -679,11 +679,11 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_
   }
   Trigger<> *trig = this->off_mode_trigger_;
   switch (mode) {
-    case climate::CLIMATE_MODE_OFF:
-      // trig = this->off_mode_trigger_;
-      break;
     case climate::CLIMATE_MODE_AUTO:
       trig = this->auto_mode_trigger_;
+      break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      trig = this->heat_cool_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_COOL:
       trig = this->cool_mode_trigger_;
@@ -697,12 +697,12 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_
     case climate::CLIMATE_MODE_DRY:
       trig = this->dry_mode_trigger_;
       break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
+    case climate::CLIMATE_MODE_OFF:
     default:
       // we cannot report an invalid mode back to HA (even if it asked for one)
       //  and must assume some valid value
-      mode = climate::CLIMATE_MODE_HEAT_COOL;
-      trig = this->heat_cool_mode_trigger_;
+      mode = climate::CLIMATE_MODE_OFF;
+      // trig = this->off_mode_trigger_;
   }
   if (trig != nullptr) {
     trig->trigger();
