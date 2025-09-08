@@ -233,7 +233,7 @@ esphome/components/ina2xx_base/* @latonita
 esphome/components/ina2xx_i2c/* @latonita
 esphome/components/ina2xx_spi/* @latonita
 esphome/components/inkbird_ibsth1_mini/* @fkirill
-esphome/components/inkplate/* @jesserockz @JosipKuci
+esphome/components/inkplate/* @JosipKuci @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
