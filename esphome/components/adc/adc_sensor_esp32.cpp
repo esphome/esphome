@@ -242,7 +242,7 @@ float ADCSensor::sample_autorange_() {
 
     err = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
     ESP_LOGVV(TAG, "Autorange atten=%d: Calibration handle creation %s (err=%d)", atten,
-             (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
+              (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
 #else
     adc_cali_line_fitting_config_t cali_config = {
       .unit_id = this->adc_unit_,
@@ -254,13 +254,13 @@ float ADCSensor::sample_autorange_() {
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
     ESP_LOGVV(TAG, "Autorange atten=%d: Calibration handle creation %s (err=%d)", atten,
-             (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
+              (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
 #endif
 
     int raw;
     err = adc_oneshot_read(this->adc_handle_, this->channel_, &raw);
     ESP_LOGVV(TAG, "Autorange atten=%d: Raw ADC read %s, value=%d (err=%d)", atten,
-             (err == ESP_OK) ? "SUCCESS" : "FAILED", raw, err);
+              (err == ESP_OK) ? "SUCCESS" : "FAILED", raw, err);
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "ADC read failed in autorange with error %d", err);
@@ -281,12 +281,10 @@ float ADCSensor::sample_autorange_() {
       err = adc_cali_raw_to_voltage(handle, raw, &voltage_mv);
       if (err == ESP_OK) {
         voltage = voltage_mv / 1000.0f;
-        ESP_LOGVV(TAG, "Autorange atten=%d: CALIBRATED - raw=%d -> %dmV -> %.6fV", atten, raw, voltage_mv,
-                 voltage);
+        ESP_LOGVV(TAG, "Autorange atten=%d: CALIBRATED - raw=%d -> %dmV -> %.6fV", atten, raw, voltage_mv, voltage);
       } else {
         voltage = raw * 3.3f / 4095.0f;
-        ESP_LOGVV(TAG, "Autorange atten=%d: UNCALIBRATED FALLBACK - raw=%d -> %.6fV (3.3V ref)", atten, raw,
-                 voltage);
+        ESP_LOGVV(TAG, "Autorange atten=%d: UNCALIBRATED FALLBACK - raw=%d -> %.6fV (3.3V ref)", atten, raw, voltage);
       }
       // Clean up calibration handle
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
