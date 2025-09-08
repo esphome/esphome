@@ -42,6 +42,8 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   }
 
   void set_waveform(const std::array<uint8_t, GLUT_COUNT * GLUT_SIZE> &waveform, bool is_custom) {
+    static_assert(sizeof(this->waveform_) == sizeof(uint8_t) * GLUT_COUNT * GLUT_SIZE,
+                  "waveform_ buffer size must match input waveform array size");
     memmove(this->waveform_, waveform.data(), sizeof(this->waveform_));
     this->custom_waveform_ = is_custom;
   }
