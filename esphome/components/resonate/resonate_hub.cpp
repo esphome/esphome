@@ -24,7 +24,7 @@ static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 200;
 static const size_t DECODE_TASK_STACK_SIZE = 6 * 1024;
 static const UBaseType_t DECODE_TASK_PRIORITY = 2;
 
-static const size_t RESONATE_BINARY_CHUNK_HEADER_SIZE = 13;
+static const size_t RESONATE_BINARY_CHUNK_HEADER_SIZE = 9;
 
 // Time synchronization accuracy thresholds:
 // When Kalman filter variance exceeds this threshold (squared), time sync is considered unreliable
@@ -283,11 +283,7 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
         // Use the big endian datatype helpers for converting to host format
         int64_be_t server_timestamp;
 
-        // frame_count will be removed in the future
-        // uint32_be_t frame_count;
-
         std::memcpy((void *) &server_timestamp, (void *) (payload + 1), sizeof(server_timestamp));
-        // std::memcpy((void *) &frame_count, (void *) (payload + 9), sizeof(frame_count));
 
         // Create a heap-allocated chunk that takes ownership of the payload
         AudioChunk *audio_chunk = create_audio_chunk_from_buffer(payload, len);
