@@ -29,8 +29,10 @@ specified, or a custom init sequence can be provided.
 | ----------- | ------------------ |
 | ST7701S     | 480x480            |
 | RPI         | varies             |
+| CUSTOM      | varies             |
 
-The `RPI` driver chip represents displays without an SPI interface, so no init sequence is required.
+The `RPI` driver chip represents displays without an SPI interface, so no init sequence is required. The `CUSTOM`
+model has no predefined config options so requires a full yaml configuration.
 
 ### Supported integrated display boards
 
@@ -65,16 +67,8 @@ display:
 
 ## Configuration variables
 
-- **invert_colors** (*Optional*): With this boolean option you can invert the display colors. **Note** some of the
-  displays have this option set automatically to true and can't be changed.
 - **rotation** (*Optional*): Rotate the display presentation in software. Choose one of `0°`, `90°`, `180°`, or `270°`.
   This option cannot be used with `transform`.
-- **transform** (*Optional*): Transform the display presentation using hardware. All defaults are `false`.
-  This option cannot be used with `rotation`.
-
-  - **mirror_x** (*Optional*, boolean): If true, mirror the x-axis.
-  - **mirror_y** (*Optional*, boolean): If true, mirror the y-axis.
-    **Note:** To rotate the display in hardware by 180 degrees set both `mirror_x` and `mirror_y` to `true`.
 
 - **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `5s`.
 - **auto_clear_enabled** (*Optional*, boolean): If the display should be cleared before each update. Defaults to `true`
@@ -83,7 +77,6 @@ display:
   See [Display Rendering Engine](#display-engine) for more information.
 - **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](#display-pages).
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
-- **color_order** (*Optional*): Should be one of `bgr` (default) or `rgb`.
 - **dimensions** (**Required**): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`)
   or with separate config keys.
 
@@ -131,12 +124,23 @@ Displays needing a custom init sequence require an SPI bus to be configured, plu
   require `MODE3` .
 - **spi_id** (*Optional*, [ID](#config-id)): The ID of the SPI interface to use - may be omitted if only one SPI bus
   is configured.
-- **init_sequence** (*Optional*, A list of byte arrays): Specifies the init sequence for the display. Predefined boards
+- **init_sequence** (*Optional*, A list of byte arrays): Specifies the init sequence for the display.
+  Predefined boards
   have a default init sequence, which can be overridden. A custom board can specify the init sequence using this
-  variable. RPI displays should provide an empty sequence in which case the SPI bus is not required.
+  variable (RPI displays should provide an empty sequence in which case the SPI bus is not required.)
 
-The `init_sequence` requires a list of elements, one of which may be a single integer selecting a canned init
-sequence (the default and currently the only sequence is 1), the remainder must be byte arrays providing additional
+- **pixel_mode** (*Optional*, string): Set the pixel mode of the RGB bus interface - one of
+  `16bit` (default) or `18bit`.
+- **invert_colors** (*Optional*): Inverts the display colors, (white becomes black.) Defaults to false.
+- **color_order** (*Optional*): Should be one of `bgr` (default) or `rgb`.
+- **transform** (*Optional*): Transform the display presentation using hardware. All defaults are `false`.
+  This option cannot be used with `rotation`.
+
+  - **mirror_x** (*Optional*, boolean): If true, mirror the x-axis.
+  - **mirror_y** (*Optional*, boolean): If true, mirror the y-axis.
+    **Note:** To rotate the display in hardware by 180 degrees set both `mirror_x` and `mirror_y` to `true`.
+
+The `init_sequence` requires a list of elements, which must be byte arrays providing additional
 init commands, each consisting of a command byte followed by zero or more data bytes.
 
 A delay may be specified with `delay <N>ms`
@@ -145,60 +149,74 @@ These will be collected and sent to the display via SPI during initialisation. T
 in hardware (i.e. it may use `interface: software`) and it will be released after initialisation, before the RGB
 driver is configured. This caters for boards that use the SPI bus pins as RGB pins.
 
+If copying init sequences from other code, note that the array length should not be included as
+it will be inferred from the number of bytes provided. The SLPOUT, PIXFMT, INVON, INVOFF and DISPLAY_ON
+commands will be automatically appended based on config options and should not be included in
+the init sequence in yaml.
+
 ## Example configurations
 
-This is an example of a full custom configuration.
+This is an example of a custom configuration.
 
 ```yaml
 display:
   - platform: mipi_rgb
+    model: custom
+    id: rpi_disp
     update_interval: never
-    spi_mode: MODE3
+    auto_clear_enabled: false
     color_order: RGB
+    pclk_frequency: 16MHz
     dimensions:
-      width: 480
+      width: 800
       height: 480
-    invert_colors: true
-    transform:
-      mirror_x: true
-      mirror_y: true
-    cs_pin:
-      pca9554: p_c_a
-      number: 4
     reset_pin:
-      pca9554: p_c_a
+      ch422g:
+      number: 3
+    enable_pin:
+      ch422g:
+      number: 2
+    de_pin:
       number: 5
-    de_pin: 18
-    hsync_pin: 16
-    vsync_pin: 17
-    pclk_pin: 21
-    init_sequence:
-      - 1 # select canned init sequence number 1
-      - delay 5ms
-      - [ 0xE0, 0x1F ]  # Set sunlight readable enhancement
+    hsync_pin:
+      number: 46
+      ignore_strapping_warning: true
+    vsync_pin:
+      number: 3
+      ignore_strapping_warning: true
+    pclk_pin: 7
+    pclk_inverted: true
+    hsync_back_porch: 30
+    hsync_front_porch: 210
+    hsync_pulse_width: 30
+    vsync_back_porch: 4
+    vsync_front_porch: 4
+    vsync_pulse_width: 4
     data_pins:
       red:
-        - 4         #r1
-        - 3         #r2
-        - 2         #r3
-        - 1         #r4
-        - 0         #r5
-      green:
-        - 10        #g0
-        - 9         #g1
-        - 8         #g2
-        - 7         #g3
-        - 6         #g4
-        - 5         #g5
+        - 1         #r3
+        - 2         #r4
+        - 42        #r5
+        - 41        #r6
+        - 40        #r7
       blue:
-        - 15        #b1
-        - 14        #b2
-        - 13        #b3
-        - 12        #b4
-        - 11        #b5
-    lambda: |-
-      it.fill(COLOR_BLACK);
-      it.print(0, 0, id(my_font), id(my_red), TextAlign::TOP_LEFT, "Hello World!");
+        - 14        #b3
+        - 38        #b4
+        - 18        #b5
+        - 17        #b6
+        - 10        #b7
+      green:
+        - 39        #g2
+        - 0         #g3
+        - 45        #g4
+        - 48        #g5
+        - 47        #g6
+        - 21        #g7
+
+    init_sequence:
+      - [0x01]
+      - [0x3A, 0x66]
+
 ```
 
 ## See Also
