@@ -80,7 +80,7 @@ void Application::register_component_(Component *comp) {
 
   for (auto *c : this->components_) {
     if (comp == c) {
-      ESP_LOGW(TAG, "Component %s already registered! (%p)", c->get_component_source(), c);
+      ESP_LOGW(TAG, "Component %s already registered! (%p)", LOG_STR_ARG(c->get_component_log_str()), c);
       return;
     }
   }
@@ -340,8 +340,8 @@ void Application::teardown_components(uint32_t timeout_ms) {
     // Note: At this point, connections are either disconnected or in a bad state,
     // so this warning will only appear via serial rather than being transmitted to clients
     for (size_t i = 0; i < pending_count; ++i) {
-      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", pending_components[i]->get_component_source(),
-               timeout_ms);
+      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms",
+               LOG_STR_ARG(pending_components[i]->get_component_log_str()), timeout_ms);
     }
   }
 }
@@ -473,7 +473,7 @@ void Application::enable_pending_loops_() {
 
     // Clear the pending flag and enable the loop
     component->pending_enable_loop_ = false;
-    ESP_LOGVV(TAG, "%s loop enabled from ISR", component->get_component_source());
+    ESP_LOGVV(TAG, "%s loop enabled from ISR", LOG_STR_ARG(component->get_component_log_str()));
     component->component_state_ &= ~COMPONENT_STATE_MASK;
     component->component_state_ |= COMPONENT_STATE_LOOP;
 
