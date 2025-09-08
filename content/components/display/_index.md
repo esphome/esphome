@@ -7,15 +7,18 @@ params:
     image: folder-open.svg
 ---
 
-The `display` component houses ESPHome's powerful rendering and display
-engine. Fundamentally, there are these types of displays:
+The `display` component houses ESPHome's graphical rendering and display
+engine. It caters for a wide range of different display types, from simple character displays to
+graphical displays with fully addressable pixels.
 
 - Character displays like {{< docref "max7219" "7-Segment displays" >}} or
   {{< docref "lcd_display" "LCD displays" >}}.
 
 - Serial displays like {{< docref "nextion/" >}} that have their own processors for graphics rendering.
-- Graphical displays with fully addressable pixels, like {{< docref "waveshare_epaper" "E-Paper" >}},
-  {{< docref "ssd1306" "OLED" >}} or {{< docref "ili9xxx" "TFT" >}} displays.
+- Graphical displays with fully addressable pixels, such as
+  {{< docref "mipi_spi" "SPI interfaced LCDs" >}},
+  {{< docref "waveshare_epaper" "E-Paper" >}},
+  and {{< docref "ssd1306" "OLED" >}}.
 
 For graphical displays, which offer the greatest flexibility, there are two options for displaying content:
 
@@ -587,7 +590,7 @@ display:
 - **from** (*Optional*, [ID](#config-id)): A page id. If set the automation is only triggered if changing from this page. Defaults to all pages.
 - **to** (*Optional*, [ID](#config-id)): A page id. If set the automation is only triggered if changing to this page. Defaults to all pages.
 
-Additionally the old page will be given as the variable `from` and the new one as the variable `to`.
+Additionally, the old page will be given as the variable `from` and the new one as the variable `to`.
 
 ### Troubleshooting
 
@@ -619,7 +622,10 @@ For displays in 8 bit mode you will see distinct color blocks rather than a smoo
 ### See Also
 
 - {{< apiref "display/display_buffer.h" "display/display_buffer.h" >}}
-- {{< docref "/components/lvgl/index" "LVGL" >}}
+- {{< docref "/components/lvgl/index" >}}
+- {{< docref "/components/display/mipi_spi" >}}
+- {{< docref "/components/display/mipi_rgb" >}}
+- {{< docref "/components/display/mipi_dsi" >}}
 - [Fonts](#display-fonts)
 - [Graph Component](#display-graphs)
 - [QR Code Component](#display-qrcode)
