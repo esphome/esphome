@@ -166,8 +166,10 @@ void ThermostatClimate::validate_target_temperature_low() {
     this->target_temperature_low = this->get_traits().get_visual_min_temperature();
   } else {
     float target_temperature_low_upper_limit =
-        this->limit_setpoints_for_heat_cool() ? this->target_temperature_high - this->set_point_minimum_differential_
-                                              : this->get_traits().get_visual_max_temperature();
+        this->limit_setpoints_for_heat_cool()
+            ? clamp(this->target_temperature_high - this->set_point_minimum_differential_,
+                    this->get_traits().get_visual_min_temperature(), this->get_traits().get_visual_max_temperature())
+            : this->get_traits().get_visual_max_temperature();
     this->target_temperature_low = clamp(this->target_temperature_low, this->get_traits().get_visual_min_temperature(),
                                          target_temperature_low_upper_limit);
   }
@@ -178,8 +180,10 @@ void ThermostatClimate::validate_target_temperature_high() {
     this->target_temperature_high = this->get_traits().get_visual_max_temperature();
   } else {
     float target_temperature_high_lower_limit =
-        this->limit_setpoints_for_heat_cool() ? this->target_temperature_low + this->set_point_minimum_differential_
-                                              : this->get_traits().get_visual_min_temperature();
+        this->limit_setpoints_for_heat_cool()
+            ? clamp(this->target_temperature_low + this->set_point_minimum_differential_,
+                    this->get_traits().get_visual_min_temperature(), this->get_traits().get_visual_max_temperature())
+            : this->get_traits().get_visual_min_temperature();
     this->target_temperature_high = clamp(this->target_temperature_high, target_temperature_high_lower_limit,
                                           this->get_traits().get_visual_max_temperature());
   }
