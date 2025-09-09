@@ -89,18 +89,21 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
       this->set_madctl();
     }
   }
+  bool get_swap_xy() { return this->swap_xy_; }
   void set_mirror_x(bool mirror_x) {
     this->mirror_x_ = mirror_x;
     if (this->is_initialized_) {
       this->set_madctl();
     }
   }
+  bool get_mirror_x() { return this->mirror_x_; }
   void set_mirror_y(bool mirror_y) {
     this->mirror_y_ = mirror_y;
     if (this->is_initialized_) {
       this->set_madctl();
     }
   }
+  bool get_mirror_y() { return this->mirror_y_; }
   void set_pixel_mode(PixelMode mode) { this->pixel_mode_ = mode; }
 
   void update() override;
