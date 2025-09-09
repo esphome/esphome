@@ -505,19 +505,19 @@ def dump(dict_, show_secrets=False):
     )
 
 
-def _is_file_valid(name: Path) -> bool:
+def _is_file_valid(name: str) -> bool:
     """Decide if a file is valid."""
-    return not name.name.startswith(".")
+    return not name.startswith(".")
 
 
 def _find_files(directory: Path, pattern):
     """Recursively load files in a directory."""
     for root, dirs, files in directory.walk(top_down=True):
         dirs[:] = [d for d in dirs if _is_file_valid(d)]
-        for basename in files:
-            basename = Path(basename)
-            if _is_file_valid(basename) and basename.match(pattern):
-                filename = root / basename
+        for f in files:
+            filename = Path(f)
+            if _is_file_valid(f) and filename.match(pattern):
+                filename = root / filename
                 yield filename
 
 
