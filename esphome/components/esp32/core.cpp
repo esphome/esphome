@@ -91,7 +91,7 @@ void loop_task(void *pv_params) {
 
 extern "C" void app_main() {
   esp32::setup_preferences();
-  xTaskCreate(loop_task, "app_main", APP_MAIN_LOOP_STACK_SIZE, nullptr, 1, &loop_task_handle);
+  xTaskCreate(loop_task, "loopTask", APP_MAIN_LOOP_STACK_SIZE, nullptr, 1, &loop_task_handle);
 }
 #endif  // USE_ESP_IDF
 
