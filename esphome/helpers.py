@@ -327,7 +327,7 @@ def _write_file(
     directory = path.parent
     directory.mkdir(exist_ok=True, parents=True)
 
-    tmp_filename: Path = None
+    tmp_filename: Path | None = None
     missing_fchmod = False
     try:
         # Modern versions of Python tempfile create this file with mode 0o600

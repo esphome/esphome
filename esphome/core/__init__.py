@@ -674,7 +674,7 @@ class EsphomeCore:
         return self.relative_config_path(".esphome")
 
     @property
-    def config_filename(self) -> Path:
+    def config_filename(self) -> str:
         return self.config_path.name
 
     def relative_config_path(self, *path) -> Path:

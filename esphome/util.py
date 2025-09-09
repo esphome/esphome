@@ -271,10 +271,10 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(folders: list[str]) -> list[str]:
+def list_yaml_files(folders: list[str | Path]) -> list[Path]:
     files = filter_yaml_files(
         [
-            folder / p
+            Path(folder) / p
             for folder in folders
             for p in Path(folder).rglob("*")
             if p.is_file()
