@@ -88,7 +88,7 @@ esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
-esphome/components/camera/* @DT-art1 @bdraco
+esphome/components/camera/* @bdraco @DT-art1
 esphome/components/camera_encoder/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
@@ -145,9 +145,9 @@ esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
 esphome/components/es8388/* @P4uLT
 esphome/components/esp32/* @esphome/core
-esphome/components/esp32_ble/* @Rapsssito @bdraco @jesserockz
+esphome/components/esp32_ble/* @bdraco @jesserockz @Rapsssito
 esphome/components/esp32_ble_client/* @bdraco @jesserockz
-esphome/components/esp32_ble_server/* @Rapsssito @clydebarrow @jesserockz
+esphome/components/esp32_ble_server/* @clydebarrow @jesserockz @Rapsssito
 esphome/components/esp32_ble_tracker/* @bdraco
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
@@ -167,7 +167,7 @@ esphome/components/ezo_pmp/* @carlos-sarmiento
 esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
-esphome/components/fingerprint_grow/* @OnFreund @alexborro @loongyh
+esphome/components/fingerprint_grow/* @alexborro @loongyh @OnFreund
 esphome/components/font/* @clydebarrow @esphome/core
 esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
@@ -203,7 +203,7 @@ esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
 esphome/components/hmac_md5/* @dwmw2
-esphome/components/homeassistant/* @OttoWinter @esphome/core
+esphome/components/homeassistant/* @esphome/core @OttoWinter
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/switch/* @Links2004
 esphome/components/honeywell_hih_i2c/* @Benichou34
@@ -228,7 +228,7 @@ esphome/components/iaqcore/* @yozik04
 esphome/components/ili9xxx/* @clydebarrow @nielsnl68
 esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
-esphome/components/ina226/* @Sergio303 @latonita
+esphome/components/ina226/* @latonita @Sergio303
 esphome/components/ina260/* @mreditor97
 esphome/components/ina2xx_base/* @latonita
 esphome/components/ina2xx_i2c/* @latonita
@@ -277,8 +277,8 @@ esphome/components/max7219digit/* @rspaargaren
 esphome/components/max9611/* @mckaymatthew
 esphome/components/mcp23008/* @jesserockz
 esphome/components/mcp23017/* @jesserockz
-esphome/components/mcp23s08/* @SenexCrenshaw @jesserockz
-esphome/components/mcp23s17/* @SenexCrenshaw @jesserockz
+esphome/components/mcp23s08/* @jesserockz @SenexCrenshaw
+esphome/components/mcp23s17/* @jesserockz @SenexCrenshaw
 esphome/components/mcp23x08_base/* @jesserockz
 esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
@@ -354,9 +354,9 @@ esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
 esphome/components/pmsx003/* @ximex
 esphome/components/pmwcs3/* @SeByDocKy
-esphome/components/pn532/* @OttoWinter @jesserockz
-esphome/components/pn532_i2c/* @OttoWinter @jesserockz
-esphome/components/pn532_spi/* @OttoWinter @jesserockz
+esphome/components/pn532/* @jesserockz @OttoWinter
+esphome/components/pn532_i2c/* @jesserockz @OttoWinter
+esphome/components/pn532_spi/* @jesserockz @OttoWinter
 esphome/components/pn7150/* @jesserockz @kbx81
 esphome/components/pn7150_i2c/* @jesserockz @kbx81
 esphome/components/pn7160/* @jesserockz @kbx81
@@ -365,7 +365,7 @@ esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
-esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
+esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
 esphome/components/qmp6988/* @andrewpc
@@ -406,7 +406,7 @@ esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sfa30/* @ghsensdev
 esphome/components/sgp40/* @SenexCrenshaw
-esphome/components/sgp4x/* @SenexCrenshaw @martgras
+esphome/components/sgp4x/* @martgras @SenexCrenshaw
 esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht3xd/* @mrtoy-me
 esphome/components/sht4x/* @sjtrny
