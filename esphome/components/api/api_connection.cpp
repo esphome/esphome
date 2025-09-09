@@ -112,7 +112,7 @@ void APIConnection::start() {
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
     on_fatal_error();
-    this->log_warning_("Helper init failed", err);
+    this->log_warning_(LOG_STR("Helper init failed"), err);
     return;
   }
   this->client_info_.peername = helper_->getpeername();
@@ -159,7 +159,7 @@ void APIConnection::loop() {
         break;
       } else if (err != APIError::OK) {
         on_fatal_error();
-        this->log_warning_("Reading failed", err);
+        this->log_warning_(LOG_STR("Reading failed"), err);
         return;
       } else {
         this->last_traffic_ = now;
@@ -1565,7 +1565,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
     return false;
   if (err != APIError::OK) {
     on_fatal_error();
-    this->log_warning_("Packet write failed", err);
+    this->log_warning_(LOG_STR("Packet write failed"), err);
     return false;
   }
   // Do not set last_traffic_ on send
@@ -1752,7 +1752,7 @@ void APIConnection::process_batch_() {
                                                        std::span<const PacketInfo>(packet_info, packet_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     on_fatal_error();
-    this->log_warning_("Batch write failed", err);
+    this->log_warning_(LOG_STR("Batch write failed"), err);
   }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1830,11 +1830,14 @@ void APIConnection::process_state_subscriptions_() {
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
 
-void APIConnection::log_warning_(const char *message, APIError err) {
-  ESP_LOGW(TAG, "%s: %s %s errno=%d", this->get_client_combined_info().c_str(), message, api_error_to_str(err), errno);
+void APIConnection::log_warning_(const LogString *message, APIError err) {
+  ESP_LOGW(TAG, "%s: %s %s errno=%d", this->get_client_combined_info().c_str(), LOG_STR_ARG(message),
+           LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
-void APIConnection::log_socket_operation_failed_(APIError err) { this->log_warning_("Socket operation failed", err); }
+void APIConnection::log_socket_operation_failed_(APIError err) {
+  this->log_warning_(LOG_STR("Socket operation failed"), err);
+}
 
 }  // namespace esphome::api
 #endif
