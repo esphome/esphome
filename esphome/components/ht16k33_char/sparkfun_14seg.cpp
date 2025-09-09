@@ -45,7 +45,7 @@ uint8_t Sparkfun14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position
   // In this while loop, `i` represents the digit that will display the character. We count through
   // the four digits in the display and set them to the next four characters in the character buffer.
   while (i < 4) {
-    if (char_buffer_location >= this->char_buffer_.length()) {
+    if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
       if (this->continuous_) {
         // We want a continuous display where the message starts over immediately.
@@ -59,7 +59,7 @@ uint8_t Sparkfun14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position
 
     else {
       // The character to find is within the bounds of the buffer array.
-      char_to_find = this->char_buffer_.at(char_buffer_location);
+      char_to_find = this->message_buffer_.at(char_buffer_location);
 
       // Look for special characters. For this display, there is a colon between digit one and two,
       //  and a period after digit two. The display will try (badly) to display a colon if it is
@@ -137,7 +137,7 @@ uint8_t Sparkfun14SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t posi
   // In this while loop, `i` represents the digit that will display the character. We count through
   // the four digits in the display and set them to the next four characters in the character buffer.
   while (i < 4) {
-    if (char_buffer_location >= this->char_buffer_.length()) {
+    if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
       if (this->continuous_) {
         // We want a continuous display where the message starts over immediately.
@@ -151,7 +151,7 @@ uint8_t Sparkfun14SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t posi
 
     else {
       // The character to find is within the bounds of the buffer array.
-      char_to_find = this->char_buffer_.at(char_buffer_location);
+      char_to_find = this->message_buffer_.at(char_buffer_location);
 
       // Look for special characters. For this flipped display, there is a colon between digit one
       //  and two, and a period at the top of the display between digit zero and one. The display

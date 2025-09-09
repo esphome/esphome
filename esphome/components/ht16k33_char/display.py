@@ -3,7 +3,6 @@ from esphome.components import display, i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
-    CONF_BUFFER_SIZE,
     CONF_CONTINUOUS,
     CONF_DEVICE,
     CONF_ID,
@@ -14,6 +13,7 @@ DEPENDENCIES = ["i2c"]
 
 ht16k33_char_ns = cg.esphome_ns.namespace("ht16k33_char")
 
+CONF_MAX_BUFFER_LENGTH = "max_buffer_length"
 CONF_SCROLL = "scroll"
 CONF_SCROLL_SPEED = "scroll_speed"
 CONF_SCROLL_DWELL = "scroll_dwell"
@@ -129,7 +129,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(HT16k33Char_BaseClassType),
             cv.Required(CONF_DEVICE): cv.enum(HT16K33_DEVICE_TYPES, upper=True),
-            cv.Optional(CONF_BUFFER_SIZE, default=8): cv.int_range(min=4, max=255),
+            cv.Optional(CONF_MAX_BUFFER_LENGTH, default=8): cv.int_range(
+                min=2, max=255
+            ),  # TODO: Change to min of 4.
             cv.Optional(CONF_BRIGHTNESS, default=15): cv.int_range(min=1, max=16),
             cv.Optional(CONF_SECONDARY_DISPLAYS): cv.ensure_list(CONFIG_SECONDARY),
             cv.Optional(CONF_CONTINUOUS, default=False): cv.boolean,
@@ -162,7 +164,7 @@ async def to_code(config):
 
     await i2c.register_i2c_device(var, config)
     await display.register_display(var, config)
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    cg.add(var.set_buffer_size(config[CONF_MAX_BUFFER_LENGTH]))
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
 
     if CONF_LAMBDA in config:

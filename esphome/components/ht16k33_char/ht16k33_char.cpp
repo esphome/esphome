@@ -47,7 +47,7 @@ void HT16k33CharComponent::setup() {
   this->brightness(this->brightness_);
 
   this->blank();
-  this->char_buffer_.resize(this->char_buffer_size_, ' ');
+  //this->char_buffer_.resize(this->char_buffer_size_, ' ');  //<---------------- remove this...
   this->fist_char_location_ = 0;
 
   // Check to see if we need to scroll the display.
@@ -65,13 +65,17 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
+  uint8_t current_buffer_location;  //TODO: Make this uint16?
   // TODO: Look into getting rid of the assumption of fixed length for the message to display.
   //       Resize the buffer when a new message is added. I am not sure of the memory implications of doing that...
   // ESP_LOGD("dbg", "Max Size: %d", this->char_buffer_.max_size());
   //       -Max Size: 2147483647
 
-  ESP_LOGD("dbg", "String is: |%s|", this->char_buffer_.c_str());
-  ESP_LOGD("dbg", "Size is: %d", this->char_buffer_.size());
+  //std::string test_str;
+
+  //ESP_LOGD("dbg", "String is: |%s|", this->message_buffer_.c_str());
+  //ESP_LOGD("dbg", "Size is: %d", this->message_buffer_.size());
+  //ESP_LOGD("dbg", "Scroll State: %d", this->scroll_state_);
 
   // This checks if the lambda function is defined. If it is not defined, we don't do anything.
   if (this->writer_.has_value()) {
@@ -87,11 +91,22 @@ void HT16k33CharComponent::update() {
     //     function to show the initial contents.
     if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) ||
         (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START)) {
-      this->update_display();
+      current_buffer_location = this->update_display();
+
+          //TODO: Does this cause a race condition between which function is executed first?
+          //TODO: I don't think I need the first char location test. It is required, but it should alwasy be the case wien doing these checks.
+      if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length())) {   //TODO: Check this, not sure if it works with the new size stuff. Also, does this need to be called here at all?
+          // We reached the end of the char buffer before we reached the end of the display.
+          this->scroll_state_ = HT16K33_SCROLL_STATE_STATIC;
+          this->fist_char_location_ = 0;
+          ESP_LOGD("dbg", "Stopped Scrolling: %d, %d", current_buffer_location, this->message_buffer_.length());
+        }
     }
   }
 }
 
+//TODO: A 4 character message will still scroll once, that is probably not right.
+//TODO: If we start with a short message and switch to a longer one, does it start scrolling? or does it stay static?
 // Note: Scroll that is not continuous will go to the end of the buffer size, not the end of the message in the buffer.
 void HT16k33CharComponent::loop() {
   uint32_t now;
@@ -116,15 +131,23 @@ void HT16k33CharComponent::loop() {
       if ((now - this->last_scroll_) >= this->scroll_delay_) {
         // Start scrolling
         this->last_scroll_ = now;
-        this->fist_char_location_++;
+        this->fist_char_location_++;    //TODO: I think this is why it always scrolls once. We probably need to check this in the update() function or earlier.
         current_buffer_location = this->update_display();
-        if (current_buffer_location >= this->char_buffer_.length()) {
+        /*if (current_buffer_location >= this->char_buffer_.length()) {   //TODO: Check this, not sure if it works with the new size stuff. Also, does this need to be called here at all?
           // We reached the end of the char buffer before we reached the end of the display.
-          // Scrolling is not required.
+          // Scrolling is not required. TODO: Move this out of here to the otehr update function and to the end scroll below.
           this->scroll_state_ = HT16K33_SCROLL_STATE_STATIC;
+          this->fist_char_location_ = 0;
+          ESP_LOGD("dbg", "Stopped Scrolling: %d", current_buffer_location);
         } else {
           this->scroll_state_ = HT16K33_SCROLL_STATE_SCROLLING;
-        }
+        }*/
+       //This handles if there is only a single scroll, it skips directly to STATE_END.
+       if (!(this->continuous_) && ((current_buffer_location + 1) > this->message_buffer_.length())) {
+        this->scroll_state_ = HT16K33_SCROLL_STATE_END;
+       } else {
+        this->scroll_state_ = HT16K33_SCROLL_STATE_SCROLLING;
+       }
       }
       break;
 
@@ -133,13 +156,13 @@ void HT16k33CharComponent::loop() {
         // Scroll to the next character.
         this->last_scroll_ = now;
         this->fist_char_location_++;
-        if (this->fist_char_location_ >= this->char_buffer_.length()) {
+        if (this->fist_char_location_ > this->message_buffer_.length()) {
           // This only happens in continuous mode.
           this->fist_char_location_ = 0;
         }
         current_buffer_location = this->update_display();
 
-        if (!(this->continuous_) && ((current_buffer_location + 1) >= this->char_buffer_.length())) {
+        if (!(this->continuous_) && ((current_buffer_location + 1) > this->message_buffer_.length())) {
           // We have reached the end of the stuff to display. Go to the end delay.
           // The display does not need to be updated here.
           this->scroll_state_ = HT16K33_SCROLL_STATE_END;
@@ -153,7 +176,15 @@ void HT16k33CharComponent::loop() {
         this->last_scroll_ = now;
         this->scroll_state_ = HT16K33_SCROLL_STATE_START;
         this->fist_char_location_ = 0;
-        this->update_display();
+        current_buffer_location = this->update_display();
+
+        if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length())) {   //TODO: Check this, not sure if it works with the new size stuff. Also, does this need to be called here at all?
+          // We reached the end of the char buffer before we reached the end of the display.
+          this->scroll_state_ = HT16K33_SCROLL_STATE_STATIC;
+          this->fist_char_location_ = 0;  //TODO: Don't need this line...
+          ESP_LOGD("dbg", "Stopped Scrolling2: %d, %d", current_buffer_location, this->message_buffer_.length());
+        }
+        //TODO: Move that stuff to change to static display down here. Also add it in to the other update function
       }
       break;
   }
@@ -231,6 +262,7 @@ uint8_t HT16k33CharComponent::update_display() {
     buffer_location = this->send_to_display(display, buffer_location);
   }
 
+  ESP_LOGD("dbg", "Final buffer location: %d", buffer_location);
   return buffer_location;
 }
 
@@ -338,7 +370,40 @@ void HT16k33CharComponent::display_standby(bool standby) {
  *
  *  Returns the number of bytes written to the buffer.
  ************************************/
+ //TODO: Make start pos a 16 bit number?
 uint8_t HT16k33CharComponent::print(uint8_t start_pos, bool clear_buffer, const char *str) {
+  uint16_t len = strlen(str);
+
+  if(clear_buffer) {
+    this->message_buffer_.clear();
+  }
+
+  if (start_pos >= this->char_buffer_size_) {
+    //We can't write past the end of the buffer
+    return 0;
+  }
+
+  //If the string is too short, add blank spaces at the start until we get to start_pos.
+  if (start_pos > this->message_buffer_.size()) {
+    this->message_buffer_.resize(start_pos, ' ');
+  }
+
+  if(start_pos + len > this->char_buffer_size_){
+    //Adding the entire string would make us exceede the max allowable string length.
+    // Truncate the string to make the resulting string fit within the size limit.
+    //ESP_LOGD("dbg", "truncating string");
+    this->message_buffer_.resize(start_pos);
+    this->message_buffer_.insert(start_pos, str, this->char_buffer_size_-start_pos);
+  } else {
+    this->message_buffer_.replace(start_pos, len, str);
+  }
+
+
+  return 1;   //TODO: What is the point of this, maybe don't return anything?
+}
+
+
+/*uint8_t HT16k33CharComponent::print(uint8_t start_pos, bool clear_buffer, const char *str) {
   uint8_t top;
   uint8_t j;
 
@@ -366,7 +431,7 @@ uint8_t HT16k33CharComponent::print(uint8_t start_pos, bool clear_buffer, const 
   }
 
   return j - 1;
-}
+}*/
 
 /***********************************
  *Write a character string to the start of the display buffer.
@@ -392,9 +457,20 @@ uint8_t HT16k33CharComponent::print(bool clear_buffer, const char *str) { return
  *  Returns the number of bytes written to the buffer.
  ************************************/
 uint8_t HT16k33CharComponent::printf(uint8_t start_pos, bool clear_buffer, const char *format, ...) {
+  //TODO: the return of vsnprintf is the size of the string that it wanted to print, use that to resize the buffer if needed.
+  //TODO: char_buffer_size_ is now the limit to how big of a printf string we can do. This is not the same as how large of a message buffer we can have. Do I want to limit that?
   va_list arg;
   va_start(arg, format);
-  char buffer[this->char_buffer_size_ + 1];  // Add one for the string terminating character.
+
+  //Determine how long of a string we need to hold the output of printf.
+  int len = vsnprintf(NULL, 0, format, arg) + 1;  //Add 1 for the null terminator
+
+  //Limit the output of printf to the defined max size.
+  if(len > this->char_buffer_size_) {
+    len = this->char_buffer_size_;
+  }
+
+  char buffer[len];
   vsnprintf(buffer, sizeof(buffer), format, arg);
   va_end(arg);
 

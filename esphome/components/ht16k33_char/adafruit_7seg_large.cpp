@@ -62,7 +62,7 @@ uint8_t Adafruit7SegLarge::send_to_display(i2c::I2CDevice *display, uint8_t posi
   special_character_found = false;
 
   while (i < 4) {
-    if (char_buffer_location >= this->char_buffer_.length()) {
+    if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
       if (this->continuous_) {
         // We want a continuous display where the message starts over immediately.
@@ -76,7 +76,7 @@ uint8_t Adafruit7SegLarge::send_to_display(i2c::I2CDevice *display, uint8_t posi
 
     else {
       // The character to find is within the bounds of the buffer array.
-      char_to_find = this->char_buffer_.at(char_buffer_location);
+      char_to_find = this->message_buffer_.at(char_buffer_location);
 
       auto it = this->char_map_.find(char_to_find);
       if (it != this->char_map_.end()) {
@@ -165,7 +165,7 @@ uint8_t Adafruit7SegLargeFlip::send_to_display(i2c::I2CDevice *display, uint8_t 
   special_character_found = false;
 
   while (i < 4) {
-    if (char_buffer_location >= this->char_buffer_.length()) {
+    if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
       if (this->continuous_) {
         // We want a continuous display where the message starts over immediately.
@@ -177,7 +177,7 @@ uint8_t Adafruit7SegLargeFlip::send_to_display(i2c::I2CDevice *display, uint8_t 
       }
     } else {
       // The character to find is within the bounds of the buffer array.
-      char_to_find = this->char_buffer_.at(char_buffer_location);
+      char_to_find = this->message_buffer_.at(char_buffer_location);
 
       auto it = this->char_map_.find(char_to_find);
       if (it != this->char_map_.end()) {
@@ -219,8 +219,8 @@ uint8_t Adafruit7SegLargeFlip::send_to_display(i2c::I2CDevice *display, uint8_t 
   }
 
   // We can have special characters after the last digit.
-  if (!(char_buffer_location >= this->char_buffer_.length())) {
-    char_to_find = this->char_buffer_.at(char_buffer_location);
+  if (!(char_buffer_location >= this->message_buffer_.length())) {
+    char_to_find = this->message_buffer_.at(char_buffer_location);
     if (char_to_find == '.') {
       this->buffer_[5] = this->buffer_[5] | 0b00000100;
       char_buffer_location++;

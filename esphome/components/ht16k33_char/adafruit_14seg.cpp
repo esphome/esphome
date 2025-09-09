@@ -46,7 +46,7 @@ uint8_t Adafruit14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position
   // In this while loop, `i` represents the digit that will display the character. We count through
   // the four digits in the display and set them to the next four characters in the character buffer.
   while (i < 4) {
-    if (char_buffer_location >= this->char_buffer_.length()) {
+    if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
       if (this->continuous_) {
         // We want a continuous display where the message starts over immediately.
@@ -60,7 +60,7 @@ uint8_t Adafruit14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position
 
     else {
       // The character to find is within the bounds of the buffer array.
-      char_to_find = this->char_buffer_.at(char_buffer_location);
+      char_to_find = this->message_buffer_.at(char_buffer_location);
       auto it = this->char_map_.find(char_to_find);
       if (it != this->char_map_.end()) {
         this->buffer_[digit_map[i]] = (uint8_t) ((it->second) & 0xFF);
@@ -99,8 +99,8 @@ uint8_t Adafruit14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position
   }
 
   // We can have a period after the last digit. Handle that here
-  if (!(char_buffer_location >= this->char_buffer_.length())) {
-    char_to_find = this->char_buffer_.at(char_buffer_location);
+  if (!(char_buffer_location >= this->message_buffer_.length())) {
+    char_to_find = this->message_buffer_.at(char_buffer_location);
     if (char_to_find == '.') {
       this->buffer_[digit_map[3] + 1] |= 0x40;
       char_buffer_location++;
@@ -131,7 +131,7 @@ uint8_t Adafruit14SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t posi
   i = 0;
 
   while (i < 4) {
-    if (char_buffer_location >= this->char_buffer_.length()) {
+    if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
       if (this->continuous_) {
         // We want a continuous display where the message starts over immediately.
@@ -145,7 +145,7 @@ uint8_t Adafruit14SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t posi
 
     else {
       // The character to find is within the bounds of the buffer array.
-      char_to_find = this->char_buffer_.at(char_buffer_location);
+      char_to_find = this->message_buffer_.at(char_buffer_location);
       auto it = this->char_map_.find(char_to_find);
       if (it != this->char_map_.end()) {
         this->buffer_[digit_map[i]] = (uint8_t) ((it->second) & 0xFF);
