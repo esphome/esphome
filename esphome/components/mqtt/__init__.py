@@ -211,10 +211,10 @@ def validate_fingerprint(value):
 
 def validate_transport(value):
     v = value.lower()
-    if v not in ("tcp", "ssl", "ws", "wss"):
-        raise cv.Invalid("Transport must be one of: tcp, ssl, ws, wss")
+    if v not in ("tcp", "ws"):
+        raise cv.Invalid("Transport must be one of: tcp, ws")
 
-    if v in ("ws", "wss"):
+    if v in ("ws"):
         if not (CORE.is_esp32 and CORE.using_esp_idf):
             raise cv.Invalid(f"Transport={v} requires ESP32 with ESP-IDF")
     return v
@@ -226,9 +226,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
-            cv.Optional(CONF_TRANSPORT, default="tcp"): cv.All(
-                cv.string_strict, validate_transport
-            ),
+            cv.Optional("transport", default="tcp"): cv.one_of("tcp", "ws", lower=True),
+            
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
@@ -352,10 +351,6 @@ async def to_code(config):
     # Setup Transport Variable
     transport = config[CONF_TRANSPORT].lower()
     cg.add(var.set_transport(transport))
-    if transport in ("ws", "wss"):
-        cg.add_define("USE_MQTT_WS")
-    elif transport == "ssl":
-        cg.add_define("USE_MQTT_SSL")
     
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
