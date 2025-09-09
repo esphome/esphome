@@ -1,14 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.canbus import CONF_CANBUS_ID
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_TYPE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
     ICON_BUG,
     ICON_CHIP,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_EMPTY,
 )
+
 from . import esp32_can
 
 DEPENDENCIES = ["canbus"]
