@@ -347,9 +347,6 @@ async def to_code(config):
     cg.add(var.set_broker_address(config[CONF_BROKER]))
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_broker_port(config[CONF_PORT]))
-
-    # Setup Transport Variable
-    transport = config[CONF_TRANSPORT].lower()
     cg.add(var.set_transport(transport))
     
     cg.add(var.set_username(config[CONF_USERNAME]))
