@@ -40,7 +40,7 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
   uint8_t update_display();
 
-  //TODO: Do I need to mask the higher bits here? Maybe do it in the python code instead of here.
+  // TODO: Do I need to mask the higher bits here? Maybe do it in the python code instead of here.
   void add_char(const char *char_to_add, uint16_t char_code) { this->char_map_[char_to_add[0]] = char_code; };
   void remove_char(const char *char_to_remove) { this->char_map_.erase(char_to_remove[0]); };
 
@@ -102,10 +102,10 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   uint32_t scroll_delay_{750};
   uint32_t last_scroll_{0};
 
-  uint8_t brightness_{15};    // Brightness of the display from 0 (off) to 15 (brightest)
+  uint8_t brightness_{15};  // Brightness of the display from 0 (off) to 15 (brightest)
 
-  std::string message_buffer_;   // This buffer holds the entire character message to display.
-  uint8_t buffer_[20];        // This buffer is used to send the raw bytes to the HT16k33 device. TODO: Make this 17?
+  std::string message_buffer_;  // This buffer holds the entire character message to display.
+  uint8_t buffer_[20];          // This buffer is used to send the raw bytes to the HT16k33 device. TODO: Make this 17?
   uint8_t char_buffer_size_;  // This is the length of the character buffer. I need to track this separately instead of
                               // just calling buffer.length(), since when I clear the buffer, it resets the size to 0.
                               // TODO: Maybe a different data type would be better here?

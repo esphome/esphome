@@ -53,7 +53,8 @@ uint8_t Adafruit7Seg::send_to_display(i2c::I2CDevice *display, uint8_t position)
   while (i < 4) {
     if (char_buffer_location >= this->message_buffer_.length()) {
       // char_buffer_location is past the end of the character buffer.
-      //TODO: With the updated string size handling, I don't think this can occur anymore? get rid of it if you can... (Actually, it can happen for short messages. Probably leave it in then?)
+      // TODO: With the updated string size handling, I don't think this can occur anymore? get rid of it if you can...
+      // (Actually, it can happen for short messages. Probably leave it in then?)
       if (this->continuous_) {
         // We want a continuous display where the message starts over immediately.
         char_buffer_location = 0;
