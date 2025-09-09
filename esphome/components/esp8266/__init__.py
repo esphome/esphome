@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 
 import esphome.codegen as cg
