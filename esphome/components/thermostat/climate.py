@@ -804,7 +804,7 @@ async def to_code(config):
         await automation.build_automation(
             var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
         )
-    cg.add(var.set_supports_heat_cool(heat_cool_mode_available))
+        cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(
             var.get_off_mode_trigger(), [], config[CONF_OFF_MODE]
