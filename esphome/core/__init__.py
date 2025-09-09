@@ -677,25 +677,25 @@ class EsphomeCore:
     def config_filename(self) -> str:
         return self.config_path.name
 
-    def relative_config_path(self, *path) -> Path:
+    def relative_config_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
         return self.config_dir / path_
 
-    def relative_internal_path(self, *path: str) -> Path:
+    def relative_internal_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
         return self.data_dir / path_
 
-    def relative_build_path(self, *path) -> Path:
+    def relative_build_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
         return self.build_path / path_
 
-    def relative_src_path(self, *path) -> Path:
+    def relative_src_path(self, *path: str | Path) -> Path:
         return self.relative_build_path("src", *path)
 
-    def relative_pioenvs_path(self, *path) -> Path:
+    def relative_pioenvs_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".pioenvs", *path)
 
-    def relative_piolibdeps_path(self, *path) -> Path:
+    def relative_piolibdeps_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
