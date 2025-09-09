@@ -15,6 +15,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(IWR6843AOPComponent),
         cv.GenerateID("uart1_id"): cv.use_id(uart.UARTComponent),
         cv.GenerateID("uart2_id"): cv.use_id(uart.UARTComponent),
+        cv.Optional("enabled", default=False): cv.boolean,  # Add enabled flag
         cv.Optional("float_input", default={}): cv.Schema(
             {
                 cv.Optional("width"): cv.use_id(number.Number),
@@ -32,18 +33,25 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    uart1 = await cg.get_variable(config["uart1_id"])
-    uart2 = await cg.get_variable(config["uart2_id"])
-    var = cg.new_Pvariable(config[CONF_ID], uart1, uart2)
-    await cg.register_component(var, config)
-    float_input = config.get("float_input", {})
-    
-    for key in ["width", "length"]:
-        if key in float_input:
-            sens = await cg.get_variable(float_input[key])
-            cg.add(var.set_float_input(key, sens))
-    binary_sensor_cfg = config.get("binary_sensor", {})
-    for key in ["room_presence", "bed_presence"]:
-        if key in binary_sensor_cfg:
-            sens = await cg.get_variable(binary_sensor_cfg[key])
-            cg.add(var.set_binary_sensor(key, sens))
+    # Only create and register the component if enabled is True
+    if config.get("enabled", False):
+        uart1 = await cg.get_variable(config["uart1_id"])
+        uart2 = await cg.get_variable(config["uart2_id"])
+        var = cg.new_Pvariable(config[CONF_ID], uart1, uart2)
+        await cg.register_component(var, config)
+        
+        float_input = config.get("float_input", {})
+        
+        for key in ["width", "length"]:
+            if key in float_input:
+                sens = await cg.get_variable(float_input[key])
+                cg.add(var.set_float_input(key, sens))
+                
+        binary_sensor_cfg = config.get("binary_sensor", {})
+        for key in ["room_presence", "bed_presence"]:
+            if key in binary_sensor_cfg:
+                sens = await cg.get_variable(binary_sensor_cfg[key])
+                cg.add(var.set_binary_sensor(key, sens))
+    else:
+        # Create a dummy variable to satisfy config requirements but don't register it
+        var = cg.new_Pvariable(config[CONF_ID])

@@ -20,12 +20,23 @@ static float le_bytes_to_float(const uint8_t *data) {
 }
 
 void IWR6843AOPComponent::setup() {
+  // Only proceed if UART devices are available
+  if (uart1_dev_ == nullptr || uart2_dev_ == nullptr) {
+    ESP_LOGW(TAG, "IWR6843AOP component disabled - UART devices not configured");
+    return;
+  }
+  
   ESP_LOGD(TAG, "Setting up IWR6843AOPComponent");
   this->last_update_ = esp_timer_get_time() / 1000;
   this->cfg_iwr6843aop();
 }
 
 void IWR6843AOPComponent::loop() {
+  // Only proceed if UART devices are available
+  if (uart1_dev_ == nullptr || uart2_dev_ == nullptr) {
+    return;
+  }
+  
   static uint32_t last_uart2_read = 0;
   uint32_t now = millis();
   if (now - last_uart2_read >= 50) {  // 20 Hz = every 50 ms

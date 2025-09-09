@@ -21,6 +21,10 @@ namespace iwr6843aop {
 
 class IWR6843AOPComponent : public Component {
  public:
+  // Add default constructor for when component is disabled
+  IWR6843AOPComponent() : uart1_dev_(nullptr), uart2_dev_(nullptr) {}
+  
+  // Existing constructor
   IWR6843AOPComponent(uart::UARTComponent *uart1, uart::UARTComponent *uart2) : uart1_dev_(uart1), uart2_dev_(uart2) {}
   void setup() override;
   void loop() override;

@@ -1,0 +1,128 @@
+esphome:
+  name: dev-kit-test
+  friendly_name: ESP32 Dev Kit
+
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+# Enable logging
+logger:
+  level: VERBOSE
+  logs:
+    ethernet: VERBOSE
+    ethernet.w5500: VERBOSE
+    spi: VERBOSE
+    esp-idf: VERBOSE
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "mpJ8RZ/4Hgvrf/fvytXCZokzJedMVQa7B3Q2RbmZPGY="
+
+ota:
+  - platform: esphome
+    password: "faa23229fbe03188178746511093c0e5"
+
+# --- Remove or comment out WiFi and captive portal ---
+# wifi:
+#   ssid: !secret wifi_ssid
+#   password: !secret wifi_password
+#   ap:
+#     ssid: "IWR6843-Test Fallback Hotspot"
+#     password: "cYzIXtzxcrwH"
+# captive_portal: 
+
+
+# --- Ethernet (W5500) configuration, DHCP by default ---
+ethernet:
+  type: W5500
+  clk_pin: GPIO2
+  mosi_pin: GPIO10
+  miso_pin: GPIO11
+  cs_pin: GPIO18
+  interrupt_pin: GPIO15
+  reset_pin: GPIO23
+  clock_speed: 25MHz
+
+number:
+  - platform: template
+    name: "Bed width"
+    id: width
+    mode: box
+    optimistic: true
+    min_value: -5.0
+    max_value: 5.0
+    step: 0.1
+    initial_value: 1.0
+
+  - platform: template
+    name: "Bed length"
+    id: length
+    mode: box
+    optimistic: true
+    min_value: -5.0
+    max_value: 5.0
+    step: 0.1
+    initial_value: 1.0
+
+#iwr6843aop:
+#  id: my_iwr6843aop
+#  uart1_id: iwr_uart1
+#  uart2_id: iwr_uart2
+#  enabled: true
+
+#  float_input:
+#    width: width
+#    length: length
+
+#  binary_sensor:
+#    room_presence: room_presence
+#    bed_presence: bed_presence
+
+#uart:
+#  - id: iwr_uart1
+#    tx_pin: GPIO4
+#    rx_pin: GPIO5 
+#    baud_rate: 115200
+
+ # - id: iwr_uart2
+ #   rx_pin: GPIO6
+#    baud_rate: 921600
+#    rx_buffer_size: 2048
+
+#binary_sensor:
+#  - platform: template
+#    id: room_presence
+#    name: "Room presence"
+
+#  - platform: template
+#    id: bed_presence
+#    name: "Bed presence"
+
+#i2c:
+#  sda: GPIO20
+#  scl: GPIO21
+#  scan: false
+
+#sensor:
+#  - platform: tsl2591
+#    name: "Ambient Light"
+#    id: ambient_light
+#    address: 0x29
+#    integration_time: 100ms
+#    gain: AUTO
+#    device_factor: 53
+#    update_interval: 10s
+#    visible:
+#      name: "TSL2591 visible light"
+#    infrared:
+#      name: "TSL2591 infrared light"
+#    full_spectrum:
+#      name: "TSL2591 full spectrum light"
+#    calculated_lux:
+#      id: i_lux
+#      name: "TSL2591 Lux"
+#    actual_gain:
+#      id: "actual_gain"
+#      name: "TSL2591 actual gain"

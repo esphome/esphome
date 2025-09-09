@@ -1,6 +1,6 @@
 esphome:
-  name: iwr6843-test
-  friendly_name: mmWave Sensor
+  name: om-sensor
+  friendly_name: OM PCB Test
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -8,7 +8,14 @@ esp32:
     type: esp-idf
 # Enable logging
 logger:
-  level: DEBUG
+  level: VERBOSE
+  hardware_uart: UART0  # Force logging to UART0 instead of USB_SERIAL_JTAG
+  baud_rate: 115200
+  logs:
+    ethernet: VERBOSE
+    ethernet.w5500: VERBOSE
+    spi: VERBOSE
+    esp-idf: VERBOSE
 
 # Enable Home Assistant API
 api:
@@ -20,25 +27,26 @@ ota:
     password: "faa23229fbe03188178746511093c0e5"
 
 # --- Remove or comment out WiFi and captive portal ---
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  ap:
-    ssid: "IWR6843-Test Fallback Hotspot"
-    password: "cYzIXtzxcrwH"
-captive_portal:
+# wifi:
+#   ssid: !secret wifi_ssid
+#   password: !secret wifi_password
+#   ap:
+#     ssid: "IWR6843-Test Fallback Hotspot"
+#     password: "cYzIXtzxcrwH"
+# captive_portal: 
 
 
 # --- Ethernet (W5500) configuration, DHCP by default ---
-# ethernet:
-#   type: W5500
-#   clk_pin: GPIO2
-#   mosi_pin: GPIO10
-#   miso_pin: GPIO11
-#   cs_pin: GPIO18
-#   interrupt_pin: GPIO15
-#   reset_pin: GPIO23
-#   clock_speed: 25MHz
+ethernet:
+  type: W5500
+  clk_pin: GPIO2
+  mosi_pin: GPIO10
+  miso_pin: GPIO11
+  cs_pin: GPIO18
+  interrupt_pin: GPIO15
+  reset_pin: GPIO23
+  clock_speed: 25MHz
+
 
 number:
   - platform: template
@@ -61,38 +69,39 @@ number:
     step: 0.1
     initial_value: 1.0
 
-iwr6843aop:
-  id: my_iwr6843aop
-  uart1_id: iwr_uart1
-  uart2_id: iwr_uart2
+#iwr6843aop:
+#  id: my_iwr6843aop
+#  uart1_id: iwr_uart1
+#  uart2_id: iwr_uart2
+#  enabled: false
 
-  float_input:
-    width: width
-    length: length
+#  float_input:
+#    width: width
+#    length: length
 
-  binary_sensor:
-    room_presence: room_presence
-    bed_presence: bed_presence
+#  binary_sensor:
+#    room_presence: room_presence
+#    bed_presence: bed_presence
 
-uart:
-  - id: iwr_uart1
-    tx_pin: GPIO4
-    rx_pin: GPIO5 
-    baud_rate: 115200
+#uart:
+#  - id: iwr_uart1
+#    tx_pin: GPIO4
+#    rx_pin: GPIO5 
+#    baud_rate: 115200
 
-  - id: iwr_uart2
-    rx_pin: GPIO6
-    baud_rate: 921600
-    rx_buffer_size: 2048
+#  - id: iwr_uart2
+#    rx_pin: GPIO6
+#    baud_rate: 921600
+#    rx_buffer_size: 2048
 
-binary_sensor:
-  - platform: template
-    id: room_presence
-    name: "Room presence"
+#binary_sensor:
+#  - platform: template
+#    id: room_presence
+#    name: "Room presence"
 
-  - platform: template
-    id: bed_presence
-    name: "Bed presence"
+#  - platform: template
+#    id: bed_presence
+#    name: "Bed presence"
 
 i2c:
   sda: GPIO20
@@ -120,3 +129,4 @@ sensor:
     actual_gain:
       id: "actual_gain"
       name: "TSL2591 actual gain"
+
