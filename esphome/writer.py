@@ -310,9 +310,9 @@ def clean_build():
         _LOGGER.info("Deleting %s", piolibdeps)
         shutil.rmtree(piolibdeps)
     dependencies_lock = CORE.relative_build_path("dependencies.lock")
-    if os.path.isfile(dependencies_lock):
+    if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
-        os.remove(dependencies_lock)
+        dependencies_lock.unlink()
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

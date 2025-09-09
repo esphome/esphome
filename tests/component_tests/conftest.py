@@ -40,9 +40,9 @@ def config_path(request: pytest.FixtureRequest) -> Generator[None]:
     if config_dir.exists():
         # Set config_path to a dummy yaml file in the config directory
         # This ensures CORE.config_dir points to the config directory
-        CORE.config_path = str(config_dir / "dummy.yaml")
+        CORE.config_path = config_dir / "dummy.yaml"
     else:
-        CORE.config_path = str(Path(request.fspath).parent / "dummy.yaml")
+        CORE.config_path = Path(request.fspath).parent / "dummy.yaml"
 
     yield
     CORE.config_path = original_path

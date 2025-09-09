@@ -223,7 +223,7 @@ def wizard_write(path: Path, **kwargs) -> bool:
         file_text = wizard_file(**kwargs)
 
     # Check if file already exists to prevent overwriting
-    if os.path.exists(path) and os.path.isfile(path):
+    if path.exists() and path.is_file():
         safe_print(color(AnsiFore.RED, f'The file "{path}" already exists.'))
         return False
 

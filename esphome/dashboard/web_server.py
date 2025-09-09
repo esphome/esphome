@@ -543,7 +543,7 @@ class WizardRequestHandler(BaseHandler):
         destination = settings.rel_path(filename)
 
         # Check if destination file already exists
-        if os.path.exists(destination):
+        if destination.exists():
             self.set_status(409)  # Conflict status code
             self.set_header("content-type", "application/json")
             self.write(

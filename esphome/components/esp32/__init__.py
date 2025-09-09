@@ -38,7 +38,7 @@ from esphome.const import (
 from esphome.core import CORE, HexInt, TimePeriod
 from esphome.cpp_generator import RawExpression
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
@@ -1062,7 +1062,7 @@ def _write_sdkconfig():
 
 
 def _write_idf_component_yml():
-    yml_path = Path(CORE.relative_build_path("src/idf_component.yml"))
+    yml_path = CORE.relative_build_path("src/idf_component.yml")
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
         dependencies = {}
@@ -1080,8 +1080,8 @@ def _write_idf_component_yml():
         contents = ""
     if write_file_if_changed(yml_path, contents):
         dependencies_lock = CORE.relative_build_path("dependencies.lock")
-        if os.path.isfile(dependencies_lock):
-            os.remove(dependencies_lock)
+        if dependencies_lock.is_file():
+            dependencies_lock.unlink()
         clean_cmake_cache()
 
 

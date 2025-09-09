@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from hypothesis import given
 import pytest
 from strategies import mac_addr_strings
@@ -533,8 +535,8 @@ class TestEsphomeCore:
     @pytest.fixture
     def target(self, fixture_path):
         target = core.EsphomeCore()
-        target.build_path = "foo/build"
-        target.config_path = "foo/config"
+        target.build_path = Path("foo/build")
+        target.config_path = Path("foo/config")
         return target
 
     def test_reset(self, target):

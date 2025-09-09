@@ -513,7 +513,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
-    CORE.config_path = str(root)
+    CORE.config_path = root
     CORE.data[KEY_CORE] = {}
 
     # Keep finding dependencies until no new ones are found
@@ -553,7 +553,7 @@ def get_components_from_integration_fixtures() -> set[str]:
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(str(yaml_file))
+        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 

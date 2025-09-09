@@ -136,7 +136,7 @@ def test_wizard_empty_config(tmp_path, monkeypatch):
         "name": "test-empty",
     }
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+    monkeypatch.setattr(CORE, "config_path", tmp_path)
 
     # When
     wz.wizard_write(tmp_path, **empty_config)
@@ -157,7 +157,7 @@ def test_wizard_upload_config(tmp_path, monkeypatch):
         "file_text": "# imported file 📁\n\n",
     }
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+    monkeypatch.setattr(CORE, "config_path", tmp_path)
 
     # When
     wz.wizard_write(tmp_path, **empty_config)
@@ -515,20 +515,20 @@ def test_wizard_requires_valid_ssid(tmp_path, monkeypatch, wizard_answers):
     assert retval == 0
 
 
-def test_wizard_write_protects_existing_config(tmpdir, default_config, monkeypatch):
+def test_wizard_write_protects_existing_config(tmp_path, default_config, monkeypatch):
     """
     The wizard_write function should not overwrite existing config files and return False
     """
     # Given
-    config_file = tmpdir.join("test.yaml")
+    config_file = tmp_path / "test.yaml"
     original_content = "# Original config content\n"
-    config_file.write(original_content)
+    config_file.write_text(original_content)
 
-    monkeypatch.setattr(CORE, "config_path", str(tmpdir))
+    monkeypatch.setattr(CORE, "config_path", tmp_path)
 
     # When
-    result = wz.wizard_write(str(config_file), **default_config)
+    result = wz.wizard_write(config_file, **default_config)
 
     # Then
     assert result is False  # Should return False when file exists
-    assert config_file.read() == original_content
+    assert config_file.read_text() == original_content

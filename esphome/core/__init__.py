@@ -661,7 +661,7 @@ class EsphomeCore:
 
     @property
     def config_dir(self) -> Path:
-        _LOGGER.warning(f"Config path: {self.config_path}")
+        _LOGGER.warning(f"Config path: {self.config_path}")  # TODO: Remove
         if self.config_path.is_dir():
             return self.config_path.absolute()
         _LOGGER.warning("Config path is not a directory, using parent directory")
