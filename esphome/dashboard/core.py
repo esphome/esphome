@@ -117,7 +117,7 @@ class ESPHomeDashboard:
 
     def save_ignored_devices(self) -> None:
         storage_path = ignored_devices_storage_path()
-        with storage_path.open("w+", encoding="utf-8") as f_handle:
+        with storage_path.open("w", encoding="utf-8") as f_handle:
             json.dump(
                 {"ignored_devices": sorted(self.ignored_devices)}, indent=2, fp=f_handle
             )
