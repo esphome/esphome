@@ -337,26 +337,26 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->set_retry(
             "", 100, 3,
             [this](const uint8_t remaining_attempts) {
-				if (remaining_attempts > 0) {
-					return RetryResult::RETRY;
-				}
-                this->send_command_(
-                TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_SYNC,
-                            .payload = std::vector<uint8_t>{0x00}});  // 0x00 == report OK - 0x01 report FAIL
-                return RetryResult::DONE;
+              if (remaining_attempts > 0) {
+                return RetryResult::RETRY;
+              }
+              this->send_command_(
+                  TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_SYNC,
+                              .payload = std::vector<uint8_t>{0x00}});  // 0x00 == report OK - 0x01 report FAIL
+              return RetryResult::DONE;
             },
             1);
       } else {
         this->set_retry(
             "", 100, 3,
             [this](const uint8_t remaining_attempts) {
-				if (remaining_attempts > 0) {
-					return RetryResult::RETRY;
-				}
-                this->send_command_(
-                TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_ASYNC,
-                            .payload = std::vector<uint8_t>{0x00}});  // 0x00 == report OK - 0x01 report FAIL
-                return RetryResult::DONE;
+              if (remaining_attempts > 0) {
+                return RetryResult::RETRY;
+              }
+              this->send_command_(
+                  TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_ASYNC,
+                              .payload = std::vector<uint8_t>{0x00}});  // 0x00 == report OK - 0x01 report FAIL
+              return RetryResult::DONE;
             },
             1);
       }
