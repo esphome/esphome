@@ -152,7 +152,7 @@ void CCS811Component::send_env_data_() {
 void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2 Sensor", this->co2_);
   LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_);
   LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_)

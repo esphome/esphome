@@ -34,37 +34,20 @@ namespace esphome {
 
 static const char *const TAG = "app";
 
-// Helper function for insertion sort of components by setup priority
+// Helper function for insertion sort of components by priority
 // Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
 // IMPORTANT: This sort is stable (preserves relative order of equal elements),
 // which is necessary to maintain user-defined component order for same priority
-template<typename Iterator> static void insertion_sort_by_setup_priority(Iterator first, Iterator last) {
+template<typename Iterator, float (Component::*GetPriority)() const>
+static void insertion_sort_by_priority(Iterator first, Iterator last) {
   for (auto it = first + 1; it != last; ++it) {
     auto key = *it;
-    float key_priority = key->get_actual_setup_priority();
+    float key_priority = (key->*GetPriority)();
     auto j = it - 1;
 
     // Using '<' (not '<=') ensures stability - equal priority components keep their order
-    while (j >= first && (*j)->get_actual_setup_priority() < key_priority) {
-      *(j + 1) = *j;
-      j--;
-    }
-    *(j + 1) = key;
-  }
-}
-
-// Helper function for insertion sort of components by loop priority
-// IMPORTANT: This sort is stable (preserves relative order of equal elements),
-// which is required when components are re-sorted during setup() if they block
-template<typename Iterator> static void insertion_sort_by_loop_priority(Iterator first, Iterator last) {
-  for (auto it = first + 1; it != last; ++it) {
-    auto key = *it;
-    float key_priority = key->get_loop_priority();
-    auto j = it - 1;
-
-    // Using '<' (not '<=') ensures stability - equal priority components keep their order
-    while (j >= first && (*j)->get_loop_priority() < key_priority) {
+    while (j >= first && ((*j)->*GetPriority)() < key_priority) {
       *(j + 1) = *j;
       j--;
     }
@@ -80,7 +63,7 @@ void Application::register_component_(Component *comp) {
 
   for (auto *c : this->components_) {
     if (comp == c) {
-      ESP_LOGW(TAG, "Component %s already registered! (%p)", c->get_component_source(), c);
+      ESP_LOGW(TAG, "Component %s already registered! (%p)", LOG_STR_ARG(c->get_component_log_str()), c);
       return;
     }
   }
@@ -91,7 +74,8 @@ void Application::setup() {
   ESP_LOGV(TAG, "Sorting components by setup priority");
 
   // Sort by setup priority using our helper function
-  insertion_sort_by_setup_priority(this->components_.begin(), this->components_.end());
+  insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_actual_setup_priority>(
+      this->components_.begin(), this->components_.end());
 
   // Initialize looping_components_ early so enable_pending_loops_() works during setup
   this->calculate_looping_components_();
@@ -108,7 +92,8 @@ void Application::setup() {
       continue;
 
     // Sort components 0 through i by loop priority
-    insertion_sort_by_loop_priority(this->components_.begin(), this->components_.begin() + i + 1);
+    insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_loop_priority>(
+        this->components_.begin(), this->components_.begin() + i + 1);
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
@@ -340,8 +325,8 @@ void Application::teardown_components(uint32_t timeout_ms) {
     // Note: At this point, connections are either disconnected or in a bad state,
     // so this warning will only appear via serial rather than being transmitted to clients
     for (size_t i = 0; i < pending_count; ++i) {
-      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms", pending_components[i]->get_component_source(),
-               timeout_ms);
+      ESP_LOGW(TAG, "%s did not complete teardown within %" PRIu32 " ms",
+               LOG_STR_ARG(pending_components[i]->get_component_log_str()), timeout_ms);
     }
   }
 }
@@ -361,20 +346,19 @@ void Application::calculate_looping_components_() {
   // Add all components with loop override that aren't already LOOP_DONE
   // Some components (like logger) may call disable_loop() during initialization
   // before setup runs, so we need to respect their LOOP_DONE state
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
-      this->looping_components_.push_back(obj);
-    }
-  }
+  this->add_looping_components_by_state_(false);
 
   this->looping_components_active_end_ = this->looping_components_.size();
 
   // Then add any components that are already LOOP_DONE to the inactive section
   // This handles components that called disable_loop() during initialization
+  this->add_looping_components_by_state_(true);
+}
+
+void Application::add_looping_components_by_state_(bool match_loop_done) {
   for (auto *obj : this->components_) {
     if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
+        ((obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) == match_loop_done) {
       this->looping_components_.push_back(obj);
     }
   }
@@ -473,7 +457,7 @@ void Application::enable_pending_loops_() {
 
     // Clear the pending flag and enable the loop
     component->pending_enable_loop_ = false;
-    ESP_LOGVV(TAG, "%s loop enabled from ISR", component->get_component_source());
+    ESP_LOGVV(TAG, "%s loop enabled from ISR", LOG_STR_ARG(component->get_component_log_str()));
     component->component_state_ &= ~COMPONENT_STATE_MASK;
     component->component_state_ |= COMPONENT_STATE_LOOP;
 
