@@ -52,15 +52,15 @@ def test_parsing_with_custom_loader(fixture_path):
     """
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
-    loader_calls: list[str] = []
+    loader_calls: list[Path] = []
 
     def custom_loader(fname: Path):
-        loader_calls.append(str(fname))
+        loader_calls.append(fname)
 
     with yaml_file.open(encoding="utf-8") as f_handle:
         yaml_util.parse_yaml(yaml_file, f_handle, custom_loader)
 
     assert len(loader_calls) == 3
-    assert loader_calls[0].endswith("includes/included.yaml")
-    assert loader_calls[1].endswith("includes/list.yaml")
-    assert loader_calls[2].endswith("includes/scalar.yaml")
+    assert loader_calls[0].parts[-2:] == ("includes", "included.yaml")
+    assert loader_calls[1].parts[-2:] == ("includes", "list.yaml")
+    assert loader_calls[2].parts[-2:] == ("includes", "scalar.yaml")
