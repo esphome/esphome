@@ -273,7 +273,7 @@ class OrderedDict(collections.OrderedDict):
 
 
 def list_yaml_files(configs: list[str]) -> list[str]:
-    files = []
+    files: list[str] = []
     for config in configs:
         if os.path.isfile(config):
             files.append(config)
