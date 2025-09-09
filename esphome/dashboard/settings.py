@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hmac
-import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -10,8 +9,6 @@ from esphome.core import CORE
 from esphome.helpers import get_bool_env
 
 from .util.password import password_hash
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class DashboardSettings:
@@ -52,9 +49,6 @@ class DashboardSettings:
         self.absolute_config_dir = self.config_dir.resolve()
         self.verbose = args.verbose
         CORE.config_path = self.config_dir / "."
-        _LOGGER.warning(f"Config dir = {self.config_dir}")
-        _LOGGER.warning(f"args.configuration = {args.configuration}")
-        _LOGGER.warning(f"CORE.config_path = {CORE.config_path}")
 
     @property
     def relative_url(self) -> str:
