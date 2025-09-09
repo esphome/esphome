@@ -293,9 +293,9 @@ def is_ha_addon():
 
 
 def walk_files(path: Path):
-    for root, _, files in path.walk():
+    for root, _, files in os.walk(path):
         for name in files:
-            yield root / name
+            yield Path(root) / name
 
 
 def read_file(path: Path) -> str:
