@@ -357,15 +357,17 @@ for more information.
 - {{< docref "/components/remote_receiver" >}}
 - {{< docref "/components/remote_transmitter" >}}
 - {{< docref "/components/sensor" >}}
-- {{< apiref "ballu.h" "ballu/ballu.h" >}},
-  {{< apiref "climate_ir_lg.h" "climate_ir_lg/climate_ir_lg.h" >}}
-  {{< apiref "coolix.h" "coolix/coolix.h" >}},
-  {{< apiref "daikin.h" "daikin/daikin.h" >}}
-  {{< apiref "fujitsu_general.h" "fujitsu_general/fujitsu_general.h" >}},
-  {{< apiref "gree.h" "gree/gree.h" >}},
-  {{< apiref "hitachi_ac344.h" "hitachi_ac344/hitachi_ac344.h" >}},
-  {{< apiref "midea_ir.h" "midea_ir/midea_ir.h" >}},
-  {{< apiref "mitsubishi.h" "mitsubishi/mitsubishi.h" >}},
-  {{< apiref "tcl112.h" "tcl112/tcl112.h" >}},
-  {{< apiref "yashima.h" "yashima/yashima.h" >}}
-  {{< apiref "whirlpool.h" "whirlpool/whirlpool.h" >}}
+- {{< apiref "ballu.h" "ballu/ballu.h" >}}
+- {{< apiref "climate_ir_lg.h" "climate_ir_lg/climate_ir_lg.h" >}}
+- {{< apiref "coolix.h" "coolix/coolix.h" >}}
+- {{< apiref "daikin.h" "daikin/daikin.h" >}}
+- {{< apiref "fujitsu_general.h" "fujitsu_general/fujitsu_general.h" >}}
+- {{< apiref "gree.h" "gree/gree.h" >}}
+- {{< apiref "hitachi_ac344.h" "hitachi_ac344/hitachi_ac344.h" >}}
+- {{< apiref "midea_ir.h" "midea_ir/midea_ir.h" >}}
+- {{< apiref "mitsubishi.h" "mitsubishi/mitsubishi.h" >}}
+- {{< apiref "tcl112.h" "tcl112/tcl112.h" >}}
+- {{< apiref "toshiba.h" "toshiba/toshiba.h" >}}
+- {{< apiref "whirlpool.h" "whirlpool/whirlpool.h" >}}
+- {{< apiref "whynter.h" "whynter/whynter.h" >}}
+- {{< apiref "yashima.h" "yashima/yashima.h" >}}
