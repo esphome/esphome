@@ -1,5 +1,3 @@
-import os
-
 from esphome.const import __version__
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
