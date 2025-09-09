@@ -492,7 +492,7 @@ void EthernetComponent::start_connect_() {
   global_eth_component->ipv6_count_ = 0;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
-  this->status_set_warning("waiting for IP configuration");
+  this->status_set_warning(LOG_STR("waiting for IP configuration"));
 
   esp_err_t err;
   err = esp_netif_set_hostname(this->eth_netif_, App.get_name().c_str());

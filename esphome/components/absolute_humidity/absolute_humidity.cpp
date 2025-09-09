@@ -64,7 +64,7 @@ void AbsoluteHumidityComponent::loop() {
       ESP_LOGW(TAG, "No valid state from humidity sensor!");
     }
     this->publish_state(NAN);
-    this->status_set_warning("Unable to calculate absolute humidity.");
+    this->status_set_warning(LOG_STR("Unable to calculate absolute humidity."));
     return;
   }
 
