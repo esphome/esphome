@@ -74,8 +74,6 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
 }
 
 void ESP32ArduinoUARTComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (this->rx_pin_) {
     this->rx_pin_->setup();
   }

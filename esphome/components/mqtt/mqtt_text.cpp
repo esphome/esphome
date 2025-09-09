@@ -34,6 +34,7 @@ std::string MQTTTextComponent::component_type() const { return "text"; }
 const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
 void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   switch (this->text_->traits.get_mode()) {
     case TEXT_MODE_TEXT:
       root[MQTT_MODE] = "text";

@@ -20,15 +20,15 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Home Automation",
 ]
-requires-python = ">=3.10.0"
+requires-python = ">=3.11.0"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
 [project.urls]
 "Documentation"           = "https://esphome.io"
 "Source Code"             = "https://github.com/esphome/esphome"
-"Bug Tracker"             = "https://github.com/esphome/issues/issues"
-"Feature Request Tracker" = "https://github.com/esphome/feature-requests/issues"
+"Bug Tracker"             = "https://github.com/esphome/esphome/issues"
+"Feature Request Tracker" = "https://github.com/orgs/esphome/discussions"
 "Discord"                 = "https://discord.gg/KhAMKrd"
 "Forum"                   = "https://community.home-assistant.io/c/esphome"
 "Twitter"                 = "https://twitter.com/esphome_"
@@ -62,7 +62,7 @@ addopts = [
 ]
 
 [tool.pylint.MAIN]
-py-version = "3.10"
+py-version = "3.11"
 ignore = [
   "api_pb2.py",
 ]
@@ -106,16 +106,20 @@ expected-line-ending-format = "LF"
 
 [tool.ruff]
 required-version = ">=0.5.0"
-target-version = "py310"
+target-version = "py311"
 exclude = ['generated']
 
 [tool.ruff.lint]
 select = [
-  "E", # pycodestyle
-  "F", # pyflakes/autoflake
-  "I", # isort
-  "PL", # pylint
-  "UP", # pyupgrade
+  "E",    # pycodestyle
+  "F",    # pyflakes/autoflake
+  "FURB", # refurb
+  "I",    # isort
+  "PERF", # performance
+  "PL",   # pylint
+  "SIM",  # flake8-simplify
+  "RET",  # flake8-ret
+  "UP",   # pyupgrade
 ]
 
 ignore = [

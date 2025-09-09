@@ -8,9 +8,9 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
@@ -27,11 +27,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(200.0)
+@coroutine_with_priority(CoroPriority.NETWORK_TRANSPORT)
 async def to_code(config):
     if CORE.is_esp32 or CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
-        cg.add_library("ESP32Async/AsyncTCP", "3.4.4")
+        cg.add_library("ESP32Async/AsyncTCP", "3.4.5")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")

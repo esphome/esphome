@@ -7,7 +7,6 @@ namespace canbus {
 static const char *const TAG = "canbus";
 
 void Canbus::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->setup_internal()) {
     ESP_LOGE(TAG, "setup error!");
     this->mark_failed();

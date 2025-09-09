@@ -56,9 +56,12 @@ class ESPHomeDataBase:
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if isinstance(node, yaml.ScalarNode):
-            if node.style is not None and node.style in "|>":
-                self._content_offset = 1
+        if (
+            isinstance(node, yaml.ScalarNode)
+            and node.style is not None
+            and node.style in "|>"
+        ):
+            self._content_offset = 1
 
     def from_database(self, database):
         # pylint: disable=attribute-defined-outside-init
@@ -302,8 +305,7 @@ class ESPHomeLoaderMixin:
         result = self.yaml_loader(self._rel_path(file))
         if not vars:
             vars = {}
-        result = substitute_vars(result, vars)
-        return result
+        return substitute_vars(result, vars)
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:

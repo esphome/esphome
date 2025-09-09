@@ -2,6 +2,7 @@ network:
   enable_ipv6: true
 
 openthread:
+  device_type: FTD
   channel: 13
   network_name: OpenThread-8f28
   network_key: 0xdfd34f0f05cad978ec4e32b0413038ff
@@ -10,4 +11,3 @@ openthread:
   pskc: 0xc23a76e98f1a6483639b1ac1271e2e27
   mesh_local_prefix: fd53:145f:ed22:ad81::/64
   force_dataset: true
-

@@ -19,8 +19,8 @@ void TemplateDateTime::setup() {
     state = this->initial_value_;
   } else {
     datetime::DateTimeEntityRestoreState temp;
-    this->pref_ = global_preferences->make_preference<datetime::DateTimeEntityRestoreState>(194434090U ^
-                                                                                            this->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<datetime::DateTimeEntityRestoreState>(
+        194434090U ^ this->get_preference_hash());
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;

@@ -5,6 +5,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
@@ -54,8 +55,9 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 DEPENDENCIES = ["network"]
 
@@ -310,17 +312,16 @@ CONFIG_SCHEMA = cv.All(
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    exp = cg.StructInitializer(
+    return cg.StructInitializer(
         MQTTMessage,
         ("topic", config[CONF_TOPIC]),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
-    return exp
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -596,3 +597,13 @@ async def mqtt_enable_to_code(config, action_id, template_arg, args):
 async def mqtt_disable_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "mqtt_backend_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+    }
+)

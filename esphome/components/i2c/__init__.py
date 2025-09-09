@@ -2,7 +2,7 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -13,13 +13,12 @@ from esphome.const import (
     CONF_SCL,
     CONF_SDA,
     CONF_TIMEOUT,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 LOGGER = logging.getLogger(__name__)
@@ -46,28 +45,8 @@ def _bus_declare_type(value):
 
 
 def validate_config(config):
-    if (
-        config[CONF_SCAN]
-        and CORE.is_esp32
-        and CORE.using_esp_idf
-        and esp32.get_esp32_variant()
-        in [
-            esp32.const.VARIANT_ESP32C5,
-            esp32.const.VARIANT_ESP32C6,
-            esp32.const.VARIANT_ESP32P4,
-        ]
-    ):
-        version: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-        if version.major == 5 and (
-            (version.minor == 3 and version.patch <= 3)
-            or (version.minor == 4 and version.patch <= 1)
-        ):
-            LOGGER.warning(
-                "There is a bug in esp-idf version %s that breaks I2C scan, I2C scan "
-                "has been disabled, see https://github.com/esphome/issues/issues/7128",
-                str(version),
-            )
-            config[CONF_SCAN] = False
+    if CORE.using_esp_idf:
+        return cv.require_framework_version(esp_idf=cv.Version(5, 4, 2))(config)
     return config
 
 
@@ -95,7 +74,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1.0)
+@coroutine_with_priority(CoroPriority.BUS)
 async def to_code(config):
     cg.add_global(i2c_ns.using)
     cg.add_define("USE_I2C")
@@ -205,3 +184,18 @@ def final_validate_device_schema(
         {cv.Required(CONF_I2C_ID): fv.id_declaration_match_schema(hub_schema)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "i2c_bus_arduino.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "i2c_bus_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+    }
+)

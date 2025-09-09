@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WEB_SERVER,
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_AREA,
@@ -75,12 +76,13 @@ from esphome.const import (
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_AREA,
@@ -319,9 +321,8 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_NUMBER")
     cg.add_global(number_ns.using)
 
 

@@ -5,9 +5,13 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
 namespace esphome {
+
+// Forward declaration for LogString
+struct LogString;
 
 /** Default setup priorities for components of different types.
  *
@@ -44,14 +48,13 @@ extern const float LATE;
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
-#define LOG_UPDATE_INTERVAL(this) \
-  if (this->get_update_interval() == SCHEDULER_DONT_RUN) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: never"); \
-  } else if (this->get_update_interval() < 100) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
-  } else { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
-  }
+// Forward declaration
+class PollingComponent;
+
+// Function declaration for LOG_UPDATE_INTERVAL
+void log_update_interval(const char *tag, PollingComponent *component);
+
+#define LOG_UPDATE_INTERVAL(this) log_update_interval(TAG, this)
 
 extern const uint8_t COMPONENT_STATE_MASK;
 extern const uint8_t COMPONENT_STATE_CONSTRUCTION;
@@ -202,9 +205,10 @@ class Component {
 
   bool status_has_error() const;
 
-  void status_set_warning(const char *message = "unspecified");
+  void status_set_warning(const char *message = nullptr);
+  void status_set_warning(const LogString *message);
 
-  void status_set_error(const char *message = "unspecified");
+  void status_set_error(const char *message = nullptr);
 
   void status_clear_warning();
 
@@ -220,12 +224,12 @@ class Component {
    *
    * This is set by the ESPHome core, and should not be called manually.
    */
-  void set_component_source(const char *source) { component_source_ = source; }
-  /** Get the integration where this component was declared as a string.
+  void set_component_source(const LogString *source) { component_source_ = source; }
+  /** Get the integration where this component was declared as a LogString for logging.
    *
-   * Returns "<unknown>" if source not set
+   * Returns LOG_STR("<unknown>") if source not set
    */
-  const char *get_component_source() const;
+  const LogString *get_component_log_str() const;
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
@@ -235,6 +239,9 @@ class Component {
   virtual void call_loop();
   virtual void call_setup();
   virtual void call_dump_config();
+
+  /// Helper to set component state (clears state bits and sets new state)
+  void set_component_state_(uint8_t state);
 
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
@@ -380,6 +387,21 @@ class Component {
    */
   void defer(const std::string &name, std::function<void()> &&f);  // NOLINT
 
+  /** Defer a callback to the next loop() call with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the deferred task.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the deferred execution
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The name of the defer function (must have static lifetime)
+   * @param f The callback
+   */
+  void defer(const char *name, std::function<void()> &&f);  // NOLINT
+
   /// Defer a callback to the next loop() call.
   void defer(std::function<void()> &&f);  // NOLINT
 
@@ -387,13 +409,13 @@ class Component {
   bool cancel_defer(const std::string &name);  // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
-  const char *component_source_{nullptr};
+  const LogString *component_source_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
   /// State of this component - each bit has a purpose:
-  /// Bits 0-1: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED)
-  /// Bit 2: STATUS_LED_WARNING
-  /// Bit 3: STATUS_LED_ERROR
-  /// Bits 4-7: Unused - reserved for future expansion (50% of the bits are free)
+  /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)
+  /// Bit 3: STATUS_LED_WARNING
+  /// Bit 4: STATUS_LED_ERROR
+  /// Bits 5-7: Unused - reserved for future expansion
   uint8_t component_state_{0x00};
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 };

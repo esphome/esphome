@@ -46,8 +46,6 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (this->rx_pin_) {
     this->rx_pin_->setup();
   }

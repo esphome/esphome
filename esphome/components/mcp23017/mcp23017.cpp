@@ -7,7 +7,6 @@ namespace mcp23017 {
 static const char *const TAG = "mcp23017";
 
 void MCP23017::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t iocon;
   if (!this->read_reg(mcp23x17_base::MCP23X17_IOCONA, &iocon)) {
     this->mark_failed();

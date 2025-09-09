@@ -8,9 +8,20 @@ from typing import Any
 import pytest
 
 from esphome.config_validation import Invalid
-from esphome.const import CONF_DEVICE_ID, CONF_DISABLED_BY_DEFAULT, CONF_ICON, CONF_NAME
+from esphome.const import (
+    CONF_DEVICE_ID,
+    CONF_DISABLED_BY_DEFAULT,
+    CONF_ICON,
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_NAME,
+)
 from esphome.core import CORE, ID, entity_helpers
-from esphome.core.entity_helpers import get_base_entity_object_id, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    get_base_entity_object_id,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObj
 from esphome.helpers import sanitize, snake_case
 
@@ -493,11 +504,6 @@ async def test_setup_entity_disabled_by_default(
 
 def test_entity_duplicate_validator() -> None:
     """Test the entity_duplicate_validator function."""
-    from esphome.core.entity_helpers import entity_duplicate_validator
-
-    # Reset CORE unique_ids for clean test
-    CORE.unique_ids.clear()
-
     # Create validator for sensor platform
     validator = entity_duplicate_validator("sensor")
 
@@ -505,13 +511,19 @@ def test_entity_duplicate_validator() -> None:
     config1 = {CONF_NAME: "Temperature"}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", "temperature") in CORE.unique_ids
+    # Check metadata was stored
+    metadata = CORE.unique_ids[("", "sensor", "temperature")]
+    assert metadata["name"] == "Temperature"
+    assert metadata["platform"] == "sensor"
 
     # Second entity with different name should pass
     config2 = {CONF_NAME: "Humidity"}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("sensor", "humidity") in CORE.unique_ids
+    assert ("", "sensor", "humidity") in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("", "sensor", "humidity")]
+    assert metadata2["name"] == "Humidity"
 
     # Duplicate entity should fail
     config3 = {CONF_NAME: "Temperature"}
@@ -523,11 +535,6 @@ def test_entity_duplicate_validator() -> None:
 
 def test_entity_duplicate_validator_with_devices() -> None:
     """Test entity_duplicate_validator with devices."""
-    from esphome.core.entity_helpers import entity_duplicate_validator
-
-    # Reset CORE unique_ids for clean test
-    CORE.unique_ids.clear()
-
     # Create validator for sensor platform
     validator = entity_duplicate_validator("sensor")
 
@@ -535,36 +542,28 @@ def test_entity_duplicate_validator_with_devices() -> None:
     device1 = ID("device1", type="Device")
     device2 = ID("device2", type="Device")
 
-    # First entity on device1 should pass
+    # Same name on different devices should pass
     config1 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("sensor", "temperature") in CORE.unique_ids
+    assert ("device1", "sensor", "temperature") in CORE.unique_ids
+    metadata1 = CORE.unique_ids[("device1", "sensor", "temperature")]
+    assert metadata1["device_id"] == "device1"
 
-    # Same name on different device should now fail
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device2}
+    validated2 = validator(config2)
+    assert validated2 == config2
+    assert ("device2", "sensor", "temperature") in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("device2", "sensor", "temperature")]
+    assert metadata2["device_id"] == "device2"
+
+    # Duplicate on same device should fail
+    config3 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     with pytest.raises(
         Invalid,
-        match=r"Duplicate sensor entity with name 'Temperature' found. Each entity must have a unique name within its platform across all devices.",
+        match=r"Duplicate sensor entity with name 'Temperature' found on device 'device1'",
     ):
-        validator(config2)
-
-    # Different name on device2 should pass
-    config3 = {CONF_NAME: "Humidity", CONF_DEVICE_ID: device2}
-    validated3 = validator(config3)
-    assert validated3 == config3
-    assert ("sensor", "humidity") in CORE.unique_ids
-
-    # Empty names should use device names and be allowed
-    config4 = {CONF_NAME: "", CONF_DEVICE_ID: device1}
-    validated4 = validator(config4)
-    assert validated4 == config4
-    assert ("sensor", "device1") in CORE.unique_ids
-
-    config5 = {CONF_NAME: "", CONF_DEVICE_ID: device2}
-    validated5 = validator(config5)
-    assert validated5 == config5
-    assert ("sensor", "device2") in CORE.unique_ids
+        validator(config3)
 
 
 def test_duplicate_entity_yaml_validation(
@@ -588,10 +587,10 @@ def test_duplicate_entity_with_devices_yaml_validation(
     )
     assert result is None
 
-    # Check for the duplicate entity error message
+    # Check for the duplicate entity error message with device
     captured = capsys.readouterr()
     assert (
-        "Duplicate sensor entity with name 'Temperature' found. Each entity must have a unique name within its platform across all devices."
+        "Duplicate sensor entity with name 'Temperature' found on device 'device1'"
         in captured.out
     )
 
@@ -605,3 +604,149 @@ def test_entity_different_platforms_yaml_validation(
     )
     # This should succeed
     assert result is not None
+
+
+def test_entity_duplicate_validator_error_message() -> None:
+    """Test that duplicate entity error messages include helpful metadata."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # Set current component to simulate validation context for uptime sensor
+    CORE.current_component = "sensor.uptime"
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Battery", CONF_ID: ID("battery_1")}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Reset component to simulate template sensor
+    CORE.current_component = "sensor.template"
+
+    # Duplicate entity should fail with detailed error
+    config2 = {CONF_NAME: "Battery", CONF_ID: ID("battery_2")}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Battery' found.*"
+        r"Conflicts with entity 'Battery' \(id: battery_1\) from component 'sensor\.uptime'",
+    ):
+        validator(config2)
+
+    # Clean up
+    CORE.current_component = None
+
+
+def test_entity_conflict_between_components_yaml(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that conflicts between different components show helpful error messages."""
+    result = load_config_from_fixture(
+        yaml_file, "entity_conflict_components.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    # Check for the enhanced error message
+    captured = capsys.readouterr()
+    # The error should mention both the conflict and which component created it
+    assert "Duplicate sensor entity with name 'Battery' found" in captured.out
+    # Should mention it conflicts with an entity from a specific sensor platform
+    assert "from component 'sensor." in captured.out
+    # Should show it's a conflict between wifi_signal and template
+    assert "sensor.wifi_signal" in captured.out or "sensor.template" in captured.out
+
+
+def test_entity_duplicate_validator_internal_entities() -> None:
+    """Test that internal entities are excluded from duplicate name validation."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Temperature"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+    # New format includes device_id (empty string for main device)
+    assert ("", "sensor", "temperature") in CORE.unique_ids
+
+    # Internal entity with same name should pass (not added to unique_ids)
+    config2 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
+    validated2 = validator(config2)
+    assert validated2 == config2
+    # Internal entity should not be added to unique_ids
+    # Count how many times the key appears (should still be 1)
+    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    assert count == 1
+
+    # Another internal entity with same name should also pass
+    config3 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
+    validated3 = validator(config3)
+    assert validated3 == config3
+    # Still only one entry in unique_ids (from the non-internal entity)
+    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    assert count == 1
+
+    # Non-internal entity with same name should fail
+    config4 = {CONF_NAME: "Temperature"}
+    with pytest.raises(
+        Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
+    ):
+        validator(config4)
+
+
+def test_empty_or_null_device_id_on_entity() -> None:
+    """Test that empty or null device IDs are handled correctly."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # Entity with empty device_id should pass
+    config1 = {CONF_NAME: "Battery", CONF_DEVICE_ID: ""}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Entity with None device_id should pass
+    config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: None}
+    validated2 = validator(config2)
+    assert validated2 == config2
+
+
+def test_entity_duplicate_validator_non_ascii_names() -> None:
+    """Test that non-ASCII names show helpful error messages."""
+    # Create validator for binary_sensor platform
+    validator = entity_duplicate_validator("binary_sensor")
+
+    # First Russian sensor should pass
+    config1 = {CONF_NAME: "Датчик открытия основного крана"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second Russian sensor with different text but same ASCII conversion should fail
+    config2 = {CONF_NAME: "Датчик закрытия основного крана"}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate binary_sensor entity with name 'Датчик закрытия основного крана' found.*"
+            r"Original names: 'Датчик закрытия основного крана' and 'Датчик открытия основного крана'.*"
+            r"Both convert to ASCII ID: '_______________________________'.*"
+            r"To fix: Add unique ASCII characters \(e\.g\., '1', '2', or 'A', 'B'\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
+
+
+def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
+    """Test that identical names don't show the enhanced message."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Temperature"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second entity with exact same name should fail without enhanced message
+    config2 = {CONF_NAME: "Temperature"}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Temperature' found.*"
+        r"Each entity on a device must have a unique name within its platform\.$",
+    ):
+        validator(config2)

@@ -52,8 +52,6 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (this->rx_pin_) {
     this->rx_pin_->setup();
   }
