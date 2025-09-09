@@ -11,7 +11,11 @@ namespace ble_client {
 
 static const char *const TAG = "ble_sensor";
 
-void BLESensor::loop() {}
+void BLESensor::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
 
 void BLESensor::dump_config() {
   LOG_SENSOR("", "BLE Sensor", this);

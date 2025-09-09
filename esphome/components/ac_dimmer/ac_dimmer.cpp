@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#include <numbers>
 
 #ifdef USE_ESP8266
 #include <core_esp8266_waveform.h>
@@ -193,18 +194,17 @@ void AcDimmer::setup() {
   setTimer1Callback(&timer_interrupt);
 #endif
 #ifdef USE_ESP32
-  // 80 Divider -> 1 count=1µs
-  dimmer_timer = timerBegin(0, 80, true);
-  timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr, true);
+  // timer frequency of 1mhz
+  dimmer_timer = timerBegin(1000000);
+  timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
   // For ESP32, we can't use dynamic interval calculation because the timerX functions
   // are not callable from ISR (placed in flash storage).
   // Here we just use an interrupt firing every 50 µs.
-  timerAlarmWrite(dimmer_timer, 50, true);
-  timerAlarmEnable(dimmer_timer);
+  timerAlarm(dimmer_timer, 50, true, 0);
 #endif
 }
 void AcDimmer::write_state(float state) {
-  state = std::acos(1 - (2 * state)) / 3.14159;  // RMS power compensation
+  state = std::acos(1 - (2 * state)) / std::numbers::pi;  // RMS power compensation
   auto new_value = static_cast<uint16_t>(roundf(state * 65535));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;

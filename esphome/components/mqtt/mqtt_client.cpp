@@ -34,7 +34,6 @@ MQTTClientComponent::MQTTClientComponent() {
 
 // Connection
 void MQTTClientComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
         if (index == 0)
@@ -57,14 +56,15 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
-      if (level <= this->log_level_ && this->is_connected()) {
-        this->publish({.topic = this->log_message_.topic,
-                       .payload = message,
-                       .qos = this->log_message_.qos,
-                       .retain = this->log_message_.retain});
-      }
-    });
+    logger::global_logger->add_on_log_callback(
+        [this](int level, const char *tag, const char *message, size_t message_len) {
+          if (level <= this->log_level_ && this->is_connected()) {
+            this->publish({.topic = this->log_message_.topic,
+                           .payload = std::string(message, message_len),
+                           .qos = this->log_message_.qos,
+                           .retain = this->log_message_.retain});
+          }
+        });
   }
 #endif
 
@@ -91,6 +91,7 @@ void MQTTClientComponent::send_device_info_() {
   std::string topic = "esphome/discover/";
   topic.append(App.get_name());
 
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
       topic,
       [](JsonObject root) {
@@ -146,6 +147,7 @@ void MQTTClientComponent::send_device_info_() {
 #endif
       },
       2, this->discovery_info_.retain);
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 void MQTTClientComponent::dump_config() {
@@ -176,7 +178,8 @@ void MQTTClientComponent::dump_config() {
   }
 }
 bool MQTTClientComponent::can_proceed() {
-  return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected();
+  return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected() ||
+         !this->wait_for_connection_;
 }
 
 void MQTTClientComponent::start_dnslookup_() {
@@ -189,13 +192,17 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
+  err_t err;
+  {
+    LwIPLock lock;
 #if USE_NETWORK_IPV6
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
 #else
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif /* USE_NETWORK_IPV6 */
+  }
   switch (err) {
     case ERR_OK: {
       // Got IP immediately
@@ -228,6 +235,8 @@ void MQTTClientComponent::check_dnslookup_() {
   if (this->dns_resolve_error_) {
     ESP_LOGW(TAG, "Couldn't resolve IP address for '%s'", this->credentials_.address.c_str());
     this->state_ = MQTT_CLIENT_DISCONNECTED;
+    this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+    this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
     return;
   }
 
@@ -697,7 +706,9 @@ void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) 
 }
 
 void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
+  auto callback_copy = callback;
   this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
+  this->on_disconnect_.add(std::move(callback_copy));
 }
 
 #if ASYNC_TCP_SSL_ENABLED

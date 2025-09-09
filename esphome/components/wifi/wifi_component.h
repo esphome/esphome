@@ -60,9 +60,10 @@ struct SavedWifiSettings {
 struct SavedWifiFastConnectSettings {
   uint8_t bssid[6];
   uint8_t channel;
+  int8_t ap_index;
 } PACKED;  // NOLINT
 
-enum WiFiComponentState {
+enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
   /** WiFi is disabled. */
@@ -146,14 +147,14 @@ class WiFiAP {
 
  protected:
   std::string ssid_;
-  optional<bssid_t> bssid_;
   std::string password_;
+  optional<bssid_t> bssid_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
-  optional<uint8_t> channel_;
-  float priority_{0};
   optional<ManualIP> manual_ip_;
+  float priority_{0};
+  optional<uint8_t> channel_;
   bool hidden_{false};
 };
 
@@ -177,14 +178,14 @@ class WiFiScanResult {
   bool operator==(const WiFiScanResult &rhs) const;
 
  protected:
-  bool matches_{false};
   bssid_t bssid_;
   std::string ssid_;
+  float priority_{0.0f};
   uint8_t channel_;
   int8_t rssi_;
+  bool matches_{false};
   bool with_auth_;
   bool is_hidden_;
-  float priority_{0.0f};
 };
 
 struct WiFiSTAPriority {
@@ -192,7 +193,7 @@ struct WiFiSTAPriority {
   float priority;
 };
 
-enum WiFiPowerSaveMode {
+enum WiFiPowerSaveMode : uint8_t {
   WIFI_POWER_SAVE_NONE = 0,
   WIFI_POWER_SAVE_LIGHT,
   WIFI_POWER_SAVE_HIGH,
@@ -256,6 +257,7 @@ class WiFiComponent : public Component {
   void setup() override;
   void start();
   void dump_config() override;
+  void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
   float get_loop_priority() const override;
@@ -321,8 +323,6 @@ class WiFiComponent : public Component {
   int32_t get_wifi_channel();
 
  protected:
-  static std::string format_mac_addr(const uint8_t mac[6]);
-
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
 #endif  // USE_WIFI_AP
@@ -355,7 +355,7 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-  void load_fast_connect_settings_();
+  bool load_fast_connect_settings_();
   void save_fast_connect_settings_();
 
 #ifdef USE_ESP8266
@@ -385,28 +385,38 @@ class WiFiComponent : public Component {
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
+  std::vector<WiFiScanResult> scan_result_;
   WiFiAP selected_ap_;
-  bool fast_connect_{false};
-  bool retry_hidden_{false};
-
-  bool has_ap_{false};
   WiFiAP ap_;
-  WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
-  bool handled_connected_state_{false};
+  optional<float> output_power_;
+  ESPPreferenceObject pref_;
+  ESPPreferenceObject fast_connect_pref_;
+
+  // Group all 32-bit integers together
   uint32_t action_started_;
-  uint8_t num_retried_{0};
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t ap_timeout_{};
+
+  // Group all 8-bit values together
+  WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+  uint8_t num_retried_{0};
+  uint8_t ap_index_{0};
+#if USE_NETWORK_IPV6
+  uint8_t num_ipv6_addresses_{0};
+#endif /* USE_NETWORK_IPV6 */
+
+  // Group all boolean values together
+  bool fast_connect_{false};
+  bool trying_loaded_ap_{false};
+  bool retry_hidden_{false};
+  bool has_ap_{false};
+  bool handled_connected_state_{false};
   bool error_from_callback_{false};
-  std::vector<WiFiScanResult> scan_result_;
   bool scan_done_{false};
   bool ap_setup_{false};
-  optional<float> output_power_;
   bool passive_scan_{false};
-  ESPPreferenceObject pref_;
-  ESPPreferenceObject fast_connect_pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};
@@ -414,10 +424,8 @@ class WiFiComponent : public Component {
 #endif
   bool enable_on_boot_;
   bool got_ipv4_address_{false};
-#if USE_NETWORK_IPV6
-  uint8_t num_ipv6_addresses_{0};
-#endif /* USE_NETWORK_IPV6 */
 
+  // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};
 };

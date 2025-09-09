@@ -18,7 +18,6 @@ class BLEClientRSSISensor : public sensor::Sensor, public PollingComponent, publ
   void loop() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 

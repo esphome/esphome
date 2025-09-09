@@ -473,6 +473,61 @@ class TestLibrary:
 
         assert actual == expected
 
+    @pytest.mark.parametrize(
+        "target, other, result, exception",
+        (
+            (core.Library("libfoo", None), core.Library("libfoo", None), True, None),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libfoo", "1.2.3"),
+                True,  # target is unchanged
+                None,
+            ),
+            (
+                core.Library("libfoo", None),
+                core.Library("libfoo", "1.2.3"),
+                False,  # Use version from other
+                None,
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libfoo", "1.2.4"),
+                False,
+                ValueError,  # Version mismatch
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libbar", "1.2.3"),
+                False,
+                ValueError,  # Name mismatch
+            ),
+            (
+                core.Library(
+                    "libfoo", "1.2.4", "https://github.com/esphome/ESPAsyncWebServer"
+                ),
+                core.Library("libfoo", "1.2.3"),
+                True,  # target is unchanged due to having a repository
+                None,
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library(
+                    "libfoo", "1.2.4", "https://github.com/esphome/ESPAsyncWebServer"
+                ),
+                False,  # use other due to having a repository
+                None,
+            ),
+        ),
+    )
+    def test_reconcile(self, target, other, result, exception):
+        if exception is not None:
+            with pytest.raises(exception):
+                target.reconcile_with(other)
+        else:
+            expected = target if result else other
+            actual = target.reconcile_with(other)
+            assert actual == expected
+
 
 class TestEsphomeCore:
     @pytest.fixture

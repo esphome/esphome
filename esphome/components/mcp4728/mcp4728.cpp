@@ -9,7 +9,6 @@ namespace mcp4728 {
 static const char *const TAG = "mcp4728";
 
 void MCP4728Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->mark_failed();

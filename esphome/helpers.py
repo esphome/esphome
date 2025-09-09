@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import codecs
 from contextlib import suppress
 import ipaddress
@@ -8,6 +10,20 @@ import platform
 import re
 import tempfile
 from urllib.parse import urlparse
+
+from esphome.const import __version__ as ESPHOME_VERSION
+
+# Type aliases for socket address information
+AddrInfo = tuple[
+    int,  # family (AF_INET, AF_INET6, etc.)
+    int,  # type (SOCK_STREAM, SOCK_DGRAM, etc.)
+    int,  # proto (IPPROTO_TCP, etc.)
+    str,  # canonname
+    tuple[str, int] | tuple[str, int, int, int],  # sockaddr (IPv4 or IPv6)
+]
+IPv4SockAddr = tuple[str, int]  # (host, port)
+IPv6SockAddr = tuple[str, int, int, int]  # (host, port, flowinfo, scope_id)
+SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +43,53 @@ def ensure_unique_string(preferred_string, current_strings):
         test_string = f"{preferred_string}_{tries}"
 
     return test_string
+
+
+def fnv1a_32bit_hash(string: str) -> int:
+    """FNV-1a 32-bit hash function.
+
+    Note: This uses 32-bit hash instead of 64-bit for several reasons:
+    1. ESPHome targets 32-bit microcontrollers with limited RAM (often <320KB)
+    2. Using 64-bit hashes would double the RAM usage for storing IDs
+    3. 64-bit operations are slower on 32-bit processors
+
+    While there's a ~50% collision probability at ~77,000 unique IDs,
+    ESPHome validates for collisions at compile time, preventing any
+    runtime issues. In practice, most ESPHome installations only have
+    a handful of area_ids and device_ids (typically <10 areas and <100
+    devices), making collisions virtually impossible.
+    """
+    hash_value = 2166136261
+    for char in string:
+        hash_value ^= ord(char)
+        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+    return hash_value
+
+
+def strip_accents(value: str) -> str:
+    """Remove accents from a string."""
+    import unicodedata
+
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", str(value))
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def slugify(value: str) -> str:
+    """Convert a string to a valid C++ identifier slug."""
+    from esphome.const import ALLOWED_NAME_CHARS
+
+    value = (
+        strip_accents(value)
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace("__", "_")
+        .strip("_")
+    )
+    return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
 
 
 def indent_all_but_first_and_last(text, padding="  "):
@@ -49,9 +112,7 @@ def cpp_string_escape(string, encoding="utf-8"):
     def _should_escape(byte: int) -> bool:
         if not 32 <= byte < 127:
             return True
-        if byte in (ord("\\"), ord('"')):
-            return True
-        return False
+        return byte in (ord("\\"), ord('"'))
 
     if isinstance(string, str):
         string = string.encode(encoding)
@@ -67,7 +128,9 @@ def cpp_string_escape(string, encoding="utf-8"):
 def run_system_command(*args):
     import subprocess
 
-    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+    with subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=False
+    ) as p:
         stdout, stderr = p.communicate()
         rc = p.returncode
         return rc, stdout, stderr
@@ -98,32 +161,7 @@ def is_ip_address(host):
         return False
 
 
-def _resolve_with_zeroconf(host):
-    from esphome.core import EsphomeError
-    from esphome.zeroconf import EsphomeZeroconf
-
-    try:
-        zc = EsphomeZeroconf()
-    except Exception as err:
-        raise EsphomeError(
-            "Cannot start mDNS sockets, is this a docker container without "
-            "host network mode?"
-        ) from err
-    try:
-        info = zc.resolve_host(f"{host}.")
-    except Exception as err:
-        raise EsphomeError(f"Error resolving mDNS hostname: {err}") from err
-    finally:
-        zc.close()
-    if info is None:
-        raise EsphomeError(
-            "Error resolving address with mDNS: Did not respond. "
-            "Maybe the device is offline."
-        )
-    return info
-
-
-def addr_preference_(res):
+def addr_preference_(res: AddrInfo) -> int:
     # Trivial alternative to RFC6724 sorting. Put sane IPv6 first, then
     # Legacy IP, then IPv6 link-local addresses without an actual link.
     sa = res[4]
@@ -135,10 +173,8 @@ def addr_preference_(res):
     return 1
 
 
-def resolve_ip_address(host, port):
+def resolve_ip_address(host: str | list[str], port: int) -> list[AddrInfo]:
     import socket
-
-    from esphome.core import EsphomeError
 
     # There are five cases here. The host argument could be one of:
     #  • a *list* of IP addresses discovered by MQTT,
@@ -146,55 +182,61 @@ def resolve_ip_address(host, port):
     #  • a .local hostname to be resolved by mDNS,
     #  • a normal hostname to be resolved in DNS, or
     #  • A URL from which we should extract the hostname.
-    #
-    # In each of the first three cases, we end up with IP addresses in
-    # string form which need to be converted to a 5-tuple to be used
-    # for the socket connection attempt. The easiest way to construct
-    # those is to pass the IP address string to getaddrinfo(). Which,
-    # coincidentally, is how we do hostname lookups in the other cases
-    # too. So first build a list which contains either IP addresses or
-    # a single hostname, then call getaddrinfo() on each element of
-    # that list.
 
-    errs = []
+    hosts: list[str]
     if isinstance(host, list):
-        addr_list = host
-    elif is_ip_address(host):
-        addr_list = [host]
+        hosts = host
     else:
-        url = urlparse(host)
-        if url.scheme != "":
-            host = url.hostname
+        if not is_ip_address(host):
+            url = urlparse(host)
+            if url.scheme != "":
+                host = url.hostname
+        hosts = [host]
 
-        addr_list = []
-        if host.endswith(".local"):
+    res: list[AddrInfo] = []
+    if all(is_ip_address(h) for h in hosts):
+        # Fast path: all are IP addresses, use socket.getaddrinfo with AI_NUMERICHOST
+        for addr in hosts:
             try:
-                _LOGGER.info("Resolving IP address of %s in mDNS", host)
-                addr_list = _resolve_with_zeroconf(host)
-            except EsphomeError as err:
-                errs.append(str(err))
+                res += socket.getaddrinfo(
+                    addr, port, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
+                )
+            except OSError:
+                _LOGGER.debug("Failed to parse IP address '%s'", addr)
+        # Sort by preference
+        res.sort(key=addr_preference_)
+        return res
 
-        # If not mDNS, or if mDNS failed, use normal DNS
-        if not addr_list:
-            addr_list = [host]
+    from esphome.resolver import AsyncResolver
 
-    # Now we have a list containing either IP addresses or a hostname
-    res = []
-    for addr in addr_list:
-        if not is_ip_address(addr):
-            _LOGGER.info("Resolving IP address of %s", host)
-        try:
-            r = socket.getaddrinfo(addr, port, proto=socket.IPPROTO_TCP)
-        except OSError as err:
-            errs.append(str(err))
-            raise EsphomeError(
-                f"Error resolving IP address: {', '.join(errs)}"
-            ) from err
+    resolver = AsyncResolver(hosts, port)
+    addr_infos = resolver.resolve()
+    # Convert aioesphomeapi AddrInfo to our format
+    for addr_info in addr_infos:
+        sockaddr = addr_info.sockaddr
+        if addr_info.family == socket.AF_INET6:
+            # IPv6
+            sockaddr_tuple = (
+                sockaddr.address,
+                sockaddr.port,
+                sockaddr.flowinfo,
+                sockaddr.scope_id,
+            )
+        else:
+            # IPv4
+            sockaddr_tuple = (sockaddr.address, sockaddr.port)
 
-        res = res + r
+        res.append(
+            (
+                addr_info.family,
+                addr_info.type,
+                addr_info.proto,
+                "",  # canonname
+                sockaddr_tuple,
+            )
+        )
 
-    # Zeroconf tends to give us link-local IPv6 addresses without specifying
-    # the link. Put those last in the list to be attempted.
+    # Sort by preference
     res.sort(key=addr_preference_)
     return res
 
@@ -213,15 +255,7 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
 
     # First "resolve" all the IP addresses to getaddrinfo() tuples of the form
     # (family, type, proto, canonname, sockaddr)
-    res: list[
-        tuple[
-            int,
-            int,
-            int,
-            str | None,
-            tuple[str, int] | tuple[str, int, int, int],
-        ]
-    ] = []
+    res: list[AddrInfo] = []
     for addr in address_list:
         # This should always work as these are supposed to be IP addresses
         try:
@@ -458,3 +492,20 @@ _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
+
+
+def docs_url(path: str) -> str:
+    """Return the URL to the documentation for a given path."""
+    # Local import to avoid circular import
+    from esphome.config_validation import Version
+
+    version = Version.parse(ESPHOME_VERSION)
+    if version.is_beta:
+        docs_format = "https://beta.esphome.io/{path}"
+    elif version.is_dev:
+        docs_format = "https://next.esphome.io/{path}"
+    else:
+        docs_format = "https://esphome.io/{path}"
+
+    path = path.removeprefix("/")
+    return docs_format.format(path=path)

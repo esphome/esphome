@@ -11,22 +11,22 @@ static const uint8_t NUMBER_OF_READ_RETRIES = 5;
 void GDK101Component::update() {
   uint8_t data[2];
   if (!this->read_dose_1m_(data)) {
-    this->status_set_warning("Failed to read dose 1m");
+    this->status_set_warning(LOG_STR("Failed to read dose 1m"));
     return;
   }
 
   if (!this->read_dose_10m_(data)) {
-    this->status_set_warning("Failed to read dose 10m");
+    this->status_set_warning(LOG_STR("Failed to read dose 10m"));
     return;
   }
 
   if (!this->read_status_(data)) {
-    this->status_set_warning("Failed to read status");
+    this->status_set_warning(LOG_STR("Failed to read status"));
     return;
   }
 
   if (!this->read_measurement_duration_(data)) {
-    this->status_set_warning("Failed to read measurement duration");
+    this->status_set_warning(LOG_STR("Failed to read measurement duration"));
     return;
   }
   this->status_clear_warning();
@@ -34,7 +34,6 @@ void GDK101Component::update() {
 
 void GDK101Component::setup() {
   uint8_t data[2];
-  ESP_LOGCONFIG(TAG, "Running setup");
   // first, reset the sensor
   if (!this->reset_sensor_(data)) {
     this->status_set_error("Reset failed!");

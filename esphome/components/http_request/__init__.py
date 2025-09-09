@@ -2,6 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.const import CONF_REQUEST_HEADERS
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
@@ -13,6 +14,7 @@ from esphome.const import (
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
     PLATFORM_HOST,
+    PlatformFramework,
     __version__,
 )
 from esphome.core import CORE, Lambda
@@ -68,9 +70,8 @@ def validate_url(value):
 def validate_ssl_verification(config):
     error_message = ""
 
-    if CORE.is_esp32:
-        if not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
-            error_message = "ESPHome supports certificate verification only via ESP-IDF"
+    if CORE.is_esp32 and not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
+        error_message = "ESPHome supports certificate verification only via ESP-IDF"
 
     if CORE.is_rp2040 and config[CONF_VERIFY_SSL]:
         error_message = "ESPHome does not support certificate verification on RP2040"
@@ -175,7 +176,7 @@ async def to_code(config):
                 not config.get(CONF_VERIFY_SSL),
             )
         else:
-            cg.add_library("WiFiClientSecure", None)
+            cg.add_library("NetworkClientSecure", None)
             cg.add_library("HTTPClient", None)
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
@@ -319,3 +320,19 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
         await automation.build_automation(trigger, [], conf)
 
     return var
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "http_request_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "http_request_arduino.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "http_request_idf.cpp": {PlatformFramework.ESP32_IDF},
+    }
+)

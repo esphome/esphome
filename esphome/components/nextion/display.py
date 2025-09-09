@@ -15,6 +15,7 @@ from . import Nextion, nextion_ns, nextion_ref
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
+    CONF_DUMP_DEVICE_INFO,
     CONF_EXIT_REPARSE_ON_START,
     CONF_MAX_COMMANDS_PER_LOOP,
     CONF_MAX_QUEUE_SIZE,
@@ -57,6 +58,7 @@ CONFIG_SCHEMA = (
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
+            cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
@@ -95,7 +97,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
             cv.Optional(CONF_TFT_URL): cv.url,
-            cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.int_range(min=3, max=65535),
+            cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
+                0, cv.int_range(min=3, max=65535)
+            ),
             cv.Optional(CONF_WAKE_UP_PAGE): cv.uint8_t,
         }
     )
@@ -150,7 +154,7 @@ async def to_code(config):
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
         if CORE.is_esp32 and CORE.using_arduino:
-            cg.add_library("WiFiClientSecure", None)
+            cg.add_library("NetworkClientSecure", None)
             cg.add_library("HTTPClient", None)
         elif CORE.is_esp32 and CORE.using_esp_idf:
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
@@ -167,13 +171,19 @@ async def to_code(config):
         cg.add(var.set_wake_up_page(config[CONF_WAKE_UP_PAGE]))
 
     if CONF_START_UP_PAGE in config:
+        cg.add_define("USE_NEXTION_CONF_START_UP_PAGE")
         cg.add(var.set_start_up_page(config[CONF_START_UP_PAGE]))
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))
 
-    cg.add(var.set_exit_reparse_on_start(config[CONF_EXIT_REPARSE_ON_START]))
+    if config[CONF_DUMP_DEVICE_INFO]:
+        cg.add_define("USE_NEXTION_CONFIG_DUMP_DEVICE_INFO")
 
-    cg.add(var.set_skip_connection_handshake(config[CONF_SKIP_CONNECTION_HANDSHAKE]))
+    if config[CONF_EXIT_REPARSE_ON_START]:
+        cg.add_define("USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START")
+
+    if config[CONF_SKIP_CONNECTION_HANDSHAKE]:
+        cg.add_define("USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE")
 
     if max_commands_per_loop := config.get(CONF_MAX_COMMANDS_PER_LOOP):
         cg.add_define("USE_NEXTION_MAX_COMMANDS_PER_LOOP")

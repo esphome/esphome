@@ -17,6 +17,22 @@
 namespace esphome {
 namespace ethernet {
 
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+// work around IDF compile issue on P4 https://github.com/espressif/esp-idf/pull/15637
+#ifdef USE_ESP32_VARIANT_ESP32P4
+#undef ETH_ESP32_EMAC_DEFAULT_CONFIG
+#define ETH_ESP32_EMAC_DEFAULT_CONFIG() \
+  { \
+    .smi_gpio = {.mdc_num = 31, .mdio_num = 52}, .interface = EMAC_DATA_INTERFACE_RMII, \
+    .clock_config = {.rmii = {.clock_mode = EMAC_CLK_EXT_IN, .clock_gpio = (emac_rmii_clock_gpio_t) 50}}, \
+    .dma_burst_len = ETH_DMA_BURST_LEN_32, .intr_priority = 0, \
+    .emac_dataif_gpio = \
+        {.rmii = {.tx_en_num = 49, .txd0_num = 34, .txd1_num = 35, .crs_dv_num = 28, .rxd0_num = 29, .rxd1_num = 30}}, \
+    .clock_config_out_in = {.rmii = {.clock_mode = EMAC_CLK_EXT_IN, .clock_gpio = (emac_rmii_clock_gpio_t) -1}}, \
+  }
+#endif
+#endif
+
 static const char *const TAG = "ethernet";
 
 EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -38,7 +54,6 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
     // Delay here to allow power to stabilise before Ethernet is initialized.
     delay(300);  // NOLINT
@@ -90,8 +105,8 @@ void EthernetComponent::setup() {
 
 #ifdef USE_ETHERNET_SPI  // Configure SPI interface and Ethernet driver for specific SPI module
   spi_device_interface_config_t devcfg = {
-      .command_bits = 16,  // Actually it's the address phase in W5500 SPI frame
-      .address_bits = 8,   // Actually it's the control phase in W5500 SPI frame
+      .command_bits = 0,
+      .address_bits = 0,
       .dummy_bits = 0,
       .mode = 0,
       .duty_cycle_pos = 0,
@@ -106,45 +121,49 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
-#if USE_ESP_IDF && (ESP_IDF_VERSION_MAJOR >= 5)
+#if CONFIG_ETH_SPI_ETHERNET_W5500
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
-#else
-  spi_device_handle_t spi_handle = nullptr;
-  err = spi_bus_add_device(host, &devcfg, &spi_handle);
-  ESPHL_ERROR_CHECK(err, "SPI bus add device error");
-
-  eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
 #endif
+#if CONFIG_ETH_SPI_ETHERNET_DM9051
+  eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(host, &devcfg);
+#endif
+
+#if CONFIG_ETH_SPI_ETHERNET_W5500
   w5500_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.poll_period_ms = this->polling_interval_;
 #endif
+#endif
+
+#if CONFIG_ETH_SPI_ETHERNET_DM9051
+  dm9051_config.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  dm9051_config.poll_period_ms = this->polling_interval_;
+#endif
+#endif
+
   phy_config.phy_addr = this->phy_addr_spi_;
   phy_config.reset_gpio_num = this->reset_pin_;
 
-  esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+  esp_eth_mac_t *mac = nullptr;
 #elif defined(USE_ETHERNET_OPENETH)
   esp_eth_mac_t *mac = esp_eth_mac_new_openeth(&mac_config);
 #else
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
 
-#if ESP_IDF_VERSION_MAJOR >= 5
   eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+  esp32_emac_config.smi_gpio.mdc_num = this->mdc_pin_;
+  esp32_emac_config.smi_gpio.mdio_num = this->mdio_pin_;
+#else
   esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
+#endif
   esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
-  esp32_emac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
+  esp32_emac_config.clock_config.rmii.clock_gpio = (emac_rmii_clock_gpio_t) this->clk_pin_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#else
-  mac_config.smi_mdc_gpio_num = this->mdc_pin_;
-  mac_config.smi_mdio_gpio_num = this->mdio_pin_;
-  mac_config.clock_config.rmii.clock_mode = this->clk_mode_;
-  mac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
-
-  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
-#endif
 #endif
 
   switch (this->type_) {
@@ -178,19 +197,25 @@ void EthernetComponent::setup() {
     }
     case ETHERNET_TYPE_KSZ8081:
     case ETHERNET_TYPE_KSZ8081RNA: {
-#if ESP_IDF_VERSION_MAJOR >= 5
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
-#else
-      this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
-#endif
       break;
     }
 #endif
 #ifdef USE_ETHERNET_SPI
+#if CONFIG_ETH_SPI_ETHERNET_W5500
     case ETHERNET_TYPE_W5500: {
+      mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
       this->phy_ = esp_eth_phy_new_w5500(&phy_config);
       break;
     }
+#endif
+#if CONFIG_ETH_SPI_ETHERNET_DM9051
+    case ETHERNET_TYPE_DM9051: {
+      mac = esp_eth_mac_new_dm9051(&dm9051_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_dm9051(&phy_config);
+      break;
+    }
+#endif
 #endif
     default: {
       this->mark_failed();
@@ -274,6 +299,9 @@ void EthernetComponent::loop() {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
+      } else {
+        // When connected and stable, disable the loop to save CPU cycles
+        this->disable_loop();
       }
       break;
   }
@@ -318,6 +346,10 @@ void EthernetComponent::dump_config() {
       eth_type = "OPENETH";
       break;
 
+    case ETHERNET_TYPE_DM9051:
+      eth_type = "DM9051";
+      break;
+
     default:
       eth_type = "Unknown";
       break;
@@ -349,10 +381,11 @@ void EthernetComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Power Pin: %u", this->power_pin_);
   }
   ESP_LOGCONFIG(TAG,
+                "  CLK Pin: %u\n"
                 "  MDC Pin: %u\n"
                 "  MDIO Pin: %u\n"
                 "  PHY addr: %u",
-                this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
+                this->clk_pin_, this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
 }
@@ -386,6 +419,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
 }
 
 network::IPAddress EthernetComponent::get_dns_address(uint8_t num) {
+  LwIPLock lock;
   const ip_addr_t *dns_ip = dns_getserver(num);
   return dns_ip;
 }
@@ -397,11 +431,13 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
     case ETHERNET_EVENT_START:
       event_name = "ETH started";
       global_eth_component->started_ = true;
+      global_eth_component->enable_loop_soon_any_context();
       break;
     case ETHERNET_EVENT_STOP:
       event_name = "ETH stopped";
       global_eth_component->started_ = false;
       global_eth_component->connected_ = false;
+      global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
@@ -409,6 +445,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
       global_eth_component->connected_ = false;
+      global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     default:
       return;
@@ -425,8 +462,10 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   global_eth_component->got_ipv4_address_ = true;
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
   global_eth_component->connected_ = true;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif /* USE_NETWORK_IPV6 */
 }
 
@@ -439,8 +478,10 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 #if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
   global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif
 }
 #endif /* USE_NETWORK_IPV6 */
@@ -451,7 +492,7 @@ void EthernetComponent::start_connect_() {
   global_eth_component->ipv6_count_ = 0;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
-  this->status_set_warning("waiting for IP configuration");
+  this->status_set_warning(LOG_STR("waiting for IP configuration"));
 
   esp_err_t err;
   err = esp_netif_set_hostname(this->eth_netif_, App.get_name().c_str());
@@ -486,6 +527,7 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
   if (this->manual_ip_.has_value()) {
+    LwIPLock lock;
     if (this->manual_ip_->dns1.is_set()) {
       ip_addr_t d;
       d = this->manual_ip_->dns1;
@@ -518,8 +560,13 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  const ip_addr_t *dns_ip1 = dns_getserver(0);
-  const ip_addr_t *dns_ip2 = dns_getserver(1);
+  const ip_addr_t *dns_ip1;
+  const ip_addr_t *dns_ip2;
+  {
+    LwIPLock lock;
+    dns_ip1 = dns_getserver(0);
+    dns_ip2 = dns_getserver(1);
+  }
 
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"
@@ -566,10 +613,8 @@ void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_a
 void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
 void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
-void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio) {
-  this->clk_mode_ = clk_mode;
-  this->clk_gpio_ = clk_gpio;
-}
+void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
+void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
 void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
 #endif
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
@@ -620,6 +665,7 @@ bool EthernetComponent::powerdown() {
   }
   this->connected_ = false;
   this->started_ = false;
+  // No need to enable_loop() here as this is only called during shutdown/reboot
   if (this->phy_->pwrctl(this->phy_, false) != ESP_OK) {
     ESP_LOGE(TAG, "Error powering down ethernet PHY");
     return false;

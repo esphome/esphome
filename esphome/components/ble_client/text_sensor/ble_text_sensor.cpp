@@ -14,7 +14,11 @@ static const char *const TAG = "ble_text_sensor";
 
 static const std::string EMPTY = "";
 
-void BLETextSensor::loop() {}
+void BLETextSensor::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
 
 void BLETextSensor::dump_config() {
   LOG_TEXT_SENSOR("", "BLE Text Sensor", this);
