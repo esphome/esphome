@@ -416,9 +416,7 @@ def upload_program(
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
         elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
-        else:
-            # Unknown target platform
-            pass
+        # else: Unknown target platform, exit_code remains 1
 
         return exit_code, host if exit_code == 0 else None
 
@@ -561,7 +559,7 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose="uploading",
     )
 
-    exit_code, successful_device = upload_program(config, args, devices)
+    exit_code, _ = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
     else:
