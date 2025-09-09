@@ -1438,7 +1438,7 @@ message BluetoothLERawAdvertisementsResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   option (no_delay) = true;
 
-  repeated BluetoothLERawAdvertisement advertisements = 1;
+  repeated BluetoothLERawAdvertisement advertisements = 1 [(fixed_array_with_length_define) = "BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE"];
 }
 
 enum BluetoothDeviceRequestType {
@@ -1712,6 +1712,7 @@ message BluetoothScannerStateResponse {
 
   BluetoothScannerState state = 1;
   BluetoothScannerMode mode = 2;
+  BluetoothScannerMode configured_mode = 3;
 }
 
 message BluetoothScannerSetModeRequest {

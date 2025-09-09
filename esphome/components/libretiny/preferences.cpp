@@ -5,7 +5,7 @@
 #include "esphome/core/preferences.h"
 #include <flashdb.h>
 #include <cstring>
-#include <vector>
+#include <memory>
 #include <string>
 
 namespace esphome {
@@ -139,21 +139,29 @@ class LibreTinyPreferences : public ESPPreferences {
   }
 
   bool is_changed(const fdb_kvdb_t db, const NVSData &to_save) {
-    NVSData stored_data{};
     struct fdb_kv kv;
     fdb_kv_t kvp = fdb_kv_get_obj(db, to_save.key.c_str(), &kv);
     if (kvp == nullptr) {
       ESP_LOGV(TAG, "fdb_kv_get_obj('%s'): nullptr - the key might not be set yet", to_save.key.c_str());
       return true;
     }
-    stored_data.data.resize(kv.value_len);
-    fdb_blob_make(&blob, stored_data.data.data(), kv.value_len);
+
+    // Check size first - if different, data has changed
+    if (kv.value_len != to_save.data.size()) {
+      return true;
+    }
+
+    // Allocate buffer on heap to avoid stack allocation for large data
+    auto stored_data = std::make_unique<uint8_t[]>(kv.value_len);
+    fdb_blob_make(&blob, stored_data.get(), kv.value_len);
     size_t actual_len = fdb_kv_get_blob(db, to_save.key.c_str(), &blob);
     if (actual_len != kv.value_len) {
       ESP_LOGV(TAG, "fdb_kv_get_blob('%s') len mismatch: %u != %u", to_save.key.c_str(), actual_len, kv.value_len);
       return true;
     }
-    return to_save.data != stored_data.data;
+
+    // Compare the actual data
+    return memcmp(to_save.data.data(), stored_data.get(), kv.value_len) != 0;
   }
 
   bool reset() override {

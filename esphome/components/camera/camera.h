@@ -15,6 +15,26 @@ namespace camera {
  */
 enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER };
 
+/// Enumeration of different pixel formats.
+enum PixelFormat : uint8_t {
+  PIXEL_FORMAT_GRAYSCALE = 0,  ///< 8-bit grayscale.
+  PIXEL_FORMAT_RGB565,         ///< 16-bit RGB (5-6-5).
+  PIXEL_FORMAT_BGR888,         ///< RGB pixel data in 8-bit format, stored as B, G, R (1 byte each).
+};
+
+/// Returns string name for a given PixelFormat.
+inline const char *to_string(PixelFormat format) {
+  switch (format) {
+    case PIXEL_FORMAT_GRAYSCALE:
+      return "PIXEL_FORMAT_GRAYSCALE";
+    case PIXEL_FORMAT_RGB565:
+      return "PIXEL_FORMAT_RGB565";
+    case PIXEL_FORMAT_BGR888:
+      return "PIXEL_FORMAT_BGR888";
+  }
+  return "PIXEL_FORMAT_UNKNOWN";
+}
+
 /** Abstract camera image base class.
  *  Encapsulates the JPEG encoded data and it is shared among
  *  all connected clients.
@@ -41,6 +61,29 @@ class CameraImageReader {
   virtual void consume_data(size_t consumed) = 0;
   virtual void return_image() = 0;
   virtual ~CameraImageReader() {}
+};
+
+/// Specification of a caputured camera image.
+/// This struct defines the format and size details for images captured
+/// or processed by a camera component.
+struct CameraImageSpec {
+  uint16_t width;
+  uint16_t height;
+  PixelFormat format;
+  size_t bytes_per_pixel() {
+    switch (format) {
+      case PIXEL_FORMAT_GRAYSCALE:
+        return 1;
+      case PIXEL_FORMAT_RGB565:
+        return 2;
+      case PIXEL_FORMAT_BGR888:
+        return 3;
+    }
+
+    return 1;
+  }
+  size_t bytes_per_row() { return bytes_per_pixel() * width; }
+  size_t bytes_per_image() { return bytes_per_pixel() * width * height; }
 };
 
 /** Abstract camera base class. Collaborates with API.

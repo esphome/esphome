@@ -8,6 +8,7 @@ import pytest
 
 from esphome import config_validation as cv, core
 from esphome.const import CONF_AREA, CONF_AREAS, CONF_DEVICES
+from esphome.core import config
 from esphome.core.config import Area, validate_area_config
 
 from .common import load_config_from_fixture
@@ -223,3 +224,24 @@ def test_device_duplicate_id(
     # Check for the specific error message from IDPassValidationStep
     captured = capsys.readouterr()
     assert "ID duplicate_device redefined!" in captured.out
+
+
+def test_add_platform_defines_priority() -> None:
+    """Test that _add_platform_defines runs after globals.
+
+    This ensures the fix for issue #10431 where sensor counts were incorrect
+    when lambdas were present. The function must run at a lower priority than
+    globals (-100.0) to ensure all components (including those using globals
+    in lambdas) have registered their entities before the count defines are
+    generated.
+
+    Regression test for https://github.com/esphome/esphome/issues/10431
+    """
+    # Import globals to check its priority
+    from esphome.components.globals import to_code as globals_to_code
+
+    # _add_platform_defines must run AFTER globals (lower priority number = runs later)
+    assert config._add_platform_defines.priority < globals_to_code.priority, (
+        f"_add_platform_defines priority ({config._add_platform_defines.priority}) must be lower than "
+        f"globals priority ({globals_to_code.priority}) to fix issue #10431 (sensor count bug with lambdas)"
+    )

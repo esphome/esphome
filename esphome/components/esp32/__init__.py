@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
     CONF_IGNORE_EFUSE_MAC_CRC,
+    CONF_LOG_LEVEL,
     CONF_NAME,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
@@ -39,6 +40,7 @@ from esphome.cpp_generator import RawExpression
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
 from esphome.types import ConfigType
+from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -78,6 +80,15 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_RELEASE = "release"
+
+LOG_LEVELS_IDF = [
+    "NONE",
+    "ERROR",
+    "WARN",
+    "INFO",
+    "DEBUG",
+    "VERBOSE",
+]
 
 ASSERTION_LEVELS = {
     "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
@@ -623,6 +634,9 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
                 cv.string_strict: cv.string_strict
             },
+            cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
+                *LOG_LEVELS_IDF, upper=True
+            ),
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
                     cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
@@ -811,8 +825,9 @@ async def to_code(config):
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
-    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
+    variant = config[CONF_VARIANT]
+    cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.MULTI_ATOMICS)
 
     cg.add_platformio_option("lib_ldf_mode", "off")
@@ -825,6 +840,9 @@ async def to_code(config):
 
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
+
+    for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
+        os.environ.pop(clean_var, None)
 
     add_extra_script(
         "post",
@@ -841,11 +859,7 @@ async def to_code(config):
 
         cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
-        # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
-        # This is espressif's own published version which is more up to date.
-        cg.add_platformio_option(
-            "platform_packages", ["espressif/toolchain-esp32ulp@2.35.0-20220830"]
-        )
+        add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
         )
@@ -935,6 +949,10 @@ async def to_code(config):
             cg.RawExpression(
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
+        )
+
+        add_idf_sdkconfig_option(
+            f"CONFIG_LOG_DEFAULT_LEVEL_{conf[CONF_LOG_LEVEL]}", True
         )
 
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
@@ -1060,7 +1078,11 @@ def _write_idf_component_yml():
         contents = yaml_util.dump({"dependencies": dependencies})
     else:
         contents = ""
-    write_file_if_changed(yml_path, contents)
+    if write_file_if_changed(yml_path, contents):
+        dependencies_lock = CORE.relative_build_path("dependencies.lock")
+        if os.path.isfile(dependencies_lock):
+            os.remove(dependencies_lock)
+        clean_cmake_cache()
 
 
 # Called by writer.py
