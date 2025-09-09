@@ -512,7 +512,7 @@ def _is_file_valid(name: str) -> bool:
 
 def _find_files(directory: Path, pattern):
     """Recursively load files in a directory."""
-    for root, dirs, files in os.walk(directory, top_down=True):
+    for root, dirs, files in os.walk(directory):
         dirs[:] = [d for d in dirs if _is_file_valid(d)]
         for f in files:
             filename = Path(f)
