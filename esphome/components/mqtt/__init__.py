@@ -226,7 +226,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
-            cv.Optional("transport", default="tcp"): cv.one_of("tcp", "ws", lower=True),
+            cv.Optional(CONF_TRANSPORT, default="tcp"): validate_transport,
             
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
@@ -347,7 +347,7 @@ async def to_code(config):
     cg.add(var.set_broker_address(config[CONF_BROKER]))
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_broker_port(config[CONF_PORT]))
-    cg.add(var.set_transport(transport))
+    cg.add(var.set_transport(config[CONF_TRANSPORT]))
     
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
