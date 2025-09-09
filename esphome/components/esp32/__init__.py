@@ -956,10 +956,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
 
         # Set main loop stack size
-        if (
-            CONF_MAIN_LOOP_STACK_SIZE in advanced
-            and advanced.get(CONF_MAIN_LOOP_STACK_SIZE) > 8192
-        ):
+        if CONF_MAIN_LOOP_STACK_SIZE in advanced:
             stack_size = advanced.get(CONF_MAIN_LOOP_STACK_SIZE)
             cg.add_build_flag(f"-DESPHOME_APP_MAIN_TASK_STACK_SIZE={stack_size}")
 
