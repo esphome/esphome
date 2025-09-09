@@ -53,6 +53,8 @@ void ILI9XXXDisplay::setup() {
       break;
   }
 
+  this->is_initialized_ = true;
+
   this->set_madctl();
   this->command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
   this->x_low_ = this->width_;

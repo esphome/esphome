@@ -77,10 +77,30 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   virtual void command(uint8_t value);
   virtual void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
-  void set_color_order(display::ColorOrder color_order) { this->color_order_ = color_order; }
-  void set_swap_xy(bool swap_xy) { this->swap_xy_ = swap_xy; }
-  void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
-  void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
+  void set_color_order(display::ColorOrder color_order) {
+    this->color_order_ = color_order;
+    if (this->is_initialized_) {
+      this->set_madctl();
+    }
+  }
+  void set_swap_xy(bool swap_xy) {
+    this->swap_xy_ = swap_xy;
+    if (this->is_initialized_) {
+      this->set_madctl();
+    }
+  }
+  void set_mirror_x(bool mirror_x) {
+    this->mirror_x_ = mirror_x;
+    if (this->is_initialized_) {
+      this->set_madctl();
+    }
+  }
+  void set_mirror_y(bool mirror_y) {
+    this->mirror_y_ = mirror_y;
+    if (this->is_initialized_) {
+      this->set_madctl();
+    }
+  }
   void set_pixel_mode(PixelMode mode) { this->pixel_mode_ = mode; }
 
   void update() override;
@@ -151,6 +171,9 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   bool swap_xy_{};
   bool mirror_x_{};
   bool mirror_y_{};
+
+ private:
+  bool is_initialized_ = false;
 };
 
 //-----------   M5Stack display --------------
