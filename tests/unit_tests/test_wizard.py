@@ -136,7 +136,7 @@ def test_wizard_empty_config(tmp_path, monkeypatch):
         "name": "test-empty",
     }
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", tmp_path)
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     wz.wizard_write(tmp_path, **empty_config)
@@ -157,7 +157,7 @@ def test_wizard_upload_config(tmp_path, monkeypatch):
         "file_text": "# imported file 📁\n\n",
     }
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", tmp_path)
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     wz.wizard_write(tmp_path, **empty_config)
@@ -524,7 +524,7 @@ def test_wizard_write_protects_existing_config(tmp_path, default_config, monkeyp
     original_content = "# Original config content\n"
     config_file.write_text(original_content)
 
-    monkeypatch.setattr(CORE, "config_path", tmp_path)
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     result = wz.wizard_write(config_file, **default_config)
