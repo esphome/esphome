@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import tempfile
 from urllib.parse import urlparse
 
@@ -343,7 +344,7 @@ def _write_file(
                 except AttributeError:
                     # os.fchmod is not available on Windows
                     missing_fchmod = True
-        tmp_filename.rename(path)
+        shutil.move(tmp_filename, path)
         if missing_fchmod:
             path.chmod(0o644)
     finally:

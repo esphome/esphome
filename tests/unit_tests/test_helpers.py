@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import socket
 from unittest.mock import patch
 
@@ -154,7 +155,7 @@ def test_walk_files(fixture_path):
 
 
 class Test_write_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path):
+    def test_src_and_dst_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = text
         dst = tmp_path / "file-a.txt"
@@ -164,7 +165,7 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_src_and_dst_do_not_match(self, tmp_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = "B files are unique.\n"
         dst = tmp_path / "file-a.txt"
@@ -174,7 +175,7 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_dst_does_not_exist(self, tmp_path):
+    def test_dst_does_not_exist(self, tmp_path: Path):
         text = "A files are unique.\n"
         dst = tmp_path / "file-a.txt"
 
@@ -184,7 +185,7 @@ class Test_write_file_if_changed:
 
 
 class Test_copy_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
@@ -193,7 +194,7 @@ class Test_copy_file_if_changed:
 
         helpers.copy_file_if_changed(src, dst)
 
-    def test_src_and_dst_do_not_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-c.txt"
         dst = tmp_path / "file-a.txt"
@@ -204,7 +205,7 @@ class Test_copy_file_if_changed:
 
         assert src.read_text() == dst.read_text()
 
-    def test_dst_does_not_exist(self, tmp_path, fixture_path):
+    def test_dst_does_not_exist(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
 
