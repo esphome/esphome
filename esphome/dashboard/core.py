@@ -10,7 +10,6 @@ import logging
 import threading
 from typing import Any
 
-from esphome.core import CORE
 from esphome.storage_json import ignored_devices_storage_path
 
 from ..zeroconf import DiscoveredImport
@@ -117,9 +116,6 @@ class ESPHomeDashboard:
             pass
 
     def save_ignored_devices(self) -> None:
-        _LOGGER.warning("Saving ignored devices...")
-        _LOGGER.warning(f"Config: {CORE.config_dir}")
-        _LOGGER.warning(f"Data: {CORE.data_dir}")
         storage_path = ignored_devices_storage_path()
         with storage_path.open("w+", encoding="utf-8") as f_handle:
             json.dump(
