@@ -626,3 +626,4 @@ ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringif
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_stringify)
