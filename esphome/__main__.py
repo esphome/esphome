@@ -727,7 +727,8 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
-    for c in args.name:
+    new_name = args.name
+    for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
             print(
                 color(
