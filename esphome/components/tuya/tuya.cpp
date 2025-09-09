@@ -31,9 +31,7 @@ void Tuya::setup() {
       "initquery", 100, 20,
       [this](const uint8_t remaining_attempts) {
         if (remaining_attempts > 0) {
-          if (remaining_attempts < 20) {
-            this->send_empty_command_(TuyaCommandType::PRODUCT_QUERY);
-          }
+          this->send_empty_command_(TuyaCommandType::PRODUCT_QUERY);
           return RetryResult::RETRY;
         }
         return RetryResult::DONE;
@@ -334,9 +332,34 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       this->handle_datapoints_(buffer, len);
       // after updating everything we report the confirmation of sending them "to the cloud" - the device could stay a
-      // little longer, maybe postpone this?
-      this->send_command_(TuyaCommand{.cmd = command_type,
-                                      .payload = std::vector<uint8_t>{0x00}});  // 0x00 == report OK - 0x01 report FAIL
+      // little longer, postpone this
+      if (command_type == TuyaCommandType::DATAPOINT_REPORT_SYNC) {
+        this->set_retry(
+            "", 100, 3,
+            [this](const uint8_t remaining_attempts) {
+				if (remaining_attempts > 0) {
+					return RetryResult::RETRY;
+				}
+                this->send_command_(
+                TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_SYNC,
+                            .payload = std::vector<uint8_t>{0x00}});  // 0x00 == report OK - 0x01 report FAIL
+                return RetryResult::DONE;
+            },
+            1);
+      } else {
+        this->set_retry(
+            "", 100, 3,
+            [this](const uint8_t remaining_attempts) {
+				if (remaining_attempts > 0) {
+					return RetryResult::RETRY;
+				}
+                this->send_command_(
+                TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_ASYNC,
+                            .payload = std::vector<uint8_t>{0x00}});  // 0x00 == report OK - 0x01 report FAIL
+                return RetryResult::DONE;
+            },
+            1);
+      }
       break;
     case TuyaCommandType::DATAPOINT_DELIVER:
       break;
