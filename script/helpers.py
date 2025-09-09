@@ -52,10 +52,10 @@ def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
     return prefix + msg + suffix
 
 
-def print_error_for_file(file: str, body: str | None) -> None:
+def print_error_for_file(file: str | Path, body: str | None) -> None:
     print(
         styled(colorama.Fore.GREEN, "### File ")
-        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file)
+        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), str(file))
     )
     print()
     if body is not None:
