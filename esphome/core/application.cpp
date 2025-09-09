@@ -361,20 +361,19 @@ void Application::calculate_looping_components_() {
   // Add all components with loop override that aren't already LOOP_DONE
   // Some components (like logger) may call disable_loop() during initialization
   // before setup runs, so we need to respect their LOOP_DONE state
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
-      this->looping_components_.push_back(obj);
-    }
-  }
+  this->add_looping_components_by_state_(false);
 
   this->looping_components_active_end_ = this->looping_components_.size();
 
   // Then add any components that are already LOOP_DONE to the inactive section
   // This handles components that called disable_loop() during initialization
+  this->add_looping_components_by_state_(true);
+}
+
+void Application::add_looping_components_by_state_(bool match_loop_done) {
   for (auto *obj : this->components_) {
     if (obj->has_overridden_loop() &&
-        (obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
+        ((obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) == match_loop_done) {
       this->looping_components_.push_back(obj);
     }
   }
