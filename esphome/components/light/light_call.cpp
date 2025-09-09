@@ -11,19 +11,21 @@ static const char *const TAG = "light";
 
 // Helper functions to reduce code size for logging
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
-static void log_validation_warning(const char *name, const char *param_name, float val, float min, float max) {
-  ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, param_name, val, min, max);
+static void log_validation_warning(const char *name, const LogString *param_name, float val, float min, float max) {
+  ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), val, min, max);
 }
 
-static void log_feature_not_supported(const char *name, const char *feature) {
-  ESP_LOGW(TAG, "'%s': %s not supported", name, feature);
+static void log_feature_not_supported(const char *name, const LogString *feature) {
+  ESP_LOGW(TAG, "'%s': %s not supported", name, LOG_STR_ARG(feature));
 }
 
-static void log_color_mode_not_supported(const char *name, const char *feature) {
-  ESP_LOGW(TAG, "'%s': color mode does not support setting %s", name, feature);
+static void log_color_mode_not_supported(const char *name, const LogString *feature) {
+  ESP_LOGW(TAG, "'%s': color mode does not support setting %s", name, LOG_STR_ARG(feature));
 }
 
-static void log_invalid_parameter(const char *name, const char *message) { ESP_LOGW(TAG, "'%s': %s", name, message); }
+static void log_invalid_parameter(const char *name, const LogString *message) {
+  ESP_LOGW(TAG, "'%s': %s", name, LOG_STR_ARG(message));
+}
 #else
 #define log_validation_warning(name, param_name, val, min, max)
 #define log_feature_not_supported(name, feature)
@@ -201,19 +203,19 @@ LightColorValues LightCall::validate_() {
 
   // Brightness exists check
   if (this->has_brightness() && this->brightness_ > 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
-    log_feature_not_supported(name, "brightness");
+    log_feature_not_supported(name, LOG_STR("brightness"));
     this->set_flag_(FLAG_HAS_BRIGHTNESS, false);
   }
 
   // Transition length possible check
   if (this->has_transition_() && this->transition_length_ != 0 && !(color_mode & ColorCapability::BRIGHTNESS)) {
-    log_feature_not_supported(name, "transitions");
+    log_feature_not_supported(name, LOG_STR("transitions"));
     this->set_flag_(FLAG_HAS_TRANSITION, false);
   }
 
   // Color brightness exists check
   if (this->has_color_brightness() && this->color_brightness_ > 0.0f && !(color_mode & ColorCapability::RGB)) {
-    log_color_mode_not_supported(name, "RGB brightness");
+    log_color_mode_not_supported(name, LOG_STR("RGB brightness"));
     this->set_flag_(FLAG_HAS_COLOR_BRIGHTNESS, false);
   }
 
@@ -221,7 +223,7 @@ LightColorValues LightCall::validate_() {
   if ((this->has_red() && this->red_ > 0.0f) || (this->has_green() && this->green_ > 0.0f) ||
       (this->has_blue() && this->blue_ > 0.0f)) {
     if (!(color_mode & ColorCapability::RGB)) {
-      log_color_mode_not_supported(name, "RGB color");
+      log_color_mode_not_supported(name, LOG_STR("RGB color"));
       this->set_flag_(FLAG_HAS_RED, false);
       this->set_flag_(FLAG_HAS_GREEN, false);
       this->set_flag_(FLAG_HAS_BLUE, false);
@@ -231,21 +233,21 @@ LightColorValues LightCall::validate_() {
   // White value exists check
   if (this->has_white() && this->white_ > 0.0f &&
       !(color_mode & ColorCapability::WHITE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
-    log_color_mode_not_supported(name, "white value");
+    log_color_mode_not_supported(name, LOG_STR("white value"));
     this->set_flag_(FLAG_HAS_WHITE, false);
   }
 
   // Color temperature exists check
   if (this->has_color_temperature() &&
       !(color_mode & ColorCapability::COLOR_TEMPERATURE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
-    log_color_mode_not_supported(name, "color temperature");
+    log_color_mode_not_supported(name, LOG_STR("color temperature"));
     this->set_flag_(FLAG_HAS_COLOR_TEMPERATURE, false);
   }
 
   // Cold/warm white value exists check
   if ((this->has_cold_white() && this->cold_white_ > 0.0f) || (this->has_warm_white() && this->warm_white_ > 0.0f)) {
     if (!(color_mode & ColorCapability::COLD_WARM_WHITE)) {
-      log_color_mode_not_supported(name, "cold/warm white value");
+      log_color_mode_not_supported(name, LOG_STR("cold/warm white value"));
       this->set_flag_(FLAG_HAS_COLD_WHITE, false);
       this->set_flag_(FLAG_HAS_WARM_WHITE, false);
     }
@@ -255,7 +257,7 @@ LightColorValues LightCall::validate_() {
   if (this->has_##name_()) { \
     auto val = this->name_##_; \
     if (val < (min) || val > (max)) { \
-      log_validation_warning(name, LOG_STR_LITERAL(upper_name), val, (min), (max)); \
+      log_validation_warning(name, LOG_STR(upper_name), val, (min), (max)); \
       this->name_##_ = clamp(val, (min), (max)); \
     } \
   }
@@ -319,7 +321,7 @@ LightColorValues LightCall::validate_() {
 
   // Flash length check
   if (this->has_flash_() && this->flash_length_ == 0) {
-    log_invalid_parameter(name, "flash length must be greater than zero");
+    log_invalid_parameter(name, LOG_STR("flash length must be greater than zero"));
     this->set_flag_(FLAG_HAS_FLASH, false);
   }
 
@@ -338,13 +340,13 @@ LightColorValues LightCall::validate_() {
   }
 
   if (this->has_effect_() && (this->has_transition_() || this->has_flash_())) {
-    log_invalid_parameter(name, "effect cannot be used with transition/flash");
+    log_invalid_parameter(name, LOG_STR("effect cannot be used with transition/flash"));
     this->set_flag_(FLAG_HAS_TRANSITION, false);
     this->set_flag_(FLAG_HAS_FLASH, false);
   }
 
   if (this->has_flash_() && this->has_transition_()) {
-    log_invalid_parameter(name, "flash cannot be used with transition");
+    log_invalid_parameter(name, LOG_STR("flash cannot be used with transition"));
     this->set_flag_(FLAG_HAS_TRANSITION, false);
   }
 
@@ -361,7 +363,7 @@ LightColorValues LightCall::validate_() {
   }
 
   if (this->has_transition_() && !supports_transition) {
-    log_feature_not_supported(name, "transitions");
+    log_feature_not_supported(name, LOG_STR("transitions"));
     this->set_flag_(FLAG_HAS_TRANSITION, false);
   }
 
@@ -371,7 +373,7 @@ LightColorValues LightCall::validate_() {
   bool target_state = this->has_state() ? this->state_ : v.is_on();
   if (!this->has_flash_() && !target_state) {
     if (this->has_effect_()) {
-      log_invalid_parameter(name, "cannot start effect when turning off");
+      log_invalid_parameter(name, LOG_STR("cannot start effect when turning off"));
       this->set_flag_(FLAG_HAS_EFFECT, false);
     } else if (this->parent_->active_effect_index_ != 0 && explicit_turn_off_request) {
       // Auto turn off effect

@@ -12,6 +12,7 @@
 #include "light_transformer.h"
 
 #include <vector>
+#include <strings.h>
 
 namespace esphome {
 namespace light {
