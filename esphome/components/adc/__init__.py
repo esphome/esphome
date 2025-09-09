@@ -277,18 +277,6 @@ def validate_adc_pin(value):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        # Common source file - must be compiled for all platforms
-        "adc_sensor_common.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-            PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
-            PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
-            PlatformFramework.LN882X_ARDUINO,
-            PlatformFramework.NRF52_ZEPHYR,
-        },
-        # Platform-specific source files
         "adc_sensor_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
