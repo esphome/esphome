@@ -118,13 +118,13 @@ bool MagiQuestProtocol::checksum_is_valid_(uint32_t wand_id, uint32_t magnitude_
   // shift the wand_id for the checksum calculation.
   wand_id <<= 1;
   uint8_t *wand_id_bytes = reinterpret_cast<uint8_t *>(&wand_id);
-  for (uint8_t i = 0; i < sizeof(wand_id); i++) {
+  for (size_t i = 0; i < sizeof(wand_id); i++) {
     checksum += wand_id_bytes[i];
   }
 
   // magnitudeAndChecksum can be used directly.
   uint8_t *magnitude_and_checksum_bytes = reinterpret_cast<uint8_t *>(&magnitude_and_checksum);
-  for (uint8_t i = 0; i < sizeof(magnitude_and_checksum); i++) {
+  for (size_t i = 0; i < sizeof(magnitude_and_checksum); i++) {
     checksum += magnitude_and_checksum_bytes[i];
   }
 
