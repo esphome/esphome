@@ -8,33 +8,37 @@ static const char *const TAG = "as3935_i2c";
 
 void I2CAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_pos) {
   uint8_t write_reg;
-  if (!this->read_byte(reg, &write_reg)) {
-    this->mark_failed();
-    ESP_LOGW(TAG, "read_byte failed - increase log level for more details!");
-    return;
-  }
 
-  write_reg &= (~mask);
-  write_reg |= (bits << start_pos);
-
-  if (!this->write_byte(reg, write_reg)) {
-    ESP_LOGW(TAG, "write_byte failed - increase log level for more details!");
-    return;
-  }
+  if (reg != esphome::as3935::DEFAULT_RESET && reg != esphome::as3935::CALIB_RCO) {
+    if (!this->read_byte(reg, &write_reg)) {
+      this->mark_failed();
+      ESP_LOGW(TAG, "read_byte failed - increase log level for more details!");
+      return;
+    }
+    write_reg &= (~mask);
+    write_reg |= (bits << start_pos);
+    if (!this->write_byte(reg, write_reg)) {
+      ESP_LOGW(TAG, "write_byte failed - increase log level for more details!");
+      return;
+    }
+  } else {
+	  if (!this->write_byte(reg, bits)) {
+        ESP_LOGW(TAG, "write_byte failed - increase log level for more details!");
+        return; 
+      }
+    }
 }
 
 uint8_t I2CAS3935Component::read_register(uint8_t reg) {
-  uint8_t value;
-  if (write(&reg, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Writing register failed!");
+  uint8_t val = 0;
+  if (i2c::I2CDevice::read_register(reg, &val, 1) != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "I2C read_register failed (reg=0x%02X)", reg);
     return 0;
   }
-  if (read(&value, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Reading register failed!");
-    return 0;
-  }
-  return value;
+  ESP_LOGVV(TAG, "I2C READ reg=0x%02X -> 0x%02X", reg, val);
+  return val;
 }
+
 void I2CAS3935Component::dump_config() {
   AS3935Component::dump_config();
   LOG_I2C_DEVICE(this);
