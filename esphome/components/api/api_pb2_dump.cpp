@@ -1110,7 +1110,17 @@ void HomeAssistantStateResponse::dump_to(std::string &out) const {
 }
 #endif
 void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }
-void GetTimeResponse::dump_to(std::string &out) const { dump_field(out, "epoch_seconds", this->epoch_seconds); }
+void GetTimeResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "GetTimeResponse");
+  dump_field(out, "epoch_seconds", this->epoch_seconds);
+  out.append("  timezone: ");
+  if (!this->timezone_ref_.empty()) {
+    out.append("'").append(this->timezone_ref_.c_str()).append("'");
+  } else {
+    out.append("'").append(this->timezone).append("'");
+  }
+  out.append("\n");
+}
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
