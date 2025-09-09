@@ -43,14 +43,23 @@ bool MQTTBackendESP32::initialize_() {
   if (ca_certificate_.has_value()) {
     mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
     mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+    
+    if (this->transport_ == "ws") {
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+    } else {
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+    }
 
     if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
       mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
       mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
     }
   } else {
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+    if (this->transport_ == "ws") {
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+    } else {
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+    }
   }
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
