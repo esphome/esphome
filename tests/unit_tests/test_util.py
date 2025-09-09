@@ -137,9 +137,7 @@ def test_list_yaml_files_mixed_extensions(tmp_path: Path) -> None:
 
     result = util.list_yaml_files([str(dir1)])
 
-    expected = {
+    assert set(result) == {
         str(yaml_file),
         str(yml_file),
     }
-
-    assert set(result) == expected
