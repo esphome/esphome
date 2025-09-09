@@ -11,7 +11,7 @@ enum AS3935RegisterMasks { SPI_READ_M = 0x40 };
 
 class SPIAS3935Component : public as3935::AS3935Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
+                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_2MHZ> {
  public:
   void setup() override;
   void dump_config() override;

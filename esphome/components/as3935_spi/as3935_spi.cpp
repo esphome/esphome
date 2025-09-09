@@ -17,15 +17,20 @@ void SPIAS3935Component::dump_config() {
 }
 
 void SPIAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_pos) {
-  uint8_t write_reg = this->read_register(reg);
-
-  write_reg &= (~mask);
-  write_reg |= (bits << start_pos);
-
-  this->enable();
-  this->write_byte(reg);
-  this->write_byte(write_reg);
-  this->disable();
+  if (reg != esphome::as3935::DEFAULT_RESET && reg != esphome::as3935::CALIB_RCO) {
+    uint8_t write_reg = this->read_register(reg);
+    write_reg &= (~mask);
+    write_reg |= (bits << start_pos);
+    this->enable();
+    this->write_byte(reg);
+    this->write_byte(write_reg);
+    this->disable();
+  } else {
+	this->enable();
+    this->write_byte(reg);
+    this->write_byte(bits);
+    this->disable();  
+  }
 }
 
 uint8_t SPIAS3935Component::read_register(uint8_t reg) {
