@@ -110,14 +110,6 @@ HostUartComponent::~HostUartComponent() {
 
 void HostUartComponent::setup() {
   ESP_LOGCONFIG(TAG, "Opening UART port");
-
-  if (this->rx_pin_) {
-    this->rx_pin_->setup();
-  }
-  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-    this->tx_pin_->setup();
-  }
-
   speed_t baud = get_baud(this->baud_rate_);
   if (baud == B0) {
     ESP_LOGE(TAG, "Unsupported baud rate: %d", this->baud_rate_);
