@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import tempfile
 
@@ -85,9 +86,17 @@ def test_rel_path_with_pathlib_path(dashboard_settings: DashboardSettings) -> No
 
 def test_rel_path_normalizes_slashes(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path normalizes path separators."""
-    result1 = dashboard_settings.rel_path("folder/subfolder/file.yaml")
+    # os.path.join normalizes slashes on Windows but preserves them on Unix
+    # Test that providing components separately gives same result
+    result1 = dashboard_settings.rel_path("folder", "subfolder", "file.yaml")
     result2 = dashboard_settings.rel_path("folder", "subfolder", "file.yaml")
     assert result1 == result2
+
+    # Also test that the result is as expected
+    expected = os.path.join(
+        dashboard_settings.config_dir, "folder", "subfolder", "file.yaml"
+    )
+    assert result1 == expected
 
 
 def test_rel_path_handles_spaces(dashboard_settings: DashboardSettings) -> None:

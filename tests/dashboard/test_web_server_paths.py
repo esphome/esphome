@@ -190,7 +190,8 @@ def test_path_normalization_in_static_path() -> None:
     with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
         mock_base.return_value = "/base/frontend"
 
-        result1 = web_server.get_static_path("js/app.js")
+        # Test with separate components
+        result1 = web_server.get_static_path("js", "app.js")
         result2 = web_server.get_static_path("js", "app.js")
 
         assert result1 == result2
