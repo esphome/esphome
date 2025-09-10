@@ -239,8 +239,8 @@ to an external hardware real time clock chip.
 Components should trigger `on_time_sync` when they update the system clock. However, not all real time components
 behave exactly the same. Components could e.g. decide to trigger only when a significant time change has been
 observed, others could trigger whenever their time sync mechanism runs - even if that didn't effectively change
-the system time. Some (such as SNTP) could even trigger when another real time component is responsible for the
-change in time.
+the system time. Some (such as SNTP in some cases) could even trigger when another real time component is
+responsible for the change in time.
 
 {{< /note >}}
 

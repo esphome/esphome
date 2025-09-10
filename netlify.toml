@@ -110,6 +110,11 @@ status = 301
   to = "/components/sensor/combination.html"
   status = 301
 
+[[redirects]]
+  from = "/components/display/inkplate6*"
+  to = "/components/display/inkplate.html"
+  status = 301
+
 
 [[redirects]]
   from = "/guides/contributing*"
