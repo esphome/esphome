@@ -901,6 +901,16 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
   return true;
 }
 #endif
+bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2:
+      this->timezone = value.as_string();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1:
@@ -911,8 +921,14 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-void GetTimeResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->epoch_seconds); }
-void GetTimeResponse::calculate_size(ProtoSize &size) const { size.add_fixed32(1, this->epoch_seconds); }
+void GetTimeResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->epoch_seconds);
+  buffer.encode_string(2, this->timezone_ref_);
+}
+void GetTimeResponse::calculate_size(ProtoSize &size) const {
+  size.add_fixed32(1, this->epoch_seconds);
+  size.add_length(1, this->timezone_ref_.size());
+}
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);
