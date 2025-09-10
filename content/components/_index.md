@@ -323,7 +323,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "ATM90E32","components/sensor/atm90e32","atm90e32.jpg","Voltage & Current & Power"
 "BL0906","components/sensor/bl0906","bl0906.png","Voltage & Current & Power & Energy"
 "BL0939","components/sensor/bl0939","bl0939.png","Voltage & Current & Power & Energy"
-"BL0940","components/sensor/bl0940","bl0940.png","Voltage & Current & Power"
+"BL0940","components/sensor/bl0940","bl0940.png","Voltage & Current & Power & Energy"
 "BL0942","components/sensor/bl0942","bl0942.png","Voltage & Current & Power"
 "CS5460A","components/sensor/cs5460a","cs5460a.png","Voltage & Current & Power"
 "CSE7761","components/sensor/cse7761","cse7761.svg","Voltage & Current & Power"
