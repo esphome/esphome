@@ -1,0 +1,251 @@
+"""Tests for dashboard web_server Path-related functionality."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import tempfile
+from unittest.mock import MagicMock, patch
+
+from esphome.dashboard import web_server
+
+
+def test_get_base_frontend_path_production() -> None:
+    """Test get_base_frontend_path in production mode."""
+    # Mock the esphome_dashboard module
+    with patch.dict(os.environ, {}, clear=True):
+        # Mock the import and the where function
+        mock_module = MagicMock()
+        mock_module.where.return_value = "/usr/local/lib/esphome_dashboard"
+
+        with patch.dict("sys.modules", {"esphome_dashboard": mock_module}):
+            result = web_server.get_base_frontend_path()
+
+            assert result == "/usr/local/lib/esphome_dashboard"
+            mock_module.where.assert_called_once()
+
+
+def test_get_base_frontend_path_dev_mode() -> None:
+    """Test get_base_frontend_path in development mode."""
+    test_path = "/home/user/esphome/dashboard"
+
+    with patch.dict(os.environ, {"ESPHOME_DASHBOARD_DEV": test_path}):
+        result = web_server.get_base_frontend_path()
+
+        # The function uses os.path.abspath which doesn't resolve symlinks
+        # We need to match that behavior
+        expected = os.path.abspath(
+            str(Path.cwd() / (test_path + "/") / "esphome_dashboard")
+        )
+        assert result == expected
+
+
+def test_get_base_frontend_path_dev_mode_with_trailing_slash() -> None:
+    """Test get_base_frontend_path in dev mode with trailing slash."""
+    test_path = "/home/user/esphome/dashboard/"
+
+    with patch.dict(os.environ, {"ESPHOME_DASHBOARD_DEV": test_path}):
+        result = web_server.get_base_frontend_path()
+
+        # The function uses os.path.abspath which doesn't resolve symlinks
+        expected = os.path.abspath(str(Path.cwd() / test_path / "esphome_dashboard"))
+        assert result == expected
+
+
+def test_get_base_frontend_path_dev_mode_relative_path() -> None:
+    """Test get_base_frontend_path with relative dev path."""
+    test_path = "./dashboard"
+
+    with patch.dict(os.environ, {"ESPHOME_DASHBOARD_DEV": test_path}):
+        result = web_server.get_base_frontend_path()
+
+        # The function uses os.path.abspath which doesn't resolve symlinks
+        # We need to match that behavior
+        expected = os.path.abspath(
+            str(Path.cwd() / (test_path + "/") / "esphome_dashboard")
+        )
+        assert result == expected
+        # Result should be absolute
+        assert Path(result).is_absolute()
+
+
+def test_get_static_path_single_component() -> None:
+    """Test get_static_path with single path component."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = "/base/frontend"
+
+        result = web_server.get_static_path("file.js")
+
+        assert result == str(Path("/base/frontend") / "static" / "file.js")
+
+
+def test_get_static_path_multiple_components() -> None:
+    """Test get_static_path with multiple path components."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = "/base/frontend"
+
+        result = web_server.get_static_path("js", "esphome", "index.js")
+
+        assert result == str(
+            Path("/base/frontend") / "static" / "js" / "esphome" / "index.js"
+        )
+
+
+def test_get_static_path_empty_args() -> None:
+    """Test get_static_path with no arguments."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = "/base/frontend"
+
+        result = web_server.get_static_path()
+
+        assert result == str(Path("/base/frontend") / "static")
+
+
+def test_get_static_path_with_pathlib_path() -> None:
+    """Test get_static_path with Path objects."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = "/base/frontend"
+
+        path_obj = Path("js") / "app.js"
+        result = web_server.get_static_path(str(path_obj))
+
+        assert result == str(Path("/base/frontend") / "static" / "js" / "app.js")
+
+
+def test_get_static_file_url_production() -> None:
+    """Test get_static_file_url in production mode."""
+    with patch.dict(os.environ, {}, clear=True):
+        # Clear the cache before test
+        web_server.get_static_file_url.cache_clear()
+
+        # Mock the esphome_dashboard module to avoid ImportError
+        mock_module = MagicMock()
+        with (
+            patch.dict("sys.modules", {"esphome_dashboard": mock_module}),
+            patch("esphome.dashboard.web_server.get_static_path") as mock_get_path,
+        ):
+            mock_get_path.return_value = "/fake/path/js/app.js"
+
+            # Mock the open function at the module level to avoid file I/O
+            mock_file = MagicMock()
+            mock_file.read.return_value = b"test content"
+            mock_file.__enter__ = MagicMock(return_value=mock_file)
+            mock_file.__exit__ = MagicMock(return_value=None)
+
+            with patch(
+                "esphome.dashboard.web_server.open",
+                create=True,
+                return_value=mock_file,
+            ):
+                result = web_server.get_static_file_url("js/app.js")
+
+                # In production mode, should return path with hash
+                assert result.startswith("./static/js/app.js?hash=")
+
+
+def test_get_static_file_url_dev_mode() -> None:
+    """Test get_static_file_url in development mode."""
+    with patch.dict(os.environ, {"ESPHOME_DASHBOARD_DEV": "/dev/path"}):
+        # Clear the cache before test
+        web_server.get_static_file_url.cache_clear()
+
+        result = web_server.get_static_file_url("js/app.js")
+
+        assert result == "./static/js/app.js"
+
+
+def test_get_static_file_url_index_js_special_case() -> None:
+    """Test get_static_file_url replaces index.js with entrypoint."""
+    with patch.dict(os.environ, {}, clear=True):
+        # Mock the esphome_dashboard module to avoid ImportError
+        mock_module = MagicMock()
+        mock_module.entrypoint.return_value = "main.js"
+        with patch.dict("sys.modules", {"esphome_dashboard": mock_module}):
+            # Clear the cache before test
+            web_server.get_static_file_url.cache_clear()
+
+            result = web_server.get_static_file_url("js/esphome/index.js")
+
+            # index.js should be replaced with entrypoint
+            assert result == "./static/js/esphome/main.js"
+
+
+def test_load_file_path() -> None:
+    """Test loading a file."""
+    with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as tmp:
+        tmp.write(b"test content")
+        tmp.flush()
+
+        try:
+            with open(tmp.name, "rb") as f:
+                content = f.read()
+            assert content == b"test content"
+        finally:
+            Path(tmp.name).unlink()
+
+
+def test_load_file_compressed_path() -> None:
+    """Test loading a compressed file."""
+    with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt.gz", delete=False) as tmp:
+        import gzip
+
+        with gzip.open(tmp.name, "wb") as gz:
+            gz.write(b"compressed content")
+
+        try:
+            with gzip.open(tmp.name, "rb") as gz:
+                content = gz.read()
+            assert content == b"compressed content"
+        finally:
+            Path(tmp.name).unlink()
+
+
+def test_path_normalization_in_static_path() -> None:
+    """Test that paths are normalized correctly."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = "/base/frontend"
+
+        # Test with various path separators
+        result1 = web_server.get_static_path("js/app.js")
+        result2 = web_server.get_static_path("js", "app.js")
+
+        assert result1 == result2
+        assert result1 == str(Path("/base/frontend") / "static" / "js" / "app.js")
+
+
+def test_windows_path_handling() -> None:
+    """Test handling of Windows-style paths."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = r"C:\Program Files\esphome\frontend"
+
+        result = web_server.get_static_path("js", "app.js")
+
+        # Path should handle this correctly on the platform
+        expected = str(
+            Path(r"C:\Program Files\esphome\frontend") / "static" / "js" / "app.js"
+        )
+        assert result == expected
+
+
+def test_path_with_special_characters() -> None:
+    """Test paths with special characters."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = "/base/frontend"
+
+        result = web_server.get_static_path("js-modules", "app_v1.0.js")
+
+        assert result == str(
+            Path("/base/frontend") / "static" / "js-modules" / "app_v1.0.js"
+        )
+
+
+def test_path_with_spaces() -> None:
+    """Test paths with spaces."""
+    with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
+        mock_base.return_value = "/base/my frontend"
+
+        result = web_server.get_static_path("my js", "my app.js")
+
+        assert result == str(
+            Path("/base/my frontend") / "static" / "my js" / "my app.js"
+        )
