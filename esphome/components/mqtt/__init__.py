@@ -73,6 +73,7 @@ CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 CONF_TRANSPORT = "transport"
 
+
 def validate_message_just_topic(value):
     value = cv.publish_topic(value)
     return MQTT_MESSAGE_BASE({CONF_TOPIC: value})
@@ -209,6 +210,7 @@ def validate_fingerprint(value):
         raise cv.Invalid("fingerprint must be valid SHA1 hash")
     return value
 
+
 def validate_transport(value):
     v = value.lower()
     if v not in ("tcp", "ws"):
@@ -219,6 +221,7 @@ def validate_transport(value):
             raise cv.Invalid(f"Transport={v} requires ESP32 with ESP-IDF")
     return v
 
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -227,7 +230,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_TRANSPORT, default="tcp"): validate_transport,
-            
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
@@ -348,7 +350,7 @@ async def to_code(config):
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_transport(config[CONF_TRANSPORT]))
-    
+
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
