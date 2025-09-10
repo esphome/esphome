@@ -7,7 +7,7 @@
 
 # Core Code
 pyproject.toml @esphome/core
-esphome/*.py @esphome/coree
+esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 .github/** @esphome/core
 
