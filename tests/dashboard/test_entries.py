@@ -55,7 +55,8 @@ def test_dashboard_entry_path_initialization() -> None:
 
 def test_dashboard_entry_path_with_absolute_path() -> None:
     """Test DashboardEntry handles absolute paths."""
-    test_path = Path("/absolute/path/to/config.yaml")
+    # Use a truly absolute path for the platform
+    test_path = Path.cwd() / "absolute" / "path" / "to" / "config.yaml"
     cache_key = create_cache_key()
 
     entry = DashboardEntry(str(test_path), cache_key)

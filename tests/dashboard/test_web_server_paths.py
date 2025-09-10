@@ -74,7 +74,7 @@ def test_get_static_path_single_component() -> None:
 
         result = web_server.get_static_path("file.js")
 
-        assert result == str(Path("/base/frontend") / "static" / "file.js")
+        assert result == os.path.join("/base/frontend", "static", "file.js")
 
 
 def test_get_static_path_multiple_components() -> None:
@@ -84,8 +84,8 @@ def test_get_static_path_multiple_components() -> None:
 
         result = web_server.get_static_path("js", "esphome", "index.js")
 
-        assert result == str(
-            Path("/base/frontend") / "static" / "js" / "esphome" / "index.js"
+        assert result == os.path.join(
+            "/base/frontend", "static", "js", "esphome", "index.js"
         )
 
 
@@ -96,7 +96,7 @@ def test_get_static_path_empty_args() -> None:
 
         result = web_server.get_static_path()
 
-        assert result == str(Path("/base/frontend") / "static")
+        assert result == os.path.join("/base/frontend", "static")
 
 
 def test_get_static_path_with_pathlib_path() -> None:
@@ -107,7 +107,7 @@ def test_get_static_path_with_pathlib_path() -> None:
         path_obj = Path("js") / "app.js"
         result = web_server.get_static_path(str(path_obj))
 
-        assert result == str(Path("/base/frontend") / "static" / "js" / "app.js")
+        assert result == os.path.join("/base/frontend", "static", "js", "app.js")
 
 
 def test_get_static_file_url_production() -> None:
@@ -159,27 +159,30 @@ def test_load_file_path() -> None:
     with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as tmp:
         tmp.write(b"test content")
         tmp.flush()
+        tmp_name = tmp.name
 
-        try:
-            with open(tmp.name, "rb") as f:
-                content = f.read()
-            assert content == b"test content"
-        finally:
-            Path(tmp.name).unlink()
+    try:
+        with open(tmp_name, "rb") as f:
+            content = f.read()
+        assert content == b"test content"
+    finally:
+        Path(tmp_name).unlink()
 
 
 def test_load_file_compressed_path() -> None:
     """Test loading a compressed file."""
     with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt.gz", delete=False) as tmp:
-        with gzip.open(tmp.name, "wb") as gz:
-            gz.write(b"compressed content")
+        tmp_name = tmp.name
 
-        try:
-            with gzip.open(tmp.name, "rb") as gz:
-                content = gz.read()
-            assert content == b"compressed content"
-        finally:
-            Path(tmp.name).unlink()
+    with gzip.open(tmp_name, "wb") as gz:
+        gz.write(b"compressed content")
+
+    try:
+        with gzip.open(tmp_name, "rb") as gz:
+            content = gz.read()
+        assert content == b"compressed content"
+    finally:
+        Path(tmp_name).unlink()
 
 
 def test_path_normalization_in_static_path() -> None:
@@ -191,7 +194,7 @@ def test_path_normalization_in_static_path() -> None:
         result2 = web_server.get_static_path("js", "app.js")
 
         assert result1 == result2
-        assert result1 == str(Path("/base/frontend") / "static" / "js" / "app.js")
+        assert result1 == os.path.join("/base/frontend", "static", "js", "app.js")
 
 
 def test_windows_path_handling() -> None:
@@ -201,9 +204,9 @@ def test_windows_path_handling() -> None:
 
         result = web_server.get_static_path("js", "app.js")
 
-        # Path should handle this correctly on the platform
-        expected = str(
-            Path(r"C:\Program Files\esphome\frontend") / "static" / "js" / "app.js"
+        # os.path.join should handle this correctly on the platform
+        expected = os.path.join(
+            r"C:\Program Files\esphome\frontend", "static", "js", "app.js"
         )
         assert result == expected
 
@@ -215,8 +218,8 @@ def test_path_with_special_characters() -> None:
 
         result = web_server.get_static_path("js-modules", "app_v1.0.js")
 
-        assert result == str(
-            Path("/base/frontend") / "static" / "js-modules" / "app_v1.0.js"
+        assert result == os.path.join(
+            "/base/frontend", "static", "js-modules", "app_v1.0.js"
         )
 
 
@@ -227,6 +230,6 @@ def test_path_with_spaces() -> None:
 
         result = web_server.get_static_path("my js", "my app.js")
 
-        assert result == str(
-            Path("/base/my frontend") / "static" / "my js" / "my app.js"
+        assert result == os.path.join(
+            "/base/my frontend", "static", "my js", "my app.js"
         )
