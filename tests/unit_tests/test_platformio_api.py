@@ -21,12 +21,14 @@ def test_idedata_firmware_bin_path(setup_core: Path) -> None:
     """Test IDEData.firmware_bin_path returns Path with .bin extension."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
-    raw_data = {"prog_path": "/path/to/firmware.elf"}
+    prog_path = str(Path("/path/to/firmware.elf"))
+    raw_data = {"prog_path": prog_path}
     idedata = platformio_api.IDEData(raw_data)
 
     result = idedata.firmware_bin_path
     assert isinstance(result, str)
-    assert result == "/path/to/firmware.bin"
+    expected = str(Path("/path/to/firmware.bin"))
+    assert result == expected
     assert result.endswith(".bin")
 
 
@@ -34,11 +36,13 @@ def test_idedata_firmware_bin_path_preserves_directory(setup_core: Path) -> None
     """Test firmware_bin_path preserves the directory structure."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
-    raw_data = {"prog_path": "/complex/path/to/build/firmware.elf"}
+    prog_path = str(Path("/complex/path/to/build/firmware.elf"))
+    raw_data = {"prog_path": prog_path}
     idedata = platformio_api.IDEData(raw_data)
 
     result = idedata.firmware_bin_path
-    assert result == "/complex/path/to/build/firmware.bin"
+    expected = str(Path("/complex/path/to/build/firmware.bin"))
+    assert result == expected
 
 
 def test_idedata_extra_flash_images(setup_core: Path) -> None:
