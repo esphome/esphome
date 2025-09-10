@@ -98,9 +98,9 @@ def test_idedata_cc_path(setup_core: Path) -> None:
 
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
-    image = platformio_api.FlashImage(path="/path/to/image.bin", offset="0x10000")
+    image = platformio_api.FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
 
-    assert image.path == "/path/to/image.bin"
+    assert image.path == Path("/path/to/image.bin")
     assert image.offset == "0x10000"
 
 
