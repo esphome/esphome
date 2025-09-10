@@ -1,7 +1,7 @@
 """Tests for platformio_api.py path functions."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from esphome import platformio_api
 from esphome.core import CORE
@@ -104,13 +104,12 @@ def test_flash_image_dataclass() -> None:
     assert image.offset == "0x10000"
 
 
-@patch("esphome.platformio_api.Path")
-def test_load_idedata_checks_paths(
-    mock_path_class: MagicMock, setup_core: Path
-) -> None:
-    """Test _load_idedata checks platformio.ini and idedata paths."""
+def test_load_idedata_returns_dict(setup_core: Path) -> None:
+    """Test _load_idedata returns parsed idedata dict when successful."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
+
+    # Create required files
     platformio_ini = setup_core / "build" / "test" / "platformio.ini"
     platformio_ini.parent.mkdir(parents=True, exist_ok=True)
     platformio_ini.touch()
@@ -119,22 +118,12 @@ def test_load_idedata_checks_paths(
     idedata_path.parent.mkdir(parents=True, exist_ok=True)
     idedata_path.write_text('{"prog_path": "/test/firmware.elf"}')
 
-    real_path = Path
-    mock_path_instance = MagicMock()
-    mock_path_class.side_effect = lambda x: real_path(x) if x else mock_path_instance
-
     with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
         mock_run.return_value = '{"prog_path": "/test/firmware.elf"}'
 
         config = {"name": "test"}
-        with (
-            patch.object(
-                CORE, "relative_build_path", side_effect=CORE.relative_build_path
-            ),
-            patch.object(
-                CORE, "relative_internal_path", side_effect=CORE.relative_internal_path
-            ),
-        ):
-            result = platformio_api._load_idedata(config)
+        result = platformio_api._load_idedata(config)
 
     assert result is not None
+    assert isinstance(result, dict)
+    assert result["prog_path"] == "/test/firmware.elf"
