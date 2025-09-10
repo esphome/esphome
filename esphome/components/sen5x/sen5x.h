@@ -139,7 +139,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   ERRORCODE error_code_;
-  uint8_t serial_number_[4];
   bool initialized_{false};
   bool running_{false};
   std::string product_name_ = "Unknown";
