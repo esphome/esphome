@@ -97,7 +97,7 @@ static inline Sen5xType str_to_model(const std::string &product_name) {
     return UNKNOWN_MODEL;
   }
 }
-  
+
 static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   switch (mode) {
     case LOW_ACCELERATION:
