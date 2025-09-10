@@ -20,6 +20,10 @@ void ZWaveProxy::loop() {
   if (this->response_handler_()) {
     return;  // If a response was handled, exit early to avoid a CAN
   }
+  if (this->api_connection_ != nullptr && !this->api_connection_->is_connection_setup()) {
+    ESP_LOGW(TAG, "Subscriber disconnected");
+    this->api_connection_ = nullptr;  // Unsubscribe if disconnected
+  }
 
   while (this->available()) {
     uint8_t byte;
