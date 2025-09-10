@@ -3,30 +3,24 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from esphome import platformio_api
 from esphome.core import CORE
 
 
-@pytest.fixture
-def mock_core(tmp_path: Path) -> None:
-    """Set up mock CORE for tests."""
-    CORE.config_path = str(tmp_path / "test.yaml")
-    CORE.build_path = str(tmp_path / "build" / "test")
-    CORE.name = "test"
-
-
-def test_idedata_firmware_elf_path(mock_core: None) -> None:
+def test_idedata_firmware_elf_path(setup_core: Path) -> None:
     """Test IDEData.firmware_elf_path returns correct path."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
     raw_data = {"prog_path": "/path/to/firmware.elf"}
     idedata = platformio_api.IDEData(raw_data)
 
     assert idedata.firmware_elf_path == "/path/to/firmware.elf"
 
 
-def test_idedata_firmware_bin_path(mock_core: None) -> None:
+def test_idedata_firmware_bin_path(setup_core: Path) -> None:
     """Test IDEData.firmware_bin_path returns Path with .bin extension."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
     raw_data = {"prog_path": "/path/to/firmware.elf"}
     idedata = platformio_api.IDEData(raw_data)
 
@@ -36,8 +30,10 @@ def test_idedata_firmware_bin_path(mock_core: None) -> None:
     assert result.endswith(".bin")
 
 
-def test_idedata_firmware_bin_path_preserves_directory(mock_core: None) -> None:
+def test_idedata_firmware_bin_path_preserves_directory(setup_core: Path) -> None:
     """Test firmware_bin_path preserves the directory structure."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
     raw_data = {"prog_path": "/complex/path/to/build/firmware.elf"}
     idedata = platformio_api.IDEData(raw_data)
 
@@ -45,8 +41,10 @@ def test_idedata_firmware_bin_path_preserves_directory(mock_core: None) -> None:
     assert result == "/complex/path/to/build/firmware.bin"
 
 
-def test_idedata_extra_flash_images(mock_core: None) -> None:
+def test_idedata_extra_flash_images(setup_core: Path) -> None:
     """Test IDEData.extra_flash_images returns list of FlashImage objects."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
     raw_data = {
         "prog_path": "/path/to/firmware.elf",
         "extra": {
@@ -67,8 +65,10 @@ def test_idedata_extra_flash_images(mock_core: None) -> None:
     assert images[1].offset == "0x8000"
 
 
-def test_idedata_extra_flash_images_empty(mock_core: None) -> None:
+def test_idedata_extra_flash_images_empty(setup_core: Path) -> None:
     """Test extra_flash_images returns empty list when no extra images."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
     raw_data = {"prog_path": "/path/to/firmware.elf", "extra": {"flash_images": []}}
     idedata = platformio_api.IDEData(raw_data)
 
@@ -76,8 +76,10 @@ def test_idedata_extra_flash_images_empty(mock_core: None) -> None:
     assert images == []
 
 
-def test_idedata_cc_path(mock_core: None) -> None:
+def test_idedata_cc_path(setup_core: Path) -> None:
     """Test IDEData.cc_path returns compiler path."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
     raw_data = {
         "prog_path": "/path/to/firmware.elf",
         "cc_path": "/Users/test/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc",
@@ -100,15 +102,17 @@ def test_flash_image_dataclass() -> None:
 
 @patch("esphome.platformio_api.Path")
 def test_load_idedata_checks_paths(
-    mock_path_class: MagicMock, mock_core: None, tmp_path: Path
+    mock_path_class: MagicMock, setup_core: Path
 ) -> None:
     """Test _load_idedata checks platformio.ini and idedata paths."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
     # Create actual files
-    platformio_ini = tmp_path / "build" / "test" / "platformio.ini"
+    platformio_ini = setup_core / "build" / "test" / "platformio.ini"
     platformio_ini.parent.mkdir(parents=True, exist_ok=True)
     platformio_ini.touch()
 
-    idedata_path = tmp_path / ".esphome" / "idedata" / "test.json"
+    idedata_path = setup_core / ".esphome" / "idedata" / "test.json"
     idedata_path.parent.mkdir(parents=True, exist_ok=True)
     idedata_path.write_text('{"prog_path": "/test/firmware.elf"}')
 
