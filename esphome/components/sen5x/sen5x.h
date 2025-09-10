@@ -9,7 +9,7 @@
 namespace esphome {
 namespace sen5x {
 
-enum ERRORCODE {
+enum ERRORCODE : uint8_t {
   COMMUNICATION_FAILED,
   SERIAL_NUMBER_IDENTIFICATION_FAILED,
   MEASUREMENT_INIT_FAILED,
@@ -18,17 +18,6 @@ enum ERRORCODE {
   UNSUPPORTED_CONF,
   UNKNOWN
 };
-
-// Shortest time interval of 3H for storing baseline values.
-// Prevents wear of the flash because of too many write operations
-const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
-// Store anyway if the baseline difference exceeds the max storage diff value
-const uint32_t MAXIMUM_STORAGE_DIFF = 50;
-
-struct Sen5xBaselines {
-  int32_t state0;
-  int32_t state1;
-} PACKED;  // NOLINT
 
 enum Sen5xType { SEN50, SEN54, SEN55, SEN60, SEN63C, SEN65, SEN66, SEN68, UNKNOWN_MODEL };
 enum RhtAccelerationMode : uint16_t { LOW_ACCELERATION = 0, MEDIUM_ACCELERATION = 1, HIGH_ACCELERATION = 2 };
@@ -52,6 +41,11 @@ enum SetupStates {
   SM_DONE
 };
 
+struct Sen5xBaselines {
+  int32_t state0;
+  int32_t state1;
+} PACKED;  // NOLINT
+
 struct GasTuning {
   uint16_t index_offset;
   uint16_t learning_time_offset_hours;
@@ -66,6 +60,12 @@ struct TemperatureCompensation {
   int16_t normalized_offset_slope;
   uint16_t time_constant;
 };
+
+// Shortest time interval of 3H for storing baseline values.
+// Prevents wear of the flash because of too many write operations
+static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
+// Store anyway if the baseline difference exceeds the max storage diff value
+static const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 class SEN5XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
@@ -137,9 +137,19 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   bool update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
+
   ERRORCODE error_code_;
+  uint8_t serial_number_[4];
   bool initialized_{false};
   bool running_{false};
+  std::string product_name_ = "Unknown";
+  std::string serial_number_ = "Unknown";
+  uint8_t firmware_major_{0xFF};
+  uint8_t firmware_minor_{0xFF};
+  bool store_baseline_;
+  uint32_t seconds_since_last_store_;
+  uint16_t co2_ambient_pressure_{0};
+
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};
@@ -150,15 +160,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *hcho_sensor_{nullptr};
   sensor::Sensor *nox_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
+  sensor::Sensor *co2_ambient_pressure_source_{nullptr};
 
-  std::string product_name_ = "Unknown";
-  std::string serial_number_ = "Unknown";
-  uint8_t firmware_major_{0xFF};
-  uint8_t firmware_minor_{0xFF};
-  Sen5xBaselines voc_baselines_storage_;
-  bool store_baseline_;
-  uint32_t seconds_since_last_store_;
-  ESPPreferenceObject pref_;
   optional<Sen5xType> model_;
   optional<RhtAccelerationMode> acceleration_mode_;
   optional<uint32_t> auto_cleaning_interval_;
@@ -167,9 +170,10 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<TemperatureCompensation> temperature_compensation_;
   optional<bool> co2_auto_calibrate_;
   optional<uint16_t> co2_altitude_compensation_;
-  sensor::Sensor *co2_ambient_pressure_source_{nullptr};
 
-  uint16_t co2_ambient_pressure_{0};
+  
+  ESPPreferenceObject pref_;
+  Sen5xBaselines voc_baselines_storage_;
 };
 
 }  // namespace sen5x

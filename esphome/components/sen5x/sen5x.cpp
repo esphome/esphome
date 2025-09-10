@@ -97,6 +97,19 @@ static inline Sen5xType str_to_model(const std::string &product_name) {
     return UNKNOWN_MODEL;
   }
 }
+  
+static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
+  switch (mode) {
+    case LOW_ACCELERATION:
+      return LOG_STR("LOW");
+    case MEDIUM_ACCELERATION:
+      return LOG_STR("MEDIUM");
+    case HIGH_ACCELERATION:
+      return LOG_STR("HIGH");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
 
 static inline std::string convert_to_string(uint16_t array[], uint8_t length) {
   for (int i = 0; i < length; i++) {
@@ -234,7 +247,7 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
           ESP_LOGV(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
+                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
         }
 
         // Initialize storage timestamp
@@ -242,7 +255,7 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
 
         if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
           ESP_LOGV(TAG, "Restoring VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
+                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
           uint16_t states[4];
 
           states[0] = voc_baselines_storage_.state0 >> 16;
@@ -374,23 +387,24 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
 }
 
 void SEN5XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "sen5x:");
+  ESP_LOGCONFIG(TAG, "SEN5X:");
+  LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case MEASUREMENT_INIT_FAILED:
-        ESP_LOGE(TAG, "  Measurement Initialization failed");
+        ESP_LOGE(TAG, "  Measurement initialization failed");
         break;
       case SERIAL_NUMBER_IDENTIFICATION_FAILED:
-        ESP_LOGE(TAG, "  Unable to read sensor serial number");
+        ESP_LOGE(TAG, "  Unable to read serial number");
         break;
       case PRODUCT_NAME_FAILED:
         ESP_LOGE(TAG, "  Product name issue");
         break;
       case FIRMWARE_FAILED:
-        ESP_LOGE(TAG, "  Unable to read sensor firmware version");
+        ESP_LOGE(TAG, "  Unable to read firmware version");
         break;
       case UNSUPPORTED_CONF:
         ESP_LOGE(TAG, "  Unsupported configuration");
@@ -407,7 +421,7 @@ void SEN5XComponent::dump_config() {
                 "  Address: 0x%02X\n"
                 "  Update Interval: %ums\n"
                 "  Model: %s\n"
-                "  Product Name: %s\n"
+                "  Product name: %s\n"
                 "  Serial number: %s\n",
                 this->address_, this->update_interval_, model_to_str(this->model_.value()), this->product_name_.c_str(),
                 this->serial_number_.c_str());
@@ -418,20 +432,11 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Firmware version: %u", this->firmware_major_);
   }
   if (this->auto_cleaning_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Auto cleaning interval %" PRId32 " seconds", auto_cleaning_interval_.value());
+    ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
-    switch (this->acceleration_mode_.value()) {
-      case LOW_ACCELERATION:
-        ESP_LOGCONFIG(TAG, "  Low RH/T acceleration mode");
-        break;
-      case MEDIUM_ACCELERATION:
-        ESP_LOGCONFIG(TAG, "  Medium RH/T acceleration mode");
-        break;
-      case HIGH_ACCELERATION:
-        ESP_LOGCONFIG(TAG, "  High RH/T acceleration mode");
-        break;
-    }
+    ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
+                  LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
@@ -441,8 +446,6 @@ void SEN5XComponent::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);
   LOG_SENSOR("  ", "VOC", this->voc_sensor_);
-  if (this->voc_sensor_ != nullptr) {
-  }
   LOG_SENSOR("  ", "NOx", this->nox_sensor_);
   LOG_SENSOR("  ", "CO₂", this->co2_sensor_);
   if (this->co2_sensor_ != nullptr) {
@@ -482,8 +485,8 @@ void SEN5XComponent::update() {
             this->voc_baselines_storage_.state1 = state1;
 
             if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGV(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
-                       this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
+              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                       this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
             } else {
               ESP_LOGE(TAG, "Could not store VOC baselines");
             }
@@ -764,11 +767,11 @@ bool SEN5XComponent::is_sen6x_() {
 }
 
 bool SEN5XComponent::start_fan_cleaning() {
-  ESP_LOGD(TAG, "Fan Cleaning started");
+  ESP_LOGD(TAG, "Fan cleaning started");
   this->initialized_ = false;  // prevent update from trying to read the sensors
   // measurements must be stopped first for certain devices
   if (this->is_sen6x_() && !this->stop_measurements_()) {
-    ESP_LOGE(TAG, "Fan Cleaning failed");
+    ESP_LOGE(TAG, "Fan cleaning failed");
     this->initialized_ = true;
     return false;
   }
@@ -784,16 +787,16 @@ bool SEN5XComponent::start_fan_cleaning() {
       if (!this->running_) {
         this->start_measurements_();
         this->set_timeout(50, [this]() {
-          ESP_LOGE(TAG, "Fan Cleaning failed");
+          ESP_LOGE(TAG, "Fan cleaning failed");
           this->initialized_ = true;
         });
       }
     } else {
       this->set_timeout(10000, [this]() {
         if (!this->running_ && !this->start_measurements_()) {
-          ESP_LOGE(TAG, "Fan Cleaning failed");
+          ESP_LOGE(TAG, "Fan cleaning failed");
         } else {
-          ESP_LOGD(TAG, "Fan Cleaning complete");
+          ESP_LOGD(TAG, "Fan cleaning complete");
           this->initialized_ = true;
         }
         this->set_timeout(50, [this]() { this->initialized_ = true; });
@@ -806,11 +809,11 @@ bool SEN5XComponent::start_fan_cleaning() {
 bool SEN5XComponent::activate_heater() {
   if (this->model_.value() == SEN63C || this->model_.value() == SEN65 || this->model_.value() == SEN66 ||
       this->model_.value() == SEN68) {
-    ESP_LOGD(TAG, "Activate Heater started");
+    ESP_LOGD(TAG, "Activate heater started");
     this->initialized_ = false;  // prevent update from trying to read the sensors
     // measurements must be stopped first for certain devices
     if (this->is_sen6x_() && !this->stop_measurements_()) {
-      ESP_LOGE(TAG, "Activate Heater failed");
+      ESP_LOGE(TAG, "Activate heater failed");
       this->initialized_ = true;
       return false;
     }
@@ -824,9 +827,9 @@ bool SEN5XComponent::activate_heater() {
       } else {
         this->set_timeout(20000, [this]() {
           if (!this->running_ && !this->start_measurements_()) {
-            ESP_LOGE(TAG, "Activate Heater failed");
+            ESP_LOGE(TAG, "Activate heater failed");
           } else {
-            ESP_LOGD(TAG, "Activate Heater complete");
+            ESP_LOGD(TAG, "Activate heater complete");
             this->initialized_ = true;
           }
           this->set_timeout(50, [this]() { this->initialized_ = true; });
@@ -835,18 +838,18 @@ bool SEN5XComponent::activate_heater() {
     });
     return true;
   } else {
-    ESP_LOGE(TAG, "Activate Heater is not supported");
+    ESP_LOGE(TAG, "Activate heater is not supported");
     return false;
   }
 }
 
 bool SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
   if (this->model_.value() == SEN63C || this->model_.value() == SEN66) {
-    ESP_LOGD(TAG, "Perform Forced CO₂ Calibration started, target co2=%d", co2);
+    ESP_LOGD(TAG, "Perform forced CO₂ calibration started, target co2=%d", co2);
     this->initialized_ = false;  // prevent update from trying to read the sensors
     // measurements must be stopped first
     if (!this->stop_measurements_()) {
-      ESP_LOGE(TAG, "Perform Forced CO₂ Calibration failed");
+      ESP_LOGE(TAG, "Perform forced CO₂ calibration failed");
       this->initialized_ = true;
       return false;
     }
@@ -855,23 +858,23 @@ bool SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         if (!this->running_) {
           this->start_measurements_();
-          ESP_LOGE(TAG, "Perform Forced CO₂ Calibration failed");
+          ESP_LOGE(TAG, "Perform forced CO₂ calibration failed");
         }
       } else {
         this->set_timeout(500, [this]() {
           uint16_t correction = 0;
           if (!this->read_data(correction)) {
             this->start_measurements_();
-            ESP_LOGE(TAG, "Perform Forced CO₂ Calibration failed");
+            ESP_LOGE(TAG, "Perform forced CO₂ calibration failed");
           } else {
             if (correction == 0xFFFF) {
               this->start_measurements_();
-              ESP_LOGE(TAG, "Perform Forced CO₂ Calibration failed");
+              ESP_LOGE(TAG, "Perform forced CO₂ calibration failed");
             } else {
               if (!this->start_measurements_()) {
-                ESP_LOGE(TAG, "Perform Forced CO₂ Calibration failed");
+                ESP_LOGE(TAG, "Perform forced CO₂ calibration failed");
               } else {
-                ESP_LOGD(TAG, "Perform Forced CO₂ Calibration complete");
+                ESP_LOGD(TAG, "Perform forced CO₂ calibration complete");
               }
             }
           }
@@ -881,7 +884,7 @@ bool SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
     });
     return true;
   } else {
-    ESP_LOGE(TAG, "Perform Forced CO₂ Calibration is not supported");
+    ESP_LOGE(TAG, "Perform forced CO₂ calibration is not supported");
     return false;
   }
 }
