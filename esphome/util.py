@@ -275,6 +275,8 @@ def list_yaml_files(configs: list[str | Path]) -> list[str]:
     files: list[Path] = []
     for config in configs:
         config = Path(config)
+        if not config.exists():
+            raise FileNotFoundError(f"Config path '{config}' does not exist!")
         if config.is_file():
             files.append(config)
         else:
