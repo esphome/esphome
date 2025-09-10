@@ -11,18 +11,11 @@ from esphome.dashboard.settings import DashboardSettings
 
 
 @pytest.fixture
-def temp_config_dir() -> Path:
-    """Create a temporary config directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
-
-
-@pytest.fixture
-def dashboard_settings(temp_config_dir: Path) -> DashboardSettings:
+def dashboard_settings(tmp_path: Path) -> DashboardSettings:
     """Create DashboardSettings instance with temp directory."""
     settings = DashboardSettings()
     # Resolve symlinks to ensure paths match
-    resolved_dir = temp_config_dir.resolve()
+    resolved_dir = tmp_path.resolve()
     settings.config_dir = str(resolved_dir)
     settings.absolute_config_dir = resolved_dir
     return settings
@@ -59,10 +52,7 @@ def test_rel_path_absolute_path_within_config(
     """Test rel_path with absolute path that's within config dir."""
     internal_path = dashboard_settings.absolute_config_dir / "internal.yaml"
 
-    # Create the file so path resolution works
     internal_path.touch()
-
-    # This should work as the absolute path is within config_dir
     result = dashboard_settings.rel_path("internal.yaml")
     expected = str(Path(dashboard_settings.config_dir) / "internal.yaml")
     assert result == expected
@@ -95,13 +85,8 @@ def test_rel_path_with_pathlib_path(dashboard_settings: DashboardSettings) -> No
 
 def test_rel_path_normalizes_slashes(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path normalizes path separators."""
-    # Test with forward slashes
     result1 = dashboard_settings.rel_path("folder/subfolder/file.yaml")
-
-    # Test with backslashes (on Windows)
     result2 = dashboard_settings.rel_path("folder", "subfolder", "file.yaml")
-
-    # Both should produce the same normalized path
     assert result1 == result2
 
 
@@ -142,15 +127,10 @@ def test_absolute_config_dir_property(dashboard_settings: DashboardSettings) -> 
 
 def test_rel_path_symlink_inside_config(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path with symlink that points inside config dir."""
-    # Create a target file inside config dir
     target = dashboard_settings.absolute_config_dir / "target.yaml"
     target.touch()
-
-    # Create a symlink pointing to it
     symlink = dashboard_settings.absolute_config_dir / "link.yaml"
     symlink.symlink_to(target)
-
-    # This should work as the symlink target is within config_dir
     result = dashboard_settings.rel_path("link.yaml")
     expected = str(Path(dashboard_settings.config_dir) / "link.yaml")
     assert result == expected
@@ -159,18 +139,14 @@ def test_rel_path_symlink_inside_config(dashboard_settings: DashboardSettings) -
 def test_rel_path_symlink_outside_config(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path with symlink that points outside config dir."""
     with tempfile.NamedTemporaryFile(suffix=".yaml") as tmp:
-        # Create a symlink pointing outside config dir
         symlink = dashboard_settings.absolute_config_dir / "external_link.yaml"
         symlink.symlink_to(tmp.name)
-
-        # This should raise ValueError as the resolved path is outside config_dir
         with pytest.raises(ValueError):
             dashboard_settings.rel_path("external_link.yaml")
 
 
 def test_rel_path_with_none_arg(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path handles None arguments gracefully."""
-    # None should be converted to string "None"
     result = dashboard_settings.rel_path("None")
     expected = str(Path(dashboard_settings.config_dir) / "None")
     assert result == expected

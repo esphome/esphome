@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import os
 from pathlib import Path
 import tempfile
@@ -12,9 +13,7 @@ from esphome.dashboard import web_server
 
 def test_get_base_frontend_path_production() -> None:
     """Test get_base_frontend_path in production mode."""
-    # Mock the esphome_dashboard module
     with patch.dict(os.environ, {}, clear=True):
-        # Mock the import and the where function
         mock_module = MagicMock()
         mock_module.where.return_value = "/usr/local/lib/esphome_dashboard"
 
@@ -65,7 +64,6 @@ def test_get_base_frontend_path_dev_mode_relative_path() -> None:
             str(Path.cwd() / (test_path + "/") / "esphome_dashboard")
         )
         assert result == expected
-        # Result should be absolute
         assert Path(result).is_absolute()
 
 
@@ -115,18 +113,13 @@ def test_get_static_path_with_pathlib_path() -> None:
 def test_get_static_file_url_production() -> None:
     """Test get_static_file_url in production mode."""
     with patch.dict(os.environ, {}, clear=True):
-        # Clear the cache before test
         web_server.get_static_file_url.cache_clear()
-
-        # Mock the esphome_dashboard module to avoid ImportError
         mock_module = MagicMock()
         with (
             patch.dict("sys.modules", {"esphome_dashboard": mock_module}),
             patch("esphome.dashboard.web_server.get_static_path") as mock_get_path,
         ):
             mock_get_path.return_value = "/fake/path/js/app.js"
-
-            # Mock the open function at the module level to avoid file I/O
             mock_file = MagicMock()
             mock_file.read.return_value = b"test content"
             mock_file.__enter__ = MagicMock(return_value=mock_file)
@@ -138,17 +131,13 @@ def test_get_static_file_url_production() -> None:
                 return_value=mock_file,
             ):
                 result = web_server.get_static_file_url("js/app.js")
-
-                # In production mode, should return path with hash
                 assert result.startswith("./static/js/app.js?hash=")
 
 
 def test_get_static_file_url_dev_mode() -> None:
     """Test get_static_file_url in development mode."""
     with patch.dict(os.environ, {"ESPHOME_DASHBOARD_DEV": "/dev/path"}):
-        # Clear the cache before test
         web_server.get_static_file_url.cache_clear()
-
         result = web_server.get_static_file_url("js/app.js")
 
         assert result == "./static/js/app.js"
@@ -157,16 +146,11 @@ def test_get_static_file_url_dev_mode() -> None:
 def test_get_static_file_url_index_js_special_case() -> None:
     """Test get_static_file_url replaces index.js with entrypoint."""
     with patch.dict(os.environ, {}, clear=True):
-        # Mock the esphome_dashboard module to avoid ImportError
         mock_module = MagicMock()
         mock_module.entrypoint.return_value = "main.js"
         with patch.dict("sys.modules", {"esphome_dashboard": mock_module}):
-            # Clear the cache before test
             web_server.get_static_file_url.cache_clear()
-
             result = web_server.get_static_file_url("js/esphome/index.js")
-
-            # index.js should be replaced with entrypoint
             assert result == "./static/js/esphome/main.js"
 
 
@@ -187,8 +171,6 @@ def test_load_file_path() -> None:
 def test_load_file_compressed_path() -> None:
     """Test loading a compressed file."""
     with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt.gz", delete=False) as tmp:
-        import gzip
-
         with gzip.open(tmp.name, "wb") as gz:
             gz.write(b"compressed content")
 
@@ -205,7 +187,6 @@ def test_path_normalization_in_static_path() -> None:
     with patch("esphome.dashboard.web_server.get_base_frontend_path") as mock_base:
         mock_base.return_value = "/base/frontend"
 
-        # Test with various path separators
         result1 = web_server.get_static_path("js/app.js")
         result2 = web_server.get_static_path("js", "app.js")
 

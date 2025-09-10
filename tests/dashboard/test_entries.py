@@ -39,16 +39,13 @@ def mock_settings() -> MagicMock:
 @pytest_asyncio.fixture
 async def dashboard_entries(mock_settings: MagicMock) -> DashboardEntries:
     """Create a DashboardEntries instance for testing."""
-    # DashboardEntries needs a running event loop
     return DashboardEntries(mock_settings)
 
 
 def test_dashboard_entry_path_initialization() -> None:
     """Test DashboardEntry initializes with path correctly."""
     test_path = "/test/config/device.yaml"
-    cache_key = (
-        create_cache_key()
-    )  # DashboardCacheKeyType is tuple[int, int, float, int]
+    cache_key = create_cache_key()
 
     entry = DashboardEntry(test_path, cache_key)
 
@@ -86,7 +83,6 @@ async def test_dashboard_entries_get_by_path(
     test_path = "/test/config/device.yaml"
     entry = DashboardEntry(test_path, create_cache_key())
 
-    # Add entry to internal storage
     dashboard_entries._entries[test_path] = entry
 
     result = dashboard_entries.get(test_path)
@@ -112,7 +108,6 @@ async def test_dashboard_entries_path_normalization(
     entry = DashboardEntry(path1, create_cache_key())
     dashboard_entries._entries[path1] = entry
 
-    # Should get the same entry with normalized path
     result = dashboard_entries.get(path1)
     assert result == entry
 
@@ -165,21 +160,15 @@ async def test_dashboard_entries_path_to_cache_key_mapping(
     path2 = "/test/config/device2.yaml"
 
     entry1 = DashboardEntry(path1, create_cache_key())
-    entry2 = DashboardEntry(path2, (1, 1, 1.0, 1))  # Different cache key
+    entry2 = DashboardEntry(path2, (1, 1, 1.0, 1))
 
     dashboard_entries._entries[path1] = entry1
     dashboard_entries._entries[path2] = entry2
 
-    # Verify entries are stored correctly with their paths and cache keys
     assert path1 in dashboard_entries._entries
     assert path2 in dashboard_entries._entries
     assert dashboard_entries._entries[path1].cache_key == create_cache_key()
-    assert dashboard_entries._entries[path2].cache_key == (
-        1,
-        1,
-        1.0,
-        1,
-    )  # Different cache key
+    assert dashboard_entries._entries[path2].cache_key == (1, 1, 1.0, 1)
 
 
 def test_dashboard_entry_path_property() -> None:
@@ -188,7 +177,6 @@ def test_dashboard_entry_path_property() -> None:
     entry = DashboardEntry(test_path, create_cache_key())
 
     assert entry.path == test_path
-    # Verify path is stored as string
     assert isinstance(entry.path, str)
 
 
