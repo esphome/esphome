@@ -5,7 +5,6 @@ from __future__ import annotations
 import gzip
 import os
 from pathlib import Path
-import tempfile
 from unittest.mock import MagicMock, patch
 
 from esphome.dashboard import web_server
@@ -154,31 +153,26 @@ def test_get_static_file_url_index_js_special_case() -> None:
         assert result == "./static/js/esphome/main.js"
 
 
-def test_load_file_path() -> None:
+def test_load_file_path(tmp_path: Path) -> None:
     """Test loading a file."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_file = Path(tmpdir) / "test.txt"
-        test_file.write_bytes(b"test content")
+    test_file = tmp_path / "test.txt"
+    test_file.write_bytes(b"test content")
 
-        with open(test_file, "rb") as f:
-            content = f.read()
-        assert content == b"test content"
+    with open(test_file, "rb") as f:
+        content = f.read()
+    assert content == b"test content"
 
 
-def test_load_file_compressed_path() -> None:
+def test_load_file_compressed_path(tmp_path: Path) -> None:
     """Test loading a compressed file."""
-    with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt.gz", delete=False) as tmp:
-        tmp_name = tmp.name
+    test_file = tmp_path / "test.txt.gz"
 
-    with gzip.open(tmp_name, "wb") as gz:
+    with gzip.open(test_file, "wb") as gz:
         gz.write(b"compressed content")
 
-    try:
-        with gzip.open(tmp_name, "rb") as gz:
-            content = gz.read()
-        assert content == b"compressed content"
-    finally:
-        Path(tmp_name).unlink()
+    with gzip.open(test_file, "rb") as gz:
+        content = gz.read()
+    assert content == b"compressed content"
 
 
 def test_path_normalization_in_static_path() -> None:
