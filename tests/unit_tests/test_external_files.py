@@ -1,6 +1,5 @@
 """Tests for external_files.py functions."""
 
-import os
 from pathlib import Path
 import time
 from unittest.mock import MagicMock, patch
@@ -78,14 +77,11 @@ def test_is_file_recent_with_zero_refresh(setup_core: Path) -> None:
     test_file = setup_core / "test.txt"
     test_file.write_text("content")
 
-    old_time = time.time() - 10
-    os.utime(test_file, (old_time, old_time))
-
-    refresh = TimePeriod(seconds=0)
-
-    result = external_files.is_file_recent(str(test_file), refresh)
-
-    assert result is False
+    # Mock getctime to return a time 10 seconds ago
+    with patch("os.path.getctime", return_value=time.time() - 10):
+        refresh = TimePeriod(seconds=0)
+        result = external_files.is_file_recent(str(test_file), refresh)
+        assert result is False
 
 
 @patch("esphome.external_files.requests.head")
