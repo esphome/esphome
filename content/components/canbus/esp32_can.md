@@ -7,6 +7,8 @@ params:
     image: canbus.svg
 ---
 
+{{< anchor "esp32-can" >}}
+
 The ESP32 has an integrated CAN controller and therefore doesn't necessarily need an external controller.
 You only need to specify the RX and TX pins. Any GPIO will work.
 
