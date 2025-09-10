@@ -714,6 +714,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Vinicius Fortuna (@fortuna)](https://github.com/fortuna)
 - [SmartShackMaster (@fototakas)](https://github.com/fototakas)
 - [foxsam21 (@foxsam21)](https://github.com/foxsam21)
+- [Fabian Peter Hammerle (@fphammerle)](https://github.com/fphammerle)
 - [ESP32andmore (@fpovoski)](https://github.com/fpovoski)
 - [Fractal147 (@Fractal147)](https://github.com/Fractal147)
 - [Francis-labo (@Francis-labo)](https://github.com/Francis-labo)
@@ -1095,6 +1096,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Kenny Stier (@KennyStier)](https://github.com/KennyStier)
 - [Robert Kiss (@kepten)](https://github.com/kepten)
 - [kernelpanic85 (@kernelpanic85)](https://github.com/kernelpanic85)
+- [Keule0010 (@Keule0010)](https://github.com/Keule0010)
 - [kevdliu (@kevdliu)](https://github.com/kevdliu)
 - [Kevin O'Rourke (@kevinior)](https://github.com/kevinior)
 - [Kevin Reilly (@kevireilly)](https://github.com/kevireilly)
@@ -1311,6 +1313,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Max Bachmann (@maxbachmann)](https://github.com/maxbachmann)
 - [Maximilian Gerhardt (@maxgerhardt)](https://github.com/maxgerhardt)
 - [Maxime BORGES (@maximeborges)](https://github.com/maximeborges)
+- [Maxim Raznatovski (@maximmaxim345)](https://github.com/maximmaxim345)
 - [MiKo (@MB-00101110)](https://github.com/MB-00101110)
 - [Michael Banther (@mbanth)](https://github.com/mbanth)
 - [mbo18 (@mbo18)](https://github.com/mbo18)
@@ -1522,6 +1525,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Chris Nussbaum (@nuttytree)](https://github.com/nuttytree)
 - [Michał Sochoń (@nvtkaszpir)](https://github.com/nvtkaszpir)
 - [Nathaniel Wesley Filardo (@nwf)](https://github.com/nwf)
+- [NYZack (@NYZack)](https://github.com/NYZack)
 - [Olivier ARCHER (@oarcher)](https://github.com/oarcher)
 - [obrain17 (@obrain17)](https://github.com/obrain17)
 - [Ockert Marais (@OckertM)](https://github.com/OckertM)
@@ -2223,4 +2227,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated September 4, 2025.*
+*This page was last updated September 10, 2025.*
