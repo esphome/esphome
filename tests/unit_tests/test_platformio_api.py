@@ -107,7 +107,6 @@ def test_load_idedata_checks_paths(
     """Test _load_idedata checks platformio.ini and idedata paths."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
-    # Create actual files
     platformio_ini = setup_core / "build" / "test" / "platformio.ini"
     platformio_ini.parent.mkdir(parents=True, exist_ok=True)
     platformio_ini.touch()
@@ -116,7 +115,6 @@ def test_load_idedata_checks_paths(
     idedata_path.parent.mkdir(parents=True, exist_ok=True)
     idedata_path.write_text('{"prog_path": "/test/firmware.elf"}')
 
-    # Mock the Path class to track calls
     real_path = Path
     mock_path_instance = MagicMock()
     mock_path_class.side_effect = lambda x: real_path(x) if x else mock_path_instance
@@ -124,7 +122,6 @@ def test_load_idedata_checks_paths(
     with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
         mock_run.return_value = '{"prog_path": "/test/firmware.elf"}'
 
-        # This should use the paths
         config = {"name": "test"}
         with (
             patch.object(
