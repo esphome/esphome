@@ -8,6 +8,7 @@ import pytest
 from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
 from esphome.components.esp32.boards import ESP32_BOARD_PINS
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
+from esphome.components.ln882x.boards import LN882X_BOARD_PINS
 from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
 from esphome.core import CORE
 import esphome.wizard as wz
@@ -16,6 +17,7 @@ import esphome.wizard as wz
 @pytest.fixture
 def default_config():
     return {
+        "type": "basic",
         "name": "test-name",
         "platform": "ESP8266",
         "board": "esp01_1m",
@@ -124,6 +126,47 @@ def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
     assert "esp8266:" in generated_config
 
 
+def test_wizard_empty_config(tmp_path, monkeypatch):
+    """
+    The wizard should be able to create an empty configuration
+    """
+    # Given
+    empty_config = {
+        "type": "empty",
+        "name": "test-empty",
+    }
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+
+    # When
+    wz.wizard_write(tmp_path, **empty_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert generated_config == ""
+
+
+def test_wizard_upload_config(tmp_path, monkeypatch):
+    """
+    The wizard should be able to import an base64 encoded configuration
+    """
+    # Given
+    empty_config = {
+        "type": "upload",
+        "name": "test-upload",
+        "file_text": "# imported file 📁\n\n",
+    }
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+
+    # When
+    wz.wizard_write(tmp_path, **empty_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert generated_config == "# imported file 📁\n\n"
+
+
 def test_wizard_write_defaults_platform_from_board_esp8266(
     default_config, tmp_path, monkeypatch
 ):
@@ -185,6 +228,27 @@ def test_wizard_write_defaults_platform_from_board_bk72xx(
     # Then
     generated_config = wz.write_file.call_args.args[1]
     assert "bk72xx:" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_ln882x(
+    default_config, tmp_path, monkeypatch
+):
+    """
+    If the platform is not explicitly set, use "LN882X" if the board is one of LN882X boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*LN882X_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "ln882x:" in generated_config
 
 
 def test_wizard_write_defaults_platform_from_board_rtl87xx(
@@ -449,3 +513,22 @@ def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
 
     # Then
     assert retval == 0
+
+
+def test_wizard_write_protects_existing_config(tmpdir, default_config, monkeypatch):
+    """
+    The wizard_write function should not overwrite existing config files and return False
+    """
+    # Given
+    config_file = tmpdir.join("test.yaml")
+    original_content = "# Original config content\n"
+    config_file.write(original_content)
+
+    monkeypatch.setattr(CORE, "config_path", str(tmpdir))
+
+    # When
+    result = wz.wizard_write(str(config_file), **default_config)
+
+    # Then
+    assert result is False  # Should return False when file exists
+    assert config_file.read() == original_content

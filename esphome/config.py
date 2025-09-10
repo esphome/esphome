@@ -67,6 +67,42 @@ ConfigPath = list[str | int]
 path_context = contextvars.ContextVar("Config path")
 
 
+def _process_platform_config(
+    result: Config,
+    component_name: str,
+    platform_name: str,
+    platform_config: ConfigType,
+    path: ConfigPath,
+) -> None:
+    """Process a platform configuration and add necessary validation steps.
+
+    This is shared between LoadValidationStep and AutoLoadValidationStep to avoid duplication.
+    """
+    # Get the platform manifest
+    platform = get_platform(component_name, platform_name)
+    if platform is None:
+        result.add_str_error(
+            f"Platform not found: '{component_name}.{platform_name}'", path
+        )
+        return
+
+    # Add platform to loaded integrations
+    CORE.loaded_integrations.add(platform_name)
+    CORE.loaded_platforms.add(f"{component_name}/{platform_name}")
+
+    # Process platform's AUTO_LOAD
+    for load in platform.auto_load:
+        if load not in result:
+            result.add_validation_step(AutoLoadValidationStep(load))
+
+    # Add validation steps for the platform
+    p_domain = f"{component_name}.{platform_name}"
+    result.add_output_path(path, p_domain)
+    result.add_validation_step(
+        MetadataValidationStep(path, p_domain, platform_config, platform)
+    )
+
+
 def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
     if len(path) < len(other):
         return False
@@ -162,10 +198,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         self.output_paths.remove((path, domain))
 
     def is_in_error_path(self, path: ConfigPath) -> bool:
-        for err in self.errors:
-            if _path_begins_with(err.path, path):
-                return True
-        return False
+        return any(_path_begins_with(err.path, path) for err in self.errors)
 
     def set_by_path(self, path, value):
         conf = self
@@ -188,7 +221,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         for index, path_item in enumerate(path):
             try:
                 if path_item in data:
-                    key_data = [x for x in data.keys() if x == path_item][0]
+                    key_data = [x for x in data if x == path_item][0]
                     if isinstance(key_data, ESPHomeDataBase):
                         doc_range = key_data.esp_range
                         if get_key and index == len(path) - 1:
@@ -296,6 +329,28 @@ class ConfigValidationStep(abc.ABC):
     def run(self, result: Config) -> None: ...  # noqa: E704
 
 
+class LoadTargetPlatformValidationStep(ConfigValidationStep):
+    """Load target platform step."""
+
+    def __init__(self, domain: str, conf: ConfigType):
+        self.domain = domain
+        self.conf = conf
+
+    def run(self, result: Config) -> None:
+        if self.conf is None:
+            result[self.domain] = self.conf = {}
+        result.add_output_path([self.domain], self.domain)
+        component = get_component(self.domain)
+
+        result[self.domain] = self.conf
+        path = [self.domain]
+        CORE.loaded_integrations.add(self.domain)
+
+        result.add_validation_step(
+            SchemaValidationStep(self.domain, path, self.conf, component)
+        )
+
+
 class LoadValidationStep(ConfigValidationStep):
     """Load step, this step is called once for each domain config fragment.
 
@@ -379,26 +434,11 @@ class LoadValidationStep(ConfigValidationStep):
                     path,
                 )
                 continue
-            # Remove temp output path and construct new one
+            # Remove temp output path
             result.remove_output_path(path, p_domain)
-            p_domain = f"{self.domain}.{p_name}"
-            result.add_output_path(path, p_domain)
-            # Try Load platform
-            platform = get_platform(self.domain, p_name)
-            if platform is None:
-                result.add_str_error(f"Platform not found: '{p_domain}'", path)
-                continue
-            CORE.loaded_integrations.add(p_name)
-            CORE.loaded_platforms.add(f"{self.domain}/{p_name}")
 
-            # Process AUTO_LOAD
-            for load in platform.auto_load:
-                if load not in result:
-                    result.add_validation_step(AutoLoadValidationStep(load))
-
-            result.add_validation_step(
-                MetadataValidationStep(path, p_domain, p_config, platform)
-            )
+            # Process the platform configuration
+            _process_platform_config(result, self.domain, p_name, p_config, path)
 
 
 class AutoLoadValidationStep(ConfigValidationStep):
@@ -413,10 +453,56 @@ class AutoLoadValidationStep(ConfigValidationStep):
         self.domain = domain
 
     def run(self, result: Config) -> None:
-        if self.domain in result:
-            # already loaded
+        # Regular component auto-load (no platform)
+        if "." not in self.domain:
+            if self.domain in result:
+                # already loaded
+                return
+            result.add_validation_step(LoadValidationStep(self.domain, core.AutoLoad()))
             return
-        result.add_validation_step(LoadValidationStep(self.domain, core.AutoLoad()))
+
+        # Platform-specific auto-load (e.g., "ota.web_server")
+        component_name, _, platform_name = self.domain.partition(".")
+
+        # Check if component exists
+        if component_name not in result:
+            # Component doesn't exist, load it first
+            result.add_validation_step(LoadValidationStep(component_name, []))
+            # Re-run this step after the component is loaded
+            result.add_validation_step(AutoLoadValidationStep(self.domain))
+            return
+
+        # Component exists, check if it's a platform component
+        component = get_component(component_name)
+        if component is None or not component.is_platform_component:
+            result.add_str_error(
+                f"Component {component_name} is not a platform component, "
+                f"cannot auto-load platform {platform_name}",
+                [component_name],
+            )
+            return
+
+        # Ensure the component config is a list
+        component_conf = result.get(component_name)
+        if not isinstance(component_conf, list):
+            component_conf = result[component_name] = []
+
+        # Check if platform already exists
+        if any(
+            isinstance(conf, dict) and conf.get(CONF_PLATFORM) == platform_name
+            for conf in component_conf
+        ):
+            return
+
+        # Add and process the platform configuration
+        platform_conf = core.AutoLoad()
+        platform_conf[CONF_PLATFORM] = platform_name
+        component_conf.append(platform_conf)
+
+        path = [component_name, len(component_conf) - 1]
+        _process_platform_config(
+            result, component_name, platform_name, platform_conf, path
+        )
 
 
 class MetadataValidationStep(ConfigValidationStep):
@@ -518,16 +604,18 @@ class MetadataValidationStep(ConfigValidationStep):
                 )
                 return
             for i, part_conf in enumerate(self.conf):
+                path = self.path + [i]
                 result.add_validation_step(
-                    SchemaValidationStep(
-                        self.domain, self.path + [i], part_conf, self.comp
-                    )
+                    SchemaValidationStep(self.domain, path, part_conf, self.comp)
                 )
+                result.add_validation_step(FinalValidateValidationStep(path, self.comp))
+
             return
 
         result.add_validation_step(
             SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
         )
+        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
 class SchemaValidationStep(ConfigValidationStep):
@@ -539,13 +627,15 @@ class SchemaValidationStep(ConfigValidationStep):
     def __init__(
         self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest
     ):
+        self.domain = domain
         self.path = path
         self.conf = conf
         self.comp = comp
 
     def run(self, result: Config) -> None:
         token = path_context.set(self.path)
-        with result.catch_error(self.path):
+        # The domain already contains the full component path (e.g., "sensor.template", "sensor.uptime")
+        with CORE.component_context(self.domain), result.catch_error(self.path):
             if self.comp.is_platform:
                 # Remove 'platform' key for validation
                 input_conf = OrderedDict(self.conf)
@@ -564,7 +654,6 @@ class SchemaValidationStep(ConfigValidationStep):
                 result.set_by_path(self.path, validated)
 
         path_context.reset(token)
-        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
 class IDPassValidationStep(ConfigValidationStep):
@@ -789,7 +878,6 @@ def validate_config(
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
         try:
             substitutions.do_substitution_pass(config, command_line_substitutions)
-            substitutions.do_substitution_pass(config, command_line_substitutions)
         except vol.Invalid as err:
             result.add_error(err)
             return result
@@ -846,13 +934,16 @@ def validate_config(
 
     # First run platform validation steps
     result.add_validation_step(
-        LoadValidationStep(target_platform, config[target_platform])
+        LoadTargetPlatformValidationStep(target_platform, config[target_platform])
     )
     result.run_validation_steps()
 
     if result.errors:
         # do not try to validate further as we don't know what the target is
         return result
+
+    # Reset the pin registry so that any target platforms with pin validations do not get the duplicate pin warning.
+    pins.PIN_SCHEMA_REGISTRY.reset()
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
@@ -1015,7 +1106,7 @@ def dump_dict(
             ret += "{}"
             multiline = False
 
-        for k in conf.keys():
+        for k in conf:
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
@@ -1031,10 +1122,7 @@ def dump_dict(
                 msg = f"\n{indent(msg)}"
 
             if inf is not None:
-                if m:
-                    msg = f" {inf}{msg}"
-                else:
-                    msg = f"{msg} {inf}"
+                msg = f" {inf}{msg}" if m else f"{msg} {inf}"
             ret += f"{st + msg}\n"
     elif isinstance(conf, str):
         if is_secret(conf):

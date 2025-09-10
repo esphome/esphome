@@ -18,8 +18,6 @@ void SHT4XComponent::start_heater_() {
 }
 
 void SHT4XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->mark_failed();
@@ -67,7 +65,7 @@ void SHT4XComponent::update() {
   // Send command
   if (!this->write_command(MEASURECOMMANDS[this->precision_])) {
     // Warning will be printed only if warning status is not set yet
-    this->status_set_warning("Failed to send measurement command");
+    this->status_set_warning(LOG_STR("Failed to send measurement command"));
     return;
   }
 

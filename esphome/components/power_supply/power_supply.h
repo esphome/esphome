@@ -36,10 +36,10 @@ class PowerSupply : public Component {
 
  protected:
   GPIOPin *pin_;
-  bool enable_on_boot_{false};
   uint32_t enable_time_;
   uint32_t keep_on_time_;
   int16_t active_requests_{0};  // use signed integer to make catching negative requests easier.
+  bool enable_on_boot_{false};
 };
 
 class PowerSupplyRequester {

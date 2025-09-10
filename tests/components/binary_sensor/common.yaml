@@ -4,6 +4,31 @@ binary_sensor:
     id: some_binary_sensor
     name: "Random binary"
     lambda: return (random_uint32() & 1) == 0;
+    filters:
+      - invert:
+      - delayed_on: 100ms
+      - delayed_off: 100ms
+      # Templated, delays for 1s (1000ms) only if a reed switch is active
+      - delayed_on_off: !lambda "return 1000;"
+      - delayed_on_off:
+          time_on: 10s
+          time_off: !lambda "return 1000;"
+      - autorepeat:
+          - delay: 1s
+            time_off: 100ms
+            time_on: 900ms
+          - delay: 5s
+            time_off: 100ms
+            time_on: 400ms
+      - lambda: |-
+          if (id(some_binary_sensor).state) {
+            return x;
+          } else {
+            return {};
+          }
+      - settle: 100ms
+      - timeout: 10s
+
     on_state_change:
       then:
         - logger.log:
