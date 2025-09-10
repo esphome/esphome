@@ -12,7 +12,6 @@ from esphome.core import CORE
 @pytest.fixture
 def mock_core(tmp_path: Path) -> None:
     """Set up mock CORE for tests."""
-    CORE.reset()
     CORE.config_path = str(tmp_path / "test.yaml")
     CORE.build_path = str(tmp_path / "build" / "test")
     CORE.name = "test"

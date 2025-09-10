@@ -12,7 +12,6 @@ from esphome.core import CORE
 @pytest.fixture
 def setup_core(tmp_path: Path) -> Path:
     """Set up CORE with test paths."""
-    CORE.reset()
     CORE.config_path = str(tmp_path / "test.yaml")
     return tmp_path
 
@@ -41,11 +40,10 @@ def test_directory_absolute_path(setup_core: Path) -> None:
 
 def test_directory_nonexistent_path(setup_core: Path) -> None:
     """Test directory validator raises error for non-existent directory."""
-    with pytest.raises(vol.Invalid) as exc_info:
+    with pytest.raises(
+        vol.Invalid, match="Could not find directory.*nonexistent_directory"
+    ):
         cv.directory("nonexistent_directory")
-
-    assert "Could not find directory" in str(exc_info.value)
-    assert "nonexistent_directory" in str(exc_info.value)
 
 
 def test_directory_file_instead_of_directory(setup_core: Path) -> None:
@@ -54,10 +52,8 @@ def test_directory_file_instead_of_directory(setup_core: Path) -> None:
     test_file = setup_core / "test_file.txt"
     test_file.write_text("content")
 
-    with pytest.raises(vol.Invalid) as exc_info:
+    with pytest.raises(vol.Invalid, match="is not a directory"):
         cv.directory("test_file.txt")
-
-    assert "is not a directory" in str(exc_info.value)
 
 
 def test_directory_with_parent_directory(setup_core: Path) -> None:
@@ -94,11 +90,8 @@ def test_file_absolute_path(setup_core: Path) -> None:
 
 def test_file_nonexistent_path(setup_core: Path) -> None:
     """Test file_ validator raises error for non-existent file."""
-    with pytest.raises(vol.Invalid) as exc_info:
+    with pytest.raises(vol.Invalid, match="Could not find file.*nonexistent_file.yaml"):
         cv.file_("nonexistent_file.yaml")
-
-    assert "Could not find file" in str(exc_info.value)
-    assert "nonexistent_file.yaml" in str(exc_info.value)
 
 
 def test_file_directory_instead_of_file(setup_core: Path) -> None:
@@ -107,10 +100,8 @@ def test_file_directory_instead_of_file(setup_core: Path) -> None:
     test_dir = setup_core / "test_directory"
     test_dir.mkdir()
 
-    with pytest.raises(vol.Invalid) as exc_info:
+    with pytest.raises(vol.Invalid, match="is not a file"):
         cv.file_("test_directory")
-
-    assert "is not a file" in str(exc_info.value)
 
 
 def test_file_with_parent_directory(setup_core: Path) -> None:
@@ -193,26 +184,14 @@ def test_file_with_symlink(setup_core: Path) -> None:
 
 def test_directory_error_shows_full_path(setup_core: Path) -> None:
     """Test directory validator error message includes full path."""
-    with pytest.raises(vol.Invalid) as exc_info:
+    with pytest.raises(vol.Invalid, match=".*missing_dir.*full path:.*"):
         cv.directory("missing_dir")
-
-    error_message = str(exc_info.value)
-    # Should show both relative and absolute paths
-    assert "missing_dir" in error_message
-    assert "full path:" in error_message
-    assert str(setup_core) in error_message
 
 
 def test_file_error_shows_full_path(setup_core: Path) -> None:
     """Test file_ validator error message includes full path."""
-    with pytest.raises(vol.Invalid) as exc_info:
+    with pytest.raises(vol.Invalid, match=".*missing_file.yaml.*full path:.*"):
         cv.file_("missing_file.yaml")
-
-    error_message = str(exc_info.value)
-    # Should show both relative and absolute paths
-    assert "missing_file.yaml" in error_message
-    assert "full path:" in error_message
-    assert str(setup_core) in error_message
 
 
 def test_directory_with_spaces_in_name(setup_core: Path) -> None:

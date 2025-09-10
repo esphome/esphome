@@ -13,7 +13,6 @@ from esphome.core import CORE
 @pytest.fixture
 def setup_core(tmp_path: Path) -> Path:
     """Set up CORE with test paths."""
-    CORE.reset()
     CORE.config_path = str(tmp_path / "test.yaml")
     return tmp_path
 
@@ -183,7 +182,6 @@ def test_storage_paths_with_ha_addon(mock_is_ha_addon: bool, tmp_path: Path) -> 
     """Test storage paths when running as Home Assistant addon."""
     mock_is_ha_addon.return_value = True
 
-    CORE.reset()
     CORE.config_path = str(tmp_path / "test.yaml")
 
     # When running as HA addon, data_dir should be /data

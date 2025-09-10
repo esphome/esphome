@@ -8,13 +8,13 @@ import pytest
 import requests
 
 from esphome import external_files
+from esphome.config_validation import Invalid
 from esphome.core import CORE, TimePeriod
 
 
 @pytest.fixture
 def setup_core(tmp_path: Path) -> Path:
     """Set up CORE with test paths."""
-    CORE.reset()
     CORE.config_path = str(tmp_path / "test.yaml")
     return tmp_path
 
@@ -162,14 +162,8 @@ def test_has_remote_file_changed_network_error(
 
     url = "https://example.com/file.txt"
 
-    # Should raise a validation error
-    from esphome.config_validation import Invalid
-
-    with pytest.raises(Invalid) as exc_info:
+    with pytest.raises(Invalid, match="Could not check if.*Network error"):
         external_files.has_remote_file_changed(url, str(test_file))
-
-    assert "Could not check if" in str(exc_info.value)
-    assert "Network error" in str(exc_info.value)
 
 
 @patch("esphome.external_files.requests.head")
