@@ -216,9 +216,8 @@ def validate_transport(value):
     if v not in ("tcp", "ws"):
         raise cv.Invalid("Transport must be one of: tcp, ws")
 
-    if v in ("ws"):
-        if not (CORE.is_esp32 and CORE.using_esp_idf):
-            raise cv.Invalid(f"Transport={v} requires ESP32 with ESP-IDF")
+    if v in ("ws") and not (CORE.is_esp32 and CORE.using_esp_idf):
+        raise cv.Invalid(f"Transport={v} requires ESP32 with ESP-IDF")
     return v
 
 
