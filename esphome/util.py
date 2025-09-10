@@ -271,17 +271,16 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(folders: list[str | Path]) -> list[Path]:
-    files = filter_yaml_files(
-        [
-            Path(folder) / p
-            for folder in folders
-            for p in Path(folder).rglob("*")
-            if p.is_file()
-        ]
-    )
-    files.sort()
-    return files
+def list_yaml_files(configs: list[str | Path]) -> list[str]:
+    files: list[Path] = []
+    for config in configs:
+        config = Path(config)
+        if config.is_file():
+            files.append(config)
+        else:
+            files.extend(config.glob("**/*"))
+    files = filter_yaml_files(files)
+    return sorted(files)
 
 
 def filter_yaml_files(files: list[Path]) -> list[Path]:

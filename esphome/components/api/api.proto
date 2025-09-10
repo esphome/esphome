@@ -818,6 +818,7 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
+  string timezone = 2;
 }
 
 // ==================== USER-DEFINES SERVICES ====================
