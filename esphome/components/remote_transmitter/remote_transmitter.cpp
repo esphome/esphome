@@ -39,10 +39,8 @@ void RemoteTransmitterComponent::await_target_time_() {
   const uint32_t current_time = micros();
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
-  } else {
-    while ((int32_t) (this->target_time_ - micros()) > 0) {
-      // busy loop that ensures micros is constantly called
-    }
+  } else if ((int32_t) (this->target_time_ - current_time) > 0) {
+    delayMicroseconds(this->target_time_ - current_time);
   }
 }
 
