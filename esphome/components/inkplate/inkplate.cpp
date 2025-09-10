@@ -586,7 +586,7 @@ void Inkplate::display3b_() {
         GPIO.out_w1tc = data_mask | clock;
       }
       // New Inkplate6 panel doesn't need last clock
-      if (this->model_ == INKPLATE_6) {
+      if (this->model_ != INKPLATE_6_V2) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = data_mask | clock;
       }
