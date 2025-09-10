@@ -33,8 +33,10 @@ def test_get_base_frontend_path_dev_mode() -> None:
 
         # The function uses os.path.abspath which doesn't resolve symlinks
         # We need to match that behavior
+        # The actual function adds "/" to the path, so we simulate that
+        test_path_with_slash = test_path if test_path.endswith("/") else test_path + "/"
         expected = os.path.abspath(
-            str(Path.cwd() / (test_path + "/") / "esphome_dashboard")
+            os.path.join(os.getcwd(), test_path_with_slash, "esphome_dashboard")
         )
         assert result == expected
 
@@ -60,8 +62,10 @@ def test_get_base_frontend_path_dev_mode_relative_path() -> None:
 
         # The function uses os.path.abspath which doesn't resolve symlinks
         # We need to match that behavior
+        # The actual function adds "/" to the path, so we simulate that
+        test_path_with_slash = test_path if test_path.endswith("/") else test_path + "/"
         expected = os.path.abspath(
-            str(Path.cwd() / (test_path + "/") / "esphome_dashboard")
+            os.path.join(os.getcwd(), test_path_with_slash, "esphome_dashboard")
         )
         assert result == expected
         assert Path(result).is_absolute()
