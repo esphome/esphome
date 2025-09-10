@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_FAN_WITH_COOLING,
     CONF_FAN_WITH_HEATING,
     CONF_HEAT_ACTION,
+    CONF_HEAT_COOL_MODE,
     CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
@@ -150,7 +151,7 @@ def generate_comparable_preset(config, name):
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
-        CONF_AUTO_MODE: [
+        CONF_HEAT_COOL_MODE: [
             CONF_COOL_ACTION,
             CONF_HEAT_ACTION,
             CONF_MIN_COOLING_OFF_TIME,
@@ -540,6 +541,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAN_ONLY_MODE): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_HEAT_COOL_MODE): automation.validate_automation(
+                single=True
+            ),
             cv.Optional(CONF_HEAT_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_OFF_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_MODE_ON_ACTION): automation.validate_automation(
@@ -644,7 +648,6 @@ async def to_code(config):
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 
-    heat_cool_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
     two_points_available = CONF_HEAT_ACTION in config and (
         CONF_COOL_ACTION in config
         or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
@@ -739,11 +742,6 @@ async def to_code(config):
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
     )
 
-    if heat_cool_mode_available is True:
-        cg.add(var.set_supports_heat_cool(True))
-    else:
-        cg.add(var.set_supports_heat_cool(False))
-
     if CONF_COOL_ACTION in config:
         await automation.build_automation(
             var.get_cool_action_trigger(), [], config[CONF_COOL_ACTION]
@@ -780,6 +778,7 @@ async def to_code(config):
         await automation.build_automation(
             var.get_auto_mode_trigger(), [], config[CONF_AUTO_MODE]
         )
+        cg.add(var.set_supports_auto(True))
     if CONF_COOL_MODE in config:
         await automation.build_automation(
             var.get_cool_mode_trigger(), [], config[CONF_COOL_MODE]
@@ -800,6 +799,11 @@ async def to_code(config):
             var.get_heat_mode_trigger(), [], config[CONF_HEAT_MODE]
         )
         cg.add(var.set_supports_heat(True))
+    if CONF_HEAT_COOL_MODE in config:
+        await automation.build_automation(
+            var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
+        )
+        cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(
             var.get_off_mode_trigger(), [], config[CONF_OFF_MODE]
