@@ -1,6 +1,5 @@
 """Tests for storage_json.py path functions."""
 
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,8 +13,8 @@ def test_storage_path(setup_core: Path) -> None:
 
     result = storage_json.storage_path()
 
-    data_dir = CORE.data_dir
-    expected = os.path.join(data_dir, "storage", "my_device.yaml.json")
+    data_dir = Path(CORE.data_dir)
+    expected = str(data_dir / "storage" / "my_device.yaml.json")
     assert result == expected
 
 
@@ -23,8 +22,8 @@ def test_ext_storage_path(setup_core: Path) -> None:
     """Test ext_storage_path returns correct path for given filename."""
     result = storage_json.ext_storage_path("other_device.yaml")
 
-    data_dir = CORE.data_dir
-    expected = os.path.join(data_dir, "storage", "other_device.yaml.json")
+    data_dir = Path(CORE.data_dir)
+    expected = str(data_dir / "storage" / "other_device.yaml.json")
     assert result == expected
 
 
@@ -47,8 +46,8 @@ def test_esphome_storage_path(setup_core: Path) -> None:
     """Test esphome_storage_path returns correct path."""
     result = storage_json.esphome_storage_path()
 
-    data_dir = CORE.data_dir
-    expected = os.path.join(data_dir, "esphome.json")
+    data_dir = Path(CORE.data_dir)
+    expected = str(data_dir / "esphome.json")
     assert result == expected
 
 
@@ -56,8 +55,8 @@ def test_ignored_devices_storage_path(setup_core: Path) -> None:
     """Test ignored_devices_storage_path returns correct path."""
     result = storage_json.ignored_devices_storage_path()
 
-    data_dir = CORE.data_dir
-    expected = os.path.join(data_dir, "ignored-devices.json")
+    data_dir = Path(CORE.data_dir)
+    expected = str(data_dir / "ignored-devices.json")
     assert result == expected
 
 
@@ -68,7 +67,7 @@ def test_trash_storage_path(setup_core: Path) -> None:
     result = storage_json.trash_storage_path()
 
     # Should be relative to config directory
-    expected = os.path.join(setup_core, "configs", "trash")
+    expected = str(setup_core / "configs" / "trash")
     assert result == expected
 
 
@@ -79,7 +78,7 @@ def test_archive_storage_path(setup_core: Path) -> None:
     result = storage_json.archive_storage_path()
 
     # Should be relative to config directory
-    expected = os.path.join(setup_core, "configs", "archive")
+    expected = str(setup_core / "configs" / "archive")
     assert result == expected
 
 
@@ -91,8 +90,8 @@ def test_storage_path_with_subdirectory(setup_core: Path) -> None:
 
     result = storage_json.storage_path()
 
-    data_dir = CORE.data_dir
-    expected = os.path.join(data_dir, "storage", "sensor.yaml.json")
+    data_dir = Path(CORE.data_dir)
+    expected = str(data_dir / "storage" / "sensor.yaml.json")
     assert result == expected
 
 
@@ -177,7 +176,7 @@ def test_storage_paths_with_ha_addon(mock_is_ha_addon: bool, tmp_path: Path) -> 
 
     # When running as HA addon, data_dir should be /data
     result = storage_json.storage_path()
-    assert result == os.path.join("/data", "storage", "test.yaml.json")
+    assert result == str(Path("/data") / "storage" / "test.yaml.json")
 
     result = storage_json.esphome_storage_path()
-    assert result == os.path.join("/data", "esphome.json")
+    assert result == str(Path("/data") / "esphome.json")
