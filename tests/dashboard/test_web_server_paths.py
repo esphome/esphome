@@ -156,17 +156,13 @@ def test_get_static_file_url_index_js_special_case() -> None:
 
 def test_load_file_path() -> None:
     """Test loading a file."""
-    with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as tmp:
-        tmp.write(b"test content")
-        tmp.flush()
-        tmp_name = tmp.name
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = Path(tmpdir) / "test.txt"
+        test_file.write_bytes(b"test content")
 
-    try:
-        with open(tmp_name, "rb") as f:
+        with open(test_file, "rb") as f:
             content = f.read()
         assert content == b"test content"
-    finally:
-        Path(tmp_name).unlink()
 
 
 def test_load_file_compressed_path() -> None:
