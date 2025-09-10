@@ -39,6 +39,9 @@ void SX1509Component::dump_config() {
 }
 
 void SX1509Component::loop() {
+  // Reset cache at the start of each loop
+  this->reset_pin_cache_();
+
   if (this->has_keypad_) {
     if (millis() - this->last_loop_timestamp_ < min_loop_period_)
       return;
@@ -73,18 +76,20 @@ void SX1509Component::loop() {
   }
 }
 
-bool SX1509Component::digital_read(uint8_t pin) {
+bool SX1509Component::digital_read_hw(uint8_t pin) {
+  // Always read all pins when any input pin is accessed
+  return this->read_byte_16(REG_DATA_B, &this->input_mask_);
+}
+
+bool SX1509Component::digital_read_cache(uint8_t pin) {
+  // Return cached value for input pins, false for output pins
   if (this->ddr_mask_ & (1 << pin)) {
-    uint16_t temp_reg_data;
-    if (!this->read_byte_16(REG_DATA_B, &temp_reg_data))
-      return false;
-    if (temp_reg_data & (1 << pin))
-      return true;
+    return (this->input_mask_ & (1 << pin)) != 0;
   }
   return false;
 }
 
-void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
+void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
   if ((~this->ddr_mask_) & (1 << pin)) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;

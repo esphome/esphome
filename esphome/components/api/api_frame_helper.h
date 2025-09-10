@@ -66,7 +66,7 @@ enum class APIError : uint16_t {
 #endif
 };
 
-const char *api_error_to_str(APIError err);
+const LogString *api_error_to_logstr(APIError err);
 
 class APIFrameHelper {
  public:

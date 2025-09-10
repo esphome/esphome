@@ -4,8 +4,14 @@ uart:
     rx_pin: ${rx_pin}
     baud_rate: 9600
 
+button:
+  - platform: bl0940
+    bl0940_id: test_id
+    name: Cal Reset
+
 sensor:
   - platform: bl0940
+    id: test_id
     voltage:
       name: BL0940 Voltage
     current:
@@ -18,3 +24,18 @@ sensor:
       name: BL0940 Internal temperature
     external_temperature:
       name: BL0940 External temperature
+
+number:
+  - platform: bl0940
+    id: bl0940_number_id
+    bl0940_id: test_id
+    current_calibration:
+      name: Cal Current
+      min_value: -5
+      max_value: 5
+    voltage_calibration:
+      name: Cal Voltage
+      step: 0.01
+    power_calibration:
+      name: Cal Power
+      disabled_by_default: true

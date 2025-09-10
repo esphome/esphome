@@ -10,6 +10,15 @@ namespace script {
 
 class ScriptLogger {
  protected:
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
+  }
+  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
+  }
+  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
+#else
   void esp_logw_(int line, const char *format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
@@ -17,6 +26,7 @@ class ScriptLogger {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
   void esp_log_(int level, int line, const char *format, const char *param);
+#endif
 };
 
 /// The abstract base class for all script types.
@@ -57,7 +67,8 @@ template<typename... Ts> class SingleScript : public Script<Ts...> {
  public:
   void execute(Ts... x) override {
     if (this->is_action_running()) {
-      this->esp_logw_(__LINE__, "Script '%s' is already running! (mode: single)", this->name_.c_str());
+      this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' is already running! (mode: single)"),
+                      this->name_.c_str());
       return;
     }
 
@@ -74,7 +85,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
  public:
   void execute(Ts... x) override {
     if (this->is_action_running()) {
-      this->esp_logd_(__LINE__, "Script '%s' restarting (mode: restart)", this->name_.c_str());
+      this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), this->name_.c_str());
       this->stop_action();
     }
 
@@ -93,11 +104,13 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // num_runs_ is the number of *queued* instances, so total number of instances is
       // num_runs_ + 1
       if (this->max_runs_ != 0 && this->num_runs_ + 1 >= this->max_runs_) {
-        this->esp_logw_(__LINE__, "Script '%s' maximum number of queued runs exceeded!", this->name_.c_str());
+        this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of queued runs exceeded!"),
+                        this->name_.c_str());
         return;
       }
 
-      this->esp_logd_(__LINE__, "Script '%s' queueing new instance (mode: queued)", this->name_.c_str());
+      this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' queueing new instance (mode: queued)"),
+                      this->name_.c_str());
       this->num_runs_++;
       this->var_queue_.push(std::make_tuple(x...));
       return;
@@ -143,7 +156,8 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
  public:
   void execute(Ts... x) override {
     if (this->max_runs_ != 0 && this->automation_parent_->num_running() >= this->max_runs_) {
-      this->esp_logw_(__LINE__, "Script '%s' maximum number of parallel runs exceeded!", this->name_.c_str());
+      this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of parallel runs exceeded!"),
+                      this->name_.c_str());
       return;
     }
     this->trigger(x...);

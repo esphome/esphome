@@ -149,7 +149,7 @@ void BL0942::setup() {
   this->write_reg_(BL0942_REG_USR_WRPROT, 0);
 
   if (this->read_reg_(BL0942_REG_MODE) != mode)
-    this->status_set_warning("BL0942 setup failed!");
+    this->status_set_warning(LOG_STR("BL0942 setup failed!"));
 
   this->flush();
 }
