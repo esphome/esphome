@@ -13,15 +13,16 @@ from esphome.dashboard import web_server
 
 def test_get_base_frontend_path_production() -> None:
     """Test get_base_frontend_path in production mode."""
-    with patch.dict(os.environ, {}, clear=True):
-        mock_module = MagicMock()
-        mock_module.where.return_value = "/usr/local/lib/esphome_dashboard"
+    mock_module = MagicMock()
+    mock_module.where.return_value = "/usr/local/lib/esphome_dashboard"
 
-        with patch.dict("sys.modules", {"esphome_dashboard": mock_module}):
-            result = web_server.get_base_frontend_path()
-
-            assert result == "/usr/local/lib/esphome_dashboard"
-            mock_module.where.assert_called_once()
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.dict("sys.modules", {"esphome_dashboard": mock_module}),
+    ):
+        result = web_server.get_base_frontend_path()
+        assert result == "/usr/local/lib/esphome_dashboard"
+        mock_module.where.assert_called_once()
 
 
 def test_get_base_frontend_path_dev_mode() -> None:
@@ -112,26 +113,22 @@ def test_get_static_path_with_pathlib_path() -> None:
 
 def test_get_static_file_url_production() -> None:
     """Test get_static_file_url in production mode."""
-    with patch.dict(os.environ, {}, clear=True):
-        web_server.get_static_file_url.cache_clear()
-        mock_module = MagicMock()
-        with (
-            patch.dict("sys.modules", {"esphome_dashboard": mock_module}),
-            patch("esphome.dashboard.web_server.get_static_path") as mock_get_path,
-        ):
-            mock_get_path.return_value = "/fake/path/js/app.js"
-            mock_file = MagicMock()
-            mock_file.read.return_value = b"test content"
-            mock_file.__enter__ = MagicMock(return_value=mock_file)
-            mock_file.__exit__ = MagicMock(return_value=None)
+    web_server.get_static_file_url.cache_clear()
+    mock_module = MagicMock()
+    mock_file = MagicMock()
+    mock_file.read.return_value = b"test content"
+    mock_file.__enter__ = MagicMock(return_value=mock_file)
+    mock_file.__exit__ = MagicMock(return_value=None)
 
-            with patch(
-                "esphome.dashboard.web_server.open",
-                create=True,
-                return_value=mock_file,
-            ):
-                result = web_server.get_static_file_url("js/app.js")
-                assert result.startswith("./static/js/app.js?hash=")
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.dict("sys.modules", {"esphome_dashboard": mock_module}),
+        patch("esphome.dashboard.web_server.get_static_path") as mock_get_path,
+        patch("esphome.dashboard.web_server.open", create=True, return_value=mock_file),
+    ):
+        mock_get_path.return_value = "/fake/path/js/app.js"
+        result = web_server.get_static_file_url("js/app.js")
+        assert result.startswith("./static/js/app.js?hash=")
 
 
 def test_get_static_file_url_dev_mode() -> None:
@@ -145,13 +142,16 @@ def test_get_static_file_url_dev_mode() -> None:
 
 def test_get_static_file_url_index_js_special_case() -> None:
     """Test get_static_file_url replaces index.js with entrypoint."""
-    with patch.dict(os.environ, {}, clear=True):
-        mock_module = MagicMock()
-        mock_module.entrypoint.return_value = "main.js"
-        with patch.dict("sys.modules", {"esphome_dashboard": mock_module}):
-            web_server.get_static_file_url.cache_clear()
-            result = web_server.get_static_file_url("js/esphome/index.js")
-            assert result == "./static/js/esphome/main.js"
+    web_server.get_static_file_url.cache_clear()
+    mock_module = MagicMock()
+    mock_module.entrypoint.return_value = "main.js"
+
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.dict("sys.modules", {"esphome_dashboard": mock_module}),
+    ):
+        result = web_server.get_static_file_url("js/esphome/index.js")
+        assert result == "./static/js/esphome/main.js"
 
 
 def test_load_file_path() -> None:
