@@ -1,7 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import climate_ir
-from esphome.const import CONF_ID
+import esphome.config_validation as cv
 
 CODEOWNERS = ["@RubyBailey"]
 AUTO_LOAD = ["climate_ir"]
@@ -44,9 +43,8 @@ VERTICAL_DIRECTIONS = {
 }
 
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(MitsubishiClimate).extend(
     {
-        cv.GenerateID(): cv.declare_id(MitsubishiClimate),
         cv.Optional(CONF_SET_FAN_MODE, default="3levels"): cv.enum(SETFANMODE),
         cv.Optional(CONF_SUPPORTS_DRY, default=False): cv.boolean,
         cv.Optional(CONF_SUPPORTS_FAN_ONLY, default=False): cv.boolean,
@@ -61,8 +59,7 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await climate_ir.register_climate_ir(var, config)
+    var = await climate_ir.new_climate_ir(config)
 
     cg.add(var.set_fan_mode(config[CONF_SET_FAN_MODE]))
     cg.add(var.set_supports_dry(config[CONF_SUPPORTS_DRY]))

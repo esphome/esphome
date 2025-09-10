@@ -1,9 +1,9 @@
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 //#include "esphome/core/helpers.h"
 
 /*

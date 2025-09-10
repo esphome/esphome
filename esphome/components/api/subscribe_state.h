@@ -5,81 +5,88 @@
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 #include "esphome/core/controller.h"
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class APIConnection;
+
+// Macro for generating InitialStateIterator handlers
+// Calls send_*_state
+#define INITIAL_STATE_HANDLER(entity_type, EntityClass) \
+  bool InitialStateIterator::on_##entity_type(EntityClass *entity) { /* NOLINT(bugprone-macro-parentheses) */ \
+    return this->client_->send_##entity_type##_state(entity); \
+  }
 
 class InitialStateIterator : public ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
-  bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) override;
+  bool on_binary_sensor(binary_sensor::BinarySensor *entity) override;
 #endif
 #ifdef USE_COVER
-  bool on_cover(cover::Cover *cover) override;
+  bool on_cover(cover::Cover *entity) override;
 #endif
 #ifdef USE_FAN
-  bool on_fan(fan::Fan *fan) override;
+  bool on_fan(fan::Fan *entity) override;
 #endif
 #ifdef USE_LIGHT
-  bool on_light(light::LightState *light) override;
+  bool on_light(light::LightState *entity) override;
 #endif
 #ifdef USE_SENSOR
-  bool on_sensor(sensor::Sensor *sensor) override;
+  bool on_sensor(sensor::Sensor *entity) override;
 #endif
 #ifdef USE_SWITCH
-  bool on_switch(switch_::Switch *a_switch) override;
+  bool on_switch(switch_::Switch *entity) override;
 #endif
 #ifdef USE_BUTTON
   bool on_button(button::Button *button) override { return true; };
 #endif
 #ifdef USE_TEXT_SENSOR
-  bool on_text_sensor(text_sensor::TextSensor *text_sensor) override;
+  bool on_text_sensor(text_sensor::TextSensor *entity) override;
 #endif
 #ifdef USE_CLIMATE
-  bool on_climate(climate::Climate *climate) override;
+  bool on_climate(climate::Climate *entity) override;
 #endif
 #ifdef USE_NUMBER
-  bool on_number(number::Number *number) override;
+  bool on_number(number::Number *entity) override;
 #endif
 #ifdef USE_DATETIME_DATE
-  bool on_date(datetime::DateEntity *date) override;
+  bool on_date(datetime::DateEntity *entity) override;
 #endif
 #ifdef USE_DATETIME_TIME
-  bool on_time(datetime::TimeEntity *time) override;
+  bool on_time(datetime::TimeEntity *entity) override;
 #endif
 #ifdef USE_DATETIME_DATETIME
-  bool on_datetime(datetime::DateTimeEntity *datetime) override;
+  bool on_datetime(datetime::DateTimeEntity *entity) override;
 #endif
 #ifdef USE_TEXT
-  bool on_text(text::Text *text) override;
+  bool on_text(text::Text *entity) override;
 #endif
 #ifdef USE_SELECT
-  bool on_select(select::Select *select) override;
+  bool on_select(select::Select *entity) override;
 #endif
 #ifdef USE_LOCK
-  bool on_lock(lock::Lock *a_lock) override;
+  bool on_lock(lock::Lock *entity) override;
 #endif
 #ifdef USE_VALVE
-  bool on_valve(valve::Valve *valve) override;
+  bool on_valve(valve::Valve *entity) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
-  bool on_media_player(media_player::MediaPlayer *media_player) override;
+  bool on_media_player(media_player::MediaPlayer *entity) override;
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
+  bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *entity) override;
 #endif
 #ifdef USE_EVENT
   bool on_event(event::Event *event) override { return true; };
 #endif
 #ifdef USE_UPDATE
-  bool on_update(update::UpdateEntity *update) override;
+  bool on_update(update::UpdateEntity *entity) override;
 #endif
+  bool completed() { return this->state_ == IteratorState::NONE; }
+
  protected:
   APIConnection *client_;
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

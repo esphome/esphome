@@ -11,7 +11,6 @@ StatusLED *global_status_led = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 StatusLED::StatusLED(GPIOPin *pin) : pin_(pin) { global_status_led = this; }
 void StatusLED::pre_setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Status LED...");
   this->pin_->setup();
   this->pin_->digital_write(false);
 }

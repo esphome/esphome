@@ -1,0 +1,12 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_xmwsdj04mmc
+    mac_address: 84:B4:DB:5D:A3:8F
+    bindkey: d8ca2ed09bb5541dc8f045ca360b00ea
+    temperature:
+      name: Xiaomi XMWSDJ04MMC Temperature
+    humidity:
+      name: Xiaomi XMWSDJ04MMC Humidity
+    battery_level:
+      name: Xiaomi XMWSDJ04MMC Battery Level

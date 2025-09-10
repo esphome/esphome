@@ -7,7 +7,6 @@ namespace pcf8574 {
 static const char *const TAG = "pcf8574";
 
 void PCF8574Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCF8574...");
   if (!this->read_gpio_()) {
     ESP_LOGE(TAG, "PCF8574 not available under 0x%02X", this->address_);
     this->mark_failed();
@@ -17,25 +16,31 @@ void PCF8574Component::setup() {
   this->write_gpio_();
   this->read_gpio_();
 }
+void PCF8574Component::loop() {
+  // Invalidate the cache at the start of each loop
+  this->reset_pin_cache_();
+}
 void PCF8574Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCF8574:");
   LOG_I2C_DEVICE(this)
   ESP_LOGCONFIG(TAG, "  Is PCF8575: %s", YESNO(this->pcf8575_));
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PCF8574 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
-bool PCF8574Component::digital_read(uint8_t pin) {
-  this->read_gpio_();
-  return this->input_mask_ & (1 << pin);
+bool PCF8574Component::digital_read_hw(uint8_t pin) {
+  // Read all pins from hardware into input_mask_
+  return this->read_gpio_();  // Return true if I2C read succeeded, false on error
 }
-void PCF8574Component::digital_write(uint8_t pin, bool value) {
+
+bool PCF8574Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
+
+void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
   if (value) {
     this->output_mask_ |= (1 << pin);
   } else {
     this->output_mask_ &= ~(1 << pin);
   }
-
   this->write_gpio_();
 }
 void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
@@ -91,6 +96,9 @@ bool PCF8574Component::write_gpio_() {
   return true;
 }
 float PCF8574Component::get_setup_priority() const { return setup_priority::IO; }
+
+// Run our loop() method early to invalidate cache before any other components access the pins
+float PCF8574Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
 
 void PCF8574GPIOPin::setup() { pin_mode(flags_); }
 void PCF8574GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }

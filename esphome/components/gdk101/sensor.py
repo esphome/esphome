@@ -1,13 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_EMPTY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
     CONF_MEASUREMENT_DURATION,
     CONF_STATUS,
     CONF_VERSION,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_EMPTY,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_RADIOACTIVE,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_MICROSILVERTS_PER_HOUR,
     UNIT_SECOND,
 )
+
 from . import CONF_GDK101_ID, GDK101Component
 
 CONF_RADIATION_DOSE_PER_1M = "radiation_dose_per_1m"

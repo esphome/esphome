@@ -1,16 +1,7 @@
-spi:
-  - id: spi_max7219digit
-    clk_pin: 2
-    mosi_pin: 3
-    miso_pin: 4
+substitutions:
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  miso_pin: GPIO4
+  cs_pin: GPIO5
 
-display:
-  - platform: max7219digit
-    cs_pin: 6
-    num_chips: 4
-    rotate_chip: 0
-    intensity: 10
-    scroll_mode: STOP
-    id: my_matrix
-    lambda: |-
-      it.printdigit("hello");
+<<: !include common.yaml

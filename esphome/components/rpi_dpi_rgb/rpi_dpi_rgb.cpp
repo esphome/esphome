@@ -6,14 +6,11 @@ namespace esphome {
 namespace rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up RPI_DPI_RGB");
   this->reset_display_();
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
-#if ESP_IDF_VERSION_MAJOR >= 5
   config.bounce_buffer_size_px = this->width_ * 10;
   config.num_fbs = 1;
-#endif  // ESP_IDF_VERSION_MAJOR
   config.timings.h_res = this->width_;
   config.timings.v_res = this->height_;
   config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -25,7 +22,6 @@ void RpiDpiRgb::setup() {
   config.timings.flags.pclk_active_neg = this->pclk_inverted_;
   config.timings.pclk_hz = this->pclk_frequency_;
   config.clk_src = LCD_CLK_SRC_PLL160M;
-  config.psram_trans_align = 64;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
     config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
@@ -44,13 +40,10 @@ void RpiDpiRgb::setup() {
   }
   ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
   ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
-  ESP_LOGCONFIG(TAG, "RPI_DPI_RGB setup complete");
 }
 void RpiDpiRgb::loop() {
-#if ESP_IDF_VERSION_MAJOR >= 5
   if (this->handle_ != nullptr)
     esp_lcd_rgb_panel_restart(this->handle_);
-#endif  // ESP_IDF_VERSION_MAJOR
 }
 
 void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,

@@ -28,9 +28,10 @@ CONF_HAS_PULLDOWNS = "has_pulldowns"
 
 
 def check_keys(obj):
-    if CONF_KEYS in obj:
-        if len(obj[CONF_KEYS]) != len(obj[CONF_ROWS]) * len(obj[CONF_COLUMNS]):
-            raise cv.Invalid("The number of key codes must equal the number of buttons")
+    if CONF_KEYS in obj and len(obj[CONF_KEYS]) != len(obj[CONF_ROWS]) * len(
+        obj[CONF_COLUMNS]
+    ):
+        raise cv.Invalid("The number of key codes must equal the number of buttons")
     return obj
 
 

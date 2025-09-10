@@ -1,18 +1,14 @@
 from __future__ import annotations
+
 from typing import Literal
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
-from esphome.cpp_helpers import gpio_pin_expression
-from esphome.components import uart
-from esphome.const import (
-    CONF_FLOW_CONTROL_PIN,
-    CONF_ID,
-    CONF_ADDRESS,
-    CONF_DISABLE_CRC,
-)
 from esphome import pins
+import esphome.codegen as cg
+from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.cpp_helpers import gpio_pin_expression
+import esphome.final_validate as fv
 
 DEPENDENCIES = ["uart"]
 

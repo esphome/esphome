@@ -1,6 +1,8 @@
 #include "modbus.h"
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
 namespace esphome {
 namespace modbus {
 
@@ -130,15 +132,24 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
-    if (this->role == ModbusRole::SERVER && (function_code == 0x3 || function_code == 0x4)) {
-      data_offset = 2;
-      data_len = 4;
-    }
-
-    // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
-    if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
-      data_offset = 2;
-      data_len = 4;
+    if (this->role == ModbusRole::SERVER) {
+      if (function_code == 0x1 || function_code == 0x3 || function_code == 0x4 || function_code == 0x6) {
+        data_offset = 2;
+        data_len = 4;
+      } else if (function_code == 0x10) {
+        if (at < 6) {
+          return true;
+        }
+        data_offset = 2;
+        // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
+        data_len = 2 + 2 + 1 + raw[6];
+      }
+    } else {
+      // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
+      if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
+        data_offset = 2;
+        data_len = 4;
+      }
     }
 
     // Error ( msb indicates error )
@@ -174,6 +185,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   bool found = false;
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
+      found = true;
       // Is it an error response?
       if ((function_code & 0x80) == 0x80) {
         uint8_t exception = raw[2];
@@ -194,7 +206,19 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       } else {
         this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
       }
-      found = true;
+      if (this->role == ModbusRole::SERVER) {
+        if (function_code == 0x3 || function_code == 0x4) {
+          device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
+                                           uint16_t(data[3]) | (uint16_t(data[2]) << 8));
+          continue;
+        }
+        if (function_code == 0x6 || function_code == 0x10) {
+          device->on_modbus_write_registers(function_code, data);
+          continue;
+        }
+      }
+      // fallthrough for other function codes
+      device->on_modbus_data(data);
     }
   }
 
@@ -247,11 +271,14 @@ void Modbus::send_next_frame_() {
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
-  ESP_LOGCONFIG(TAG, "  Send Wait Time: %d ms", this->send_wait_time_);
-  ESP_LOGCONFIG(TAG, "  Turnaround Time: %d ms", this->turnaround_delay_ms_);
-  ESP_LOGCONFIG(TAG, "  Frame Delay: %d ms", this->frame_delay_ms_);
-  ESP_LOGCONFIG(TAG, "  Long Rx Buffer Delay: %d ms", this->long_rx_buffer_delay_ms_);
-  ESP_LOGCONFIG(TAG, "  CRC Disabled: %s", YESNO(this->disable_crc_));
+  ESP_LOGCONFIG(TAG,
+                "  Send Wait Time: %d ms\n"
+                "  Turnaround Time: %d ms\n"
+                "  Frame Delay: %d ms\n"
+                "  Long Rx Buffer Delay: %d ms\n"
+                "  CRC Disabled: %s",
+                this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
+                this->long_rx_buffer_delay_ms_, YESNO(this->disable_crc_));
 }
 float Modbus::get_setup_priority() const {
   // After UART bus

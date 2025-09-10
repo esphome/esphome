@@ -21,8 +21,11 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   void dump_config() override;
 #ifdef USE_ARDUINO
   void loop() override {
-    if (this->dns_server_ != nullptr)
+    if (this->dns_server_ != nullptr) {
       this->dns_server_->processNextRequest();
+    } else {
+      this->disable_loop();
+    }
   }
 #endif
   float get_setup_priority() const override;
@@ -37,16 +40,16 @@ class CaptivePortal : public AsyncWebHandler, public Component {
 #endif
   }
 
-  bool canHandle(AsyncWebServerRequest *request) override {
+  bool canHandle(AsyncWebServerRequest *request) const override {
     if (!this->active_)
       return false;
 
     if (request->method() == HTTP_GET) {
-      if (request->url() == "/")
+      if (request->url() == F("/"))
         return true;
-      if (request->url() == "/config.json")
+      if (request->url() == F("/config.json"))
         return true;
-      if (request->url() == "/wifisave")
+      if (request->url() == F("/wifisave"))
         return true;
     }
 

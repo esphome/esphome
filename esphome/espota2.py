@@ -88,10 +88,7 @@ def recv_decode(sock, amount, decode=True):
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):
-    if decode:
-        data = []
-    else:
-        data = b""
+    data = [] if decode else b""
 
     try:
         data += recv_decode(sock, 1, decode=decode)
@@ -249,6 +246,9 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
+    # Set higher timeout during upload
+    sock.settimeout(30.0)
+
     upload_size = len(upload_contents)
     upload_size_encoded = [
         (upload_size >> 24) & 0xFF,
@@ -271,8 +271,6 @@ def perform_ota(
     # show the actual progress
 
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
-    # Set higher timeout during upload
-    sock.settimeout(30.0)
     start_time = time.perf_counter()
 
     offset = 0
@@ -310,8 +308,12 @@ def perform_ota(
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
+def run_ota_impl_(
+    remote_host: str | list[str], remote_port: int, password: str, filename: str
+) -> tuple[int, str | None]:
+    # Handle both single host and list of hosts
     try:
+        # Resolve all hosts at once for parallel DNS resolution
         res = resolve_ip_address(remote_host, remote_port)
     except EsphomeError as err:
         _LOGGER.error(
@@ -342,19 +344,22 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
                 perform_ota(sock, password, file_handle, filename)
             except OTAError as err:
                 _LOGGER.error(str(err))
-                return 1
+                return 1, None
             finally:
                 sock.close()
 
-        return 0
+        # Successfully uploaded to sa[0]
+        return 0, sa[0]
 
     _LOGGER.error("Connection failed.")
-    return 1
+    return 1, None
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(
+    remote_host: str | list[str], remote_port: int, password: str, filename: str
+) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
-        return 1
+        return 1, None

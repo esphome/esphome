@@ -1,14 +1,9 @@
-spi:
-  - id: spi_pcd8544
-    clk_pin: 2
-    mosi_pin: 3
-    miso_pin: 4
+substitutions:
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  miso_pin: GPIO4
+  cs_pin: GPIO5
+  dc_pin: GPIO15
+  reset_pin: GPIO16
 
-display:
-  - platform: pcd8544
-    cs_pin: 6
-    dc_pin: 5
-    reset_pin: 7
-    contrast: 60
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
+<<: !include common.yaml

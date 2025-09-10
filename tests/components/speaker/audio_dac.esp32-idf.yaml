@@ -1,0 +1,9 @@
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
+  i2s_bclk_pin: GPIO27
+  i2s_lrclk_pin: GPIO26
+  i2s_mclk_pin: GPIO25
+  i2s_dout_pin: GPIO23
+
+<<: !include common-audio_dac.yaml

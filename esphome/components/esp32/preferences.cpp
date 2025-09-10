@@ -1,13 +1,14 @@
 #ifdef USE_ESP32
 
-#include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include <nvs_flash.h>
 #include <cstring>
 #include <cinttypes>
 #include <vector>
 #include <string>
+#include <memory>
 
 namespace esphome {
 namespace esp32 {
@@ -84,7 +85,7 @@ class ESP32Preferences : public ESPPreferences {
     if (err == 0)
       return;
 
-    ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS...", esp_err_to_name(err));
+    ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS", esp_err_to_name(err));
     nvs_flash_deinit();
     nvs_flash_erase();
     nvs_flash_init();
@@ -111,7 +112,7 @@ class ESP32Preferences : public ESPPreferences {
     if (s_pending_save.empty())
       return true;
 
-    ESP_LOGD(TAG, "Saving %d preferences to flash...", s_pending_save.size());
+    ESP_LOGV(TAG, "Saving %d items...", s_pending_save.size());
     // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     esp_err_t last_err = ESP_OK;
@@ -139,10 +140,10 @@ class ESP32Preferences : public ESPPreferences {
       }
       s_pending_save.erase(s_pending_save.begin() + i);
     }
-    ESP_LOGD(TAG, "Saving %d preferences to flash: %d cached, %d written, %d failed", cached + written + failed, cached,
-             written, failed);
+    ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
     if (failed > 0) {
-      ESP_LOGE(TAG, "Error saving %d preferences to flash. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
+      ESP_LOGE(TAG, "Writing %d items failed. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
                last_key.c_str());
     }
 
@@ -156,24 +157,27 @@ class ESP32Preferences : public ESPPreferences {
     return failed == 0;
   }
   bool is_changed(const uint32_t nvs_handle, const NVSData &to_save) {
-    NVSData stored_data{};
     size_t actual_len;
     esp_err_t err = nvs_get_blob(nvs_handle, to_save.key.c_str(), nullptr, &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    stored_data.data.resize(actual_len);
-    err = nvs_get_blob(nvs_handle, to_save.key.c_str(), stored_data.data.data(), &actual_len);
+    // Check size first before allocating memory
+    if (actual_len != to_save.data.size()) {
+      return true;
+    }
+    auto stored_data = std::make_unique<uint8_t[]>(actual_len);
+    err = nvs_get_blob(nvs_handle, to_save.key.c_str(), stored_data.get(), &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    return to_save.data != stored_data.data;
+    return memcmp(to_save.data.data(), stored_data.get(), to_save.data.size()) != 0;
   }
 
   bool reset() override {
-    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    ESP_LOGD(TAG, "Erasing storage");
     s_pending_save.clear();
 
     nvs_flash_deinit();

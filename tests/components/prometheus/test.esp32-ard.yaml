@@ -1,3 +1,7 @@
+substitutions:
+  verify_ssl: "false"
+  pin: GPIO5
+
 <<: !include common.yaml
 
 i2s_audio:

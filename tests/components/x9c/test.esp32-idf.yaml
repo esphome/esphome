@@ -1,8 +1,6 @@
-output:
-  - platform: x9c
-    id: test_x9c
-    cs_pin: 13
-    inc_pin: 14
-    ud_pin: 15
-    initial_value: 0.5
-    step_delay: 50us
+substitutions:
+  cs_pin: GPIO13
+  inc_pin: GPIO14
+  ud_pin: GPIO15
+
+<<: !include common.yaml

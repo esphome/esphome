@@ -1,15 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import display, light
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESSABLE_LIGHT_ID,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGES,
-    CONF_ADDRESSABLE_LIGHT_ID,
-    CONF_HEIGHT,
-    CONF_WIDTH,
-    CONF_UPDATE_INTERVAL,
     CONF_PIXEL_MAPPER,
+    CONF_UPDATE_INTERVAL,
+    CONF_WIDTH,
 )
 
 CODEOWNERS = ["@justfalter"]

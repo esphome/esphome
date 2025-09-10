@@ -1,18 +1,18 @@
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import climate
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
-    CONF_ID,
-    CONF_SWITCH_DATAPOINT,
+    CONF_FAN_MODE,
+    CONF_PRESET,
     CONF_SUPPORTS_COOL,
     CONF_SUPPORTS_HEAT,
-    CONF_PRESET,
     CONF_SWING_MODE,
-    CONF_FAN_MODE,
+    CONF_SWITCH_DATAPOINT,
     CONF_TEMPERATURE,
 )
-from .. import tuya_ns, CONF_TUYA_ID, Tuya
+
+from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@jesserockz"]
@@ -46,16 +46,15 @@ TuyaClimate = tuya_ns.class_("TuyaClimate", climate.Climate, cg.Component)
 
 
 def validate_temperature_multipliers(value):
-    if CONF_TEMPERATURE_MULTIPLIER in value:
-        if (
-            CONF_CURRENT_TEMPERATURE_MULTIPLIER in value
-            or CONF_TARGET_TEMPERATURE_MULTIPLIER in value
-        ):
-            raise cv.Invalid(
-                f"Cannot have {CONF_TEMPERATURE_MULTIPLIER} at the same time as "
-                f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} and "
-                f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
-            )
+    if CONF_TEMPERATURE_MULTIPLIER in value and (
+        CONF_CURRENT_TEMPERATURE_MULTIPLIER in value
+        or CONF_TARGET_TEMPERATURE_MULTIPLIER in value
+    ):
+        raise cv.Invalid(
+            f"Cannot have {CONF_TEMPERATURE_MULTIPLIER} at the same time as "
+            f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} and "
+            f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
+        )
     if (
         CONF_CURRENT_TEMPERATURE_MULTIPLIER in value
         and CONF_TARGET_TEMPERATURE_MULTIPLIER not in value
@@ -150,9 +149,9 @@ SWING_MODES = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(TuyaClimate)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TuyaClimate),
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
             cv.Optional(CONF_SUPPORTS_HEAT, default=True): cv.boolean,
             cv.Optional(CONF_SUPPORTS_COOL, default=False): cv.boolean,
@@ -185,7 +184,8 @@ CONFIG_SCHEMA = cv.All(
                 "'eco_temperature' has been moved inside of the 'eco' config block under 'preset' as 'temperature'"
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
     validate_temperature_multipliers,
     validate_cooling_values,
@@ -193,9 +193,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
 
     paren = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(paren))

@@ -1,0 +1,62 @@
+uart:
+  - id: uart_growatt_solar
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+modbus:
+  flow_control_pin: ${flow_control_pin}
+
+sensor:
+  - platform: growatt_solar
+    update_interval: 10s
+    protocol_version: RTU
+    inverter_status:
+      name: Growatt Status Code
+    phase_a:
+      voltage:
+        name: Growatt Voltage Phase A
+      current:
+        name: Growatt Current Phase A
+      active_power:
+        name: Growatt Power Phase A
+    phase_b:
+      voltage:
+        name: Growatt Voltage Phase B
+      current:
+        name: Growatt Current Phase B
+      active_power:
+        name: Growatt Power Phase B
+    phase_c:
+      voltage:
+        name: Growatt Voltage Phase C
+      current:
+        name: Growatt Current Phase C
+      active_power:
+        name: Growatt Power Phase C
+    pv1:
+      voltage:
+        name: Growatt PV1 Voltage
+      current:
+        name: Growatt PV1 Current
+      active_power:
+        name: Growatt PV1 Active Power
+    pv2:
+      voltage:
+        name: Growatt PV2 Voltage
+      current:
+        name: Growatt PV2 Current
+      active_power:
+        name: Growatt PV2 Active Power
+    active_power:
+      name: Growatt Grid Active Power
+    pv_active_power:
+      name: Growatt PV Active Power
+    frequency:
+      name: Growatt Frequency
+    energy_production_day:
+      name: Growatt Today's Generation
+    total_energy_production:
+      name: Growatt Total Energy Production
+    inverter_module_temp:
+      name: Growatt Inverter Module Temp

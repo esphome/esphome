@@ -1,28 +1,7 @@
-matrix_keypad:
-  id: keypad
-  rows:
-    - pin: 1
-    - pin: 2
-  columns:
-    - pin: 3
-    - pin: 4
-  keys: "1234"
-  has_pulldowns: true
+substitutions:
+  pin_r0: GPIO2
+  pin_r1: GPIO3
+  pin_c0: GPIO4
+  pin_c1: GPIO5
 
-key_collector:
-  - id: reader
-    source_id: keypad
-    min_length: 4
-    max_length: 4
-    on_progress:
-      - logger.log:
-          format: "input progress: '%s', started by '%c'"
-          args: ['x.c_str()', "(start == 0 ? '~' : start)"]
-    on_result:
-      - logger.log:
-          format: "input result: '%s', started by '%c', ended by '%c'"
-          args: ['x.c_str()', "(start == 0 ? '~' : start)", "(end == 0 ? '~' : end)"]
-    on_timeout:
-      - logger.log:
-          format: "input timeout: '%s', started by '%c'"
-          args: ['x.c_str()', "(start == 0 ? '~' : start)"]
+<<: !include common.yaml

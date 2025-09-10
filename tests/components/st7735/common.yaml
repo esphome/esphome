@@ -1,0 +1,28 @@
+spi:
+  - id: spi_st7735
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+
+display:
+  - platform: st7735
+    model: INITR_18BLACKTAB
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${reset_pin}
+    device_width: 128
+    device_height: 160
+    col_start: 0
+    row_start: 0
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: page2
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");

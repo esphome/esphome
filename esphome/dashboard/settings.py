@@ -55,10 +55,6 @@ class DashboardSettings:
         return os.getenv("ESPHOME_DASHBOARD_RELATIVE_URL") or "/"
 
     @property
-    def status_use_ping(self):
-        return get_bool_env("ESPHOME_DASHBOARD_USE_PING")
-
-    @property
     def status_use_mqtt(self) -> bool:
         return get_bool_env("ESPHOME_DASHBOARD_USE_MQTT")
 

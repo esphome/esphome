@@ -1,12 +1,5 @@
-i2c:
-  - id: i2c_xgzp68xx
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-sensor:
-  - platform: xgzp68xx
-    k_value: 4096
-    temperature:
-      name: Pressure Temperature
-    pressure:
-      name: Differential pressure
+<<: !include common.yaml
