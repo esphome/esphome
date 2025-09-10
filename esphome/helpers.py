@@ -386,8 +386,6 @@ def write_file_if_changed(path: Path, text: str) -> bool:
 
 
 def copy_file_if_changed(src: Path, dst: Path) -> None:
-    import shutil
-
     if file_compare(src, dst):
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
