@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.9.0-dev"
+__version__ = "2025.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -424,6 +424,7 @@ CONF_HEAD = "head"
 CONF_HEADING = "heading"
 CONF_HEARTBEAT = "heartbeat"
 CONF_HEAT_ACTION = "heat_action"
+CONF_HEAT_COOL_MODE = "heat_cool_mode"
 CONF_HEAT_DEADBAND = "heat_deadband"
 CONF_HEAT_MODE = "heat_mode"
 CONF_HEAT_OVERRUN = "heat_overrun"
