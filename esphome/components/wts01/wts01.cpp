@@ -14,17 +14,16 @@ static const uint8_t HEADER_4 = 0x04;
 
 void WTS01Sensor::loop() {
   // Process one character at a time received from the sensor
-  if (available()) {
+  if (this->available()) {
     uint8_t c;
-    if (read_byte(&c)) {
+    if (this->read_byte(&c)) {
       this->handle_char_(c);
     }
   }
 }
 
 void WTS01Sensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "WTS01 Temperature Sensor:");
-  LOG_SENSOR("  ", "Temperature", this);
+  LOG_SENSOR("", "WTS01 Temperature Sensor", this);
   this->check_uart_settings(9600);
 }
 
@@ -88,8 +87,6 @@ void WTS01Sensor::process_packet_() {
   // Calculate temperature (temp + decimal/100)
   float temperature = sign * (static_cast<float>(temp) + (static_cast<float>(this->buffer_[7]) / 100.0f));
 
-  // Store temperature
-  this->current_temperature_ = temperature;
   ESP_LOGV(TAG, "Received new temperature: %.2f°C", temperature);
 
   this->publish_state(temperature);

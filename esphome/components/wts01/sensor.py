@@ -10,7 +10,8 @@ from esphome.const import (
 )
 
 CONF_WTS01_ID = "wts01_id"
-DEPENDENCIES = wts01.DEPENDENCIES
+CODEOWNERS = ["@alepee"]
+DEPENDENCIES = ["uart"]
 
 wts01_ns = cg.esphome_ns.namespace("wts01")
 WTS01Sensor = wts01_ns.class_(
