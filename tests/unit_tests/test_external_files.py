@@ -12,13 +12,6 @@ from esphome.config_validation import Invalid
 from esphome.core import CORE, TimePeriod
 
 
-@pytest.fixture
-def setup_core(tmp_path: Path) -> Path:
-    """Set up CORE with test paths."""
-    CORE.config_path = str(tmp_path / "test.yaml")
-    return tmp_path
-
-
 def test_compute_local_file_dir(setup_core: Path) -> None:
     """Test compute_local_file_dir creates and returns correct path."""
     domain = "font"

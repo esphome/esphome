@@ -6,14 +6,6 @@ import pytest
 import voluptuous as vol
 
 from esphome import config_validation as cv
-from esphome.core import CORE
-
-
-@pytest.fixture
-def setup_core(tmp_path: Path) -> Path:
-    """Set up CORE with test paths."""
-    CORE.config_path = str(tmp_path / "test.yaml")
-    return tmp_path
 
 
 def test_directory_valid_path(setup_core: Path) -> None:

@@ -4,17 +4,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from esphome import storage_json
 from esphome.core import CORE
-
-
-@pytest.fixture
-def setup_core(tmp_path: Path) -> Path:
-    """Set up CORE with test paths."""
-    CORE.config_path = str(tmp_path / "test.yaml")
-    return tmp_path
 
 
 def test_storage_path(setup_core: Path) -> None:
