@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import binascii
-import codecs
 from datetime import datetime
 import json
 import logging
@@ -178,7 +177,7 @@ class StorageJSON:
 
     @staticmethod
     def _load_impl(path: Path) -> StorageJSON | None:
-        with codecs.open(str(path), "r", encoding="utf-8") as f_handle:
+        with path.open("r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
         name = storage.get("name")
@@ -269,7 +268,7 @@ class EsphomeStorageJSON:
 
     @staticmethod
     def _load_impl(path: str) -> EsphomeStorageJSON | None:
-        with codecs.open(path, "r", encoding="utf-8") as f_handle:
+        with Path(path).open("r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
         cookie_secret = storage.get("cookie_secret")
