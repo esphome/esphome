@@ -29,15 +29,12 @@ def test_ext_storage_path(setup_core: Path) -> None:
 
 def test_ext_storage_path_handles_various_extensions(setup_core: Path) -> None:
     """Test ext_storage_path works with different file extensions."""
-    # Test with .yml extension
     result_yml = storage_json.ext_storage_path("device.yml")
     assert result_yml.endswith("device.yml.json")
 
-    # Test with no extension
     result_no_ext = storage_json.ext_storage_path("device")
     assert result_no_ext.endswith("device.json")
 
-    # Test with path separator in name (should still work)
     result_path = storage_json.ext_storage_path("my/device.yaml")
     assert result_path.endswith("device.yaml.json")
 
@@ -66,7 +63,6 @@ def test_trash_storage_path(setup_core: Path) -> None:
 
     result = storage_json.trash_storage_path()
 
-    # Should be relative to config directory
     expected = str(setup_core / "configs" / "trash")
     assert result == expected
 
@@ -77,7 +73,6 @@ def test_archive_storage_path(setup_core: Path) -> None:
 
     result = storage_json.archive_storage_path()
 
-    # Should be relative to config directory
     expected = str(setup_core / "configs" / "archive")
     assert result == expected
 
@@ -122,7 +117,6 @@ def test_storage_json_save_creates_directory(setup_core: Path, tmp_path: Path) -
     storage_dir = tmp_path / "new_data" / "storage"
     storage_file = storage_dir / "test.json"
 
-    # Ensure directory doesn't exist
     assert not storage_dir.exists()
 
     storage = storage_json.StorageJSON(
@@ -145,7 +139,6 @@ def test_storage_json_save_creates_directory(setup_core: Path, tmp_path: Path) -
     with patch("esphome.storage_json.write_file_if_changed") as mock_write:
         storage.save(str(storage_file))
         mock_write.assert_called_once()
-        # Check that the path passed is correct
         call_args = mock_write.call_args[0]
         assert call_args[0] == str(storage_file)
 
@@ -174,7 +167,6 @@ def test_storage_paths_with_ha_addon(mock_is_ha_addon: bool, tmp_path: Path) -> 
 
     CORE.config_path = str(tmp_path / "test.yaml")
 
-    # When running as HA addon, data_dir should be /data
     result = storage_json.storage_path()
     assert result == str(Path("/data") / "storage" / "test.yaml.json")
 

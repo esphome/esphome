@@ -20,7 +20,7 @@ def test_compute_local_file_dir(setup_core: Path) -> None:
 
     assert isinstance(result, Path)
     assert result == Path(CORE.data_dir) / domain
-    assert result.exists()  # Should create directory
+    assert result.exists()
     assert result.is_dir()
 
 
@@ -40,8 +40,7 @@ def test_is_file_recent_with_recent_file(setup_core: Path) -> None:
     test_file = setup_core / "recent.txt"
     test_file.write_text("content")
 
-    # File created just now, should be recent for any reasonable refresh period
-    refresh = TimePeriod(seconds=3600)  # 1 hour
+    refresh = TimePeriod(seconds=3600)
 
     result = external_files.is_file_recent(str(test_file), refresh)
 
@@ -53,11 +52,9 @@ def test_is_file_recent_with_old_file(setup_core: Path) -> None:
     test_file = setup_core / "old.txt"
     test_file.write_text("content")
 
-    # Mock getctime to return an old timestamp
-    old_time = time.time() - 7200  # 2 hours ago
+    old_time = time.time() - 7200
 
     with patch("os.path.getctime", return_value=old_time):
-        # Check with 1 hour refresh period
         refresh = TimePeriod(seconds=3600)
 
         result = external_files.is_file_recent(str(test_file), refresh)
@@ -95,7 +92,6 @@ def test_has_remote_file_changed_not_modified(
     test_file = setup_core / "cached.txt"
     test_file.write_text("cached content")
 
-    # Mock 304 Not Modified response
     mock_response = MagicMock()
     mock_response.status_code = 304
     mock_head.return_value = mock_response
@@ -106,7 +102,6 @@ def test_has_remote_file_changed_not_modified(
     assert result is False
     mock_head.assert_called_once()
 
-    # Check headers were set correctly
     call_args = mock_head.call_args
     headers = call_args[1]["headers"]
     assert external_files.IF_MODIFIED_SINCE in headers
@@ -121,7 +116,6 @@ def test_has_remote_file_changed_modified(
     test_file = setup_core / "cached.txt"
     test_file.write_text("cached content")
 
-    # Mock 200 OK response (file has changed)
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_head.return_value = mock_response
@@ -150,7 +144,6 @@ def test_has_remote_file_changed_network_error(
     test_file = setup_core / "cached.txt"
     test_file.write_text("cached content")
 
-    # Mock network error
     mock_head.side_effect = requests.exceptions.RequestException("Network error")
 
     url = "https://example.com/file.txt"
@@ -174,19 +167,16 @@ def test_has_remote_file_changed_timeout(
     url = "https://example.com/file.txt"
     external_files.has_remote_file_changed(url, str(test_file))
 
-    # Check timeout was passed
     call_args = mock_head.call_args
     assert call_args[1]["timeout"] == external_files.NETWORK_TIMEOUT
 
 
 def test_compute_local_file_dir_creates_parent_dirs(setup_core: Path) -> None:
     """Test compute_local_file_dir creates parent directories."""
-    # Use a deeply nested domain
     domain = "level1/level2/level3/level4"
 
     result = external_files.compute_local_file_dir(domain)
 
-    # Check all parent directories were created
     assert result.exists()
     assert result.is_dir()
     assert result.parent.name == "level3"
@@ -199,9 +189,8 @@ def test_is_file_recent_handles_float_seconds(setup_core: Path) -> None:
     test_file = setup_core / "test.txt"
     test_file.write_text("content")
 
-    # Use a TimePeriod with fractional seconds
     refresh = TimePeriod(seconds=3600.5)
 
     result = external_files.is_file_recent(str(test_file), refresh)
 
-    assert result is True  # File was just created
+    assert result is True
