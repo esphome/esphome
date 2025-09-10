@@ -41,5 +41,5 @@ def fixture_path() -> Path:
 @pytest.fixture
 def setup_core(tmp_path: Path) -> Path:
     """Set up CORE with test paths."""
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
     return tmp_path

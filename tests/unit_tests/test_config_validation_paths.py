@@ -62,7 +62,7 @@ def test_file_valid_path(setup_core: Path) -> None:
 
     result = cv.file_("test_file.yaml")
 
-    assert result == "test_file.yaml"
+    assert result == test_file
 
 
 def test_file_absolute_path(setup_core: Path) -> None:
@@ -72,7 +72,7 @@ def test_file_absolute_path(setup_core: Path) -> None:
 
     result = cv.file_(str(test_file))
 
-    assert result == str(test_file)
+    assert result == test_file
 
 
 def test_file_nonexistent_path(setup_core: Path) -> None:
@@ -99,7 +99,7 @@ def test_file_with_parent_directory(setup_core: Path) -> None:
 
     result = cv.file_("configs/sensors/temperature.yaml")
 
-    assert result == "configs/sensors/temperature.yaml"
+    assert result == test_file
 
 
 def test_directory_handles_trailing_slash(setup_core: Path) -> None:
@@ -118,19 +118,19 @@ def test_file_handles_various_extensions(setup_core: Path) -> None:
     """Test file_ validator works with different file extensions."""
     yaml_file = setup_core / "config.yaml"
     yaml_file.write_text("yaml content")
-    assert cv.file_("config.yaml") == "config.yaml"
+    assert cv.file_("config.yaml") == yaml_file
 
     yml_file = setup_core / "config.yml"
     yml_file.write_text("yml content")
-    assert cv.file_("config.yml") == "config.yml"
+    assert cv.file_("config.yml") == yml_file
 
     txt_file = setup_core / "readme.txt"
     txt_file.write_text("text content")
-    assert cv.file_("readme.txt") == "readme.txt"
+    assert cv.file_("readme.txt") == txt_file
 
     no_ext_file = setup_core / "LICENSE"
     no_ext_file.write_text("license content")
-    assert cv.file_("LICENSE") == "LICENSE"
+    assert cv.file_("LICENSE") == no_ext_file
 
 
 def test_directory_with_symlink(setup_core: Path) -> None:
@@ -154,7 +154,7 @@ def test_file_with_symlink(setup_core: Path) -> None:
     symlink_file.symlink_to(actual_file)
 
     result = cv.file_("symlink_file.txt")
-    assert result == "symlink_file.txt"
+    assert result == symlink_file
 
 
 def test_directory_error_shows_full_path(setup_core: Path) -> None:
@@ -184,4 +184,4 @@ def test_file_with_spaces_in_name(setup_core: Path) -> None:
     file_with_spaces.write_text("content")
 
     result = cv.file_("my test file.yaml")
-    assert result == "my test file.yaml"
+    assert result == file_with_spaces

@@ -12,12 +12,12 @@ from esphome.core import CORE
 
 def test_storage_path(setup_core: Path) -> None:
     """Test storage_path returns correct path for current config."""
-    CORE.config_path = str(setup_core / "my_device.yaml")
+    CORE.config_path = setup_core / "my_device.yaml"
 
     result = storage_json.storage_path()
 
     data_dir = Path(CORE.data_dir)
-    expected = str(data_dir / "storage" / "my_device.yaml.json")
+    expected = data_dir / "storage" / "my_device.yaml.json"
     assert result == expected
 
 
@@ -26,20 +26,20 @@ def test_ext_storage_path(setup_core: Path) -> None:
     result = storage_json.ext_storage_path("other_device.yaml")
 
     data_dir = Path(CORE.data_dir)
-    expected = str(data_dir / "storage" / "other_device.yaml.json")
+    expected = data_dir / "storage" / "other_device.yaml.json"
     assert result == expected
 
 
 def test_ext_storage_path_handles_various_extensions(setup_core: Path) -> None:
     """Test ext_storage_path works with different file extensions."""
     result_yml = storage_json.ext_storage_path("device.yml")
-    assert result_yml.endswith("device.yml.json")
+    assert str(result_yml).endswith("device.yml.json")
 
     result_no_ext = storage_json.ext_storage_path("device")
-    assert result_no_ext.endswith("device.json")
+    assert str(result_no_ext).endswith("device.json")
 
     result_path = storage_json.ext_storage_path("my/device.yaml")
-    assert result_path.endswith("device.yaml.json")
+    assert str(result_path).endswith("device.yaml.json")
 
 
 def test_esphome_storage_path(setup_core: Path) -> None:
@@ -47,7 +47,7 @@ def test_esphome_storage_path(setup_core: Path) -> None:
     result = storage_json.esphome_storage_path()
 
     data_dir = Path(CORE.data_dir)
-    expected = str(data_dir / "esphome.json")
+    expected = data_dir / "esphome.json"
     assert result == expected
 
 
@@ -56,27 +56,27 @@ def test_ignored_devices_storage_path(setup_core: Path) -> None:
     result = storage_json.ignored_devices_storage_path()
 
     data_dir = Path(CORE.data_dir)
-    expected = str(data_dir / "ignored-devices.json")
+    expected = data_dir / "ignored-devices.json"
     assert result == expected
 
 
 def test_trash_storage_path(setup_core: Path) -> None:
     """Test trash_storage_path returns correct path."""
-    CORE.config_path = str(setup_core / "configs" / "device.yaml")
+    CORE.config_path = setup_core / "configs" / "device.yaml"
 
     result = storage_json.trash_storage_path()
 
-    expected = str(setup_core / "configs" / "trash")
+    expected = setup_core / "configs" / "trash"
     assert result == expected
 
 
 def test_archive_storage_path(setup_core: Path) -> None:
     """Test archive_storage_path returns correct path."""
-    CORE.config_path = str(setup_core / "configs" / "device.yaml")
+    CORE.config_path = setup_core / "configs" / "device.yaml"
 
     result = storage_json.archive_storage_path()
 
-    expected = str(setup_core / "configs" / "archive")
+    expected = setup_core / "configs" / "archive"
     assert result == expected
 
 
@@ -84,12 +84,12 @@ def test_storage_path_with_subdirectory(setup_core: Path) -> None:
     """Test storage paths work correctly when config is in subdirectory."""
     subdir = setup_core / "configs" / "basement"
     subdir.mkdir(parents=True, exist_ok=True)
-    CORE.config_path = str(subdir / "sensor.yaml")
+    CORE.config_path = subdir / "sensor.yaml"
 
     result = storage_json.storage_path()
 
     data_dir = Path(CORE.data_dir)
-    expected = str(data_dir / "storage" / "sensor.yaml.json")
+    expected = data_dir / "storage" / "sensor.yaml.json"
     assert result == expected
 
 
@@ -169,14 +169,14 @@ def test_storage_paths_with_ha_addon(mock_is_ha_addon: bool, tmp_path: Path) -> 
     """Test storage paths when running as Home Assistant addon."""
     mock_is_ha_addon.return_value = True
 
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
 
     result = storage_json.storage_path()
     # When is_ha_addon is True, CORE.data_dir returns "/data"
     # This is the standard mount point for HA addon containers
-    expected = str(Path("/data") / "storage" / "test.yaml.json")
+    expected = Path("/data") / "storage" / "test.yaml.json"
     assert result == expected
 
     result = storage_json.esphome_storage_path()
-    expected = str(Path("/data") / "esphome.json")
+    expected = Path("/data") / "esphome.json"
     assert result == expected
