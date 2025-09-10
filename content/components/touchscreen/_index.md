@@ -288,7 +288,7 @@ binary_sensor:
 ## See Also
 
 - [Binary Sensor Filters](#binary_sensor-filters)
-- {{< docref "/components/display/inkplate6" "Inkplate 6 Plus" >}}
+- {{< docref "/components/display/inkplate" "Inkplate 6 Plus" >}}
 - {{< docref "/components/touchscreen/ektf2232" "EKTF2232" >}}
 - {{< docref "/components/touchscreen/xpt2046" "XPT2046" >}}
 - {{< docref "/components/touchscreen/tt21100" "TT21100" >}}

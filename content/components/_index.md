@@ -731,7 +731,7 @@ Often known as "tag" or "card" readers within the community.
 "ILI9486","components/display/ili9xxx","ili9341.jpg"
 "ILI9488","components/display/ili9xxx","ili9488.svg"
 "WSPICOLCD","components/display/ili9xxx","ili9488.svg"
-"Inkplate","components/display/inkplate6","inkplate6.jpg"
+"Inkplate","components/display/inkplate","inkplate6.jpg"
 "LCD Display","components/display/lcd_display","lcd.jpg"
 "MAX7219 Dot Matrix","components/display/max7219digit","max7219digit.jpg"
 "MAX7219","components/display/max7219","max7219.jpg"
