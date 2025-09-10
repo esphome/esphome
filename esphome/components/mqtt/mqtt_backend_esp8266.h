@@ -65,6 +65,7 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   using MQTTBackend::publish;
 
  protected:
+  std::string transport_;
   AsyncMqttClient mqtt_client_;
 };
 
