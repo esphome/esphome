@@ -76,11 +76,11 @@ def get_include_text():
 
 
 def replace_file_content(text, pattern, repl):
-    content_new, count = re.subn(pattern, repl, text, flags=re.M)
+    content_new, count = re.subn(pattern, repl, text, flags=re.MULTILINE)
     return content_new, count
 
 
-def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
+def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     if old is None:
         return True
 
@@ -88,23 +88,22 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
         return True
     if old.build_path != new.build_path:
         return True
-
-    return False
+    # Check if any components have been removed
+    return bool(old.loaded_integrations - new.loaded_integrations)
 
 
 def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
     if (
         old.loaded_integrations != new.loaded_integrations
         or old.loaded_platforms != new.loaded_platforms
-    ):
-        if new.core_platform == PLATFORM_ESP32:
-            from esphome.components.esp32 import FRAMEWORK_ESP_IDF
+    ) and new.core_platform == PLATFORM_ESP32:
+        from esphome.components.esp32 import FRAMEWORK_ESP_IDF
 
-            return new.framework == FRAMEWORK_ESP_IDF
+        return new.framework == FRAMEWORK_ESP_IDF
     return False
 
 
-def update_storage_json():
+def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
@@ -112,7 +111,14 @@ def update_storage_json():
         return
 
     if storage_should_clean(old, new):
-        _LOGGER.info("Core config, version changed, cleaning build files...")
+        if old is not None and old.loaded_integrations - new.loaded_integrations:
+            removed = old.loaded_integrations - new.loaded_integrations
+            _LOGGER.info(
+                "Components removed (%s), cleaning build files...",
+                ", ".join(sorted(removed)),
+            )
+        else:
+            _LOGGER.info("Core config or version changed, cleaning build files...")
         clean_build()
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
@@ -304,6 +310,10 @@ def clean_build():
     if os.path.isdir(piolibdeps):
         _LOGGER.info("Deleting %s", piolibdeps)
         shutil.rmtree(piolibdeps)
+    dependencies_lock = CORE.relative_build_path("dependencies.lock")
+    if os.path.isfile(dependencies_lock):
+        _LOGGER.info("Deleting %s", dependencies_lock)
+        os.remove(dependencies_lock)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

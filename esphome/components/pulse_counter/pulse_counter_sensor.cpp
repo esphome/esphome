@@ -156,7 +156,6 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
 #endif  // HAS_PCNT
 
 void PulseCounterSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
     return;

@@ -29,8 +29,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -119,9 +118,6 @@ void Logger::pre_setup() {
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
         this->hw_serial_ = &Serial;
-#if ARDUINO_USB_CDC_ON_BOOT
-        Serial.setTxTimeoutMs(0);  // workaround for 2.0.9 crash when there's no data connection
-#endif
         Serial.begin(this->baud_rate_);
         break;
 #endif
@@ -194,21 +190,28 @@ void HOT Logger::write_msg_(const char *msg) {
 void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
 #endif
 
-const char *const UART_SELECTIONS[] = {
-    "UART0",           "UART1",
+const LogString *Logger::get_uart_selection_() {
+  switch (this->uart_) {
+    case UART_SELECTION_UART0:
+      return LOG_STR("UART0");
+    case UART_SELECTION_UART1:
+      return LOG_STR("UART1");
 #ifdef USE_ESP32_VARIANT_ESP32
-    "UART2",
+    case UART_SELECTION_UART2:
+      return LOG_STR("UART2");
 #endif
 #ifdef USE_LOGGER_USB_CDC
-    "USB_CDC",
+    case UART_SELECTION_USB_CDC:
+      return LOG_STR("USB_CDC");
 #endif
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
-    "USB_SERIAL_JTAG",
+    case UART_SELECTION_USB_SERIAL_JTAG:
+      return LOG_STR("USB_SERIAL_JTAG");
 #endif
-};
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
 
-const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
-
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 #endif

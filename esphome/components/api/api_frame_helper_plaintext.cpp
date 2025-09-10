@@ -10,8 +10,11 @@
 #include <cstring>
 #include <cinttypes>
 
-namespace esphome {
-namespace api {
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
+namespace esphome::api {
 
 static const char *const TAG = "api.plaintext";
 
@@ -198,11 +201,20 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
       // We must send at least 3 bytes to be read, so we add
       // a message after the indicator byte to ensures its long
       // enough and can aid in debugging.
-      const char msg[] = "\x00"
-                         "Bad indicator byte";
+      static constexpr uint8_t INDICATOR_MSG_SIZE = 19;
+#ifdef USE_ESP8266
+      static const char MSG_PROGMEM[] PROGMEM = "\x00"
+                                                "Bad indicator byte";
+      char msg[INDICATOR_MSG_SIZE];
+      memcpy_P(msg, MSG_PROGMEM, INDICATOR_MSG_SIZE);
       iov[0].iov_base = (void *) msg;
-      iov[0].iov_len = 19;
-      this->write_raw_(iov, 1, 19);
+#else
+      static const char MSG[] = "\x00"
+                                "Bad indicator byte";
+      iov[0].iov_base = (void *) MSG;
+#endif
+      iov[0].iov_len = INDICATOR_MSG_SIZE;
+      this->write_raw_(iov, 1, INDICATOR_MSG_SIZE);
     }
     return aerr;
   }
@@ -286,7 +298,6 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
   return write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size(), total_write_len);
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif  // USE_API_PLAINTEXT
 #endif  // USE_API

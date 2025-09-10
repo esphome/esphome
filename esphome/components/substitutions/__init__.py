@@ -49,15 +49,14 @@ def _expand_jinja(value, orig_value, path, jinja, ignore_missing):
         try:
             # Invoke the jinja engine to evaluate the expression.
             value, err = jinja.expand(value)
-            if err is not None:
-                if not ignore_missing and "password" not in path:
-                    _LOGGER.warning(
-                        "Found '%s' (see %s) which looks like an expression,"
-                        " but could not resolve all the variables: %s",
-                        value,
-                        "->".join(str(x) for x in path),
-                        err.message,
-                    )
+            if err is not None and not ignore_missing and "password" not in path:
+                _LOGGER.warning(
+                    "Found '%s' (see %s) which looks like an expression,"
+                    " but could not resolve all the variables: %s",
+                    value,
+                    "->".join(str(x) for x in path),
+                    err.message,
+                )
         except (
             TemplateError,
             TemplateRuntimeError,

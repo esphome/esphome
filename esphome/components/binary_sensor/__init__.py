@@ -59,7 +59,7 @@ from esphome.const import (
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 from esphome.util import Registry
@@ -266,8 +266,10 @@ async def delayed_off_filter_to_code(config, filter_id):
 async def autorepeat_filter_to_code(config, filter_id):
     timings = []
     if len(config) > 0:
-        for conf in config:
-            timings.append((conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON]))
+        timings.extend(
+            (conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON])
+            for conf in config
+        )
     else:
         timings.append(
             (
@@ -514,6 +516,7 @@ def binary_sensor_schema(
     icon: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
     device_class: str = cv.UNDEFINED,
+    filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
     schema = {}
 
@@ -525,6 +528,7 @@ def binary_sensor_schema(
         (CONF_ICON, icon, cv.icon),
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_FILTERS, filters, validate_filters),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
@@ -573,16 +577,15 @@ async def setup_binary_sensor_core_(var, config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_MULTI_CLICK, []):
-        timings = []
-        for tim in conf[CONF_TIMING]:
-            timings.append(
-                cg.StructInitializer(
-                    MultiClickTriggerEvent,
-                    ("state", tim[CONF_STATE]),
-                    ("min_length", tim[CONF_MIN_LENGTH]),
-                    ("max_length", tim.get(CONF_MAX_LENGTH, 4294967294)),
-                )
+        timings = [
+            cg.StructInitializer(
+                MultiClickTriggerEvent,
+                ("state", tim[CONF_STATE]),
+                ("min_length", tim[CONF_MIN_LENGTH]),
+                ("max_length", tim.get(CONF_MAX_LENGTH, 4294967294)),
             )
+            for tim in conf[CONF_TIMING]
+        ]
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
@@ -649,9 +652,8 @@ async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_BINARY_SENSOR")
     cg.add_global(binary_sensor_ns.using)
 
 
