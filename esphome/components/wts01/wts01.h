@@ -14,13 +14,11 @@ class WTS01Sensor : public sensor::Sensor, public uart::UARTDevice, public Compo
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-
   uint8_t buffer_[PACKET_SIZE];
   uint8_t buffer_pos_{0};
 
   void handle_char_(uint8_t c);
   void process_packet_();
-
 };
 
 }  // namespace wts01
