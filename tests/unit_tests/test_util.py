@@ -30,21 +30,21 @@ def test_list_yaml_files_with_files_and_directories(tmp_path: Path) -> None:
 
     # Test with mixed input (directories and files)
     configs = [
-        str(dir1),
-        str(standalone1),
-        str(dir2),
-        str(standalone2),
+        dir1,
+        standalone1,
+        dir2,
+        standalone2,
     ]
 
     result = util.list_yaml_files(configs)
 
     # Should include all YAML files but not the .txt file
     assert set(result) == {
-        str(dir1 / "config1.yaml"),
-        str(dir1 / "config2.yml"),
-        str(dir2 / "config3.yaml"),
-        str(standalone1),
-        str(standalone2),
+        dir1 / "config1.yaml",
+        dir1 / "config2.yml",
+        dir2 / "config3.yaml",
+        standalone1,
+        standalone2,
     }
     # Check that results are sorted
     assert result == sorted(result)
@@ -61,12 +61,12 @@ def test_list_yaml_files_only_directories(tmp_path: Path) -> None:
     (dir1 / "b.yml").write_text("test: b")
     (dir2 / "c.yaml").write_text("test: c")
 
-    result = util.list_yaml_files([str(dir1), str(dir2)])
+    result = util.list_yaml_files([dir1, dir2])
 
     assert set(result) == {
-        str(dir1 / "a.yaml"),
-        str(dir1 / "b.yml"),
-        str(dir2 / "c.yaml"),
+        dir1 / "a.yaml",
+        dir1 / "b.yml",
+        dir2 / "c.yaml",
     }
     assert result == sorted(result)
 
@@ -86,17 +86,17 @@ def test_list_yaml_files_only_files(tmp_path: Path) -> None:
     # Include a non-YAML file to test filtering
     result = util.list_yaml_files(
         [
-            str(file1),
-            str(file2),
-            str(file3),
-            str(non_yaml),
+            file1,
+            file2,
+            file3,
+            non_yaml,
         ]
     )
 
     assert set(result) == {
-        str(file1),
-        str(file2),
-        str(file3),
+        file1,
+        file2,
+        file3,
     }
     assert result == sorted(result)
 
@@ -106,7 +106,7 @@ def test_list_yaml_files_empty_directory(tmp_path: Path) -> None:
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
 
-    result = util.list_yaml_files([str(empty_dir)])
+    result = util.list_yaml_files([empty_dir])
 
     assert result == []
 
@@ -119,7 +119,7 @@ def test_list_yaml_files_nonexistent_path(tmp_path: Path) -> None:
 
     # Should raise an error for non-existent directory
     with pytest.raises(FileNotFoundError):
-        util.list_yaml_files([str(nonexistent), str(existing)])
+        util.list_yaml_files([nonexistent, existing])
 
 
 def test_list_yaml_files_mixed_extensions(tmp_path: Path) -> None:
@@ -135,9 +135,9 @@ def test_list_yaml_files_mixed_extensions(tmp_path: Path) -> None:
     yml_file.write_text("test: yml")
     other_file.write_text("test: txt")
 
-    result = util.list_yaml_files([str(dir1)])
+    result = util.list_yaml_files([dir1])
 
     assert set(result) == {
-        str(yaml_file),
-        str(yml_file),
+        yaml_file,
+        yml_file,
     }
