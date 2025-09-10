@@ -7,6 +7,12 @@
 namespace esphome {
 namespace wts01 {
 
+constexpr uint8_t PACKET_SIZE = 9;
+constexpr uint8_t HEADER_1 = 0x55;
+constexpr uint8_t HEADER_2 = 0x01;
+constexpr uint8_t HEADER_3 = 0x01;
+constexpr uint8_t HEADER_4 = 0x04;
+
 class WTS01Sensor : public sensor::Sensor, public uart::UARTDevice, public Component {
  public:
   void loop() override;

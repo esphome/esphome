@@ -6,11 +6,6 @@ namespace esphome {
 namespace wts01 {
 
 static const char *const TAG = "wts01";
-static const uint8_t PACKET_SIZE = 9;
-static const uint8_t HEADER_1 = 0x55;
-static const uint8_t HEADER_2 = 0x01;
-static const uint8_t HEADER_3 = 0x01;
-static const uint8_t HEADER_4 = 0x04;
 
 void WTS01Sensor::loop() {
   // Process one character at a time received from the sensor
