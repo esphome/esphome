@@ -1,7 +1,10 @@
 """Tests for storage_json.py path functions."""
 
 from pathlib import Path
+import sys
 from unittest.mock import patch
+
+import pytest
 
 from esphome import storage_json
 from esphome.core import CORE
@@ -160,6 +163,7 @@ def test_storage_json_from_wizard(setup_core: Path) -> None:
     assert storage.firmware_bin_path is None
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="HA addons don't run on Windows")
 @patch("esphome.core.is_ha_addon")
 def test_storage_paths_with_ha_addon(mock_is_ha_addon: bool, tmp_path: Path) -> None:
     """Test storage paths when running as Home Assistant addon."""
@@ -168,7 +172,11 @@ def test_storage_paths_with_ha_addon(mock_is_ha_addon: bool, tmp_path: Path) -> 
     CORE.config_path = str(tmp_path / "test.yaml")
 
     result = storage_json.storage_path()
-    assert result == str(Path("/data") / "storage" / "test.yaml.json")
+    # When is_ha_addon is True, CORE.data_dir returns "/data"
+    # This is the standard mount point for HA addon containers
+    expected = str(Path("/data") / "storage" / "test.yaml.json")
+    assert result == expected
 
     result = storage_json.esphome_storage_path()
-    assert result == str(Path("/data") / "esphome.json")
+    expected = str(Path("/data") / "esphome.json")
+    assert result == expected

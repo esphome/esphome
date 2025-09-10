@@ -1,5 +1,6 @@
 """Tests for external_files.py functions."""
 
+import os
 from pathlib import Path
 import time
 from unittest.mock import MagicMock, patch
@@ -73,9 +74,12 @@ def test_is_file_recent_nonexistent_file(setup_core: Path) -> None:
 
 
 def test_is_file_recent_with_zero_refresh(setup_core: Path) -> None:
-    """Test is_file_recent with zero refresh period always returns False."""
+    """Test is_file_recent with zero refresh period returns False."""
     test_file = setup_core / "test.txt"
     test_file.write_text("content")
+
+    old_time = time.time() - 10
+    os.utime(test_file, (old_time, old_time))
 
     refresh = TimePeriod(seconds=0)
 
