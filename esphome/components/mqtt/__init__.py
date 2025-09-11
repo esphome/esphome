@@ -211,15 +211,12 @@ def validate_fingerprint(value):
     return value
 
 
-def validate_transport(value):
-    v = value.lower()
-    if v not in ("tcp", "ws"):
-        raise cv.Invalid("Transport must be one of: tcp, ws")
+MQTTTransport = mqtt_ns.enum("MQTTTransport")
 
-    if v in ("ws") and not (CORE.is_esp32 and CORE.using_esp_idf):
-        raise cv.Invalid(f"Transport={v} requires ESP32 with ESP-IDF")
-    return v
-
+TRANSPORTS = {
+  "tcp": MQTTTransport.MQTT_TRANSPORT_TCP,
+  "ws": MQTTTransport.MQTT_TRANSPORT_WS,
+}
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
