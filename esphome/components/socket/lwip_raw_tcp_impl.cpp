@@ -26,6 +26,12 @@ static const char *const TAG = "socket.lwip";
 #define LWIP_LOG(msg, ...)
 #endif
 
+struct PbufDeleter {
+  void operator()(pbuf* b) { pbuf_free(b); }
+};
+
+using unique_pbuf_t = std::unique_ptr<pbuf, PbufDeleter>;
+
 class LWIPRawImpl : public Socket {
  public:
   LWIPRawImpl(sa_family_t family, struct tcp_pcb *pcb) : pcb_(pcb), family_(family) {}
@@ -311,20 +317,20 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return -1;
     }
-    if (rx_closed_ && rx_buf_ == nullptr) {
+    if (rx_closed_ && !rx_buf_) {
       return 0;
     }
     if (len == 0) {
       return 0;
     }
-    if (rx_buf_ == nullptr) {
+    if (!rx_buf_) {
       errno = EWOULDBLOCK;
       return -1;
     }
 
     size_t read = 0;
     uint8_t *buf8 = reinterpret_cast<uint8_t *>(buf);
-    while (len && rx_buf_ != nullptr) {
+    while (len && rx_buf_) {
       size_t pb_len = rx_buf_->len;
       size_t pb_left = pb_len - rx_buf_offset_;
       if (pb_left == 0)
@@ -336,15 +342,13 @@ class LWIPRawImpl : public Socket {
         // full pb copied, free it
         if (rx_buf_->next == nullptr) {
           // last buffer in chain
-          pbuf_free(rx_buf_);
-          rx_buf_ = nullptr;
-          rx_buf_offset_ = 0;
+          rx_buf_.reset();
+          // no need to reset rx_buf_offset_, it will be reset in recv_fn
         } else {
-          auto *old_buf = rx_buf_;
-          rx_buf_ = rx_buf_->next;
-          pbuf_ref(rx_buf_);
-          pbuf_free(old_buf);
+          auto *new_buf = rx_buf_->next;
           rx_buf_offset_ = 0;
+          pbuf_ref(new_buf);
+          rx_buf_.reset(new_buf);
         }
       } else {
         rx_buf_offset_ += copysize;
@@ -520,12 +524,12 @@ class LWIPRawImpl : public Socket {
       rx_closed_ = true;
       return ERR_OK;
     }
-    if (rx_buf_ == nullptr) {
+    if (!rx_buf_) {
       // no need to copy because lwIP gave control of it to us
-      rx_buf_ = pb;
+      rx_buf_.reset(pb);
       rx_buf_offset_ = 0;
     } else {
-      pbuf_cat(rx_buf_, pb);
+      pbuf_cat(rx_buf_.get(), pb);
     }
     return ERR_OK;
   }
@@ -589,7 +593,7 @@ class LWIPRawImpl : public Socket {
   struct tcp_pcb *pcb_;
   std::queue<std::unique_ptr<LWIPRawImpl>> accepted_sockets_;
   bool rx_closed_ = false;
-  pbuf *rx_buf_ = nullptr;
+  unique_pbuf_t rx_buf_{nullptr};
   size_t rx_buf_offset_ = 0;
   // don't use lwip nodelay flag, it sometimes causes reconnect
   // instead use it for determining whether to call lwip_output
