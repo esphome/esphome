@@ -49,18 +49,6 @@ void RX8130Component::update() { this->read_time(); }
 void RX8130Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8130:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG,
-                "  DOFFS  %s\n"
-                "  EXTEN  %s\n"
-                "  FLAGS  %s\n"
-                "  CTRL0  %s\n"
-                "  CTRL1  %s\n"
-                "  Timezone: '%s'",
-                format_bin((uint8_t) this->reg(RX8130_REG_DIG_OFFSET)).c_str(),
-                format_bin((uint8_t) this->reg(RX8130_REG_EXTEN)).c_str(),
-                format_bin((uint8_t) this->reg(RX8130_REG_FLAG)).c_str(),
-                format_bin((uint8_t) this->reg(RX8130_REG_CTRL0)).c_str(),
-                format_bin((uint8_t) this->reg(RX8130_REG_CTRL1)).c_str(), this->timezone_.c_str());
 }
 
 void RX8130Component::read_time() {
