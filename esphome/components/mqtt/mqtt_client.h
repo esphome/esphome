@@ -55,12 +55,6 @@ struct MQTTCredentials {
   bool clean_session;     ///< Whether the session will be cleaned or remembered between connects.
 };
 
-/// transport enum
-enum MQTTTransport : uint8_t {
-  MQTT_TRANSPORT_TCP,
-  MQTT_TRANSPORT_WS,
-};
-
 /// Simple data struct for Home Assistant component availability.
 struct Availability {
   std::string topic;  ///< Empty means disabled
