@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Generator
+import gzip
 import json
 import os
 from pathlib import Path
@@ -72,6 +73,28 @@ def mock_dashboard_settings() -> Generator[MagicMock]:
         mock_settings.using_auth = False
         mock_settings.on_ha_addon = False
         yield mock_settings
+
+
+@pytest.fixture
+def mock_ext_storage_path(tmp_path: Path) -> Generator[MagicMock]:
+    """Fixture to mock ext_storage_path."""
+    with patch("esphome.dashboard.web_server.ext_storage_path") as mock:
+        mock.return_value = str(tmp_path / "storage.json")
+        yield mock
+
+
+@pytest.fixture
+def mock_storage_json() -> Generator[MagicMock]:
+    """Fixture to mock StorageJSON."""
+    with patch("esphome.dashboard.web_server.StorageJSON") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_idedata() -> Generator[MagicMock]:
+    """Fixture to mock platformio_api.IDEData."""
+    with patch("esphome.dashboard.web_server.platformio_api.IDEData") as mock:
+        yield mock
 
 
 @pytest_asyncio.fixture()
@@ -193,6 +216,164 @@ async def test_download_binary_handler_not_found(
             method="GET",
         )
     assert exc_info.value.code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_no_file_param(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get without file parameter."""
+    # Mock storage to exist, but still should fail without file param
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = str(tmp_path / "firmware.bin")
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            "/download.bin?configuration=pico.yaml",
+            method="GET",
+        )
+    assert exc_info.value.code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_with_file(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with existing binary file."""
+    # Create a fake binary file
+    build_dir = tmp_path / ".esphome" / "build" / "test"
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"fake firmware content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=firmware.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert response.body == b"fake firmware content"
+    assert response.headers["Content-Type"] == "application/octet-stream"
+    assert "attachment" in response.headers["Content-Disposition"]
+    assert "test_device-firmware.bin" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_compressed(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with compression."""
+    # Create a fake binary file
+    build_dir = tmp_path / ".esphome" / "build" / "test"
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    original_content = b"fake firmware content for compression test"
+    firmware_file.write_bytes(original_content)
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=firmware.bin&compressed=1",
+        method="GET",
+    )
+    assert response.code == 200
+    # Decompress and verify content
+    decompressed = gzip.decompress(response.body)
+    assert decompressed == original_content
+    assert response.headers["Content-Type"] == "application/octet-stream"
+    assert "firmware.bin.gz" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_custom_download_name(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with custom download name."""
+    # Create a fake binary file
+    build_dir = tmp_path / ".esphome" / "build" / "test"
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=firmware.bin&download=custom_name.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert "custom_name.bin" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_idedata_fallback(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_async_run_system_command: MagicMock,
+    mock_storage_json: MagicMock,
+    mock_idedata: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get falling back to idedata for extra images."""
+    # Create build directory but no bootloader file initially
+    build_dir = tmp_path / ".esphome" / "build" / "test"
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"firmware")
+
+    # Create bootloader file that idedata will find
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(b"bootloader content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage_json.load.return_value = mock_storage
+
+    # Mock idedata response
+    mock_image = Mock()
+    mock_image.path = str(bootloader_file)
+    mock_idedata_instance = Mock()
+    mock_idedata_instance.extra_flash_images = [mock_image]
+    mock_idedata.return_value = mock_idedata_instance
+
+    # Mock async_run_system_command to return idedata JSON
+    mock_async_run_system_command.return_value = (0, '{"extra_flash_images": []}', "")
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=bootloader.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert response.body == b"bootloader content"
 
 
 @pytest.mark.asyncio
