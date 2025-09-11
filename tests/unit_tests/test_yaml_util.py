@@ -10,6 +10,17 @@ from esphome.core import EsphomeError
 from esphome.util import OrderedDict
 
 
+@pytest.fixture(autouse=True)
+def clear_secrets_cache() -> None:
+    """Clear the secrets cache before each test."""
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+    yield
+    # Optionally clear after test as well for better isolation
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+
+
 def test_include_with_vars(fixture_path: Path) -> None:
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
@@ -260,9 +271,6 @@ all_sensors: !include_dir_named named_dir
 def test_secret_values_tracking(fixture_path: Path) -> None:
     """Test that secret values are properly tracked for dumping."""
     yaml_file = fixture_path / "yaml_util" / "test_secret.yaml"
-
-    # Clear secret cache first
-    yaml_util._SECRET_VALUES.clear()
 
     yaml_util.load_yaml(yaml_file)
 
