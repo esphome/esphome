@@ -55,7 +55,7 @@ bool MQTTBackendESP32::initialize_() {
       mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
     }
   } else {
-    if (this->transport_ == "ws") {
+    if (this->transport_ == MQTTTransport::MQTT_TRANSPORT_WS) {
       mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
     } else {
       mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
