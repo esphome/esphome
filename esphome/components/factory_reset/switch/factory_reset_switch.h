@@ -1,7 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace factory_reset {

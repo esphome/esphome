@@ -1,10 +1,13 @@
 #include "factory_reset_switch.h"
+
+#include "esphome/core/defines.h"
+
 #ifdef USE_OPENTHREAD
 #include "esphome/components/openthread/openthread.h"
 #endif
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome {
 namespace factory_reset {

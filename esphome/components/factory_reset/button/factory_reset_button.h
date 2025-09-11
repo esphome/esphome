@@ -1,7 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+
 #include "esphome/components/button/button.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace factory_reset {
