@@ -249,9 +249,8 @@ def test_choose_upload_log_host_with_ota_device_no_fallback() -> None:
     assert result == []
 
 
-def test_choose_upload_log_host_multiple_devices(
-    mock_choose_prompt: Mock,
-) -> None:
+@pytest.mark.usefixtures("mock_choose_prompt")
+def test_choose_upload_log_host_multiple_devices() -> None:
     """Test with multiple devices including special identifiers."""
     setup_core(config={"ota": {}}, address="192.168.1.100")
 
