@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import typing
 
 from zeroconf import AddressResolver, IPVersion
@@ -67,7 +68,9 @@ class MDNSStatus:
 
         # Try to load from zeroconf cache without triggering resolution
         info = AddressResolver(f"{base_name}.local.")
-        if info.load_from_cache(self.aiozc.zeroconf):
+        # Pass current time in milliseconds for cache expiry checking
+        now = time.time() * 1000
+        if info.load_from_cache(self.aiozc.zeroconf, now):
             return info.parsed_scoped_addresses(IPVersion.All)
         return None
 

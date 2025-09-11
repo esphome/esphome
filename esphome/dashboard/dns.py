@@ -28,8 +28,10 @@ class DNSCache:
         self._cache: dict[str, tuple[float, list[str] | Exception]] = {}
         self._ttl = ttl
 
-    def get_cached(self, hostname: str, now_monotonic: float) -> list[str] | None:
-        """Get cached address without triggering resolution.
+    def get_cached_addresses(
+        self, hostname: str, now_monotonic: float
+    ) -> list[str] | None:
+        """Get cached addresses without triggering resolution.
 
         Returns None if not in cache, list of addresses if found.
         """

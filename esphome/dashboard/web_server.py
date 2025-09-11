@@ -364,7 +364,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                             )
                 else:
                     # Check DNS cache for non-.local addresses
-                    cached = dashboard.dns_cache.get_cached(use_address, now)
+                    cached = dashboard.dns_cache.get_cached_addresses(use_address, now)
                     _LOGGER.debug(
                         "DNS cache lookup for address %s: %s", use_address, cached
                     )
