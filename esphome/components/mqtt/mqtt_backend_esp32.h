@@ -147,7 +147,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     this->host_ = host;
     this->port_ = port;
   }
-  void set_transport(MQTTTransport transport) { this->transport_ = transport; }
+  void set_transport(MQTTCredentials::MQTTTransport transport) { this->transport_ = transport; }
   void set_on_connect(std::function<on_connect_callback_t> &&callback) final {
     this->on_connect_.add(std::move(callback));
   }
@@ -237,7 +237,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   std::string host_;
   uint16_t port_;
-  MQTTTransport transport_;
+  MQTTCredentials::MQTTTransport transport_;
   std::string username_;
   std::string password_;
   std::string lwt_topic_;
