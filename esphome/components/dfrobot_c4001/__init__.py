@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import uart
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["uart"]
@@ -9,16 +9,22 @@ CODEOWNERS = ["zhixin.liu@dfrobot.com"]
 
 
 dfrobot_c4001_ns = cg.esphome_ns.namespace("dfrobot_c4001")
-c4001Component = dfrobot_c4001_ns.class_("c4001Component", cg.Component, uart.UARTDevice)
+c4001Component = dfrobot_c4001_ns.class_(
+    "c4001Component", cg.Component, uart.UARTDevice
+)
 
 
 CONF_C4001_ID = "c4001_id"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(c4001Component),
-    }
-).extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(c4001Component),
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

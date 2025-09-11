@@ -11,28 +11,27 @@ void MinRangeNumber::control(float value) {
   if (this->parent_) {
     float max_range = this->parent_->get_max_range();
     float min_range = this->parent_->get_min_range();
-    if(value < max_range){
+    if (value < max_range) {
       ESP_LOGD(TAG, "Set min range to %.1f", value);
       this->publish_state(value);
       this->parent_->set_min_range(value);
-    }else{
+    } else {
       this->publish_state(NAN);
       this->publish_state(min_range);
     }
   }
-  
 }
 
 // -------- Max Range --------
 void MaxRangeNumber::control(float value) {
   if (this->parent_) {
-    float min_range = this->parent_->get_min_range();    
-    float max_range = this->parent_->get_max_range(); 
-    if(value > min_range){
+    float min_range = this->parent_->get_min_range();
+    float max_range = this->parent_->get_max_range();
+    if (value > min_range) {
       this->publish_state(value);
       ESP_LOGD(TAG, "Set max range to %.1f", value);
       this->parent_->set_max_range(value);
-    }else{
+    } else {
       this->publish_state(NAN);
       this->publish_state(max_range);
     }

@@ -53,11 +53,7 @@ typedef struct motionData {
 } sMontionData_t;
 
 /** @brief Running mode of the device. */
-enum MotionMode {
-  MODE_UNKNOWN = -1,
-  MODE_MOTION = 0,
-  MODE_SPEED = 1
-};
+enum MotionMode { MODE_UNKNOWN = -1, MODE_MOTION = 0, MODE_SPEED = 1 };
 
 namespace esphome {
 namespace dfrobot_c4001 {
@@ -68,7 +64,6 @@ class c4001Listener {
   virtual void on_distance(float distance){};
   virtual void on_speed(float speed){};
 };
-
 
 /**
  * @brief Main component for the DFRobot C4001 device.
@@ -151,7 +146,7 @@ class c4001Component : public Component, public uart::UARTDevice {
   void get_data();
 
   void register_listener(c4001Listener *listener) { this->listeners_.push_back(listener); }
-  
+
 #ifdef USE_NUMBER
   /** Setters for Number child entities (Home Assistant number entities) */
   void set_min_range_number(number::Number *number) { this->min_range_number_ = number; }
@@ -173,12 +168,12 @@ class c4001Component : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_SENSOR
-  //void set_speed_sensor(sensor::Sensor *speed_sensor) { speed_sensor_ = speed_sensor; }
-  //void set_distance_sensor(sensor::Sensor *distance_sensor) { distance_sensor_ = distance_sensor; }
+    // void set_speed_sensor(sensor::Sensor *speed_sensor) { speed_sensor_ = speed_sensor; }
+    // void set_distance_sensor(sensor::Sensor *distance_sensor) { distance_sensor_ = distance_sensor; }
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  //void set_exist_sensor(binary_sensor::BinarySensor *exist_sensor) { exist_sensor_ = exist_sensor; }
+    // void set_exist_sensor(binary_sensor::BinarySensor *exist_sensor) { exist_sensor_ = exist_sensor; }
 #endif
 
  protected:
@@ -186,20 +181,20 @@ class c4001Component : public Component, public uart::UARTDevice {
   // size_t uart_read_raw(char *buf, size_t bufsize, uint32_t timeout_ms = 200);
 
   /** Detection range defaults (meters) */
-  float min_range_{0.6f};    ///< default minimum detection range
-  float max_range_{6.0f};    ///< default maximum detection range
-  float trig_range_{6.0f};   ///< default trigger range
+  float min_range_{0.6f};   ///< default minimum detection range
+  float max_range_{6.0f};   ///< default maximum detection range
+  float trig_range_{6.0f};  ///< default trigger range
 
   /** Sensitivity defaults (unitless, device specific scale) */
   int keep_sensitivity_{7};  ///< default keep sensitivity
   int trig_sensitivity_{7};  ///< default trigger sensitivity
 
   /** Delay defaults (seconds) */
-  float confirm_delay_{0.5f};   ///< default confirmation delay (s)
-  float disappear_delay_{15.0f};///< default disappearance delay (s)
+  float confirm_delay_{0.5f};     ///< default confirmation delay (s)
+  float disappear_delay_{15.0f};  ///< default disappearance delay (s)
 
   /** Threshold factor default */
-  int threshold_factor_{5}; ///< default threshold factor
+  int threshold_factor_{5};  ///< default threshold factor
 
 #ifdef USE_NUMBER
   number::Number *min_range_number_{nullptr};
@@ -228,23 +223,22 @@ class c4001Component : public Component, public uart::UARTDevice {
   float speed_{0.0f};
   float distance_{0.0f};
 #ifdef USE_SENSOR
-  //sensor::Sensor *speed_sensor_{nullptr};
-  //sensor::Sensor *distance_sensor_{nullptr};
+  // sensor::Sensor *speed_sensor_{nullptr};
+  // sensor::Sensor *distance_sensor_{nullptr};
 #endif
 
   /** Presence flag parsed from device output */
   bool exist_{false};
 #ifdef USE_BINARY_SENSOR
-  //binary_sensor::BinarySensor *exist_sensor_{nullptr};
+  // binary_sensor::BinarySensor *exist_sensor_{nullptr};
 #endif
 
   /** Timing and internal helpers */
-  uint32_t update_interval_{1000}; ///< default update interval (ms)
+  uint32_t update_interval_{1000};  ///< default update interval (ms)
   uint32_t last_update_{0};
-  uint8_t test_value_{0}; ///< test value (0-255)
-  
-  std::vector<c4001Listener *> listeners_{};
+  uint8_t test_value_{0};  ///< test value (0-255)
 
+  std::vector<c4001Listener *> listeners_{};
 };
 
 }  // namespace dfrobot_c4001

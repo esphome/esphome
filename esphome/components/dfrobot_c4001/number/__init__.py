@@ -8,7 +8,7 @@ from esphome.const import (
     UNIT_SECOND,
 )
 
-from .. import CONF_C4001_ID, dfrobot_c4001_ns, c4001Component
+from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
 
 MinRangeNumber = dfrobot_c4001_ns.class_("MinRangeNumber", number.Number)
 MaxRangeNumber = dfrobot_c4001_ns.class_("MaxRangeNumber", number.Number)
@@ -31,15 +31,13 @@ CONF_THRESHOLD_FACTOR = "threshold_factor"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_C4001_ID): cv.use_id(c4001Component),
-
-        cv.Optional(CONF_MIN_RANGE): number.number_schema( 
-            MinRangeNumber, 
-            device_class=DEVICE_CLASS_DISTANCE, 
+        cv.Optional(CONF_MIN_RANGE): number.number_schema(
+            MinRangeNumber,
+            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:ruler", 
-            unit_of_measurement="m", 
+            icon="mdi:ruler",
+            unit_of_measurement="m",
         ),
-        
         cv.Optional(CONF_MAX_RANGE): number.number_schema(
             MaxRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,
@@ -84,6 +82,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 async def to_code(config):
     number_component = await cg.get_variable(config[CONF_C4001_ID])
 
@@ -91,54 +90,60 @@ async def to_code(config):
     if min_config := config.get(CONF_MIN_RANGE):
         n = await number.new_number(min_config, min_value=0.3, max_value=25.0, step=0.1)
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(0.6))
+        # cg.add(n.publish_state(0.6))
         cg.add(number_component.set_min_range_number(n))
-        
+
     # max_range
     if max_config := config.get(CONF_MAX_RANGE):
         n = await number.new_number(max_config, min_value=1.0, max_value=25.0, step=0.1)
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(6.0))
+        # cg.add(n.publish_state(6.0))
         cg.add(number_component.set_max_range_number(n))
 
     # trig range
     if trig_config := config.get(CONF_TRIG_RANGE):
-        n = await number.new_number(trig_config, min_value=0.0, max_value=25.0, step=0.1)
+        n = await number.new_number(
+            trig_config, min_value=0.0, max_value=25.0, step=0.1
+        )
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(6.0))
+        # cg.add(n.publish_state(6.0))
         cg.add(number_component.set_trig_range_number(n))
 
     # keep sensitivity
     if keep_s_config := config.get(CONF_KEEP_SENSITIVITY):
         n = await number.new_number(keep_s_config, min_value=0, max_value=9, step=1)
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(7))
+        # cg.add(n.publish_state(7))
         cg.add(number_component.set_keep_sensitivity_number(n))
 
     # trig sensitivity
     if trig_s_config := config.get(CONF_TRIG_SENSITIVITY):
         n = await number.new_number(trig_s_config, min_value=0, max_value=9, step=1)
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(7))
+        # cg.add(n.publish_state(7))
         cg.add(number_component.set_trig_sensitivity_number(n))
 
     # confirm delay
     if confirm_config := config.get(CONF_CONFIRM_DELAY):
-        n = await number.new_number(confirm_config, min_value=0, max_value=255, step=0.1)
+        n = await number.new_number(
+            confirm_config, min_value=0, max_value=255, step=0.1
+        )
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(1))
+        # cg.add(n.publish_state(1))
         cg.add(number_component.set_confirm_delay_number(n))
 
     # disappear delay
     if disappear_config := config.get(CONF_DISAPPEAR_DELAY):
-        n = await number.new_number(disappear_config, min_value=0, max_value=1500, step=0.1)
+        n = await number.new_number(
+            disappear_config, min_value=0, max_value=1500, step=0.1
+        )
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(15))
+        # cg.add(n.publish_state(15))
         cg.add(number_component.set_disappear_delay_number(n))
 
     # threshold factor
     if threshold_config := config.get(CONF_THRESHOLD_FACTOR):
         n = await number.new_number(threshold_config, min_value=0, max_value=20, step=1)
         await cg.register_parented(n, config[CONF_C4001_ID])
-        #cg.add(n.publish_state(5))
+        # cg.add(n.publish_state(5))
         cg.add(number_component.set_threshold_factor_number(n))

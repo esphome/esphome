@@ -9,11 +9,11 @@ static const char *const TAG = "dfrobot_c4001.select";
 class C4001Sensor : public c4001Listener, public Component, sensor::Sensor {
  public:
   void setup() override {
-    if (this->distance_sensor_ != nullptr) { 
-        this->distance_sensor_->publish_state(0.0);
+    if (this->distance_sensor_ != nullptr) {
+      this->distance_sensor_->publish_state(0.0);
     }
-    if (this->speed_sensor_ != nullptr) { 
-        this->speed_sensor_->publish_state(0.0);
+    if (this->speed_sensor_ != nullptr) {
+      this->speed_sensor_->publish_state(0.0);
     }
   }
 
@@ -38,8 +38,6 @@ class C4001Sensor : public c4001Listener, public Component, sensor::Sensor {
  protected:
   sensor::Sensor *distance_sensor_{nullptr};
   sensor::Sensor *speed_sensor_{nullptr};
-
-
 };
 
 }  // namespace dfrobot_c4001
