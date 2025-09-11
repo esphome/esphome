@@ -70,7 +70,7 @@ def test_parsing_with_custom_loader(fixture_path):
     assert loader_calls[2].endswith("includes/scalar.yaml")
 
 
-def test_construct_secret_simple(fixture_path):
+def test_construct_secret_simple(fixture_path: Path) -> None:
     """Test loading a YAML file with !secret tags."""
     yaml_file = fixture_path / "yaml_util" / "test_secret.yaml"
 
@@ -82,7 +82,7 @@ def test_construct_secret_simple(fixture_path):
     assert actual["sensor"][0]["id"] == "my_secret_value"
 
 
-def test_construct_secret_missing(fixture_path, tmp_path):
+def test_construct_secret_missing(fixture_path: Path, tmp_path: Path) -> None:
     """Test that missing secrets raise proper errors."""
     # Create a YAML file with a secret that doesn't exist
     test_yaml = tmp_path / "test.yaml"
@@ -102,7 +102,7 @@ wifi:
         yaml_util.load_yaml(str(test_yaml))
 
 
-def test_construct_secret_no_secrets_file(tmp_path):
+def test_construct_secret_no_secrets_file(tmp_path: Path) -> None:
     """Test that missing secrets.yaml file raises proper error."""
     # Create a YAML file with a secret but no secrets.yaml
     test_yaml = tmp_path / "test.yaml"
@@ -119,7 +119,9 @@ wifi:
         yaml_util.load_yaml(str(test_yaml))
 
 
-def test_construct_secret_fallback_to_main_config_dir(fixture_path, tmp_path):
+def test_construct_secret_fallback_to_main_config_dir(
+    fixture_path: Path, tmp_path: Path
+) -> None:
     """Test fallback to main config directory for secrets."""
     # Create a subdirectory with a YAML file that uses secrets
     subdir = tmp_path / "subdir"
@@ -141,7 +143,7 @@ wifi:
         assert actual["wifi"]["password"] == "main_secret_value"
 
 
-def test_construct_include_dir_named(fixture_path):
+def test_construct_include_dir_named(fixture_path: Path) -> None:
     """Test !include_dir_named directive."""
     # Create test YAML that uses include_dir_named
     test_yaml = fixture_path / "yaml_util" / "test_include_named.yaml"
