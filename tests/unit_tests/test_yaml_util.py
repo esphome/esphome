@@ -16,7 +16,6 @@ def clear_secrets_cache() -> None:
     yaml_util._SECRET_VALUES.clear()
     yaml_util._SECRET_CACHE.clear()
     yield
-    # Optionally clear after test as well for better isolation
     yaml_util._SECRET_VALUES.clear()
     yaml_util._SECRET_CACHE.clear()
 
