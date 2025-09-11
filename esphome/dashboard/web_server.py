@@ -337,44 +337,74 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
             and "api" in entry.loaded_integrations
         ):
             now = time.monotonic()
+            _LOGGER.debug(
+                "Building cache for %s (address=%s, name=%s)",
+                configuration,
+                entry.address,
+                entry.name,
+            )
 
             # Build cache entries for any cached addresses we have
             # First check entry.address (use_address)
-            if (use_address := entry.address) and (
-                cached := dashboard.dns_cache.get_cached(use_address, now)
-            ):
-                normalized = use_address.rstrip(".").lower()
-                cache_args.extend(
-                    [
-                        "--dns-lookup-cache",
-                        f"{normalized}={','.join(sort_ip_addresses(cached))}",
-                    ]
-                )
+            if use_address := entry.address:
+                if use_address.endswith(".local"):
+                    # Check mDNS cache for .local addresses
+                    if mdns := dashboard.mdns_status:
+                        cached = mdns.get_cached_addresses(use_address)
+                        _LOGGER.debug(
+                            "mDNS cache lookup for address %s: %s", use_address, cached
+                        )
+                        if cached:
+                            normalized = use_address.rstrip(".").lower()
+                            cache_args.extend(
+                                [
+                                    "--mdns-lookup-cache",
+                                    f"{normalized}={','.join(sort_ip_addresses(cached))}",
+                                ]
+                            )
+                else:
+                    # Check DNS cache for non-.local addresses
+                    cached = dashboard.dns_cache.get_cached(use_address, now)
+                    _LOGGER.debug(
+                        "DNS cache lookup for address %s: %s", use_address, cached
+                    )
+                    if cached:
+                        normalized = use_address.rstrip(".").lower()
+                        cache_args.extend(
+                            [
+                                "--dns-lookup-cache",
+                                f"{normalized}={','.join(sort_ip_addresses(cached))}",
+                            ]
+                        )
 
             # Also check entry.name for cache entries
-            if entry.name:
-                if entry.name.endswith(".local"):
-                    # Check mDNS cache (zeroconf)
-                    if (mdns := dashboard.mdns_status) and (
-                        cached := mdns.get_cached_addresses(entry.name)
-                    ):
-                        normalized = entry.name.rstrip(".").lower()
+            # For mDNS devices, entry.name typically doesn't have .local suffix
+            # but we should check both with and without .local
+            if (
+                entry.name and not use_address
+            ):  # Only if we didn't already check address
+                # Try mDNS cache with .local suffix
+                mdns_name = (
+                    f"{entry.name}.local"
+                    if not entry.name.endswith(".local")
+                    else entry.name
+                )
+                if mdns := dashboard.mdns_status:
+                    cached = mdns.get_cached_addresses(mdns_name)
+                    _LOGGER.debug("mDNS cache lookup for %s: %s", mdns_name, cached)
+                    if cached:
+                        normalized = mdns_name.rstrip(".").lower()
                         cache_args.extend(
                             [
                                 "--mdns-lookup-cache",
                                 f"{normalized}={','.join(sort_ip_addresses(cached))}",
                             ]
                         )
-                elif cached := dashboard.dns_cache.get_cached(entry.name, now):
-                    normalized = entry.name.rstrip(".").lower()
-                    cache_args.extend(
-                        [
-                            "--dns-lookup-cache",
-                            f"{normalized}={','.join(sort_ip_addresses(cached))}",
-                        ]
-                    )
 
-        return [*DASHBOARD_COMMAND, *args, config_file, "--device", port, *cache_args]
+        # Cache arguments must come before the subcommand
+        cmd = [*DASHBOARD_COMMAND, *cache_args, *args, config_file, "--device", port]
+        _LOGGER.debug("Built command: %s", cmd)
+        return cmd
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):

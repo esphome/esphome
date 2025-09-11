@@ -136,7 +136,14 @@ def choose_upload_log_host(
                     (show_ota and "ota" in CORE.config)
                     or (show_api and "api" in CORE.config)
                 ):
-                    resolved.append(CORE.address)
+                    # Check if we have cached addresses for CORE.address
+                    if CORE.address_cache and (
+                        cached := CORE.address_cache.get_addresses(CORE.address)
+                    ):
+                        _LOGGER.debug("Using cached addresses for OTA: %s", cached)
+                        resolved.extend(cached)
+                    else:
+                        resolved.append(CORE.address)
                 elif show_mqtt and has_mqtt_logging():
                     resolved.append("MQTT")
             else:
