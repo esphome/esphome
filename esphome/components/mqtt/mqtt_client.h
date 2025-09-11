@@ -52,9 +52,9 @@ struct MQTTCredentials {
   std::string username;
   std::string password;
 #ifdef USE_ESP32
-  enum MQTTTransport : uint8_t
+  enum MQTTTransport : uint8_t;
 #endif
-      std::string client_id;  ///< The client ID. Will automatically be truncated to 23 characters.
+  std::string client_id;  ///< The client ID. Will automatically be truncated to 23 characters.
   bool clean_session;         ///< Whether the session will be cleaned or remembered between connects.
 };
 
