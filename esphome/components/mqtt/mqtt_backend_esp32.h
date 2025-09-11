@@ -237,7 +237,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   std::string host_;
   uint16_t port_;
-  std::string transport_;
+  MQTTTransport transport_;
   std::string username_;
   std::string password_;
   std::string lwt_topic_;
