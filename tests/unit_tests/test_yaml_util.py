@@ -176,7 +176,7 @@ sensor: !include_dir_named named_dir
     assert "not_yaml" not in actual["sensor"]
 
 
-def test_construct_include_dir_named_empty_dir(tmp_path):
+def test_construct_include_dir_named_empty_dir(tmp_path: Path) -> None:
     """Test !include_dir_named with empty directory."""
     # Create empty directory
     empty_dir = tmp_path / "empty_dir"
@@ -194,7 +194,7 @@ sensor: !include_dir_named empty_dir
     assert len(actual["sensor"]) == 0
 
 
-def test_construct_include_dir_named_with_dots(tmp_path):
+def test_construct_include_dir_named_with_dots(tmp_path: Path) -> None:
     """Test that include_dir_named ignores files starting with dots."""
     # Create directory with various files
     test_dir = tmp_path / "test_dir"
@@ -230,7 +230,7 @@ test: !include_dir_named test_dir
     assert ".hidden_dir" not in actual["test"]
 
 
-def test_find_files_recursive(fixture_path):
+def test_find_files_recursive(fixture_path: Path) -> None:
     """Test that _find_files works recursively through include_dir_named."""
     # This indirectly tests _find_files by using include_dir_named
     test_yaml = fixture_path / "yaml_util" / "test_include_recursive.yaml"
@@ -247,7 +247,7 @@ all_sensors: !include_dir_named named_dir
     assert "sensor3" in actual["all_sensors"]
 
 
-def test_secret_values_tracking(fixture_path):
+def test_secret_values_tracking(fixture_path: Path) -> None:
     """Test that secret values are properly tracked for dumping."""
     yaml_file = fixture_path / "yaml_util" / "test_secret.yaml"
 
