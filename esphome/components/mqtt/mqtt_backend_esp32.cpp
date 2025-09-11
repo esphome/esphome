@@ -44,7 +44,7 @@ bool MQTTBackendESP32::initialize_() {
     mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
     mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
 
-    if (this->transport_ == "ws") {
+    if (this->transport_ == MQTTTransport::MQTT_TRANSPORT_WS) {
       mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
     } else {
       mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
