@@ -40,19 +40,7 @@ void AW9523Component::loop() {
 
 void AW9523Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AW9523:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up AW9523 failed!");
-  }
   LOG_I2C_DEVICE(this)
-  ESP_LOGCONFIG(TAG, "  Divider: %d", this->divider_);
-  ESP_LOGCONFIG(TAG, "  Max current: %.2f", this->get_max_current());
-  ESP_LOGCONFIG(TAG, "  GCR  %s", format_bin((uint8_t) this->reg(AW9523_REG_GCR)).c_str());
-  ESP_LOGCONFIG(TAG, "  CFG %s%s", format_bin((uint8_t) this->reg(AW9523_REG_CONFIG1)).c_str(),
-                format_bin((uint8_t) this->reg(AW9523_REG_CONFIG0)).c_str());
-  ESP_LOGCONFIG(TAG, "  LED %s%s", format_bin((uint8_t) this->reg(AW9523_REG_LEDMODE1)).c_str(),
-                format_bin((uint8_t) this->reg(AW9523_REG_LEDMODE0)).c_str());
-  ESP_LOGCONFIG(TAG, "  INT %s%s", format_bin((uint8_t) this->reg(AW9523_REG_INTENABLE1)).c_str(),
-                format_bin((uint8_t) this->reg(AW9523_REG_INTENABLE0)).c_str());
 }
 
 float AW9523Component::get_max_current() { return (37.0 / 4) * (4 - this->divider_); }

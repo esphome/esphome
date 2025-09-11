@@ -25,9 +25,11 @@ void AW9523FloatOutputChannel::setup() {
 }
 
 void AW9523FloatOutputChannel::dump_config() {
-  ESP_LOGCONFIG(TAG, "AW9523 PWM:");
-  ESP_LOGCONFIG(TAG, "  Pin: %d", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Max current: %.2f mA", this->max_current_);
+  ESP_LOGCONFIG(TAG,
+                "AW9523 PWM:\n"
+                "  Pin: %d\n"
+                "  Max current: %.2f mA",
+                this->pin_, this->max_current_);
   LOG_FLOAT_OUTPUT(this);
 }
 
