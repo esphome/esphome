@@ -228,8 +228,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
-            cv.Optional(CONF_TRANSPORT, default="tcp"): cv.All(
-                validate_transport, cv.only_with_esp_idf, cv.only_on_esp32
+            cv.SplitDefault(CONF_TRANSPORT, esp32="tcp"): cv.All(
+              cv.enum(TRANSPORTS, upper=True), cv.only_on_esp32
             ),
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
