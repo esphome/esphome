@@ -375,6 +375,7 @@ def test_start_web_server_with_address_port(
     assert (archive_dir / "old.yaml").exists()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix sockets are not supported on Windows")
 @pytest.mark.usefixtures("mock_trash_storage_path", "mock_archive_storage_path")
 def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
     """Test the start_web_server function with unix socket."""
