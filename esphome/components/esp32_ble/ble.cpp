@@ -306,7 +306,7 @@ void ESP32BLE::loop() {
       case BLEEvent::GATTS: {
         esp_gatts_cb_event_t event = ble_event->event_.gatts.gatts_event;
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
-        esp_ble_gatts_cb_param_t *param = ble_event->event_.gatts.gatts_param;
+        esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
         for (auto *gatts_handler : this->gatts_event_handlers_) {
           gatts_handler->gatts_event_handler(event, gatts_if, param);
@@ -316,7 +316,7 @@ void ESP32BLE::loop() {
       case BLEEvent::GATTC: {
         esp_gattc_cb_event_t event = ble_event->event_.gattc.gattc_event;
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
-        esp_ble_gattc_cb_param_t *param = ble_event->event_.gattc.gattc_param;
+        esp_ble_gattc_cb_param_t *param = &ble_event->event_.gattc.gattc_param;
         ESP_LOGV(TAG, "gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
         for (auto *gattc_handler : this->gattc_event_handlers_) {
           gattc_handler->gattc_event_handler(event, gattc_if, param);

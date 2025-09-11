@@ -44,7 +44,7 @@ static constexpr size_t MAX_PACKETS_PER_BATCH = 64;  // ESP32 has 8KB+ stack, HO
 static constexpr size_t MAX_PACKETS_PER_BATCH = 32;  // ESP8266/RP2040/etc have smaller stacks
 #endif
 
-class APIConnection : public APIServerConnection {
+class APIConnection final : public APIServerConnection {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
@@ -252,54 +252,27 @@ class APIConnection : public APIServerConnection {
 
     // Get header padding size - used for both reserve and insert
     uint8_t header_padding = this->helper_->frame_header_padding();
-
     // Get shared buffer from parent server
     std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
+    this->prepare_first_message_buffer(shared_buf, header_padding,
+                                       reserve_size + header_padding + this->helper_->frame_footer_size());
+    return {&shared_buf};
+  }
+
+  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
-    shared_buf.reserve(reserve_size + header_padding + this->helper_->frame_footer_size());
+    shared_buf.reserve(total_size);
     // Resize to add header padding so message encoding starts at the correct position
     shared_buf.resize(header_padding);
-    return {&shared_buf};
-  }
-
-  // Prepare buffer for next message in batch
-  ProtoWriteBuffer prepare_message_buffer(uint16_t message_size, bool is_first_message) {
-    // Get reference to shared buffer (it maintains state between batch messages)
-    std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-
-    if (is_first_message) {
-      shared_buf.clear();
-    }
-
-    size_t current_size = shared_buf.size();
-
-    // Calculate padding to add:
-    // - First message: just header padding
-    // - Subsequent messages: footer for previous message + header padding for this message
-    size_t padding_to_add = is_first_message
-                                ? this->helper_->frame_header_padding()
-                                : this->helper_->frame_header_padding() + this->helper_->frame_footer_size();
-
-    // Reserve space for padding + message
-    shared_buf.reserve(current_size + padding_to_add + message_size);
-
-    // Resize to add the padding bytes
-    shared_buf.resize(current_size + padding_to_add);
-
-    return {&shared_buf};
   }
 
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   std::string get_client_combined_info() const { return this->client_info_.get_combined_info(); }
-
-  // Buffer allocator methods for batch processing
-  ProtoWriteBuffer allocate_single_message_buffer(uint16_t size);
-  ProtoWriteBuffer allocate_batch_message_buffer(uint16_t size);
 
  protected:
   // Helper function to handle authentication completion
@@ -328,9 +301,17 @@ class APIConnection : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // IMPORTANT: get_object_id() may return a temporary std::string
-    std::string object_id = entity->get_object_id();
-    msg.set_object_id(StringRef(object_id));
+    // Try to use static reference first to avoid allocation
+    StringRef static_ref = entity->get_object_id_ref_for_api_();
+    // Store dynamic string outside the if-else to maintain lifetime
+    std::string object_id;
+    if (!static_ref.empty()) {
+      msg.set_object_id(static_ref);
+    } else {
+      // Dynamic case - need to allocate
+      object_id = entity->get_object_id();
+      msg.set_object_id(StringRef(object_id));
+    }
 
     if (entity->has_own_name()) {
       msg.set_name(entity->get_name());
@@ -751,7 +732,7 @@ class APIConnection : public APIServerConnection {
   }
 
   // Helper function to log API errors with errno
-  void log_warning_(const char *message, APIError err);
+  void log_warning_(const LogString *message, APIError err);
   // Specific helper for duplicated error message
   void log_socket_operation_failed_(APIError err);
 };

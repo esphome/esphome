@@ -239,7 +239,12 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
 
     try:
         proc = subprocess.run(
-            cmd, stdout=sub_stdout, stderr=sub_stderr, encoding="utf-8", check=False
+            cmd,
+            stdout=sub_stdout,
+            stderr=sub_stderr,
+            encoding="utf-8",
+            check=False,
+            close_fds=False,
         )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
@@ -267,12 +272,15 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(folders: list[str]) -> list[str]:
-    files = filter_yaml_files(
-        [os.path.join(folder, p) for folder in folders for p in os.listdir(folder)]
-    )
-    files.sort()
-    return files
+def list_yaml_files(configs: list[str]) -> list[str]:
+    files: list[str] = []
+    for config in configs:
+        if os.path.isfile(config):
+            files.append(config)
+        else:
+            files.extend(os.path.join(config, p) for p in os.listdir(config))
+    files = filter_yaml_files(files)
+    return sorted(files)
 
 
 def filter_yaml_files(files: list[str]) -> list[str]:
