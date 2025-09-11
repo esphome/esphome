@@ -320,8 +320,9 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       this->cut_cloud_mode_ = true;
       break;
     case TuyaCommandType::WIFI_TEST:
-      // we report fake OK signal 0x01 with 50 signal, since there are implications in sending 0x00
-      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_TEST, .payload = std::vector<uint8_t>{0x01, 0x32}});
+      // we report 0x01 (OK) with current quality, never send 0x00 since there are implications in doing that
+      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_TEST,
+                                      .payload = std::vector<uint8_t>{0x01, get_quality_perc_quad_()}});
       break;
     case TuyaCommandType::DATAPOINT_REPORT_ASYNC:
     case TuyaCommandType::DATAPOINT_REPORT_SYNC:
@@ -618,6 +619,21 @@ uint8_t Tuya::get_wifi_rssi_() {
 #endif
 
   return 0;
+}
+
+uint8_t Tuya::get_quality_perc_quad_(uint8_t perfect_rssi, uint8_t worst_rssi) {
+  uint8_t rssi = get_wifi_rssi_();
+  uint8_t nominal_rssi = (worst_rssi - perfect_rssi);
+  int16_t signal_quality = ((100 * nominal_rssi * nominal_rssi - (rssi - perfect_rssi)) * 
+                           (15 * nominal_rssi + 62 * (rssi - perfect_rssi))) / 
+                           (nominal_rssi * nominal_rssi);
+
+  if (signal_quality > 100) {
+    signal_quality = 100;
+  } else if (signal_quality < 1) {
+    signal_quality = 1;
+  }
+  return (uint8_t)signal_quality;
 }
 
 void Tuya::send_wifi_status_() {

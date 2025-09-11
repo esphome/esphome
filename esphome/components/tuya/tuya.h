@@ -149,6 +149,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_wifi_status_();
   uint8_t get_wifi_status_code_();
   uint8_t get_wifi_rssi_();
+  uint8_t get_quality_perc_quad_(uint8_t perfect_rssi = 20, uint8_t worst_rssi = 85);
 
 #ifdef USE_TIME
   void send_local_time_();
