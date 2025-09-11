@@ -152,28 +152,27 @@ sensor: !include_dir_named named_dir
 """)
 
     actual = yaml_util.load_yaml(str(test_yaml))
+    actual_sensor = actual["sensor"]
 
     # Check that files were loaded with their names as keys
-    assert isinstance(actual["sensor"], OrderedDict)
-    assert "sensor1" in actual["sensor"]
-    assert "sensor2" in actual["sensor"]
-    assert (
-        "sensor3" in actual["sensor"]
-    )  # Files from subdirs are included with basename
+    assert isinstance(actual_sensor, OrderedDict)
+    assert "sensor1" in actual_sensor
+    assert "sensor2" in actual_sensor
+    assert "sensor3" in actual_sensor  # Files from subdirs are included with basename
 
     # Check content of loaded files
-    assert actual["sensor"]["sensor1"]["platform"] == "template"
-    assert actual["sensor"]["sensor1"]["name"] == "Sensor 1"
-    assert actual["sensor"]["sensor2"]["platform"] == "template"
-    assert actual["sensor"]["sensor2"]["name"] == "Sensor 2"
+    assert actual_sensor["sensor1"]["platform"] == "template"
+    assert actual_sensor["sensor1"]["name"] == "Sensor 1"
+    assert actual_sensor["sensor2"]["platform"] == "template"
+    assert actual_sensor["sensor2"]["name"] == "Sensor 2"
 
     # Check that subdirectory files are included with their basename
-    assert actual["sensor"]["sensor3"]["platform"] == "template"
-    assert actual["sensor"]["sensor3"]["name"] == "Sensor 3 in subdir"
+    assert actual_sensor["sensor3"]["platform"] == "template"
+    assert actual_sensor["sensor3"]["name"] == "Sensor 3 in subdir"
 
     # Check that hidden files and non-YAML files are not included
-    assert ".hidden" not in actual["sensor"]
-    assert "not_yaml" not in actual["sensor"]
+    assert ".hidden" not in actual_sensor
+    assert "not_yaml" not in actual_sensor
 
 
 def test_construct_include_dir_named_empty_dir(tmp_path: Path) -> None:
