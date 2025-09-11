@@ -40,6 +40,11 @@ def archive_storage_path() -> Path:
     return CORE.relative_config_path("archive")
 
 
+def _to_path_if_not_none(value: str | None) -> Path | None:
+    """Convert a string to Path if it's not None."""
+    return Path(value) if value is not None else None
+
+
 class StorageJSON:
     def __init__(
         self,
@@ -190,8 +195,8 @@ class StorageJSON:
         address = storage.get("address")
         web_port = storage.get("web_port")
         esp_platform = storage.get("esp_platform")
-        build_path = storage.get("build_path")
-        firmware_bin_path = storage.get("firmware_bin_path")
+        build_path = _to_path_if_not_none(storage.get("build_path"))
+        firmware_bin_path = _to_path_if_not_none(storage.get("firmware_bin_path"))
         loaded_integrations = set(storage.get("loaded_integrations", []))
         loaded_platforms = set(storage.get("loaded_platforms", []))
         no_mdns = storage.get("no_mdns", False)

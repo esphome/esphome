@@ -977,7 +977,7 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
@@ -1009,7 +1009,7 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
