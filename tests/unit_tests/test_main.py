@@ -877,7 +877,7 @@ def test_show_logs_serial(
     mock_run_miniterm.assert_called_once_with(CORE.config, "/dev/ttyUSB0", args)
 
 
-def test_show_logs_no_logger():
+def test_show_logs_no_logger() -> None:
     """Test show_logs when logger is not configured."""
     setup_core(config={}, platform=PLATFORM_ESP32)  # No logger config
     args = MockArgs()
