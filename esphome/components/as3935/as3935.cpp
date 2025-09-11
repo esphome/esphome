@@ -11,6 +11,7 @@ void AS3935Component::setup() {
   LOG_PIN("  IRQ Pin: ", this->irq_pin_);
 
   // Write properties to sensor
+  this->write_default_values();
   this->write_indoor(this->indoor_);
   this->write_noise_level(this->noise_level_);
   this->write_watchdog_threshold(this->watchdog_threshold_);
@@ -47,18 +48,21 @@ void AS3935Component::loop() {
   if (!this->irq_pin_->digital_read())
     return;
 
-  uint8_t int_value = this->read_interrupt_register_();
-  if (int_value == NOISE_INT) {
-    ESP_LOGI(TAG, "Noise was detected - try increasing the noise level value!");
-  } else if (int_value == DISTURBER_INT) {
-    ESP_LOGI(TAG, "Disturber was detected - try increasing the spike rejection value!");
-  } else if (int_value == LIGHTNING_INT) {
-    ESP_LOGI(TAG, "Lightning has been detected!");
+  this->set_timeout(4, [this]() {
+  uint8_t int_value = this->read_interrupt_register_(); 
+
+    if (int_value == NOISE_INT) {
+      ESP_LOGI(TAG, "Noise was detected - try increasing the noise level value!");
+    } else if (int_value == DISTURBER_INT) {
+      ESP_LOGI(TAG, "Disturber was detected - try increasing the spike rejection value!");
+    } else if (int_value == LIGHTNING_INT) {
+      ESP_LOGI(TAG, "Lightning has been detected!");
 #ifdef USE_BINARY_SENSOR
-    if (this->thunder_alert_binary_sensor_ != nullptr) {
-      this->thunder_alert_binary_sensor_->publish_state(true);
-      this->set_timeout(10, [this]() { this->thunder_alert_binary_sensor_->publish_state(false); });
-    }
+        if (this->thunder_alert_binary_sensor_ != nullptr) {
+          this->thunder_alert_binary_sensor_->publish_state(true);
+	      this->cancel_timeout("as3935_alert_off");
+          this->set_timeout("as3935_alert_off", 1000, [this]() { this->thunder_alert_binary_sensor_->publish_state(false); });
+        }
 #endif
 #ifdef USE_SENSOR
     uint8_t distance = this->get_distance_to_storm_();
@@ -69,7 +73,15 @@ void AS3935Component::loop() {
     if (this->energy_sensor_ != nullptr)
       this->energy_sensor_->publish_state(energy);
 #endif
-  }
+    }
+    this->enable_loop();
+  });
+  this->disable_loop();
+}
+
+void AS3935Component::write_default_values() {
+  ESP_LOGV(TAG, "Reset all registers to default values");
+  this->write_register(DEFAULT_RESET, WIPE_ALL, DIRECT_COMMAND, 0);
 }
 
 void AS3935Component::write_indoor(bool indoor) {
@@ -157,7 +169,7 @@ void AS3935Component::write_div_ratio(uint8_t div_ratio) {
     case 16:
       this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 0, 6);
       break;
-    case 22:
+    case 32:
       this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 1, 6);
       break;
     case 64:
@@ -177,7 +189,7 @@ void AS3935Component::write_div_ratio(uint8_t div_ratio) {
 // It's possible to add up to 120pF in steps of 8pF to the antenna.
 void AS3935Component::write_capacitance(uint8_t capacitance) {
   ESP_LOGV(TAG, "Setting tune cap to %d pF", capacitance * 8);
-  this->write_register(FREQ_DISP_IRQ, CAP_MASK, capacitance, 0);
+  this->write_register(FREQ_DISP_IRQ, W_CAP_MASK, capacitance, 0);
 }
 
 // REG0x03, bits [3:0], manufacturer default: 0.
@@ -189,11 +201,7 @@ void AS3935Component::write_capacitance(uint8_t capacitance) {
 // read the interrupt register after lightning is detected, and 1.5 after
 // disturber.
 uint8_t AS3935Component::read_interrupt_register_() {
-  // A 2ms delay is added to allow for the memory register to be populated
-  // after the interrupt pin goes HIGH. See "Interrupt Management" in
-  // datasheet.
   ESP_LOGV(TAG, "Calling read_interrupt_register_");
-  delay(2);
   return this->read_register_(INT_MASK_ANT, INT_MASK);
 }
 

@@ -43,6 +43,7 @@ enum AS3935RegisterMasks {
   R_SPIKE_MASK = 0xF0,
   ENERGY_MASK = 0xF0,
   CAP_MASK = 0xF0,
+  W_CAP_MASK = 0x0F,
   LIGHT_MASK = 0xCF,
   DISTURB_MASK = 0xDF,
   NOISE_FLOOR_MASK = 0x70,
@@ -76,9 +77,8 @@ class AS3935Component : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   void loop() override;
-
+  void write_default_values();
   void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; }
-
   void set_indoor(bool indoor) { indoor_ = indoor; }
   void write_indoor(bool indoor);
   void set_noise_level(uint8_t noise_level) { noise_level_ = noise_level; }
