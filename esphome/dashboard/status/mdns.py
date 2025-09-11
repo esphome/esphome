@@ -4,6 +4,8 @@ import asyncio
 import logging
 import typing
 
+from zeroconf import AddressResolver, IPVersion
+
 from esphome.zeroconf import (
     ESPHOME_SERVICE_TYPE,
     AsyncEsphomeZeroconf,
@@ -58,10 +60,12 @@ class MDNSStatus:
         if not self.aiozc:
             return None
 
-        from zeroconf import AddressResolver, IPVersion
+        # Normalize hostname: remove trailing dots and get the base name
+        normalized = host_name.rstrip(".").lower()
+        base_name = normalized.partition(".")[0]
 
         # Try to load from zeroconf cache without triggering resolution
-        info = AddressResolver(f"{host_name.partition('.')[0]}.local.")
+        info = AddressResolver(f"{base_name}.local.")
         if info.load_from_cache(self.aiozc.zeroconf):
             return info.parsed_scoped_addresses(IPVersion.All)
         return None

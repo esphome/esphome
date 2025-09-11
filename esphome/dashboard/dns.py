@@ -33,7 +33,9 @@ class DNSCache:
 
         Returns None if not in cache, list of addresses if found.
         """
-        if expire_time_addresses := self._cache.get(hostname):
+        # Normalize hostname for consistent lookups
+        normalized = hostname.rstrip(".").lower()
+        if expire_time_addresses := self._cache.get(normalized):
             expire_time, addresses = expire_time_addresses
             if expire_time > now_monotonic and not isinstance(addresses, Exception):
                 return addresses
