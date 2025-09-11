@@ -58,8 +58,8 @@ void BLEClientBase::loop() {
     }
     this->set_state(espbt::ClientState::IDLE);
   }
-  // If its idle, we can disable the loop as set_state
-  // will enable it again when we need to connect.
+  // If idle, we can disable the loop as connect()
+  // will enable it again when a connection is needed.
   else if (this->state_ == espbt::ClientState::IDLE) {
     this->disable_loop();
   }
@@ -101,6 +101,13 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 #endif
 
 void BLEClientBase::connect() {
+  // Prevent duplicate connection attempts
+  if (this->state_ == espbt::ClientState::CONNECTING || this->state_ == espbt::ClientState::CONNECTED ||
+      this->state_ == espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "[%d] [%s] Connection already in progress, state=%s", this->connection_index_,
+             this->address_str_.c_str(), espbt::client_state_to_string(this->state_));
+    return;
+  }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_.c_str(),
            this->remote_addr_type_);
   this->paired_ = false;
