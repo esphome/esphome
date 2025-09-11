@@ -106,6 +106,8 @@ void BLEClientBase::connect() {
   this->paired_ = false;
   // Enable loop for state processing
   this->enable_loop();
+  // Immediately transition to CONNECTING to prevent duplicate connection attempts
+  this->set_state(espbt::ClientState::CONNECTING);
 
   // Determine connection parameters based on connection type
   if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
@@ -207,8 +209,6 @@ void BLEClientBase::handle_connection_result_(esp_err_t ret) {
   if (ret) {
     this->log_gattc_warning_("esp_ble_gattc_open", ret);
     this->set_state(espbt::ClientState::IDLE);
-  } else {
-    this->set_state(espbt::ClientState::CONNECTING);
   }
 }
 
