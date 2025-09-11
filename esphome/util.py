@@ -85,7 +85,10 @@ def safe_input(prompt=""):
     return input()
 
 
-def shlex_quote(s):
+def shlex_quote(s: str | Path) -> str:
+    # Convert Path objects to strings
+    if isinstance(s, Path):
+        s = str(s)
     if not s:
         return "''"
     if re.search(r"[^\w@%+=:,./-]", s) is None:
