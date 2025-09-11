@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 import typing
 
 from zeroconf import AddressResolver, IPVersion
@@ -60,6 +59,7 @@ class MDNSStatus:
         Returns None if not in cache or no zeroconf available.
         """
         if not self.aiozc:
+            _LOGGER.debug("No zeroconf instance available for %s", host_name)
             return None
 
         # Normalize hostname and get the base name
@@ -67,11 +67,14 @@ class MDNSStatus:
         base_name = normalized.partition(".")[0]
 
         # Try to load from zeroconf cache without triggering resolution
-        info = AddressResolver(f"{base_name}.local.")
-        # Pass current time in milliseconds for cache expiry checking
-        now = time.time() * 1000
-        if info.load_from_cache(self.aiozc.zeroconf, now):
-            return info.parsed_scoped_addresses(IPVersion.All)
+        resolver_name = f"{base_name}.local."
+        info = AddressResolver(resolver_name)
+        # Let zeroconf use its own current time for cache checking
+        if info.load_from_cache(self.aiozc.zeroconf):
+            addresses = info.parsed_scoped_addresses(IPVersion.All)
+            _LOGGER.debug("Found %s in zeroconf cache: %s", resolver_name, addresses)
+            return addresses
+        _LOGGER.debug("Not found in zeroconf cache: %s", resolver_name)
         return None
 
     async def async_refresh_hosts(self) -> None:

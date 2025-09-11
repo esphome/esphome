@@ -1167,6 +1167,12 @@ def run_esphome(argv):
 
     # Store cache in CORE for access throughout the application
     CORE.address_cache = address_cache
+    if address_cache.has_cache():
+        _LOGGER.debug(
+            "Address cache initialized with %d mDNS and %d DNS entries",
+            len(address_cache.mdns_cache),
+            len(address_cache.dns_cache),
+        )
 
     # Override log level if verbose is set
     if args.verbose:
