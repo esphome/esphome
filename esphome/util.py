@@ -271,7 +271,7 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(configs: list[str | Path]) -> list[str]:
+def list_yaml_files(configs: list[str | Path]) -> list[Path]:
     files: list[Path] = []
     for config in configs:
         config = Path(config)
@@ -280,7 +280,7 @@ def list_yaml_files(configs: list[str | Path]) -> list[str]:
         if config.is_file():
             files.append(config)
         else:
-            files.extend(config.glob("**/*"))
+            files.extend(config.glob("*"))
     files = filter_yaml_files(files)
     return sorted(files)
 
