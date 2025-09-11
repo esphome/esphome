@@ -56,7 +56,10 @@ struct MQTTCredentials {
 };
 
 /// transport enum
-enum MQTTTransport : uint8_t { TCP = 0, WS };
+enum MQTTTransport : uint8_t {
+  MQTT_TRANSPORT_TCP,
+  MQTT_TRANSPORT_WS,
+};
 
 /// Simple data struct for Home Assistant component availability.
 struct Availability {
