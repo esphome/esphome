@@ -259,7 +259,9 @@ class MQTTClientComponent : public Component {
   void set_broker_port(uint16_t port) { this->credentials_.port = port; }
   void set_username(const std::string &username) { this->credentials_.username = username; }
   void set_password(const std::string &password) { this->credentials_.password = password; }
-  void set_transport(const char *transport) { this->mqtt_backend_.set_transport(std::string(transport)); }
+#ifdef USE_ESP32
+  void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
+#endif
   void set_client_id(const std::string &client_id) { this->credentials_.client_id = client_id; }
   void set_clean_session(const bool &clean_session) { this->credentials_.clean_session = clean_session; }
   void set_on_connect(mqtt_on_connect_callback_t &&callback);
