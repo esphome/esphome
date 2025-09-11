@@ -214,8 +214,8 @@ def validate_fingerprint(value):
 MQTTTransport = mqtt_ns.enum("MQTTTransport")
 
 TRANSPORTS = {
-  "tcp": MQTTTransport.MQTT_TRANSPORT_TCP,
-  "ws": MQTTTransport.MQTT_TRANSPORT_WS,
+    "tcp": MQTTTransport.MQTT_TRANSPORT_TCP,
+    "ws": MQTTTransport.MQTT_TRANSPORT_WS,
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -226,7 +226,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.SplitDefault(CONF_TRANSPORT, esp32="tcp"): cv.All(
-              cv.enum(TRANSPORTS, upper=True), cv.only_on_esp32
+                cv.enum(TRANSPORTS, upper=True), cv.only_on_esp32
             ),
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
