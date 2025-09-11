@@ -8,7 +8,6 @@ namespace aw9523 {
 static const char *const TAG = "aw9523";
 
 void AW9523Component::setup() {
-  ESP_LOGD(TAG, "Setting up AW9523...");
   if (this->reg(AW9523_REG_CHIPID).get() != 0x23) {
     this->mark_failed();
     return;
