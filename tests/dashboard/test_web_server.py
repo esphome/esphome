@@ -375,11 +375,8 @@ def test_start_web_server_with_address_port(
     assert (archive_dir / "old.yaml").exists()
 
 
-def test_start_web_server_with_unix_socket(
-    tmp_path: Path,
-    mock_trash_storage_path: MagicMock,
-    mock_archive_storage_path: MagicMock,
-) -> None:
+@pytest.mark.usefixtures("mock_trash_storage_path", "mock_archive_storage_path")
+def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
     """Test the start_web_server function with unix socket."""
     app = Mock()
     socket_path = tmp_path / "test.sock"
