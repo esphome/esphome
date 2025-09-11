@@ -26,14 +26,11 @@ class RX8130Component : public time::RealTimeClock, public i2c::I2CDevice {
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void read_time();
   void write_time();
 
  protected:
   void stop_(bool stop);
-  uint8_t bcd2dec_(uint8_t val);
-  uint8_t dec2bcd_(uint8_t val);
 };
 
 template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<RX8130Component> {
