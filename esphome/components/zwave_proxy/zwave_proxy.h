@@ -35,7 +35,6 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
  public:
   ZWaveProxy();
 
-  void setup() override;
   void loop() override;
   void dump_config() override;
 

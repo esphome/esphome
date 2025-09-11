@@ -9,16 +9,9 @@ static const char *TAG = "zwave_proxy";
 
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
 
-void ZWaveProxy::setup() {
-  // Get capabilities command sent once here just to test communication for component development
-  uint8_t get_capabilities_cmd[] = {0x01, 0x03, 0x00, 0x07, 0xfb};
-  ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(get_capabilities_cmd, sizeof(get_capabilities_cmd)).c_str());
-  this->write_array(get_capabilities_cmd, sizeof(get_capabilities_cmd));
-}
-
 void ZWaveProxy::loop() {
   if (this->response_handler_()) {
-    return;  // If a response was handled, exit early to avoid a CAN
+    // return;  // If a response was handled, exit early to avoid a CAN
   }
   if (this->api_connection_ != nullptr && !this->api_connection_->is_connection_setup()) {
     ESP_LOGW(TAG, "Subscriber disconnected");
@@ -71,12 +64,18 @@ void ZWaveProxy::send_frame(const std::vector<uint8_t> &data) {
 }
 
 bool ZWaveProxy::parse_byte_(uint8_t byte) {
+  bool frame_completed = false;
   // Basic parsing logic for received frames
   switch (this->parsing_state_) {
     case ZWAVE_PARSING_STATE_WAIT_START:
       this->parse_start_(byte);
       break;
     case ZWAVE_PARSING_STATE_WAIT_LENGTH:
+      if (!byte) {
+        ESP_LOGW(TAG, "Invalid LENGTH: %u", byte);
+        this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
+        return false;
+      }
       ESP_LOGD(TAG, "Received LENGTH: %u", byte);
       this->end_frame_after_ = this->buffer_index_ + byte;
       ESP_LOGVV(TAG, "Calculated EOF: %u", this->end_frame_after_);
@@ -114,8 +113,9 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
         ESP_LOGD(TAG, "Received frame: %s", format_hex_pretty(this->buffer_, this->buffer_index_).c_str());
-        return true;
+        frame_completed = true;
       }
+      this->response_handler_();
       break;
     case ZWAVE_PARSING_STATE_SEND_ACK:
     case ZWAVE_PARSING_STATE_SEND_NAK:
@@ -124,7 +124,7 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       ESP_LOGD(TAG, "Received unknown byte: 0x%02X", byte);
       break;
   }
-  return false;
+  return frame_completed;
 }
 
 void ZWaveProxy::parse_start_(uint8_t byte) {
