@@ -57,10 +57,7 @@ struct MQTTCredentials {
 
 /// transport enum
 #ifdef USE_ESP32
-enum MQTTTransport : uint8_t {
-  TCP = 0,
-  WS
-};
+enum MQTTTransport : uint8_t { TCP = 0, WS };
 #endif
 
 /// Simple data struct for Home Assistant component availability.
