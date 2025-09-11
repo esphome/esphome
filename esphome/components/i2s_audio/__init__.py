@@ -4,6 +4,9 @@ from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -62,12 +65,15 @@ I2S_ROLE_OPTIONS = {
     CONF_SECONDARY: i2s_role_t.I2S_ROLE_SLAVE,  # NOLINT
 }
 
-# https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h
+# https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h (SOC_I2S_NUM)
 I2S_PORTS = {
     VARIANT_ESP32: 2,
     VARIANT_ESP32S2: 1,
     VARIANT_ESP32S3: 2,
     VARIANT_ESP32C3: 1,
+    VARIANT_ESP32C5: 1,
+    VARIANT_ESP32C6: 1,
+    VARIANT_ESP32H2: 1,
     VARIANT_ESP32P4: 3,
 }
 
