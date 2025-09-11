@@ -51,12 +51,17 @@ struct MQTTCredentials {
   uint16_t port;        ///< The port number of the server.
   std::string username;
   std::string password;
-#ifdef USE_ESP32
-  enum MQTTTransport : uint8_t { TCP = 0, WS };
-#endif
   std::string client_id;  ///< The client ID. Will automatically be truncated to 23 characters.
   bool clean_session;     ///< Whether the session will be cleaned or remembered between connects.
 };
+
+/// transport enum
+#ifdef USE_ESP32
+enum MQTTTransport : uint8_t {
+  TCP = 0,
+  WS
+};
+#endif
 
 /// Simple data struct for Home Assistant component availability.
 struct Availability {
@@ -158,7 +163,7 @@ class MQTTClientComponent : public Component {
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
-  void set_transport(MQTTCredentials::MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
+  void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
 #endif
   const Availability &get_availability();
 
