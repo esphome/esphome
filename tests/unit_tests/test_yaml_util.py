@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 from unittest.mock import patch
 
 import pytest
@@ -143,10 +144,15 @@ wifi:
         assert actual["wifi"]["password"] == "main_secret_value"
 
 
-def test_construct_include_dir_named(fixture_path: Path) -> None:
+def test_construct_include_dir_named(fixture_path: Path, tmp_path: Path) -> None:
     """Test !include_dir_named directive."""
+    # Copy fixture directory to temporary location
+    src_dir = fixture_path / "yaml_util"
+    dst_dir = tmp_path / "yaml_util"
+    shutil.copytree(src_dir, dst_dir)
+
     # Create test YAML that uses include_dir_named
-    test_yaml = fixture_path / "yaml_util" / "test_include_named.yaml"
+    test_yaml = dst_dir / "test_include_named.yaml"
     test_yaml.write_text("""
 sensor: !include_dir_named named_dir
 """)
@@ -229,10 +235,15 @@ test: !include_dir_named test_dir
     assert ".hidden_dir" not in actual["test"]
 
 
-def test_find_files_recursive(fixture_path: Path) -> None:
+def test_find_files_recursive(fixture_path: Path, tmp_path: Path) -> None:
     """Test that _find_files works recursively through include_dir_named."""
+    # Copy fixture directory to temporary location
+    src_dir = fixture_path / "yaml_util"
+    dst_dir = tmp_path / "yaml_util"
+    shutil.copytree(src_dir, dst_dir)
+
     # This indirectly tests _find_files by using include_dir_named
-    test_yaml = fixture_path / "yaml_util" / "test_include_recursive.yaml"
+    test_yaml = dst_dir / "test_include_recursive.yaml"
     test_yaml.write_text("""
 all_sensors: !include_dir_named named_dir
 """)
