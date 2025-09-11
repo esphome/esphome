@@ -317,7 +317,7 @@ def run_ota_impl_(
     try:
         # Resolve all hosts at once for parallel DNS resolution
         res = resolve_ip_address(
-            remote_host, remote_port, address_cache=getattr(CORE, "address_cache", None)
+            remote_host, remote_port, address_cache=CORE.address_cache
         )
     except EsphomeError as err:
         _LOGGER.error(
