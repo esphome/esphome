@@ -150,9 +150,10 @@ outputs:
   home:
     - HTML
     - RSS
+    - ComponentsJSON
 
 # Static file configuration
-staticDir: 
+staticDir:
   - static
 
 mediaTypes:
@@ -165,6 +166,12 @@ outputFormats:
     mediaType: image/svg+xml
     isPlainText: true
     isHTML: false
+  ComponentsJSON:
+    mediaType: application/json
+    baseName: components
+    isPlainText: true
+    isHTML: false
+    path: ""
 
 module:
   mounts:
