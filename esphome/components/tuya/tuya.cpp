@@ -624,16 +624,16 @@ uint8_t Tuya::get_wifi_rssi_() {
 uint8_t Tuya::get_quality_perc_quad_(uint8_t perfect_rssi, uint8_t worst_rssi) {
   uint8_t rssi = get_wifi_rssi_();
   uint8_t nominal_rssi = (worst_rssi - perfect_rssi);
-  int16_t signal_quality = ((100 * nominal_rssi * nominal_rssi - (rssi - perfect_rssi)) * 
-                           (15 * nominal_rssi + 62 * (rssi - perfect_rssi))) / 
-                           (nominal_rssi * nominal_rssi);
+  int16_t signal_quality =
+      ((100 * nominal_rssi * nominal_rssi - (rssi - perfect_rssi)) * (15 * nominal_rssi + 62 * (rssi - perfect_rssi))) /
+      (nominal_rssi * nominal_rssi);
 
   if (signal_quality > 100) {
     signal_quality = 100;
   } else if (signal_quality < 1) {
     signal_quality = 1;
   }
-  return (uint8_t)signal_quality;
+  return (uint8_t) signal_quality;
 }
 
 void Tuya::send_wifi_status_() {
