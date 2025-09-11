@@ -327,8 +327,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
 
-        # Only get cached addresses - no async resolution
-        addresses: list[str] = []
+        # Build cache arguments to pass to CLI
         cache_args: list[str] = []
 
         if (
@@ -339,53 +338,43 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         ):
             now = time.monotonic()
 
-            # Collect all cached addresses for this device
-            dns_cache_entries: dict[str, set[str]] = {}
-            mdns_cache_entries: dict[str, set[str]] = {}
-
-            # First priority: entry.address AKA use_address (from DNS cache only)
+            # Build cache entries for any cached addresses we have
+            # First check entry.address (use_address)
             if (use_address := entry.address) and (
                 cached := dashboard.dns_cache.get_cached(use_address, now)
             ):
-                addresses.extend(sort_ip_addresses(cached))
-                dns_cache_entries[use_address] = set(cached)
+                normalized = use_address.rstrip(".").lower()
+                cache_args.extend(
+                    [
+                        "--dns-lookup-cache",
+                        f"{normalized}={','.join(sort_ip_addresses(cached))}",
+                    ]
+                )
 
-            # Second priority: mDNS cache for device name
-            if entry.name and not addresses:  # Only if we don't have addresses yet
+            # Also check entry.name for cache entries
+            if entry.name:
                 if entry.name.endswith(".local"):
                     # Check mDNS cache (zeroconf)
                     if (mdns := dashboard.mdns_status) and (
                         cached := mdns.get_cached_addresses(entry.name)
                     ):
-                        addresses.extend(sort_ip_addresses(cached))
-                        mdns_cache_entries[entry.name] = set(cached)
-                # Check DNS cache for non-.local names
+                        normalized = entry.name.rstrip(".").lower()
+                        cache_args.extend(
+                            [
+                                "--mdns-lookup-cache",
+                                f"{normalized}={','.join(sort_ip_addresses(cached))}",
+                            ]
+                        )
                 elif cached := dashboard.dns_cache.get_cached(entry.name, now):
-                    addresses.extend(sort_ip_addresses(cached))
-                    dns_cache_entries[entry.name] = set(cached)
+                    normalized = entry.name.rstrip(".").lower()
+                    cache_args.extend(
+                        [
+                            "--dns-lookup-cache",
+                            f"{normalized}={','.join(sort_ip_addresses(cached))}",
+                        ]
+                    )
 
-            # Build cache arguments to pass to CLI (normalize hostnames)
-            for hostname, addrs in dns_cache_entries.items():
-                normalized = hostname.rstrip(".").lower()
-                cache_args.extend(
-                    ["--dns-lookup-cache", f"{normalized}={','.join(sorted(addrs))}"]
-                )
-            for hostname, addrs in mdns_cache_entries.items():
-                normalized = hostname.rstrip(".").lower()
-                cache_args.extend(
-                    ["--mdns-lookup-cache", f"{normalized}={','.join(sorted(addrs))}"]
-                )
-
-        if not addresses:
-            # If no cached address was found, use the port directly
-            # The CLI will do the resolution with the cache hints we provide
-            addresses = [port]
-
-        device_args: list[str] = [
-            arg for address in addresses for arg in ("--device", address)
-        ]
-
-        return [*DASHBOARD_COMMAND, *args, config_file, *device_args, *cache_args]
+        return [*DASHBOARD_COMMAND, *args, config_file, "--device", port, *cache_args]
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
