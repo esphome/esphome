@@ -55,7 +55,7 @@ struct MQTTCredentials {
   enum MQTTTransport : uint8_t;
 #endif
   std::string client_id;  ///< The client ID. Will automatically be truncated to 23 characters.
-  bool clean_session;         ///< Whether the session will be cleaned or remembered between connects.
+  bool clean_session;     ///< Whether the session will be cleaned or remembered between connects.
 };
 
 /// Simple data struct for Home Assistant component availability.
