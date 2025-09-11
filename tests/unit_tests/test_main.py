@@ -22,6 +22,7 @@ class MockSerialPort:
         path (str): The device path of the mock serial port (e.g., '/dev/ttyUSB0').
         description (str): A human-readable description of the mock serial port.
     """
+
     path: str
     description: str
 
