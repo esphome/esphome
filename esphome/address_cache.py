@@ -40,6 +40,25 @@ class AddressCache:
         self.mdns_cache = mdns_cache or {}
         self.dns_cache = dns_cache or {}
 
+    def _get_cached_addresses(
+        self, hostname: str, cache: dict[str, list[str]], cache_type: str
+    ) -> list[str] | None:
+        """Get cached addresses from a specific cache.
+
+        Args:
+            hostname: The hostname to look up
+            cache: The cache dictionary to check
+            cache_type: Type of cache for logging ("mDNS" or "DNS")
+
+        Returns:
+            List of IP addresses if found in cache, None otherwise
+        """
+        normalized = normalize_hostname(hostname)
+        if addresses := cache.get(normalized):
+            _LOGGER.debug("Using %s cache for %s: %s", cache_type, hostname, addresses)
+            return addresses
+        return None
+
     def get_mdns_addresses(self, hostname: str) -> list[str] | None:
         """Get cached mDNS addresses for a hostname.
 
@@ -49,11 +68,7 @@ class AddressCache:
         Returns:
             List of IP addresses if found in cache, None otherwise
         """
-        normalized = normalize_hostname(hostname)
-        if addresses := self.mdns_cache.get(normalized):
-            _LOGGER.debug("Using mDNS cache for %s: %s", hostname, addresses)
-            return addresses
-        return None
+        return self._get_cached_addresses(hostname, self.mdns_cache, "mDNS")
 
     def get_dns_addresses(self, hostname: str) -> list[str] | None:
         """Get cached DNS addresses for a hostname.
@@ -64,11 +79,7 @@ class AddressCache:
         Returns:
             List of IP addresses if found in cache, None otherwise
         """
-        normalized = normalize_hostname(hostname)
-        if addresses := self.dns_cache.get(normalized):
-            _LOGGER.debug("Using DNS cache for %s: %s", hostname, addresses)
-            return addresses
-        return None
+        return self._get_cached_addresses(hostname, self.dns_cache, "DNS")
 
     def get_addresses(self, hostname: str) -> list[str] | None:
         """Get cached addresses for a hostname.

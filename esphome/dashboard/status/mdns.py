@@ -6,6 +6,7 @@ import typing
 
 from zeroconf import AddressResolver, IPVersion
 
+from esphome.address_cache import normalize_hostname
 from esphome.zeroconf import (
     ESPHOME_SERVICE_TYPE,
     AsyncEsphomeZeroconf,
@@ -60,8 +61,8 @@ class MDNSStatus:
         if not self.aiozc:
             return None
 
-        # Normalize hostname: remove trailing dots and get the base name
-        normalized = host_name.rstrip(".").lower()
+        # Normalize hostname and get the base name
+        normalized = normalize_hostname(host_name)
         base_name = normalized.partition(".")[0]
 
         # Try to load from zeroconf cache without triggering resolution

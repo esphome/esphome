@@ -210,28 +210,30 @@ def resolve_ip_address(
         res.sort(key=addr_preference_)
         return res
 
-    # Check if we have cached addresses for these hosts
-    cached_hosts: list[str] = []
+    # Process hosts
+    cached_addresses: list[str] = []
     uncached_hosts: list[str] = []
+    has_cache = address_cache is not None
 
     for h in hosts:
-        # Check if it's already an IP address
         if is_ip_address(h):
-            cached_hosts.append(h)
-            continue
+            if has_cache:
+                # If we have a cache, treat IPs as cached
+                cached_addresses.append(h)
+            else:
+                # If no cache, pass IPs through to resolver with hostnames
+                uncached_hosts.append(h)
+        elif address_cache and (cached := address_cache.get_addresses(h)):
+            # Found in cache
+            cached_addresses.extend(cached)
+        else:
+            # Not cached, need to resolve
+            if address_cache and address_cache.has_cache():
+                _LOGGER.info("Host %s not in cache, will need to resolve", h)
+            uncached_hosts.append(h)
 
-        # Check cache if provided
-        if address_cache and (cached_addresses := address_cache.get_addresses(h)):
-            cached_hosts.extend(cached_addresses)
-            continue
-
-        # Not in cache, need to resolve
-        if address_cache and address_cache.has_cache():
-            _LOGGER.info("Host %s not in cache, will need to resolve", h)
-        uncached_hosts.append(h)
-
-    # Process cached addresses (all should be IP addresses)
-    for addr in cached_hosts:
+    # Process cached addresses (includes direct IPs and cached lookups)
+    for addr in cached_addresses:
         try:
             res += socket.getaddrinfo(
                 addr, port, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
@@ -239,7 +241,7 @@ def resolve_ip_address(
         except OSError:
             _LOGGER.debug("Failed to parse IP address '%s'", addr)
 
-    # If we have uncached hosts, resolve them
+    # If we have uncached hosts (only non-IP hostnames), resolve them
     if uncached_hosts:
         from esphome.resolver import AsyncResolver
 
