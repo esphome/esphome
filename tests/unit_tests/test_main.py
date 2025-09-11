@@ -152,8 +152,8 @@ def test_choose_upload_log_host_with_ota_list_mqtt_fallback() -> None:
     assert result == ["MQTT"]
 
 
+@pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_with_serial_device_no_ports(
-    mock_no_serial_ports: Mock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test SERIAL device when no serial ports are found."""
@@ -168,8 +168,8 @@ def test_choose_upload_log_host_with_serial_device_no_ports(
     assert "No serial ports found, skipping SERIAL device" in caplog.text
 
 
+@pytest.mark.usefixtures("mock_serial_ports")
 def test_choose_upload_log_host_with_serial_device_with_ports(
-    mock_serial_ports: Mock,
     mock_choose_prompt: Mock,
 ) -> None:
     """Test SERIAL device when serial ports are available."""
@@ -294,9 +294,8 @@ def test_choose_upload_log_host_no_defaults_with_serial_ports(
         )
 
 
-def test_choose_upload_log_host_no_defaults_with_ota(
-    mock_no_serial_ports: Mock,
-) -> None:
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_no_defaults_with_ota() -> None:
     """Test interactive mode with OTA option."""
     setup_core(config={"ota": {}}, address="192.168.1.100")
 
@@ -317,9 +316,8 @@ def test_choose_upload_log_host_no_defaults_with_ota(
         )
 
 
-def test_choose_upload_log_host_no_defaults_with_api(
-    mock_no_serial_ports: Mock,
-) -> None:
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_no_defaults_with_api() -> None:
     """Test interactive mode with API option."""
     setup_core(config={"api": {}}, address="192.168.1.100")
 
@@ -340,10 +338,8 @@ def test_choose_upload_log_host_no_defaults_with_api(
         )
 
 
-def test_choose_upload_log_host_no_defaults_with_mqtt(
-    mock_no_serial_ports: Mock,
-    mock_has_mqtt_logging: Mock,
-) -> None:
+@pytest.mark.usefixtures("mock_no_serial_ports", "mock_has_mqtt_logging")
+def test_choose_upload_log_host_no_defaults_with_mqtt() -> None:
     """Test interactive mode with MQTT option."""
     setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local"}})
 
@@ -362,8 +358,8 @@ def test_choose_upload_log_host_no_defaults_with_mqtt(
         )
 
 
+@pytest.mark.usefixtures("mock_has_mqtt_logging")
 def test_choose_upload_log_host_no_defaults_with_all_options(
-    mock_has_mqtt_logging: Mock,
     mock_choose_prompt: Mock,
 ) -> None:
     """Test interactive mode with all options available."""
@@ -408,9 +404,8 @@ def test_choose_upload_log_host_check_default_matches() -> None:
     assert result == ["192.168.1.100"]
 
 
-def test_choose_upload_log_host_check_default_no_match(
-    mock_no_serial_ports: Mock,
-) -> None:
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_check_default_no_match() -> None:
     """Test when check_default doesn't match any available option."""
     setup_core()
 
@@ -428,9 +423,8 @@ def test_choose_upload_log_host_check_default_no_match(
         mock_prompt.assert_called_once()
 
 
-def test_choose_upload_log_host_empty_defaults_list(
-    mock_no_serial_ports: Mock,
-) -> None:
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_empty_defaults_list() -> None:
     """Test with an empty list as default."""
     with patch("esphome.__main__.choose_prompt", return_value="chosen") as mock_prompt:
         result = choose_upload_log_host(
@@ -444,9 +438,8 @@ def test_choose_upload_log_host_empty_defaults_list(
         mock_prompt.assert_called_once()
 
 
+@pytest.mark.usefixtures("mock_no_serial_ports", "mock_no_mqtt_logging")
 def test_choose_upload_log_host_all_devices_unresolved(
-    mock_no_serial_ports: Mock,
-    mock_no_mqtt_logging: Mock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test when all specified devices cannot be resolved."""
