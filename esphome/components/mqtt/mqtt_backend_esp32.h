@@ -54,6 +54,13 @@ enum MqttQueueTypeT : uint8_t {
   MQTT_QUEUE_TYPE_PUBLISH,
 };
 
+
+/// transport enum
+enum MQTTTransport : uint8_t {
+  MQTT_TRANSPORT_TCP,
+  MQTT_TRANSPORT_WS,
+};
+
 struct QueueElement {
   char *topic;
   char *payload;
