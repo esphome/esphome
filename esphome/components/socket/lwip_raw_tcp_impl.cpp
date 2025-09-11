@@ -27,7 +27,7 @@ static const char *const TAG = "socket.lwip";
 #endif
 
 struct PbufDeleter {
-  void operator()(pbuf* b) { pbuf_free(b); }
+  void operator()(pbuf *b) { pbuf_free(b); }
 };
 
 using unique_pbuf_t = std::unique_ptr<pbuf, PbufDeleter>;
