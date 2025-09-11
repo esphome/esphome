@@ -25,7 +25,13 @@ class MockSerialPort:
 def setup_core(
     config: dict[str, Any] | None = None, address: str | None = None
 ) -> None:
-    """Helper to set up CORE configuration with optional address."""
+    """
+    Helper to set up CORE configuration with optional address.
+
+    Args:
+        config (dict[str, Any] | None): The configuration dictionary to set for CORE. If None, an empty dict is used.
+        address (str | None): Optional network address to set in the configuration. If provided, it is set under the wifi config.
+    """
     if config is None:
         config = {}
 
