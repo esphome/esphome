@@ -364,14 +364,16 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                     addresses.extend(sort_ip_addresses(cached))
                     dns_cache_entries[entry.name] = set(cached)
 
-            # Build cache arguments to pass to CLI
+            # Build cache arguments to pass to CLI (normalize hostnames)
             for hostname, addrs in dns_cache_entries.items():
+                normalized = hostname.rstrip(".").lower()
                 cache_args.extend(
-                    ["--dns-lookup-cache", f"{hostname}={','.join(sorted(addrs))}"]
+                    ["--dns-lookup-cache", f"{normalized}={','.join(sorted(addrs))}"]
                 )
             for hostname, addrs in mdns_cache_entries.items():
+                normalized = hostname.rstrip(".").lower()
                 cache_args.extend(
-                    ["--mdns-lookup-cache", f"{hostname}={','.join(sorted(addrs))}"]
+                    ["--mdns-lookup-cache", f"{normalized}={','.join(sorted(addrs))}"]
                 )
 
         if not addresses:

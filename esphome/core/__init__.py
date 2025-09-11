@@ -6,6 +6,9 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from esphome.address_cache import AddressCache
+
 from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
@@ -584,7 +587,7 @@ class EsphomeCore:
         # The current component being processed during validation
         self.current_component: str | None = None
         # Address cache for DNS and mDNS lookups from command line arguments
-        self.address_cache: object | None = None
+        self.address_cache: AddressCache | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
