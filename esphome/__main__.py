@@ -226,7 +226,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                         .replace(b"\n", b"")
                         .decode("utf8", "backslashreplace")
                     )
-                    time_str = datetime.now().time().strftime("[%H:%M:%S]")
+                    time_ = datetime.now()
+                    nanoseconds = time_.microsecond // 1000
+                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
                     safe_print(parser.parse_line(line, time_str))
 
                     backtrace_state = platformio_api.process_stacktrace(
