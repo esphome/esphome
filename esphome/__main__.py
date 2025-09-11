@@ -889,6 +889,18 @@ def parse_args(argv):
         help="Add a substitution",
         metavar=("key", "value"),
     )
+    options_parser.add_argument(
+        "--mdns-lookup-cache",
+        help="mDNS lookup cache mapping in format 'hostname=ip1,ip2'",
+        action="append",
+        default=[],
+    )
+    options_parser.add_argument(
+        "--dns-lookup-cache",
+        help="DNS lookup cache mapping in format 'hostname=ip1,ip2'",
+        action="append",
+        default=[],
+    )
 
     parser = argparse.ArgumentParser(
         description=f"ESPHome {const.__version__}", parents=[options_parser]
@@ -1136,8 +1148,18 @@ def parse_args(argv):
 
 
 def run_esphome(argv):
+    from esphome.address_cache import AddressCache
+
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
+
+    # Create address cache from command-line arguments
+    address_cache = AddressCache.from_cli_args(
+        args.mdns_lookup_cache, args.dns_lookup_cache
+    )
+
+    # Store cache in CORE for access throughout the application
+    CORE.address_cache = address_cache
 
     # Override log level if verbose is set
     if args.verbose:

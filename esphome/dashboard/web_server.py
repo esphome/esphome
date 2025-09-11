@@ -326,52 +326,64 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
+
+        # Only get cached addresses - no async resolution
         addresses: list[str] = []
+        cache_args: list[str] = []
+
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            # First priority: entry.address AKA use_address
-            if (
-                (use_address := entry.address)
-                and (
-                    address_list := await dashboard.dns_cache.async_resolve(
-                        use_address, time.monotonic()
-                    )
-                )
-                and not isinstance(address_list, Exception)
-            ):
-                addresses.extend(sort_ip_addresses(address_list))
+            now = time.monotonic()
 
-            # Second priority: mDNS
-            if (
-                (mdns := dashboard.mdns_status)
-                and (address_list := await mdns.async_resolve_host(entry.name))
-                and (
-                    new_addresses := [
-                        addr for addr in address_list if addr not in addresses
-                    ]
-                )
+            # Collect all cached addresses for this device
+            dns_cache_entries: dict[str, set[str]] = {}
+            mdns_cache_entries: dict[str, set[str]] = {}
+
+            # First priority: entry.address AKA use_address (from DNS cache only)
+            if (use_address := entry.address) and (
+                cached := dashboard.dns_cache.get_cached(use_address, now)
             ):
-                # Use the IP address if available but only
-                # if the API is loaded and the device is online
-                # since MQTT logging will not work otherwise
-                addresses.extend(sort_ip_addresses(new_addresses))
+                addresses.extend(sort_ip_addresses(cached))
+                dns_cache_entries[use_address] = set(cached)
+
+            # Second priority: mDNS cache for device name
+            if entry.name and not addresses:  # Only if we don't have addresses yet
+                if entry.name.endswith(".local"):
+                    # Check mDNS cache (zeroconf)
+                    if (mdns := dashboard.mdns_status) and (
+                        cached := mdns.get_cached_addresses(entry.name)
+                    ):
+                        addresses.extend(sort_ip_addresses(cached))
+                        mdns_cache_entries[entry.name] = set(cached)
+                # Check DNS cache for non-.local names
+                elif cached := dashboard.dns_cache.get_cached(entry.name, now):
+                    addresses.extend(sort_ip_addresses(cached))
+                    dns_cache_entries[entry.name] = set(cached)
+
+            # Build cache arguments to pass to CLI
+            for hostname, addrs in dns_cache_entries.items():
+                cache_args.extend(
+                    ["--dns-lookup-cache", f"{hostname}={','.join(sorted(addrs))}"]
+                )
+            for hostname, addrs in mdns_cache_entries.items():
+                cache_args.extend(
+                    ["--mdns-lookup-cache", f"{hostname}={','.join(sorted(addrs))}"]
+                )
 
         if not addresses:
-            # If no address was found, use the port directly
-            # as otherwise they will get the chooser which
-            # does not work with the dashboard as there is no
-            # interactive way to get keyboard input
+            # If no cached address was found, use the port directly
+            # The CLI will do the resolution with the cache hints we provide
             addresses = [port]
 
         device_args: list[str] = [
             arg for address in addresses for arg in ("--device", address)
         ]
 
-        return [*DASHBOARD_COMMAND, *args, config_file, *device_args]
+        return [*DASHBOARD_COMMAND, *args, config_file, *device_args, *cache_args]
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):

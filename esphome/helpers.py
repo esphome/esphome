@@ -173,7 +173,9 @@ def addr_preference_(res: AddrInfo) -> int:
     return 1
 
 
-def resolve_ip_address(host: str | list[str], port: int) -> list[AddrInfo]:
+def resolve_ip_address(
+    host: str | list[str], port: int, address_cache: object | None = None
+) -> list[AddrInfo]:
     import socket
 
     # There are five cases here. The host argument could be one of:
@@ -194,8 +196,9 @@ def resolve_ip_address(host: str | list[str], port: int) -> list[AddrInfo]:
         hosts = [host]
 
     res: list[AddrInfo] = []
+
+    # Fast path: if all hosts are already IP addresses
     if all(is_ip_address(h) for h in hosts):
-        # Fast path: all are IP addresses, use socket.getaddrinfo with AI_NUMERICHOST
         for addr in hosts:
             try:
                 res += socket.getaddrinfo(
@@ -207,34 +210,65 @@ def resolve_ip_address(host: str | list[str], port: int) -> list[AddrInfo]:
         res.sort(key=addr_preference_)
         return res
 
-    from esphome.resolver import AsyncResolver
+    # Check if we have cached addresses for these hosts
+    cached_hosts: list[str] = []
+    uncached_hosts: list[str] = []
 
-    resolver = AsyncResolver(hosts, port)
-    addr_infos = resolver.resolve()
-    # Convert aioesphomeapi AddrInfo to our format
-    for addr_info in addr_infos:
-        sockaddr = addr_info.sockaddr
-        if addr_info.family == socket.AF_INET6:
-            # IPv6
-            sockaddr_tuple = (
-                sockaddr.address,
-                sockaddr.port,
-                sockaddr.flowinfo,
-                sockaddr.scope_id,
-            )
-        else:
-            # IPv4
-            sockaddr_tuple = (sockaddr.address, sockaddr.port)
+    for h in hosts:
+        # Check if it's already an IP address
+        if is_ip_address(h):
+            cached_hosts.append(h)
+            continue
 
-        res.append(
-            (
-                addr_info.family,
-                addr_info.type,
-                addr_info.proto,
-                "",  # canonname
-                sockaddr_tuple,
+        # Check cache if provided
+        if address_cache and (cached_addresses := address_cache.get_addresses(h)):
+            cached_hosts.extend(cached_addresses)
+            continue
+
+        # Not in cache, need to resolve
+        if address_cache and address_cache.has_cache():
+            _LOGGER.info("Host %s not in cache, will need to resolve", h)
+        uncached_hosts.append(h)
+
+    # Process cached addresses (all should be IP addresses)
+    for addr in cached_hosts:
+        try:
+            res += socket.getaddrinfo(
+                addr, port, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
             )
-        )
+        except OSError:
+            _LOGGER.debug("Failed to parse IP address '%s'", addr)
+
+    # If we have uncached hosts, resolve them
+    if uncached_hosts:
+        from esphome.resolver import AsyncResolver
+
+        resolver = AsyncResolver(uncached_hosts, port)
+        addr_infos = resolver.resolve()
+        # Convert aioesphomeapi AddrInfo to our format
+        for addr_info in addr_infos:
+            sockaddr = addr_info.sockaddr
+            if addr_info.family == socket.AF_INET6:
+                # IPv6
+                sockaddr_tuple = (
+                    sockaddr.address,
+                    sockaddr.port,
+                    sockaddr.flowinfo,
+                    sockaddr.scope_id,
+                )
+            else:
+                # IPv4
+                sockaddr_tuple = (sockaddr.address, sockaddr.port)
+
+            res.append(
+                (
+                    addr_info.family,
+                    addr_info.type,
+                    addr_info.proto,
+                    "",  # canonname
+                    sockaddr_tuple,
+                )
+            )
 
     # Sort by preference
     res.sort(key=addr_preference_)

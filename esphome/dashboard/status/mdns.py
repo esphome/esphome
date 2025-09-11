@@ -50,6 +50,22 @@ class MDNSStatus:
             return await aiozc.async_resolve_host(host_name)
         return None
 
+    def get_cached_addresses(self, host_name: str) -> list[str] | None:
+        """Get cached addresses for a host without triggering resolution.
+
+        Returns None if not in cache or no zeroconf available.
+        """
+        if not self.aiozc:
+            return None
+
+        from zeroconf import AddressResolver, IPVersion
+
+        # Try to load from zeroconf cache without triggering resolution
+        info = AddressResolver(f"{host_name.partition('.')[0]}.local.")
+        if info.load_from_cache(self.aiozc.zeroconf):
+            return info.parsed_scoped_addresses(IPVersion.All)
+        return None
+
     async def async_refresh_hosts(self) -> None:
         """Refresh the hosts to track."""
         dashboard = self.dashboard

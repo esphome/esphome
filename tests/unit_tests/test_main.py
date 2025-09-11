@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome.__main__ import choose_upload_log_host
+from esphome.address_cache import AddressCache
 from esphome.const import CONF_BROKER, CONF_MQTT, CONF_USE_ADDRESS, CONF_WIFI
 from esphome.core import CORE
 
@@ -510,3 +511,73 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
         show_api=False,
     )
     assert result == []
+
+
+def test_address_cache_from_cli_args() -> None:
+    """Test parsing address cache from CLI arguments."""
+    # Test empty lists
+    cache = AddressCache.from_cli_args([], [])
+    assert cache.mdns_cache == {}
+    assert cache.dns_cache == {}
+
+    # Test single entry with single IP
+    cache = AddressCache.from_cli_args(
+        ["host.local=192.168.1.1"], ["example.com=10.0.0.1"]
+    )
+    assert cache.mdns_cache == {"host.local": ["192.168.1.1"]}
+    assert cache.dns_cache == {"example.com": ["10.0.0.1"]}
+
+    # Test multiple IPs
+    cache = AddressCache.from_cli_args(["host.local=192.168.1.1,192.168.1.2"], [])
+    assert cache.mdns_cache == {"host.local": ["192.168.1.1", "192.168.1.2"]}
+
+    # Test multiple entries
+    cache = AddressCache.from_cli_args(
+        ["host1.local=192.168.1.1", "host2.local=192.168.1.2"],
+        ["example.com=10.0.0.1", "test.org=10.0.0.2,10.0.0.3"],
+    )
+    assert cache.mdns_cache == {
+        "host1.local": ["192.168.1.1"],
+        "host2.local": ["192.168.1.2"],
+    }
+    assert cache.dns_cache == {
+        "example.com": ["10.0.0.1"],
+        "test.org": ["10.0.0.2", "10.0.0.3"],
+    }
+
+    # Test with IPv6
+    cache = AddressCache.from_cli_args(["host.local=2001:db8::1,fe80::1"], [])
+    assert cache.mdns_cache == {"host.local": ["2001:db8::1", "fe80::1"]}
+
+    # Test invalid format (should be skipped with warning)
+    with patch("esphome.address_cache._LOGGER") as mock_logger:
+        cache = AddressCache.from_cli_args(["invalid_format"], [])
+        assert cache.mdns_cache == {}
+        mock_logger.warning.assert_called_once()
+
+
+def test_address_cache_get_methods() -> None:
+    """Test the AddressCache get methods."""
+    cache = AddressCache(
+        mdns_cache={"test.local": ["192.168.1.1"]},
+        dns_cache={"example.com": ["10.0.0.1"]},
+    )
+
+    # Test mDNS lookup
+    assert cache.get_mdns_addresses("test.local") == ["192.168.1.1"]
+    assert cache.get_mdns_addresses("other.local") is None
+
+    # Test DNS lookup
+    assert cache.get_dns_addresses("example.com") == ["10.0.0.1"]
+    assert cache.get_dns_addresses("other.com") is None
+
+    # Test automatic selection based on domain
+    assert cache.get_addresses("test.local") == ["192.168.1.1"]
+    assert cache.get_addresses("example.com") == ["10.0.0.1"]
+    assert cache.get_addresses("unknown.local") is None
+    assert cache.get_addresses("unknown.com") is None
+
+    # Test has_cache
+    assert cache.has_cache() is True
+    empty_cache = AddressCache()
+    assert empty_cache.has_cache() is False

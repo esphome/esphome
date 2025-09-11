@@ -28,6 +28,17 @@ class DNSCache:
         self._cache: dict[str, tuple[float, list[str] | Exception]] = {}
         self._ttl = ttl
 
+    def get_cached(self, hostname: str, now_monotonic: float) -> list[str] | None:
+        """Get cached address without triggering resolution.
+
+        Returns None if not in cache, list of addresses if found.
+        """
+        if expire_time_addresses := self._cache.get(hostname):
+            expire_time, addresses = expire_time_addresses
+            if expire_time > now_monotonic and not isinstance(addresses, Exception):
+                return addresses
+        return None
+
     async def async_resolve(
         self, hostname: str, now_monotonic: float
     ) -> list[str] | Exception:
