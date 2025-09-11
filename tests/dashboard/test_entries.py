@@ -22,7 +22,7 @@ def create_cache_key() -> tuple[int, int, float, int]:
 def setup_core():
     """Set up CORE for testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        CORE.config_path = str(Path(tmpdir) / "test.yaml")
+        CORE.config_path = Path(tmpdir) / "test.yaml"
         yield
         CORE.reset()
 
@@ -44,7 +44,7 @@ async def dashboard_entries(mock_settings: MagicMock) -> DashboardEntries:
 
 def test_dashboard_entry_path_initialization() -> None:
     """Test DashboardEntry initializes with path correctly."""
-    test_path = "/test/config/device.yaml"
+    test_path = Path("/test/config/device.yaml")
     cache_key = create_cache_key()
 
     entry = DashboardEntry(test_path, cache_key)
@@ -59,21 +59,21 @@ def test_dashboard_entry_path_with_absolute_path() -> None:
     test_path = Path.cwd() / "absolute" / "path" / "to" / "config.yaml"
     cache_key = create_cache_key()
 
-    entry = DashboardEntry(str(test_path), cache_key)
+    entry = DashboardEntry(test_path, cache_key)
 
-    assert entry.path == str(test_path)
-    assert Path(entry.path).is_absolute()
+    assert entry.path == test_path
+    assert entry.path.is_absolute()
 
 
 def test_dashboard_entry_path_with_relative_path() -> None:
     """Test DashboardEntry handles relative paths."""
-    test_path = "configs/device.yaml"
+    test_path = Path("configs/device.yaml")
     cache_key = create_cache_key()
 
     entry = DashboardEntry(test_path, cache_key)
 
     assert entry.path == test_path
-    assert not Path(entry.path).is_absolute()
+    assert not entry.path.is_absolute()
 
 
 @pytest.mark.asyncio
@@ -81,12 +81,12 @@ async def test_dashboard_entries_get_by_path(
     dashboard_entries: DashboardEntries,
 ) -> None:
     """Test getting entry by path."""
-    test_path = "/test/config/device.yaml"
+    test_path = Path("/test/config/device.yaml")
     entry = DashboardEntry(test_path, create_cache_key())
 
-    dashboard_entries._entries[test_path] = entry
+    dashboard_entries._entries[str(test_path)] = entry
 
-    result = dashboard_entries.get(test_path)
+    result = dashboard_entries.get(str(test_path))
     assert result == entry
 
 
@@ -104,12 +104,12 @@ async def test_dashboard_entries_path_normalization(
     dashboard_entries: DashboardEntries,
 ) -> None:
     """Test that paths are handled consistently."""
-    path1 = "/test/config/device.yaml"
+    path1 = Path("/test/config/device.yaml")
 
     entry = DashboardEntry(path1, create_cache_key())
-    dashboard_entries._entries[path1] = entry
+    dashboard_entries._entries[str(path1)] = entry
 
-    result = dashboard_entries.get(path1)
+    result = dashboard_entries.get(str(path1))
     assert result == entry
 
 
@@ -118,12 +118,12 @@ async def test_dashboard_entries_path_with_spaces(
     dashboard_entries: DashboardEntries,
 ) -> None:
     """Test handling paths with spaces."""
-    test_path = "/test/config/my device.yaml"
+    test_path = Path("/test/config/my device.yaml")
     entry = DashboardEntry(test_path, create_cache_key())
 
-    dashboard_entries._entries[test_path] = entry
+    dashboard_entries._entries[str(test_path)] = entry
 
-    result = dashboard_entries.get(test_path)
+    result = dashboard_entries.get(str(test_path))
     assert result == entry
     assert result.path == test_path
 
@@ -133,18 +133,18 @@ async def test_dashboard_entries_path_with_special_chars(
     dashboard_entries: DashboardEntries,
 ) -> None:
     """Test handling paths with special characters."""
-    test_path = "/test/config/device-01_test.yaml"
+    test_path = Path("/test/config/device-01_test.yaml")
     entry = DashboardEntry(test_path, create_cache_key())
 
-    dashboard_entries._entries[test_path] = entry
+    dashboard_entries._entries[str(test_path)] = entry
 
-    result = dashboard_entries.get(test_path)
+    result = dashboard_entries.get(str(test_path))
     assert result == entry
 
 
 def test_dashboard_entries_windows_path() -> None:
     """Test handling Windows-style paths."""
-    test_path = r"C:\Users\test\esphome\device.yaml"
+    test_path = Path(r"C:\Users\test\esphome\device.yaml")
     cache_key = create_cache_key()
 
     entry = DashboardEntry(test_path, cache_key)
@@ -157,28 +157,28 @@ async def test_dashboard_entries_path_to_cache_key_mapping(
     dashboard_entries: DashboardEntries,
 ) -> None:
     """Test internal entries storage with paths and cache keys."""
-    path1 = "/test/config/device1.yaml"
-    path2 = "/test/config/device2.yaml"
+    path1 = Path("/test/config/device1.yaml")
+    path2 = Path("/test/config/device2.yaml")
 
     entry1 = DashboardEntry(path1, create_cache_key())
     entry2 = DashboardEntry(path2, (1, 1, 1.0, 1))
 
-    dashboard_entries._entries[path1] = entry1
-    dashboard_entries._entries[path2] = entry2
+    dashboard_entries._entries[str(path1)] = entry1
+    dashboard_entries._entries[str(path2)] = entry2
 
-    assert path1 in dashboard_entries._entries
-    assert path2 in dashboard_entries._entries
-    assert dashboard_entries._entries[path1].cache_key == create_cache_key()
-    assert dashboard_entries._entries[path2].cache_key == (1, 1, 1.0, 1)
+    assert str(path1) in dashboard_entries._entries
+    assert str(path2) in dashboard_entries._entries
+    assert dashboard_entries._entries[str(path1)].cache_key == create_cache_key()
+    assert dashboard_entries._entries[str(path2)].cache_key == (1, 1, 1.0, 1)
 
 
 def test_dashboard_entry_path_property() -> None:
     """Test that path property returns expected value."""
-    test_path = "/test/config/device.yaml"
+    test_path = Path("/test/config/device.yaml")
     entry = DashboardEntry(test_path, create_cache_key())
 
     assert entry.path == test_path
-    assert isinstance(entry.path, str)
+    assert isinstance(entry.path, Path)
 
 
 @pytest.mark.asyncio
@@ -187,14 +187,14 @@ async def test_dashboard_entries_all_returns_entries_with_paths(
 ) -> None:
     """Test that all() returns entries with their paths intact."""
     paths = [
-        "/test/config/device1.yaml",
-        "/test/config/device2.yaml",
-        "/test/config/subfolder/device3.yaml",
+        Path("/test/config/device1.yaml"),
+        Path("/test/config/device2.yaml"),
+        Path("/test/config/subfolder/device3.yaml"),
     ]
 
     for path in paths:
         entry = DashboardEntry(path, create_cache_key())
-        dashboard_entries._entries[path] = entry
+        dashboard_entries._entries[str(path)] = entry
 
     all_entries = dashboard_entries.async_all()
 
