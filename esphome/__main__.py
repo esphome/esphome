@@ -897,14 +897,14 @@ def parse_args(argv):
         metavar=("key", "value"),
     )
     options_parser.add_argument(
-        "--mdns-lookup-cache",
-        help="mDNS lookup cache mapping in format 'hostname=ip1,ip2'",
+        "--mdns-address-cache",
+        help="mDNS address cache mapping in format 'hostname=ip1,ip2'",
         action="append",
         default=[],
     )
     options_parser.add_argument(
-        "--dns-lookup-cache",
-        help="DNS lookup cache mapping in format 'hostname=ip1,ip2'",
+        "--dns-address-cache",
+        help="DNS address cache mapping in format 'hostname=ip1,ip2'",
         action="append",
         default=[],
     )
@@ -1162,7 +1162,7 @@ def run_esphome(argv):
 
     # Create address cache from command-line arguments
     address_cache = AddressCache.from_cli_args(
-        args.mdns_lookup_cache, args.dns_lookup_cache
+        args.mdns_address_cache, args.dns_address_cache
     )
 
     # Store cache in CORE for access throughout the application

@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from unittest.mock import Mock, patch
 
 import pytest
 from zeroconf import AddressResolver, IPVersion
 
+from esphome.dashboard.core import ESPHomeDashboard
 from esphome.dashboard.status.mdns import MDNSStatus
-
-if TYPE_CHECKING:
-    from esphome.dashboard.core import ESPHomeDashboard
 
 
 @pytest.fixture
@@ -29,7 +26,9 @@ def mock_dashboard() -> Mock:
 @pytest.fixture
 def mdns_status(mock_dashboard: Mock) -> MDNSStatus:
     """Create an MDNSStatus instance."""
-    return MDNSStatus(mock_dashboard)
+    with patch("asyncio.get_running_loop") as mock_loop:
+        mock_loop.return_value = Mock()
+        return MDNSStatus(mock_dashboard)
 
 
 def test_get_cached_addresses_no_zeroconf(mdns_status: MDNSStatus) -> None:
