@@ -1197,3 +1197,56 @@ def test_has_mqtt_logging_no_log_topic() -> None:
     # Setup without MQTT config at all
     setup_core(config={})
     assert has_mqtt_logging() is False
+
+
+def test_has_mqtt() -> None:
+    """Test has_mqtt function."""
+    from esphome.__main__ import has_mqtt
+
+    # Test with MQTT configured
+    setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local"}})
+    assert has_mqtt() is True
+
+    # Test without MQTT configured
+    setup_core(config={})
+    assert has_mqtt() is False
+
+    # Test with other components but no MQTT
+    setup_core(config={CONF_API: {}, CONF_OTA: {}})
+    assert has_mqtt() is False
+
+
+def test_get_port_type() -> None:
+    """Test get_port_type function."""
+    from esphome.__main__ import get_port_type
+
+    assert get_port_type("/dev/ttyUSB0") == "SERIAL"
+    assert get_port_type("/dev/ttyACM0") == "SERIAL"
+    assert get_port_type("COM1") == "SERIAL"
+    assert get_port_type("COM10") == "SERIAL"
+
+    assert get_port_type("MQTT") == "MQTT"
+    assert get_port_type("MQTTIP") == "MQTTIP"
+
+    assert get_port_type("192.168.1.100") == "NETWORK"
+    assert get_port_type("esphome-device.local") == "NETWORK"
+    assert get_port_type("10.0.0.1") == "NETWORK"
+
+
+def test_has_mqtt_ip_lookup() -> None:
+    """Test has_mqtt_ip_lookup function."""
+    from esphome.__main__ import has_mqtt_ip_lookup
+
+    CONF_DISCOVER_IP = "discover_ip"
+
+    setup_core(config={})
+    assert has_mqtt_ip_lookup() is False
+
+    setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local"}})
+    assert has_mqtt_ip_lookup() is True
+
+    setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local", CONF_DISCOVER_IP: True}})
+    assert has_mqtt_ip_lookup() is True
+
+    setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local", CONF_DISCOVER_IP: False}})
+    assert has_mqtt_ip_lookup() is False
