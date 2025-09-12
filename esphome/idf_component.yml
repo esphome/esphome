@@ -19,3 +19,6 @@ dependencies:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
     version: 1.0.1
+  vroland/epdiy:
+    git: https://github.com/vroland/epdiy.git
+    version: c61e9e923ce2418150d54f88cea5d196cdc40c54
