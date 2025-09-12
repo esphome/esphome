@@ -305,7 +305,7 @@ def test_filter_yaml_files_case_sensitive() -> None:
     # Should only match lowercase .yaml and .yml
     assert len(result) == 2
     # Convert to strings for comparison to avoid platform-specific Path comparison issues
-    result_strs = [str(p) for p in result]
+    result_strs = {str(p) for p in result}
     assert str(Path("/path/to/config.yaml")) in result_strs
     assert str(Path("/path/to/config.yml")) in result_strs
     assert str(Path("/path/to/config.YAML")) not in result_strs
