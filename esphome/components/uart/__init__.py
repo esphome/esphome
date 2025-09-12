@@ -1,5 +1,5 @@
-import re
 import math
+import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -323,7 +323,13 @@ async def to_code(config):
             bytelength = config[CONF_DATA_BITS] + config[CONF_STOP_BITS] + 1
             if config[CONF_PARITY] != "NONE":
                 bytelength += 1
-            config[CONF_RX_FULL_THRESHOLD] = max(0, min(120, math.floor((config[CONF_BAUD_RATE] / (bytelength * 1000 / 10)) - 1)))
+            config[CONF_RX_FULL_THRESHOLD] = max(
+                0,
+                min(
+                    120,
+                    math.floor((config[CONF_BAUD_RATE] / (bytelength * 1000 / 10)) - 1),
+                ),
+            )
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
