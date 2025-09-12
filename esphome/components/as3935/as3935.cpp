@@ -49,7 +49,7 @@ void AS3935Component::loop() {
     return;
 
   this->set_timeout(4, [this]() {
-  uint8_t int_value = this->read_interrupt_register_(); 
+    uint8_t int_value = this->read_interrupt_register_();
 
     if (int_value == NOISE_INT) {
       ESP_LOGI(TAG, "Noise was detected - try increasing the noise level value!");
@@ -58,20 +58,21 @@ void AS3935Component::loop() {
     } else if (int_value == LIGHTNING_INT) {
       ESP_LOGI(TAG, "Lightning has been detected!");
 #ifdef USE_BINARY_SENSOR
-        if (this->thunder_alert_binary_sensor_ != nullptr) {
-          this->thunder_alert_binary_sensor_->publish_state(true);
-	      this->cancel_timeout("as3935_alert_off");
-          this->set_timeout("as3935_alert_off", 1000, [this]() { this->thunder_alert_binary_sensor_->publish_state(false); });
-        }
+      if (this->thunder_alert_binary_sensor_ != nullptr) {
+        this->thunder_alert_binary_sensor_->publish_state(true);
+        this->cancel_timeout("as3935_alert_off");
+        this->set_timeout("as3935_alert_off", 1000,
+                          [this]() { this->thunder_alert_binary_sensor_->publish_state(false); });
+      }
 #endif
 #ifdef USE_SENSOR
-    uint8_t distance = this->get_distance_to_storm_();
-    if (this->distance_sensor_ != nullptr)
-      this->distance_sensor_->publish_state(distance);
+      uint8_t distance = this->get_distance_to_storm_();
+      if (this->distance_sensor_ != nullptr)
+        this->distance_sensor_->publish_state(distance);
 
-    uint32_t energy = this->get_lightning_energy_();
-    if (this->energy_sensor_ != nullptr)
-      this->energy_sensor_->publish_state(energy);
+      uint32_t energy = this->get_lightning_energy_();
+      if (this->energy_sensor_ != nullptr)
+        this->energy_sensor_->publish_state(energy);
 #endif
     }
     this->enable_loop();

@@ -22,11 +22,11 @@ void I2CAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits,
       return;
     }
   } else {
-	  if (!this->write_byte(reg, bits)) {
-        ESP_LOGW(TAG, "write_byte failed - increase log level for more details!");
-        return; 
-      }
+    if (!this->write_byte(reg, bits)) {
+      ESP_LOGW(TAG, "write_byte failed - increase log level for more details!");
+      return;
     }
+  }
 }
 
 uint8_t I2CAS3935Component::read_register(uint8_t reg) {

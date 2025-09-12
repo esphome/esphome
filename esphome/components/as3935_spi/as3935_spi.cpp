@@ -26,10 +26,10 @@ void SPIAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits,
     this->write_byte(write_reg);
     this->disable();
   } else {
-	this->enable();
+    this->enable();
     this->write_byte(reg);
     this->write_byte(bits);
-    this->disable();  
+    this->disable();
   }
 }
 
