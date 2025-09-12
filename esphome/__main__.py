@@ -793,21 +793,21 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path: Path = CORE.config_dir / (new_name + ".yaml")
     print(
-        f"Updating {color(AnsiFore.CYAN, CORE.config_path)} to {color(AnsiFore.CYAN, new_path)}"
+        f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
     print()
 
     new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process("esphome", "config", new_path)
+    rc = run_external_process("esphome", "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
-        os.remove(new_path)
+        new_path.unlink()
         return 1
 
     cli_args = [
         "run",
-        new_path,
+        str(new_path),
         "--no-logs",
         "--device",
         CORE.address,
