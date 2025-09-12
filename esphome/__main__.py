@@ -151,22 +151,14 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if (
-                        has_api()
-                        and not is_ip_address(CORE.address)
-                        and CORE.address is not None
-                    ):
+                    if has_api() and has_non_ip_address():
                         resolved.append(CORE.address)
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
-                    if (
-                        has_ota()
-                        and not is_ip_address(CORE.address)
-                        and CORE.address is not None
-                    ):
+                    if has_ota() and has_non_ip_address():
                         resolved.append(CORE.address)
 
             else:
@@ -186,13 +178,13 @@ def choose_upload_log_host(
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
         if has_api():
-            if has_mdns() or is_ip_address(CORE.address):
+            if has_mdns() or has_ip_address():
                 options.append((f"Over The Air ({CORE.address})", CORE.address))
             if has_mqtt_ip_lookup():
                 options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
 
     elif purpose == Purpose.UPLOADING and has_ota():
-        if has_mdns() or is_ip_address(CORE.address):
+        if has_mdns() or has_ip_address():
             options.append((f"Over The Air ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():
             options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
@@ -251,6 +243,16 @@ def has_mqtt_ip_lookup() -> bool:
 def has_mdns() -> bool:
     """Check if MDNS is available."""
     return CONF_MDNS not in CORE.config or not CORE.config[CONF_MDNS][CONF_DISABLED]
+
+
+def has_non_ip_address() -> bool:
+    """Check if CORE.address is set and is not an IP address."""
+    return CORE.address is not None and not is_ip_address(CORE.address)
+
+
+def has_ip_address() -> bool:
+    """Check if CORE.address is a valid IP address."""
+    return CORE.address is not None and is_ip_address(CORE.address)
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):

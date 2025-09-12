@@ -10,7 +10,17 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome.__main__ import Purpose, choose_upload_log_host, show_logs, upload_program
+from esphome.__main__ import (
+    Purpose,
+    choose_upload_log_host,
+    get_port_type,
+    has_mqtt,
+    has_mqtt_ip_lookup,
+    has_mqtt_logging,
+    has_non_ip_address,
+    show_logs,
+    upload_program,
+)
 from esphome.const import (
     CONF_API,
     CONF_BROKER,
@@ -1162,7 +1172,6 @@ def test_show_logs_platform_specific_handler(
 
 def test_has_mqtt_logging_no_log_topic() -> None:
     """Test has_mqtt_logging returns True when CONF_LOG_TOPIC is not in mqtt_config."""
-    from esphome.__main__ import has_mqtt_logging
 
     # Setup MQTT config without CONF_LOG_TOPIC (defaults to enabled - this is the missing test case)
     setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local"}})
@@ -1201,7 +1210,6 @@ def test_has_mqtt_logging_no_log_topic() -> None:
 
 def test_has_mqtt() -> None:
     """Test has_mqtt function."""
-    from esphome.__main__ import has_mqtt
 
     # Test with MQTT configured
     setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local"}})
@@ -1218,7 +1226,6 @@ def test_has_mqtt() -> None:
 
 def test_get_port_type() -> None:
     """Test get_port_type function."""
-    from esphome.__main__ import get_port_type
 
     assert get_port_type("/dev/ttyUSB0") == "SERIAL"
     assert get_port_type("/dev/ttyACM0") == "SERIAL"
@@ -1235,7 +1242,6 @@ def test_get_port_type() -> None:
 
 def test_has_mqtt_ip_lookup() -> None:
     """Test has_mqtt_ip_lookup function."""
-    from esphome.__main__ import has_mqtt_ip_lookup
 
     CONF_DISCOVER_IP = "discover_ip"
 
@@ -1250,3 +1256,22 @@ def test_has_mqtt_ip_lookup() -> None:
 
     setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local", CONF_DISCOVER_IP: False}})
     assert has_mqtt_ip_lookup() is False
+
+
+def test_has_non_ip_address() -> None:
+    """Test has_non_ip_address function."""
+
+    setup_core(address=None)
+    assert has_non_ip_address() is False
+
+    setup_core(address="192.168.1.100")
+    assert has_non_ip_address() is False
+
+    setup_core(address="10.0.0.1")
+    assert has_non_ip_address() is False
+
+    setup_core(address="esphome-device.local")
+    assert has_non_ip_address() is True
+
+    setup_core(address="my-device")
+    assert has_non_ip_address() is True
