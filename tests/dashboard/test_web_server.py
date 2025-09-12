@@ -581,9 +581,6 @@ def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
         server.add_socket.assert_called_once()
 
 
-# Tests for build_cache_arguments function
-
-
 def test_build_cache_arguments_no_entry(mock_dashboard: Mock) -> None:
     """Test with no entry returns empty list."""
     result = web_server.build_cache_arguments(None, mock_dashboard, 0.0)
