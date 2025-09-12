@@ -597,13 +597,13 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_ZWAVE_PROXY
-    case ZWaveProxyFrameToDevice::MESSAGE_TYPE: {
-      ZWaveProxyFrameToDevice msg;
+    case ZWaveProxyFrame::MESSAGE_TYPE: {
+      ZWaveProxyFrame msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_z_wave_proxy_frame_to_device: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_z_wave_proxy_frame: %s", msg.dump().c_str());
 #endif
-      this->on_z_wave_proxy_frame_to_device(msg);
+      this->on_z_wave_proxy_frame(msg);
       break;
     }
 #endif
@@ -943,9 +943,9 @@ void APIServerConnection::on_alarm_control_panel_command_request(const AlarmCont
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &msg) {
+void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
   if (this->check_authenticated_()) {
-    this->zwave_proxy_frame_to_device(msg);
+    this->zwave_proxy_frame(msg);
   }
 }
 #endif

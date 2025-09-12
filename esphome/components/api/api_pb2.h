@@ -2919,31 +2919,17 @@ class UpdateCommandRequest final : public CommandProtoMessage {
 };
 #endif
 #ifdef USE_ZWAVE_PROXY
-class ZWaveProxyFrameFromDevice final : public ProtoMessage {
+class ZWaveProxyFrame final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 128;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
+  static constexpr uint8_t ESTIMATED_SIZE = 33;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "z_wave_proxy_frame_from_device"; }
+  const char *message_name() const override { return "z_wave_proxy_frame"; }
 #endif
-  StringRef data_ref_{};
-  void set_data(const StringRef &ref) { this->data_ref_ = ref; }
+  uint8_t data[257]{};
+  uint16_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-};
-class ZWaveProxyFrameToDevice final : public ProtoDecodableMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 129;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "z_wave_proxy_frame_to_device"; }
-#endif
-  std::string data{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2953,7 +2939,7 @@ class ZWaveProxyFrameToDevice final : public ProtoDecodableMessage {
 };
 class ZWaveProxySubscribeRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 130;
+  static constexpr uint8_t MESSAGE_TYPE = 129;
   static constexpr uint8_t ESTIMATED_SIZE = 4;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "z_wave_proxy_subscribe_request"; }
@@ -2968,7 +2954,7 @@ class ZWaveProxySubscribeRequest final : public ProtoDecodableMessage {
 };
 class ZWaveProxyUnsubscribeRequest final : public ProtoMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 131;
+  static constexpr uint8_t MESSAGE_TYPE = 130;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "z_wave_proxy_unsubscribe_request"; }

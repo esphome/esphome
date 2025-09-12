@@ -44,8 +44,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
   uint32_t get_feature_flags() const { return ZWaveProxyFeature::FEATURE_ZWAVE_PROXY_ENABLED; }
 
-  void send_frame(const std::string &data);
-  void send_frame(const std::vector<uint8_t> &data);
+  void send_frame(const uint8_t *data, size_t length = 0);
 
  protected:
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
@@ -54,14 +53,15 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
 
-  uint8_t buffer_[257];         // Fixed buffer for incoming data: max length = 255 + 2 (start of frame and checksum)
-  uint8_t buffer_index_{0};     // Index for populating the data buffer
-  uint8_t checksum_{0};         // Checksum of the frame being parsed
-  uint8_t end_frame_after_{0};  // Payload reception ends after this index
+  uint8_t buffer_[sizeof(api::ZWaveProxyFrame::data)];  // Fixed buffer for incoming data
+  uint8_t buffer_index_{0};                             // Index for populating the data buffer
+  uint8_t checksum_{0};                                 // Checksum of the frame being parsed
+  uint8_t end_frame_after_{0};                          // Payload reception ends after this index
+  uint8_t last_response_{0};                            // Last response type sent
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
 
   // Pre-allocated message - always ready to send
-  api::ZWaveProxyFrameFromDevice outgoing_proto_msg_;
+  api::ZWaveProxyFrame outgoing_proto_msg_;
 };
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -1213,7 +1213,7 @@ void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetCon
 #endif
 
 #ifdef USE_ZWAVE_PROXY
-void APIConnection::zwave_proxy_frame_to_device(const ZWaveProxyFrameToDevice &msg) {
+void APIConnection::zwave_proxy_frame(const ZWaveProxyFrame &msg) {
   zwave_proxy::global_zwave_proxy->send_frame(msg.data);
 }
 

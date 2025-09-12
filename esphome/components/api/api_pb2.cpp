@@ -3026,18 +3026,24 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void ZWaveProxyFrameFromDevice::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->data_ref_); }
-void ZWaveProxyFrameFromDevice::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_ref_.size()); }
-bool ZWaveProxyFrameToDevice::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->data = value.as_string();
+    case 1: {
+      const std::string &data_str = value.as_string();
+      this->data_len = data_str.size();
+      if (this->data_len > 257) {
+        this->data_len = 257;
+      }
+      memcpy(this->data, data_str.data(), this->data_len);
       break;
+    }
     default:
       return false;
   }
   return true;
 }
+void ZWaveProxyFrame::encode(ProtoWriteBuffer buffer) const { buffer.encode_bytes(1, this->data, this->data_len); }
+void ZWaveProxyFrame::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_len); }
 bool ZWaveProxySubscribeRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1:

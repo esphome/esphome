@@ -25,10 +25,12 @@ void ZWaveProxy::loop() {
       return;
     }
     if (this->parse_byte_(byte)) {
-      ESP_LOGD(TAG, "Sending frame: %s", YESNO(this->api_connection_ != nullptr));
+      ESP_LOGD(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
       if (this->api_connection_ != nullptr) {
-        this->outgoing_proto_msg_.set_data(StringRef((const char *) this->buffer_, this->buffer_index_));
-        this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrameFromDevice::MESSAGE_TYPE);
+        // minimize copying to reduce CPU overhead
+        this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
+        std::memcpy(this->outgoing_proto_msg_.data, this->buffer_, this->outgoing_proto_msg_.data_len);
+        this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
       }
     }
   }
@@ -53,14 +55,20 @@ void ZWaveProxy::unsubscribe_api_connection(api::APIConnection *api_connection) 
   this->api_connection_ = nullptr;
 }
 
-void ZWaveProxy::send_frame(const std::string &data) {
-  ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(data).c_str());
-  this->write_array((uint8_t *) data.data(), data.size());
-}
-
-void ZWaveProxy::send_frame(const std::vector<uint8_t> &data) {
-  ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(data).c_str());
-  this->write_array(data);
+void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
+  if (!length) {
+    if (data[0] == ZWAVE_FRAME_TYPE_START) {
+      length = data[1] + 2;  // data[1] is payload length, not including SoF + checksum
+    } else {
+      length = 1;  // assume ACK/NAK/CAN
+    }
+  }
+  if (length == 1 && data[0] == this->last_response_) {
+    ESP_LOGW(TAG, "Skipping sending duplicate response: 0x%02X", data[0]);
+    return;
+  }
+  ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
+  this->write_array(data, length);
 }
 
 bool ZWaveProxy::parse_byte_(uint8_t byte) {
@@ -152,29 +160,30 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
   }
   // Forward response (ACK/NAK/CAN) back to client for processing
   if (this->api_connection_ != nullptr) {
-    this->outgoing_proto_msg_.set_data(StringRef(&byte, 1));
-    this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrameFromDevice::MESSAGE_TYPE);
+    this->outgoing_proto_msg_.data[0] = byte;
+    this->outgoing_proto_msg_.data_len = 1;
+    this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
   }
 }
 
 bool ZWaveProxy::response_handler_() {
-  uint8_t response_byte = 0;
   switch (this->parsing_state_) {
     case ZWAVE_PARSING_STATE_SEND_ACK:
-      response_byte = ZWAVE_FRAME_TYPE_ACK;
+      this->last_response_ = ZWAVE_FRAME_TYPE_ACK;
       break;
     case ZWAVE_PARSING_STATE_SEND_CAN:
-      response_byte = ZWAVE_FRAME_TYPE_CAN;
+      this->last_response_ = ZWAVE_FRAME_TYPE_CAN;
       break;
     case ZWAVE_PARSING_STATE_SEND_NAK:
-      response_byte = ZWAVE_FRAME_TYPE_NAK;
+      this->last_response_ = ZWAVE_FRAME_TYPE_NAK;
       break;
     default:
       return false;  // No response handled
   }
 
-  ESP_LOGD(TAG, "Sending %s (0x%02X)", response_byte == ZWAVE_FRAME_TYPE_ACK ? "ACK" : "NAK/CAN", response_byte);
-  this->write_byte(response_byte);
+  ESP_LOGD(TAG, "Sending %s (0x%02X)", this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? "ACK" : "NAK/CAN",
+           this->last_response_);
+  this->write_byte(this->last_response_);
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
   return true;
 }
