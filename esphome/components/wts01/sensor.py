@@ -28,6 +28,7 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.final_validate_device_schema(name="WTS01", baud_rate=9600))
 )
 
 
