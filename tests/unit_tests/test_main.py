@@ -4,14 +4,33 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome.__main__ import choose_upload_log_host
-from esphome.const import CONF_BROKER, CONF_MQTT, CONF_USE_ADDRESS, CONF_WIFI
-from esphome.core import CORE
+from esphome.__main__ import choose_upload_log_host, show_logs, upload_program
+from esphome.const import (
+    CONF_BROKER,
+    CONF_DISABLED,
+    CONF_ESPHOME,
+    CONF_MDNS,
+    CONF_MQTT,
+    CONF_OTA,
+    CONF_PASSWORD,
+    CONF_PLATFORM,
+    CONF_PORT,
+    CONF_USE_ADDRESS,
+    CONF_WIFI,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+)
+from esphome.core import CORE, EsphomeError
 
 
 @dataclass
@@ -28,7 +47,11 @@ class MockSerialPort:
 
 
 def setup_core(
-    config: dict[str, Any] | None = None, address: str | None = None
+    config: dict[str, Any] | None = None,
+    address: str | None = None,
+    platform: str | None = None,
+    tmp_path: Path | None = None,
+    name: str = "test",
 ) -> None:
     """
     Helper to set up CORE configuration with optional address.
@@ -36,6 +59,9 @@ def setup_core(
     Args:
         config (dict[str, Any] | None): The configuration dictionary to set for CORE. If None, an empty dict is used.
         address (str | None): Optional network address to set in the configuration. If provided, it is set under the wifi config.
+        platform (str | None): Optional target platform to set in CORE.data.
+        tmp_path (Path | None): Optional temp path for setting up build paths.
+        name (str): The name of the device (defaults to "test").
     """
     if config is None:
         config = {}
@@ -46,11 +72,69 @@ def setup_core(
 
     CORE.config = config
 
+    if platform is not None:
+        CORE.data[KEY_CORE] = {}
+        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
+
+    if tmp_path is not None:
+        CORE.config_path = str(tmp_path / f"{name}.yaml")
+        CORE.name = name
+        CORE.build_path = str(tmp_path / ".esphome" / "build" / name)
+
 
 @pytest.fixture
 def mock_no_serial_ports() -> Generator[Mock]:
     """Mock get_serial_ports to return no ports."""
     with patch("esphome.__main__.get_serial_ports", return_value=[]) as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_get_port_type() -> Generator[Mock]:
+    """Mock get_port_type for testing."""
+    with patch("esphome.__main__.get_port_type") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_check_permissions() -> Generator[Mock]:
+    """Mock check_permissions for testing."""
+    with patch("esphome.__main__.check_permissions") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_miniterm() -> Generator[Mock]:
+    """Mock run_miniterm for testing."""
+    with patch("esphome.__main__.run_miniterm") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_upload_using_esptool() -> Generator[Mock]:
+    """Mock upload_using_esptool for testing."""
+    with patch("esphome.__main__.upload_using_esptool") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_upload_using_platformio() -> Generator[Mock]:
+    """Mock upload_using_platformio for testing."""
+    with patch("esphome.__main__.upload_using_platformio") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_ota() -> Generator[Mock]:
+    """Mock espota2.run_ota for testing."""
+    with patch("esphome.espota2.run_ota") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_is_ip_address() -> Generator[Mock]:
+    """Mock is_ip_address for testing."""
+    with patch("esphome.__main__.is_ip_address") as mock:
         yield mock
 
 
@@ -510,3 +594,462 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
         show_api=False,
     )
     assert result == []
+
+
+@dataclass
+class MockArgs:
+    """Mock args for testing."""
+
+    file: str | None = None
+    upload_speed: int = 460800
+    username: str | None = None
+    password: str | None = None
+    client_id: str | None = None
+    topic: str | None = None
+
+
+def test_upload_program_serial_esp32(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Test upload_program with serial port for ESP32."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 0
+
+    config = {}
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "/dev/ttyUSB0"
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
+    mock_upload_using_esptool.assert_called_once()
+
+
+def test_upload_program_serial_esp8266_with_file(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Test upload_program with serial port for ESP8266 with custom file."""
+    setup_core(platform=PLATFORM_ESP8266)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 0
+
+    config = {}
+    args = MockArgs(file="firmware.bin")
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "/dev/ttyUSB0"
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
+    mock_upload_using_esptool.assert_called_once_with(
+        config, "/dev/ttyUSB0", "firmware.bin", 460800
+    )
+
+
+@pytest.mark.parametrize(
+    "platform,device",
+    [
+        (PLATFORM_RP2040, "/dev/ttyACM0"),
+        (PLATFORM_BK72XX, "/dev/ttyUSB0"),  # LibreTiny platform
+    ],
+)
+def test_upload_program_serial_platformio_platforms(
+    mock_upload_using_platformio: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    platform: str,
+    device: str,
+) -> None:
+    """Test upload_program with serial port for platformio platforms (RP2040/LibreTiny)."""
+    setup_core(platform=platform)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_platformio.return_value = 0
+
+    config = {}
+    args = MockArgs()
+    devices = [device]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == device
+    mock_check_permissions.assert_called_once_with(device)
+    mock_upload_using_platformio.assert_called_once_with(config, device)
+
+
+def test_upload_program_serial_upload_failed(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Test upload_program when serial upload fails."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 1  # Failed
+
+    config = {}
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
+    mock_upload_using_esptool.assert_called_once()
+
+
+def test_upload_program_ota_success(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            }
+        ]
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = str(
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, "secret", expected_firmware
+    )
+
+
+def test_upload_program_ota_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and custom file."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="custom.bin")
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", "custom.bin")
+
+
+def test_upload_program_ota_no_config(
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program with OTA but no OTA config."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {}  # No OTA config
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="Cannot upload Over the Air"):
+        upload_program(config, args, devices)
+
+
+@patch("esphome.mqtt.get_esphome_device_ip")
+def test_upload_program_ota_with_mqtt_resolution(
+    mock_mqtt_get_ip: Mock,
+    mock_is_ip_address: Mock,
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA using MQTT for address resolution."""
+    setup_core(address="device.local", platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.side_effect = ["MQTT", "NETWORK"]
+    mock_is_ip_address.return_value = False
+    mock_mqtt_get_ip.return_value = ["192.168.1.100"]
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+        },
+        CONF_MDNS: {
+            CONF_DISABLED: True,
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    devices = ["MQTT"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    expected_firmware = str(
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        [["192.168.1.100"]], 3232, "", expected_firmware
+    )
+
+
+@patch("esphome.__main__.importlib.import_module")
+def test_upload_program_platform_specific_handler(
+    mock_import: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program with platform-specific upload handler."""
+    setup_core(platform="custom_platform")
+    mock_get_port_type.return_value = "CUSTOM"
+
+    mock_module = MagicMock()
+    mock_module.upload_program.return_value = True
+    mock_import.return_value = mock_module
+
+    config = {}
+    args = MockArgs()
+    devices = ["custom_device"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "custom_device"
+    mock_import.assert_called_once_with("esphome.components.custom_platform")
+    mock_module.upload_program.assert_called_once_with(config, args, "custom_device")
+
+
+def test_show_logs_serial(
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    mock_run_miniterm: Mock,
+) -> None:
+    """Test show_logs with serial port."""
+    setup_core(config={"logger": {}}, platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_run_miniterm.return_value = 0
+
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
+    mock_run_miniterm.assert_called_once_with(CORE.config, "/dev/ttyUSB0", args)
+
+
+def test_show_logs_no_logger() -> None:
+    """Test show_logs when logger is not configured."""
+    setup_core(config={}, platform=PLATFORM_ESP32)  # No logger config
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    with pytest.raises(EsphomeError, match="Logger is not configured"):
+        show_logs(CORE.config, args, devices)
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api(
+    mock_run_logs: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test show_logs with API."""
+    setup_core(
+        config={
+            "logger": {},
+            "api": {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    devices = ["192.168.1.100", "192.168.1.101"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100", "192.168.1.101"]
+    )
+
+
+@patch("esphome.mqtt.get_esphome_device_ip")
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_with_mqtt_fallback(
+    mock_run_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test show_logs with API using MQTT for address resolution."""
+    setup_core(
+        config={
+            "logger": {},
+            "api": {},
+            CONF_MDNS: {CONF_DISABLED: True},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_logs.return_value = 0
+    mock_mqtt_get_ip.return_value = ["192.168.1.200"]
+
+    args = MockArgs(username="user", password="pass", client_id="client")
+    devices = ["device.local"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.200"])
+
+
+@patch("esphome.mqtt.show_logs")
+def test_show_logs_mqtt(
+    mock_mqtt_show_logs: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test show_logs with MQTT."""
+    setup_core(
+        config={
+            "logger": {},
+            "mqtt": {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_get_port_type.return_value = "MQTT"
+    mock_mqtt_show_logs.return_value = 0
+
+    args = MockArgs(
+        topic="esphome/logs",
+        username="user",
+        password="pass",
+        client_id="client",
+    )
+    devices = ["MQTT"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_mqtt_show_logs.assert_called_once_with(
+        CORE.config, "esphome/logs", "user", "pass", "client"
+    )
+
+
+@patch("esphome.mqtt.show_logs")
+def test_show_logs_network_with_mqtt_only(
+    mock_mqtt_show_logs: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test show_logs with network port but only MQTT configured."""
+    setup_core(
+        config={
+            "logger": {},
+            "mqtt": {CONF_BROKER: "mqtt.local"},
+            # No API configured
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_get_port_type.return_value = "NETWORK"
+    mock_mqtt_show_logs.return_value = 0
+
+    args = MockArgs(
+        topic="esphome/logs",
+        username="user",
+        password="pass",
+        client_id="client",
+    )
+    devices = ["192.168.1.100"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_mqtt_show_logs.assert_called_once_with(
+        CORE.config, "esphome/logs", "user", "pass", "client"
+    )
+
+
+def test_show_logs_no_method_configured(
+    mock_get_port_type: Mock,
+) -> None:
+    """Test show_logs when no remote logging method is configured."""
+    setup_core(
+        config={
+            "logger": {},
+            # No API or MQTT configured
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_get_port_type.return_value = "NETWORK"
+
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError, match="No remote or local logging method configured"
+    ):
+        show_logs(CORE.config, args, devices)
+
+
+@patch("esphome.__main__.importlib.import_module")
+def test_show_logs_platform_specific_handler(
+    mock_import: Mock,
+) -> None:
+    """Test show_logs with platform-specific logs handler."""
+    setup_core(platform="custom_platform", config={"logger": {}})
+
+    mock_module = MagicMock()
+    mock_module.show_logs.return_value = True
+    mock_import.return_value = mock_module
+
+    config = {"logger": {}}
+    args = MockArgs()
+    devices = ["custom_device"]
+
+    result = show_logs(config, args, devices)
+
+    assert result == 0
+    mock_import.assert_called_once_with("esphome.components.custom_platform")
+    mock_module.show_logs.assert_called_once_with(config, args, devices)
