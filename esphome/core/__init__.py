@@ -6,9 +6,6 @@ import os
 import re
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from esphome.address_cache import AddressCache
-
 from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
@@ -42,6 +39,8 @@ from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
+    from esphome.address_cache import AddressCache
+
     from ..cpp_generator import MockObj, MockObjClass, Statement
     from ..types import ConfigType, EntityMetadata
 
