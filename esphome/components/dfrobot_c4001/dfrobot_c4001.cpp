@@ -2,12 +2,11 @@
 #include "esphome/core/log.h"
 #include <string>
 #include <cerrno>
-#include <stdbool.h>
 
 namespace esphome {
 namespace dfrobot_c4001 {
 
-static const char *TAG = "dfrobot_c4001";
+static const char *const TAG = "dfrobot_c4001";
 
 /**
  * setup
@@ -40,8 +39,8 @@ void C4001Component::print_config() {
  */
 void C4001Component::loop() {
   // Perform periodic tasks here
-  static unsigned long last_time = 0;
-  unsigned long now = millis();
+  static uint32_t last_time = 0;
+  uint32_t now = millis();
   if (now - last_time >= 1000) {  // Execute every 1000ms
     last_time = now;
     get_data();
@@ -74,8 +73,8 @@ int parse_dfhpd(const std::string &line) {
   std::string param_str = line.substr(pos1 + 1, pos2 - pos1 - 1);
 
   // Remove surrounding spaces
-  param_str.erase(0, param_str.find_first_not_of(" "));
-  param_str.erase(param_str.find_last_not_of(" ") + 1);
+  param_str.erase(0, param_str.find_first_not_of(' '));
+  param_str.erase(param_str.find_last_not_of(' ') + 1);
 
   if (param_str.empty())
     return -1;
@@ -206,7 +205,7 @@ void C4001Component::get_data() {
  * This is typically called on setup or when settings change.
  */
 void C4001Component::update_config_param() {
-  exist_ = 0;
+  exist_ = false;
   speed_ = 0.0;
   distance_ = 0.0;
   int mode = get_run_mode();
@@ -359,14 +358,13 @@ bool str_match(const std::string &text, const std::string &pattern) { return tex
  * Send a stop command to the device and check the response.
  * Returns true if device indicates it is already stopped.
  */
-bool C4001Component::sensor_stop(void) {
-  uint8_t len = 0;
+bool C4001Component::sensor_stop() {
   uart_clear_buffer();  // Clear buffer
   // Send stop command
   const char *cmd = "sensor_stop\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[50];
-  size_t n = uart_read_raw(buf, sizeof(buf), 200);
+  uart_read_raw(buf, sizeof(buf), 200);
   if (str_match(buf, "sensor stopped already")) {
     // Match successful
     return true;
@@ -378,7 +376,7 @@ bool C4001Component::sensor_stop(void) {
  * sensor_start
  * Send a start command to the device.
  */
-void C4001Component::sensor_start(void) {
+void C4001Component::sensor_start() {
   const char *cmd = "sensor_start\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
 }
@@ -387,7 +385,7 @@ void C4001Component::sensor_start(void) {
  * save_config
  * Send save_config command to persist device configuration.
  */
-void C4001Component::save_config(void) {
+void C4001Component::save_config() {
   const char *cmd = "save_config\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
 }
